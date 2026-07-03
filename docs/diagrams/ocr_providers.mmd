@@ -1,0 +1,44 @@
+graph LR
+    subgraph Caller ["App Layer"]
+        caller[Celery Task <br> run_ocr_conversion]
+    end
+    style Caller fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph Interface ["OCR Abstraction Layer"]
+        factory[OCRProviderFactory <br> factory.py]
+        interface[BaseOCRProvider <br> base.py]
+    end
+    style Interface fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph Drivers ["Concrete Drivers"]
+        docling[DoclingOCRProvider <br> docling_provider.py]
+        mistral[MistralOCRProvider <br> mistral_provider.py]
+        pypdf[PyPDFOCRProvider <br> pypdf_provider.py]
+    end
+    style Drivers fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph Backend ["Processing Backends"]
+        docling_svc[Docling Service <br> Local Docker / CPU]
+        mistral_api[(Mistral OCR API <br> Cloud Fallback)]
+        pypdf_eng[PyPDF Engine <br> In-Process]
+    end
+    style Backend fill:#f2f2f2,stroke:#777777,stroke-width:2px
+
+    caller ==>|Get Provider| factory
+    factory -.->|Implements| interface
+    interface ==> docling
+    interface ==> mistral
+    interface ==> pypdf
+
+    docling ==>|gRPC / HTTP| docling_svc
+    mistral ==>|HTTPS| mistral_api
+    pypdf ==>|Direct Call| pypdf_eng
+
+    linkStyle 0 stroke:#0055ff,stroke-width:3px;
+    linkStyle 1 stroke:#0066cc,stroke-width:2px;
+    linkStyle 2 stroke:#0066cc,stroke-width:3px;
+    linkStyle 3 stroke:#0066cc,stroke-width:3px;
+    linkStyle 4 stroke:#0066cc,stroke-width:3px;
+    linkStyle 5 stroke:#33cc33,stroke-width:3px;
+    linkStyle 6 stroke:#ff9900,stroke-width:3px;
+    linkStyle 7 stroke:#cc0000,stroke-width:3px;

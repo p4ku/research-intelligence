@@ -1,0 +1,61 @@
+graph TB
+    subgraph Users ["Users Pod"]
+        usr[Research Scientists]
+    end
+    style Users fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph Ingress ["Nginx Ingress Pod"]
+        nginx[Nginx Ingress Proxy]
+    end
+    style Ingress fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph Frontend ["Frontend Dashboard Pod"]
+        frontend[Next.js SPA / Dashboard]
+    end
+    style Frontend fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph Backend ["Backend API Pod"]
+        api[Django REST API]
+    end
+    style Backend fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph DataState ["Message Broker & Cache Pod"]
+        broker[(Redis <br> Broker & Cache)]
+    end
+    style DataState fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph Workers ["Celery Pipeline Workers Pod"]
+        beat[Celery Beat <br> Cron]
+        w1[Celery Pipeline Workers]
+    end
+    style Workers fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph Database ["Database Pod"]
+        db[(PostgreSQL <br> pgvector + App DB)]
+    end
+    style Database fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    usr ==>|HTTPS / WSS| nginx
+    nginx --> frontend
+    nginx --> api
+    frontend ==>|REST / RAG Query| api
+    api -.->|Task Push| broker
+    beat -.->|Schedules| broker
+    broker ==>|Task Pull| w1
+    w1 ==>|DB Write| db
+    api ==>|SQL / pgvector| db
+    w1 -.->|Task Status| broker
+    api -.->|Cache / Session| broker
+
+    %% Link styles for custom colored arrows
+    linkStyle 0 stroke:#0055ff,stroke-width:3px;
+    linkStyle 1 stroke:#0055ff,stroke-width:2px;
+    linkStyle 2 stroke:#0055ff,stroke-width:2px;
+    linkStyle 3 stroke:#0088cc,stroke-width:3px;
+    linkStyle 4 stroke:#8c1aff,stroke-width:2px;
+    linkStyle 5 stroke:#8c1aff,stroke-width:2px;
+    linkStyle 6 stroke:#8c1aff,stroke-width:3px;
+    linkStyle 7 stroke:#cc0000,stroke-width:3px;
+    linkStyle 8 stroke:#cc0000,stroke-width:3px;
+    linkStyle 9 stroke:#e65c00,stroke-width:2px;
+    linkStyle 10 stroke:#e65c00,stroke-width:2px;

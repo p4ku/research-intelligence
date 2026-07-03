@@ -1,0 +1,15 @@
+Django>=6.0,<7.0
+djangorestframework>=3.17.1
+celery>=5.6.3
+redis>=5.0.1
+psycopg2-binary>=2.9.9
+pgvector>=0.2.4
+pydantic>=2.6.1
+docling>=1.0.0
+sentry-sdk>=1.40.0
+requests>=2.31.0
+minio>=7.2.4
+pypdf>=4.0.0
+django-cors-headers>=4.3.1
+djangorestframework-simplejwt>=5.5.1
+

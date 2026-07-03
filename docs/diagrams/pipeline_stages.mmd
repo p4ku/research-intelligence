@@ -1,0 +1,52 @@
+graph TB
+    subgraph P1 ["Ingestion Node"]
+        scrapers[1. Scrapers / Search <br> arXiv, OpenAlex, Lens.org]
+    end
+    style P1 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph P2 ["Converter Node"]
+        ocr[2. OCR / PDF-to-MD <br> Docling / Mistral OCR]
+    end
+    style P2 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph P3 ["Evaluation Node"]
+        screening[3. Screening <br> Two-Stage Abstract & Full]
+    end
+    style P3 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph P4 ["Data Extraction Node"]
+        extraction[4. Extraction <br> Claims, Parameters & TRL]
+    end
+    style P4 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph P5 ["Intelligence Node"]
+        research_intel[5. Research Intelligence <br> Hypothesis & Insights]
+    end
+    style P5 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph KB ["Knowledge Base Pod"]
+        kb[(PostgreSQL pgvector <br> RAG + Graph)]
+    end
+    style KB fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph UI ["User Interface"]
+        user[Research Insights Dashboard]
+    end
+    style UI fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    scrapers ==>|PDF File| ocr
+    ocr ==>|Markdown Text| screening
+    screening ==>|Passed Papers| extraction
+    extraction ==>|Structured JSON| research_intel
+
+    extraction -.->|Save Claims| kb
+    research_intel ==>|Read / Write Graph| kb
+    kb ==>|Serve UI| user
+
+    linkStyle 0 stroke:#0055ff,stroke-width:3px;
+    linkStyle 1 stroke:#0055ff,stroke-width:3px;
+    linkStyle 2 stroke:#0055ff,stroke-width:3px;
+    linkStyle 3 stroke:#0055ff,stroke-width:3px;
+    linkStyle 4 stroke:#cc0000,stroke-width:2px;
+    linkStyle 5 stroke:#cc0000,stroke-width:3px;
+    linkStyle 6 stroke:#0088cc,stroke-width:3px;
