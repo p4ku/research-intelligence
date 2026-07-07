@@ -1,6 +1,5 @@
 # 📋 System Requirements Specification (SRS)
 **Document Version:** 1.0.0  
-**Author:** CTO Office  
 **Target Audience:** Engineering Leads, Architects, and Product Stakeholders  
 
 ---
