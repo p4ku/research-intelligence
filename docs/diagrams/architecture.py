@@ -6,6 +6,7 @@ from diagrams.onprem.inmemory import Redis
 from diagrams.onprem.queue import Celery
 from diagrams.onprem.network import Nginx
 from diagrams.onprem.client import Users
+from diagrams.aws.storage import S3
 
 output_dir = os.path.join(os.path.dirname(__file__), "..", "images")
 os.makedirs(output_dir, exist_ok=True)
@@ -53,6 +54,9 @@ with Diagram(
     with Cluster("Database Pod (Persistent State)", graph_attr=pod_attr):
         db = PostgreSQL("PostgreSQL + pgvector")
 
+    with Cluster("Object Storage Pod", graph_attr=pod_attr):
+        file_storage = S3("MinIO (S3 Compatible)")
+
     # Routing Paths with custom edges (color, style, label)
     users >> Edge(label="HTTPS / WSS", color="#0055ff", style="bold") >> nginx
     
@@ -71,3 +75,6 @@ with Diagram(
     
     celery_workers >> Edge(label="Task Status", color="#e65c00", style="dotted") >> task_broker
     backend_api >> Edge(label="Cache / Session", color="#e65c00", style="dotted") >> task_broker
+
+    backend_api >> Edge(label="Manage / Link", color="#00aa55", style="solid") >> file_storage
+    celery_workers >> Edge(label="Read/Write Docs", color="#00aa55", style="solid") >> file_storage

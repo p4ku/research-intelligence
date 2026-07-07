@@ -48,6 +48,11 @@ architecture_mermaid = """graph TB
     end
     style Database fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
+    subgraph Storage ["Object Storage Pod"]
+        minio[(MinIO <br> S3 Object Storage)]
+    end
+    style Storage fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
     usr ==>|HTTPS / WSS| nginx
     nginx --> frontend
     nginx --> api
@@ -59,6 +64,8 @@ architecture_mermaid = """graph TB
     api ==>|SQL / pgvector| db
     w1 -.->|Task Status| broker
     api -.->|Cache / Session| broker
+    api ==>|Manage / Link| minio
+    w1 ==>|Read / Write Docs| minio
 
     %% Link styles for custom colored arrows
     linkStyle 0 stroke:#0055ff,stroke-width:3px;
@@ -72,6 +79,8 @@ architecture_mermaid = """graph TB
     linkStyle 8 stroke:#cc0000,stroke-width:3px;
     linkStyle 9 stroke:#e65c00,stroke-width:2px;
     linkStyle 10 stroke:#e65c00,stroke-width:2px;
+    linkStyle 11 stroke:#00aa55,stroke-width:3px;
+    linkStyle 12 stroke:#00aa55,stroke-width:3px;
 """
 
 # 2. Ingestion Pipeline Stages Diagram in Mermaid with Pod styling

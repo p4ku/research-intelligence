@@ -23,6 +23,9 @@ The system is designed as a secure, tenant-isolated monorepo consisting of a mod
     *   Stores relational models (Workspaces, Users, Pipelines, Ingested Papers, Audit Trails).
     *   Utilizes the `pgvector` extension to store paper and chunk embeddings for RAG and semantic queries.
 7.  **Celery Workers**: Distributed asynchronous execution agents performing heavy compute operations like querying APIs, processing large PDFs, running LLMs, and synthesizing insights.
+8.  **MinIO / S3 Object Storage**:
+    *   Acts as the S3-compatible object storage backend.
+    *   Stores raw source files (PDFs), layout-preserving Markdown conversions, and generated formats (LaTeX, Markdown, PDFs) for document retrieval and download.
 
 ---
 
