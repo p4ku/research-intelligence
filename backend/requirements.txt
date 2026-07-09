@@ -12,4 +12,5 @@ minio>=7.2.4
 pypdf>=4.0.0
 django-cors-headers>=4.3.1
 djangorestframework-simplejwt>=5.5.1
-
+google-genai==2.11.0
+google-auth==2.55.2

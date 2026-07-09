@@ -71,6 +71,9 @@ yarn-error.log*
 .env.production.local
 *.env
 *.env.*
+.env_staging
+.env_*
+!.env_example
 
 # IDE / Editor configurations
 .idea/
@@ -85,3 +88,5 @@ yarn-error.log*
 # Docker / Logs
 *.log
 docker-compose.override.yml
+*.pdf
+
