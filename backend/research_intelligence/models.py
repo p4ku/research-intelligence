@@ -15,6 +15,8 @@ class Workspace(models.Model):
     digest_schedule = models.CharField(max_length=100, default="0 9 * * 5", help_text="Cron expression for weekly digest execution (e.g. every Friday at 9am)")
     ocr_provider = models.CharField(
         max_length=50,
+        null=True,
+        blank=True,
         default="pypdf",
         choices=[
             ("pypdf", "PyPDF (Fast Local Baseline)"),
