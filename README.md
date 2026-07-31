@@ -43,8 +43,41 @@ graph TD
 ## 🚀 2. Core Architectural Features
 
 ### 1. Autonomous Research Agent State Machine (`ResearchAgentProcess`)
-- **State Machine Engine**: Drives transitions sequentially through `initialized` $\rightarrow$ `search` $\rightarrow$ `download` $\rightarrow$ `ocr` $\rightarrow$ `screening` $\rightarrow$ `extraction` $\rightarrow$ `completed`.
-- **Parallel Runs**: Runs multiple agents concurrently per workspace or across workspaces.
+
+The state engine (`tasks/orchestrator/agent_engine.py`) coordinates transitions through state checkpoints, handling background celery job execution, lifecycle interruptions (Pause, Resume, Abort), and email summaries:
+
+```mermaid
+graph TD
+    Start([User / FastMCP Client / REST API Triggers Agent]) --> Initialized[State: initialized<br/>Creates ResearchAgentProcess & PipelineRun]
+    
+    Initialized --> SearchStep[Step 1: Search & Ingestion<br/>State: search<br/>Queries scrapers & deduplicates metadata]
+    
+    SearchStep --> DownloadStep[Step 2: PDF Download<br/>State: download<br/>Fetches PDFs to unified storage]
+    
+    DownloadStep --> OCRCheck{ocr_provider configured?}
+    
+    OCRCheck -->|Yes: pypdf / mistral| OCRStep[Step 3: OCR Conversion<br/>State: ocr<br/>Parses layout to structured Markdown]
+    OCRCheck -->|No: ocr_provider is None| SkipOCR[Auto-Skip OCR Step<br/>Direct pass-through]
+    
+    OCRStep --> AbstractScreening[Step 4A: Abstract Screening<br/>State: screening<br/>Evaluates abstract_* criteria]
+    SkipOCR --> AbstractScreening
+    
+    AbstractScreening --> FullTextScreening[Step 4B: Full-Text Screening<br/>State: screening<br/>Evaluates full_text_* criteria]
+    
+    FullTextScreening --> ExtractionStep[Step 5: Parameter Extraction<br/>State: extraction<br/>Extracts Pydantic JSON & evidence quotes]
+    
+    ExtractionStep --> Completed([State: completed<br/>Sends summary emails to workspace members])
+    
+    subgraph Controls ["Agent Process Lifecycle Controls"]
+        PauseCommand[pause_research_agent] -.->|State: paused| AgentPaused[Process Paused]
+        AgentPaused -.-> ResumeCommand[resume_research_agent]
+        ResumeCommand -.->|Resumes active step| SearchStep
+        AbortCommand[abort_research_agent] -.->|State: aborted| AgentAborted[Process Aborted & Celery Tasks Terminated]
+    end
+```
+
+- **State Machine Transitions**: Sequentially advances through `initialized` $\rightarrow$ `search` $\rightarrow$ `download` $\rightarrow$ `ocr` $\rightarrow$ `screening` $\rightarrow$ `extraction` $\rightarrow$ `completed`.
+- **Parallel Runs**: Executes multiple agents concurrently per workspace or across workspaces.
 - **On-Demand OCR Skipping**: Automatically skips Step 3 OCR if `workspace.ocr_provider` is unconfigured (`None`), passing PDF binaries or abstracts directly to screening and parameter extraction.
 - **Notification Engine**: Dispatches completion summary notifications to workspace member emails (`WorkspaceMember.user.email`), subscribers (`Subscriber.email`), and custom overrides.
 

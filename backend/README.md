@@ -41,9 +41,38 @@ backend/
 ## ⚙️ 2. The 5-Step Pipeline & Autonomous State Engine
 
 ### Autonomous Research Agent State Machine (`ResearchAgentProcess`)
+
 The engine in `tasks/orchestrator/agent_engine.py` manages execution state transitions:
 
-$$\text{initialized} \longrightarrow \text{search} \longrightarrow \text{download} \longrightarrow \text{ocr} \longrightarrow \text{screening} \longrightarrow \text{extraction} \longrightarrow \text{completed}$$
+```mermaid
+graph TD
+    Start([User / FastMCP Client / REST API Triggers Agent]) --> Initialized[State: initialized<br/>Creates ResearchAgentProcess & PipelineRun]
+    
+    Initialized --> SearchStep[Step 1: Search & Ingestion<br/>State: search<br/>Queries scrapers & deduplicates metadata]
+    
+    SearchStep --> DownloadStep[Step 2: PDF Download<br/>State: download<br/>Fetches PDFs to unified storage]
+    
+    DownloadStep --> OCRCheck{ocr_provider configured?}
+    
+    OCRCheck -->|Yes: pypdf / mistral| OCRStep[Step 3: OCR Conversion<br/>State: ocr<br/>Parses layout to structured Markdown]
+    OCRCheck -->|No: ocr_provider is None| SkipOCR[Auto-Skip OCR Step<br/>Direct pass-through]
+    
+    OCRStep --> AbstractScreening[Step 4A: Abstract Screening<br/>State: screening<br/>Evaluates abstract_* criteria]
+    SkipOCR --> AbstractScreening
+    
+    AbstractScreening --> FullTextScreening[Step 4B: Full-Text Screening<br/>State: screening<br/>Evaluates full_text_* criteria]
+    
+    FullTextScreening --> ExtractionStep[Step 5: Parameter Extraction<br/>State: extraction<br/>Extracts Pydantic JSON & evidence quotes]
+    
+    ExtractionStep --> Completed([State: completed<br/>Sends summary emails to workspace members])
+    
+    subgraph Controls ["Agent Process Lifecycle Controls"]
+        PauseCommand[pause_research_agent] -.->|State: paused| AgentPaused[Process Paused]
+        AgentPaused -.-> ResumeCommand[resume_research_agent]
+        ResumeCommand -.->|Resumes active step| SearchStep
+        AbortCommand[abort_research_agent] -.->|State: aborted| AgentAborted[Process Aborted & Celery Tasks Terminated]
+    end
+```
 
 - **Step 1: Search & Ingestion**: Queries arXiv, OpenAlex, Lens, and PubMed concurrently. Deduplicates papers by normalized Title, DOI, and arXiv ID.
 - **Step 2: PDF Download**: Multi-threaded document download to unified storage (`papers/{hash}/paper.pdf`).
