@@ -192,6 +192,14 @@ if is_testing:
     CELERY_TASK_EAGER_PROPAGATES = True
     CELERY_RESULT_BACKEND = 'cache'
     CELERY_CACHE_BACKEND = 'memory'
+    PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
+
+    class DisableMigrations:
+        def __contains__(self, item):
+            return True
+        def __getitem__(self, item):
+            return None
+    MIGRATION_MODULES = DisableMigrations()
 
 
 # Storage Abstraction for Local Filesystem, AWS S3, MinIO, and Google Cloud Storage (GCS)
