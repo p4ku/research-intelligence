@@ -26,6 +26,16 @@ User = get_user_model()
 
 class ResearchAgentProcessTest(TestCase):
     def setUp(self):
+        self.patcher = patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
+        self.mock_generate = self.patcher.start()
+        self.mock_generate.return_value = {
+            "passed": True,
+            "reasoning": "Mocked LLM generation response",
+            "evidence_quotes": ["mock quote"],
+            "decision_category": "ACCEPTED"
+        }
+        self.addCleanup(self.patcher.stop)
+
         self.user = User.objects.create_user(username="agent_user", email="agent_user@example.com", password="password123")
         self.workspace = Workspace.objects.create(
             name="Autonomous Agent Workspace",

@@ -35,6 +35,16 @@ User = get_user_model()
 @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
 class MCPServerTest(TestCase):
     def setUp(self):
+        self.patcher = patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
+        self.mock_generate = self.patcher.start()
+        self.mock_generate.return_value = {
+            "passed": True,
+            "reasoning": "Mocked LLM generation response",
+            "evidence_quotes": ["mock quote"],
+            "decision_category": "ACCEPTED"
+        }
+        self.addCleanup(self.patcher.stop)
+
         self.admin_user = User.objects.create_user(username="admin_user", email="admin@example.com", password="password123")
         self.researcher_user = User.objects.create_user(username="researcher_user", email="researcher@example.com", password="password123")
         
@@ -769,7 +779,11 @@ class MCPServerTest(TestCase):
         ]
 
         with patch.object(provider, "_get_client", return_value=mock_client):
-            res = provider.generate(prompt="Test prompt", max_retries=5)
+            self.patcher.stop()
+            try:
+                res = provider.generate(prompt="Test prompt", max_retries=5)
+            finally:
+                self.patcher.start()
             self.assertEqual(res, "Success after retry")
             self.assertEqual(mock_client.models.generate_content.call_count, 3)
             self.assertEqual(mock_sleep.call_count, 2)
