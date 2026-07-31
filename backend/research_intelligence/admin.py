@@ -639,3 +639,10 @@ class UserActivityLogAdmin(admin.ModelAdmin):
     execution_duration_fmt.short_description = "Duration"
     execution_duration_fmt.admin_order_field = "execution_time_ms"
 
+
+# Customize Admin Portal Branding Header & Titles
+admin.site.site_header = "Schwarz Research Intelligence Admin"
+admin.site.site_title = "Schwarz Research Intelligence Admin"
+admin.site.index_title = "Schwarz Research Intelligence Management Portal"
+
+
