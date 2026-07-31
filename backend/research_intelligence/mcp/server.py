@@ -87,8 +87,8 @@ from research_intelligence.mcp.tools import (
     abort_research_agent_logic,
     delete_research_agent_logic,
     test_google_llm_logic,
+    list_user_activity_logs_logic,
 )
-from .tools.activity_logs import list_user_activity_logs_logic
 
 
 def with_db_connection(func):

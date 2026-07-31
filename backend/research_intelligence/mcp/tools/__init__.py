@@ -54,6 +54,7 @@ from .agent_processes import (
     delete_research_agent_logic,
 )
 from .llm_test import test_google_llm_logic
+from .activity_logs import list_user_activity_logs_logic
 
 __all__ = [
     "list_workspaces_logic",
@@ -98,4 +99,5 @@ __all__ = [
     "abort_research_agent_logic",
     "delete_research_agent_logic",
     "test_google_llm_logic",
+    "list_user_activity_logs_logic",
 ]
