@@ -14,7 +14,16 @@ class ArxivScraperProvider(BaseScraperProvider):
     def search(self, query: str, limit: int = 10) -> list[dict]:
         # Simple query string parsing. Remove complex quotes if present.
         clean_query = query.replace('"', '').replace("'", "")
-        encoded_query = urllib.parse.quote(f'all:{clean_query}')
+        # Remove invalid prefixes like 'arxiv:' if passed in query_prefix
+        clean_query = clean_query.replace("arxiv:", "").strip()
+        
+        # If clean_query already contains field specifiers (cat:, ti:, au:, all:), do not double prefix
+        if any(clean_query.startswith(prefix) for prefix in ["cat:", "ti:", "au:", "all:", "abs:"]):
+            formatted_query = clean_query
+        else:
+            formatted_query = f'all:{clean_query}'
+            
+        encoded_query = urllib.parse.quote(formatted_query)
         url = f"http://export.arxiv.org/api/query?search_query={encoded_query}&max_results={limit}"
         
         try:

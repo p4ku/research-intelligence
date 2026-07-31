@@ -186,6 +186,12 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
 
+if is_testing:
+    CELERY_TASK_ALWAYS_EAGER = True
+    CELERY_TASK_EAGER_PROPAGATES = True
+    CELERY_RESULT_BACKEND = 'cache'
+    CELERY_CACHE_BACKEND = 'memory'
+
 
 # Storage Abstraction for Local Filesystem, AWS S3, MinIO, and Google Cloud Storage (GCS)
 STORAGE_BACKEND = os.environ.get('STORAGE_BACKEND', 'local').lower()
