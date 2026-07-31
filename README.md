@@ -1,153 +1,124 @@
-# 🧠 Research Intelligence (RI) System
+# 🧠 Schwarz Research Intelligence
 
-> **An Agentic Monorepo for Autonomous Scientific Literature & Patent Intelligence.**  
-> Powered by the **Google Agent API** (hosted on Schwarz Digits Cloud) and inspired by the **AgentSLR** pipeline.
+> **Enterprise-Grade AI Platform for Autonomous Scientific Literature Review, Deep Tech Scouting & Parameter Extraction.**  
+> Powered by **FastMCP (Model Context Protocol)**, **Django REST Framework**, and **Google GenAI / Gemini 3.5 & 3.6** (hosted on Schwarz Digits Cloud).
 
 ---
 
-## 📋 System Overview
+## 📋 1. System Overview
 
-**Research Intelligence (RI)** is an enterprise-grade agentic platform that automates systematic literature reviews (SLRs) and technology readiness assessments. It dynamically searches, ingests, deduplicates, screens, parses, and extracts structured data from multi-source databases (arXiv, OpenAlex, and Lens.org). 
+**Schwarz Research Intelligence** is an enterprise-grade platform designed for automated, AI-driven academic literature review, competitive technology scouting, and parameter extraction.
 
-In addition to linear ingestion, RI features an **Autonomous Deep Research Loop** (Hypothesis Former & Tester) that performs multi-step discovery, crawls web resources, manages long-term memory via a RAG vector database, and compiles publication-quality weekly executive briefings.
+It orchestrates a 5-step processing pipeline driven by an autonomous **Research Agent Process** state machine:
 
-```mermaid
-graph TD
-    UserQuery[User Research Goal / Query] --> SearchQuerer[Search Querer Agent]
-    SearchQuerer --> Ingestion[Stage 1: Search & Ingestion arXiv, OpenAlex, Lens.org]
-    Ingestion --> Download[Stage 2: PDF Download & Storage S3/R2/MinIO]
-    Download --> OCR[Stage 3: PDF-to-MD Converter Docling / Mistral OCR]
-    OCR --> Screening[Stage 4: Two-Stage Screening Abstract & Full-Text]
-    Screening --> Extraction[Stage 5: Schema-Constrained Extraction Parameters, Models, Outbreaks, Patents]
-    Extraction --> KnowledgeBase[(PostgreSQL pgvector + RAG + Knowledge Graph)]
-    
-    %% Deep Research Loop
-    KnowledgeBase --> DeepResearchAgent[Research Agent / Deep Research Loop]
-    DeepResearchAgent --> HypothesisFormer[Hypothesis Former/Creator]
-    HypothesisFormer --> HypothesisTester[Hypothesis Tester]
-    HypothesisTester --> WebSearch[Web Search + Fetch Agent]
-    WebSearch --> Ingestion
-    HypothesisTester --> KBQuerer[Knowledge Base Querer Agent]
-    KBQuerer --> KnowledgeBase
-    
-    KnowledgeBase --> Insights[Stage 6: Insights Generation Synthesis]
-    Insights --> Reporter[Stage 7: Reporter Dashboard & Briefing Summaries]
-    Reporter --> HumanVerification[Human-in-the-Loop Audit & Validation]
+```
+ ┌─────────────────────────────────────────────────────────────────────────────┐
+ │                           INTERFACE LAYER                                   │
+ │   ┌───────────────────────────┐           ┌─────────────────────────────┐   │
+ │   │  FastMCP SSE Server       │           │  Django REST API (DRF)      │   │
+ │   │  (Port 8001 / mcp/tools/) │           │  (Port 8000 / api/views/)   │   │
+ │   └─────────────┬─────────────┘           └──────────────┬──────────────┘   │
+ └─────────────────┼────────────────────────────────────────┼──────────────────┘
+                   │                                        │
+ ┌─────────────────▼────────────────────────────────────────▼──────────────────┐
+ │                     AUTONOMOUS STATE ENGINE & TASKS                         │
+ │  ResearchAgentProcess State Machine (tasks/orchestrator/agent_engine.py)   │
+ │   ├── Step 1: execute_workspace_search (tasks/step_1_search/search.py)      │
+ │   ├── Step 2: execute_pdf_download_job (tasks/step_2_download/fetch.py)    │
+ │   ├── Step 3: execute_ocr_job         (tasks/step_3_ocr/convert.py)        │
+ │   ├── Step 4: execute_screening_job   (tasks/step_4_screening/abstract.py)  │
+ │   │           execute_full_text_screening (step_4_screening/full_text.py)  │
+ │   └── Step 5: execute_extraction_job  (tasks/step_5_extraction/extract.py)  │
+ └─────────────────────────────────┬───────────────────────────────────────────┘
+                                   │
+ ┌─────────────────────────────────▼───────────────────────────────────────────┐
+ │                      DATA & PERSISTENCE LAYER                               │
+ │   PostgreSQL (Prod: DB_HOST=db)  │  SQLite In-Memory (Test Runner)          │
+ │   Celery + Redis Task Queue      │  Django Storage (Local/S3/GCS)           │
+ └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## 🏗️ Repository Structure
+## 🚀 2. Core Architectural Features
 
-This repository is organized as a monorepo containing the following components:
+### 1. Autonomous Research Agent State Machine (`ResearchAgentProcess`)
+- **State Machine Engine**: Drives transitions sequentially through `initialized` $\rightarrow$ `search` $\rightarrow$ `download` $\rightarrow$ `ocr` $\rightarrow$ `screening` $\rightarrow$ `extraction` $\rightarrow$ `completed`.
+- **Parallel Runs**: Runs multiple agents concurrently per workspace or across workspaces.
+- **On-Demand OCR Skipping**: Automatically skips Step 3 OCR if `workspace.ocr_provider` is unconfigured (`None`), passing PDF binaries or abstracts directly to screening and parameter extraction.
+- **Notification Engine**: Dispatches completion summary notifications to workspace member emails (`WorkspaceMember.user.email`), subscribers (`Subscriber.email`), and custom overrides.
+
+### 2. Isolated Dual-Stage Screening Criteria
+- **Abstract Screening Stage**: Evaluates paper title & abstract against `abstract_acceptance_criteria` and `abstract_rejection_criteria`.
+- **Full-Text Screening Stage**: Performs deep evaluation of OCR Markdown text or Multimodal PDF binaries against `full_text_acceptance_criteria` and `full_text_rejection_criteria`.
+
+### 3. Dynamic Parameter Extraction
+- **Schema-Validated Extraction**: Evaluates papers against `ExtractionDefinition` prompts and JSON schemas.
+- **Evidence & Confidence Scores**: Stores results in `Extraction` objects containing exact evidence quotes, normalized values, confidence scores, and validation statuses (`pass`, `warn`, `fail`).
+
+### 4. Dual Protocol Interface
+- **FastMCP SSE Interface (Port 8001)**: Exposes workspace tools, scrapers, state machine controls, and parameter extraction to LLM clients (Claude, Gemini, Cursor, Antigravity) via `@mcp.tool()` and `@mcp.prompt()`.
+- **Django REST API (Port 8000)**: Exposes `/api/workspaces/`, `/api/agents/`, `/api/extractions/`, and `/api/pipeline-runs/` endpoints for web frontends.
+
+---
+
+## 🏗️ 3. Repository Structure
 
 ```
 schwarz_research_intelligence/
-├── backend/                     # Django API + Celery Async Task Workers
-│   ├── Dockerfile               # Template container definition for backend services
-│   ├── README.md                # Backend architecture, models, tasks, and configurations
-│   ├── django_project/          # Django application configuration files
-│   └── api/                     # REST endpoints, agent logic, and databases schema
-├── frontend/                    # Next.js Dashboard & HITL Interface
-│   ├── Dockerfile               # Container definition for frontend
-│   └── README.md                # Frontend architecture, components, and views
-├── .github/                     # DevOps configuration
+├── backend/                     # Django API + Celery Async Task Workers + FastMCP
+│   ├── Dockerfile               # Production container definition
+│   ├── django_project/          # Settings & WSGI configuration
+│   ├── api/                     # DRF REST API viewsets & serializers (/api/)
+│   └── research_intelligence/   # Core intelligence platform
+│       ├── mcp/                 # FastMCP SSE Server & Tool Registry
+│       ├── tasks/               # 5-Step Pipeline & Orchestrator State Engine
+│       ├── models.py            # Workspace, ResearchAgentProcess, Extraction, Paper models
+│       └── tests/               # Automated unit & integration test suite (54+ tests)
+├── frontend/                    # Next.js User Interface
+├── .github/                     # DevOps & CI/CD Pipelines
 │   └── workflows/
-│       └── README.md            # CI/CD deployment pipelines (GitHub Actions)
-├── docs/                        # Scientific papers, diagrams, and reference guides
-│   ├── AgentSLR.pdf             # Reference Paper: Automating Systematic Reviews
-│   └── Agentic AI Research Scanner.pdf  # Design blueprints
-├── docker-compose.yml           # Unified orchestration for local development
-├── PLAN.md                      # Approved architecture blueprint
-└── README.md                    # Root entry point (This file)
+│       └── ci.yml               # GitHub Actions workflow (SQLite tests + pip & Docker caching)
+├── docker-compose.yml           # Unified local development & production stack
+├── AGENTS.md                    # Guidelines for AI agent assistants (Gemini, Claude, Cursor)
+└── README.md                    # System documentation (This file)
 ```
 
 ---
 
-## ⚡ Key Architectural Features
-
-### 1. The 8-Stage Celery Pipeline
-RI operates a modular, asynchronous processing pipeline run by distributed Celery workers:
-1. **Search & Ingestion Querer Agent**: Rewrites research questions into optimized search strings for arXiv, OpenAlex, and Lens.org.
-2. **Download & Storage**: Fetches PDFs and saves them to a workspace-isolated storage abstraction.
-3. **PDF-to-Markdown (OCR)**: Converts documents into layout-preserving Markdown via **Docling** or Mistral OCR.
-4. **Two-Stage Screening**: Runs Title/Abstract triage and Full-Text screening using **ScreenPrompt** inclusion/exclusion constraints.
-5. **Feature Extraction**: Extracts parameters, models, outbreaks, and patents into strict validation schemas.
-6. **Metrics & Importance**: Calculates research relevance, paper importance rankings (relational network PageRank, citation indexes, venue impact), and Technology Readiness Levels (TRL 1-9).
-7. **Insights Generation**: Aggregates findings and highlights contradictions across the corpus.
-8. **Reporter**: Generates markdown briefing documents via an iterative $K=5$ self-refinement critique loop.
-
-### 2. Workspace & Batch Run Isolation
-- **Logical Database Isolation**: Database tables are partitioned by `workspace_id` and execution `pipeline_run_id` (`Workspace`, `PipelineRun`, `Paper`, `AuditTrail`).
-- **S3 Directory Isolation**: Storage directories are segmented as `/workspaces/{workspace_uuid}/runs/{run_uuid}/...`.
-- **Queue Segregation**: Custom Celery routing separates quick interactive queries from resource-heavy bulk ingestion.
-
-### 3. LLM Cost & Rate Limit Control
-- **Usage Bookkeeping**: Logs input/output token counts for every pipeline step.
-- **Budget Enforcer**: Implements monthly USD limits per workspace.
-- **Wild-Loop Breakers**: Strict timeout limiters on Celery tasks and limits on $K$-loop iterations.
-- **Redis Rate Limiter**: Controls concurrency to ensure compliance with Schwarz Digits Google Agent API rate limits.
-
-### 4. Dynamic Prompt Management (AgentSLR-based)
-- All prompts are configured **per-workspace** in the database rather than hardcoded. The system loads inclusion/exclusion criteria, feature schemas, and summary templates dynamically for each project.
-
-### 5. Audit Ledger & Human-in-the-loop (HITL)
-- **Lineage Tracking**: A central `AuditTrail` table tracks the inputs, outputs, prompts, tokens, and decisions of every agent transaction.
-- **HITL Dashboard**: Next.js dashboard enables human researchers to approve, reject, or edit model extractions, feeding corrections back into the evaluation loop.
-
----
-
-## 🛠️ Technology Stack
+## 🛠️ 4. Technology Stack
 
 | Component | Technology | Description |
 | :--- | :--- | :--- |
-| **Backend API** | Python, Django, DRF | Core models, database management, API endpoints. |
-| **Task Queue** | Celery, Redis | Distributes the execution of pipelines and research loops. |
-| **Database** | PostgreSQL + `pgvector` | Persistent storage, audit logs, and embedding storage for RAG. |
-| **Storage Layer** | S3 / Cloudflare R2 / MinIO | Abstraction client for PDF and Markdown files. |
-| **LLM Infrastructure** | Google Agent API | Enterprise reasoning models provided by Schwarz Digits. |
-| **OCR Service** | Docling / Mistral OCR | High-fidelity document parsing container. |
-| **Frontend** | Next.js, React, Tailwind CSS | Dashboard, research dashboard, HITL view. |
-| **Deployment** | Docker & Compose | Multi-container setup for local development and cloud hosting. |
-| **Monitoring** | Sentry | Performance monitoring and error tracking. |
+| **Backend Framework** | Python 3.12+, Django 6.0, DRF | Core models, database management, and REST API. |
+| **MCP SSE Server** | FastMCP | Model Context Protocol SSE server on port 8001. |
+| **Task Queue** | Celery, Redis | Distributed async pipeline execution and background state engine polling. |
+| **Database Layer** | PostgreSQL (Prod) / SQLite (Tests) | Persistent storage, audit logs, and in-memory test runner. |
+| **Storage Layer** | Django `default_storage` | Local filesystem / AWS S3 / MinIO storage abstraction. |
+| **LLM Engine** | Google GenAI / Gemini 3.5 & 3.6 Flash/Pro | Enterprise AI provider hosted on Schwarz Digits Cloud. |
+| **OCR Providers** | PyPDF / Mistral OCR API | Document layout parsing. |
+| **CI/CD** | GitHub Actions | Automated build, test, and container layer caching. |
 
 ---
 
-## 🚀 Quick Start for Developers & Agents
+## ⚡ 5. Quick Start for Developers
 
-### Prerequisites
-- Docker & Docker Compose
-- Google Agent API Credentials (from Schwarz Digits console)
+### Run Locally with Docker Compose
+```bash
+# 1. Clone repository and set up environment variables
+cp .env.example .env
 
-### Run Locally
-To run the full stack locally (including MinIO as local S3 and Redis as task broker):
+# 2. Build and start containers
+docker compose up --build
 
-1. **Clone the repository and set environment variables:**
-   ```bash
-   cp .env.example .env
-   # Edit .env with your credentials and storage settings
-   ```
+# 3. Access interfaces:
+# - Django REST API: http://localhost:8000/api/
+# - FastMCP SSE Endpoint: http://localhost:8001/mcp/tools/
+# - Django Admin: http://localhost:8000/admin/
+```
 
-2. **Start the containers:**
-   ```bash
-   docker compose up --build
-   ```
-
-3. **Access the services:**
-   - **Frontend Panel**: `http://localhost:3000`
-   - **Django API Dashboard**: `http://localhost:8000/admin`
-   - **MinIO Console**: `http://localhost:9001`
-   - **Sentry Local Webhook**: `http://localhost:9000`
-
----
-
-## 🤖 LLM Navigation Guide (for Gemini)
-
-- **Settings & Configs**: Backend configurations are in `backend/django_project/settings.py`.
-- **Database Models**: Key database structures for workspaces, runs, papers, and audits are in `backend/research_intelligence/models.py`.
-- **Celery Tasks**: Pipeline worker code resides in step subfolders within `backend/research_intelligence/tasks/`, coordinated by the task runner in `backend/research_intelligence/tasks/orchestrator/`.
-- **API Endpoints**: DRF views are partitioned in specific endpoint files inside `backend/api/views/`.
-- **Unit & Integration Tests**: Test files for database models, endpoints, and pipeline task steps reside in `backend/research_intelligence/tests/`.
-- **Prompt Injection**: LLM prompts are generated dynamically inside `backend/research_intelligence/prompts.py` by fetching criteria from the `Workspace` model.
-- **LLM Providers**: Pluggable drivers for model execution (Schwarz Digits Google Agent API & OpenRouter fallbacks) are under `backend/research_intelligence/llm_providers/`.
-- **Frontend State**: UI views and RAG chat panel states are in `frontend/src/`.
+### Run Unit Tests Locally
+Tests automatically run on an in-memory SQLite database:
+```bash
+.venv/bin/python backend/manage.py test research_intelligence.tests
+```
