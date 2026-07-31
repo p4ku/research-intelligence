@@ -11,31 +11,31 @@
 
 It orchestrates a 5-step processing pipeline driven by an autonomous **Research Agent Process** state machine:
 
-```
- ┌─────────────────────────────────────────────────────────────────────────────┐
- │                           INTERFACE LAYER                                   │
- │   ┌───────────────────────────┐           ┌─────────────────────────────┐   │
- │   │  FastMCP SSE Server       │           │  Django REST API (DRF)      │   │
- │   │  (Port 8001 / mcp/tools/) │           │  (Port 8000 / api/views/)   │   │
- │   └─────────────┬─────────────┘           └──────────────┬──────────────┘   │
- └─────────────────┼────────────────────────────────────────┼──────────────────┘
-                   │                                        │
- ┌─────────────────▼────────────────────────────────────────▼──────────────────┐
- │                     AUTONOMOUS STATE ENGINE & TASKS                         │
- │  ResearchAgentProcess State Machine (tasks/orchestrator/agent_engine.py)   │
- │   ├── Step 1: execute_workspace_search (tasks/step_1_search/search.py)      │
- │   ├── Step 2: execute_pdf_download_job (tasks/step_2_download/fetch.py)    │
- │   ├── Step 3: execute_ocr_job         (tasks/step_3_ocr/convert.py)        │
- │   ├── Step 4: execute_screening_job   (tasks/step_4_screening/abstract.py)  │
- │   │           execute_full_text_screening (step_4_screening/full_text.py)  │
- │   └── Step 5: execute_extraction_job  (tasks/step_5_extraction/extract.py)  │
- └─────────────────────────────────┬───────────────────────────────────────────┘
-                                   │
- ┌─────────────────────────────────▼───────────────────────────────────────────┐
- │                      DATA & PERSISTENCE LAYER                               │
- │   PostgreSQL (Prod: DB_HOST=db)  │  SQLite In-Memory (Test Runner)          │
- │   Celery + Redis Task Queue      │  Django Storage (Local/S3/GCS)           │
- └─────────────────────────────────────────────────────────────────────────────┘
+```mermaid
+graph TD
+    UserQuery[User Request / Client Trigger] --> InterfaceLayer{Interface Layer}
+    InterfaceLayer -->|FastMCP SSE Port 8001| FastMCP[FastMCP Server]
+    InterfaceLayer -->|REST API Port 8000| DRF[Django REST API]
+    
+    FastMCP --> AgentEngine[ResearchAgentProcess State Machine Engine]
+    DRF --> AgentEngine
+    
+    subgraph PipelineExecution ["5-Step Processing Pipeline"]
+        AgentEngine --> Step1[Step 1: Search & Ingestion<br/>arXiv, OpenAlex, Lens, PubMed]
+        Step1 --> Step2[Step 2: Multi-Threaded Download<br/>papers/hash/paper.pdf]
+        Step2 --> Step3{Step 3: OCR Conversion}
+        Step3 -->|ocr_provider set| PyPDF_Mistral[PyPDF / Mistral OCR -> Markdown]
+        Step3 -->|ocr_provider is None| SkipOCR[Auto-Skip OCR Step]
+        PyPDF_Mistral --> Step4
+        SkipOCR --> Step4
+        Step4[Step 4: Two-Stage Screening] --> Stage4A[Abstract Screening<br/>abstract_* criteria]
+        Stage4A --> Stage4B[Full-Text Screening<br/>full_text_* criteria]
+        Stage4B --> Step5[Step 5: Dynamic Parameter Extraction<br/>Pydantic JSON & Evidence Quotes]
+    end
+    
+    Step5 --> DB[(PostgreSQL Prod / SQLite Test)]
+    Step5 --> Storage[(Django Storage / S3 / MinIO)]
+    Step5 --> EmailNotifier[Completion Email Notifier]
 ```
 
 ---
