@@ -199,9 +199,9 @@ def quickstart_scraping_workflow(
     search_topic: str = "Small LLM models on mobile",
     time_restriction: str = "last month"
 ) -> str:
-    """Prompt template guiding AI clients through Use Case 1: Workspace creation, Scraper setup, Job execution, and Status monitoring."""
+    """Prompt template guiding AI clients through Workspace creation, Scraper setup, Job execution, and Status monitoring."""
     return f"""
-You are an AI research assistant executing Use Case 1 on the Schwarz Research Intelligence MCP Server.
+You are an AI research assistant executing a systematic review on the Schwarz Research Intelligence MCP Server.
 
 Target Parameters:
 - Workspace Name: {workspace_name}
@@ -211,18 +211,63 @@ Target Parameters:
 Follow this exact step-by-step tool execution protocol:
 
 1. WORKSPACE CREATION:
-   Call `create_workspace(name="{workspace_name}", acceptance_criteria="Target papers on {search_topic}")`.
+   Call `create_workspace(
+       name="{workspace_name}",
+       abstract_acceptance_criteria="Target papers on {search_topic}",
+       abstract_rejection_criteria="Out of domain or irrelevant topics",
+       full_text_acceptance_criteria="Focus on architecture benchmarks and low-bit quantization for mobile",
+       full_text_rejection_criteria="Pure hardware ASIC design without software LLM evaluation"
+   )`.
    (Note: The authenticated MCP user is automatically assigned as Workspace Admin).
 
 2. SCRAPER CONFIGURATION:
    Call `create_scraper(workspace_id="<WORKSPACE_ID>", provider="arxiv", search_query='cat:cs.AI AND "small llm" AND "mobile"')`.
 
-3. TRIGGER PIPELINE RUN (STEP 1: SEARCH & INGESTION):
-   Call `trigger_search_job(workspace_id="<WORKSPACE_ID>", limit=50)`.
+3. TRIGGER AUTONOMOUS RESEARCH AGENT:
+   Call `start_research_agent(workspace_id="<WORKSPACE_ID>", limit=50, date_range_days=30)`.
 
-4. MONITOR PIPELINE RUN STATUS:
-   Call `get_pipeline_run_status(pipeline_run_id="<PIPELINE_RUN_ID>")`.
-   Report back the pipeline status, active step, fetched paper counts, and raw storage paths.
+4. MONITOR AGENT PROCESS STATUS:
+   Call `get_research_agent_status(process_id="<PROCESS_ID>")`.
+   Report back the process status, active pipeline step, step history audit trail, and paper metrics.
+"""
+
+
+@mcp.prompt()
+def autonomous_research_agent_workflow(
+    workspace_id: str,
+    limit: int = 50,
+    date_range_days: int = 30,
+    notification_email: str = None
+) -> str:
+    """Prompt template guiding AI clients through starting, monitoring, and managing an autonomous Research Agent process."""
+    return f"""
+You are an AI research assistant managing an autonomous Research Agent Process on the Schwarz Research Intelligence platform.
+
+Target Execution Parameters:
+- Workspace ID: {workspace_id}
+- Paper Fetch Limit: {limit}
+- Date Window (Days): {date_range_days}
+- Notification Email: {notification_email or 'Workspace members and subscribers'}
+
+Execution Protocol:
+1. START AGENT PROCESS:
+   Call `start_research_agent(
+       workspace_id="{workspace_id}",
+       limit={limit},
+       date_range_days={date_range_days},
+       notification_email={f'"{notification_email}"' if notification_email else 'None'}
+   )`.
+
+2. MONITOR STATE ENGINE TRANSITIONS:
+   Periodically check progress by calling `get_research_agent_status(process_id="<PROCESS_ID>")`.
+   The state machine automatically advances through:
+   `initialized` -> `search` -> `download` -> `ocr` (skipped if ocr_provider is None) -> `screening` -> `extraction` -> `completed`.
+
+3. LIFECYCLE CONTROLS (IF NEEDED):
+   - To pause: Call `pause_research_agent(process_id="<PROCESS_ID>")`.
+   - To resume: Call `resume_research_agent(process_id="<PROCESS_ID>")`.
+   - To abort: Call `abort_research_agent(process_id="<PROCESS_ID>")`.
+   - To clean up: Call `delete_research_agent(process_id="<PROCESS_ID>")`.
 """
 
 
@@ -236,7 +281,7 @@ Inspect the execution state of PipelineRun '{pipeline_run_id}':
 2. Evaluate:
    - Overall Pipeline Status ('pending', 'running', 'completed', 'failed', 'aborted').
    - Active Component Step ('search', 'download', 'ocr', 'screening', 'extraction', 'reporting').
-   - Number of papers fetched and created.
+   - Number of papers fetched, downloaded, screened, and extracted.
    - Raw data storage path in Django default_storage.
 3. For specific component step details, call `get_component_run_status(component_run_id="<COMPONENT_RUN_ID>")`.
 """
@@ -264,7 +309,7 @@ def list_workspaces() -> str:
 @with_db_connection
 def get_workspace(workspace_id: str) -> str:
     """
-    Retrieve full configuration details, component configurations (Scrapers, OCR, LLM Models, Prompt Templates, Extraction Definitions), and member roster for a workspace.
+    Retrieve full configuration details, component configurations (Scrapers, OCR Engine, LLM Models, Prompt Templates, Extraction Definitions), and member roster for a workspace.
     
     GUIDELINE: Render the workspace component configurations as a structured hierarchical tree (using `├──` and `└──`), explicitly listing "Scraper Configurations", "OCR Engine", "Screening LLM Model", "Extraction Definitions", and "Prompt Templates". All output must be in English.
     
@@ -295,8 +340,15 @@ def create_workspace(
     cost_limit_usd: float = 100.00
 ) -> str:
     """
-    Create a new isolated workspace for systematic literature reviews and intelligence projects.
+    Create a new isolated workspace project for systematic literature reviews and competitive intelligence.
     AUTOMATICALLY ASSIGNS THE AUTHENTICATED MCP USER AS WORKSPACE ADMIN.
+
+    Criteria Parameters:
+    - abstract_acceptance_criteria: Specific inclusion criteria prompt evaluated during Step 4 Abstract Screening.
+    - abstract_rejection_criteria: Specific exclusion criteria prompt evaluated during Step 4 Abstract Screening.
+    - full_text_acceptance_criteria: Specific inclusion criteria prompt evaluated during Step 4 Full-Text Screening.
+    - full_text_rejection_criteria: Specific exclusion criteria prompt evaluated during Step 4 Full-Text Screening.
+    - ocr_provider: Set to 'pypdf' (fast local PyPDF baseline) or 'mistral' (Mistral OCR API). Set to None/empty to automatically skip Step 3 OCR and pass PDF/abstract directly to screening and parameter extraction.
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -335,7 +387,16 @@ def update_workspace(
     monthly_token_limit: int = None,
     cost_limit_usd: float = None
 ) -> str:
-    """Update workspace parameters (requires Admin or Manager role)."""
+    """
+    Update configuration settings of an existing workspace (requires Admin or Manager role).
+
+    Criteria Parameters:
+    - abstract_acceptance_criteria: Update inclusion criteria evaluated during Step 4 Abstract Screening.
+    - abstract_rejection_criteria: Update exclusion criteria evaluated during Step 4 Abstract Screening.
+    - full_text_acceptance_criteria: Update inclusion criteria evaluated during Step 4 Full-Text Screening.
+    - full_text_rejection_criteria: Update exclusion criteria evaluated during Step 4 Full-Text Screening.
+    - ocr_provider: Set to 'pypdf', 'mistral', or None to disable OCR step.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:write")
