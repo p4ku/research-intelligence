@@ -12,7 +12,7 @@ dotenv.load_dotenv()
 
 PROJECT_ID = "sit-disruption-t-wkzt-run-4sbq"
 LOCATION = "eu"  # or "global"
-MODEL = "gemini-3.5-flash"
+MODEL = "gemini-3.6-flash"
 
 # Resolve paths dynamically relative to script location so it runs from anywhere
 SCRIPT_DIR = Path(__file__).resolve().parent

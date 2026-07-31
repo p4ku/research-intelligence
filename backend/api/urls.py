@@ -6,6 +6,7 @@ from .views.extractions import ExtractionViewSet
 from .views.hitl import HITLViewSet
 from .views.chat import ChatViewSet
 from .views.reports import ReportViewSet
+from .views.agents import ResearchAgentViewSet
 from .views.auth import LoginView, TokenRefreshView
 
 router = DefaultRouter()
@@ -15,6 +16,7 @@ router.register(r'extractions', ExtractionViewSet, basename='extraction')
 router.register(r'hitl', HITLViewSet, basename='hitl')
 router.register(r'chat', ChatViewSet, basename='chat')
 router.register(r'reports', ReportViewSet, basename='report')
+router.register(r'agents', ResearchAgentViewSet, basename='agent')
 
 urlpatterns = [
     path('auth/login/', LoginView.as_view(), name='login'),

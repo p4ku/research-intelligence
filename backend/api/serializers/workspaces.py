@@ -27,8 +27,10 @@ class WorkspaceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Workspace
         fields = [
-            'id', 'name', 'scrapers', 'acceptance_criteria',
-            'rejection_criteria', 'extraction_definitions', 'ocr_provider',
+            'id', 'name', 'scrapers',
+            'abstract_acceptance_criteria', 'abstract_rejection_criteria',
+            'full_text_acceptance_criteria', 'full_text_rejection_criteria',
+            'extraction_definitions', 'ocr_provider',
             'screening_llm_model', 'llm_provider', 'digest_schedule',
             'monthly_token_limit', 'tokens_consumed_this_month',
             'monthly_usd_limit', 'usd_spent_this_month', 'subscribers',

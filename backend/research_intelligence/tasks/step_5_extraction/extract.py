@@ -1,136 +1,377 @@
-import logging
+import os
 import time
+import json
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from celery import shared_task, group
+from django.db import connection, close_old_connections
 from django.utils import timezone
 from django.core.files.storage import default_storage
-from ...models import Workspace, Paper, Extraction, ExtractionDefinition, AuditTrail
+from ...models import Workspace, Paper, Extraction, ExtractionDefinition, ComponentRun, PipelineRun
 from ...llm_providers import get_llm_provider
-from .engine import ExtractionEngine
 
 logger = logging.getLogger(__name__)
 
-@shared_task
-def run_extraction_for_definition(paper_id, definition_id):
-    """
-    Idempotent worker task that runs the advanced ExtractionEngine for a single definition.
-    Supports retries, self-consistency loops, and provenance evidence tracking.
-    """
-    start_time = time.time()
-    
-    try:
-        paper = Paper.objects.get(pk=paper_id)
-        definition = ExtractionDefinition.objects.get(pk=definition_id)
-        workspace = paper.workspace
-    except (Paper.DoesNotExist, ExtractionDefinition.DoesNotExist) as e:
-        logger.error(f"Missing entities: {str(e)}")
-        return False
 
-    # 1. Idempotency Check (prevent duplicates if version hasn't changed)
-    existing_extraction = Extraction.objects.filter(
-        paper=paper,
-        extraction_definition=definition,
-        version_info__version=definition.version
-    ).first()
-    
-    if existing_extraction:
-        logger.info(f"Extraction already exists for Paper {paper_id} and Definition {definition_id} (v{definition.version}). Skipping.")
-        return True
+def _run_single_extraction_worker(paper, definition, workspace):
+    close_old_connections()
+    t0 = time.time()
 
-    logger.info(f"Starting extraction for Paper {paper_id} using Definition {definition.name}")
+    # 1. Retrieve layout markdown text or PDF or abstract fallback
+    paper_text = None
+    input_source = "abstract_fallback"
 
-    # 2. Retrieve layout markdown text
     if paper.converted_md_path and default_storage.exists(paper.converted_md_path):
-        with default_storage.open(paper.converted_md_path, 'rb') as f:
-            raw_content = f.read()
-        paper_text = raw_content.decode("utf-8") if isinstance(raw_content, bytes) else str(raw_content)
-    else:
-        paper_text = paper.abstract  # Fallback to abstract if OCR isn't completed
+        try:
+            with default_storage.open(paper.converted_md_path, 'rb') as f:
+                raw_content = f.read()
+            paper_text = raw_content.decode("utf-8", errors="replace") if isinstance(raw_content, bytes) else str(raw_content)
+            input_source = "markdown_ocr"
+        except Exception as e:
+            logger.warning(f"Error reading MD for paper {paper.id}: {e}")
 
-    # 3. Instantiate LLM Provider and Advanced Engine
+    if not paper_text:
+        paper_text = paper.abstract or paper.title
+
     llm_provider = get_llm_provider(workspace.llm_provider)
-    engine = ExtractionEngine(llm_provider=llm_provider, max_retries=3)
+    user_prompt = definition.user_prompt_template.format(paper_text=paper_text[:120000])
 
-    user_prompt = definition.user_prompt_template.format(paper_text=paper_text)
-
-    # 4. Execute Advanced Extraction
-    extraction_response, method = engine.execute(
-        paper_text=paper_text,
-        definition_system_prompt=definition.system_prompt,
-        user_prompt=user_prompt,
-        response_schema=definition.response_schema,
-        requires_consensus=definition.requires_consensus
+    system_prompt = (
+        f"{definition.system_prompt}\n\n"
+        "CRITICAL INSTRUCTIONS:\n"
+        "- Extract all target parameters accurately from the provided paper text.\n"
+        "- Return a schema-validated JSON object containing the exact fields requested in the response schema."
     )
 
-    if not extraction_response:
-        logger.error(f"Engine completely failed to extract valid data for Paper {paper_id} and Definition {definition.name}")
-        return False
-
-    fields_dict = extraction_response.model_dump()["fields"]
-    
-    # 5. Compute global confidence and validation status
-    confidences = [f.get("confidence", 0.0) for f in fields_dict.values()]
-    avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
-    
-    review_required = False
-    validation_status = "pass"
-    
-    if avg_confidence < 0.65:
-        review_required = True
-        validation_status = "warn"
-        
-    for field_data in fields_dict.values():
-        if not field_data.get("evidence"):
-            validation_status = "warn"
-            review_required = True
-
-    # 6. Store Extraction Result
-    version_info = {
-        "version": definition.version,
-        "llm_model": definition.llm_model,
-        "provider": workspace.llm_provider
+    # Use definition.response_schema if defined
+    schema_to_use = definition.response_schema if (definition.response_schema and isinstance(definition.response_schema, dict)) else {
+        "type": "object",
+        "properties": {
+            "result": {"type": "string"}
+        }
     }
 
-    Extraction.objects.create(
-        workspace=workspace,
-        paper=paper,
-        extraction_definition=definition,
-        category=definition.name,
-        fields_data=fields_dict,
-        version_info=version_info,
-        validation_status=validation_status,
-        review_required=review_required,
-        confidence_score=avg_confidence,
-        confidence_method=method
-    )
+    max_attempts = 3
+    last_error = None
 
-    logger.info(f"Successfully extracted {definition.name} for Paper {paper_id} in {time.time() - start_time:.2f}s")
-    return True
+    for attempt in range(1, max_attempts + 1):
+        try:
+            gen_res = llm_provider.generate(
+                prompt=user_prompt,
+                system_instruction=system_prompt,
+                response_schema=schema_to_use,
+                model=definition.llm_model,
+                return_usage=True
+            )
+
+            if isinstance(gen_res, tuple) and len(gen_res) == 2:
+                response_data, raw_usage = gen_res
+            else:
+                response_data, raw_usage = gen_res, {}
+
+            p_tok = raw_usage.get("prompt_tokens", 0) or 0
+            c_tok = raw_usage.get("candidates_tokens", 0) or 0
+            t_tok = raw_usage.get("total_tokens", 0) or (p_tok + c_tok)
+
+            usage = {"tokens_in": p_tok, "tokens_out": c_tok, "total_tokens": t_tok}
+
+            fields_dict = {}
+            if isinstance(response_data, dict):
+                if "fields" in response_data and isinstance(response_data["fields"], dict):
+                    fields_dict = response_data["fields"]
+                else:
+                    fields_dict = response_data
+
+            # Compute confidence and validation status
+            avg_confidence = 0.9
+            if isinstance(fields_dict, dict) and fields_dict:
+                if "confidence_score" in fields_dict and isinstance(fields_dict["confidence_score"], (int, float)):
+                    avg_confidence = float(fields_dict["confidence_score"])
+                else:
+                    conf_list = [
+                        float(v["confidence"]) for v in fields_dict.values()
+                        if isinstance(v, dict) and "confidence" in v and isinstance(v["confidence"], (int, float))
+                    ]
+                    if conf_list:
+                        avg_confidence = sum(conf_list) / len(conf_list)
+
+            review_required = False
+            validation_status = "pass"
+
+            if avg_confidence < 0.65:
+                review_required = True
+                validation_status = "warn"
+
+            version_info = {
+                "version": definition.version,
+                "llm_model": definition.llm_model,
+                "provider": workspace.llm_provider
+            }
+
+            # Save or update Extraction model
+            extraction, created = Extraction.objects.update_or_create(
+                paper=paper,
+                extraction_definition=definition,
+                defaults={
+                    "workspace": workspace,
+                    "category": definition.name,
+                    "fields_data": fields_dict if isinstance(fields_dict, dict) else {},
+                    "version_info": version_info,
+                    "validation_status": validation_status,
+                    "review_required": review_required,
+                    "confidence_score": avg_confidence,
+                    "confidence_method": "single_pass"
+                }
+            )
+
+            duration_sec = round(time.time() - t0, 3)
+
+            return {
+                "success": True,
+                "paper_id": str(paper.id),
+                "paper_title": paper.title,
+                "definition_id": str(definition.id),
+                "definition_name": definition.name,
+                "input_source": input_source,
+                "validation_status": validation_status,
+                "confidence_score": avg_confidence,
+                "duration_seconds": duration_sec,
+                "usage": usage,
+                "extracted_fields_count": len(fields_dict) if isinstance(fields_dict, dict) else 0
+            }
+        except Exception as e:
+            last_error = e
+            if attempt < max_attempts:
+                delay = (2 ** attempt) + (0.1 * attempt)
+                logger.warning(f"⚠️ [EXTRACTION RETRY {attempt}/{max_attempts}] Paper '{paper.id}' with def '{definition.name}' failed: {e}. Retrying in {delay:.1f}s...")
+                time.sleep(delay)
+            else:
+                duration_sec = round(time.time() - t0, 3)
+                logger.exception(f"Error executing extraction for paper {paper.id} with definition {definition.name} after {max_attempts} attempts: {e}")
+                return {
+                    "success": False,
+                    "error": str(e),
+                    "paper_id": str(paper.id),
+                    "definition_id": str(definition.id),
+                    "definition_name": definition.name,
+                    "duration_seconds": duration_sec,
+                    "usage": {"tokens_in": 0, "tokens_out": 0, "total_tokens": 0}
+                }
 
 
-@shared_task
-def extract_custom_variables(paper_id, workspace_id):
+@shared_task(bind=True)
+def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_workers: int = 8):
     """
-    Orchestrator task that triggers parallel advanced extractions via Celery group.
+    Celery worker task executing Step 5 (Parameter & Claim Extraction) for papers in a ComponentRun job.
+    Executes extractions for all active ExtractionDefinitions in parallel using a ThreadPoolExecutor.
     """
     try:
-        workspace = Workspace.objects.get(pk=workspace_id)
-    except Workspace.DoesNotExist as e:
-        logger.error(f"Failed to find workspace {workspace_id}: {str(e)}")
+        component_run = ComponentRun.objects.select_related('pipeline_run', 'pipeline_run__workspace').get(pk=component_run_id)
+    except ComponentRun.DoesNotExist:
+        logger.error(f"ComponentRun '{component_run_id}' not found.")
         return False
 
-    active_definitions = workspace.extraction_definitions.filter(is_active=True)
-    if not active_definitions.exists():
-        logger.warning(f"No active extraction definitions found for workspace {workspace_id}")
+    pipeline_run = component_run.pipeline_run
+    workspace = pipeline_run.workspace
+
+    component_run.status = 'running'
+    component_run.celery_task_id = getattr(self.request, 'id', None)
+    component_run.started_at = timezone.now()
+    component_run.save(update_fields=['status', 'celery_task_id', 'started_at'])
+
+    job_t0 = time.time()
+    worker_concurrency = int(os.environ.get("EXTRACTION_PARALLEL_WORKERS", max_workers))
+
+    if connection.vendor == 'sqlite':
+        worker_concurrency = 1
+
+    try:
+        active_definitions = list(ExtractionDefinition.objects.filter(workspace=workspace, is_active=True))
+        if not active_definitions:
+            logger.warning(f"⚠️ No active extraction definitions found for workspace '{workspace.name}'.")
+            component_run.metrics = {
+                "total_papers": 0,
+                "total_definitions": 0,
+                "extractions_created": 0,
+                "total_tokens": 0,
+                "total_duration_seconds": 0.0
+            }
+            component_run.output_data = {
+                "summary": "No active extraction definitions found for workspace.",
+                "extractions": []
+            }
+            component_run.status = 'completed'
+            component_run.completed_at = timezone.now()
+            component_run.save(update_fields=['metrics', 'output_data', 'status', 'completed_at'])
+            return True
+
+        # Target paper selection: preference for full_text_passed -> abstract_passed -> non-withdrawn
+        papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='full_text_passed')
+        if not papers_qs.exists():
+            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='abstract_passed')
+        if not papers_qs.exists():
+            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).exclude(screening_status='withdrawn')
+
+        papers = list(papers_qs[:limit])
+
+        # Prepare (paper, definition) work items
+        work_items = [(paper, definition) for paper in papers for definition in active_definitions]
+        logger.info(f"🚀 [PARALLEL EXTRACTION START] Running {len(work_items)} extractions ({len(papers)} papers x {len(active_definitions)} definitions) with {worker_concurrency} threads...")
+
+        succeeded_count = 0
+        failed_count = 0
+        total_prompt_tokens = 0
+        total_candidates_tokens = 0
+        total_tokens = 0
+        extractions_summary = []
+
+        def _record_result(res):
+            nonlocal succeeded_count, failed_count
+            nonlocal total_prompt_tokens, total_candidates_tokens, total_tokens
+
+            if res.get("success"):
+                succeeded_count += 1
+                usage = res.get("usage", {})
+                duration_sec = res.get("duration_seconds", 0.0)
+                p_tok = usage.get("tokens_in", 0)
+                c_tok = usage.get("tokens_out", 0)
+                t_tok = usage.get("total_tokens", 0) or (p_tok + c_tok)
+
+                total_prompt_tokens += p_tok
+                total_candidates_tokens += c_tok
+                total_tokens += t_tok
+
+                extractions_summary.append({
+                    "paper_id": res.get("paper_id"),
+                    "paper_title": res.get("paper_title"),
+                    "definition_id": res.get("definition_id"),
+                    "definition_name": res.get("definition_name"),
+                    "validation_status": res.get("validation_status"),
+                    "confidence_score": res.get("confidence_score"),
+                    "duration_seconds": duration_sec,
+                    "tokens": {
+                        "tokens_in": p_tok,
+                        "tokens_out": c_tok,
+                        "total_tokens": t_tok
+                    },
+                    "fields_extracted": res.get("extracted_fields_count", 0)
+                })
+                logger.info(f"✅ [EXTRACTION COMPLETED] Paper '{res.get('paper_title')[:40]}...' | Definition '{res.get('definition_name')}' | Time: {duration_sec}s | Tokens: {t_tok}")
+            else:
+                failed_count += 1
+                logger.warning(f"⚠️ [EXTRACTION FAILED] Paper ID {res.get('paper_id')} | Def '{res.get('definition_name')}': {res.get('error')}")
+
+        if worker_concurrency <= 1:
+            for paper, definition in work_items:
+                res = _run_single_extraction_worker(paper, definition, workspace)
+                _record_result(res)
+        else:
+            with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
+                future_to_item = {
+                    executor.submit(_run_single_extraction_worker, paper, definition, workspace): (paper, definition)
+                    for paper, definition in work_items
+                }
+                for future in as_completed(future_to_item):
+                    paper, definition = future_to_item[future]
+                    try:
+                        res = future.result()
+                    except Exception as fe:
+                        logger.error(f"Thread execution error for paper '{paper.id}' with def '{definition.name}': {fe}")
+                        res = {
+                            "success": False,
+                            "error": str(fe),
+                            "paper_id": str(paper.id),
+                            "definition_id": str(definition.id),
+                            "definition_name": definition.name,
+                            "duration_seconds": 0.0,
+                            "usage": {}
+                        }
+                    _record_result(res)
+
+        job_duration_sec = round(time.time() - job_t0, 3)
+        avg_duration_sec = round(job_duration_sec / len(work_items), 3) if work_items else 0.0
+
+        component_run.metrics = {
+            "model_used": workspace.screening_llm_model,
+            "parallel_workers": worker_concurrency,
+            "total_papers": len(papers),
+            "total_definitions": len(active_definitions),
+            "total_extractions_attempted": len(work_items),
+            "extractions_created": succeeded_count,
+            "failed": failed_count,
+            "tokens_in": total_prompt_tokens,
+            "tokens_out": total_candidates_tokens,
+            "total_tokens": total_tokens,
+            "total_duration_seconds": job_duration_sec,
+            "avg_duration_per_extraction_seconds": avg_duration_sec
+        }
+        component_run.output_data = {
+            "summary": f"Extracted data for {len(papers)} papers across {len(active_definitions)} active definitions in {job_duration_sec}s ({worker_concurrency}x parallel): {succeeded_count} succeeded, {failed_count} failed.",
+            "total_tokens_consumed": total_tokens,
+            "total_duration_seconds": job_duration_sec,
+            "extractions": extractions_summary
+        }
+        component_run.status = 'completed'
+        component_run.completed_at = timezone.now()
+        component_run.save(update_fields=['metrics', 'output_data', 'status', 'completed_at'])
+
+        pipeline_run.tokens_consumed = (pipeline_run.tokens_consumed or 0) + total_tokens
+        pipeline_run.save(update_fields=['tokens_consumed'])
+
+        logger.info(f"📊 [STEP 5 EXTRACTION JOB COMPLETED] Total Extractions: {succeeded_count} | Time: {job_duration_sec}s | Tokens: {total_tokens}")
+
+        pipeline_run.refresh_from_db()
+        pending_or_running = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status__in=['pending', 'running']).exists()
+        has_failed = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status='failed').exists()
+        has_aborted = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status='aborted').exists()
+
+        if not pending_or_running:
+            if has_failed:
+                pipeline_run.status = 'failed'
+            elif has_aborted:
+                pipeline_run.status = 'aborted'
+            else:
+                pipeline_run.status = 'completed'
+            pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'completed_at'])
+        logger.info(f"🎉 [EXTRACTION COMPLETE] ComponentRun '{component_run_id}' finished in {job_duration_sec}s. Succeeded: {succeeded_count}, Failed: {failed_count}, Tokens: {total_tokens}")
         return True
 
-    # Build a Celery group of parallel independent tasks
-    task_signatures = [
-        run_extraction_for_definition.s(paper_id, d.id) 
-        for d in active_definitions
-    ]
-    
-    extraction_group = group(task_signatures)
-    extraction_group.apply_async()
-    
-    logger.info(f"Dispatched {len(task_signatures)} extraction tasks for Paper {paper_id}")
-    return True
+    except Exception as e:
+        logger.exception(f"Error in ComponentRun '{component_run_id}': {e}")
+        component_run.status = 'failed'
+        component_run.error_message = str(e)
+        component_run.completed_at = timezone.now()
+        component_run.save(update_fields=['status', 'error_message', 'completed_at'])
+
+        pipeline_run.status = 'failed'
+        pipeline_run.save(update_fields=['status'])
+        return False
+
+
+def run_extraction_for_definition(paper_id: str, definition_id: str):
+    """Backwards-compatible helper wrapper for single paper-definition extraction."""
+    try:
+        paper = Paper.objects.select_related('workspace').get(pk=paper_id)
+        definition = ExtractionDefinition.objects.get(pk=definition_id)
+        res = _run_single_extraction_worker(paper, definition, paper.workspace)
+        return res.get("success", False)
+    except Exception as e:
+        logger.exception(f"Error in run_extraction_for_definition: {e}")
+        return False
+
+
+def extract_custom_variables(paper_id: str, workspace_id: str):
+    """Backwards-compatible helper wrapper executing extractions across active definitions."""
+    try:
+        paper = Paper.objects.get(pk=paper_id)
+        workspace = Workspace.objects.get(pk=workspace_id)
+        active_defs = ExtractionDefinition.objects.filter(workspace=workspace, is_active=True)
+        results = []
+        for d in active_defs:
+            res = _run_single_extraction_worker(paper, d, workspace)
+            results.append(res)
+        return results
+    except Exception as e:
+        logger.exception(f"Error in extract_custom_variables: {e}")
+        return []

@@ -1,3 +1,564 @@
+import json
+from django import forms
+from django.db import models
 from django.contrib import admin
+from django.utils.html import format_html
+from django.utils.safestring import mark_safe
+from django.urls import reverse
+from research_intelligence.models import (
+    Workspace,
+    WorkspaceMember,
+    APIKey,
+    Subscriber,
+    Scraper,
+    ExtractionDefinition,
+    PipelineRun,
+    ComponentRun,
+    PromptTemplate,
+    Paper,
+    Extraction,
+    PaperMetric,
+    NarrativeReport,
+    AuditTrail,
+    HITLCorrection,
+)
 
-# Register your models here.
+
+class PrettyJSONWidget(forms.Textarea):
+    """
+    State-of-the-art interactive JSON viewer & editor widget for Django Admin.
+    Provides a dark-mode monospace code editor with auto-formatting, live syntax validation, and visual tree preview.
+    """
+    def render(self, name, value, attrs=None, renderer=None):
+        raw_json_str = ""
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                raw_json_str = json.dumps(parsed, indent=2, ensure_ascii=False)
+            except Exception:
+                raw_json_str = value
+        elif value is not None:
+            try:
+                raw_json_str = json.dumps(value, indent=2, ensure_ascii=False)
+            except Exception:
+                raw_json_str = str(value)
+
+        attrs = attrs or {}
+        attrs['style'] = "width: 100%; min-height: 320px; font-family: 'Fira Code', 'SFMono-Regular', Consolas, Menlo, monospace; font-size: 13px; line-height: 1.5; background-color: #0d1117; color: #e6edf3; padding: 12px; border-radius: 6px; border: 1px solid #30363d; tab-size: 2;"
+        textarea_html = super().render(name, raw_json_str, attrs, renderer)
+        widget_id = attrs.get('id', f'json_widget_{name}')
+
+        js_helpers = """
+        <script>
+        if (typeof window.syntaxHighlightJson !== 'function') {
+            window.syntaxHighlightJson = function(json) {
+                if (typeof json !== 'string') {
+                    json = JSON.stringify(json, undefined, 2);
+                }
+                json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\\s*:)?|\\b(true|false|null)\\b|-?\\d+(?:\\.\\d*)?(?:[eE][+\\-]?\\d+)?)/g, function (match) {
+                    var style = 'color: #d19a66;';
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) {
+                            style = 'color: #7ee787; font-weight: 600;';
+                        } else {
+                            style = 'color: #a5d6ff;';
+                        }
+                    } else if (/true|false/.test(match)) {
+                        style = 'color: #ff7b72; font-weight: 600;';
+                    } else if (/null/.test(match)) {
+                        style = 'color: #79c0ff; font-style: italic;';
+                    }
+                    return '<span style="' + style + '">' + match + '</span>';
+                });
+            };
+            window.toggleJsonView = function(widgetId) {
+                var rawDiv = document.getElementById(widgetId + '_raw');
+                var prettyDiv = document.getElementById(widgetId + '_pretty');
+                if (rawDiv.style.display === 'none') {
+                    rawDiv.style.display = 'block';
+                    prettyDiv.style.display = 'none';
+                } else {
+                    rawDiv.style.display = 'none';
+                    prettyDiv.style.display = 'block';
+                }
+            };
+            window.formatJsonEditor = function(widgetId) {
+                var rawEl = document.getElementById(widgetId);
+                if (rawEl) {
+                    try {
+                        var parsed = JSON.parse(rawEl.value);
+                        rawEl.value = JSON.stringify(parsed, null, 2);
+                        var statusEl = document.getElementById(widgetId + '_status');
+                        if (statusEl) {
+                            statusEl.innerHTML = '<span style="color: #3fb950; font-weight: bold;">✓ Formatted JSON</span>';
+                        }
+                    } catch(e) {
+                        alert('Invalid JSON Syntax: ' + e.message);
+                    }
+                }
+            };
+            window.copyJsonContent = function(widgetId) {
+                var rawEl = document.getElementById(widgetId);
+                if (rawEl) {
+                    navigator.clipboard.writeText(rawEl.value).then(function() {
+                        alert('JSON copied to clipboard!');
+                    });
+                }
+            };
+        }
+        </script>
+        """
+
+        html = f"""
+        {js_helpers}
+        <div class="pretty-json-container" style="margin: 8px 0; width: 100%; max-width: 950px;">
+            <div style="margin-bottom: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <button type="button" class="button" onclick="toggleJsonView('{widget_id}')" style="padding: 5px 12px; font-size: 11px; cursor: pointer; background: #0d6efd; color: white; border: none; border-radius: 4px;">⇄ Switch View (Editor / Readonly)</button>
+                <button type="button" class="button" onclick="formatJsonEditor('{widget_id}')" style="padding: 5px 12px; font-size: 11px; cursor: pointer; background: #198754; color: white; border: none; border-radius: 4px;">✨ Format & Indent JSON</button>
+                <button type="button" class="button" onclick="copyJsonContent('{widget_id}')" style="padding: 5px 12px; font-size: 11px; cursor: pointer; background: #495057; color: white; border: none; border-radius: 4px;">📋 Copy JSON</button>
+                <span id="{widget_id}_status" style="font-size: 12px; font-family: monospace;"></span>
+            </div>
+            <div id="{widget_id}_raw" style="display: block;">
+                {textarea_html}
+            </div>
+            <pre id="{widget_id}_pretty" style="display: none; background: #0d1117; color: #c9d1d9; padding: 14px; border-radius: 8px; border: 1px solid #30363d; font-family: 'SFMono-Regular', Consolas, Menlo, monospace; font-size: 12px; line-height: 1.5; max-height: 550px; overflow: auto; margin: 0; white-space: pre-wrap; word-break: break-word;"></pre>
+        </div>
+        <script>
+        (function() {{
+            var rawEl = document.getElementById('{widget_id}');
+            var prettyEl = document.getElementById('{widget_id}_pretty');
+            var statusEl = document.getElementById('{widget_id}_status');
+            if (rawEl) {{
+                function validateAndSync() {{
+                    try {{
+                        var obj = JSON.parse(rawEl.value);
+                        if (prettyEl) prettyEl.innerHTML = window.syntaxHighlightJson(obj);
+                        if (statusEl) statusEl.innerHTML = '<span style="color: #3fb950; font-weight: bold;">🟢 Valid JSON</span>';
+                    }} catch(e) {{
+                        if (prettyEl) prettyEl.textContent = rawEl.value;
+                        if (statusEl) statusEl.innerHTML = '<span style="color: #f85149; font-weight: bold;">🔴 Invalid JSON</span>';
+                    }}
+                }}
+                rawEl.addEventListener('input', validateAndSync);
+                validateAndSync();
+            }}
+        }})();
+        </script>
+        """
+        return mark_safe(html)
+
+
+# Helper function to render CSS badges in Django Admin
+def render_badge(text, bg_color="#6c757d", text_color="#ffffff"):
+    return format_html(
+        '<span style="background-color: {}; color: {}; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; white-space: nowrap; display: inline-block;">{}</span>',
+        bg_color,
+        text_color,
+        text
+    )
+
+
+# --- Inlines for Workspace ---
+
+class WorkspaceMemberInline(admin.TabularInline):
+    model = WorkspaceMember
+    extra = 1
+    fields = ('user', 'role', 'created_at')
+    readonly_fields = ('created_at',)
+
+
+class ScraperInline(admin.TabularInline):
+    model = Scraper
+    extra = 1
+    fields = ('provider', 'search_query', 'is_active', 'created_at')
+    readonly_fields = ('created_at',)
+
+
+class PromptTemplateInline(admin.TabularInline):
+    model = PromptTemplate
+    extra = 1
+    fields = ('step_name', 'version', 'is_active', 'updated_at')
+    readonly_fields = ('updated_at',)
+
+
+class SubscriberInline(admin.TabularInline):
+    model = Subscriber
+    extra = 1
+    fields = ('name', 'email', 'is_active', 'created_at')
+    readonly_fields = ('created_at',)
+
+
+# --- Inlines for PipelineRun ---
+
+class ComponentRunInline(admin.TabularInline):
+    model = ComponentRun
+    extra = 0
+    fields = ('step_type_badge', 'component_name', 'status_badge', 'celery_task_id', 'raw_storage_path', 'started_at', 'completed_at')
+    readonly_fields = ('step_type_badge', 'status_badge', 'started_at', 'completed_at')
+
+    def step_type_badge(self, obj):
+        colors = {
+            'search': '#0d6efd',
+            'download': '#0dcaf0',
+            'ocr': '#6f42c1',
+            'screening': '#ffc107',
+            'extraction': '#198754',
+            'metrics': '#fd7e14',
+            'deep_research': '#d63384',
+            'reporting': '#20c997',
+        }
+        bg = colors.get(obj.step_type, '#6c757d')
+        text_color = '#000000' if bg == '#ffc107' else '#ffffff'
+        return render_badge(obj.get_step_type_display(), bg, text_color)
+    step_type_badge.short_description = "Step Type"
+
+    def status_badge(self, obj):
+        colors = {
+            'pending': '#6c757d',
+            'running': '#0d6efd',
+            'completed': '#198754',
+            'failed': '#dc3545',
+            'aborted': '#495057',
+        }
+        return render_badge(obj.status.upper(), colors.get(obj.status, '#6c757d'))
+    status_badge.short_description = "Status"
+
+
+# --- Model Admins ---
+
+@admin.register(Workspace)
+class WorkspaceAdmin(admin.ModelAdmin):
+    list_display = (
+        'name',
+        'ocr_provider',
+        'screening_llm_model',
+        'monthly_token_limit',
+        'tokens_consumed_this_month',
+        'monthly_usd_limit',
+        'usd_spent_this_month',
+        'created_at'
+    )
+    search_fields = ('name', 'acceptance_criteria', 'rejection_criteria')
+    list_filter = ('ocr_provider', 'llm_provider', 'created_at')
+    inlines = [WorkspaceMemberInline, ScraperInline, PromptTemplateInline, SubscriberInline]
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'digest_schedule')
+        }),
+        ('Pipeline Guidelines & Criteria', {
+            'fields': ('acceptance_criteria', 'rejection_criteria')
+        }),
+        ('Engine & Provider Configuration', {
+            'fields': ('ocr_provider', 'screening_llm_model', 'llm_provider')
+        }),
+        ('Monthly Quotas & Budgets', {
+            'fields': ('monthly_token_limit', 'tokens_consumed_this_month', 'monthly_usd_limit', 'usd_spent_this_month')
+        }),
+    )
+
+
+@admin.register(WorkspaceMember)
+class WorkspaceMemberAdmin(admin.ModelAdmin):
+    list_display = ('user', 'workspace', 'role_badge', 'created_at')
+    list_filter = ('role', 'workspace', 'created_at')
+    search_fields = ('user__username', 'user__email', 'workspace__name')
+
+    def role_badge(self, obj):
+        colors = {
+            'admin': '#dc3545',
+            'manager': '#0d6efd',
+            'researcher': '#198754',
+        }
+        return render_badge(obj.role.upper(), colors.get(obj.role, '#6c757d'))
+    role_badge.short_description = "Role"
+
+
+@admin.register(APIKey)
+class APIKeyAdmin(admin.ModelAdmin):
+    list_display = ('name', 'key_id', 'user', 'workspace', 'status_badge', 'last_used_at', 'created_at')
+    list_filter = ('is_active', 'created_at', 'workspace')
+    search_fields = ('name', 'key_id', 'user__username', 'user__email')
+    readonly_fields = ('key_id', 'hashed_secret', 'created_at', 'last_used_at')
+    actions = ['revoke_keys']
+
+    def status_badge(self, obj):
+        if obj.is_active:
+            return render_badge("ACTIVE", "#198754")
+        return render_badge("REVOKED", "#dc3545")
+    status_badge.short_description = "Status"
+
+    def revoke_keys(self, request, queryset):
+        rows = queryset.update(is_active=False)
+        self.message_user(request, f"Successfully revoked {rows} API key(s).")
+    revoke_keys.short_description = "Revoke selected API Keys"
+
+
+@admin.register(Scraper)
+class ScraperAdmin(admin.ModelAdmin):
+    list_display = ('workspace', 'provider_badge', 'search_query', 'status_badge', 'created_at')
+    list_filter = ('provider', 'is_active', 'workspace')
+    search_fields = ('workspace__name', 'search_query')
+
+    def provider_badge(self, obj):
+        colors = {
+            'arxiv': '#fd7e14',
+            'openalex': '#0d6efd',
+            'lens': '#6f42c1',
+        }
+        return render_badge(obj.get_provider_display(), colors.get(obj.provider, '#6c757d'))
+    provider_badge.short_description = "Provider"
+
+    def status_badge(self, obj):
+        return render_badge("ACTIVE", "#198754") if obj.is_active else render_badge("DISABLED", "#6c757d")
+    status_badge.short_description = "Status"
+
+
+@admin.register(PipelineRun)
+class PipelineRunAdmin(admin.ModelAdmin):
+    list_display = (
+        'id',
+        'workspace',
+        'run_date',
+        'status_badge',
+        'current_stage_badge',
+        'total_papers_fetched',
+        'total_papers_passed_screening',
+        'tokens_consumed',
+        'usd_cost',
+        'started_at',
+        'completed_at'
+    )
+    list_filter = ('status', 'current_stage', 'run_date', 'workspace')
+    search_fields = ('id', 'workspace__name')
+    readonly_fields = ('started_at', 'completed_at')
+    inlines = [ComponentRunInline]
+
+    def status_badge(self, obj):
+        colors = {
+            'pending': '#6c757d',
+            'running': '#0d6efd',
+            'completed': '#198754',
+            'failed': '#dc3545',
+            'aborted': '#495057',
+        }
+        return render_badge(obj.status.upper(), colors.get(obj.status, '#6c757d'))
+    status_badge.short_description = "Status"
+
+    def current_stage_badge(self, obj):
+        colors = {
+            'search': '#0d6efd',
+            'download': '#0dcaf0',
+            'ocr': '#6f42c1',
+            'screening': '#ffc107',
+            'extraction': '#198754',
+            'metrics': '#fd7e14',
+            'deep_research': '#d63384',
+            'reporting': '#20c997',
+            'completed': '#198754',
+        }
+        bg = colors.get(obj.current_stage, '#6c757d')
+        text_color = '#000000' if bg == '#ffc107' else '#ffffff'
+        return render_badge(obj.get_current_stage_display(), bg, text_color)
+    current_stage_badge.short_description = "Current Stage"
+
+
+@admin.register(ComponentRun)
+class ComponentRunAdmin(admin.ModelAdmin):
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
+    list_display = (
+        'id',
+        'pipeline_run',
+        'step_type_badge',
+        'component_name',
+        'status_badge',
+        'celery_task_id',
+        'started_at',
+        'completed_at'
+    )
+    ordering = ('-started_at',)
+    list_filter = ('step_type', 'status', 'started_at')
+    search_fields = ('id', 'component_name', 'celery_task_id', 'pipeline_run__id')
+    readonly_fields = ('started_at', 'completed_at')
+
+    def step_type_badge(self, obj):
+        colors = {
+            'search': '#0d6efd',
+            'download': '#0dcaf0',
+            'ocr': '#6f42c1',
+            'screening': '#ffc107',
+            'extraction': '#198754',
+            'metrics': '#fd7e14',
+            'deep_research': '#d63384',
+            'reporting': '#20c997',
+        }
+        bg = colors.get(obj.step_type, '#6c757d')
+        text_color = '#000000' if bg == '#ffc107' else '#ffffff'
+        return render_badge(obj.get_step_type_display(), bg, text_color)
+    step_type_badge.short_description = "Step Type"
+
+    def status_badge(self, obj):
+        colors = {
+            'pending': '#6c757d',
+            'running': '#0d6efd',
+            'completed': '#198754',
+            'failed': '#dc3545',
+            'aborted': '#495057',
+        }
+        return render_badge(obj.status.upper(), colors.get(obj.status, '#6c757d'))
+    status_badge.short_description = "Status"
+
+
+@admin.register(PromptTemplate)
+class PromptTemplateAdmin(admin.ModelAdmin):
+    list_display = ('workspace', 'step_name', 'version', 'status_badge', 'updated_at')
+    list_filter = ('step_name', 'is_active', 'workspace')
+    search_fields = ('workspace__name', 'step_name', 'prompt_text')
+
+    def status_badge(self, obj):
+        return render_badge("ACTIVE", "#198754") if obj.is_active else render_badge("INACTIVE", "#6c757d")
+    status_badge.short_description = "Status"
+
+
+@admin.register(Paper)
+class PaperAdmin(admin.ModelAdmin):
+    list_display = (
+        'title',
+        'workspace',
+        'source_database',
+        'screening_status_badge',
+        'is_evaluation_benchmark',
+        'created_at'
+    )
+    list_filter = ('source_database', 'screening_status', 'is_evaluation_benchmark', 'workspace')
+    search_fields = ('title', 'authors', 'doi', 'arxiv_id', 'hash_id')
+
+    def screening_status_badge(self, obj):
+        colors = {
+            'pending': '#6c757d',
+            'abstract_passed': '#0dcaf0',
+            'full_text_passed': '#198754',
+            'borderline': '#ffc107',
+            'rejected': '#dc3545',
+        }
+        bg = colors.get(obj.screening_status, '#6c757d')
+        text_color = '#000000' if bg in ['#ffc107', '#0dcaf0'] else '#ffffff'
+        return render_badge(obj.get_screening_status_display(), bg, text_color)
+    screening_status_badge.short_description = "Screening Status"
+
+
+@admin.register(ExtractionDefinition)
+class ExtractionDefinitionAdmin(admin.ModelAdmin):
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
+    list_display = ('name', 'workspace', 'version', 'llm_model', 'requires_consensus', 'is_active', 'created_at')
+    list_filter = ('is_active', 'requires_consensus', 'workspace')
+    search_fields = ('name', 'system_prompt', 'user_prompt_template')
+
+
+@admin.register(Extraction)
+class ExtractionAdmin(admin.ModelAdmin):
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
+    list_display = ('paper', 'extraction_definition', 'category', 'workspace', 'validation_status', 'confidence_score', 'review_required', 'created_at')
+    list_filter = ('validation_status', 'review_required', 'category', 'workspace')
+    search_fields = ('paper__title', 'category', 'extraction_definition__name')
+    exclude = ('source_context',)
+    readonly_fields = ('extraction_system_prompt', 'extraction_user_prompt_template', 'created_at')
+
+    fieldsets = (
+        ('Extraction Target & Definition', {
+            'fields': (
+                'workspace',
+                'paper',
+                'extraction_definition',
+                'category',
+                'extraction_system_prompt',
+                'extraction_user_prompt_template'
+            )
+        }),
+        ('Extracted Data & Evidence', {
+            'fields': (
+                'fields_data',
+                'validation_status',
+                'confidence_score',
+                'confidence_method',
+                'review_required',
+                'is_hitl_validated'
+            )
+        }),
+        ('Execution Metadata', {
+            'fields': ('version_info', 'created_at')
+        }),
+    )
+
+    actions = ['rerun_selected_extractions']
+
+    @admin.action(description="🔄 Re-run selected extraction(s)")
+    def rerun_selected_extractions(self, request, queryset):
+        from research_intelligence.tasks.step_5_extraction.extract import _run_single_extraction_worker
+        succeeded = 0
+        failed = 0
+        for extraction in queryset:
+            if extraction.paper and extraction.extraction_definition:
+                res = _run_single_extraction_worker(
+                    paper=extraction.paper,
+                    definition=extraction.extraction_definition,
+                    workspace=extraction.workspace
+                )
+                if res.get("success"):
+                    succeeded += 1
+                else:
+                    failed += 1
+        self.message_user(request, f"Successfully re-ran {succeeded} extraction(s). (Failed: {failed})")
+
+    def extraction_system_prompt(self, obj):
+        if obj.extraction_definition:
+            return obj.extraction_definition.system_prompt
+        return "-"
+    extraction_system_prompt.short_description = "System Prompt (from Definition)"
+
+    def extraction_user_prompt_template(self, obj):
+        if obj.extraction_definition:
+            return obj.extraction_definition.user_prompt_template
+        return "-"
+    extraction_user_prompt_template.short_description = "User Prompt Template (from Definition)"
+
+
+@admin.register(PaperMetric)
+class PaperMetricAdmin(admin.ModelAdmin):
+    list_display = ('paper', 'workspace', 'trl_score', 'importance_score', 'citation_count', 'created_at')
+    list_filter = ('trl_score', 'workspace')
+    search_fields = ('paper__title',)
+
+
+@admin.register(NarrativeReport)
+class NarrativeReportAdmin(admin.ModelAdmin):
+    list_display = ('title', 'workspace', 'pipeline_run', 'refinement_depth', 'created_at')
+    list_filter = ('workspace', 'created_at')
+    search_fields = ('title', 'content_markdown')
+
+
+@admin.register(AuditTrail)
+class AuditTrailAdmin(admin.ModelAdmin):
+    list_display = ('step_name', 'status', 'task_id', 'prompt_tokens', 'completion_tokens', 'execution_duration', 'timestamp')
+    list_filter = ('status', 'step_name', 'timestamp')
+    search_fields = ('step_name', 'task_id', 'error_message')
+
+
+@admin.register(HITLCorrection)
+class HITLCorrectionAdmin(admin.ModelAdmin):
+    list_display = ('action', 'human_operator', 'extraction', 'timestamp')
+    list_filter = ('action', 'timestamp')
+    search_fields = ('human_operator', 'reason')
+
+
+@admin.register(Subscriber)
+class SubscriberAdmin(admin.ModelAdmin):
+    list_display = ('email', 'name', 'workspace', 'is_active', 'created_at')
+    list_filter = ('is_active', 'workspace')
+    search_fields = ('email', 'name')

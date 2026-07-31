@@ -67,6 +67,17 @@ class ArxivScraperProvider(BaseScraperProvider):
                 if not pdf_url and clean_hash_id:
                     pdf_url = f"https://arxiv.org/pdf/{clean_hash_id}.pdf"
                 
+                comment_tag = "{http://arxiv.org/schemas/atom}comment"
+                comment_el = entry.find(comment_tag)
+                comment_text = comment_el.text.strip() if comment_el is not None and comment_el.text else ""
+
+                is_withdrawn = False
+                withdrawn_reason = ""
+                full_search_text = f"{title} {summary} {comment_text}".lower()
+                if "withdrawn" in full_search_text or "has been withdrawn" in full_search_text:
+                    is_withdrawn = True
+                    withdrawn_reason = comment_text or "Paper has been withdrawn by authors."
+
                 results.append({
                     "title": title,
                     "authors": authors,
@@ -75,7 +86,9 @@ class ArxivScraperProvider(BaseScraperProvider):
                     "pdf_url": pdf_url,
                     "other_url": other_url,
                     "source_database": "arxiv",
-                    "published_date": published
+                    "published_date": published,
+                    "is_withdrawn": is_withdrawn,
+                    "withdrawn_reason": withdrawn_reason
                 })
             return results
         except Exception as e:
@@ -83,13 +96,44 @@ class ArxivScraperProvider(BaseScraperProvider):
             return []
 
     def download_file(self, url: str) -> bytes:
-        try:
-            req = urllib.request.Request(
-                url, 
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-            )
-            with urllib.request.urlopen(req, timeout=15) as response:
-                return response.read()
-        except Exception as e:
-            logger.exception(f"Error downloading file from {url}: {str(e)}")
-            raise e
+        urls_to_try = [url]
+        
+        # Build arXiv fallback URL variants if applicable
+        if "arxiv.org/pdf/" in url:
+            base_url = url.rstrip('/')
+            if not base_url.endswith(".pdf"):
+                urls_to_try.append(f"{base_url}.pdf")
+            
+            import re
+            unversioned = re.sub(r'v\d+(?:\.pdf)?$', '', base_url)
+            if unversioned != base_url:
+                urls_to_try.append(f"{unversioned}.pdf")
+                urls_to_try.append(unversioned)
+
+        # Deduplicate while preserving order
+        unique_urls = []
+        for u in urls_to_try:
+            if u not in unique_urls:
+                unique_urls.append(u)
+
+        last_exception = None
+        for candidate_url in unique_urls:
+            try:
+                req = urllib.request.Request(
+                    candidate_url, 
+                    headers={
+                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Accept': 'application/pdf,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+                    }
+                )
+                with urllib.request.urlopen(req, timeout=15) as response:
+                    data = response.read()
+                    if data and len(data) > 100:
+                        return data
+            except Exception as e:
+                last_exception = e
+                logger.warning(f"Download attempt failed for {candidate_url}: {e}")
+
+        if last_exception:
+            raise last_exception
+        raise ValueError(f"Unable to download PDF from {url}")

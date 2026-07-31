@@ -12,7 +12,7 @@ class GoogleLLMProviderTestCase(TestCase):
     @patch("research_intelligence.llm_providers.google.Path.exists")
     @patch("research_intelligence.llm_providers.google.service_account.Credentials.from_service_account_info")
     @patch("research_intelligence.llm_providers.google.genai.Client")
-    @patch.dict("os.environ", {"GOOGLE_SERVICE_ACCOUNT_JSON": '{"type": "service_account", "project_id": "test-project"}'})
+    @patch.dict("os.environ", {"GOOGLE_SERVICE_ACCOUNT_JSON": '{"type": "service_account", "project_id": "test-project"}', "GOOGLE_CLOUD_PROJECT": ""})
     def test_client_initialization_with_env_credentials(self, mock_client_cls, mock_from_service_account_info, mock_exists):
         mock_exists.return_value = False
         mock_creds = MagicMock()
@@ -26,15 +26,15 @@ class GoogleLLMProviderTestCase(TestCase):
             scopes=["https://www.googleapis.com/auth/cloud-platform"]
         )
         mock_client_cls.assert_called_once_with(
+            credentials=mock_creds,
             vertexai=True,
-            project="sit-disruption-t-wkzt-run-4sbq",
-            location="europe-west4",
-            credentials=mock_creds
+            project="test-project"
         )
         self.assertEqual(client, mock_client_cls.return_value)
 
     @patch("research_intelligence.llm_providers.google.Path.exists")
     @patch("research_intelligence.llm_providers.google.genai.Client")
+    @patch.dict("os.environ", {"GOOGLE_SERVICE_ACCOUNT_JSON": "", "GOOGLE_APPLICATION_CREDENTIALS": ""}, clear=True)
     def test_client_initialization_without_credentials_api_key(self, mock_client_cls, mock_exists):
         # Setup mock so credentials file is not found
         mock_exists.return_value = False
@@ -70,7 +70,7 @@ class GoogleLLMProviderTestCase(TestCase):
         mock_client.models.generate_content.assert_called_once()
         called_kwargs = mock_client.models.generate_content.call_args.kwargs
         
-        self.assertEqual(called_kwargs["model"], "gemini-2.5-flash")
+        self.assertEqual(called_kwargs["model"], "gemini-3.5-flash")
         self.assertEqual(called_kwargs["contents"], "What is a systematic review?")
         
         config = called_kwargs["config"]
@@ -79,6 +79,7 @@ class GoogleLLMProviderTestCase(TestCase):
 
     @patch("research_intelligence.llm_providers.google.Path.exists")
     @patch("research_intelligence.llm_providers.google.genai.Client")
+    @patch.dict("os.environ", {"GOOGLE_SERVICE_ACCOUNT_JSON": "", "GOOGLE_APPLICATION_CREDENTIALS": ""}, clear=True)
     def test_generate_pdf_bytes_success(self, mock_client_cls, mock_exists):
         mock_exists.return_value = False
         mock_client = mock_client_cls.return_value
@@ -100,7 +101,6 @@ class GoogleLLMProviderTestCase(TestCase):
         # Verify client recreation with "eu" location for PDFs
         mock_client_cls.assert_called_with(
             vertexai=True,
-            project="sit-disruption-t-wkzt-run-4sbq",
             location="eu"
         )
         

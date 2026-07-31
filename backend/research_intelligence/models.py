@@ -1,5 +1,8 @@
 import uuid
+import secrets
+import hashlib
 from django.db import models
+from django.conf import settings
 
 class Workspace(models.Model):
     """
@@ -8,8 +11,23 @@ class Workspace(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
-    acceptance_criteria = models.TextField(default="", blank=True, help_text="Prompt/instructions for acceptance/inclusion criteria")
-    rejection_criteria = models.TextField(default="", blank=True, help_text="Prompt/instructions for rejection/exclusion criteria")
+    # Specific criteria for Step 4 Abstract Screening and Full-Text Screening
+    abstract_acceptance_criteria = models.TextField(default="", blank=True, help_text="Specific inclusion criteria for Step 4 Abstract Screening")
+    abstract_rejection_criteria = models.TextField(default="", blank=True, help_text="Specific exclusion criteria for Step 4 Abstract Screening")
+    full_text_acceptance_criteria = models.TextField(default="", blank=True, help_text="Specific inclusion criteria for Step 4 Full-Text Screening")
+    full_text_rejection_criteria = models.TextField(default="", blank=True, help_text="Specific exclusion criteria for Step 4 Full-Text Screening")
+
+    def get_abstract_acceptance_criteria(self) -> str:
+        return self.abstract_acceptance_criteria.strip()
+
+    def get_abstract_rejection_criteria(self) -> str:
+        return self.abstract_rejection_criteria.strip()
+
+    def get_full_text_acceptance_criteria(self) -> str:
+        return self.full_text_acceptance_criteria.strip()
+
+    def get_full_text_rejection_criteria(self) -> str:
+        return self.full_text_rejection_criteria.strip()
     
     # Digest distribution schedule
     digest_schedule = models.CharField(max_length=100, default="0 9 * * 5", help_text="Cron expression for weekly digest execution (e.g. every Friday at 9am)")
@@ -20,12 +38,11 @@ class Workspace(models.Model):
         default="pypdf",
         choices=[
             ("pypdf", "PyPDF (Fast Local Baseline)"),
-            ("docling", "Docling ML Engine"),
             ("mistral", "Mistral OCR API")
         ],
         help_text="OCR provider used for PDF layout extraction"
     )
-    screening_llm_model = models.CharField(max_length=100, default="google/gemini-1.5-flash", help_text="LLM model used for screening papers")
+    screening_llm_model = models.CharField(max_length=100, default="google/gemini-3.5-flash", help_text="LLM model used for screening papers")
     llm_provider = models.CharField(
         max_length=50,
         default="google",
@@ -39,6 +56,10 @@ class Workspace(models.Model):
     monthly_usd_limit = models.DecimalField(max_digits=10, decimal_places=2, default=100.00)
     usd_spent_this_month = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
     
+    # Agent & Pipeline Configuration
+    skip_abstract_screening = models.BooleanField(default=False, help_text="If True, skips Step 4 Abstract Screening and performs direct Full-Text Screening")
+    notification_email = models.EmailField(blank=True, null=True, help_text="Email address notified upon agent completion or failure")
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -88,7 +109,7 @@ class ExtractionDefinition(models.Model):
     system_prompt = models.TextField(help_text="System instructions enforcing extraction perspective")
     user_prompt_template = models.TextField(help_text="User prompt with placeholders like {paper_text}")
     response_schema = models.JSONField(help_text="JSON schema describing fields to extract")
-    llm_model = models.CharField(max_length=100, default="google/gemini-1.5-flash", help_text="LLM model used for this specific extraction")
+    llm_model = models.CharField(max_length=100, default="google/gemini-3.5-flash", help_text="LLM model used for this specific extraction")
     version = models.IntegerField(default=1, help_text="Tracks prompt/schema evolution")
     requires_consensus = models.BooleanField(default=False, help_text="Requires multi-sample self-consistency for difficult fields")
     is_active = models.BooleanField(default=True)
@@ -105,15 +126,34 @@ class PipelineRun(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="runs")
     run_date = models.DateField(auto_now_add=True, help_text="Date when this ingestion run was triggered")
+    STAGE_CHOICES = [
+        ('search', '1. Search & Metadata Ingestion'),
+        ('download', '2. PDF Binary Download'),
+        ('ocr', '3. Layout OCR Extraction'),
+        ('screening', '4. Abstract & Full-Text Screening'),
+        ('extraction', '5. Parameter & Claim Extraction'),
+        ('metrics', '6. TRL & Importance Metrics'),
+        ('deep_research', '7. Deep Research Iteration'),
+        ('reporting', '8. Narrative Report Generation'),
+        ('completed', 'Completed'),
+    ]
+
     status = models.CharField(
         max_length=50,
         choices=[
             ('pending', 'Pending'),
             ('running', 'Running'),
             ('completed', 'Completed'),
-            ('failed', 'Failed')
+            ('failed', 'Failed'),
+            ('aborted', 'Aborted')
         ],
         default='pending'
+    )
+    current_stage = models.CharField(
+        max_length=50,
+        choices=STAGE_CHOICES,
+        default='search',
+        help_text="Active processing stage of the overall pipeline"
     )
     
     # Aggregated run metrics
@@ -127,6 +167,115 @@ class PipelineRun(models.Model):
 
     def __str__(self):
         return f"{self.workspace.name} - Run {self.run_date} ({self.status})"
+
+
+class ResearchAgentProcess(models.Model):
+    """
+    Autonomous State Machine Orchestrator running an ingestion & intelligence cycle for a Workspace.
+    Manages state transitions: initialized -> search -> download -> ocr (if ocr_provider set) -> screening -> extraction -> completed.
+    Supports parallel runs, pause/resume/abort controls, dynamic search query modifiers (e.g. date_range_days),
+    and sends completion/failure notifications.
+    """
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('running', 'Running'),
+        ('paused', 'Paused'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('aborted', 'Aborted')
+    ]
+
+    STEP_CHOICES = [
+        ('initialized', 'Initialized'),
+        ('search', '1. Search & Ingestion'),
+        ('download', '2. PDF Download'),
+        ('ocr', '3. OCR Conversion'),
+        ('screening', '4. Abstract & Full-Text Screening'),
+        ('extraction', '5. Parameter & Claim Extraction'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('aborted', 'Aborted')
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="agent_processes")
+    pipeline_run = models.ForeignKey(PipelineRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="agent_processes")
+    name = models.CharField(max_length=255, help_text="e.g. 'ArXiv Monthly Agent Ingestion'")
+
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending')
+    current_step = models.CharField(max_length=50, choices=STEP_CHOICES, default='initialized')
+
+    # Runtime configuration and dynamic query modifiers
+    configuration_override = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Overrides e.g. limit, date_range_days, query_prefix, skip_abstract_screening, notification_email"
+    )
+    step_history = models.JSONField(default=list, blank=True, help_text="Audit log of step transitions and metrics")
+    error_message = models.TextField(blank=True, null=True)
+
+    started_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    completed_at = models.DateTimeField(blank=True, null=True)
+
+    def __str__(self):
+        return f"Agent '{self.name}' [{self.workspace.name}] ({self.status} - step: {self.current_step})"
+
+
+class ComponentRun(models.Model):
+    """
+    Generalized component execution model tracking any step/job execution within a PipelineRun.
+    Supports step types: 'scraping', 'download', 'ocr', 'screening', 'extraction', 'metrics', 'deep_research', 'reporting'.
+    Monitors lifecycle (pending, running, completed, failed, aborted), Celery task ID, storage paths, metrics, and logs.
+    """
+    STEP_TYPE_CHOICES = [
+        ('search', 'Search & Metadata Ingestion'),
+        ('download', 'PDF Binary Download'),
+        ('ocr', 'Layout OCR Extraction'),
+        ('screening', 'Abstract & Full-Text Screening'),
+        ('extraction', 'Parameter & Claim Extraction'),
+        ('metrics', 'TRL & Graph Metrics'),
+        ('deep_research', 'Deep Research Iteration'),
+        ('reporting', 'Narrative Report Generation'),
+    ]
+
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('running', 'Running'),
+        ('completed', 'Completed'),
+        ('failed', 'Failed'),
+        ('aborted', 'Aborted')
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    pipeline_run = models.ForeignKey(PipelineRun, on_delete=models.CASCADE, related_name="component_runs")
+    step_type = models.CharField(max_length=50, choices=STEP_TYPE_CHOICES, help_text="Type of pipeline step/task")
+    component_name = models.CharField(max_length=100, help_text="Specific component identifier (e.g. 'arxiv_scraper', 'gemini_screener', 'docling_ocr')")
+    
+    # Optional foreign key references for specific step types
+    scraper = models.ForeignKey('Scraper', on_delete=models.SET_NULL, null=True, blank=True, related_name="component_runs")
+    extraction_definition = models.ForeignKey('ExtractionDefinition', on_delete=models.SET_NULL, null=True, blank=True, related_name="component_runs")
+    
+    celery_task_id = models.CharField(max_length=255, blank=True, null=True, help_text="Celery Task ID executing this job")
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending')
+    
+    # Storage, Payload & Metrics
+    raw_storage_path = models.CharField(max_length=512, blank=True, null=True, help_text="Orthogonal path in Django default_storage for raw output/payload")
+    input_params = models.JSONField(default=dict, blank=True, help_text="Input arguments passed to this component execution")
+    metrics = models.JSONField(default=dict, blank=True, help_text="Execution metrics (e.g. total_fetched, total_created, tokens_consumed, etc.)")
+    output_data = models.JSONField(default=dict, blank=True, help_text="Structured summary / outputs produced by this step execution")
+    error_message = models.TextField(blank=True, null=True)
+
+    started_at = models.DateTimeField(auto_now_add=True)
+    completed_at = models.DateTimeField(blank=True, null=True)
+
+    @property
+    def meta(self):
+        """Returns consolidated metadata dictionary stored in metrics."""
+        return self.metrics or {}
+
+    def __str__(self):
+        return f"{self.step_type}:{self.component_name} - Run {self.pipeline_run.id} ({self.status})"
 
 class PromptTemplate(models.Model):
     """
@@ -173,7 +322,8 @@ class Paper(models.Model):
             ('abstract_passed', 'Abstract Passed'),
             ('full_text_passed', 'Full Text Passed'),
             ('borderline', 'Borderline (Human Review)'),
-            ('rejected', 'Rejected')
+            ('rejected', 'Rejected'),
+            ('withdrawn', 'Withdrawn by Authors')
         ],
         default='pending'
     )
@@ -289,3 +439,67 @@ class HITLCorrection(models.Model):
     corrected_value = models.JSONField(blank=True, null=True, help_text="Updated data after correction")
     reason = models.TextField(blank=True, null=True, help_text="Reasoning for override")
     timestamp = models.DateTimeField(auto_now_add=True)
+
+
+class WorkspaceMember(models.Model):
+    """
+    Represents user membership and role assignments within a specific Workspace.
+    """
+    ROLE_CHOICES = [
+        ('admin', 'Admin'),
+        ('manager', 'Manager'),
+        ('researcher', 'Researcher'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="memberships")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="workspace_memberships")
+    role = models.CharField(max_length=50, choices=ROLE_CHOICES, default='researcher')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('workspace', 'user')
+
+    def __str__(self):
+        return f"{self.user} - {self.workspace.name} ({self.role})"
+
+
+class APIKey(models.Model):
+    """
+    MCP and REST Integration API Keys associated with specific users and workspaces.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    name = models.CharField(max_length=255, help_text="Friendly label for the API Key")
+    key_id = models.CharField(max_length=32, unique=True, help_text="Public API Key identifier")
+    hashed_secret = models.CharField(max_length=128, help_text="SHA-256 hash of the API key secret")
+    is_active = models.BooleanField(default=True)
+    scopes = models.JSONField(
+        default=list, 
+        blank=True, 
+        help_text="Granted scopes, e.g. ['scrapers:read', 'scrapers:write', 'workspaces:read', 'workspaces:write', 'prompts:read', 'prompts:write']"
+    )
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="mcp_api_keys")
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="mcp_api_keys", null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    def generate_key(self):
+        self.key_id = secrets.token_hex(8)
+        raw_secret = secrets.token_urlsafe(32)
+        self.hashed_secret = hashlib.sha256(raw_secret.encode()).hexdigest()
+        return raw_secret
+
+    def set_secret(self, raw_secret: str):
+        self.hashed_secret = hashlib.sha256(raw_secret.encode()).hexdigest()
+
+    def check_secret(self, raw_secret: str) -> bool:
+        return self.hashed_secret == hashlib.sha256(raw_secret.encode()).hexdigest()
+
+    def update_last_used(self):
+        from django.utils import timezone
+        self.last_used_at = timezone.now()
+        self.save(update_fields=['last_used_at'])
+
+    def __str__(self):
+        return f"{self.name} ({self.key_id})"
+

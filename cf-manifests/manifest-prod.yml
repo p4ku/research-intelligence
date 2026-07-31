@@ -1,0 +1,76 @@
+---
+# Cloud Foundry Manifest for Production Environment
+applications:
+
+  # 1. Django REST API Backend
+  - name: ri-prod-backend
+    memory: 4G
+    instances: 4
+    disk_quota: 4G
+    buildpacks:
+      - python_buildpack
+    path: ../backend
+    command: python manage.py migrate --noinput && python manage.py collectstatic --noinput && gunicorn django_project.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers 4 --threads 2
+    routes:
+      - route: ri-backend.apps.eu01.onstackit.cloud
+    services:
+      - ri-prod-postgres-service
+      - ri-prod-redis-service
+      - ri-prod-storage-service
+    env:
+      DEBUG: "False"
+      SECRET_KEY: "prod-secret-key-to-be-overwritten-in-ci"
+      ALLOWED_HOSTS: "*"
+      STORAGE_BACKEND: "s3"
+      GOOGLE_AGENT_API_KEY: "prod-google-agent-api-key"
+      GOOGLE_AGENT_API_URL: "https://api.schwarzdigits.cloud/v1/google-agents"
+
+  # 2. Celery Worker (Asynchronous Task Queue Processing)
+  - name: ri-prod-celery-worker
+    memory: 4G
+    instances: 4
+    disk_quota: 4G
+    no-route: true
+    buildpacks:
+      - python_buildpack
+    path: ../backend
+    command: celery -A django_project worker --loglevel=info -Q tenant-default,tenant-bulk-scraping --concurrency=4
+    services:
+      - ri-prod-postgres-service
+      - ri-prod-redis-service
+      - ri-prod-storage-service
+    env:
+      DEBUG: "False"
+      SECRET_KEY: "prod-secret-key-to-be-overwritten-in-ci"
+      STORAGE_BACKEND: "s3"
+      GOOGLE_AGENT_API_KEY: "prod-google-agent-api-key"
+
+  # 3. Celery Beat Scheduler (Timed Tasks Trigger)
+  - name: ri-prod-celery-beat
+    memory: 1G
+    instances: 1
+    disk_quota: 1G
+    no-route: true
+    buildpacks:
+      - python_buildpack
+    path: ../backend
+    command: rm -f celerybeat.pid && celery -A django_project beat --loglevel=info
+    services:
+      - ri-prod-postgres-service
+      - ri-prod-redis-service
+    env:
+      DEBUG: "False"
+      SECRET_KEY: "prod-secret-key-to-be-overwritten-in-ci"
+
+  # 4. Next.js Frontend Dashboard (React app)
+  - name: ri-prod-frontend
+    memory: 2G
+    instances: 4
+    disk_quota: 2G
+    docker:
+      image: registry.eu01.onstackit.cloud/research-intelligence/frontend:prod
+    routes:
+      - route: ri-dashboard.apps.eu01.onstackit.cloud
+    env:
+      PORT: "8080"
+      BACKEND_URL: "https://ri-backend.apps.eu01.onstackit.cloud"

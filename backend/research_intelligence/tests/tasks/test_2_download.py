@@ -7,8 +7,8 @@ class DownloadTaskTestCase(TestCase):
     def setUp(self):
         self.workspace = Workspace.objects.create(
             name="Download Test Project",
-            acceptance_criteria="Accept active learning.",
-            rejection_criteria="Reject rule-based systems."
+            abstract_acceptance_criteria="Accept active learning.",
+            abstract_rejection_criteria="Reject rule-based systems."
         )
         self.pipeline_run = PipelineRun.objects.create(
             workspace=self.workspace,

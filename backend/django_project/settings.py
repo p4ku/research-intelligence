@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -88,12 +89,33 @@ WSGI_APPLICATION = 'django_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+is_testing = 'test' in sys.argv or 'pytest' in sys.modules
+
+db_host = os.environ.get('DB_HOST')
+if db_host and not is_testing:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': os.environ.get('DB_NAME', 'research_intelligence'),
+            'USER': os.environ.get('DB_USER', 'postgres'),
+            'PASSWORD': os.environ.get('DB_PASSWORD', 'development_password'),
+            'HOST': db_host,
+            'PORT': os.environ.get('DB_PORT', '5432'),
+            'TEST': {
+                'NAME': ':memory:',
+            }
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+            'TEST': {
+                'NAME': ':memory:',
+            }
+        }
+    }
 
 
 # Password validation
@@ -163,5 +185,26 @@ CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
+
+
+# Storage Abstraction for Local Filesystem, AWS S3, MinIO, and Google Cloud Storage (GCS)
+STORAGE_BACKEND = os.environ.get('STORAGE_BACKEND', 'local').lower()
+
+if STORAGE_BACKEND in ['s3', 'minio']:
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', os.environ.get('MINIO_ACCESS_KEY', 'minio_dev_user'))
+    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', os.environ.get('MINIO_SECRET_KEY', 'minio_dev_password'))
+    AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME', 'schwarz-research-intelligence')
+    AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'eu-central-1')
+    
+    endpoint_url = os.environ.get('AWS_S3_ENDPOINT_URL', os.environ.get('MINIO_ENDPOINT'))
+    if endpoint_url:
+        if not endpoint_url.startswith('http'):
+            endpoint_url = f"http://{endpoint_url}"
+        AWS_S3_ENDPOINT_URL = endpoint_url
+        AWS_S3_USE_SSL = os.environ.get('MINIO_SECURE', 'False').lower() == 'true'
+elif STORAGE_BACKEND in ['gcs', 'gcp']:
+    DEFAULT_FILE_STORAGE = 'storages.backends.gcp_storage.GoogleCloudStorage'
+    GS_BUCKET_NAME = os.environ.get('GS_BUCKET_NAME', 'schwarz-research-intelligence')
 
 

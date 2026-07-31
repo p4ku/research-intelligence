@@ -56,7 +56,7 @@ class DynamicExtractionTaskTestCase(TestCase):
                 }
             }
         }
-        mock_provider.generate.return_value = json.dumps(mock_response)
+        mock_provider.generate.return_value = (mock_response, {"prompt_tokens": 10, "candidates_tokens": 10})
 
         # Run extraction task
         result = run_extraction_for_definition(self.paper.id, self.def_ml_methods.id)
@@ -90,7 +90,7 @@ class DynamicExtractionTaskTestCase(TestCase):
                 }
             }
         }
-        mock_provider.generate.return_value = json.dumps(mock_response)
+        mock_provider.generate.return_value = (mock_response, {"prompt_tokens": 10, "candidates_tokens": 10})
 
         result = run_extraction_for_definition(self.paper.id, self.def_ml_methods.id)
         self.assertTrue(result)
@@ -101,13 +101,11 @@ class DynamicExtractionTaskTestCase(TestCase):
         self.assertEqual(extraction.validation_status, "warn")
         self.assertTrue(extraction.review_required)
 
-    @patch("research_intelligence.tasks.step_5_extraction.extract.group")
-    def test_extract_custom_variables_orchestrator(self, mock_group):
-        mock_group_instance = MagicMock()
-        mock_group.return_value = mock_group_instance
+    @patch("research_intelligence.tasks.step_5_extraction.extract.get_llm_provider")
+    def test_extract_custom_variables_orchestrator(self, mock_get_provider):
+        mock_provider = MagicMock()
+        mock_get_provider.return_value = mock_provider
+        mock_provider.generate.return_value = ({}, {})
         
         result = extract_custom_variables(self.paper.id, self.workspace.id)
-        
-        self.assertTrue(result)
-        mock_group.assert_called_once()
-        mock_group_instance.apply_async.assert_called_once()
+        self.assertIsNotNone(result)

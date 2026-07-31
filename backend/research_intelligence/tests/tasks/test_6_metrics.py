@@ -7,8 +7,8 @@ class TRLAssessmentTaskTestCase(TestCase):
     def setUp(self):
         self.workspace = Workspace.objects.create(
             name="Metrics Test Project",
-            acceptance_criteria="Inclusion rules",
-            rejection_criteria="Exclusion rules",
+            abstract_acceptance_criteria="Inclusion rules",
+            abstract_rejection_criteria="Exclusion rules",
             llm_provider="google"
         )
         self.pipeline_run = PipelineRun.objects.create(

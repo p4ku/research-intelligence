@@ -18,8 +18,8 @@ class APISecurityTestCase(APITestCase):
         # Create a workspace for testing endpoints
         self.workspace = Workspace.objects.create(
             name="Test Scan Project",
-            acceptance_criteria="Inclusion rules",
-            rejection_criteria="Exclusion rules"
+            abstract_acceptance_criteria="Inclusion rules",
+            abstract_rejection_criteria="Exclusion rules"
         )
         self.list_url = reverse('workspace-list')
         self.login_url = reverse('login')
