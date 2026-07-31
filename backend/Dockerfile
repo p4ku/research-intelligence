@@ -25,5 +25,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy project files
 COPY . /app/
 
+# Make entrypoint script executable
+RUN chmod +x /app/entrypoint.sh
+
 # Expose port 8000
 EXPOSE 8000
+
+# Default entrypoint for container execution
+ENTRYPOINT ["/app/entrypoint.sh"]
