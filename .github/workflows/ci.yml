@@ -41,7 +41,7 @@ jobs:
           SECRET_KEY: 'ci_secret_key_testing_12345'
           GOOGLE_AGENT_API_KEY: 'mock_key_for_testing'
         run: |
-          python backend/manage.py test research_intelligence.tests --verbosity=2
+          python backend/manage.py test research_intelligence.tests --parallel auto
 
   docker-cache-build:
     name: Build & Cache Docker Container Layers
