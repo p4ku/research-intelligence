@@ -1,10 +1,19 @@
-from rest_framework import viewsets
-from research_intelligence.models import Paper
+from rest_framework import viewsets, permissions
+from research_intelligence.models import Paper, WorkspaceMember
 from ..serializers.papers import PaperSerializer
+
 
 class PaperViewSet(viewsets.ModelViewSet):
     """
     Explore papers ingested in weekly batch runs.
+    Scoped to workspaces the authenticated user is a member of.
     """
-    queryset = Paper.objects.all()
     serializer_class = PaperSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if getattr(user, 'is_superuser', False):
+            return Paper.objects.all()
+        user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
+        return Paper.objects.filter(workspace_id__in=user_ws_ids)

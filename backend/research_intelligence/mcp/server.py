@@ -88,17 +88,74 @@ from research_intelligence.mcp.tools import (
     delete_research_agent_logic,
     test_google_llm_logic,
 )
+from .tools.activity_logs import list_user_activity_logs_logic
 
 
 def with_db_connection(func):
-    """Decorator to manage Django DB connections cleanly across async worker calls."""
+    """Decorator to manage Django DB connections cleanly and automatically audit FastMCP tool executions."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         close_old_connections()
+        import time
+        t0 = time.time()
+        user = None
+        workspace = None
+        api_key = None
         try:
-            return func(*args, **kwargs)
+            user, workspace, api_key = get_auth_context()
+        except Exception:
+            pass
+
+        status = "success"
+        error_msg = None
+        result = None
+
+        try:
+            result = func(*args, **kwargs)
+            if isinstance(result, str):
+                try:
+                    res_obj = json.loads(result)
+                    if isinstance(res_obj, dict) and res_obj.get("status") == "error":
+                        status = "failed"
+                        error_msg = res_obj.get("error")
+                except Exception:
+                    pass
+            return result
+        except Exception as e:
+            status = "failed"
+            error_msg = str(e)
+            raise
         finally:
+            dt_ms = round((time.time() - t0) * 1000, 2)
+            try:
+                from research_intelligence.models import UserActivityLog
+                api_key_id = getattr(api_key, 'key_id', None) if api_key else None
+                out_sum = None
+                if result:
+                    if isinstance(result, str) and len(result) < 2000:
+                        try:
+                            out_sum = json.loads(result)
+                        except Exception:
+                            out_sum = {"result": result[:500]}
+                    else:
+                        out_sum = {"result_length": len(str(result))}
+
+                UserActivityLog.log_action(
+                    user=user,
+                    workspace=workspace,
+                    interface="mcp",
+                    action_name=func.__name__,
+                    status=status,
+                    input_params=kwargs if kwargs else {"args": [str(a) for a in args]},
+                    output_summary=out_sum,
+                    error_message=error_msg,
+                    execution_time_ms=dt_ms,
+                    api_key_id=api_key_id
+                )
+            except Exception as audit_err:
+                logger.warning(f"Failed to record UserActivityLog for {func.__name__}: {audit_err}")
             close_old_connections()
+
     return wrapper
 
 
@@ -959,13 +1016,19 @@ def delete_research_agent(process_id: str) -> str:
 
 @mcp.tool()
 @with_db_connection
-def test_google_llm(prompt: str | None = None, model: str | None = None, location: str | None = None) -> str:
-    """Test execution of Google GenAI / Vertex AI LLM model (e.g. 'gemini-3.5-flash') and verify API credentials, project ID, location, and response generation."""
+def list_user_activity_logs(
+    workspace_id: str | None = None,
+    interface: str | None = None,
+    status: str | None = None,
+    limit: int = 50
+) -> str:
+    """List operational audit activity logs for a workspace or across user actions (FastMCP tools and REST API endpoints)."""
     try:
         user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:read")
     except Exception as e:
         return str(e)
-    return test_google_llm_logic(user, prompt, model, location)
+    return list_user_activity_logs_logic(user, workspace_id, interface, status, limit)
 
 
 # 3. Pure ASGI HTTP/SSE Request Authentication Middleware

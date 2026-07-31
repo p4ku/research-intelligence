@@ -1,8 +1,8 @@
 import json
-from rest_framework import viewsets, status
+from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from research_intelligence.models import ResearchAgentProcess
+from research_intelligence.models import ResearchAgentProcess, WorkspaceMember
 from ..serializers.agents import ResearchAgentProcessSerializer
 from research_intelligence.mcp.tools.agent_processes import (
     start_research_agent_logic,
@@ -16,17 +16,20 @@ from research_intelligence.mcp.tools.agent_processes import (
 
 class ResearchAgentViewSet(viewsets.ModelViewSet):
     """
-    REST API ViewSet for autonomous Research Agent Processes:
-    - GET /api/agents/ : List agent processes
-    - POST /api/agents/ : Start a new agent process
-    - GET /api/agents/{id}/ : Retrieve status & step history
-    - POST /api/agents/{id}/pause/ : Pause process
-    - POST /api/agents/{id}/resume/ : Resume process
-    - POST /api/agents/{id}/abort/ : Abort process
-    - DELETE /api/agents/{id}/ : Delete process & cleanup
+    REST API ViewSet for autonomous Research Agent Processes.
+    Scoped to workspaces the authenticated user is a member of.
     """
-    queryset = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').all().order_by('-started_at')
     serializer_class = ResearchAgentProcessSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if getattr(user, 'is_superuser', False):
+            return ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').all().order_by('-started_at')
+        user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
+        return ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').filter(
+            workspace_id__in=user_ws_ids
+        ).order_by('-started_at')
 
     def create(self, request, *args, **kwargs):
         workspace_id = request.data.get("workspace") or request.data.get("workspace_id")

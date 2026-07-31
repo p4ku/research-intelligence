@@ -1,8 +1,11 @@
 import uuid
 import secrets
 import hashlib
+import logging
 from django.db import models
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 class Workspace(models.Model):
     """
@@ -502,4 +505,98 @@ class APIKey(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.key_id})"
+
+
+class UserActivityLog(models.Model):
+    """
+    Immutable audit log capturing user actions across FastMCP tools and REST API endpoints.
+    Preserves historical traceability even after User or Workspace deletion via denormalized fields.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    
+    # Foreign keys (SET_NULL on deletion to maintain audit record)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="activity_logs")
+    workspace = models.ForeignKey(Workspace, on_delete=models.SET_NULL, null=True, blank=True, related_name="activity_logs")
+    
+    # Denormalized historical strings (Preserved even if user/workspace row is deleted!)
+    user_username = models.CharField(max_length=255, blank=True, help_text="Historical username at action execution")
+    user_email = models.CharField(max_length=255, blank=True, help_text="Historical email at action execution")
+    workspace_name = models.CharField(max_length=255, blank=True, help_text="Historical workspace name at action execution")
+    
+    # Action Metadata
+    interface = models.CharField(max_length=50, help_text="'mcp' or 'rest_api'")
+    action_name = models.CharField(max_length=255, help_text="e.g. 'start_research_agent', 'POST /api/agents/'")
+    status = models.CharField(max_length=50, default="success", help_text="'success', 'failed', 'unauthorized'")
+    
+    # Payloads & Execution Trace
+    input_params = models.JSONField(blank=True, null=True, help_text="Parameters / request body sent by user")
+    output_summary = models.JSONField(blank=True, null=True, help_text="Response payload or summary returned")
+    error_message = models.TextField(blank=True, null=True, help_text="Error traceback or failure reason if status != success")
+    execution_time_ms = models.FloatField(default=0.0, help_text="Duration of operation in milliseconds")
+    
+    # Client Context
+    api_key_id = models.CharField(max_length=255, blank=True, null=True, help_text="MCP API Key ID used")
+    ip_address = models.CharField(max_length=100, blank=True, null=True)
+    user_agent = models.CharField(max_length=512, blank=True, null=True)
+    
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['-timestamp']),
+            models.Index(fields=['interface', 'action_name']),
+            models.Index(fields=['status']),
+        ]
+
+    @classmethod
+    def log_action(
+        cls,
+        user=None,
+        workspace=None,
+        interface: str = "mcp",
+        action_name: str = "",
+        status: str = "success",
+        input_params: dict = None,
+        output_summary: dict = None,
+        error_message: str = None,
+        execution_time_ms: float = 0.0,
+        api_key_id: str = None,
+        ip_address: str = None,
+        user_agent: str = None
+    ):
+        """Helper factory creating UserActivityLog entries with automatic denormalization."""
+        username = getattr(user, 'username', '') if user else ''
+        email = getattr(user, 'email', '') if user else ''
+        ws_name = getattr(workspace, 'name', '') if workspace else ''
+
+        logger.info(
+            f"📝 [USER ACTIVITY LOG] [{interface.upper()}] {action_name} | "
+            f"User: '{username or 'Anonymous'}' ({email or 'N/A'}) | "
+            f"Workspace: '{ws_name or 'N/A'}' | "
+            f"Status: {status.upper()} ({execution_time_ms:.1f}ms)"
+        )
+
+        return cls.objects.create(
+            user=user,
+            workspace=workspace,
+            user_username=username,
+            user_email=email,
+            workspace_name=ws_name,
+            interface=interface,
+            action_name=action_name,
+            status=status,
+            input_params=input_params,
+            output_summary=output_summary,
+            error_message=error_message,
+            execution_time_ms=execution_time_ms,
+            api_key_id=api_key_id,
+            ip_address=ip_address,
+            user_agent=user_agent
+        )
+
+    def __str__(self):
+        user_str = self.user_username or (str(self.user) if self.user else "Anonymous")
+        return f"[{self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] {user_str} executed {self.action_name} ({self.status})"
+
 

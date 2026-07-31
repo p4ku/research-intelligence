@@ -21,6 +21,7 @@ from research_intelligence.models import (
     NarrativeReport,
     AuditTrail,
     HITLCorrection,
+    UserActivityLog,
 )
 
 
@@ -562,3 +563,79 @@ class SubscriberAdmin(admin.ModelAdmin):
     list_display = ('email', 'name', 'workspace', 'is_active', 'created_at')
     list_filter = ('is_active', 'workspace')
     search_fields = ('email', 'name')
+
+
+@admin.register(UserActivityLog)
+class UserActivityLogAdmin(admin.ModelAdmin):
+    """
+    State-of-the-art Django Admin interface for operational User & API Activity Audit Logs.
+    Imforces read-only immutability, visual status badges, and pretty JSON formatting for payloads.
+    """
+    list_display = (
+        'formatted_timestamp',
+        'user_display',
+        'workspace_display',
+        'interface_badge',
+        'action_name',
+        'status_badge',
+        'execution_duration_fmt',
+        'ip_address'
+    )
+    list_filter = ('interface', 'status', 'timestamp')
+    search_fields = (
+        'user_username',
+        'user_email',
+        'workspace_name',
+        'action_name',
+        'error_message',
+        'ip_address',
+        'api_key_id'
+    )
+    readonly_fields = [f.name for f in UserActivityLog._meta.fields]
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
+
+    def has_add_permission(self, request):
+        return False  # Immutable audit trail
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def formatted_timestamp(self, obj):
+        return obj.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    formatted_timestamp.short_description = "Timestamp"
+    formatted_timestamp.admin_order_field = "timestamp"
+
+    def user_display(self, obj):
+        return obj.user_username or (obj.user.username if obj.user else "Anonymous")
+    user_display.short_description = "User"
+
+    def workspace_display(self, obj):
+        return obj.workspace_name or (obj.workspace.name if obj.workspace else "-")
+    workspace_display.short_description = "Workspace"
+
+    def interface_badge(self, obj):
+        color = "#0052cc" if obj.interface == "mcp" else "#6f42c1"
+        return format_html(
+            f'<span style="background-color: {color}; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px;">{obj.interface.upper()}</span>'
+        )
+    interface_badge.short_description = "Interface"
+
+    def status_badge(self, obj):
+        if obj.status == "success":
+            color = "#28a745"
+        elif obj.status == "unauthorized":
+            color = "#fd7e14"
+        else:
+            color = "#dc3545"
+        return format_html(
+            f'<span style="background-color: {color}; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px;">{obj.status.upper()}</span>'
+        )
+    status_badge.short_description = "Status"
+
+    def execution_duration_fmt(self, obj):
+        return f"{obj.execution_time_ms:.1f} ms"
+    execution_duration_fmt.short_description = "Duration"
+    execution_duration_fmt.admin_order_field = "execution_time_ms"
+

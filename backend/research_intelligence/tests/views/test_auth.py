@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.contrib.auth.models import User
 from rest_framework import status
 from rest_framework.test import APITestCase
-from research_intelligence.models import Workspace
+from research_intelligence.models import Workspace, WorkspaceMember, APIKey
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from api.urls import router
 
@@ -24,7 +24,21 @@ class APISecurityTestCase(APITestCase):
         self.list_url = reverse('workspace-list')
         self.login_url = reverse('login')
         self.refresh_url = reverse('refresh-token')
-        self.test_user = User(id=9999, username='test_user', is_active=True)
+        self.test_user = User.objects.create_user(username='test_user', password='testpass123', is_active=True)
+        # Grant membership so scoped ViewSets return data for valid token tests
+        WorkspaceMember.objects.create(workspace=self.workspace, user=self.test_user, role='admin')
+
+        # Create a valid MCP API key for login tests
+        self.api_key_obj = APIKey.objects.create(
+            name="Test API Key",
+            user=self.test_user,
+            workspace=self.workspace,
+            is_active=True,
+            scopes=["workspaces:read", "workspaces:write"],
+        )
+        self.raw_secret = self.api_key_obj.generate_key()
+        self.api_key_obj.save()
+        self.api_key_string = f"{self.api_key_obj.key_id}:{self.raw_secret}"
 
     # ==========================================
     # 1. SimpleJWT Lifecycle Tests
@@ -69,10 +83,45 @@ class APISecurityTestCase(APITestCase):
         response = self.client.get(self.list_url)
         self.assertEqual(response.status_code, status.HTTP_200_OK)
 
-    def test_login_endpoint_accessible_without_authentication(self):
-        """Verify that the login endpoint does not require auth headers."""
+    # ==========================================
+    # 2. Login Endpoint Security Tests
+    # ==========================================
+
+    def test_login_with_valid_api_key(self):
+        """Login with a valid API key returns JWT tokens with real user_id."""
         data = {
-            "api_key": "some-api-key",
+            "api_key": self.api_key_string,
+            "workspace_id": str(self.workspace.id)
+        }
+        response = self.client.post(self.login_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIn("access", response.data)
+        self.assertIn("refresh", response.data)
+        self.assertEqual(response.data["user_id"], self.test_user.id)
+
+    def test_login_with_invalid_api_key_rejected(self):
+        """Login with a random/invalid API key must be rejected."""
+        data = {
+            "api_key": "totally-fake-key",
+            "workspace_id": str(self.workspace.id)
+        }
+        response = self.client.post(self.login_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED,
+                         "🔴 Login endpoint accepted an invalid API key!")
+
+    def test_login_with_wrong_secret_rejected(self):
+        """Login with correct key_id but wrong secret must be rejected."""
+        data = {
+            "api_key": f"{self.api_key_obj.key_id}:wrong_secret_here",
+            "workspace_id": str(self.workspace.id)
+        }
+        response = self.client.post(self.login_url, data, format='json')
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_login_endpoint_accessible_without_authentication(self):
+        """Verify that the login endpoint does not require auth headers (AllowAny)."""
+        data = {
+            "api_key": self.api_key_string,
             "workspace_id": str(self.workspace.id)
         }
         response = self.client.post(self.login_url, data, format='json')
@@ -81,7 +130,7 @@ class APISecurityTestCase(APITestCase):
         self.assertIn("refresh", response.data)
 
     # ==========================================
-    # 2. Dynamic Endpoint Security Scanner
+    # 3. Dynamic Endpoint Security Scanner
     # ==========================================
 
     def test_dynamic_endpoint_scanner(self):
