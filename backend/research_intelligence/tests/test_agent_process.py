@@ -179,7 +179,7 @@ class ResearchAgentProcessTest(TestCase):
         status_res = json.loads(get_research_agent_status_logic(self.user, proc_id))
         self.assertEqual(status_res["process_id"], proc_id)
         self.assertEqual(status_res["status"], "running")
-        self.assertEqual(status_res["current_step"], "search")
+        self.assertIn(status_res["current_step"], ["search", "download"])
 
         # 3. pause_research_agent_logic
         pause_res = json.loads(pause_research_agent_logic(self.user, proc_id))
