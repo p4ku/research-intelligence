@@ -69,6 +69,7 @@ services:
       - "8000:8000"
     environment:
       - DEBUG=True
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,sri.soinventive.co.uk}
       - SECRET_KEY=dev_secret_key_12345
       - DB_HOST=db
       - DB_NAME=research_intelligence
@@ -127,6 +128,7 @@ services:
       - "8001:8001"
     environment:
       - DEBUG=True
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,sri.soinventive.co.uk}
       - SECRET_KEY=dev_secret_key_12345
       - DB_HOST=db
       - DB_NAME=research_intelligence
@@ -181,6 +183,7 @@ services:
       - ./backend:/app
     environment:
       - DEBUG=True
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,sri.soinventive.co.uk}
       - SECRET_KEY=dev_secret_key_12345
       - DB_HOST=db
       - DB_NAME=research_intelligence
@@ -224,6 +227,7 @@ services:
       - ./backend:/app
     environment:
       - DEBUG=True
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,sri.soinventive.co.uk}
       - SECRET_KEY=dev_secret_key_12345
       - DB_HOST=db
       - DB_NAME=research_intelligence
