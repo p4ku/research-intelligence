@@ -109,6 +109,7 @@ services:
         - "traefik.http.routers.sri-backend-dev.entrypoints=websecure"
         - "traefik.http.routers.sri-backend-dev.tls=true"
         - "traefik.http.routers.sri-backend-dev.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.sri-backend-dev.service=sri-backend-dev"
         - "traefik.http.services.sri-backend-dev.loadbalancer.server.port=8000"
 
   # FastMCP Server for AI Client integrations
@@ -164,6 +165,7 @@ services:
         - "traefik.http.routers.sri-mcp-dev.entrypoints=websecure"
         - "traefik.http.routers.sri-mcp-dev.tls=true"
         - "traefik.http.routers.sri-mcp-dev.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.sri-mcp-dev.service=sri-mcp-dev"
         - "traefik.http.services.sri-mcp-dev.loadbalancer.server.port=8001"
 
   # Celery Async Pipeline Worker
@@ -274,6 +276,7 @@ services:
         - "traefik.http.routers.sri-frontend-dev.entrypoints=websecure"
         - "traefik.http.routers.sri-frontend-dev.tls=true"
         - "traefik.http.routers.sri-frontend-dev.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.sri-frontend-dev.service=sri-frontend-dev"
         - "traefik.http.services.sri-frontend-dev.loadbalancer.server.port=3000"
 
 volumes:
