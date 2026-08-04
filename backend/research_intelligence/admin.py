@@ -240,7 +240,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
         'usd_spent_this_month',
         'created_at'
     )
-    search_fields = ('name', 'acceptance_criteria', 'rejection_criteria')
+    search_fields = ('name', 'abstract_acceptance_criteria', 'abstract_rejection_criteria', 'full_text_acceptance_criteria', 'full_text_rejection_criteria')
     list_filter = ('ocr_provider', 'llm_provider', 'created_at')
     inlines = [WorkspaceMemberInline, ScraperInline, PromptTemplateInline, SubscriberInline]
     fieldsets = (
@@ -248,7 +248,10 @@ class WorkspaceAdmin(admin.ModelAdmin):
             'fields': ('name', 'digest_schedule')
         }),
         ('Pipeline Guidelines & Criteria', {
-            'fields': ('acceptance_criteria', 'rejection_criteria')
+            'fields': (
+                'abstract_acceptance_criteria', 'abstract_rejection_criteria',
+                'full_text_acceptance_criteria', 'full_text_rejection_criteria'
+            )
         }),
         ('Engine & Provider Configuration', {
             'fields': ('ocr_provider', 'screening_llm_model', 'llm_provider')
