@@ -57,6 +57,7 @@ services:
 
   # Django REST API Backend
   backend:
+    image: sri_backend:develop
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -112,6 +113,7 @@ services:
 
   # FastMCP Server for AI Client integrations
   mcp_server:
+    image: sri_backend:develop
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -166,6 +168,7 @@ services:
 
   # Celery Async Pipeline Worker
   celery_worker:
+    image: sri_backend:develop
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -208,6 +211,7 @@ services:
 
   # Celery Scheduler (e.g. for trigger weekly executive briefings, checking daily quotas)
   celery_beat:
+    image: sri_backend:develop
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -243,6 +247,7 @@ services:
 
   # Next.js Frontend Dashboard
   frontend:
+    image: sri_frontend:develop
     build:
       context: ./frontend
       dockerfile: Dockerfile
