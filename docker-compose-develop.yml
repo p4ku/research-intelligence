@@ -94,12 +94,9 @@ services:
       - GS_BUCKET_NAME=${GS_BUCKET_NAME:-schwarz-research-intelligence}
       - SENTRY_DSN=
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      - db
+      - redis
+      - minio
     networks:
       - default
       - dokploy-network
@@ -151,12 +148,9 @@ services:
       - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
       - GS_BUCKET_NAME=${GS_BUCKET_NAME:-schwarz-research-intelligence}
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      - db
+      - redis
+      - minio
     networks:
       - default
       - dokploy-network
@@ -208,12 +202,9 @@ services:
       - GS_BUCKET_NAME=${GS_BUCKET_NAME:-schwarz-research-intelligence}
       - SENTRY_DSN=
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
+      - db
+      - redis
+      - minio
 
   # Celery Scheduler (e.g. for trigger weekly executive briefings, checking daily quotas)
   celery_beat:
@@ -247,10 +238,8 @@ services:
       - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
       - GS_BUCKET_NAME=${GS_BUCKET_NAME:-schwarz-research-intelligence}
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      - db
+      - redis
 
   # Next.js Frontend Dashboard
   frontend:
