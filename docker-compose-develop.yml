@@ -100,6 +100,18 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    networks:
+      - default
+      - dokploy-network
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=dokploy-network"
+        - "traefik.http.routers.sri-backend-dev.rule=Host(`sri.soinventive.co.uk`) && (PathPrefix(`/api`) || PathPrefix(`/admin`))"
+        - "traefik.http.routers.sri-backend-dev.entrypoints=websecure"
+        - "traefik.http.routers.sri-backend-dev.tls=true"
+        - "traefik.http.routers.sri-backend-dev.tls.certresolver=letsencrypt"
+        - "traefik.http.services.sri-backend-dev.loadbalancer.server.port=8000"
 
   # FastMCP Server for AI Client integrations
   mcp_server:
@@ -145,6 +157,18 @@ services:
         condition: service_healthy
       minio:
         condition: service_healthy
+    networks:
+      - default
+      - dokploy-network
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=dokploy-network"
+        - "traefik.http.routers.sri-mcp-dev.rule=Host(`sri.soinventive.co.uk`) && (PathPrefix(`/sse`) || PathPrefix(`/messages`))"
+        - "traefik.http.routers.sri-mcp-dev.entrypoints=websecure"
+        - "traefik.http.routers.sri-mcp-dev.tls=true"
+        - "traefik.http.routers.sri-mcp-dev.tls.certresolver=letsencrypt"
+        - "traefik.http.services.sri-mcp-dev.loadbalancer.server.port=8001"
 
   # Celery Async Pipeline Worker
   celery_worker:
@@ -245,8 +269,25 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+    networks:
+      - default
+      - dokploy-network
+    deploy:
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=dokploy-network"
+        - "traefik.http.routers.sri-frontend-dev.rule=Host(`sri.soinventive.co.uk`)"
+        - "traefik.http.routers.sri-frontend-dev.entrypoints=websecure"
+        - "traefik.http.routers.sri-frontend-dev.tls=true"
+        - "traefik.http.routers.sri-frontend-dev.tls.certresolver=letsencrypt"
+        - "traefik.http.services.sri-frontend-dev.loadbalancer.server.port=3000"
 
 volumes:
   postgres_data:
   redis_data:
   minio_data:
+
+networks:
+  dokploy-network:
+    external: true
+    name: dokploy-network
