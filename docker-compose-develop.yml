@@ -1,0 +1,252 @@
+version: '3.8'
+
+services:
+  # Database with pgvector extension support for RAG
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: ri_postgres_develop
+    restart: always
+    environment:
+      POSTGRES_DB: research_intelligence
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: development_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d research_intelligence"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Cache and Celery task broker
+  redis:
+    image: redis:7-alpine
+    container_name: ri_redis_develop
+    restart: always
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Local S3 replacement for storing original PDFs and Markdown files
+  minio:
+    image: minio/minio
+    container_name: ri_minio_develop
+    restart: always
+    ports:
+      - "9010:9000"
+      - "9011:9001"
+    environment:
+      MINIO_ROOT_USER: minio_dev_user
+      MINIO_ROOT_PASSWORD: minio_dev_password
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Django REST API Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ri_backend_develop
+    restart: always
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=dev_secret_key_12345
+      - DB_HOST=db
+      - DB_NAME=research_intelligence
+      - DB_USER=postgres
+      - DB_PASSWORD=development_password
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_AGENT_API_KEY=${GOOGLE_AGENT_API_KEY:-your_google_agent_api_key_here}
+      - GOOGLE_AGENT_API_URL=https://api.schwarzdigits.cloud/v1/google-agents
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-eu}
+      - DOWNLOAD_PARALLEL_WORKERS=${DOWNLOAD_PARALLEL_WORKERS:-8}
+      - SCREENING_PARALLEL_WORKERS=${SCREENING_PARALLEL_WORKERS:-4}
+      - EXTRACTION_PARALLEL_WORKERS=${EXTRACTION_PARALLEL_WORKERS:-4}
+      # Unified Object Storage (Local MinIO / AWS S3 / Google Cloud Storage)
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_dev_user}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_dev_password}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-schwarz-research-intelligence}
+      - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
+      - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
+      - GS_BUCKET_NAME=${GS_BUCKET_NAME:-schwarz-research-intelligence}
+      - SENTRY_DSN=
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  # FastMCP Server for AI Client integrations
+  mcp_server:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ri_mcp_server_develop
+    restart: always
+    command: python research_intelligence/mcp/server.py
+    volumes:
+      - ./backend:/app
+    ports:
+      - "8001:8001"
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=dev_secret_key_12345
+      - DB_HOST=db
+      - DB_NAME=research_intelligence
+      - DB_USER=postgres
+      - DB_PASSWORD=development_password
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_AGENT_API_KEY=${GOOGLE_AGENT_API_KEY:-your_google_agent_api_key_here}
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-eu}
+      - DOWNLOAD_PARALLEL_WORKERS=${DOWNLOAD_PARALLEL_WORKERS:-8}
+      - SCREENING_PARALLEL_WORKERS=${SCREENING_PARALLEL_WORKERS:-4}
+      - EXTRACTION_PARALLEL_WORKERS=${EXTRACTION_PARALLEL_WORKERS:-4}
+      # Unified Object Storage (Local MinIO / AWS S3 / Google Cloud Storage)
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_dev_user}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_dev_password}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-schwarz-research-intelligence}
+      - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
+      - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
+      - GS_BUCKET_NAME=${GS_BUCKET_NAME:-schwarz-research-intelligence}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  # Celery Async Pipeline Worker
+  celery_worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ri_celery_worker_develop
+    restart: always
+    command: celery -A django_project worker --loglevel=info -Q celery,tenant-default,tenant-bulk-scraping
+    volumes:
+      - ./backend:/app
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=dev_secret_key_12345
+      - DB_HOST=db
+      - DB_NAME=research_intelligence
+      - DB_USER=postgres
+      - DB_PASSWORD=development_password
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_AGENT_API_KEY=${GOOGLE_AGENT_API_KEY:-your_google_agent_api_key_here}
+      - GOOGLE_AGENT_API_URL=https://api.schwarzdigits.cloud/v1/google-agents
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-eu}
+      - DOWNLOAD_PARALLEL_WORKERS=${DOWNLOAD_PARALLEL_WORKERS:-8}
+      - SCREENING_PARALLEL_WORKERS=${SCREENING_PARALLEL_WORKERS:-4}
+      - EXTRACTION_PARALLEL_WORKERS=${EXTRACTION_PARALLEL_WORKERS:-4}
+      # Unified Object Storage (Local MinIO / AWS S3 / Google Cloud Storage)
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_dev_user}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_dev_password}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-schwarz-research-intelligence}
+      - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
+      - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
+      - GS_BUCKET_NAME=${GS_BUCKET_NAME:-schwarz-research-intelligence}
+      - SENTRY_DSN=
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+
+  # Celery Scheduler (e.g. for trigger weekly executive briefings, checking daily quotas)
+  celery_beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ri_celery_beat_develop
+    restart: always
+    command: celery -A django_project beat --loglevel=info
+    volumes:
+      - ./backend:/app
+    environment:
+      - DEBUG=True
+      - SECRET_KEY=dev_secret_key_12345
+      - DB_HOST=db
+      - DB_NAME=research_intelligence
+      - DB_USER=postgres
+      - DB_PASSWORD=development_password
+      - DB_PORT=5432
+      - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
+      - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-eu}
+      # Unified Object Storage (Local MinIO / AWS S3 / Google Cloud Storage)
+      - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-minio_dev_user}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-minio_dev_password}
+      - AWS_STORAGE_BUCKET_NAME=${AWS_STORAGE_BUCKET_NAME:-schwarz-research-intelligence}
+      - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
+      - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
+      - GS_BUCKET_NAME=${GS_BUCKET_NAME:-schwarz-research-intelligence}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # Next.js Frontend Dashboard
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ri_frontend_develop
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
