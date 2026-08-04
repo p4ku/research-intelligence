@@ -28,7 +28,11 @@ export default function StatusPage() {
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   const [apiUrl, setApiUrl] = useState<string>(
-    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/'
+    (() => {
+      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/';
+      const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+      return `${cleanBase}/health/`;
+    })()
   );
   const [mcpUrl, setMcpUrl] = useState<string>(
     process.env.NEXT_PUBLIC_MCP_URL || 'http://localhost:8001/sse'
@@ -41,8 +45,12 @@ export default function StatusPage() {
     setIsRefreshing(true);
     
     const targetApiUrl = typeof window !== 'undefined' && window.location.hostname === 'sri.soinventive.co.uk'
-      ? '/api/'
-      : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/');
+      ? '/api/health/'
+      : (() => {
+          const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/';
+          const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+          return `${cleanBase}/health/`;
+        })();
       
     const targetMcpUrl = typeof window !== 'undefined' && window.location.hostname === 'sri.soinventive.co.uk'
       ? '/sse'
@@ -99,7 +107,7 @@ export default function StatusPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location.hostname === 'sri.soinventive.co.uk') {
-      setApiUrl('/api/');
+      setApiUrl('/api/health/');
       setMcpUrl('/sse');
     }
     checkStatuses();

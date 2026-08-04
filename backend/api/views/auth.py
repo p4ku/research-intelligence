@@ -101,3 +101,14 @@ class TokenRefreshView(APIView):
         if serializer.is_valid():
             return Response(serializer.validated_data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
+
+
+class HealthCheckView(APIView):
+    """
+    Simple public health check endpoint returning 200 OK.
+    """
+    permission_classes = [AllowAny]
+    authentication_classes = []
+
+    def get(self, request, *args, **kwargs):
+        return Response({"status": "ok"}, status=status.HTTP_200_OK)
