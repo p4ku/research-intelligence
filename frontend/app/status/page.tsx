@@ -34,6 +34,9 @@ export default function StatusPage() {
     process.env.NEXT_PUBLIC_MCP_URL || 'http://localhost:8001/sse'
   );
 
+  const [showMcpGuide, setShowMcpGuide] = useState<boolean>(false);
+  const [showApiGuide, setShowApiGuide] = useState<boolean>(false);
+
   const checkStatuses = async () => {
     setIsRefreshing(true);
     
@@ -413,6 +416,215 @@ export default function StatusPage() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Integration Guides */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '3rem' }}>
+          {/* MCP Integration Guide */}
+          <div style={{
+            backgroundColor: '#111827',
+            border: '1px solid #1f2937',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            transition: 'border-color 0.2s',
+          }}>
+            <button 
+              onClick={() => setShowMcpGuide(!showMcpGuide)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '1.5rem 2rem',
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: '#f1f5f9',
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontSize: '1.1rem',
+                fontWeight: '600',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <Cpu size={18} style={{ color: '#0284c7' }} />
+                <span>OpenCode MCP Integration Guide</span>
+              </div>
+              <span style={{
+                color: '#94a3b8',
+                transform: showMcpGuide ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s',
+                display: 'inline-block',
+                fontSize: '0.8rem',
+              }}>▼</span>
+            </button>
+            
+            {showMcpGuide && (
+              <div style={{
+                padding: '0 2rem 2rem 2rem',
+                borderTop: '1px solid #1f2937',
+                paddingTop: '1.5rem',
+                color: '#cbd5e1',
+                fontSize: '0.9rem',
+                lineHeight: '1.6',
+              }}>
+                <p style={{ margin: '0 0 1rem 0' }}>
+                  To register this remote MCP server inside your <strong>OpenCode</strong> editor environment, append the server configuration to your OpenCode settings file:
+                </p>
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <span style={{ display: 'block', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600', marginBottom: '0.25rem' }}>Settings file path</span>
+                  <pre style={{
+                    margin: 0,
+                    padding: '0.75rem 1rem',
+                    backgroundColor: '#030712',
+                    border: '1px solid #1f2937',
+                    borderRadius: '6px',
+                    color: '#38bdf8',
+                    fontFamily: 'monospace',
+                    fontSize: '0.85rem',
+                  }}>nano ~/.config/opencode/opencode.json</pre>
+                </div>
+                
+                <div>
+                  <span style={{ display: 'block', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600', marginBottom: '0.25rem' }}>Add under "mcpServers" key</span>
+                  <pre style={{
+                    margin: 0,
+                    padding: '1.25rem',
+                    backgroundColor: '#030712',
+                    border: '1px solid #1f2937',
+                    borderRadius: '6px',
+                    color: '#34d399',
+                    fontFamily: 'monospace',
+                    fontSize: '0.85rem',
+                    overflowX: 'auto',
+                    whiteSpace: 'pre',
+                  }}>{`"schwarz-research-intelligence": {
+  "type": "remote",
+  "url": "${mcpUrl}",
+  "headers": {
+    "X-API-KEY-ID": "your_mcp_key_id",
+    "X-API-SECRET": "your_mcp_secret"
+  },
+  "enabled": true,
+  "oauth": false
+}`}</pre>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* API Integration Guide */}
+          <div style={{
+            backgroundColor: '#111827',
+            border: '1px solid #1f2937',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            transition: 'border-color 0.2s',
+          }}>
+            <button 
+              onClick={() => setShowApiGuide(!showApiGuide)}
+              style={{
+                width: '100%',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '1.5rem 2rem',
+                backgroundColor: 'transparent',
+                border: 'none',
+                color: '#f1f5f9',
+                cursor: 'pointer',
+                textAlign: 'left',
+                fontSize: '1.1rem',
+                fontWeight: '600',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <Database size={18} style={{ color: '#0284c7' }} />
+                <span>REST API Integration Guide</span>
+              </div>
+              <span style={{
+                color: '#94a3b8',
+                transform: showApiGuide ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s',
+                display: 'inline-block',
+                fontSize: '0.8rem',
+              }}>▼</span>
+            </button>
+            
+            {showApiGuide && (
+              <div style={{
+                padding: '0 2rem 2rem 2rem',
+                borderTop: '1px solid #1f2937',
+                paddingTop: '1.5rem',
+                color: '#cbd5e1',
+                fontSize: '0.9rem',
+                lineHeight: '1.6',
+              }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1rem', color: '#f1f5f9', margin: '0 0 0.5rem 0', fontWeight: '600' }}>1. Authenticate & Obtain JWT Token</h3>
+                    <p style={{ margin: '0 0 0.75rem 0' }}>
+                      Exchange user credentials for an access and refresh token pair:
+                    </p>
+                    <pre style={{
+                      margin: 0,
+                      padding: '1rem',
+                      backgroundColor: '#030712',
+                      border: '1px solid #1f2937',
+                      borderRadius: '6px',
+                      color: '#cbd5e1',
+                      fontFamily: 'monospace',
+                      fontSize: '0.85rem',
+                      overflowX: 'auto',
+                    }}>{`curl -X POST ${apiUrl.replace(/\/$/, '')}/auth/login/ \\
+  -H "Content-Type: application/json" \\
+  -d '{"username": "admin", "password": "your_password"}'`}</pre>
+                    <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: '#64748b' }}>
+                      Response returns json payload: <code>{`{ "access": "...", "refresh": "..." }`}</code>.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 style={{ fontSize: '1rem', color: '#f1f5f9', margin: '0 0 0.5rem 0', fontWeight: '600' }}>2. Request Protected Resources</h3>
+                    <p style={{ margin: '0 0 0.75rem 0' }}>
+                      Include the retrieved access token as a Bearer token in the <code>Authorization</code> header:
+                    </p>
+                    <pre style={{
+                      margin: 0,
+                      padding: '1rem',
+                      backgroundColor: '#030712',
+                      border: '1px solid #1f2937',
+                      borderRadius: '6px',
+                      color: '#cbd5e1',
+                      fontFamily: 'monospace',
+                      fontSize: '0.85rem',
+                      overflowX: 'auto',
+                    }}>{`curl -X GET ${apiUrl}workspaces/ \\
+  -H "Authorization: Bearer <your_access_token>"`}</pre>
+                  </div>
+
+                  <div>
+                    <h3 style={{ fontSize: '1rem', color: '#f1f5f9', margin: '0 0 0.5rem 0', fontWeight: '600' }}>3. Refresh Token</h3>
+                    <p style={{ margin: '0 0 0.75rem 0' }}>
+                      Renew the access token using the refresh token before it expires:
+                    </p>
+                    <pre style={{
+                      margin: 0,
+                      padding: '1rem',
+                      backgroundColor: '#030712',
+                      border: '1px solid #1f2937',
+                      borderRadius: '6px',
+                      color: '#cbd5e1',
+                      fontFamily: 'monospace',
+                      fontSize: '0.85rem',
+                      overflowX: 'auto',
+                    }}>{`curl -X POST ${apiUrl.replace(/\/$/, '')}/auth/refresh/ \\
+  -H "Content-Type: application/json" \\
+  -d '{"refresh": "<your_refresh_token>"}'`}</pre>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
