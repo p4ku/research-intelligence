@@ -10,24 +10,6 @@ interface ServiceStatus {
   error: string | null;
 }
 
-const getApiUrl = (): string => {
-  if (typeof window !== 'undefined') {
-    if (window.location.hostname === 'sri.soinventive.co.uk') {
-      return '/api/';
-    }
-  }
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/';
-};
-
-const getMcpUrl = (): string => {
-  if (typeof window !== 'undefined') {
-    if (window.location.hostname === 'sri.soinventive.co.uk') {
-      return '/sse';
-    }
-  }
-  return process.env.NEXT_PUBLIC_MCP_URL || 'http://localhost:8001/sse';
-};
-
 export default function StatusPage() {
   const [apiStatus, setApiStatus] = useState<ServiceStatus>({
     status: 'checking',
@@ -45,13 +27,28 @@ export default function StatusPage() {
 
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
+  const [apiUrl, setApiUrl] = useState<string>(
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/'
+  );
+  const [mcpUrl, setMcpUrl] = useState<string>(
+    process.env.NEXT_PUBLIC_MCP_URL || 'http://localhost:8001/sse'
+  );
+
   const checkStatuses = async () => {
     setIsRefreshing(true);
     
+    const targetApiUrl = typeof window !== 'undefined' && window.location.hostname === 'sri.soinventive.co.uk'
+      ? '/api/'
+      : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/');
+      
+    const targetMcpUrl = typeof window !== 'undefined' && window.location.hostname === 'sri.soinventive.co.uk'
+      ? '/sse'
+      : (process.env.NEXT_PUBLIC_MCP_URL || 'http://localhost:8001/sse');
+
     // Check API Status
     const apiStart = performance.now();
     try {
-      const response = await fetch(getApiUrl(), {
+      const response = await fetch(targetApiUrl, {
         method: 'GET',
         headers: { 'Accept': 'application/json' },
       });
@@ -74,12 +71,11 @@ export default function StatusPage() {
     // Check MCP Status
     const mcpStart = performance.now();
     try {
-      const response = await fetch(getMcpUrl(), {
+      const response = await fetch(targetMcpUrl, {
         method: 'GET',
       });
       const mcpEnd = performance.now();
       
-      // Even if it returns 405 (Method Not Allowed) or 400, it means the server is online and responding
       setMcpStatus({
         status: 'online',
         latency: Math.round(mcpEnd - mcpStart),
@@ -99,6 +95,10 @@ export default function StatusPage() {
   };
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hostname === 'sri.soinventive.co.uk') {
+      setApiUrl('/api/');
+      setMcpUrl('/sse');
+    }
     checkStatuses();
   }, []);
 
@@ -275,7 +275,7 @@ export default function StatusPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', color: '#94a3b8', fontSize: '0.9rem' }}>
                 <div>
                   <span style={{ display: 'block', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600', marginBottom: '0.25rem' }}>Endpoint URL</span>
-                  <code style={{ color: '#cbd5e1', wordBreak: 'break-all' }}>{getApiUrl()}</code>
+                  <code style={{ color: '#cbd5e1', wordBreak: 'break-all' }}>{apiUrl}</code>
                 </div>
 
                 {apiStatus.status === 'online' && (
@@ -379,7 +379,7 @@ export default function StatusPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', color: '#94a3b8', fontSize: '0.9rem' }}>
                 <div>
                   <span style={{ display: 'block', color: '#475569', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: '600', marginBottom: '0.25rem' }}>SSE Transport URL</span>
-                  <code style={{ color: '#cbd5e1', wordBreak: 'break-all' }}>{getMcpUrl()}</code>
+                  <code style={{ color: '#cbd5e1', wordBreak: 'break-all' }}>{mcpUrl}</code>
                 </div>
 
                 {mcpStatus.status === 'online' && (
