@@ -508,14 +508,13 @@ export default function StatusPage() {
                     whiteSpace: 'pre',
                   }}>{`"schwarz-research-intelligence": {
   "type": "remote",
-  "url": "${mcpUrl}",
-  "headers": {
-    "X-API-KEY-ID": "your_mcp_key_id",
-    "X-API-SECRET": "your_mcp_secret"
-  },
+  "url": "${mcpUrl}?api_key_id=your_mcp_key_id&api_secret=your_mcp_secret",
   "enabled": true,
   "oauth": false
 }`}</pre>
+                  <p style={{ marginTop: '1rem', color: '#f59e0b', fontSize: '0.8rem', margin: '1rem 0 0 0' }}>
+                    <strong>Note:</strong> IDEs like OpenCode, Cursor, and VSCode use the standard browser <code>EventSource</code> client to make SSE requests, which does not support custom HTTP headers. You must pass your authentication credentials directly in the URL query parameters as shown above.
+                  </p>
                 </div>
               </div>
             )}
