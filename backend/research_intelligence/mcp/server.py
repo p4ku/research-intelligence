@@ -1149,6 +1149,24 @@ class QueryParamAuthMiddleware:
         return await self.app(scope, receive, send)
 
 
+@mcp.tool()
+@with_db_connection
+def test_google_llm(
+    prompt: str | None = None,
+    model: str | None = None,
+    location: str | None = None
+) -> str:
+    """
+    Test connectivity to Google Cloud GenAI / Vertex AI models (e.g. gemini-3.5-flash) and verify current API credentials.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:read")
+    except Exception as e:
+        return str(e)
+    return test_google_llm_logic(user, prompt, model, location)
+
+
 def create_app():
     starlette_app = mcp.http_app(transport="sse", middleware=[])
     from starlette.middleware import Middleware
