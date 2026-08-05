@@ -1094,6 +1094,7 @@ class QueryParamAuthMiddleware:
         try:
             @sync_to_async
             def verify_or_fallback():
+                close_old_connections()
                 if key_id and secret:
                     try:
                         key_obj = APIKey.objects.select_related('user', 'workspace').get(key_id=key_id, is_active=True)
