@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views.workspaces import WorkspaceViewSet
+from .views.scrapers import ScraperViewSet
 from .views.papers import PaperViewSet
 from .views.extractions import ExtractionViewSet
 from .views.hitl import HITLViewSet
@@ -12,6 +13,7 @@ from .views.auth import LoginView, TokenRefreshView, HealthCheckView
 
 router = DefaultRouter()
 router.register(r'workspaces', WorkspaceViewSet, basename='workspace')
+router.register(r'scrapers', ScraperViewSet, basename='scraper')
 router.register(r'papers', PaperViewSet, basename='paper')
 router.register(r'extractions', ExtractionViewSet, basename='extraction')
 router.register(r'hitl', HITLViewSet, basename='hitl')

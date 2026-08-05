@@ -112,9 +112,15 @@ class MCPServerTest(TestCase):
             user=self.admin_user,
             workspace_id=ws_id,
             provider="arxiv",
-            search_query="cat:cs.AI AND agentic"
+            search_query="cat:cs.AI AND agentic",
+            limit=25,
+            sort_by="date",
+            sort_order="asc"
         ))
         self.assertTrue(create_res["success"])
+        self.assertEqual(create_res["limit"], 25)
+        self.assertEqual(create_res["sort_by"], "date")
+        self.assertEqual(create_res["sort_order"], "asc")
         scraper_id = create_res["scraper_id"]
 
         # 2. List Scrapers
@@ -122,20 +128,32 @@ class MCPServerTest(TestCase):
         self.assertEqual(len(scrapers_list), 1)
         self.assertEqual(scrapers_list[0]["provider"], "arxiv")
         self.assertEqual(scrapers_list[0]["search_query"], "cat:cs.AI AND agentic")
+        self.assertEqual(scrapers_list[0]["limit"], 25)
+        self.assertEqual(scrapers_list[0]["sort_by"], "date")
+        self.assertEqual(scrapers_list[0]["sort_order"], "asc")
 
         # 3. Get Scraper
         scraper_details = json.loads(get_scraper_logic(self.admin_user, scraper_id))
         self.assertEqual(scraper_details["provider"], "arxiv")
+        self.assertEqual(scraper_details["limit"], 25)
+        self.assertEqual(scraper_details["sort_by"], "date")
+        self.assertEqual(scraper_details["sort_order"], "asc")
 
         # 4. Update Scraper
         update_res = json.loads(update_scraper_logic(
             user=self.admin_user,
             scraper_id=scraper_id,
             search_query="cat:cs.AI AND LLM agents",
+            limit=15,
+            sort_by="relevance",
+            sort_order="desc",
             is_active=False
         ))
         self.assertTrue(update_res["success"])
         self.assertFalse(update_res["is_active"])
+        self.assertEqual(update_res["limit"], 15)
+        self.assertEqual(update_res["sort_by"], "relevance")
+        self.assertEqual(update_res["sort_order"], "desc")
 
         # 5. Delete Scraper
         del_res = json.loads(delete_scraper_logic(self.admin_user, scraper_id))

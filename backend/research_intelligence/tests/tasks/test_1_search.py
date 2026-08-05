@@ -72,9 +72,9 @@ class IngestionSearchTasksTestCase(TestCase):
         self.assertEqual(papers.filter(source_database="openalex").count(), 1)
         self.assertEqual(papers.filter(source_database="lens").count(), 1)
         
-        mock_arxiv_search.assert_called_once_with("arxiv query", limit=20)
-        mock_openalex_search.assert_called_once_with("openalex query", limit=20)
-        mock_lens_search.assert_called_once_with("lens query", limit=20)
+        mock_arxiv_search.assert_called_once_with("arxiv query", limit=20, sort_by="relevance", sort_order="desc")
+        mock_openalex_search.assert_called_once_with("openalex query", limit=20, sort_by="relevance", sort_order="desc")
+        mock_lens_search.assert_called_once_with("lens query", limit=20, sort_by="relevance", sort_order="desc")
 
     @patch("research_intelligence.scrapers.lens.LensScraperProvider.search")
     @patch("research_intelligence.scrapers.openalex.OpenAlexScraperProvider.search")
@@ -104,7 +104,7 @@ class IngestionSearchTasksTestCase(TestCase):
         self.assertEqual(papers.count(), 1)
         self.assertEqual(papers.first().title, "Arxiv Paper Only")
         
-        mock_arxiv_search.assert_called_once_with("arxiv query", limit=50)
+        mock_arxiv_search.assert_called_once_with("arxiv query", limit=50, sort_by="relevance", sort_order="desc")
         mock_openalex_search.assert_not_called()
         mock_lens_search.assert_not_called()
 
@@ -192,5 +192,5 @@ class IngestionSearchTasksTestCase(TestCase):
         # Verify the newly ingested paper title
         new_paper = Paper.objects.get(id=result[0])
         self.assertEqual(new_paper.title, "A Completely Unique Paper")
-        mock_arxiv_search.assert_called_once_with("arxiv query", limit=50)
+        mock_arxiv_search.assert_called_once_with("arxiv query", limit=50, sort_by="relevance", sort_order="desc")
 

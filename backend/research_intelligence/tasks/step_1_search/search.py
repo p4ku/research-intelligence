@@ -84,7 +84,10 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
 
     try:
         provider = get_scraper_provider(scraper.provider)
-        results = provider.search(scraper.search_query, limit=limit)
+        final_limit = limit if limit is not None else getattr(scraper, 'limit', 50)
+        sort_by = getattr(scraper, 'sort_by', 'relevance')
+        sort_order = getattr(scraper, 'sort_order', 'desc')
+        results = provider.search(scraper.search_query, limit=final_limit, sort_by=sort_by, sort_order=sort_order)
         
         # 1. Save raw response payload in Django default_storage (Orthogonal Path Structure)
         raw_storage_path = f"workspaces/{workspace.id}/runs/{pipeline_run.id}/scrapes/{scraper.provider}/{component_run.id}_raw.json"
@@ -248,15 +251,21 @@ def execute_workspace_search(workspace_id, pipeline_run_id, limit=50):
     created_ids = []
     active_scrapers = workspace.scrapers.filter(is_active=True)
     for scraper in active_scrapers:
+        scraper_limit = limit if limit is not None else getattr(scraper, 'limit', 50)
         comp_run = ComponentRun.objects.create(
             pipeline_run=pipeline_run,
             step_type='search',
             component_name=f"{scraper.provider}_scraper",
             scraper=scraper,
             status='pending',
-            input_params={"limit": limit, "search_query": scraper.search_query}
+            input_params={
+                "limit": scraper_limit,
+                "sort_by": getattr(scraper, 'sort_by', 'relevance'),
+                "sort_order": getattr(scraper, 'sort_order', 'desc'),
+                "search_query": scraper.search_query
+            }
         )
-        execute_scraper_run_job(str(comp_run.id), limit=limit)
+        execute_scraper_run_job(str(comp_run.id), limit=scraper_limit)
         comp_run.refresh_from_db()
         if comp_run.output_data and "created_paper_ids" in comp_run.output_data:
             created_ids.extend(comp_run.output_data["created_paper_ids"])

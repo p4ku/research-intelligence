@@ -12,7 +12,7 @@ class LensScraperProvider(BaseScraperProvider):
     Scraper provider implementing Lens.org scholarly API search and paper download.
     """
 
-    def search(self, query: str, limit: int = 10) -> list[dict]:
+    def search(self, query: str, limit: int = 10, sort_by: str = "relevance", sort_order: str = "desc") -> list[dict]:
         api_key = getattr(settings, "LENS_API_KEY", None)
         if not api_key:
             logger.warning("LENS_API_KEY not configured in settings. Returning empty results.")
@@ -27,6 +27,8 @@ class LensScraperProvider(BaseScraperProvider):
             },
             "size": limit
         }
+        if sort_by == "date":
+            payload["sort"] = [{"date_published": sort_order}]
         
         try:
             req = urllib.request.Request(

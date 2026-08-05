@@ -6,7 +6,7 @@ class BaseScraperProvider(abc.ABC):
     """
 
     @abc.abstractmethod
-    def search(self, query: str, limit: int = 10) -> list[dict]:
+    def search(self, query: str, limit: int = 10, sort_by: str = "relevance", sort_order: str = "desc") -> list[dict]:
         """
         Executes a search query against the provider and returns a list of standardized dicts.
         Standard schema:

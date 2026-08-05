@@ -96,6 +96,9 @@ class Scraper(models.Model):
     ]
     provider = models.CharField(max_length=50, choices=PROVIDER_CHOICES, help_text="Target API/database provider")
     search_query = models.TextField(help_text="Search query string or structured term parameter specific to this provider")
+    limit = models.IntegerField(default=50, help_text="Max results to fetch for this scraper")
+    sort_by = models.CharField(max_length=50, default="relevance", choices=[('relevance', 'Relevance'), ('date', 'Date')], help_text="Sorting criteria")
+    sort_order = models.CharField(max_length=10, default="desc", choices=[('desc', 'Descending'), ('asc', 'Ascending')], help_text="Sort order")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

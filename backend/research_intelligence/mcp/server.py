@@ -524,15 +524,18 @@ def create_scraper(
     workspace_id: str,
     provider: str,
     search_query: str,
+    limit: int = 50,
+    sort_by: str = "relevance",
+    sort_order: str = "desc",
     is_active: bool = True
 ) -> str:
-    """Create a new academic data scraper for a workspace."""
+    """Create a new academic data scraper for a workspace with sorting options and limit."""
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:write")
     except Exception as e:
         return str(e)
-    return create_scraper_logic(user, workspace_id, provider, search_query, is_active)
+    return create_scraper_logic(user, workspace_id, provider, search_query, limit, sort_by, sort_order, is_active)
 
 
 @mcp.tool()
@@ -541,15 +544,18 @@ def update_scraper(
     scraper_id: str,
     provider: str | None = None,
     search_query: str | None = None,
+    limit: int | None = None,
+    sort_by: str | None = None,
+    sort_order: str | None = None,
     is_active: bool | None = None
 ) -> str:
-    """Update an existing scraper configuration."""
+    """Update an existing scraper configuration with sorting options and limit."""
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:write")
     except Exception as e:
         return str(e)
-    return update_scraper_logic(user, scraper_id, provider, search_query, is_active)
+    return update_scraper_logic(user, scraper_id, provider, search_query, limit, sort_by, sort_order, is_active)
 
 
 @mcp.tool()

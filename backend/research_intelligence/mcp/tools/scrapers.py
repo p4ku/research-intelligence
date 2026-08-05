@@ -22,6 +22,9 @@ def list_scrapers_logic(user, workspace_id: str) -> str:
             "provider": s.provider,
             "provider_name": s.get_provider_display(),
             "search_query": s.search_query,
+            "limit": getattr(s, 'limit', 50),
+            "sort_by": getattr(s, 'sort_by', 'relevance'),
+            "sort_order": getattr(s, 'sort_order', 'desc'),
             "is_active": s.is_active,
             "created_at": s.created_at.isoformat()
         })
@@ -52,6 +55,9 @@ def get_scraper_logic(user, scraper_id: str) -> str:
         "provider": scraper.provider,
         "provider_name": scraper.get_provider_display(),
         "search_query": scraper.search_query,
+        "limit": getattr(scraper, 'limit', 50),
+        "sort_by": getattr(scraper, 'sort_by', 'relevance'),
+        "sort_order": getattr(scraper, 'sort_order', 'desc'),
         "is_active": scraper.is_active,
         "created_at": scraper.created_at.isoformat()
     }
@@ -63,6 +69,9 @@ def create_scraper_logic(
     workspace_id: str,
     provider: str,
     search_query: str,
+    limit: int = 50,
+    sort_by: str = "relevance",
+    sort_order: str = "desc",
     is_active: bool = True
 ) -> str:
     """Create a new data scraper configuration (arXiv, OpenAlex, or Lens.org) for a workspace."""
@@ -82,6 +91,9 @@ def create_scraper_logic(
             workspace=workspace,
             provider=provider,
             search_query=search_query.strip(),
+            limit=limit,
+            sort_by=sort_by,
+            sort_order=sort_order,
             is_active=is_active
         )
         return json.dumps({
@@ -90,6 +102,9 @@ def create_scraper_logic(
             "scraper_id": str(scraper.id),
             "provider": scraper.provider,
             "search_query": scraper.search_query,
+            "limit": scraper.limit,
+            "sort_by": scraper.sort_by,
+            "sort_order": scraper.sort_order,
             "is_active": scraper.is_active
         }, indent=2)
     except Exception as e:
@@ -101,6 +116,9 @@ def update_scraper_logic(
     scraper_id: str,
     provider: str = None,
     search_query: str = None,
+    limit: int = None,
+    sort_by: str = None,
+    sort_order: str = None,
     is_active: bool = None
 ) -> str:
     """Update an existing scraper configuration."""
@@ -129,6 +147,15 @@ def update_scraper_logic(
             return "Error: search_query cannot be empty."
         scraper.search_query = search_query.strip()
 
+    if limit is not None:
+        scraper.limit = limit
+
+    if sort_by is not None:
+        scraper.sort_by = sort_by
+
+    if sort_order is not None:
+        scraper.sort_order = sort_order
+
     if is_active is not None:
         scraper.is_active = is_active
 
@@ -140,6 +167,9 @@ def update_scraper_logic(
         "scraper_id": str(scraper.id),
         "provider": scraper.provider,
         "search_query": scraper.search_query,
+        "limit": scraper.limit,
+        "sort_by": scraper.sort_by,
+        "sort_order": scraper.sort_order,
         "is_active": scraper.is_active
     }, indent=2)
 
