@@ -13,6 +13,15 @@ from ...llm_providers import get_llm_provider
 logger = logging.getLogger(__name__)
 
 
+class SafeFormatterDict(dict):
+    """
+    Dictionary helper that returns the key wrapped in curly braces if missing.
+    Prevents KeyError during string formatting when optional/accidental braces exist.
+    """
+    def __missing__(self, key):
+        return f"{{{key}}}"
+
+
 def _run_single_extraction_worker(paper, definition, workspace):
     close_old_connections()
     t0 = time.time()
@@ -34,7 +43,18 @@ def _run_single_extraction_worker(paper, definition, workspace):
         paper_text = paper.abstract or paper.title
 
     llm_provider = get_llm_provider(workspace.llm_provider)
-    user_prompt = definition.user_prompt_template.format(paper_text=paper_text[:120000])
+    
+    format_data = SafeFormatterDict(
+        paper_text=paper_text[:120000],
+        title=paper.title or "",
+        abstract=paper.abstract or "",
+        authors=paper.authors or "",
+        published_date=str(getattr(paper, "published_date", "")) if getattr(paper, "published_date", None) else "",
+        source_database=paper.source_database or "",
+        arxiv_id=paper.arxiv_id or "",
+        doi=paper.doi or ""
+    )
+    user_prompt = definition.user_prompt_template.format_map(format_data)
 
     system_prompt = (
         f"{definition.system_prompt}\n\n"
