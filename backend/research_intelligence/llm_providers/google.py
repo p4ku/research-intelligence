@@ -52,6 +52,17 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                     scopes=scopes,
                 )
                 logger.info("Loaded credentials from environment variable GOOGLE_SERVICE_ACCOUNT_JSON")
+                
+                # Workaround for google-genai SDK bug where credentials passed in Client constructor are not utilized.
+                # We write the service account JSON to a temporary file and point GOOGLE_APPLICATION_CREDENTIALS to it.
+                if not os.environ.get("GOOGLE_APPLICATION_CREDENTIALS"):
+                    import tempfile
+                    temp_dir = tempfile.gettempdir()
+                    sa_path = os.path.join(temp_dir, "gcp_service_account.json")
+                    with open(sa_path, "w") as f:
+                        f.write(google_json_str)
+                    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = sa_path
+                    logger.info(f"Set GOOGLE_APPLICATION_CREDENTIALS to temporary file: {sa_path}")
             except Exception as e:
                 logger.warning(f"Failed to load credentials from GOOGLE_SERVICE_ACCOUNT_JSON env var: {str(e)}")
 
