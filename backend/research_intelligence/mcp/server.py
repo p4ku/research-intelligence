@@ -292,8 +292,8 @@ Follow this exact step-by-step tool execution protocol:
 @mcp.prompt()
 def autonomous_research_agent_workflow(
     workspace_id: str,
-    limit: int = 50,
-    date_range_days: int = 30,
+    limit: str = "50",
+    date_range_days: str = "30",
     notification_email: str = None
 ) -> str:
     """Prompt template guiding AI clients through starting, monitoring, and managing an autonomous Research Agent process."""
