@@ -97,6 +97,29 @@ WSGI_APPLICATION = 'django_project.wsgi.application'
 
 is_testing = 'test' in sys.argv or 'pytest' in sys.modules
 
+# Boot-time Google credentials diagnostics
+if not is_testing:
+    sa_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+    
+    if not sa_json:
+        sys.stderr.write(
+            "\n"
+            "⚠️ [BOOT WARNING] GOOGLE_SERVICE_ACCOUNT_JSON is not configured in the environment!\n"
+            "⚠️ [BOOT WARNING] Google GenAI / Vertex AI models will fail to authenticate.\n"
+            "\n"
+        )
+    else:
+        try:
+            import json
+            json.loads(sa_json)
+        except Exception as e:
+            sys.stderr.write(
+                f"\n"
+                f"⚠️ [BOOT WARNING] GOOGLE_SERVICE_ACCOUNT_JSON is set but has invalid JSON syntax: {str(e)}\n"
+                f"⚠️ [BOOT WARNING] Google GenAI / Vertex AI models will fail to authenticate.\n"
+                f"\n"
+            )
+
 db_host = os.environ.get('DB_HOST')
 if db_host and not is_testing:
     DATABASES = {
