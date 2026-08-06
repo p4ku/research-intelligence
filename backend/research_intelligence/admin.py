@@ -431,6 +431,7 @@ class PaperAdmin(admin.ModelAdmin):
     list_display = (
         'title',
         'workspace',
+        'pipeline_run',
         'source_database',
         'screening_status_badge',
         'is_evaluation_benchmark',
