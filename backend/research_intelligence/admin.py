@@ -278,12 +278,27 @@ class WorkspaceMemberAdmin(admin.ModelAdmin):
     role_badge.short_description = "Role"
 
 
+class APIKeyAdminForm(forms.ModelForm):
+    new_secret = forms.CharField(
+        required=False,
+        label="New Secret Key",
+        help_text="Provide a custom secret/password. If left blank on creation, a random one will be generated. On edit, leave blank to keep current.",
+        widget=forms.TextInput(attrs={'style': 'width: 25em;'}),
+    )
+
+    class Meta:
+        model = APIKey
+        fields = '__all__'
+
+
 @admin.register(APIKey)
 class APIKeyAdmin(admin.ModelAdmin):
+    form = APIKeyAdminForm
     list_display = ('name', 'key_id', 'user', 'workspace', 'status_badge', 'last_used_at', 'created_at')
     list_filter = ('is_active', 'created_at', 'workspace')
     search_fields = ('name', 'key_id', 'user__username', 'user__email')
-    readonly_fields = ('key_id', 'hashed_secret', 'created_at', 'last_used_at')
+    fields = ('name', 'key_id', 'hashed_secret', 'is_active', 'scopes', 'user', 'workspace', 'new_secret', 'generate_secret_button', 'created_at', 'last_used_at')
+    readonly_fields = ('key_id', 'hashed_secret', 'created_at', 'last_used_at', 'generate_secret_button')
     actions = ['revoke_keys']
 
     def status_badge(self, obj):
@@ -291,6 +306,86 @@ class APIKeyAdmin(admin.ModelAdmin):
             return render_badge("ACTIVE", "#198754")
         return render_badge("REVOKED", "#dc3545")
     status_badge.short_description = "Status"
+
+    def generate_secret_button(self, obj):
+        if not obj.pk:
+            return "Save the API Key first to generate a secret."
+        url = reverse('admin:generate-apikey-secret', args=[obj.pk])
+        return format_html(
+            '<a class="button" href="{}">⚡ Generate & Show New Secret</a>',
+            url
+        )
+    generate_secret_button.short_description = "Generate Secret"
+
+    def save_model(self, request, obj, form, change):
+        import secrets
+        from django.contrib import messages
+        
+        new_secret = form.cleaned_data.get('new_secret')
+        
+        # Auto-generate key_id if not present
+        if not obj.key_id:
+            obj.key_id = secrets.token_hex(8)
+            
+        raw_secret = None
+        if not change and not new_secret:
+            # On creation, if no secret is provided, generate a random one
+            raw_secret = secrets.token_urlsafe(32)
+            obj.set_secret(raw_secret)
+        elif new_secret:
+            # If a custom secret is entered, use it
+            obj.set_secret(new_secret)
+            raw_secret = new_secret
+            
+        super().save_model(request, obj, form, change)
+        
+        if raw_secret:
+            messages.success(
+                request,
+                format_html(
+                    "API Key secret successfully configured! The secret key is:<br><br>"
+                    "<code style='font-size: 16px; font-weight: bold; background: #eee; padding: 4px 8px; border-radius: 4px; color: #111;'>{}</code><br><br>"
+                    "Please copy this secret key now. It is hashed in the database and cannot be retrieved later.",
+                    raw_secret
+                )
+            )
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<path:object_id>/generate-secret/',
+                self.admin_site.admin_view(self.generate_secret),
+                name='generate-apikey-secret'
+            ),
+        ]
+        return custom_urls + urls
+
+    def generate_secret(self, request, object_id):
+        import secrets
+        from django.http import HttpResponseRedirect, Http404
+        from django.contrib import messages
+        
+        obj = self.get_object(request, object_id)
+        if obj is None:
+            raise Http404("APIKey not found")
+        
+        raw_secret = secrets.token_urlsafe(32)
+        obj.set_secret(raw_secret)
+        obj.save(update_fields=['hashed_secret'])
+        
+        messages.success(
+            request,
+            format_html(
+                "Successfully generated a new secret for API Key <strong>{}</strong>:<br><br>"
+                "<code style='font-size: 16px; font-weight: bold; background: #eee; padding: 4px 8px; border-radius: 4px; color: #111;'>{}</code><br><br>"
+                "Please copy this secret now. It is hashed in the database and cannot be retrieved again.",
+                obj.name,
+                raw_secret
+            )
+        )
+        return HttpResponseRedirect(reverse('admin:research_intelligence_apikey_change', args=[object_id]))
 
     def revoke_keys(self, request, queryset):
         rows = queryset.update(is_active=False)
