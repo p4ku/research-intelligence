@@ -58,6 +58,24 @@ def _recursive_delete_dir(dir_path: str) -> int:
     return deleted_count
 
 
+def _is_allowed_path(path: str) -> bool:
+    """
+    Ensure the path is within the allowed storage area ('workspaces' or test folders).
+    Prevents browsing, reading, or deleting codebase and system files.
+    """
+    clean_path = path.strip('/')
+    if not clean_path:
+        return True
+    parts = [p for p in clean_path.split('/') if p]
+    if '..' in parts:
+        return False
+    root_folder = parts[0]
+    # Allow 'workspaces' and test directories
+    if root_folder == 'workspaces' or root_folder.startswith('test_'):
+        return True
+    return False
+
+
 def storage_browser_view(request):
     """
     Django Admin custom view for browsing, previewing, downloading, and deleting files/directories in default_storage (S3/Local).
@@ -76,6 +94,19 @@ def storage_browser_view(request):
     target_dir = request.GET.get('target_dir', '').strip('/')
 
     base_url = reverse('admin:storage-browser')
+
+    # Security check: disallow browsing, previewing, downloading or deleting codebase/system files
+    if not _is_allowed_path(current_path):
+        messages.error(request, f"Access denied: Path '{escape(current_path)}' is outside storage root.")
+        return HttpResponseRedirect(f"{base_url}?path=workspaces")
+
+    if target_file and not _is_allowed_path(target_file):
+        messages.error(request, f"Access denied: File '{escape(target_file)}' is outside storage root.")
+        return HttpResponseRedirect(f"{base_url}?path={current_path}")
+
+    if target_dir and not _is_allowed_path(target_dir):
+        messages.error(request, f"Access denied: Directory '{escape(target_dir)}' is outside storage root.")
+        return HttpResponseRedirect(f"{base_url}?path={current_path}")
 
     # Detect active Storage Backend
     storage_engine_name = default_storage.__class__.__name__
@@ -128,13 +159,24 @@ def storage_browser_view(request):
     files_list = []
     try:
         raw_dirs, raw_files = default_storage.listdir(current_path)
-        for d in sorted(raw_dirs):
+        # When browsing root (/), strictly filter to allowed storage roots (workspaces and test folders)
+        # and hide root codebase files/directories.
+        if not current_path:
+            filtered_dirs = [d for d in raw_dirs if d == 'workspaces' or d.startswith('test_')]
+            if 'workspaces' not in filtered_dirs and (default_storage.exists('workspaces') or not filtered_dirs):
+                filtered_dirs.append('workspaces')
+            filtered_files = []
+        else:
+            filtered_dirs = raw_dirs
+            filtered_files = raw_files
+
+        for d in sorted(filtered_dirs):
             d_rel_path = os.path.join(current_path, d) if current_path else d
             dirs_list.append({
                 'name': d,
                 'rel_path': d_rel_path
             })
-        for f in sorted(raw_files):
+        for f in sorted(filtered_files):
             f_rel_path = os.path.join(current_path, f) if current_path else f
             size = None
             mtime_str = "-"
@@ -283,6 +325,17 @@ def storage_browser_view(request):
 
     table_body = "\n".join(rows_html)
 
+    # Render Django Messages
+    from django.contrib.messages import get_messages
+    storage_messages = get_messages(request)
+    messages_html = ""
+    for msg in storage_messages:
+        tag = msg.tags or "info"
+        bg_color = "#f8d7da" if "error" in tag else ("#d1e7dd" if "success" in tag else "#fff3cd")
+        border_color = "#f5c2c7" if "error" in tag else ("#badbcc" if "success" in tag else "#ffecb5")
+        text_color = "#842029" if "error" in tag else ("#0f5132" if "success" in tag else "#664d03")
+        messages_html += f'<div style="margin-bottom: 12px; padding: 10px 14px; border-radius: 4px; background-color: {bg_color}; border: 1px solid {border_color}; color: {text_color}; font-size: 13px;">{mark_safe(str(msg))}</div>'
+
     # Render Django Admin page layout
     page_html = f"""
     <!語html>
@@ -291,6 +344,8 @@ def storage_browser_view(request):
             <div>📂 <strong>Storage Browser:</strong> {breadcrumb_nav}</div>
             <div>{storage_badge}</div>
         </div>
+
+        {messages_html}
 
         {preview_box_html}
 

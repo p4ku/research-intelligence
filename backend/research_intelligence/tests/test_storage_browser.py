@@ -74,3 +74,28 @@ class StorageBrowserTestCase(TestCase):
         response = self.client.get(url, follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertFalse(default_storage.exists("test_dir/sub_dir/doc.md"))
+
+    def test_storage_browser_disallows_codebase_paths(self):
+        # Accessing codebase directory should redirect with error
+        url = f"{reverse('admin:storage-browser')}?path=api"
+        response = self.client.get(url, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Access denied")
+
+        # Accessing forbidden file action should be blocked
+        url = f"{reverse('admin:storage-browser')}?path=test_dir&action=preview&file=manage.py"
+        response = self.client.get(url, follow=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Access denied")
+
+    def test_storage_browser_root_hides_codebase_files(self):
+        url = f"{reverse('admin:storage-browser')}?path="
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        # Should not show codebase directories or files
+        self.assertNotContains(response, "api/")
+        self.assertNotContains(response, "django_project/")
+        self.assertNotContains(response, "research_intelligence/")
+        self.assertNotContains(response, "manage.py")
+        self.assertNotContains(response, "Dockerfile")
+
