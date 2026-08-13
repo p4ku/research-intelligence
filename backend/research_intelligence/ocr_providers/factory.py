@@ -1,6 +1,7 @@
 from .base import BaseOCRProvider
 from .pypdf_provider import PyPDFOCRProvider
 from .mistral_provider import MistralOCRProvider
+from .gemini_provider import GeminiOCRProvider
 
 
 def get_ocr_provider(provider_name: str) -> BaseOCRProvider:
@@ -10,6 +11,7 @@ def get_ocr_provider(provider_name: str) -> BaseOCRProvider:
     provider_map = {
         "pypdf": PyPDFOCRProvider,
         "mistral": MistralOCRProvider,
+        "gemini": GeminiOCRProvider,
     }
     
     provider_class = provider_map.get(provider_name.lower())

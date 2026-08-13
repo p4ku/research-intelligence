@@ -156,7 +156,7 @@ def create_workspace_logic(
     abstract_rejection_criteria: str = "",
     full_text_acceptance_criteria: str = "",
     full_text_rejection_criteria: str = "",
-    ocr_provider: str = "pypdf",
+    ocr_provider: str = None,
     screening_llm_model: str = "google/gemini-3.6-flash",
     llm_provider: str = "google",
     digest_schedule: str = "0 9 * * 5",
@@ -168,6 +168,9 @@ def create_workspace_logic(
     """Create a new workspace project and assign the creating user as Admin."""
     if not name or not name.strip():
         return "Error: Workspace name is required and cannot be empty."
+
+    if isinstance(ocr_provider, str) and ocr_provider.strip().lower() in ('none', 'null', '', 'disabled'):
+        ocr_provider = None
 
     try:
         workspace = Workspace.objects.create(
@@ -236,7 +239,10 @@ def update_workspace_logic(
     if full_text_rejection_criteria is not None:
         workspace.full_text_rejection_criteria = full_text_rejection_criteria
     if ocr_provider is not None:
-        workspace.ocr_provider = ocr_provider
+        if isinstance(ocr_provider, str) and ocr_provider.strip().lower() in ('none', 'null', '', 'disabled'):
+            workspace.ocr_provider = None
+        else:
+            workspace.ocr_provider = ocr_provider
     if screening_llm_model is not None:
         workspace.screening_llm_model = screening_llm_model
     if llm_provider is not None:

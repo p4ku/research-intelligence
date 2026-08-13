@@ -742,6 +742,22 @@ class UserActivityLogAdmin(admin.ModelAdmin):
 # Customize Admin Portal Branding Header & Titles
 admin.site.site_header = "Schwarz Research Intelligence Admin"
 admin.site.site_title = "Schwarz Research Intelligence Admin"
-admin.site.index_title = "Schwarz Research Intelligence Management Portal"
+admin.site.index_title = mark_safe(
+    'Schwarz Research Intelligence Management Portal &nbsp;|&nbsp; '
+    '<a href="/admin/storage-browser/" style="background-color: #0d6efd; color: white; padding: 5px 12px; border-radius: 4px; font-weight: bold; text-decoration: none; font-size: 13px;">📂 S3 Storage Browser</a>'
+)
+
+from research_intelligence.admin_views.storage_browser import storage_browser_view
+
+_original_admin_get_urls = admin.site.get_urls
+
+def get_admin_urls():
+    from django.urls import path
+    custom_urls = [
+        path('storage-browser/', admin.site.admin_view(storage_browser_view), name='storage-browser'),
+    ]
+    return custom_urls + _original_admin_get_urls()
+
+admin.site.get_urls = get_admin_urls
 
 

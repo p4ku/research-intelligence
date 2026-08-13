@@ -38,12 +38,14 @@ class Workspace(models.Model):
         max_length=50,
         null=True,
         blank=True,
-        default="pypdf",
+        default=None,
         choices=[
             ("pypdf", "PyPDF (Fast Local Baseline)"),
-            ("mistral", "Mistral OCR API")
+            ("mistral", "Mistral OCR API"),
+            ("gemini", "Gemini OCR (Google Gemini Flash Baseline)"),
+            ("none", "None (Skip OCR Step)")
         ],
-        help_text="OCR provider used for PDF layout extraction"
+        help_text="OCR provider used for PDF layout extraction. Set to None or 'none' to skip Step 3 OCR."
     )
     screening_llm_model = models.CharField(max_length=100, default="google/gemini-3.5-flash", help_text="LLM model used for screening papers")
     llm_provider = models.CharField(

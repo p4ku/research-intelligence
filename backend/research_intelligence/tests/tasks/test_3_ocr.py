@@ -92,3 +92,29 @@ class OCRConversionTaskTestCase(TestCase):
             self.assertFalse(result.get("success"))
         else:
             self.assertFalse(result)
+
+    def test_gemini_ocr_provider_factory(self):
+        from ...ocr_providers.factory import get_ocr_provider
+        from ...ocr_providers.gemini_provider import GeminiOCRProvider
+        provider = get_ocr_provider("gemini")
+        self.assertIsInstance(provider, GeminiOCRProvider)
+
+    @patch("research_intelligence.ocr_providers.gemini_provider.GoogleAgentAPIProvider.generate")
+    @patch("research_intelligence.ocr_providers.gemini_provider.PdfReader")
+    def test_gemini_ocr_provider_convert(self, mock_pdf_reader, mock_google_generate):
+        from ...ocr_providers.gemini_provider import GeminiOCRProvider
+        
+        mock_google_generate.return_value = "## Gemini Extracted Section\n\nFull text layout content."
+        mock_pdf_reader.return_value.pages = []
+        
+        provider = GeminiOCRProvider()
+        
+        # Test markdown conversion
+        res_md = provider.convert("fake/path.pdf", title="Test Gemini Paper", output_format="markdown")
+        self.assertIn("Gemini Extracted Section", res_md)
+        
+        # Test html conversion
+        res_html = provider.convert("fake/path.pdf", title="Test Gemini Paper", output_format="html")
+        self.assertIn("<h1>Test Gemini Paper</h1>", res_html)
+
+

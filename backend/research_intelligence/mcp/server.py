@@ -389,7 +389,7 @@ def create_workspace(
     abstract_rejection_criteria: str = "",
     full_text_acceptance_criteria: str = "",
     full_text_rejection_criteria: str = "",
-    ocr_provider: str = "pypdf",
+    ocr_provider: str = None,
     screening_llm_model: str = "google/gemini-3.6-flash",
     llm_provider: str = "google",
     digest_schedule: str = "0 9 * * 5",
@@ -405,7 +405,9 @@ def create_workspace(
     - abstract_rejection_criteria: Specific exclusion criteria prompt evaluated during Step 4 Abstract Screening.
     - full_text_acceptance_criteria: Specific inclusion criteria prompt evaluated during Step 4 Full-Text Screening.
     - full_text_rejection_criteria: Specific exclusion criteria prompt evaluated during Step 4 Full-Text Screening.
-    - ocr_provider: Set to 'pypdf' (fast local PyPDF baseline) or 'mistral' (Mistral OCR API). Set to None/empty to automatically skip Step 3 OCR and pass PDF/abstract directly to screening and parameter extraction.
+    - ocr_provider: Defaults to None (skips Step 3 OCR). Set to 'pypdf', 'mistral', or 'gemini' ONLY if OCR layout extraction is explicitly requested by the user.
+
+    CRITICAL FOR LLM AGENTS: Do NOT set or enable ocr_provider unless the user explicitly requests OCR layout conversion. Leave ocr_provider as None by default.
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -452,7 +454,9 @@ def update_workspace(
     - abstract_rejection_criteria: Update exclusion criteria evaluated during Step 4 Abstract Screening.
     - full_text_acceptance_criteria: Update inclusion criteria evaluated during Step 4 Full-Text Screening.
     - full_text_rejection_criteria: Update exclusion criteria evaluated during Step 4 Full-Text Screening.
-    - ocr_provider: Set to 'pypdf', 'mistral', or None to disable OCR step.
+    - ocr_provider: Set to 'pypdf', 'mistral', 'gemini', or None/'none' to skip/disable OCR step.
+
+    CRITICAL FOR LLM AGENTS: Do NOT modify existing workspace configuration settings (criteria, ocr_provider, llm_provider, screening_llm_model) unless explicitly instructed by the user to change configuration.
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -939,7 +943,11 @@ def start_research_agent(
     skip_abstract_screening: bool = None,
     notification_email: str = None
 ) -> str:
-    """Start an autonomous Research Agent Process to execute a complete ingestion and intelligence cycle (Search -> Download -> OCR -> Screening -> Extraction). Supports parallel runs, dynamic query modifiers, date windowing, and notification settings."""
+    """
+    Start an autonomous Research Agent Process to execute a complete ingestion and intelligence cycle (Search -> Download -> OCR (skipped if unconfigured) -> Screening -> Extraction). Supports parallel runs, dynamic query modifiers, date windowing, and notification settings.
+
+    CRITICAL FOR LLM AGENTS: Calling start_research_agent executes the pipeline using the EXISTING workspace configuration. Do NOT modify workspace settings or criteria prior to launching an agent process unless explicitly instructed by the user.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:write")

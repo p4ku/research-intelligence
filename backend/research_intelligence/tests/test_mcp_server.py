@@ -103,6 +103,28 @@ class MCPServerTest(TestCase):
         self.assertEqual(roles["researcher_user"], "researcher")
         self.assertIn("components_config", ws_details)
 
+    def test_workspace_ocr_provider_default_and_normalization(self):
+        # Default ocr_provider should be None
+        res_str = create_workspace_logic(
+            user=self.admin_user,
+            name="Default OCR Workspace"
+        )
+        res = json.loads(res_str)
+        self.assertTrue(res["success"])
+        ws_id = res["workspace_id"]
+        ws = Workspace.objects.get(id=ws_id)
+        self.assertIsNone(ws.ocr_provider)
+
+        # Update ocr_provider to 'pypdf'
+        update_workspace_logic(self.admin_user, workspace_id=ws_id, ocr_provider="pypdf")
+        ws.refresh_from_db()
+        self.assertEqual(ws.ocr_provider, "pypdf")
+
+        # Update ocr_provider with 'none' string -> normalized to None
+        update_workspace_logic(self.admin_user, workspace_id=ws_id, ocr_provider="none")
+        ws.refresh_from_db()
+        self.assertIsNone(ws.ocr_provider)
+
     def test_scraper_crud(self):
         ws_res = json.loads(create_workspace_logic(self.admin_user, name="Scraper Test Workspace"))
         ws_id = ws_res["workspace_id"]
@@ -934,7 +956,7 @@ class MCPServerTest(TestCase):
         from django.core.files.storage import default_storage
         from django.core.files.base import ContentFile
 
-        ws_res = json.loads(create_workspace_logic(self.admin_user, name="OCR Test Workspace"))
+        ws_res = json.loads(create_workspace_logic(self.admin_user, name="OCR Test Workspace", ocr_provider="pypdf"))
         ws_id = ws_res["workspace_id"]
         ws = Workspace.objects.get(id=ws_id)
 
