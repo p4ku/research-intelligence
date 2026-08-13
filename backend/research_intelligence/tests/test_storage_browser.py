@@ -34,7 +34,7 @@ class StorageBrowserTestCase(TestCase):
         self.assertEqual(response.status_code, 302)
 
     def test_storage_browser_list_root(self):
-        url = reverse('admin:storage-browser')
+        url = f"{reverse('admin:storage-browser')}?path="
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Storage Browser:")

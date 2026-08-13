@@ -65,12 +65,26 @@ def storage_browser_view(request):
     if not request.user.is_staff:
         raise Http404("Permission denied")
 
-    current_path = request.GET.get('path', '').strip('/')
+    # Default to 'workspaces' folder if path parameter is not explicitly provided
+    if 'path' not in request.GET and default_storage.exists('workspaces'):
+        current_path = 'workspaces'
+    else:
+        current_path = request.GET.get('path', '').strip('/')
+
     action = request.GET.get('action', '')
     target_file = request.GET.get('file', '').strip('/')
     target_dir = request.GET.get('target_dir', '').strip('/')
 
     base_url = reverse('admin:storage-browser')
+
+    # Detect active Storage Backend
+    storage_engine_name = default_storage.__class__.__name__
+    if hasattr(default_storage, 'bucket_name'):
+        storage_badge = f'<span style="background-color: #238636; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">☁️ AWS S3 Bucket ({escape(str(default_storage.bucket_name))})</span>'
+    elif hasattr(default_storage, 'location'):
+        storage_badge = f'<span style="background-color: #0d6efd; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">💻 Local FileSystem ({escape(str(default_storage.location))})</span>'
+    else:
+        storage_badge = f'<span style="background-color: #6e7681; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">📦 Storage: {escape(storage_engine_name)}</span>'
 
     # 1. Handle File Download
     if action == 'download' and target_file:
@@ -273,8 +287,9 @@ def storage_browser_view(request):
     page_html = f"""
     <!語html>
     <div id="content" class="colM" style="padding: 20px;">
-        <div style="margin-bottom: 16px; font-size: 16px; background: #fff; padding: 12px 16px; border-radius: 6px; border: 1px solid #dee2e6; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            📂 <strong>Storage Browser:</strong> {breadcrumb_nav}
+        <div style="margin-bottom: 16px; font-size: 16px; background: #fff; padding: 12px 16px; border-radius: 6px; border: 1px solid #dee2e6; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;">
+            <div>📂 <strong>Storage Browser:</strong> {breadcrumb_nav}</div>
+            <div>{storage_badge}</div>
         </div>
 
         {preview_box_html}
