@@ -743,8 +743,8 @@ class UserActivityLogAdmin(admin.ModelAdmin):
 admin.site.site_header = "Schwarz Research Intelligence Admin"
 admin.site.site_title = "Schwarz Research Intelligence Admin"
 admin.site.index_title = mark_safe(
-    'Schwarz Research Intelligence Management Portal &nbsp;|&nbsp; '
-    '<a href="/admin/storage-browser/" style="background-color: #0d6efd; color: white; padding: 5px 12px; border-radius: 4px; font-weight: bold; text-decoration: none; font-size: 13px;">📂 S3 Storage Browser</a>'
+    'Schwarz Research Intelligence Management Portal &nbsp;&nbsp;'
+    '<a href="/admin/storage-browser/" style="display: inline-block; background-color: #0d6efd; color: white !important; padding: 4px 10px; border-radius: 4px; font-weight: bold; text-decoration: none; font-size: 13px; line-height: 1.2; white-space: nowrap; vertical-align: middle;">📂 S3 Storage Browser</a>'
 )
 
 from research_intelligence.admin_views.storage_browser import storage_browser_view

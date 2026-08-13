@@ -196,8 +196,8 @@ def storage_browser_view(request):
                         <strong>🔍 File Preview:</strong> <code style="color: #58a6ff;">{escape(target_file)}</code> ({_format_size(size)})
                     </div>
                     <div>
-                        <a href="{base_url}?path={escape(current_path)}&action=download&file={escape(target_file)}" class="button" style="background-color: #238636; color: #fff; text-decoration: none; padding: 4px 10px; border-radius: 4px; font-size: 12px; margin-right: 8px;">⬇️ Download</a>
-                        <a href="{base_url}?path={escape(current_path)}" class="button" style="background-color: #6e7681; color: #fff; text-decoration: none; padding: 4px 10px; border-radius: 4px; font-size: 12px;">✖️ Close</a>
+                        <a href="{base_url}?path={escape(current_path)}&action=download&file={escape(target_file)}" style="display: inline-block; background-color: #238636; color: #ffffff !important; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; line-height: 1.2; white-space: nowrap; margin-right: 8px;">⬇️ Download</a>
+                        <a href="{base_url}?path={escape(current_path)}" style="display: inline-block; background-color: #6e7681; color: #ffffff !important; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; line-height: 1.2; white-space: nowrap;">✖️ Close</a>
                     </div>
                 </div>
                 {preview_body}
