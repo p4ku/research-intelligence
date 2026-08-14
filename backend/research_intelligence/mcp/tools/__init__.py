@@ -45,6 +45,7 @@ from .agent_processes import (
     resume_research_agent_logic,
     abort_research_agent_logic,
     delete_research_agent_logic,
+    wait_for_research_agent_logic,
 )
 from .llm_test import test_google_llm_logic
 from .activity_logs import list_user_activity_logs_logic
@@ -82,6 +83,7 @@ __all__ = [
     "start_research_agent_logic",
     "list_research_agents_logic",
     "get_research_agent_status_logic",
+    "wait_for_research_agent_logic",
     "pause_research_agent_logic",
     "resume_research_agent_logic",
     "abort_research_agent_logic",

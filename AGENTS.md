@@ -93,12 +93,13 @@ It orchestrates a 5-step processing pipeline:
 | `update_workspace` | `workspaces:write` | Updates workspace criteria, OCR provider, LLM provider/model, or quota limits. |
 | `add_workspace_member` | `workspaces:write` | Adds user membership to a workspace with role (`admin`, `manager`, `researcher`). |
 
-#### 2. Autonomous Research Agents (`tools/agent_processes.py`)
+#### 2. Autonomous Research Agents (`tools/agent_processes.py`) — **RECOMMENDED PRIMARY ORCHESTRATOR**
 | Tool Name | Scope | Description |
 | :--- | :--- | :--- |
-| `start_research_agent` | `workspaces:write` | Launches autonomous state machine process (`ResearchAgentProcess`) through steps 1-5. |
+| `start_research_agent` | `workspaces:write` | **Primary Entrypoint**: Launches autonomous state machine process (`ResearchAgentProcess`) executing all steps 1-5 automatically. |
 | `list_research_agents` | `workspaces:read` | Lists all research agent processes for a workspace with current state and runtime. |
 | `get_research_agent_status` | `workspaces:read` | Returns agent state (`initialized`, `search`, `download`, `ocr`, `screening`, `extraction`, `completed`, `paused`, `aborted`), active step, audit trail, paper metrics, and storage footprint. |
+| `wait_for_research_agent` | `workspaces:read` | **Synchronous Wait**: Blocks until agent reaches `completed`/`failed` or timeout, returning full report and token/cost metrics. |
 | `pause_research_agent` | `workspaces:write` | Pauses running state engine process. |
 | `resume_research_agent` | `workspaces:write` | Resumes paused state engine process from active step. |
 | `abort_research_agent` | `workspaces:write` | Aborts agent process and cancels background Celery tasks. |
@@ -124,14 +125,14 @@ It orchestrates a 5-step processing pipeline:
 | `update_extraction_definition` | `prompts:write` | Updates schema, prompts, or model for an extraction target. |
 | `delete_extraction_definition` | `prompts:write` | Removes extraction definition and associated extractions. |
 
-#### 5. Step-by-Step Pipeline Runs (`tools/pipeline_runs.py`, `tools/extractions.py`)
+#### 5. Manual Step-by-Step Execution (`tools/pipeline_runs.py`, `tools/extractions.py`) — *For isolated component testing only*
 | Tool Name | Scope | Description |
 | :--- | :--- | :--- |
-| `trigger_search_job` | `runs:write` | Manually triggers Step 1: Search & Ingestion. |
-| `trigger_pdf_download_job` | `runs:write` | Manually triggers Step 2: Parallel PDF Download. |
-| `trigger_ocr_job` | `runs:write` | Manually triggers Step 3: Layout OCR Conversion. |
-| `trigger_screening_job` | `runs:write` | Manually triggers Step 4: 2-Stage Abstract/Full-Text Screening. |
-| `trigger_extraction_job` | `runs:write` | Manually triggers Step 5: Dynamic Parameter Extraction. |
+| `trigger_search_job` | `runs:write` | [Manual Only] Triggers isolated Step 1: Search & Ingestion. |
+| `trigger_pdf_download_job` | `runs:write` | [Manual Only] Triggers isolated Step 2: Parallel PDF Download. |
+| `trigger_ocr_job` | `runs:write` | [Manual Only] Triggers isolated Step 3: Layout OCR Conversion. |
+| `trigger_screening_job` | `runs:write` | [Manual Only] Triggers isolated Step 4: 2-Stage Abstract/Full-Text Screening. |
+| `trigger_extraction_job` | `runs:write` | [Manual Only] Triggers isolated Step 5: Dynamic Parameter Extraction. |
 | `list_pipeline_runs` | `runs:read` | Lists pipeline runs with status and component run tree. |
 | `get_pipeline_run_status` | `runs:read` | Detailed run status with paper counts, downloaded document metrics, and storage footprint. |
 | `get_component_run_status` | `runs:read` | Detailed status and error logs for an individual component step run. |

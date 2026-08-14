@@ -3,18 +3,21 @@ from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
+from django.core import mail
 from research_intelligence.models import (
     Workspace,
     Scraper,
     ExtractionDefinition,
     PipelineRun,
     ComponentRun,
-    ResearchAgentProcess
+    ResearchAgentProcess,
+    Subscriber,
 )
-from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process, _send_agent_notification
 from research_intelligence.mcp.tools.agent_processes import (
     start_research_agent_logic,
     get_research_agent_status_logic,
+    wait_for_research_agent_logic,
     pause_research_agent_logic,
     resume_research_agent_logic,
     abort_research_agent_logic,
@@ -262,3 +265,78 @@ class ResearchAgentProcessTest(TestCase):
         del_resp = self.client.delete(f"/api/agents/{agent_id}/")
         self.assertEqual(del_resp.status_code, 200)
         self.assertFalse(ResearchAgentProcess.objects.filter(id=agent_id).exists())
+
+    def test_wait_for_research_agent_mcp_tool(self):
+        """
+        Verifies wait_for_research_agent_logic returns completed status when agent finishes.
+        """
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Fast Completing Agent",
+            status="completed",
+            current_step="completed",
+            pipeline_run=PipelineRun.objects.create(workspace=self.workspace, status="completed")
+        )
+
+        res = json.loads(wait_for_research_agent_logic(
+            self.user,
+            process_id=str(agent.id),
+            timeout_seconds=5,
+            poll_interval_seconds=1
+        ))
+        self.assertEqual(res["status"], "finished")
+        self.assertEqual(res["agent_status"], "completed")
+        self.assertEqual(res["current_step"], "completed")
+
+    def test_email_notification_to_subscribers_on_completion(self):
+        """
+        Verifies that _send_agent_notification sends emails to active subscribers, workspace members, and override emails.
+        """
+        # Create active subscriber
+        sub1 = Subscriber.objects.create(
+            workspace=self.workspace,
+            email="subscriber1@corp.com",
+            is_active=True
+        )
+        # Create inactive subscriber (should be excluded)
+        sub2 = Subscriber.objects.create(
+            workspace=self.workspace,
+            email="inactive_subscriber@corp.com",
+            is_active=False
+        )
+
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="completed",
+            tokens_in=1000,
+            tokens_out=500,
+            tokens_consumed=1500,
+            usd_cost=0.05
+        )
+
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Notification Test Agent",
+            status="completed",
+            current_step="completed",
+            pipeline_run=pr,
+            configuration_override={"notification_email": "override_subscriber@corp.com"}
+        )
+
+        # Clear mail outbox
+        mail.outbox = []
+
+        # Send notification
+        _send_agent_notification(agent)
+
+        # Assert email was dispatched via Django mail backend
+        self.assertEqual(len(mail.outbox), 1)
+        sent_email = mail.outbox[0]
+        self.assertIn("subscriber1@corp.com", sent_email.to)
+        self.assertIn("override_subscriber@corp.com", sent_email.to)
+        self.assertIn("agent_user@example.com", sent_email.to)
+        self.assertNotIn("inactive_subscriber@corp.com", sent_email.to)
+        self.assertIn("[COMPLETED]", sent_email.subject)
+        self.assertIn("Notification Test Agent", sent_email.body)
+        self.assertIn("1,500", sent_email.body)
+

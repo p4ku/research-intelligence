@@ -325,3 +325,85 @@ def delete_research_agent_logic(user, process_id: str) -> str:
         "process_id": process_id,
         "deleted_pipeline_run_id": pr_id
     }, indent=2)
+
+
+def wait_for_research_agent_logic(
+    user,
+    process_id: str,
+    timeout_seconds: int = 120,
+    poll_interval_seconds: int = 3
+) -> str:
+    """
+    Block and wait synchronously for a ResearchAgentProcess to finish executing (reach 'completed', 'failed', or 'aborted').
+    Periodically ticks the state engine to drive background steps forward.
+    If timeout_seconds is reached before completion, returns current progress status.
+    """
+    import time
+    from django.db import close_old_connections
+
+    try:
+        p_uuid = uuid.UUID(process_id)
+        process = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').get(id=p_uuid)
+    except (ValueError, ResearchAgentProcess.DoesNotExist):
+        return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
+
+    workspace, membership, error = _check_workspace_access(user, str(process.workspace.id))
+    if error:
+        return json.dumps({"status": "error", "error": error}, indent=2)
+
+    t0 = time.time()
+    max_timeout = max(5, min(int(timeout_seconds), 600))
+    interval = max(1, min(int(poll_interval_seconds), 30))
+
+    while True:
+        close_old_connections()
+        process.refresh_from_db()
+
+        # If already in a terminal state, return full status
+        if process.status in ['completed', 'failed', 'aborted']:
+            break
+
+        # Drive the state engine forward
+        if process.status == 'running':
+            tick_agent_process(str(process.id))
+            process.refresh_from_db()
+            if process.status in ['completed', 'failed', 'aborted']:
+                break
+
+        elapsed = time.time() - t0
+        if elapsed >= max_timeout:
+            # Return current progress with timeout notice
+            status_json_str = get_research_agent_status_logic(user, process_id)
+            try:
+                status_dict = json.loads(status_json_str)
+            except Exception:
+                status_dict = {"raw_status": status_json_str}
+
+            return json.dumps({
+                "status": "timeout",
+                "message": f"Timeout of {max_timeout}s elapsed. Research agent '{process.name}' is still processing step '{process.current_step}'. You can call wait_for_research_agent again or check status using get_research_agent_status.",
+                "elapsed_seconds": round(elapsed, 1),
+                "agent_status": process.status,
+                "current_step": process.current_step,
+                "details": status_dict
+            }, indent=2, cls=DjangoJSONEncoder)
+
+        time.sleep(interval)
+
+    # Return full final status report
+    final_status_json_str = get_research_agent_status_logic(user, process_id)
+    try:
+        final_status_dict = json.loads(final_status_json_str)
+    except Exception:
+        final_status_dict = {"raw_status": final_status_json_str}
+
+    return json.dumps({
+        "status": "finished",
+        "message": f"Research agent '{process.name}' finished with status: {process.status.upper()}!",
+        "process_id": str(process.id),
+        "agent_status": process.status,
+        "current_step": process.current_step,
+        "elapsed_seconds": round(time.time() - t0, 1),
+        "details": final_status_dict
+    }, indent=2, cls=DjangoJSONEncoder)
+
