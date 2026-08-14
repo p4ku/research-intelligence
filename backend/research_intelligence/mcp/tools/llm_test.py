@@ -13,10 +13,10 @@ def test_google_llm_logic(
     location: str | None = None
 ) -> str:
     """
-    Test execution of Google GenAI / Vertex AI LLM model (e.g. gemini-3.5-flash) and verify API credentials & response generation.
+    Test execution of Google GenAI / Vertex AI LLM model (e.g. gemini-3.7-flash) and verify API credentials & response generation.
     """
     test_prompt = prompt or "Hello! Please reply with 'Google LLM connectivity test successful' and state your active model name in 1 sentence."
-    target_model = model or "gemini-3.5-flash"
+    target_model = model or "gemini-3.7-flash"
     target_location = location or "eu"
 
     # Credentials diagnostics

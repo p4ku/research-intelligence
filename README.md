@@ -1,7 +1,7 @@
 # 🧠 Schwarz Research Intelligence
 
 > **Enterprise-Grade AI Platform for Autonomous Scientific Literature Review, Deep Tech Scouting & Parameter Extraction.**  
-> Powered by **FastMCP (Model Context Protocol)**, **Django REST Framework**, and **Google GenAI / Gemini 3.5 & 3.6** (hosted on Schwarz Digits Cloud).
+> Powered by **FastMCP (Model Context Protocol)**, **Django REST Framework**, and **Google GenAI / Gemini 3.7 Flash** (hosted on Schwarz Digits Cloud).
 
 ---
 
@@ -128,7 +128,7 @@ schwarz_research_intelligence/
 | **Task Queue** | Celery, Redis | Distributed async pipeline execution and background state engine polling. |
 | **Database Layer** | PostgreSQL (Prod) / SQLite (Tests) | Persistent storage, audit logs, and in-memory test runner. |
 | **Storage Layer** | Django `default_storage` | Local filesystem / AWS S3 / MinIO storage abstraction. |
-| **LLM Engine** | Google GenAI / Gemini 3.5 & 3.6 Flash/Pro | Enterprise AI provider hosted on Schwarz Digits Cloud. |
+| **LLM Engine** | Google GenAI / Gemini 3.7 Flash | Enterprise AI provider hosted on Schwarz Digits Cloud. |
 | **OCR Providers** | PyPDF / Mistral OCR API | Document layout parsing. |
 | **CI/CD** | GitHub Actions | Automated build, test, and container layer caching. |
 

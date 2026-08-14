@@ -420,11 +420,11 @@ class MCPServerTest(TestCase):
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
     def test_google_llm_tool(self, mock_generate):
         from research_intelligence.mcp.tools import test_google_llm_logic
-        mock_generate.return_value = "Google LLM connectivity test successful with model gemini-3.5-flash."
-        res_json = test_google_llm_logic(self.admin_user, prompt="Test prompt", model="gemini-3.5-flash")
+        mock_generate.return_value = "Google LLM connectivity test successful with model gemini-3.7-flash."
+        res_json = test_google_llm_logic(self.admin_user, prompt="Test prompt", model="gemini-3.7-flash")
         res = json.loads(res_json)
         self.assertTrue(res["success"])
-        self.assertEqual(res["requested_model"], "gemini-3.5-flash")
+        self.assertEqual(res["requested_model"], "gemini-3.7-flash")
         self.assertIn("Google LLM connectivity test passed", res["message"])
 
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
@@ -533,7 +533,7 @@ class MCPServerTest(TestCase):
             system_prompt="Extract all machine learning architectures used.",
             user_prompt_template="Paper text: {paper_text}",
             response_schema={"type": "object", "properties": {"method": {"type": "string"}}},
-            llm_model="google/gemini-3.5-flash"
+            llm_model="google/gemini-3.7-flash"
         ))
         self.assertEqual(create_res["status"], "success")
         def_id = create_res["definition_id"]

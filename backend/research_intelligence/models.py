@@ -47,7 +47,7 @@ class Workspace(models.Model):
         ],
         help_text="OCR provider used for PDF layout extraction. Set to None or 'none' to skip Step 3 OCR."
     )
-    screening_llm_model = models.CharField(max_length=100, default="google/gemini-3.5-flash", help_text="LLM model used for screening papers")
+    screening_llm_model = models.CharField(max_length=100, default="google/gemini-3.7-flash", help_text="LLM model used for screening papers")
     llm_provider = models.CharField(
         max_length=50,
         default="google",
@@ -117,7 +117,7 @@ class ExtractionDefinition(models.Model):
     system_prompt = models.TextField(help_text="System instructions enforcing extraction perspective")
     user_prompt_template = models.TextField(help_text="User prompt with placeholders like {paper_text}")
     response_schema = models.JSONField(help_text="JSON schema describing fields to extract")
-    llm_model = models.CharField(max_length=100, default="google/gemini-3.5-flash", help_text="LLM model used for this specific extraction")
+    llm_model = models.CharField(max_length=100, default="google/gemini-3.7-flash", help_text="LLM model used for this specific extraction")
     version = models.IntegerField(default=1, help_text="Tracks prompt/schema evolution")
     requires_consensus = models.BooleanField(default=False, help_text="Requires multi-sample self-consistency for difficult fields")
     is_active = models.BooleanField(default=True)

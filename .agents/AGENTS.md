@@ -1,6 +1,6 @@
 # 🤖 AGENTS.md - Schwarz Research Intelligence System Guide
 
-> **Target AI Models**: Google Gemini (3.5 / 3.6 Flash & Pro), Anthropic Claude (3.5 Sonnet / 3 Opus), Antigravity IDE, Cursor, and FastMCP SSE Clients.  
+> **Target AI Models**: Google Gemini (3.7 Flash & Pro), Anthropic Claude (3.5 Sonnet / 3 Opus), Antigravity IDE, Cursor, and FastMCP SSE Clients.  
 > **Repository Scope**: Systematic Literature Review (SLR) & Deep Tech Competitive Intelligence Platform.
 
 ---

@@ -29,10 +29,10 @@ ROBUST TRANSCRIPTION RULES:
 
 class GeminiOCRProvider(BaseOCRProvider):
     """
-    OCR & Document Layout Extraction Provider using Google Gemini Multimodal API (Default: gemini-3.5-flash).
+    OCR & Document Layout Extraction Provider using Google Gemini Multimodal API (Default: gemini-3.7-flash).
     Transcribes text, headings, equations, and tables via Gemini Vision into rich HTML or Markdown, and extracts embedded figures/images as inline Base64 Data URIs.
     """
-    def __init__(self, model_name: str = "google/gemini-3.5-flash"):
+    def __init__(self, model_name: str = "google/gemini-3.7-flash"):
         self.model_name = model_name
         self.provider = GoogleAgentAPIProvider()
 

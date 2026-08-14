@@ -75,7 +75,7 @@ def create_extraction_definition_logic(
     system_prompt: str,
     user_prompt_template: str,
     response_schema: dict,
-    llm_model: str = "google/gemini-3.5-flash",
+    llm_model: str = "google/gemini-3.7-flash",
     version: int = 1,
     requires_consensus: bool = False,
     is_active: bool = True

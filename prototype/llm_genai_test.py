@@ -33,7 +33,7 @@ client = genai.Client(
 
 print("Sending request to Gemini...")
 response = client.models.generate_content(
-    model="gemini-2.5-flash",
+    model="gemini-3.7-flash",
     contents="What is a systematic review? Please explain it in 3–5 sentences for a graduate student."
 )
 

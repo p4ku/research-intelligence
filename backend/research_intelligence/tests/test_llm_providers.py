@@ -70,7 +70,7 @@ class GoogleLLMProviderTestCase(TestCase):
         mock_client.models.generate_content.assert_called_once()
         called_kwargs = mock_client.models.generate_content.call_args.kwargs
         
-        self.assertEqual(called_kwargs["model"], "gemini-3.5-flash")
+        self.assertEqual(called_kwargs["model"], "gemini-3.7-flash")
         self.assertEqual(called_kwargs["contents"], "What is a systematic review?")
         
         config = called_kwargs["config"]
@@ -108,8 +108,8 @@ class GoogleLLMProviderTestCase(TestCase):
         mock_client.models.generate_content.assert_called_once()
         called_kwargs = mock_client.models.generate_content.call_args.kwargs
         
-        # PDF defaults model to gemini-3.5-flash
-        self.assertEqual(called_kwargs["model"], "gemini-3.5-flash")
+        # PDF defaults model to gemini-3.7-flash
+        self.assertEqual(called_kwargs["model"], "gemini-3.7-flash")
         
         contents = called_kwargs["contents"]
         self.assertEqual(len(contents), 2)

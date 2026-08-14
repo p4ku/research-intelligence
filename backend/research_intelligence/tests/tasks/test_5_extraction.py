@@ -16,7 +16,7 @@ class DynamicExtractionTaskTestCase(TestCase):
             name="ML Methods",
             system_prompt="Identify ML Methods used in the text.",
             user_prompt_template="Analyze: {paper_text}",
-            llm_model="google/gemini-1.5-pro",
+            llm_model="google/gemini-3.7-flash",
             version=2,
             requires_consensus=False,
             response_schema={

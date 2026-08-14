@@ -118,15 +118,15 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         - file_bytes / pdf_bytes or file_path / pdf_path for multimodal ingestion
         """
         # 1. Clean model name
-        model_name = model or "gemini-3.5-flash"
+        model_name = model or "gemini-3.7-flash"
         if model_name.startswith("google/"):
             model_name = model_name.replace("google/", "", 1)
         elif model_name.startswith("google-agent/"):
             model_name = model_name.replace("google-agent/", "", 1)
 
-        # Map non-existent/mock model names (e.g. 3.6-flash) to target model gemini-3.5-flash
-        if "3.6" in model_name or "mock" in model_name:
-            model_name = "gemini-3.5-flash"
+        # Map non-existent/mock model names to target model gemini-3.7-flash
+        if "mock" in model_name:
+            model_name = "gemini-3.7-flash"
 
         # 2. Determine location and construct client
         f_bytes = file_bytes or pdf_bytes
@@ -135,7 +135,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         client_location = kwargs.get("location") or self.location or "eu"
 
         if not model and has_file:
-            model_name = "gemini-3.5-flash"
+            model_name = "gemini-3.7-flash"
 
         client = self._get_client(location=client_location)
 

@@ -12,7 +12,7 @@ class ScreeningTasksTestCase(TestCase):
             abstract_rejection_criteria="Exclude studies focused strictly on physical robotics hardware.",
             full_text_acceptance_criteria="Focus on agentic workflows and reasoning loops.",
             full_text_rejection_criteria="Exclude studies focused strictly on physical robotics hardware.",
-            screening_llm_model="google/gemini-1.5-flash",
+            screening_llm_model="google/gemini-3.7-flash",
             llm_provider="google"
         )
         self.scraper_arxiv = Scraper.objects.create(
@@ -51,7 +51,7 @@ class ScreeningTasksTestCase(TestCase):
 
         # Ensure correct model parameter was passed
         mock_generate.assert_called_once()
-        self.assertEqual(mock_generate.call_args.kwargs.get("model"), "google/gemini-1.5-flash")
+        self.assertEqual(mock_generate.call_args.kwargs.get("model"), "google/gemini-3.7-flash")
 
     @patch("django.core.files.storage.default_storage.open")
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
@@ -72,7 +72,7 @@ class ScreeningTasksTestCase(TestCase):
 
         # Ensure correct model parameter was passed
         mock_generate.assert_called_once()
-        self.assertEqual(mock_generate.call_args.kwargs.get("model"), "google/gemini-1.5-flash")
+        self.assertEqual(mock_generate.call_args.kwargs.get("model"), "google/gemini-3.7-flash")
 
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
     def test_only_abstract_screening_pass_and_reject(self, mock_generate):

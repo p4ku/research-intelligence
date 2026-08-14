@@ -172,7 +172,7 @@ CORE WORKFLOW INSTRUCTIONS (STEP-BY-STEP USE CASE 1):
 1. WORKSPACE INITIALIZATION & MANAGEMENT:
    Call `list_workspaces()` to inspect existing projects or `create_workspace(name="...", acceptance_criteria="...")` to create a new isolated research project.
    - Creating a workspace automatically sets the authenticated user as Workspace Admin.
-   - Sets default LLM model ('google/gemini-3.6-flash') and OCR engine ('pypdf').
+   - Sets default LLM model ('google/gemini-3.7-flash') and OCR engine ('pypdf').
 
 2. DEFINE DATA SCRAPER:
    Call `create_scraper(workspace_id="...", provider="arxiv", search_query="...")`.
@@ -390,7 +390,7 @@ def create_workspace(
     full_text_acceptance_criteria: str = "",
     full_text_rejection_criteria: str = "",
     ocr_provider: str = None,
-    screening_llm_model: str = "google/gemini-3.6-flash",
+    screening_llm_model: str = "google/gemini-3.7-flash",
     llm_provider: str = "google",
     digest_schedule: str = "0 9 * * 5",
     monthly_token_limit: int = 10000000,
@@ -710,7 +710,7 @@ def create_extraction_definition(
     system_prompt: str,
     user_prompt_template: str,
     response_schema: dict,
-    llm_model: str = "google/gemini-3.5-flash",
+    llm_model: str = "google/gemini-3.7-flash",
     version: int = 1,
     requires_consensus: bool = False,
     is_active: bool = True
@@ -1165,7 +1165,7 @@ def test_google_llm(
     location: str | None = None
 ) -> str:
     """
-    Test connectivity to Google Cloud GenAI / Vertex AI models (e.g. gemini-3.5-flash) and verify current API credentials.
+    Test connectivity to Google Cloud GenAI / Vertex AI models (e.g. gemini-3.7-flash) and verify current API credentials.
     """
     try:
         user, workspace, api_key = get_auth_context()
