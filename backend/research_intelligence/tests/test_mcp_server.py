@@ -746,6 +746,11 @@ class MCPServerTest(TestCase):
         # Check full status payload logic
         status_payload = json.loads(get_pipeline_run_status_logic(self.admin_user, pr_id))
         self.assertEqual(status_payload["status"], "completed")
+        self.assertEqual(status_payload["downloaded_documents_count"], 1)
+        self.assertIn("storage", status_payload)
+        self.assertIn("size_bytes", status_payload["storage"])
+        self.assertIn("size_formatted", status_payload["storage"])
+        self.assertIn("total_files", status_payload["storage"])
 
     def test_end_to_end_pipeline_failures(self):
         """

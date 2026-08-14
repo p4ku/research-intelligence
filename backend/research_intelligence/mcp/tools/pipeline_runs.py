@@ -89,8 +89,55 @@ def trigger_search_job_logic(
     }, indent=2)
 
 
+def _get_run_storage_stats(dir_path: str) -> dict:
+    """Calculate total size in bytes, total files count, and human-readable formatted size for a storage directory."""
+    from django.core.files.storage import default_storage
+    total_bytes = 0
+    total_files = 0
+    clean_dir = dir_path.strip('/')
+
+    def _format_size(size_bytes: int) -> str:
+        if size_bytes is None or size_bytes == 0:
+            return "0 B"
+        units = ["B", "KB", "MB", "GB", "TB"]
+        idx = 0
+        val = float(size_bytes)
+        while val >= 1024.0 and idx < len(units) - 1:
+            val /= 1024.0
+            idx += 1
+        return f"{val:.2f} {units[idx]}"
+
+    def _traverse(current_dir: str):
+        nonlocal total_bytes, total_files
+        try:
+            dirs, files = default_storage.listdir(current_dir)
+            for f in files:
+                f_path = f"{current_dir}/{f}"
+                try:
+                    size = default_storage.size(f_path)
+                    total_bytes += size
+                    total_files += 1
+                except Exception:
+                    pass
+            for d in dirs:
+                d_path = f"{current_dir}/{d}"
+                _traverse(d_path)
+        except Exception:
+            pass
+
+    if clean_dir:
+        _traverse(clean_dir)
+
+    return {
+        "storage_path": clean_dir,
+        "total_files": total_files,
+        "size_bytes": total_bytes,
+        "size_formatted": _format_size(total_bytes)
+    }
+
+
 def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
-    """Retrieve full status, metrics, and component run states for a PipelineRun."""
+    """Retrieve full status, metrics, downloaded paper counts, storage footprint, and component run states for a PipelineRun."""
     try:
         pr_uuid = uuid.UUID(pipeline_run_id)
     except ValueError:
@@ -119,7 +166,18 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
             pipeline_run.completed_at = timezone.now()
         pipeline_run.save(update_fields=['status', 'completed_at'])
 
-    from research_intelligence.models import Paper
+    from research_intelligence.models import Paper, Extraction, PaperMetric
+
+    papers_qs = Paper.objects.filter(pipeline_run=pipeline_run)
+    total_papers_fetched = pipeline_run.total_papers_fetched or papers_qs.count()
+    downloaded_papers_count = papers_qs.filter(original_pdf_path__isnull=False).exclude(original_pdf_path='').count()
+    ocr_converted_papers_count = papers_qs.filter(converted_md_path__isnull=False).exclude(converted_md_path='').count()
+    screened_papers_count = PaperMetric.objects.filter(paper__pipeline_run=pipeline_run).count()
+    extractions_count = Extraction.objects.filter(paper__pipeline_run=pipeline_run).count()
+
+    # Calculate storage footprint for this run
+    run_storage_dir = f"workspaces/{pipeline_run.workspace.id}/runs/{pipeline_run.id}"
+    storage_stats = _get_run_storage_stats(run_storage_dir)
 
     runs_list = []
     for cr in comp_runs:
@@ -139,7 +197,7 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
             "completed_at": cr.completed_at.isoformat() if cr.completed_at else None
         })
 
-    papers_sample = Paper.objects.filter(pipeline_run=pipeline_run).order_by('-created_at')[:10]
+    papers_sample = papers_qs.order_by('-created_at')[:10]
     papers_preview = [
         {
             "paper_id": str(p.id),
@@ -160,7 +218,12 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
         "run_date": pipeline_run.run_date.isoformat(),
         "status": pipeline_run.status,
         "current_stage": pipeline_run.current_stage,
-        "total_papers_fetched": pipeline_run.total_papers_fetched,
+        "total_papers_fetched": total_papers_fetched,
+        "downloaded_documents_count": downloaded_papers_count,
+        "ocr_converted_documents_count": ocr_converted_papers_count,
+        "screened_documents_count": screened_papers_count,
+        "extractions_count": extractions_count,
+        "storage": storage_stats,
         "started_at": pipeline_run.started_at.isoformat(),
         "completed_at": pipeline_run.completed_at.isoformat() if pipeline_run.completed_at else None,
         "fetched_papers_preview": papers_preview,

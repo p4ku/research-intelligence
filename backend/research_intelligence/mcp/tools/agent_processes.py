@@ -124,9 +124,14 @@ def get_research_agent_status_logic(user, process_id: str) -> str:
         tick_agent_process(str(process.id))
         process.refresh_from_db()
 
-    # Gather component runs summary if pipeline_run exists
+    # Gather component runs summary and metrics if pipeline_run exists
     component_runs_summary = []
+    paper_metrics = {}
+    storage_metrics = {}
     if process.pipeline_run:
+        from research_intelligence.models import Paper, Extraction, PaperMetric
+        from .pipeline_runs import _get_run_storage_stats
+
         for cr in process.pipeline_run.component_runs.all():
             component_runs_summary.append({
                 "component_run_id": str(cr.id),
@@ -138,6 +143,17 @@ def get_research_agent_status_logic(user, process_id: str) -> str:
                 "completed_at": cr.completed_at.isoformat() if cr.completed_at else None
             })
 
+        papers_qs = Paper.objects.filter(pipeline_run=process.pipeline_run)
+        paper_metrics = {
+            "total_papers_fetched": process.pipeline_run.total_papers_fetched or papers_qs.count(),
+            "downloaded_documents_count": papers_qs.filter(original_pdf_path__isnull=False).exclude(original_pdf_path='').count(),
+            "ocr_converted_documents_count": papers_qs.filter(converted_md_path__isnull=False).exclude(converted_md_path='').count(),
+            "screened_documents_count": PaperMetric.objects.filter(paper__pipeline_run=process.pipeline_run).count(),
+            "extractions_count": Extraction.objects.filter(paper__pipeline_run=process.pipeline_run).count()
+        }
+        run_storage_dir = f"workspaces/{process.workspace.id}/runs/{process.pipeline_run.id}"
+        storage_metrics = _get_run_storage_stats(run_storage_dir)
+
     details = {
         "process_id": str(process.id),
         "workspace_id": str(process.workspace.id),
@@ -148,6 +164,8 @@ def get_research_agent_status_logic(user, process_id: str) -> str:
         "current_step": process.current_step,
         "ocr_provider": process.workspace.ocr_provider or "None (Skipped)",
         "configuration_override": process.configuration_override,
+        "paper_metrics": paper_metrics,
+        "storage": storage_metrics,
         "step_history": process.step_history,
         "component_runs": component_runs_summary,
         "error_message": process.error_message,
