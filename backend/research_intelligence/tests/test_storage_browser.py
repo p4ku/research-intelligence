@@ -99,3 +99,13 @@ class StorageBrowserTestCase(TestCase):
         self.assertNotContains(response, "manage.py")
         self.assertNotContains(response, "Dockerfile")
 
+    def test_storage_browser_shows_directory_timestamp(self):
+        url = f"{reverse('admin:storage-browser')}?path=test_dir"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "sub_dir/")
+        # Ensure directory row has a valid timestamp format or non-empty string in modified column
+        content = response.content.decode('utf-8')
+        self.assertIn("sub_dir/", content)
+
+

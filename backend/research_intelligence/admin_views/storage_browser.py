@@ -172,9 +172,34 @@ def storage_browser_view(request):
 
         for d in sorted(filtered_dirs):
             d_rel_path = os.path.join(current_path, d) if current_path else d
+            d_mtime_str = "-"
+            try:
+                d_mtime = default_storage.get_modified_time(d_rel_path)
+                d_mtime_str = d_mtime.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                pass
+
+            # Fallback for S3/MinIO virtual prefixes where directories have no direct metadata:
+            # If folder name is a valid UUID, look up matching Workspace or PipelineRun timestamp
+            if d_mtime_str == "-":
+                try:
+                    import uuid
+                    if len(d) == 36 and uuid.UUID(d):
+                        from research_intelligence.models import Workspace, PipelineRun
+                        ws = Workspace.objects.filter(id=d).only('created_at').first()
+                        if ws and ws.created_at:
+                            d_mtime_str = ws.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                        else:
+                            pr = PipelineRun.objects.filter(id=d).only('created_at').first()
+                            if pr and pr.created_at:
+                                d_mtime_str = pr.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    pass
+
             dirs_list.append({
                 'name': d,
-                'rel_path': d_rel_path
+                'rel_path': d_rel_path,
+                'mtime_str': d_mtime_str
             })
         for f in sorted(filtered_files):
             f_rel_path = os.path.join(current_path, f) if current_path else f
@@ -284,7 +309,7 @@ def storage_browser_view(request):
                 📁 <a href="{base_url}?path={escape(d['rel_path'])}" style="font-weight: bold; font-size: 14px; text-decoration: none; color: #0d6efd;">{escape(d['name'])}/</a>
             </td>
             <td style="padding: 10px 12px; color: #6c757d;">Directory</td>
-            <td style="padding: 10px 12px; color: #6c757d;">-</td>
+            <td style="padding: 10px 12px; color: #6c757d; font-size: 13px;">{d['mtime_str']}</td>
             <td style="padding: 10px 12px; text-align: right;">
                 <a href="{base_url}?path={escape(current_path)}&action=delete_dir&target_dir={escape(d['rel_path'])}" 
                    onclick="return confirm('Are you sure you want to recursively delete directory `{escape(d['name'])}` and ALL its files?');"
