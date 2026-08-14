@@ -313,24 +313,6 @@ class ComponentRun(models.Model):
     def __str__(self):
         return f"{self.step_type}:{self.component_name} - Run {self.pipeline_run.id} ({self.status})"
 
-class PromptTemplate(models.Model):
-    """
-    Stores project-specific, step-specific prompt overrides (e.g. extraction templates).
-    """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="prompt_templates")
-    step_name = models.CharField(max_length=50, help_text="e.g., abstract_screening, parameter_extraction, reporting")
-    prompt_text = models.TextField(help_text="System/User prompt containing placeholders like {context}")
-    version = models.IntegerField(default=1)
-    is_active = models.BooleanField(default=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        unique_together = ('workspace', 'step_name', 'version')
-
-    def __str__(self):
-        return f"{self.workspace.name} - {self.step_name} (v{self.version})"
-
 class Paper(models.Model):
     """
     Holds metadata, file references, and screening states for articles ingested during a specific run.
@@ -396,7 +378,6 @@ class Extraction(models.Model):
     )
     category = models.CharField(max_length=50, help_text="e.g. ml_method, performance_metric, patent_claim")
     fields_data = models.JSONField(help_text="Extracted data containing value, evidence array, rationale, and confidence per field")
-    source_context = models.TextField(blank=True, null=True, help_text="Deprecated - use evidence arrays inside fields_data")
     is_hitl_validated = models.BooleanField(default=False)
     
     version_info = models.JSONField(default=dict, help_text="Stores prompt_version, schema_version, llm_model, provider")
@@ -443,25 +424,6 @@ class NarrativeReport(models.Model):
     refinement_depth = models.IntegerField(default=1, help_text="The value of K reached in self-refinement critique loops")
     critic_score_history = models.JSONField(default=list, help_text="Trace log of scores and critiques per iteration")
     created_at = models.DateTimeField(auto_now_add=True)
-
-class AuditTrail(models.Model):
-    """
-    Unified lineage tracking ledger and hierarchical agent step tracing system.
-    """
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="audit_trails", blank=True, null=True)
-    pipeline_run = models.ForeignKey(PipelineRun, on_delete=models.CASCADE, related_name="audit_trails", blank=True, null=True)
-    task_id = models.CharField(max_length=255, help_text="Celery execution task ID")
-    parent_trace_id = models.UUIDField(blank=True, null=True, help_text="Self-referential UUID linking nested agent queries")
-    step_name = models.CharField(max_length=100, help_text="e.g. query_arxiv_api, screen_abstract, run_docling_ocr")
-    status = models.CharField(max_length=50, default="running", help_text="running, success, or failed")
-    error_message = models.TextField(blank=True, null=True)
-    input_payload = models.JSONField(blank=True, null=True, help_text="Prompts templates, parameters, API settings")
-    output_payload = models.JSONField(blank=True, null=True, help_text="Raw LLM outputs, tool lists, parsing outcomes")
-    prompt_tokens = models.IntegerField(default=0)
-    completion_tokens = models.IntegerField(default=0)
-    execution_duration = models.FloatField(default=0.0, help_text="Processing time in seconds")
-    timestamp = models.DateTimeField(auto_now_add=True)
 
 class HITLCorrection(models.Model):
     """

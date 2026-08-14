@@ -75,7 +75,7 @@ It orchestrates a 5-step processing pipeline:
 - Enforce single-threaded concurrency fallback (`worker_concurrency = 1`) when `connection.vendor == 'sqlite'` to prevent SQLite database lock contention during test execution.
 
 ### Rule 5: Run Lifecycle & Storage Cleanup
-- When deleting a `PipelineRun` or `ResearchAgentProcess`, MCP tools MUST invoke recursive storage deletion to remove the run directory (`workspaces/{ws_id}/runs/{run_id}/`) and all related files (`.pdf`, `.md`, `.json`, `.txt`), while cascading deletion across DB records (`ComponentRun`, `Paper`, `Extraction`, `PaperMetric`, `NarrativeReport`, `AuditTrail`).
+- When deleting a `PipelineRun` or `ResearchAgentProcess`, MCP tools MUST invoke recursive storage deletion to remove the run directory (`workspaces/{ws_id}/runs/{run_id}/`) and all related files (`.pdf`, `.md`, `.json`, `.txt`), while cascading deletion across DB records (`ComponentRun`, `Paper`, `Extraction`, `PaperMetric`, `NarrativeReport`).
 - Status tools (`get_pipeline_run_status`, `get_research_agent_status`) calculate dynamic metrics: `total_papers_fetched`, `downloaded_documents_count`, `ocr_converted_documents_count`, `screened_documents_count`, `extractions_count`, and the `storage` footprint (`total_files`, `size_bytes`, `size_formatted`).
 
 ---
@@ -91,7 +91,7 @@ It orchestrates a 5-step processing pipeline:
 | `get_workspace` | `workspaces:read` | Returns full workspace hierarchy, criteria, scrapers, OCR engine, and definitions. |
 | `create_workspace` | `workspaces:write` | Creates isolated workspace with distinct `abstract_*` / `full_text_*` criteria, default `google/gemini-3.7-flash`, and `ocr_provider=None`. |
 | `update_workspace` | `workspaces:write` | Updates workspace criteria, OCR provider, LLM provider/model, or quota limits. |
-| `add_workspace_member` | `workspaces:write` | Adds user membership to a workspace with role (`admin`, `manager`, `analyst`, `viewer`). |
+| `add_workspace_member` | `workspaces:write` | Adds user membership to a workspace with role (`admin`, `manager`, `researcher`). |
 
 #### 2. Autonomous Research Agents (`tools/agent_processes.py`)
 | Tool Name | Scope | Description |
@@ -115,7 +115,7 @@ It orchestrates a 5-step processing pipeline:
 | `preview_search_query` | `workspaces:read` | Dry-run search query against ArXiv/OpenAlex/Lens without saving to DB. |
 | `list_papers` | `workspaces:read` | Lists ingested papers with title, authors, abstract, PDF path, and screening status. |
 
-#### 4. Dynamic Parameter Extraction & Prompts (`tools/extraction_definitions.py`, `tools/prompt_templates.py`)
+#### 4. Dynamic Parameter Extraction (`tools/extraction_definitions.py`)
 | Tool Name | Scope | Description |
 | :--- | :--- | :--- |
 | `list_extraction_definitions` | `prompts:read` | Lists custom extraction targets for a workspace. |
@@ -123,11 +123,6 @@ It orchestrates a 5-step processing pipeline:
 | `create_extraction_definition` | `prompts:write` | Creates new dynamic extraction target (JSON schema, prompts, `llm_model`). |
 | `update_extraction_definition` | `prompts:write` | Updates schema, prompts, or model for an extraction target. |
 | `delete_extraction_definition` | `prompts:write` | Removes extraction definition and associated extractions. |
-| `list_prompt_templates` | `prompts:read` | Lists reusable prompt templates for a workspace. |
-| `get_prompt_template` | `prompts:read` | Returns details for a prompt template. |
-| `create_prompt_template` | `prompts:write` | Creates a reusable prompt template. |
-| `update_prompt_template` | `prompts:write` | Updates a prompt template. |
-| `delete_prompt_template` | `prompts:write` | Deletes a prompt template. |
 
 #### 5. Step-by-Step Pipeline Runs (`tools/pipeline_runs.py`, `tools/extractions.py`)
 | Tool Name | Scope | Description |

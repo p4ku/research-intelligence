@@ -14,13 +14,6 @@ from .scrapers import (
     preview_search_query_logic,
     list_papers_logic,
 )
-from .prompt_templates import (
-    list_prompt_templates_logic,
-    get_prompt_template_logic,
-    create_prompt_template_logic,
-    update_prompt_template_logic,
-    delete_prompt_template_logic,
-)
 from .pipeline_runs import (
     trigger_search_job_logic,
     trigger_pdf_download_job_logic,
@@ -69,11 +62,6 @@ __all__ = [
     "delete_scraper_logic",
     "preview_search_query_logic",
     "list_papers_logic",
-    "list_prompt_templates_logic",
-    "get_prompt_template_logic",
-    "create_prompt_template_logic",
-    "update_prompt_template_logic",
-    "delete_prompt_template_logic",
     "list_extraction_definitions_logic",
     "get_extraction_definition_logic",
     "create_extraction_definition_logic",

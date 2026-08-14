@@ -103,18 +103,6 @@ def get_workspace_logic(user, workspace_id: str) -> str:
         for s in scrapers
     ]
 
-    prompts = workspace.prompt_templates.all()
-    prompts_list = [
-        {
-            "template_id": str(pt.id),
-            "step_name": pt.step_name,
-            "version": pt.version,
-            "is_active": pt.is_active,
-            "updated_at": pt.updated_at.isoformat()
-        }
-        for pt in prompts
-    ]
-
     extractions = workspace.extraction_definitions.all()
     extractions_list = [
         {
@@ -140,7 +128,6 @@ def get_workspace_logic(user, workspace_id: str) -> str:
             "ocr_provider": workspace.ocr_provider,
             "screening_llm_model": workspace.screening_llm_model,
             "llm_provider": workspace.llm_provider,
-            "prompt_templates": prompts_list,
             "extraction_definitions": extractions_list,
             "digest_schedule": workspace.digest_schedule,
             "monthly_token_limit": workspace.monthly_token_limit,

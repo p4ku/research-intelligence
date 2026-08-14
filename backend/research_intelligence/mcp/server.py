@@ -57,11 +57,6 @@ from research_intelligence.mcp.tools import (
     delete_scraper_logic,
     preview_search_query_logic,
     list_papers_logic,
-    list_prompt_templates_logic,
-    get_prompt_template_logic,
-    create_prompt_template_logic,
-    update_prompt_template_logic,
-    delete_prompt_template_logic,
     list_extraction_definitions_logic,
     get_extraction_definition_logic,
     create_extraction_definition_logic,
@@ -596,84 +591,6 @@ def list_papers(workspace_id: str, pipeline_run_id: str | None = None, limit: in
     except Exception as e:
         return str(e)
     return list_papers_logic(user, workspace_id, pipeline_run_id, limit)
-
-
-# --- Prompt Template Management Tools ---
-
-@mcp.tool()
-@with_db_connection
-def list_prompt_templates(workspace_id: str) -> str:
-    """List all custom prompt templates for a workspace."""
-    try:
-        user, workspace, api_key = get_auth_context()
-        check_scope(api_key, "prompts:read")
-    except Exception as e:
-        return str(e)
-    return list_prompt_templates_logic(user, workspace_id)
-
-
-@mcp.tool()
-@with_db_connection
-def get_prompt_template(
-    template_id: str | None = None,
-    workspace_id: str | None = None,
-    step_name: str | None = None,
-    version: int | None = None
-) -> str:
-    """Retrieve details of a prompt template by ID or workspace/step_name lookup."""
-    try:
-        user, workspace, api_key = get_auth_context()
-        check_scope(api_key, "prompts:read")
-    except Exception as e:
-        return str(e)
-    return get_prompt_template_logic(user, template_id, workspace_id, step_name, version)
-
-
-@mcp.tool()
-@with_db_connection
-def create_prompt_template(
-    workspace_id: str,
-    step_name: str,
-    prompt_text: str,
-    version: int = 1,
-    is_active: bool = True
-) -> str:
-    """Create a new prompt template override defining instructions for a specific workflow step."""
-    try:
-        user, workspace, api_key = get_auth_context()
-        check_scope(api_key, "prompts:write")
-    except Exception as e:
-        return str(e)
-    return create_prompt_template_logic(user, workspace_id, step_name, prompt_text, version, is_active)
-
-
-@mcp.tool()
-@with_db_connection
-def update_prompt_template(
-    template_id: str,
-    prompt_text: str | None = None,
-    version: int | None = None,
-    is_active: bool | None = None
-) -> str:
-    """Update an existing prompt template definition."""
-    try:
-        user, workspace, api_key = get_auth_context()
-        check_scope(api_key, "prompts:write")
-    except Exception as e:
-        return str(e)
-    return update_prompt_template_logic(user, template_id, prompt_text, version, is_active)
-
-
-@mcp.tool()
-@with_db_connection
-def delete_prompt_template(template_id: str) -> str:
-    """Delete a prompt template definition."""
-    try:
-        user, workspace, api_key = get_auth_context()
-        check_scope(api_key, "prompts:write")
-    except Exception as e:
-        return str(e)
-    return delete_prompt_template_logic(user, template_id)
 
 
 # --- Extraction Definitions Management Tools ---

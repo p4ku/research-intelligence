@@ -14,12 +14,10 @@ from research_intelligence.models import (
     ExtractionDefinition,
     PipelineRun,
     ComponentRun,
-    PromptTemplate,
     Paper,
     Extraction,
     PaperMetric,
     NarrativeReport,
-    AuditTrail,
     HITLCorrection,
     UserActivityLog,
 )
@@ -176,13 +174,6 @@ class ScraperInline(admin.TabularInline):
     readonly_fields = ('created_at',)
 
 
-class PromptTemplateInline(admin.TabularInline):
-    model = PromptTemplate
-    extra = 1
-    fields = ('step_name', 'version', 'is_active', 'updated_at')
-    readonly_fields = ('updated_at',)
-
-
 class SubscriberInline(admin.TabularInline):
     model = Subscriber
     extra = 1
@@ -244,7 +235,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
     )
     search_fields = ('name', 'abstract_acceptance_criteria', 'abstract_rejection_criteria', 'full_text_acceptance_criteria', 'full_text_rejection_criteria')
     list_filter = ('ocr_provider', 'llm_provider', 'created_at')
-    inlines = [WorkspaceMemberInline, ScraperInline, PromptTemplateInline, SubscriberInline]
+    inlines = [WorkspaceMemberInline, ScraperInline, SubscriberInline]
     fieldsets = (
         ('Basic Information', {
             'fields': ('name', 'digest_schedule')
@@ -520,17 +511,6 @@ class ComponentRunAdmin(admin.ModelAdmin):
     status_badge.short_description = "Status"
 
 
-@admin.register(PromptTemplate)
-class PromptTemplateAdmin(admin.ModelAdmin):
-    list_display = ('workspace', 'step_name', 'version', 'status_badge', 'updated_at')
-    list_filter = ('step_name', 'is_active', 'workspace')
-    search_fields = ('workspace__name', 'step_name', 'prompt_text')
-
-    def status_badge(self, obj):
-        return render_badge("ACTIVE", "#198754") if obj.is_active else render_badge("INACTIVE", "#6c757d")
-    status_badge.short_description = "Status"
-
-
 @admin.register(Paper)
 class PaperAdmin(admin.ModelAdmin):
     list_display = (
@@ -577,7 +557,6 @@ class ExtractionAdmin(admin.ModelAdmin):
     list_display = ('paper', 'extraction_definition', 'category', 'workspace', 'validation_status', 'confidence_score', 'review_required', 'created_at')
     list_filter = ('validation_status', 'review_required', 'category', 'workspace')
     search_fields = ('paper__title', 'category', 'extraction_definition__name')
-    exclude = ('source_context',)
     readonly_fields = ('extraction_system_prompt', 'extraction_user_prompt_template', 'created_at')
 
     fieldsets = (
@@ -651,13 +630,6 @@ class NarrativeReportAdmin(admin.ModelAdmin):
     list_display = ('title', 'workspace', 'pipeline_run', 'refinement_depth', 'created_at')
     list_filter = ('workspace', 'created_at')
     search_fields = ('title', 'content_markdown')
-
-
-@admin.register(AuditTrail)
-class AuditTrailAdmin(admin.ModelAdmin):
-    list_display = ('step_name', 'status', 'task_id', 'prompt_tokens', 'completion_tokens', 'execution_duration', 'timestamp')
-    list_filter = ('status', 'step_name', 'timestamp')
-    search_fields = ('step_name', 'task_id', 'error_message')
 
 
 @admin.register(HITLCorrection)

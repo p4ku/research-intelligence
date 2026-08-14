@@ -820,7 +820,7 @@ def delete_pipeline_run_logic(user, pipeline_run_id: str) -> str:
     pr_id_str = str(pipeline_run.id)
     ws_id_str = str(workspace.id)
 
-    # Perform DB deletion (CASCADE deletes Papers, Extractions, ComponentRuns, PaperMetrics, NarrativeReports, AuditTrails)
+    # Perform DB deletion (CASCADE deletes Papers, Extractions, ComponentRuns, PaperMetrics, NarrativeReports)
     pipeline_run.delete()
 
     return json.dumps({

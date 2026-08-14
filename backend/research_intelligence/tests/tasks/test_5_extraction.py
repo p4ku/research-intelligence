@@ -1,7 +1,7 @@
 import json
 from django.test import TestCase
 from unittest.mock import patch, MagicMock
-from ...models import Workspace, PipelineRun, Paper, Extraction, ExtractionDefinition, AuditTrail
+from ...models import Workspace, PipelineRun, Paper, Extraction, ExtractionDefinition
 from ...tasks.step_5_extraction.extract import extract_custom_variables, run_extraction_for_definition
 
 class DynamicExtractionTaskTestCase(TestCase):

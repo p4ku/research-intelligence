@@ -2,7 +2,7 @@ import json
 from unittest.mock import patch, MagicMock
 from django.test import TestCase, override_settings
 from django.contrib.auth import get_user_model
-from research_intelligence.models import Workspace, WorkspaceMember, APIKey, Scraper, PromptTemplate
+from research_intelligence.models import Workspace, WorkspaceMember, APIKey, Scraper
 from research_intelligence.mcp.tools import (
     create_workspace_logic,
     list_workspaces_logic,
@@ -16,11 +16,6 @@ from research_intelligence.mcp.tools import (
     delete_scraper_logic,
     preview_search_query_logic,
     list_papers_logic,
-    create_prompt_template_logic,
-    list_prompt_templates_logic,
-    get_prompt_template_logic,
-    update_prompt_template_logic,
-    delete_prompt_template_logic,
     trigger_search_job_logic,
     trigger_pdf_download_job_logic,
     get_pipeline_run_status_logic,
@@ -181,46 +176,6 @@ class MCPServerTest(TestCase):
         del_res = json.loads(delete_scraper_logic(self.admin_user, scraper_id))
         self.assertTrue(del_res["success"])
         self.assertEqual(Scraper.objects.filter(id=scraper_id).count(), 0)
-
-    def test_prompt_template_crud(self):
-        ws_res = json.loads(create_workspace_logic(self.admin_user, name="Prompt Template Workspace"))
-        ws_id = ws_res["workspace_id"]
-
-        # 1. Create Prompt Template
-        create_res = json.loads(create_prompt_template_logic(
-            user=self.admin_user,
-            workspace_id=ws_id,
-            step_name="abstract_screening",
-            prompt_text="Screen abstract for inclusion criteria: {acceptance_criteria}",
-            version=1
-        ))
-        self.assertTrue(create_res["success"])
-        template_id = create_res["template_id"]
-
-        # 2. List Prompt Templates
-        templates_list = json.loads(list_prompt_templates_logic(self.admin_user, ws_id))
-        self.assertEqual(len(templates_list), 1)
-        self.assertEqual(templates_list[0]["step_name"], "abstract_screening")
-
-        # 3. Get Details
-        details = json.loads(get_prompt_template_logic(self.admin_user, template_id=template_id))
-        self.assertEqual(details["step_name"], "abstract_screening")
-        self.assertIn("{acceptance_criteria}", details["prompt_text"])
-
-        # 4. Update Template
-        update_res = json.loads(update_prompt_template_logic(
-            user=self.admin_user,
-            template_id=template_id,
-            prompt_text="Updated screening prompt for paper: {paper_text}",
-            version=2
-        ))
-        self.assertTrue(update_res["success"])
-        self.assertEqual(update_res["version"], 2)
-
-        # 5. Delete Template
-        del_res = json.loads(delete_prompt_template_logic(self.admin_user, template_id))
-        self.assertTrue(del_res["success"])
-        self.assertEqual(PromptTemplate.objects.filter(id=template_id).count(), 0)
 
     def test_pipeline_run_scraping_job_lifecycle_and_storage(self):
         from django.core.files.storage import default_storage
