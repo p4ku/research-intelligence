@@ -172,7 +172,7 @@ CORE WORKFLOW INSTRUCTIONS (STEP-BY-STEP USE CASE 1):
 1. WORKSPACE INITIALIZATION & MANAGEMENT:
    Call `list_workspaces()` to inspect existing projects or `create_workspace(name="...", acceptance_criteria="...")` to create a new isolated research project.
    - Creating a workspace automatically sets the authenticated user as Workspace Admin.
-   - Sets default LLM model ('google/gemini-3.7-flash') and OCR engine ('pypdf').
+   - Sets default LLM model ('google/gemini-3.7-flash') and OCR engine (None / auto-skipped by default to pass full PDF binaries directly to multimodal Gemini 3.7 Flash during screening).
 
 2. DEFINE DATA SCRAPER:
    Call `create_scraper(workspace_id="...", provider="arxiv", search_query="...")`.
