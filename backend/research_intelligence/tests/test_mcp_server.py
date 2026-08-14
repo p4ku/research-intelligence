@@ -997,3 +997,41 @@ class MCPServerTest(TestCase):
         paper.refresh_from_db()
         self.assertIsNotNone(paper.converted_md_path)
         self.assertTrue(default_storage.exists(paper.converted_md_path))
+
+    def test_workspace_token_and_cost_recording(self):
+        """
+        Verifies that workspace records split input/output tokens and calculates USD cost.
+        """
+        from research_intelligence.mcp.tools import create_workspace_logic, get_workspace_logic, list_workspaces_logic
+        ws_res = json.loads(create_workspace_logic(self.admin_user, name="Token Metric Test WS"))
+        ws_id = ws_res["workspace_id"]
+        ws = Workspace.objects.get(id=ws_id)
+
+        self.assertEqual(ws.tokens_in_consumed_this_month, 0)
+        self.assertEqual(ws.tokens_out_consumed_this_month, 0)
+        self.assertEqual(ws.tokens_consumed_this_month, 0)
+
+        # Record token usage
+        cost = ws.record_token_usage(tokens_in=7219, tokens_out=2910, model_name="google/gemini-3.7-flash")
+        self.assertGreater(cost, 0)
+
+        ws.refresh_from_db()
+        self.assertEqual(ws.tokens_in_consumed_this_month, 7219)
+        self.assertEqual(ws.tokens_out_consumed_this_month, 2910)
+        self.assertEqual(ws.tokens_consumed_this_month, 10129)
+        self.assertGreater(ws.usd_spent_this_month, 0)
+
+        # Verify get_workspace_logic includes split token metrics
+        details = json.loads(get_workspace_logic(self.admin_user, ws_id))
+        self.assertEqual(details["components_config"]["tokens_in_consumed_this_month"], 7219)
+        self.assertEqual(details["components_config"]["tokens_out_consumed_this_month"], 2910)
+        self.assertEqual(details["components_config"]["tokens_consumed_this_month"], 10129)
+        self.assertGreater(details["components_config"]["usd_spent_this_month"], 0)
+
+        # Verify list_workspaces_logic includes split token metrics
+        ws_list = json.loads(list_workspaces_logic(self.admin_user))
+        matched = [w for w in ws_list if w["workspace_id"] == ws_id][0]
+        self.assertEqual(matched["tokens_in_consumed_this_month"], 7219)
+        self.assertEqual(matched["tokens_out_consumed_this_month"], 2910)
+        self.assertEqual(matched["tokens_consumed_this_month"], 10129)
+

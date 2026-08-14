@@ -235,6 +235,8 @@ class WorkspaceAdmin(admin.ModelAdmin):
         'ocr_provider',
         'screening_llm_model',
         'monthly_token_limit',
+        'tokens_in_consumed_this_month',
+        'tokens_out_consumed_this_month',
         'tokens_consumed_this_month',
         'monthly_usd_limit',
         'usd_spent_this_month',
@@ -257,7 +259,13 @@ class WorkspaceAdmin(admin.ModelAdmin):
             'fields': ('ocr_provider', 'screening_llm_model', 'llm_provider')
         }),
         ('Monthly Quotas & Budgets', {
-            'fields': ('monthly_token_limit', 'tokens_consumed_this_month', 'monthly_usd_limit', 'usd_spent_this_month')
+            'fields': (
+                'monthly_token_limit',
+                ('tokens_in_consumed_this_month', 'tokens_out_consumed_this_month'),
+                'tokens_consumed_this_month',
+                'monthly_usd_limit',
+                'usd_spent_this_month'
+            )
         }),
     )
 
@@ -423,6 +431,8 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'current_stage_badge',
         'total_papers_fetched',
         'total_papers_passed_screening',
+        'tokens_in',
+        'tokens_out',
         'tokens_consumed',
         'usd_cost',
         'started_at',

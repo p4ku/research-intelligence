@@ -32,7 +32,8 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             'full_text_acceptance_criteria', 'full_text_rejection_criteria',
             'extraction_definitions', 'ocr_provider',
             'screening_llm_model', 'llm_provider', 'digest_schedule',
-            'monthly_token_limit', 'tokens_consumed_this_month',
+            'monthly_token_limit',
+            'tokens_in_consumed_this_month', 'tokens_out_consumed_this_month', 'tokens_consumed_this_month',
             'monthly_usd_limit', 'usd_spent_this_month', 'subscribers',
             'created_at'
         ]

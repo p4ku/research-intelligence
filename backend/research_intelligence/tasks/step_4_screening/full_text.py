@@ -367,11 +367,23 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = 50
         component_run.completed_at = timezone.now()
         component_run.save(update_fields=['metrics', 'output_data', 'status', 'completed_at'])
 
-        # Aggregate tokens to PipelineRun
-        pipeline_run.tokens_consumed = (pipeline_run.tokens_consumed or 0) + total_tokens
-        pipeline_run.save(update_fields=['tokens_consumed'])
+        from decimal import Decimal
+        from ...llm_providers.pricing import calculate_llm_cost
 
-        logger.info(f"📊 [FULL-TEXT SCREENING COMPLETED] Model: {workspace.screening_llm_model} | Screened: {len(papers)} | Time: {job_duration_sec}s | Tokens: {total_tokens} (In: {total_prompt_tokens}, Out: {total_candidates_tokens})")
+        cost = calculate_llm_cost(workspace.screening_llm_model, total_prompt_tokens, total_candidates_tokens)
+        component_run.metrics["usd_cost"] = float(cost)
+
+        # Aggregate tokens and cost to PipelineRun
+        pipeline_run.tokens_in = (pipeline_run.tokens_in or 0) + total_prompt_tokens
+        pipeline_run.tokens_out = (pipeline_run.tokens_out or 0) + total_candidates_tokens
+        pipeline_run.tokens_consumed = (pipeline_run.tokens_consumed or 0) + total_tokens
+        pipeline_run.usd_cost = (pipeline_run.usd_cost or Decimal('0.0000')) + cost
+        pipeline_run.save(update_fields=['tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost'])
+
+        # Record monthly quota usage on Workspace
+        workspace.record_token_usage(total_prompt_tokens, total_candidates_tokens, workspace.screening_llm_model)
+
+        logger.info(f"📊 [FULL-TEXT SCREENING COMPLETED] Model: {workspace.screening_llm_model} | Screened: {len(papers)} | Time: {job_duration_sec}s | Tokens: {total_tokens} (In: {total_prompt_tokens}, Out: {total_candidates_tokens}) | Cost: ${cost}")
 
         pipeline_run.refresh_from_db()
         pending_or_running = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status__in=['pending', 'running']).exists()

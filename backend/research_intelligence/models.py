@@ -57,15 +57,41 @@ class Workspace(models.Model):
 
     # Token & Budget quotas defined directly on the project/workspace level
     monthly_token_limit = models.BigIntegerField(default=10000000)
-    tokens_consumed_this_month = models.BigIntegerField(default=0)
+    tokens_in_consumed_this_month = models.BigIntegerField(default=0, help_text="Input/prompt tokens consumed this month")
+    tokens_out_consumed_this_month = models.BigIntegerField(default=0, help_text="Output/completion tokens consumed this month")
+    tokens_consumed_this_month = models.BigIntegerField(default=0, help_text="Total tokens consumed this month (in + out)")
     monthly_usd_limit = models.DecimalField(max_digits=10, decimal_places=2, default=100.00)
-    usd_spent_this_month = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    usd_spent_this_month = models.DecimalField(max_digits=10, decimal_places=4, default=0.0000)
     
     # Agent & Pipeline Configuration
     skip_abstract_screening = models.BooleanField(default=False, help_text="If True, skips Step 4 Abstract Screening and performs direct Full-Text Screening")
     notification_email = models.EmailField(blank=True, null=True, help_text="Email address notified upon agent completion or failure")
 
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def record_token_usage(self, tokens_in: int, tokens_out: int, model_name: str = None):
+        """
+        Increments workspace monthly token and USD usage counters atomically.
+        """
+        from django.db.models import F
+        from .llm_providers.pricing import calculate_llm_cost
+
+        cost = calculate_llm_cost(model_name or self.screening_llm_model, tokens_in or 0, tokens_out or 0)
+        total_tokens = (tokens_in or 0) + (tokens_out or 0)
+
+        Workspace.objects.filter(pk=self.pk).update(
+            tokens_in_consumed_this_month=F('tokens_in_consumed_this_month') + (tokens_in or 0),
+            tokens_out_consumed_this_month=F('tokens_out_consumed_this_month') + (tokens_out or 0),
+            tokens_consumed_this_month=F('tokens_consumed_this_month') + total_tokens,
+            usd_spent_this_month=F('usd_spent_this_month') + cost
+        )
+        self.refresh_from_db(fields=[
+            'tokens_in_consumed_this_month',
+            'tokens_out_consumed_this_month',
+            'tokens_consumed_this_month',
+            'usd_spent_this_month'
+        ])
+        return cost
 
     def __str__(self):
         return self.name
@@ -167,7 +193,9 @@ class PipelineRun(models.Model):
     # Aggregated run metrics
     total_papers_fetched = models.IntegerField(default=0)
     total_papers_passed_screening = models.IntegerField(default=0)
-    tokens_consumed = models.BigIntegerField(default=0, help_text="Total tokens used in this run")
+    tokens_in = models.BigIntegerField(default=0, help_text="Total input/prompt tokens used in this run")
+    tokens_out = models.BigIntegerField(default=0, help_text="Total output/completion tokens used in this run")
+    tokens_consumed = models.BigIntegerField(default=0, help_text="Total tokens used in this run (in + out)")
     usd_cost = models.DecimalField(max_digits=10, decimal_places=4, default=0.0000)
     
     started_at = models.DateTimeField(auto_now_add=True)

@@ -63,7 +63,11 @@ def list_workspaces_logic(user) -> str:
             "llm_provider": ws.llm_provider,
             "digest_schedule": ws.digest_schedule,
             "monthly_token_limit": ws.monthly_token_limit,
+            "tokens_in_consumed_this_month": ws.tokens_in_consumed_this_month,
+            "tokens_out_consumed_this_month": ws.tokens_out_consumed_this_month,
             "tokens_consumed_this_month": ws.tokens_consumed_this_month,
+            "monthly_usd_limit": float(ws.monthly_usd_limit),
+            "usd_spent_this_month": float(ws.usd_spent_this_month),
             "created_at": ws.created_at.isoformat()
         })
     return json.dumps(results, indent=2, cls=DjangoJSONEncoder)
@@ -140,6 +144,8 @@ def get_workspace_logic(user, workspace_id: str) -> str:
             "extraction_definitions": extractions_list,
             "digest_schedule": workspace.digest_schedule,
             "monthly_token_limit": workspace.monthly_token_limit,
+            "tokens_in_consumed_this_month": workspace.tokens_in_consumed_this_month,
+            "tokens_out_consumed_this_month": workspace.tokens_out_consumed_this_month,
             "tokens_consumed_this_month": workspace.tokens_consumed_this_month,
             "monthly_usd_limit": float(workspace.monthly_usd_limit),
             "usd_spent_this_month": float(workspace.usd_spent_this_month)

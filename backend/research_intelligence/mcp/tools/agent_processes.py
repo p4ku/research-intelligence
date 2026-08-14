@@ -149,7 +149,11 @@ def get_research_agent_status_logic(user, process_id: str) -> str:
             "downloaded_documents_count": papers_qs.filter(original_pdf_path__isnull=False).exclude(original_pdf_path='').count(),
             "ocr_converted_documents_count": papers_qs.filter(converted_md_path__isnull=False).exclude(converted_md_path='').count(),
             "screened_documents_count": PaperMetric.objects.filter(paper__pipeline_run=process.pipeline_run).count(),
-            "extractions_count": Extraction.objects.filter(paper__pipeline_run=process.pipeline_run).count()
+            "extractions_count": Extraction.objects.filter(paper__pipeline_run=process.pipeline_run).count(),
+            "tokens_in": process.pipeline_run.tokens_in,
+            "tokens_out": process.pipeline_run.tokens_out,
+            "tokens_consumed": process.pipeline_run.tokens_consumed,
+            "usd_cost": float(process.pipeline_run.usd_cost)
         }
         run_storage_dir = f"workspaces/{process.workspace.id}/runs/{process.pipeline_run.id}"
         storage_metrics = _get_run_storage_stats(run_storage_dir)
