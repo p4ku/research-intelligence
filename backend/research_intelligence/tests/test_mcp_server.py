@@ -899,6 +899,8 @@ class MCPServerTest(TestCase):
 
         pdf_path = default_storage.save(f"workspaces/{ws.id}/runs/{pr.id}/documents/hash123/original.pdf", ContentFile(b"%PDF-mock"))
         md_path = default_storage.save(f"workspaces/{ws.id}/runs/{pr.id}/documents/hash123/ocr.md", ContentFile(b"# OCR text"))
+        meta_path = default_storage.save(f"workspaces/{ws.id}/runs/{pr.id}/documents/hash123/metadata.json", ContentFile(b"{}"))
+        raw_scrape_path = default_storage.save(f"workspaces/{ws.id}/runs/{pr.id}/scrapes/arxiv/{comp.id}_raw.json", ContentFile(b"[]"))
 
         paper = Paper.objects.create(
             workspace=ws,
@@ -929,6 +931,8 @@ class MCPServerTest(TestCase):
         # Assert items exist before deletion
         self.assertTrue(default_storage.exists(pdf_path))
         self.assertTrue(default_storage.exists(md_path))
+        self.assertTrue(default_storage.exists(meta_path))
+        self.assertTrue(default_storage.exists(raw_scrape_path))
         self.assertTrue(PipelineRun.objects.filter(id=pr.id).exists())
         self.assertTrue(Paper.objects.filter(id=paper.id).exists())
         self.assertTrue(Extraction.objects.filter(id=ext.id).exists())
@@ -938,14 +942,18 @@ class MCPServerTest(TestCase):
         self.assertEqual(del_res["status"], "success")
         self.assertEqual(del_res["deleted_counts"]["papers"], 1)
         self.assertEqual(del_res["deleted_counts"]["extractions"], 1)
-        self.assertEqual(del_res["deleted_counts"]["storage_files"], 2)
+        self.assertEqual(del_res["deleted_counts"]["storage_files"], 4)
 
-        # Assert items are completely deleted after calling delete_pipeline_run_logic
+        # Assert items and entire run directory are completely deleted after calling delete_pipeline_run_logic
         self.assertFalse(PipelineRun.objects.filter(id=pr.id).exists())
+        self.assertFalse(ComponentRun.objects.filter(id=comp.id).exists())
         self.assertFalse(Paper.objects.filter(id=paper.id).exists())
         self.assertFalse(Extraction.objects.filter(id=ext.id).exists())
         self.assertFalse(default_storage.exists(pdf_path))
         self.assertFalse(default_storage.exists(md_path))
+        self.assertFalse(default_storage.exists(meta_path))
+        self.assertFalse(default_storage.exists(raw_scrape_path))
+        self.assertFalse(default_storage.exists(f"workspaces/{ws.id}/runs/{pr.id}"))
 
     def test_trigger_ocr_job_mcp_tool(self):
         """

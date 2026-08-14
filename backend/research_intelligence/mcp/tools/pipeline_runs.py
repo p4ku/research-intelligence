@@ -668,10 +668,50 @@ def trigger_extraction_job_logic(
     }, indent=2)
 
 
+def _recursive_delete_run_storage(dir_path: str) -> int:
+    """Recursively delete all files and directory structures inside dir_path in default_storage."""
+    import os
+    import shutil
+    from django.core.files.storage import default_storage
+    deleted_count = 0
+    clean_dir = dir_path.strip('/')
+    if not clean_dir or clean_dir in ('', 'workspaces'):
+        return 0
+    try:
+        dirs, files = default_storage.listdir(clean_dir)
+        for f in files:
+            full_f_path = f"{clean_dir}/{f}"
+            try:
+                if default_storage.exists(full_f_path):
+                    default_storage.delete(full_f_path)
+                    deleted_count += 1
+            except Exception:
+                pass
+        for d in dirs:
+            full_d_path = f"{clean_dir}/{d}"
+            deleted_count += _recursive_delete_run_storage(full_d_path)
+
+        # On local filesystem, remove the empty directory or directory tree
+        if hasattr(default_storage, 'path'):
+            try:
+                local_dir = default_storage.path(clean_dir)
+                if os.path.isdir(local_dir):
+                    if not os.listdir(local_dir):
+                        os.rmdir(local_dir)
+                    else:
+                        shutil.rmtree(local_dir, ignore_errors=True)
+            except Exception:
+                pass
+    except Exception:
+        pass
+    return deleted_count
+
+
 def delete_pipeline_run_logic(user, pipeline_run_id: str) -> str:
     """
     Deletes an entire PipelineRun along with all associated database records (Papers, Extractions, ComponentRuns,
-    PaperMetrics, NarrativeReports) and cleans up downloaded original PDFs and OCR Markdown files from storage.
+    PaperMetrics, NarrativeReports) and cleans up all downloaded PDFs, OCR Markdown, metadata JSONs, raw scrape payloads,
+    and storage directories.
     """
     try:
         pr_uuid = uuid.UUID(pipeline_run_id)
@@ -694,31 +734,26 @@ def delete_pipeline_run_logic(user, pipeline_run_id: str) -> str:
     metrics_count = PaperMetric.objects.filter(paper__pipeline_run=pipeline_run).count()
     reports_count = NarrativeReport.objects.filter(pipeline_run=pipeline_run).count()
 
-    # Clean up physical storage files (original PDFs & converted OCR Markdown documents)
-    deleted_files_count = 0
-    for paper in papers_qs.iterator():
-        if paper.original_pdf_path and not (paper.original_pdf_path.startswith("http://") or paper.original_pdf_path.startswith("https://")):
-            try:
-                if default_storage.exists(paper.original_pdf_path):
-                    default_storage.delete(paper.original_pdf_path)
-                    deleted_files_count += 1
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning(f"Failed deleting storage PDF {paper.original_pdf_path}: {e}")
+    # Clean up physical storage files and folder recursively: workspaces/{workspace_id}/runs/{pipeline_run_id}
+    run_storage_dir = f"workspaces/{workspace.id}/runs/{pipeline_run.id}"
+    deleted_files_count = _recursive_delete_run_storage(run_storage_dir)
 
-        if paper.converted_md_path:
-            try:
-                if default_storage.exists(paper.converted_md_path):
-                    default_storage.delete(paper.converted_md_path)
-                    deleted_files_count += 1
-            except Exception as e:
-                import logging
-                logging.getLogger(__name__).warning(f"Failed deleting storage MD {paper.converted_md_path}: {e}")
+    # Extra safety check for any papers whose paths might have been saved outside the run folder:
+    for paper in papers_qs.iterator():
+        for path in (paper.original_pdf_path, paper.converted_md_path):
+            if path and not (path.startswith("http://") or path.startswith("https://")):
+                try:
+                    if default_storage.exists(path):
+                        default_storage.delete(path)
+                        deleted_files_count += 1
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).warning(f"Failed deleting storage file {path}: {e}")
 
     pr_id_str = str(pipeline_run.id)
     ws_id_str = str(workspace.id)
 
-    # Perform DB deletion (CASCADE deletes Papers, Extractions, ComponentRuns, PaperMetrics, NarrativeReports)
+    # Perform DB deletion (CASCADE deletes Papers, Extractions, ComponentRuns, PaperMetrics, NarrativeReports, AuditTrails)
     pipeline_run.delete()
 
     return json.dumps({
