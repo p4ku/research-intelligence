@@ -42,19 +42,80 @@ def _format_size(size_bytes: int) -> str:
 
 
 def _recursive_delete_dir(dir_path: str) -> int:
-    """Recursively delete all files inside dir_path in default_storage."""
+    """
+    Recursively delete all files and directory structures inside dir_path in default_storage.
+    Supports Local FileSystem (FileSystemStorage), AWS S3/MinIO (S3Boto3Storage), and test storage.
+    """
+    import shutil
+    clean_dir = dir_path.strip('/')
+    if not clean_dir or clean_dir in ('', 'workspaces'):
+        return 0
+
     deleted_count = 0
+
+    # 1. S3 / MinIO direct bucket prefix purge if available
+    if hasattr(default_storage, 'bucket') and default_storage.bucket is not None:
+        try:
+            prefix = clean_dir if clean_dir.endswith('/') else f"{clean_dir}/"
+            objects_to_delete = default_storage.bucket.objects.filter(Prefix=prefix)
+            for obj in objects_to_delete:
+                obj.delete()
+                deleted_count += 1
+            try:
+                default_storage.bucket.objects.filter(Prefix=clean_dir).delete()
+            except Exception:
+                pass
+            return deleted_count
+        except Exception as s3_err:
+            logger.warning(f"S3 bucket prefix delete failed for '{clean_dir}': {s3_err}")
+
+    # 2. Standard recursive listdir deletion
     try:
-        dirs, files = default_storage.listdir(dir_path)
+        dirs, files = default_storage.listdir(clean_dir)
         for f in files:
-            full_f_path = os.path.join(dir_path, f) if dir_path else f
-            default_storage.delete(full_f_path)
-            deleted_count += 1
+            full_f_path = f"{clean_dir}/{f}"
+            try:
+                if default_storage.exists(full_f_path):
+                    default_storage.delete(full_f_path)
+                    deleted_count += 1
+            except Exception:
+                pass
         for d in dirs:
-            full_d_path = os.path.join(dir_path, d) if dir_path else d
+            full_d_path = f"{clean_dir}/{d}"
             deleted_count += _recursive_delete_dir(full_d_path)
-    except Exception as e:
-        logger.warning(f"Error recursively deleting directory '{dir_path}': {str(e)}")
+    except Exception as list_err:
+        logger.warning(f"Storage listdir error during recursive delete of '{clean_dir}': {list_err}")
+
+    # 3. Local filesystem cleanup: physically remove empty folder or folder tree from disk
+    local_path = None
+    if hasattr(default_storage, 'path'):
+        try:
+            local_path = default_storage.path(clean_dir)
+        except Exception:
+            pass
+    if not local_path and hasattr(default_storage, 'location'):
+        try:
+            local_path = os.path.join(default_storage.location, clean_dir)
+        except Exception:
+            pass
+
+    if local_path and os.path.exists(local_path):
+        try:
+            if os.path.isdir(local_path):
+                shutil.rmtree(local_path, ignore_errors=True)
+            elif os.path.isfile(local_path):
+                os.remove(local_path)
+        except Exception as fs_err:
+            logger.warning(f"Local filesystem cleanup failed for '{local_path}': {fs_err}")
+
+    # 4. Also attempt default_storage.delete on the directory name and with trailing slash
+    for candidate in (clean_dir, f"{clean_dir}/"):
+        try:
+            if default_storage.exists(candidate):
+                default_storage.delete(candidate)
+        except Exception:
+            pass
+
     return deleted_count
 
 

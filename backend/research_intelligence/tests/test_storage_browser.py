@@ -74,6 +74,9 @@ class StorageBrowserTestCase(TestCase):
         response = self.client.get(url, follow=True)
         self.assertEqual(response.status_code, 200)
         self.assertFalse(default_storage.exists("test_dir/sub_dir/doc.md"))
+        dirs, _ = default_storage.listdir("test_dir")
+        self.assertNotIn("sub_dir", dirs)
+        self.assertNotContains(response, "sub_dir/")
 
     def test_storage_browser_disallows_codebase_paths(self):
         # Accessing codebase directory should redirect with error

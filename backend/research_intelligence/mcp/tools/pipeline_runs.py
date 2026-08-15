@@ -759,6 +759,24 @@ def _recursive_delete_run_storage(dir_path: str) -> int:
     clean_dir = dir_path.strip('/')
     if not clean_dir or clean_dir in ('', 'workspaces'):
         return 0
+
+    # 1. S3 / MinIO direct bucket prefix purge if available
+    if hasattr(default_storage, 'bucket') and default_storage.bucket is not None:
+        try:
+            prefix = clean_dir if clean_dir.endswith('/') else f"{clean_dir}/"
+            objects_to_delete = default_storage.bucket.objects.filter(Prefix=prefix)
+            for obj in objects_to_delete:
+                obj.delete()
+                deleted_count += 1
+            try:
+                default_storage.bucket.objects.filter(Prefix=clean_dir).delete()
+            except Exception:
+                pass
+            return deleted_count
+        except Exception:
+            pass
+
+    # 2. Standard recursive listdir deletion
     try:
         dirs, files = default_storage.listdir(clean_dir)
         for f in files:
@@ -773,15 +791,25 @@ def _recursive_delete_run_storage(dir_path: str) -> int:
             full_d_path = f"{clean_dir}/{d}"
             deleted_count += _recursive_delete_run_storage(full_d_path)
 
-        # On local filesystem, remove the empty directory or directory tree
+        # 3. On local filesystem, remove the empty directory or directory tree
+        local_path = None
         if hasattr(default_storage, 'path'):
             try:
-                local_dir = default_storage.path(clean_dir)
-                if os.path.isdir(local_dir):
-                    if not os.listdir(local_dir):
-                        os.rmdir(local_dir)
-                    else:
-                        shutil.rmtree(local_dir, ignore_errors=True)
+                local_path = default_storage.path(clean_dir)
+            except Exception:
+                pass
+        if not local_path and hasattr(default_storage, 'location'):
+            try:
+                local_path = os.path.join(default_storage.location, clean_dir)
+            except Exception:
+                pass
+
+        if local_path and os.path.exists(local_path):
+            try:
+                if os.path.isdir(local_path):
+                    shutil.rmtree(local_path, ignore_errors=True)
+                elif os.path.isfile(local_path):
+                    os.remove(local_path)
             except Exception:
                 pass
     except Exception:
