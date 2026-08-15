@@ -365,13 +365,18 @@ def abort_job_logic(user, component_run_id: str = None, pipeline_run_id: str = N
         return "Error: Must specify either component_run_id or pipeline_run_id to abort."
 
 
-def list_pipeline_runs_logic(user, workspace_id: str) -> str:
+def list_pipeline_runs_logic(user, workspace_id: str, limit: int = 20) -> str:
     """List historical PipelineRun executions along with nested ComponentRuns for a workspace."""
     workspace, membership, error = _check_workspace_access(user, workspace_id)
     if error:
         return error
 
-    runs = PipelineRun.objects.filter(workspace=workspace).prefetch_related('component_runs', 'component_runs__scraper').order_by('-started_at')
+    limit_val = max(1, min(int(limit or 20), 100))
+    runs = (
+        PipelineRun.objects.filter(workspace=workspace)
+        .prefetch_related('agent_processes', 'component_runs', 'component_runs__scraper')
+        .order_by('-started_at')[:limit_val]
+    )
     if not runs.exists():
         return json.dumps({"message": f"No pipeline runs found for workspace '{workspace.name}'."}, indent=2)
 
@@ -394,12 +399,22 @@ def list_pipeline_runs_logic(user, workspace_id: str) -> str:
                 "completed_at": cr.completed_at.isoformat() if cr.completed_at else None
             })
 
+        agent_procs = list(r.agent_processes.all())
+        agent_proc = agent_procs[0] if agent_procs else None
+        run_name = agent_proc.name if agent_proc else f"Pipeline Run {r.run_date.strftime('%Y-%m-%d %H:%M')}"
+
         result.append({
             "pipeline_run_id": str(r.id),
+            "name": run_name,
+            "agent_process_id": str(agent_proc.id) if agent_proc else None,
             "run_date": r.run_date.isoformat(),
             "status": r.status,
             "current_stage": r.current_stage,
             "total_papers_fetched": r.total_papers_fetched,
+            "tokens_in": r.tokens_in,
+            "tokens_out": r.tokens_out,
+            "tokens_consumed": r.tokens_consumed,
+            "usd_cost": float(r.usd_cost),
             "started_at": r.started_at.isoformat(),
             "completed_at": r.completed_at.isoformat() if r.completed_at else None,
             "component_runs": comp_runs_tree
