@@ -95,6 +95,8 @@ def list_research_agents_logic(user, workspace_id: str = None, limit: int = 20) 
             "name": p.name,
             "status": p.status,
             "current_step": p.current_step,
+            "duration_seconds": p.duration_seconds,
+            "execution_time": p.execution_time_display,
             "configuration_override": p.configuration_override,
             "started_at": p.started_at.isoformat(),
             "completed_at": p.completed_at.isoformat() if p.completed_at else None,
@@ -140,6 +142,8 @@ def get_research_agent_status_logic(user, process_id: str) -> str:
                 "component_name": cr.component_name,
                 "status": cr.status,
                 "metrics": cr.metrics,
+                "duration_seconds": cr.duration_seconds,
+                "execution_time": cr.execution_time_display,
                 "started_at": cr.started_at.isoformat(),
                 "completed_at": cr.completed_at.isoformat() if cr.completed_at else None
             })
@@ -194,6 +198,8 @@ def get_research_agent_status_logic(user, process_id: str) -> str:
         "name": process.name,
         "status": process.status,
         "current_step": process.current_step,
+        "duration_seconds": process.duration_seconds,
+        "execution_time": process.execution_time_display,
         "ocr_provider": process.workspace.ocr_provider or "None (Skipped)",
         "configuration_override": process.configuration_override,
         "paper_metrics": paper_metrics,

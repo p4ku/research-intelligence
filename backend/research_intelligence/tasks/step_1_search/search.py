@@ -2,6 +2,7 @@ import json
 import logging
 import hashlib
 import re
+import time
 from celery import shared_task
 from django.utils import timezone
 from django.core.files.storage import default_storage
@@ -83,6 +84,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
     logger.info(f"Starting ComponentRun '{component_run.id}' (Step: {component_run.step_type}, Component: {component_run.component_name}, Query: '{scraper.search_query}')")
 
     try:
+        start_time = time.time()
         provider = get_scraper_provider(scraper.provider)
         final_limit = limit if limit is not None else getattr(scraper, 'limit', 50)
         sort_by = getattr(scraper, 'sort_by', 'relevance')
@@ -191,13 +193,16 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
             })
 
         # Update component run lifecycle metrics & output_data
+        duration_sec = round(time.time() - start_time, 2)
         component_run.metrics['total_created'] = created_count
         component_run.metrics['total_duplicates_skipped'] = skipped_count
+        component_run.metrics['total_duration_seconds'] = duration_sec
         component_run.output_data = {
             "total_results": len(results),
             "created_paper_ids": created_paper_ids,
             "raw_storage_path": raw_storage_path,
-            "papers_preview": fetched_papers_sample
+            "papers_preview": fetched_papers_sample,
+            "total_duration_seconds": duration_sec
         }
         component_run.status = 'completed'
         component_run.completed_at = timezone.now()

@@ -145,6 +145,7 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = 50, max_w
         worker_concurrency = 1
 
     try:
+        start_time = time.time()
         papers = list(Paper.objects.filter(pipeline_run=pipeline_run)[:limit])
         downloaded_count = 0
         skipped_count = 0
@@ -189,16 +190,19 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = 50, max_w
                     _record_result(res)
 
         # Update component run lifecycle metrics & output_data
+        duration_sec = round(time.time() - start_time, 2)
         component_run.metrics = {
             "total_processed": len(papers),
             "downloaded": downloaded_count,
             "skipped": skipped_count,
             "withdrawn": withdrawn_count,
-            "failed": failed_count
+            "failed": failed_count,
+            "total_duration_seconds": duration_sec
         }
         component_run.output_data = {
-            "summary": f"Downloaded {downloaded_count} PDFs, skipped {skipped_count} existing, {withdrawn_count} withdrawn, {failed_count} failed.",
-            "downloaded_papers": downloaded_papers_summary
+            "summary": f"Downloaded {downloaded_count} PDFs, skipped {skipped_count} existing, {withdrawn_count} withdrawn, {failed_count} failed in {duration_sec}s.",
+            "downloaded_papers": downloaded_papers_summary,
+            "total_duration_seconds": duration_sec
         }
         component_run.raw_storage_path = f"workspaces/{workspace.id}/runs/{pipeline_run.id}/documents/"
         component_run.status = 'completed'

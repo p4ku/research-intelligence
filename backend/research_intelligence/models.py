@@ -218,6 +218,35 @@ class PipelineRun(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(blank=True, null=True)
 
+    @property
+    def duration_seconds(self):
+        if self.started_at and self.completed_at:
+            return max(0.0, (self.completed_at - self.started_at).total_seconds())
+        if self.started_at and self.status == 'running':
+            from django.utils import timezone
+            return max(0.0, (timezone.now() - self.started_at).total_seconds())
+        return None
+
+    @property
+    def execution_time_display(self) -> str:
+        sec = self.duration_seconds
+        if sec is None:
+            return "-"
+        if sec < 1.0:
+            formatted = f"{sec:.2f}s"
+        elif sec < 60:
+            formatted = f"{sec:.1f}s"
+        else:
+            minutes, rem_sec = divmod(int(sec), 60)
+            if minutes < 60:
+                formatted = f"{minutes}m {rem_sec:02d}s"
+            else:
+                hours, mins = divmod(minutes, 60)
+                formatted = f"{hours}h {mins:02d}m {rem_sec:02d}s"
+        if self.status == 'running':
+            return f"⏳ {formatted}"
+        return formatted
+
     def __str__(self):
         return f"{self.workspace.name} - Run {self.run_date} ({self.status})"
 
@@ -270,6 +299,35 @@ class ResearchAgentProcess(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     completed_at = models.DateTimeField(blank=True, null=True)
+
+    @property
+    def duration_seconds(self):
+        if self.started_at and self.completed_at:
+            return max(0.0, (self.completed_at - self.started_at).total_seconds())
+        if self.started_at and self.status == 'running':
+            from django.utils import timezone
+            return max(0.0, (timezone.now() - self.started_at).total_seconds())
+        return None
+
+    @property
+    def execution_time_display(self) -> str:
+        sec = self.duration_seconds
+        if sec is None:
+            return "-"
+        if sec < 1.0:
+            formatted = f"{sec:.2f}s"
+        elif sec < 60:
+            formatted = f"{sec:.1f}s"
+        else:
+            minutes, rem_sec = divmod(int(sec), 60)
+            if minutes < 60:
+                formatted = f"{minutes}m {rem_sec:02d}s"
+            else:
+                hours, mins = divmod(minutes, 60)
+                formatted = f"{hours}h {mins:02d}m {rem_sec:02d}s"
+        if self.status == 'running':
+            return f"⏳ {formatted}"
+        return formatted
 
     def __str__(self):
         return f"Agent '{self.name}' [{self.workspace.name}] ({self.status} - step: {self.current_step})"

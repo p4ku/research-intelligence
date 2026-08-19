@@ -435,6 +435,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'run_date',
         'status_badge',
         'current_stage_badge',
+        'execution_time',
         'total_papers_fetched',
         'total_papers_passed_screening',
         'tokens_in',
@@ -446,10 +447,25 @@ class PipelineRunAdmin(admin.ModelAdmin):
     )
     list_filter = ('status', 'current_stage', 'run_date', 'workspace')
     search_fields = ('id', 'workspace__name')
-    readonly_fields = ('started_at', 'completed_at')
+    readonly_fields = ('started_at', 'completed_at', 'execution_time')
     inlines = [ComponentRunInline]
 
     actions = ['run_full_pipeline']
+
+    def execution_time(self, obj):
+        sec = obj.duration_seconds
+        if sec is None:
+            return "-"
+        formatted = obj.execution_time_display
+        if obj.status == 'running':
+            return format_html('<span style="color: #0d6efd; font-weight: 600;">{}</span>', formatted)
+        elif obj.status == 'completed':
+            return format_html('<span>⏱️ <strong>{}</strong></span>', formatted)
+        elif obj.status in ['failed', 'aborted']:
+            return format_html('<span style="color: #dc3545;">⏱️ {}</span>', formatted)
+        return formatted
+    execution_time.short_description = "Execution Time"
+    execution_time.admin_order_field = 'completed_at'
 
     def status_badge(self, obj):
         colors = {
@@ -506,13 +522,14 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         'workspace',
         'status_badge',
         'current_step_badge',
+        'execution_time',
         'pipeline_run_link',
         'started_at',
         'completed_at'
     )
     list_filter = ('status', 'current_step', 'workspace')
     search_fields = ('name', 'id', 'workspace__name')
-    readonly_fields = ('started_at', 'completed_at', 'step_history_preview')
+    readonly_fields = ('started_at', 'completed_at', 'execution_time', 'step_history_preview')
 
     fieldsets = (
         ('Agent Identification', {
@@ -561,6 +578,21 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         text_color = '#000000' if bg == '#ffc107' else '#ffffff'
         return render_badge(obj.get_current_step_display(), bg, text_color)
     current_step_badge.short_description = "Active Step"
+
+    def execution_time(self, obj):
+        sec = obj.duration_seconds
+        if sec is None:
+            return "-"
+        formatted = obj.execution_time_display
+        if obj.status == 'running':
+            return format_html('<span style="color: #0d6efd; font-weight: 600;">{}</span>', formatted)
+        elif obj.status == 'completed':
+            return format_html('<span>⏱️ <strong>{}</strong></span>', formatted)
+        elif obj.status in ['failed', 'aborted']:
+            return format_html('<span style="color: #dc3545;">⏱️ {}</span>', formatted)
+        return formatted
+    execution_time.short_description = "Execution Time"
+    execution_time.admin_order_field = 'completed_at'
 
     def pipeline_run_link(self, obj):
         if obj.pipeline_run:
