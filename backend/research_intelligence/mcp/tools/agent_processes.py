@@ -190,6 +190,23 @@ def get_research_agent_status_logic(user, process_id: str) -> str:
         run_storage_dir = f"workspaces/{process.workspace.id}/runs/{process.pipeline_run.id}"
         storage_metrics = _get_run_storage_stats(run_storage_dir)
 
+        # Build extractions matrix preview for accepted papers
+        matrix_preview = []
+        accepted_papers = papers_qs.filter(screening_status__in=['full_text_passed', 'abstract_passed']).prefetch_related('extractions', 'extractions__extraction_definition')
+        for ap in accepted_papers[:30]:
+            ext_map = {}
+            for ext in ap.extractions.all():
+                dname = ext.extraction_definition.name if ext.extraction_definition else ext.category
+                if dname:
+                    ext_map[dname] = ext.exit_metric or ext.get_exit_metric()
+            if ext_map:
+                matrix_preview.append({
+                    "paper_id": str(ap.id),
+                    "title": ap.title,
+                    "screening_status": ap.screening_status,
+                    "metrics": ext_map
+                })
+
     details = {
         "process_id": str(process.id),
         "workspace_id": str(process.workspace.id),
@@ -203,6 +220,7 @@ def get_research_agent_status_logic(user, process_id: str) -> str:
         "ocr_provider": process.workspace.ocr_provider or "None (Skipped)",
         "configuration_override": process.configuration_override,
         "paper_metrics": paper_metrics,
+        "extractions_matrix_preview": matrix_preview if process.pipeline_run else [],
         "storage": storage_metrics,
         "step_history": process.step_history,
         "component_runs": component_runs_summary,

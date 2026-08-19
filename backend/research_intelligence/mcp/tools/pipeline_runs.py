@@ -259,6 +259,19 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
         "started_at": pipeline_run.started_at.isoformat(),
         "completed_at": pipeline_run.completed_at.isoformat() if pipeline_run.completed_at else None,
         "fetched_papers_preview": papers_preview,
+        "extractions_matrix_preview": [
+            {
+                "paper_id": str(p.id),
+                "title": p.title,
+                "screening_status": p.screening_status,
+                "metrics": {
+                    (e.extraction_definition.name if e.extraction_definition else e.category): (e.exit_metric or e.get_exit_metric())
+                    for e in p.extractions.all()
+                    if (e.extraction_definition or e.category)
+                }
+            }
+            for p in Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=['full_text_passed', 'abstract_passed']).prefetch_related('extractions', 'extractions__extraction_definition')[:30]
+        ],
         "component_runs": runs_list
     }
     return json.dumps(details, indent=2, cls=DjangoJSONEncoder)
