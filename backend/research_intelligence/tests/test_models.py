@@ -1,7 +1,6 @@
 from django.test import TestCase
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
-from django.utils.safestring import SafeString
 from research_intelligence.models import Workspace, Paper, ExtractionDefinition, Extraction, PipelineRun
 from research_intelligence.admin import ExtractionAdmin
 
@@ -65,17 +64,19 @@ class ExtractionExitMetricTest(TestCase):
         self.assertEqual(ext.exit_metric, "6")
         self.assertEqual(ext.get_exit_metric(), "6")
 
-    def test_explicit_exit_metric_field_override(self):
+    def test_dynamic_update_when_definition_changes(self):
         ext = Extraction.objects.create(
             workspace=self.workspace,
             paper=self.paper,
             extraction_definition=self.ext_def,
             category="Schwarz Fit",
-            exit_metric="98.5%",
-            fields_data={"fit_score": 14}
+            fields_data={"fit_score": 14, "custom_score": 99}
         )
-        self.assertEqual(ext.exit_metric, "98.5%")
-        self.assertEqual(ext.get_exit_metric(), "98.5%")
+        self.assertEqual(ext.exit_metric, "14")
+        # Change definition key dynamically without updating Extraction row
+        self.ext_def.exit_metric = "custom_score"
+        self.ext_def.save()
+        self.assertEqual(ext.exit_metric, "99")
 
     def test_empty_fields_data(self):
         ext = Extraction.objects.create(

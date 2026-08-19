@@ -605,7 +605,7 @@ class ExtractionAdmin(admin.ModelAdmin):
         'created_at'
     )
     list_filter = ('validation_status', 'review_required', 'category', 'workspace')
-    search_fields = ('paper__title', 'category', 'exit_metric', 'extraction_definition__name')
+    search_fields = ('paper__title', 'category', 'extraction_definition__name')
     readonly_fields = ('exit_metric_preview', 'extraction_system_prompt', 'extraction_user_prompt_template', 'created_at')
 
     fieldsets = (
@@ -621,7 +621,6 @@ class ExtractionAdmin(admin.ModelAdmin):
         }),
         ('Extracted Data & Evidence', {
             'fields': (
-                'exit_metric',
                 'exit_metric_preview',
                 'fields_data',
                 'validation_status',

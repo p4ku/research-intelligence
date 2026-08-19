@@ -394,7 +394,6 @@ class Extraction(models.Model):
         related_name="extractions"
     )
     category = models.CharField(max_length=50, help_text="e.g. ml_method, performance_metric, patent_claim")
-    exit_metric = models.CharField(max_length=255, blank=True, null=True, help_text="Explicit extracted exit metric/value for this definition (e.g. '14', '98.4%', 'Photonic ASIC')")
     fields_data = models.JSONField(help_text="Extracted data containing value, evidence array, rationale, and confidence per field")
     is_hitl_validated = models.BooleanField(default=False)
     
@@ -410,25 +409,11 @@ class Extraction(models.Model):
     
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def save(self, *args, **kwargs):
-        if not self.exit_metric and self.extraction_definition and self.extraction_definition.exit_metric and self.fields_data:
-            data = self.fields_data
-            if "fields" in data and isinstance(data["fields"], dict):
-                data = data["fields"]
-            val = data.get(self.extraction_definition.exit_metric)
-            if isinstance(val, dict) and "value" in val:
-                val = val["value"]
-            if val is not None:
-                self.exit_metric = str(val)
-        super().save(*args, **kwargs)
-
-    def get_exit_metric(self) -> str:
+    @property
+    def exit_metric(self) -> str:
         """
-        Unpacks the exit metric value from fields_data using extraction_definition.exit_metric key.
+        Dynamically unpacks the exit metric value from fields_data using extraction_definition.exit_metric key.
         """
-        if self.exit_metric:
-            return self.exit_metric
-
         if self.extraction_definition and self.extraction_definition.exit_metric and self.fields_data:
             data = self.fields_data
             if "fields" in data and isinstance(data["fields"], dict):
@@ -438,11 +423,13 @@ class Extraction(models.Model):
                 val = val["value"]
             if val is not None:
                 return str(val)
-
         return "-"
 
+    def get_exit_metric(self) -> str:
+        return self.exit_metric
+
     def __str__(self):
-        return f"{self.paper.title[:30]}... ({self.category}): {self.get_exit_metric()}"
+        return f"{self.paper.title[:30]}... ({self.category}): {self.exit_metric}"
 
 class PaperMetric(models.Model):
     """

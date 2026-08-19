@@ -128,24 +128,6 @@ def _run_single_extraction_worker(paper, definition, workspace):
                 "provider": workspace.llm_provider
             }
 
-            # Resolve explicit exit_metric value from definition.exit_metric_key
-            exit_metric_val = None
-            if definition.exit_metric_key and definition.exit_metric_key in fields_dict:
-                val = fields_dict[definition.exit_metric_key]
-                if isinstance(val, dict) and "value" in val:
-                    val = val["value"]
-                if val is not None:
-                    exit_metric_val = str(val)
-            elif definition.response_schema and isinstance(definition.response_schema, dict) and "properties" in definition.response_schema:
-                for prop_k in definition.response_schema["properties"].keys():
-                    if prop_k in fields_dict:
-                        val = fields_dict[prop_k]
-                        if isinstance(val, dict) and "value" in val:
-                            val = val["value"]
-                        if val is not None and not isinstance(val, (dict, list)):
-                            exit_metric_val = str(val)
-                            break
-
             # Save or update Extraction model
             extraction, created = Extraction.objects.update_or_create(
                 paper=paper,
@@ -154,7 +136,6 @@ def _run_single_extraction_worker(paper, definition, workspace):
                     "workspace": workspace,
                     "category": definition.name,
                     "fields_data": fields_dict if isinstance(fields_dict, dict) else {},
-                    "exit_metric": exit_metric_val,
                     "version_info": version_info,
                     "validation_status": validation_status,
                     "review_required": review_required,
