@@ -143,11 +143,28 @@ class ExtractionDefinition(models.Model):
     system_prompt = models.TextField(help_text="System instructions enforcing extraction perspective")
     user_prompt_template = models.TextField(help_text="User prompt with placeholders like {paper_text}")
     response_schema = models.JSONField(help_text="JSON schema describing fields to extract")
+    exit_metric = models.CharField(max_length=100, blank=True, null=True, help_text="Field key to unpack from extracted data as the exit metric (e.g. 'fit_score', 'trl_score')")
     llm_model = models.CharField(max_length=100, default="google/gemini-3.7-flash", help_text="LLM model used for this specific extraction")
     version = models.IntegerField(default=1, help_text="Tracks prompt/schema evolution")
     requires_consensus = models.BooleanField(default=False, help_text="Requires multi-sample self-consistency for difficult fields")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def exit_metrics(self):
+        return self.exit_metric
+
+    @exit_metrics.setter
+    def exit_metrics(self, value):
+        self.exit_metric = value
+
+    @property
+    def exit_metric_key(self):
+        return self.exit_metric
+
+    @exit_metric_key.setter
+    def exit_metric_key(self, value):
+        self.exit_metric = value
 
     def __str__(self):
         return f"{self.workspace.name} - {self.name}"
@@ -377,6 +394,7 @@ class Extraction(models.Model):
         related_name="extractions"
     )
     category = models.CharField(max_length=50, help_text="e.g. ml_method, performance_metric, patent_claim")
+    exit_metric = models.CharField(max_length=255, blank=True, null=True, help_text="Explicit extracted exit metric/value for this definition (e.g. '14', '98.4%', 'Photonic ASIC')")
     fields_data = models.JSONField(help_text="Extracted data containing value, evidence array, rationale, and confidence per field")
     is_hitl_validated = models.BooleanField(default=False)
     
@@ -391,6 +409,40 @@ class Extraction(models.Model):
     confidence_method = models.CharField(max_length=50, blank=True, null=True, help_text="e.g. self_consistency, single_pass")
     
     created_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        if not self.exit_metric and self.extraction_definition and self.extraction_definition.exit_metric and self.fields_data:
+            data = self.fields_data
+            if "fields" in data and isinstance(data["fields"], dict):
+                data = data["fields"]
+            val = data.get(self.extraction_definition.exit_metric)
+            if isinstance(val, dict) and "value" in val:
+                val = val["value"]
+            if val is not None:
+                self.exit_metric = str(val)
+        super().save(*args, **kwargs)
+
+    def get_exit_metric(self) -> str:
+        """
+        Unpacks the exit metric value from fields_data using extraction_definition.exit_metric key.
+        """
+        if self.exit_metric:
+            return self.exit_metric
+
+        if self.extraction_definition and self.extraction_definition.exit_metric and self.fields_data:
+            data = self.fields_data
+            if "fields" in data and isinstance(data["fields"], dict):
+                data = data["fields"]
+            val = data.get(self.extraction_definition.exit_metric)
+            if isinstance(val, dict) and "value" in val:
+                val = val["value"]
+            if val is not None:
+                return str(val)
+
+        return "-"
+
+    def __str__(self):
+        return f"{self.paper.title[:30]}... ({self.category}): {self.get_exit_metric()}"
 
 class PaperMetric(models.Model):
     """

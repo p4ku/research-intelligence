@@ -625,12 +625,13 @@ def create_extraction_definition(
     system_prompt: str,
     user_prompt_template: str,
     response_schema: dict,
+    exit_metric: str = None,
     llm_model: str = "google/gemini-3.7-flash",
     version: int = 1,
     requires_consensus: bool = False,
     is_active: bool = True
 ) -> str:
-    """Create a new dynamic extraction definition target for a workspace (e.g. 'ML Methods', 'Benchmark Metrics')."""
+    """Create a new dynamic extraction definition target for a workspace (e.g. 'Schwarz Fit', 'ML Methods', 'Benchmark Metrics'). `exit_metric` is the JSON key to unpack as primary metric (e.g. 'fit_score')."""
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "prompts:write")
@@ -643,6 +644,7 @@ def create_extraction_definition(
         system_prompt=system_prompt,
         user_prompt_template=user_prompt_template,
         response_schema=response_schema,
+        exit_metric=exit_metric,
         llm_model=llm_model,
         version=version,
         requires_consensus=requires_consensus,
@@ -655,6 +657,7 @@ def create_extraction_definition(
 def update_extraction_definition(
     definition_id: str,
     name: str | None = None,
+    exit_metric: str | None = None,
     system_prompt: str | None = None,
     user_prompt_template: str | None = None,
     response_schema: dict | None = None,
@@ -663,7 +666,7 @@ def update_extraction_definition(
     requires_consensus: bool | None = None,
     is_active: bool | None = None
 ) -> str:
-    """Update an existing extraction definition's schema, prompts, or LLM configuration."""
+    """Update an existing extraction definition's schema, prompts, exit_metric key, or LLM configuration."""
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "prompts:write")
@@ -673,6 +676,7 @@ def update_extraction_definition(
         user=user,
         definition_id=definition_id,
         name=name,
+        exit_metric=exit_metric,
         system_prompt=system_prompt,
         user_prompt_template=user_prompt_template,
         response_schema=response_schema,

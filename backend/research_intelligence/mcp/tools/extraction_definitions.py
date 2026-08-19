@@ -20,6 +20,7 @@ def list_extraction_definitions_logic(user, workspace_id: str) -> str:
         results.append({
             "definition_id": str(d.id),
             "name": d.name,
+            "exit_metric": d.exit_metric,
             "llm_model": d.llm_model,
             "version": d.version,
             "requires_consensus": d.requires_consensus,
@@ -56,6 +57,7 @@ def get_extraction_definition_logic(user, definition_id: str) -> str:
         "workspace_id": str(definition.workspace.id),
         "workspace_name": definition.workspace.name,
         "name": definition.name,
+        "exit_metric": definition.exit_metric,
         "system_prompt": definition.system_prompt,
         "user_prompt_template": definition.user_prompt_template,
         "response_schema": definition.response_schema,
@@ -75,6 +77,8 @@ def create_extraction_definition_logic(
     system_prompt: str,
     user_prompt_template: str,
     response_schema: dict,
+    exit_metric: str = None,
+    exit_metric_key: str = None,
     llm_model: str = "google/gemini-3.7-flash",
     version: int = 1,
     requires_consensus: bool = False,
@@ -84,6 +88,8 @@ def create_extraction_definition_logic(
     workspace, membership, error = _check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
     if error:
         return error
+
+    target_exit_metric = exit_metric or exit_metric_key
 
     if not isinstance(response_schema, dict):
         if isinstance(response_schema, str):
@@ -97,6 +103,7 @@ def create_extraction_definition_logic(
     definition = ExtractionDefinition.objects.create(
         workspace=workspace,
         name=name,
+        exit_metric=target_exit_metric,
         system_prompt=system_prompt,
         user_prompt_template=user_prompt_template,
         response_schema=response_schema,
@@ -112,6 +119,7 @@ def create_extraction_definition_logic(
         "definition_id": str(definition.id),
         "workspace_id": str(workspace.id),
         "name": definition.name,
+        "exit_metric": definition.exit_metric,
         "llm_model": definition.llm_model
     }
     return json.dumps(response, indent=2, cls=DjangoJSONEncoder)
@@ -121,6 +129,8 @@ def update_extraction_definition_logic(
     user,
     definition_id: str,
     name: str = None,
+    exit_metric: str = None,
+    exit_metric_key: str = None,
     system_prompt: str = None,
     user_prompt_template: str = None,
     response_schema: dict = None,
@@ -145,10 +155,15 @@ def update_extraction_definition_logic(
     if error:
         return error
 
+    target_exit_metric = exit_metric if exit_metric is not None else exit_metric_key
+
     updated_fields = []
     if name is not None:
         definition.name = name
         updated_fields.append('name')
+    if target_exit_metric is not None:
+        definition.exit_metric = target_exit_metric
+        updated_fields.append('exit_metric')
     if system_prompt is not None:
         definition.system_prompt = system_prompt
         updated_fields.append('system_prompt')

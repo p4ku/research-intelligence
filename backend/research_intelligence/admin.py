@@ -571,9 +571,21 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.JSONField: {'widget': PrettyJSONWidget},
     }
-    list_display = ('name', 'workspace', 'version', 'llm_model', 'requires_consensus', 'is_active', 'created_at')
+    list_display = ('name', 'exit_metric', 'workspace', 'version', 'llm_model', 'requires_consensus', 'is_active', 'created_at')
     list_filter = ('is_active', 'requires_consensus', 'workspace')
-    search_fields = ('name', 'system_prompt', 'user_prompt_template')
+    search_fields = ('name', 'exit_metric', 'system_prompt', 'user_prompt_template')
+    fields = (
+        'workspace',
+        'name',
+        'exit_metric',
+        'system_prompt',
+        'user_prompt_template',
+        'response_schema',
+        'llm_model',
+        'version',
+        'requires_consensus',
+        'is_active'
+    )
 
 
 @admin.register(Extraction)
@@ -581,10 +593,20 @@ class ExtractionAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.JSONField: {'widget': PrettyJSONWidget},
     }
-    list_display = ('paper', 'extraction_definition', 'category', 'workspace', 'validation_status', 'confidence_score', 'review_required', 'created_at')
+    list_display = (
+        'paper',
+        'extraction_definition',
+        'exit_metric_badge',
+        'category',
+        'workspace',
+        'validation_status',
+        'confidence_score',
+        'review_required',
+        'created_at'
+    )
     list_filter = ('validation_status', 'review_required', 'category', 'workspace')
-    search_fields = ('paper__title', 'category', 'extraction_definition__name')
-    readonly_fields = ('extraction_system_prompt', 'extraction_user_prompt_template', 'created_at')
+    search_fields = ('paper__title', 'category', 'exit_metric', 'extraction_definition__name')
+    readonly_fields = ('exit_metric_preview', 'extraction_system_prompt', 'extraction_user_prompt_template', 'created_at')
 
     fieldsets = (
         ('Extraction Target & Definition', {
@@ -599,6 +621,8 @@ class ExtractionAdmin(admin.ModelAdmin):
         }),
         ('Extracted Data & Evidence', {
             'fields': (
+                'exit_metric',
+                'exit_metric_preview',
                 'fields_data',
                 'validation_status',
                 'confidence_score',
@@ -613,6 +637,41 @@ class ExtractionAdmin(admin.ModelAdmin):
     )
 
     actions = ['rerun_selected_extractions']
+
+    def exit_metric_badge(self, obj):
+        metric_str = obj.get_exit_metric()
+        if not metric_str or metric_str == "-":
+            return mark_safe('<span style="color: #6c757d; font-size: 0.85em;">-</span>')
+
+        lower_str = metric_str.lower()
+        if any(k in lower_str for k in ("fit_score", "schwarz", "trl", "score")):
+            bg = "#0d6efd"  # Primary Blue
+            color = "#ffffff"
+        elif any(k in lower_str for k in ("pass", "accepted", "high", "true")):
+            bg = "#198754"  # Emerald Green
+            color = "#ffffff"
+        elif any(k in lower_str for k in ("fail", "rejected", "low", "false")):
+            bg = "#dc3545"  # Crimson Red
+            color = "#ffffff"
+        elif any(k in lower_str for k in ("warn", "medium", "borderline")):
+            bg = "#ffc107"  # Amber
+            color = "#000000"
+        else:
+            bg = "#6f42c1"  # Purple
+            color = "#ffffff"
+
+        return format_html(
+            '<span style="background-color: {}; color: {}; padding: 4px 9px; border-radius: 5px; '
+            'font-size: 0.82em; font-weight: 600; display: inline-block; white-space: nowrap; '
+            'box-shadow: 0 1px 3px rgba(0,0,0,0.12);" title="{}">{}</span>',
+            bg, color, metric_str, metric_str
+        )
+    exit_metric_badge.short_description = "Exit Metric / Output"
+
+    def exit_metric_preview(self, obj):
+        metric_str = obj.get_exit_metric()
+        return format_html('<strong style="font-size: 1.1em; color: #0d6efd;">{}</strong>', metric_str)
+    exit_metric_preview.short_description = "Primary Exit Metric"
 
     @admin.action(description="🔄 Re-run selected extraction(s)")
     def rerun_selected_extractions(self, request, queryset):
