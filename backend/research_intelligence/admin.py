@@ -445,6 +445,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'started_at',
         'completed_at'
     )
+    ordering = ('-started_at', '-id')
     list_filter = ('status', 'current_stage', 'run_date', 'workspace')
     search_fields = ('id', 'workspace__name')
     readonly_fields = ('started_at', 'completed_at', 'execution_time')
@@ -527,6 +528,7 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         'started_at',
         'completed_at'
     )
+    ordering = ('-started_at', '-id')
     list_filter = ('status', 'current_step', 'workspace')
     search_fields = ('name', 'id', 'workspace__name')
     readonly_fields = ('started_at', 'completed_at', 'execution_time', 'step_history_preview')
@@ -661,7 +663,7 @@ class ComponentRunAdmin(admin.ModelAdmin):
         'started_at',
         'completed_at'
     )
-    ordering = ('-started_at',)
+    ordering = ('-started_at', '-id')
     list_filter = ('step_type', 'status', 'started_at')
     search_fields = ('id', 'component_name', 'celery_task_id', 'pipeline_run__id')
     readonly_fields = ('started_at', 'completed_at', 'execution_time')

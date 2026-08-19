@@ -255,6 +255,9 @@ class PipelineRun(models.Model):
             return f"⏳ {formatted}"
         return formatted
 
+    class Meta:
+        ordering = ['-started_at', '-id']
+
     def __str__(self):
         return f"{self.workspace.name} - Run {self.run_date} ({self.status})"
 
@@ -345,6 +348,9 @@ class ResearchAgentProcess(models.Model):
         if self.status == 'running':
             return f"⏳ {formatted}"
         return formatted
+
+    class Meta:
+        ordering = ['-started_at', '-id']
 
     def __str__(self):
         return f"Agent '{self.name}' [{self.workspace.name}] ({self.status} - step: {self.current_step})"
@@ -442,6 +448,9 @@ class ComponentRun(models.Model):
         if self.status == 'running':
             return f"⏳ {formatted}"
         return formatted
+
+    class Meta:
+        ordering = ['-started_at', '-id']
 
     def __str__(self):
         return f"{self.step_type}:{self.component_name} - Run {self.pipeline_run.id} ({self.status})"
