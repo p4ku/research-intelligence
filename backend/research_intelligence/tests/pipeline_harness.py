@@ -1,9 +1,11 @@
 import json
+from contextlib import contextmanager
 from unittest.mock import patch, MagicMock
 from django.utils import timezone
 from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+from celery.app.task import Task
 
 from research_intelligence.models import (
     Workspace,
@@ -19,6 +21,36 @@ from research_intelligence.models import (
 from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
 
 User = get_user_model()
+
+
+class CeleryTaskIntrospector:
+    """
+    Introspective Celery Task Interceptor.
+    Uses dynamic method interception on the base `celery.app.task.Task` class rather than brittle,
+    hardcoded module patch lists. Automatically discovers and intercepts every task in the pipeline.
+    """
+
+    def __init__(self):
+        self.dispatched_tasks: list[dict] = []
+
+    @contextmanager
+    def intercept(self):
+        """Intercepts all Celery task dispatch calls and records them into self.dispatched_tasks."""
+        def fake_apply_async(task_self, args=None, kwargs=None, *a, **kw):
+            task_name = getattr(task_self, "name", str(task_self))
+            record = {"task": task_name, "args": args or (), "kwargs": kwargs or {}}
+            self.dispatched_tasks.append(record)
+            mock_res = MagicMock()
+            mock_res.id = f"mock_task_{len(self.dispatched_tasks)}"
+            return mock_res
+
+        def fake_delay(task_self, *args, **kwargs):
+            return fake_apply_async(task_self, args=args, kwargs=kwargs)
+
+        with patch.object(Task, "apply_async", fake_apply_async), \
+             patch.object(Task, "delay", fake_delay), \
+             patch("research_intelligence.tasks.orchestrator.agent_engine._send_agent_notification"):
+            yield self
 
 
 class PipelineTestHarness:
@@ -43,6 +75,7 @@ class PipelineTestHarness:
         self.extraction_definitions = []
         self.papers = []
         self.name = name
+        self.introspector = CeleryTaskIntrospector()
 
     def configure_workspace(
         self,
@@ -102,30 +135,9 @@ class PipelineTestHarness:
         return self
 
     def _tick(self):
-        """Executes tick_agent_process with Celery async task dispatchers safely mocked."""
-        with patch("research_intelligence.tasks.step_1_search.search.execute_workspace_search.delay") as m_s_d, \
-             patch("research_intelligence.tasks.step_1_search.search.execute_workspace_search.apply_async") as m_s_a, \
-             patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay") as m_sr_d, \
-             patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.apply_async") as m_sr_a, \
-             patch("research_intelligence.tasks.step_2_download.fetch.execute_pdf_download_job.delay") as m_dl_d, \
-             patch("research_intelligence.tasks.step_2_download.fetch.execute_pdf_download_job.apply_async") as m_dl_a, \
-             patch("research_intelligence.tasks.step_3_ocr.convert.execute_ocr_job.delay") as m_ocr_d, \
-             patch("research_intelligence.tasks.step_3_ocr.convert.execute_ocr_job.apply_async") as m_ocr_a, \
-             patch("research_intelligence.tasks.step_4_screening.abstract.execute_screening_job.delay") as m_abs_d, \
-             patch("research_intelligence.tasks.step_4_screening.abstract.execute_screening_job.apply_async") as m_abs_a, \
-             patch("research_intelligence.tasks.step_4_screening.full_text.execute_full_text_screening_job.delay") as m_ft_d, \
-             patch("research_intelligence.tasks.step_4_screening.full_text.execute_full_text_screening_job.apply_async") as m_ft_a, \
-             patch("research_intelligence.tasks.step_5_extraction.extract.execute_extraction_job.delay") as m_ext_d, \
-             patch("research_intelligence.tasks.step_5_extraction.extract.execute_extraction_job.apply_async") as m_ext_a, \
-             patch("research_intelligence.tasks.orchestrator.agent_engine.run_agent_process_tick.delay") as m_tick_d, \
-             patch("research_intelligence.tasks.orchestrator.agent_engine.run_agent_process_tick.apply_async") as m_tick_a, \
-             patch("research_intelligence.tasks.orchestrator.agent_engine._send_agent_notification"):
-            
-            for m in [m_s_d, m_s_a, m_sr_d, m_sr_a, m_dl_d, m_dl_a, m_ocr_d, m_ocr_a, m_abs_d, m_abs_a, m_ft_d, m_ft_a, m_ext_d, m_ext_a, m_tick_d, m_tick_a]:
-                m.return_value.id = "mock_task_id"
-            
-            res = tick_agent_process(str(self.agent_process.id))
-            return res
+        """Executes tick_agent_process with dynamic Celery task introspection."""
+        with self.introspector.intercept():
+            return tick_agent_process(str(self.agent_process.id))
 
     def start_agent(self, name: str = "Simulated Agent") -> "PipelineTestHarness":
         """Initializes and kicks off the agent state machine."""
