@@ -162,12 +162,12 @@ It orchestrates a 5-step processing pipeline:
 ## 🧪 5. Testing & Validation Protocol
 
 ```bash
-# Run complete test suite in parallel (Fastest execution: ~8s across 102+ tests)
-.venv/bin/python backend/manage.py test --parallel auto research_intelligence.tests
+# Run complete test suite in parallel (~8s across 102+ tests)
+./run_tests.sh
 
 # Run specific task test module
-.venv/bin/python backend/manage.py test research_intelligence.tests.tasks.test_4_screening
+./run_tests.sh research_intelligence.tests.tasks.test_4_screening
 
 # Run FastMCP test suite
-.venv/bin/python backend/manage.py test research_intelligence.tests.test_mcp_server
+./run_tests.sh research_intelligence.tests.test_mcp_server
 ```

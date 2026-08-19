@@ -35,13 +35,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
 
-      - name: Run Django Tests (SQLite)
+      - name: Run Django Tests (SQLite Parallel)
         env:
           DEBUG: 'True'
           SECRET_KEY: 'ci_secret_key_testing_12345'
           GOOGLE_AGENT_API_KEY: 'mock_key_for_testing'
         run: |
-          python backend/manage.py test research_intelligence.tests --parallel auto
+          ./run_tests.sh
 
   docker-cache-build:
     name: Build & Cache Docker Container Layers
