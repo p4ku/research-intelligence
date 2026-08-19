@@ -8,10 +8,9 @@ from django.db import connection, close_old_connections
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
-from django.db.models import Q
-
 from ...models import Workspace, Paper, PipelineRun, ComponentRun
 from ...scrapers import get_scraper_provider
+from .pdf_cache import try_reuse_cached_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -59,48 +58,9 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
         }
 
     # Cross-Workspace / Cross-Run PDF Cache Reuse (Zero-Network Fast Path)
-    # Check if ANY paper record across the entire platform has already stored this document
-    lookup_q = None
-    if paper.hash_id:
-        lookup_q = Q(hash_id=paper.hash_id)
-    if paper.doi:
-        lookup_q = (lookup_q | Q(doi=paper.doi)) if lookup_q else Q(doi=paper.doi)
-    if paper.arxiv_id:
-        lookup_q = (lookup_q | Q(arxiv_id=paper.arxiv_id)) if lookup_q else Q(arxiv_id=paper.arxiv_id)
-
-    if lookup_q:
-        cached_paper = (
-            Paper.objects.filter(lookup_q)
-            .exclude(id=paper.id)
-            .exclude(original_pdf_path__startswith="http://")
-            .exclude(original_pdf_path__startswith="https://")
-            .exclude(original_pdf_path="")
-            .exclude(original_pdf_path__isnull=True)
-            .first()
-        )
-        if cached_paper and default_storage.exists(cached_paper.original_pdf_path):
-            try:
-                with default_storage.open(cached_paper.original_pdf_path, 'rb') as src_file:
-                    file_bytes = src_file.read()
-                if file_bytes and len(file_bytes) > 0:
-                    saved_path = default_storage.save(target_path, ContentFile(file_bytes))
-                    paper.original_pdf_path = saved_path
-                    paper.save(update_fields=['original_pdf_path'])
-                    size_bytes = len(file_bytes)
-                    size_kb = size_bytes / 1024
-                    logger.info(f"⚡ [CACHE REUSE] Reused cached PDF [{size_kb:.1f} KB] from '{cached_paper.original_pdf_path}' -> saved to: '{saved_path}' (Paper: '{title_snippet}...')")
-                    return {
-                        "status": "downloaded",
-                        "paper_id": str(paper.id),
-                        "title": paper.title,
-                        "size_bytes": size_bytes,
-                        "size_kb": round(size_kb, 1),
-                        "storage_path": saved_path,
-                        "cache_hit": True,
-                        "cached_from": cached_paper.original_pdf_path
-                    }
-            except Exception as e:
-                logger.warning(f"Failed to copy cached PDF from '{cached_paper.original_pdf_path}': {e}")
+    cache_result = try_reuse_cached_pdf(paper, target_path, title_snippet)
+    if cache_result:
+        return cache_result
 
     # Resolve source URL
     pdf_source_url = paper.original_pdf_path
