@@ -187,8 +187,22 @@ class SubscriberInline(admin.TabularInline):
 class ComponentRunInline(admin.TabularInline):
     model = ComponentRun
     extra = 0
-    fields = ('step_type_badge', 'component_name', 'status_badge', 'celery_task_id', 'raw_storage_path', 'started_at', 'completed_at')
-    readonly_fields = ('step_type_badge', 'status_badge', 'started_at', 'completed_at')
+    fields = ('step_type_badge', 'component_name', 'status_badge', 'execution_time', 'celery_task_id', 'raw_storage_path', 'started_at', 'completed_at')
+    readonly_fields = ('step_type_badge', 'status_badge', 'execution_time', 'started_at', 'completed_at')
+
+    def execution_time(self, obj):
+        sec = obj.duration_seconds
+        if sec is None:
+            return "-"
+        formatted = obj.execution_time_display
+        if obj.status == 'running':
+            return format_html('<span style="color: #0d6efd; font-weight: 600;">{}</span>', formatted)
+        elif obj.status == 'completed':
+            return format_html('<span>⏱️ <strong>{}</strong></span>', formatted)
+        elif obj.status in ['failed', 'aborted']:
+            return format_html('<span style="color: #dc3545;">⏱️ {}</span>', formatted)
+        return formatted
+    execution_time.short_description = "Execution Time"
 
     def step_type_badge(self, obj):
         colors = {
@@ -609,6 +623,7 @@ class ComponentRunAdmin(admin.ModelAdmin):
         'step_type_badge',
         'component_name',
         'status_badge',
+        'execution_time',
         'metrics_summary',
         'celery_task_id',
         'started_at',
@@ -617,7 +632,22 @@ class ComponentRunAdmin(admin.ModelAdmin):
     ordering = ('-started_at',)
     list_filter = ('step_type', 'status', 'started_at')
     search_fields = ('id', 'component_name', 'celery_task_id', 'pipeline_run__id')
-    readonly_fields = ('started_at', 'completed_at')
+    readonly_fields = ('started_at', 'completed_at', 'execution_time')
+
+    def execution_time(self, obj):
+        sec = obj.duration_seconds
+        if sec is None:
+            return "-"
+        formatted = obj.execution_time_display
+        if obj.status == 'running':
+            return format_html('<span style="color: #0d6efd; font-weight: 600;">{}</span>', formatted)
+        elif obj.status == 'completed':
+            return format_html('<span>⏱️ <strong>{}</strong></span>', formatted)
+        elif obj.status in ['failed', 'aborted']:
+            return format_html('<span style="color: #dc3545;">⏱️ {}</span>', formatted)
+        return formatted
+    execution_time.short_description = "Execution Time"
+    execution_time.admin_order_field = 'completed_at'
 
     def metrics_summary(self, obj):
         if not obj.metrics:

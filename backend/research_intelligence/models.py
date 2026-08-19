@@ -327,6 +327,47 @@ class ComponentRun(models.Model):
         """Returns consolidated metadata dictionary stored in metrics."""
         return self.metrics or {}
 
+    @property
+    def duration_seconds(self):
+        """Returns duration in seconds extracted from metrics or calculated from timestamps."""
+        if self.metrics and isinstance(self.metrics, dict):
+            if "total_duration_seconds" in self.metrics and self.metrics["total_duration_seconds"] is not None:
+                try:
+                    return float(self.metrics["total_duration_seconds"])
+                except (ValueError, TypeError):
+                    pass
+            if "duration_seconds" in self.metrics and self.metrics["duration_seconds"] is not None:
+                try:
+                    return float(self.metrics["duration_seconds"])
+                except (ValueError, TypeError):
+                    pass
+        if self.started_at and self.completed_at:
+            return max(0.0, (self.completed_at - self.started_at).total_seconds())
+        if self.started_at and self.status == 'running':
+            from django.utils import timezone
+            return max(0.0, (timezone.now() - self.started_at).total_seconds())
+        return None
+
+    @property
+    def execution_time_display(self) -> str:
+        sec = self.duration_seconds
+        if sec is None:
+            return "-"
+        if sec < 1.0:
+            formatted = f"{sec:.2f}s"
+        elif sec < 60:
+            formatted = f"{sec:.1f}s"
+        else:
+            minutes, rem_sec = divmod(int(sec), 60)
+            if minutes < 60:
+                formatted = f"{minutes}m {rem_sec:02d}s"
+            else:
+                hours, mins = divmod(minutes, 60)
+                formatted = f"{hours}h {mins:02d}m {rem_sec:02d}s"
+        if self.status == 'running':
+            return f"⏳ {formatted}"
+        return formatted
+
     def __str__(self):
         return f"{self.step_type}:{self.component_name} - Run {self.pipeline_run.id} ({self.status})"
 

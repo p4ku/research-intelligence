@@ -88,3 +88,52 @@ class ExtractionExitMetricTest(TestCase):
         )
         self.assertEqual(ext.get_exit_metric(), "-")
         self.assertIn("-", str(self.admin.exit_metric_badge(ext)))
+
+    def test_component_run_execution_time_human_readable(self):
+        from research_intelligence.models import ComponentRun
+        from research_intelligence.admin import ComponentRunAdmin
+        import datetime
+        from django.utils import timezone
+
+        pr = self.paper.pipeline_run
+        now = timezone.now()
+
+        # 1. From metrics total_duration_seconds
+        cr1 = ComponentRun.objects.create(
+            pipeline_run=pr,
+            step_type='screening',
+            component_name='abstract_screening',
+            status='completed',
+            metrics={"total_duration_seconds": 12.4},
+            started_at=now - datetime.timedelta(seconds=12),
+            completed_at=now
+        )
+        self.assertEqual(cr1.duration_seconds, 12.4)
+        self.assertEqual(cr1.execution_time_display, "12.4s")
+
+        # 2. Formatted in minutes & seconds (e.g. 135s -> 2m 15s)
+        cr2 = ComponentRun.objects.create(
+            pipeline_run=pr,
+            step_type='extraction',
+            component_name='parameter_extraction',
+            status='completed',
+            metrics={"total_duration_seconds": 135.0}
+        )
+        self.assertEqual(cr2.execution_time_display, "2m 15s")
+
+        # 3. Formatted in hours, minutes, seconds (e.g. 3725s -> 1h 02m 05s)
+        cr3 = ComponentRun.objects.create(
+            pipeline_run=pr,
+            step_type='download',
+            component_name='pdf_downloader',
+            status='completed',
+            metrics={"total_duration_seconds": 3725.0}
+        )
+        self.assertEqual(cr3.execution_time_display, "1h 02m 05s")
+
+        # 4. Admin column rendering
+        admin_obj = ComponentRunAdmin(ComponentRun, None)
+        rendered = admin_obj.execution_time(cr2)
+        self.assertIn("2m 15s", str(rendered))
+        self.assertIn("⏱️", str(rendered))
+
