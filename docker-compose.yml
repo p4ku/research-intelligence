@@ -56,7 +56,7 @@ services:
       retries: 5
 
   # Django REST API Backend
-  backend:
+  api:
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -101,7 +101,7 @@ services:
         condition: service_healthy
 
   # FastMCP Server for AI Client integrations
-  mcp_server:
+  mcp:
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -145,7 +145,7 @@ services:
         condition: service_healthy
 
   # Celery Async Pipeline Worker
-  celery_worker:
+  worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -189,7 +189,7 @@ services:
         condition: service_healthy
 
   # Celery Scheduler (e.g. for trigger weekly executive briefings, checking daily quotas)
-  celery_beat:
+  beat:
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -240,7 +240,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
-      - backend
+      - api
 
 volumes:
   postgres_data:

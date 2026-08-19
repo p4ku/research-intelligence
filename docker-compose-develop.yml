@@ -56,7 +56,7 @@ services:
       retries: 5
 
   # Django REST API Backend
-  backend:
+  api:
     image: sri_api:develop
     build:
       context: ./backend
@@ -106,15 +106,15 @@ services:
       labels:
         - "traefik.enable=true"
         - "traefik.docker.network=dokploy-network"
-        - "traefik.http.routers.sri-backend-dev.rule=Host(`sri.soinventive.co.uk`) && (PathPrefix(`/api`) || PathPrefix(`/admin`) || PathPrefix(`/static`))"
-        - "traefik.http.routers.sri-backend-dev.entrypoints=websecure"
-        - "traefik.http.routers.sri-backend-dev.tls=true"
-        - "traefik.http.routers.sri-backend-dev.tls.certresolver=letsencrypt"
-        - "traefik.http.routers.sri-backend-dev.service=sri-backend-dev"
-        - "traefik.http.services.sri-backend-dev.loadbalancer.server.port=8000"
+        - "traefik.http.routers.sri-api-dev.rule=Host(`sri.soinventive.co.uk`) && (PathPrefix(`/api`) || PathPrefix(`/admin`) || PathPrefix(`/static`))"
+        - "traefik.http.routers.sri-api-dev.entrypoints=websecure"
+        - "traefik.http.routers.sri-api-dev.tls=true"
+        - "traefik.http.routers.sri-api-dev.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.sri-api-dev.service=sri-api-dev"
+        - "traefik.http.services.sri-api-dev.loadbalancer.server.port=8000"
 
   # FastMCP Server for AI Client integrations
-  mcp_server:
+  mcp:
     image: sri_mcp:develop
     build:
       context: ./backend
@@ -171,7 +171,7 @@ services:
         - "traefik.http.services.sri-mcp-dev.loadbalancer.server.port=8001"
 
   # Celery Async Pipeline Worker
-  celery_worker:
+  worker:
     image: sri_worker:develop
     build:
       context: ./backend
@@ -215,7 +215,7 @@ services:
       - minio
 
   # Celery Scheduler (e.g. for trigger weekly executive briefings, checking daily quotas)
-  celery_beat:
+  beat:
     image: sri_beat:develop
     build:
       context: ./backend
@@ -269,7 +269,7 @@ services:
       - ./frontend:/app
       - /app/node_modules
     depends_on:
-      - backend
+      - api
     networks:
       - default
       - dokploy-network
