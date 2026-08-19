@@ -748,6 +748,7 @@ class PaperAdmin(admin.ModelAdmin):
         'is_evaluation_benchmark',
         'created_at'
     )
+    ordering = ('-created_at', '-id')
     list_filter = ('source_database', 'screening_status', 'is_evaluation_benchmark', 'workspace')
     search_fields = ('title', 'authors', 'doi', 'arxiv_id', 'hash_id')
 
@@ -771,6 +772,7 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
         models.JSONField: {'widget': PrettyJSONWidget},
     }
     list_display = ('name', 'exit_metric', 'workspace', 'version', 'llm_model', 'requires_consensus', 'is_active', 'created_at')
+    ordering = ('-created_at', '-id')
     list_filter = ('is_active', 'requires_consensus', 'workspace')
     search_fields = ('name', 'exit_metric', 'system_prompt', 'user_prompt_template')
     fields = (
@@ -803,6 +805,7 @@ class ExtractionAdmin(admin.ModelAdmin):
         'review_required',
         'created_at'
     )
+    ordering = ('-created_at', '-id')
     list_filter = ('validation_status', 'review_required', 'category', 'workspace')
     search_fields = ('paper__title', 'category', 'extraction_definition__name')
     readonly_fields = ('exit_metric_preview', 'extraction_system_prompt', 'extraction_user_prompt_template', 'created_at')
@@ -905,6 +908,7 @@ class ExtractionAdmin(admin.ModelAdmin):
 @admin.register(PaperMetric)
 class PaperMetricAdmin(admin.ModelAdmin):
     list_display = ('paper', 'workspace', 'trl_score', 'importance_score', 'citation_count', 'created_at')
+    ordering = ('-created_at', '-id')
     list_filter = ('trl_score', 'workspace')
     search_fields = ('paper__title',)
 
@@ -912,6 +916,7 @@ class PaperMetricAdmin(admin.ModelAdmin):
 @admin.register(NarrativeReport)
 class NarrativeReportAdmin(admin.ModelAdmin):
     list_display = ('title', 'workspace', 'pipeline_run', 'refinement_depth', 'created_at')
+    ordering = ('-created_at', '-id')
     list_filter = ('workspace', 'created_at')
     search_fields = ('title', 'content_markdown')
 
@@ -919,6 +924,7 @@ class NarrativeReportAdmin(admin.ModelAdmin):
 @admin.register(HITLCorrection)
 class HITLCorrectionAdmin(admin.ModelAdmin):
     list_display = ('action', 'human_operator', 'extraction', 'timestamp')
+    ordering = ('-timestamp', '-id')
     list_filter = ('action', 'timestamp')
     search_fields = ('human_operator', 'reason')
 
@@ -926,6 +932,7 @@ class HITLCorrectionAdmin(admin.ModelAdmin):
 @admin.register(Subscriber)
 class SubscriberAdmin(admin.ModelAdmin):
     list_display = ('email', 'name', 'workspace', 'is_active', 'created_at')
+    ordering = ('-created_at', '-id')
     list_filter = ('is_active', 'workspace')
     search_fields = ('email', 'name')
 
@@ -946,6 +953,7 @@ class UserActivityLogAdmin(admin.ModelAdmin):
         'execution_duration_fmt',
         'ip_address'
     )
+    ordering = ('-timestamp', '-id')
     list_filter = ('interface', 'status', 'timestamp')
     search_fields = (
         'user_username',

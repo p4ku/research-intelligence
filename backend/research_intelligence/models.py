@@ -501,6 +501,9 @@ class Paper(models.Model):
     
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['-created_at', '-id']
+
     def __str__(self):
         return self.title
 
@@ -553,6 +556,9 @@ class Extraction(models.Model):
     def get_exit_metric(self) -> str:
         return self.exit_metric
 
+    class Meta:
+        ordering = ['-created_at', '-id']
+
     def __str__(self):
         return f"{self.paper.title[:30]}... ({self.category}): {self.exit_metric}"
 
@@ -573,6 +579,9 @@ class PaperMetric(models.Model):
     h_index = models.IntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['-created_at', '-id']
+
 class NarrativeReport(models.Model):
     """
     Stores compiled weekly briefs, LaTeX bibliographies, and critique refinement iterations per run.
@@ -589,6 +598,9 @@ class NarrativeReport(models.Model):
     critic_score_history = models.JSONField(default=list, help_text="Trace log of scores and critiques per iteration")
     created_at = models.DateTimeField(auto_now_add=True)
 
+    class Meta:
+        ordering = ['-created_at', '-id']
+
 class HITLCorrection(models.Model):
     """
     Audits manual corrections and validation overrides made by domain experts.
@@ -601,6 +613,9 @@ class HITLCorrection(models.Model):
     corrected_value = models.JSONField(blank=True, null=True, help_text="Updated data after correction")
     reason = models.TextField(blank=True, null=True, help_text="Reasoning for override")
     timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-timestamp', '-id']
 
 
 class WorkspaceMember(models.Model):
