@@ -33,8 +33,8 @@ class ArxivScraperProvider(BaseScraperProvider):
         sort_order_param = "ascending" if sort_order == "asc" else "descending"
         url = f"https://export.arxiv.org/api/query?search_query={encoded_query}&max_results={limit}&sortBy={sort_by_param}&sortOrder={sort_order_param}"
 
-        max_retries = 3
-        timeout_sec = 30
+        max_retries = 5
+        timeout_sec = 35
         xml_data = None
         last_exc = None
 
@@ -42,7 +42,9 @@ class ArxivScraperProvider(BaseScraperProvider):
             try:
                 req = urllib.request.Request(
                     url,
-                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) SchwarzResearchIntelligence/1.0'}
+                    headers={
+                        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 (SchwarzResearchIntelligence/1.0; mailto:research@soinventive.co.uk)'
+                    }
                 )
                 with urllib.request.urlopen(req, timeout=timeout_sec) as response:
                     xml_data = response.read()
@@ -50,7 +52,16 @@ class ArxivScraperProvider(BaseScraperProvider):
             except Exception as e:
                 last_exc = e
                 if attempt < max_retries:
-                    delay = 2 * attempt
+                    # If 429 Too Many Requests, calculate backoff with minimum 5s or respect Retry-After
+                    if isinstance(e, urllib.error.HTTPError) and e.code == 429:
+                        retry_after = e.headers.get("Retry-After") if hasattr(e, "headers") and e.headers else None
+                        try:
+                            delay = int(retry_after) if retry_after else max(5, 5 * (2 ** (attempt - 1)))
+                        except (ValueError, TypeError):
+                            delay = max(5, 5 * (2 ** (attempt - 1)))
+                    else:
+                        delay = max(3, 3 * attempt)
+
                     logger.warning(f"⚠️ [ARXIV RETRY {attempt}/{max_retries}] Error querying arXiv API: {e}. Retrying in {delay}s...")
                     time.sleep(delay)
                 else:
