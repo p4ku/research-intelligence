@@ -192,6 +192,120 @@ class PipelineMatrixCombinationsTestCase(TestCase):
         self.assertEqual(matrix["total_papers"], 2)
         self.assertEqual(matrix["papers"][0]["metrics_summary"]["Processor Specs"], "127")
 
+    def test_granular_step_by_step_ticks_and_status_checks(self):
+        """
+        Granular Tick-by-Tick Status Verification:
+        Reads agent state, pipeline stage, and full JSON status payload at each discrete step transition.
+        Verifies that component runs, paper metrics, and transitions match exact expected progression.
+        """
+        harness = (
+            PipelineTestHarness(name="Granular Step-by-Step Lab")
+            .configure_workspace(ocr_provider="pypdf", skip_abstract_screening=False)
+            .add_scraper(provider="arxiv", search_query="quantum step-by-step")
+            .add_extraction_definition(
+                name="Granular Metric",
+                exit_metric="score",
+                response_schema={"type": "object", "properties": {"score": {"type": "number"}}}
+            )
+        )
+
+        # 1. Tick 1: Launch Agent (initialized -> search)
+        harness.start_agent("Granular Step Agent")
+        self.assertEqual(harness.agent_process.current_step, "search")
+        self.assertEqual(harness.agent_process.status, "running")
+        self.assertEqual(harness.pipeline_run.current_stage, "search")
+
+        with harness.introspector.intercept():
+            status_tick_1 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
+        self.assertEqual(status_tick_1["status"], "running")
+        self.assertEqual(status_tick_1["current_step"], "search")
+        self.assertEqual(len(status_tick_1["component_runs"]), 1)
+        self.assertEqual(status_tick_1["component_runs"][0]["step_type"], "search")
+        self.assertEqual(status_tick_1["component_runs"][0]["status"], "running")
+
+        # 2. Tick 2: Complete Search -> Download
+        harness.complete_step_1_search(self.cohort_papers[:3])
+        self.assertEqual(harness.agent_process.current_step, "download")
+        self.assertEqual(harness.pipeline_run.current_stage, "download")
+
+        with harness.introspector.intercept():
+            status_tick_2 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
+        self.assertEqual(status_tick_2["current_step"], "download")
+        self.assertEqual(status_tick_2["paper_metrics"]["total_papers_fetched"], 3)
+        dl_runs = [cr for cr in status_tick_2["component_runs"] if cr["step_type"] == "download"]
+        self.assertEqual(len(dl_runs), 1)
+        self.assertEqual(dl_runs[0]["status"], "running")
+
+        # 3. Tick 3: Complete Download -> OCR
+        harness.complete_step_2_download()
+        self.assertEqual(harness.agent_process.current_step, "ocr")
+        self.assertEqual(harness.pipeline_run.current_stage, "ocr")
+
+        with harness.introspector.intercept():
+            status_tick_3 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
+        self.assertEqual(status_tick_3["current_step"], "ocr")
+        self.assertEqual(status_tick_3["paper_metrics"]["downloaded_documents_count"], 3)
+        ocr_runs = [cr for cr in status_tick_3["component_runs"] if cr["step_type"] == "ocr"]
+        self.assertEqual(len(ocr_runs), 1)
+        self.assertEqual(ocr_runs[0]["status"], "running")
+
+        # 4. Tick 4: Complete OCR -> Screening (Stage 4a: Abstract Screening)
+        harness.complete_step_3_ocr_if_needed()
+        self.assertEqual(harness.agent_process.current_step, "screening")
+        self.assertEqual(harness.pipeline_run.current_stage, "screening")
+
+        with harness.introspector.intercept():
+            status_tick_4 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
+        self.assertEqual(status_tick_4["current_step"], "screening")
+        self.assertEqual(status_tick_4["paper_metrics"]["ocr_converted_documents_count"], 3)
+        abs_runs = [cr for cr in status_tick_4["component_runs"] if "abstract" in cr["component_name"].lower()]
+        self.assertEqual(len(abs_runs), 1)
+        self.assertEqual(abs_runs[0]["status"], "running")
+
+        # 5. Tick 5: Complete Abstract Screening (2 pass, 1 reject) -> Stage 4b (Full-Text Screening)
+        harness.complete_step_4a_abstract_screening(passed_paper_indices=[0, 1])
+        self.assertEqual(harness.agent_process.current_step, "screening")
+
+        with harness.introspector.intercept():
+            status_tick_5 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
+        self.assertEqual(status_tick_5["current_step"], "screening")
+        self.assertIsNotNone(status_tick_5["paper_metrics"]["abstract_screening"])
+        self.assertEqual(status_tick_5["paper_metrics"]["abstract_screening"]["screened"], 3)
+        self.assertEqual(status_tick_5["paper_metrics"]["abstract_screening"]["passed"], 2)
+        self.assertEqual(status_tick_5["paper_metrics"]["abstract_screening"]["rejected"], 1)
+        ft_runs = [cr for cr in status_tick_5["component_runs"] if "full_text" in cr["component_name"].lower()]
+        self.assertEqual(len(ft_runs), 1)
+        self.assertEqual(ft_runs[0]["status"], "running")
+
+        # 6. Tick 6: Complete Full-Text Screening (1 pass, 1 reject) -> Extraction
+        harness.complete_step_4b_full_text_screening(passed_paper_indices=[0])
+        self.assertEqual(harness.agent_process.current_step, "extraction")
+        self.assertEqual(harness.pipeline_run.current_stage, "extraction")
+
+        with harness.introspector.intercept():
+            status_tick_6 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
+        self.assertEqual(status_tick_6["current_step"], "extraction")
+        self.assertIsNotNone(status_tick_6["paper_metrics"]["full_text_screening"])
+        self.assertEqual(status_tick_6["paper_metrics"]["full_text_screening"]["passed"], 1)
+        ext_runs = [cr for cr in status_tick_6["component_runs"] if cr["step_type"] == "extraction"]
+        self.assertEqual(len(ext_runs), 1)
+        self.assertEqual(ext_runs[0]["status"], "running")
+
+        # 7. Tick 7: Complete Extraction -> Completed
+        harness.complete_step_5_extraction(sample_extracted_fields={"score": 98.5})
+        self.assertEqual(harness.agent_process.status, "completed")
+        self.assertEqual(harness.agent_process.current_step, "completed")
+        self.assertEqual(harness.pipeline_run.status, "completed")
+
+        with harness.introspector.intercept():
+            status_tick_7 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
+        self.assertEqual(status_tick_7["status"], "completed")
+        self.assertEqual(status_tick_7["current_step"], "completed")
+        self.assertIsNotNone(status_tick_7["completed_at"])
+        self.assertEqual(status_tick_7["paper_metrics"]["extractions_count"], 1)
+        self.assertEqual(len(status_tick_7["extractions_matrix_preview"]), 1)
+        self.assertEqual(status_tick_7["extractions_matrix_preview"][0]["metrics"]["Granular Metric"], "98.5")
+
     def test_positive_pipeline_component_runs_and_token_accumulation(self):
         """
         Positive End-to-End Audit:

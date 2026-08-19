@@ -183,6 +183,7 @@ class PipelineTestHarness:
         # Trigger tick to advance
         self._tick()
         self.agent_process.refresh_from_db()
+        self.pipeline_run.refresh_from_db()
         return self
 
     def complete_step_2_download(self, failed_paper_indices: list[int] | None = None) -> "PipelineTestHarness":
@@ -211,6 +212,7 @@ class PipelineTestHarness:
         # Trigger tick to advance
         self._tick()
         self.agent_process.refresh_from_db()
+        self.pipeline_run.refresh_from_db()
         return self
 
     def complete_step_3_ocr_if_needed(self, failed_paper_indices: list[int] | None = None) -> "PipelineTestHarness":
@@ -236,6 +238,7 @@ class PipelineTestHarness:
             # Trigger tick to advance
             self._tick()
             self.agent_process.refresh_from_db()
+            self.pipeline_run.refresh_from_db()
 
         return self
 
@@ -276,6 +279,7 @@ class PipelineTestHarness:
         # Trigger tick to advance
         self._tick()
         self.agent_process.refresh_from_db()
+        self.pipeline_run.refresh_from_db()
         return self
 
     def complete_step_4b_full_text_screening(
@@ -314,6 +318,7 @@ class PipelineTestHarness:
         # Trigger tick to advance
         self._tick()
         self.agent_process.refresh_from_db()
+        self.pipeline_run.refresh_from_db()
         return self
 
     def complete_step_5_extraction(
