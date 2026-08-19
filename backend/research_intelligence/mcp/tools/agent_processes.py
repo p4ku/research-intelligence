@@ -132,7 +132,8 @@ def get_research_agent_status_logic(user, process_id: str) -> str:
         from research_intelligence.models import Paper, Extraction, PaperMetric
         from .pipeline_runs import _get_run_storage_stats
 
-        for cr in process.pipeline_run.component_runs.all():
+        comp_runs = process.pipeline_run.component_runs.all()
+        for cr in comp_runs:
             component_runs_summary.append({
                 "component_run_id": str(cr.id),
                 "step_type": cr.step_type,
@@ -144,11 +145,38 @@ def get_research_agent_status_logic(user, process_id: str) -> str:
             })
 
         papers_qs = Paper.objects.filter(pipeline_run=process.pipeline_run)
+        abstract_run = comp_runs.filter(step_type='screening', component_name__icontains='abstract').first()
+        full_text_run = comp_runs.filter(step_type='screening', component_name__icontains='full_text').first()
+
+        abstract_metrics = abstract_run.metrics if (abstract_run and abstract_run.metrics) else {}
+        full_text_metrics = full_text_run.metrics if (full_text_run and full_text_run.metrics) else {}
+
+        abstract_screened = abstract_metrics.get("total_screened", papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'rejected']).count()) if abstract_run else 0
+        abstract_passed = abstract_metrics.get("passed", papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed']).count()) if abstract_run else 0
+        abstract_rejected = abstract_metrics.get("rejected", max(0, abstract_screened - abstract_passed)) if abstract_run else 0
+
+        full_text_screened = full_text_metrics.get("total_screened", papers_qs.filter(screening_status='full_text_passed').count() + full_text_metrics.get("rejected", 0)) if full_text_run else 0
+        full_text_passed = full_text_metrics.get("passed", papers_qs.filter(screening_status='full_text_passed').count()) if full_text_run else 0
+        full_text_rejected = full_text_metrics.get("rejected", max(0, full_text_screened - full_text_passed)) if full_text_run else 0
+
+        total_screened_papers = abstract_screened or full_text_screened or PaperMetric.objects.filter(paper__pipeline_run=process.pipeline_run).count()
+
         paper_metrics = {
             "total_papers_fetched": process.pipeline_run.total_papers_fetched or papers_qs.count(),
             "downloaded_documents_count": papers_qs.filter(original_pdf_path__isnull=False).exclude(original_pdf_path='').count(),
             "ocr_converted_documents_count": papers_qs.filter(converted_md_path__isnull=False).exclude(converted_md_path='').count(),
-            "screened_documents_count": PaperMetric.objects.filter(paper__pipeline_run=process.pipeline_run).count(),
+            "screened_documents_count": total_screened_papers,
+            "abstract_screening": {
+                "screened": abstract_screened,
+                "passed": abstract_passed,
+                "rejected": abstract_rejected
+            } if abstract_run else None,
+            "full_text_screening": {
+                "screened": full_text_screened,
+                "passed": full_text_passed,
+                "rejected": full_text_rejected
+            } if full_text_run else None,
+            "total_papers_passed_screening": process.pipeline_run.total_papers_passed_screening or full_text_passed or abstract_passed,
             "extractions_count": Extraction.objects.filter(paper__pipeline_run=process.pipeline_run).count(),
             "tokens_in": process.pipeline_run.tokens_in,
             "tokens_out": process.pipeline_run.tokens_out,

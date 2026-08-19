@@ -373,12 +373,13 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = 50
         cost = calculate_llm_cost(workspace.screening_llm_model, total_prompt_tokens, total_candidates_tokens)
         component_run.metrics["usd_cost"] = float(cost)
 
-        # Aggregate tokens and cost to PipelineRun
+        # Aggregate tokens, cost, and final passed paper count to PipelineRun
         pipeline_run.tokens_in = (pipeline_run.tokens_in or 0) + total_prompt_tokens
         pipeline_run.tokens_out = (pipeline_run.tokens_out or 0) + total_candidates_tokens
         pipeline_run.tokens_consumed = (pipeline_run.tokens_consumed or 0) + total_tokens
         pipeline_run.usd_cost = (pipeline_run.usd_cost or Decimal('0.0000')) + cost
-        pipeline_run.save(update_fields=['tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost'])
+        pipeline_run.total_papers_passed_screening = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='full_text_passed').count()
+        pipeline_run.save(update_fields=['tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost', 'total_papers_passed_screening'])
 
         # Record monthly quota usage on Workspace
         workspace.record_token_usage(total_prompt_tokens, total_candidates_tokens, workspace.screening_llm_model)

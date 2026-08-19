@@ -172,7 +172,22 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
     total_papers_fetched = pipeline_run.total_papers_fetched or papers_qs.count()
     downloaded_papers_count = papers_qs.filter(original_pdf_path__isnull=False).exclude(original_pdf_path='').count()
     ocr_converted_papers_count = papers_qs.filter(converted_md_path__isnull=False).exclude(converted_md_path='').count()
-    screened_papers_count = PaperMetric.objects.filter(paper__pipeline_run=pipeline_run).count()
+    
+    abstract_run = comp_runs.filter(step_type='screening', component_name__icontains='abstract').first()
+    full_text_run = comp_runs.filter(step_type='screening', component_name__icontains='full_text').first()
+
+    abstract_metrics = abstract_run.metrics if (abstract_run and abstract_run.metrics) else {}
+    full_text_metrics = full_text_run.metrics if (full_text_run and full_text_run.metrics) else {}
+
+    abstract_screened = abstract_metrics.get("total_screened", papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'rejected']).count()) if abstract_run else 0
+    abstract_passed = abstract_metrics.get("passed", papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed']).count()) if abstract_run else 0
+    abstract_rejected = abstract_metrics.get("rejected", max(0, abstract_screened - abstract_passed)) if abstract_run else 0
+
+    full_text_screened = full_text_metrics.get("total_screened", papers_qs.filter(screening_status='full_text_passed').count() + full_text_metrics.get("rejected", 0)) if full_text_run else 0
+    full_text_passed = full_text_metrics.get("passed", papers_qs.filter(screening_status='full_text_passed').count()) if full_text_run else 0
+    full_text_rejected = full_text_metrics.get("rejected", max(0, full_text_screened - full_text_passed)) if full_text_run else 0
+
+    total_screened_papers = abstract_screened or full_text_screened or PaperMetric.objects.filter(paper__pipeline_run=pipeline_run).count()
     extractions_count = Extraction.objects.filter(paper__pipeline_run=pipeline_run).count()
 
     # Calculate storage footprint for this run
@@ -221,7 +236,18 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
         "total_papers_fetched": total_papers_fetched,
         "downloaded_documents_count": downloaded_papers_count,
         "ocr_converted_documents_count": ocr_converted_papers_count,
-        "screened_documents_count": screened_papers_count,
+        "screened_documents_count": total_screened_papers,
+        "abstract_screening_metrics": {
+            "screened": abstract_screened,
+            "passed": abstract_passed,
+            "rejected": abstract_rejected
+        } if abstract_run else None,
+        "full_text_screening_metrics": {
+            "screened": full_text_screened,
+            "passed": full_text_passed,
+            "rejected": full_text_rejected
+        } if full_text_run else None,
+        "total_papers_passed_screening": pipeline_run.total_papers_passed_screening or full_text_passed or abstract_passed,
         "extractions_count": extractions_count,
         "tokens_in": pipeline_run.tokens_in,
         "tokens_out": pipeline_run.tokens_out,

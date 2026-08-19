@@ -113,17 +113,30 @@ class ResearchAgentProcessTest(TestCase):
         comp_ocr.status = "completed"
         comp_ocr.save()
 
-        # Step 4: OCR -> Screening
+        # Step 4a: OCR -> Abstract Screening
         res4 = tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.current_step, "screening")
 
-        # Simulate completion of Step 4 ComponentRun
-        comp_screening = ComponentRun.objects.get(pipeline_run=pr, step_type="screening")
-        comp_screening.status = "completed"
-        comp_screening.save()
+        # Simulate completion of Stage 4a Abstract Screening ComponentRun
+        comp_abstract = ComponentRun.objects.get(pipeline_run=pr, component_name="abstract_screening")
+        comp_abstract.metrics = {"total_screened": 10, "passed": 5, "rejected": 5}
+        comp_abstract.status = "completed"
+        comp_abstract.save()
 
-        # Step 5: Screening -> Extraction
+        # Step 4b: Abstract Screening -> Full-Text Screening
+        res4b = tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "screening")
+        comp_ft = ComponentRun.objects.get(pipeline_run=pr, component_name="full_text_screening")
+        self.assertIsNotNone(comp_ft)
+
+        # Simulate completion of Stage 4b Full-Text Screening ComponentRun
+        comp_ft.metrics = {"total_screened": 5, "passed": 4, "rejected": 1}
+        comp_ft.status = "completed"
+        comp_ft.save()
+
+        # Step 5: Full-Text Screening -> Extraction
         res5 = tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.current_step, "extraction")

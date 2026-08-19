@@ -358,15 +358,76 @@ def tick_agent_process(process_id: str) -> dict:
             "message": f"Transitioned to 'screening'."
         }
 
-    # 5. State: SCREENING -> Check completion, launch Step 5 (Extraction)
+    # 5. State: SCREENING -> Check completion of Stage 4a (Abstract) and Stage 4b (Full-Text), then launch Step 5 (Extraction)
     if process.current_step == 'screening':
         screening_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run, step_type='screening')
         if screening_runs.filter(status__in=['pending', 'running']).exists():
             return {"success": True, "status": process.status, "current_step": "screening", "message": "Screening jobs still running."}
 
+        skip_abstract = config.get("skip_abstract_screening", workspace.skip_abstract_screening)
+        has_abstract_run = screening_runs.filter(component_name__icontains='abstract').exists()
+        has_full_text_run = screening_runs.filter(component_name__icontains='full_text').exists()
+
+        # If 2-stage screening is enabled and only abstract screening has finished:
+        if not skip_abstract and has_abstract_run and not has_full_text_run:
+            from research_intelligence.models import Paper
+            abstract_run = screening_runs.filter(component_name__icontains='abstract').first()
+            abstract_passed = abstract_run.metrics.get('passed', 0) if (abstract_run and abstract_run.metrics) else Paper.objects.filter(pipeline_run=pipeline_run, screening_status='abstract_passed').count()
+            abstract_screened = abstract_run.metrics.get('total_screened', 0) if (abstract_run and abstract_run.metrics) else pipeline_run.papers.count()
+            abstract_rejected = abstract_run.metrics.get('rejected', 0) if (abstract_run and abstract_run.metrics) else (abstract_screened - abstract_passed)
+
+            history.append({
+                "step": "abstract_screening",
+                "event": "completed",
+                "total_screened": abstract_screened,
+                "passed": abstract_passed,
+                "rejected": abstract_rejected,
+                "timestamp": timezone.now().isoformat()
+            })
+            process.step_history = history
+            process.save(update_fields=['step_history', 'updated_at'])
+
+            if abstract_passed > 0:
+                logger.info(f"Agent '{process.name}': Abstract Screening completed ({abstract_passed}/{abstract_screened} passed). Launching Stage 4b: Full-Text Screening.")
+                comp_run = ComponentRun.objects.create(
+                    pipeline_run=pipeline_run,
+                    step_type='screening',
+                    component_name="full_text_screening",
+                    status='pending',
+                    input_params={"limit": limit, "stage": "full_text"}
+                )
+                from research_intelligence.tasks.step_4_screening.full_text import execute_full_text_screening_job
+                try:
+                    comp_run.status = 'running'
+                    comp_run.save(update_fields=['status'])
+                    async_res = execute_full_text_screening_job.delay(str(comp_run.id), limit=limit)
+                    comp_run.celery_task_id = async_res.id
+                    comp_run.save(update_fields=['celery_task_id'])
+                except Exception:
+                    execute_full_text_screening_job(str(comp_run.id), limit=limit)
+
+                return {
+                    "success": True,
+                    "status": process.status,
+                    "current_step": "screening",
+                    "message": f"Stage 4a (Abstract Screening) completed ({abstract_passed} passed). Launched Stage 4b (Full-Text Screening)."
+                }
+            else:
+                logger.info(f"Agent '{process.name}': 0 papers passed Abstract Screening. Skipping Full-Text Screening and proceeding to Extraction.")
+
+        # If both screening stages (or full_text when abstract skipped) have completed:
+        from research_intelligence.models import Paper
+        final_screening_run = screening_runs.filter(component_name__icontains='full_text').first() or screening_runs.first()
+        ft_passed = final_screening_run.metrics.get('passed', 0) if (final_screening_run and final_screening_run.metrics) else Paper.objects.filter(pipeline_run=pipeline_run, screening_status='full_text_passed').count()
+        ft_screened = final_screening_run.metrics.get('total_screened', 0) if (final_screening_run and final_screening_run.metrics) else 0
+        ft_rejected = final_screening_run.metrics.get('rejected', 0) if (final_screening_run and final_screening_run.metrics) else (ft_screened - ft_passed)
+
         history.append({
-            "step": "screening",
+            "step": "full_text_screening" if has_full_text_run else "screening",
             "event": "completed",
+            "total_screened": ft_screened,
+            "passed": ft_passed,
+            "rejected": ft_rejected,
             "timestamp": timezone.now().isoformat()
         })
 
@@ -399,7 +460,7 @@ def tick_agent_process(process_id: str) -> dict:
             "success": True,
             "status": process.status,
             "current_step": process.current_step,
-            "message": f"Transitioned to 'extraction'."
+            "message": f"Screening completed ({ft_passed} papers passed). Transitioned to 'extraction'."
         }
 
     # 6. State: EXTRACTION -> Check completion, mark COMPLETED

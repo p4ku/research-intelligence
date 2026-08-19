@@ -474,6 +474,7 @@ class ComponentRunAdmin(admin.ModelAdmin):
         'step_type_badge',
         'component_name',
         'status_badge',
+        'metrics_summary',
         'celery_task_id',
         'started_at',
         'completed_at'
@@ -482,6 +483,32 @@ class ComponentRunAdmin(admin.ModelAdmin):
     list_filter = ('step_type', 'status', 'started_at')
     search_fields = ('id', 'component_name', 'celery_task_id', 'pipeline_run__id')
     readonly_fields = ('started_at', 'completed_at')
+
+    def metrics_summary(self, obj):
+        if not obj.metrics:
+            return "-"
+        m = obj.metrics
+        if obj.step_type == 'screening':
+            total = m.get('total_screened', 0)
+            passed = m.get('passed', 0)
+            rejected = m.get('rejected', 0)
+            return f"{total} screened: {passed} passed, {rejected} rejected"
+        elif obj.step_type == 'search':
+            fetched = m.get('total_fetched', m.get('total_created', 0))
+            return f"{fetched} papers fetched"
+        elif obj.step_type == 'download':
+            dl = m.get('downloaded', 0)
+            return f"{dl} PDFs downloaded"
+        elif obj.step_type == 'ocr':
+            ocr = m.get('ocr_converted', 0)
+            return f"{ocr} converted"
+        elif obj.step_type == 'extraction':
+            created = m.get('extractions_created', 0)
+            papers = m.get('total_papers', 0)
+            defs = m.get('total_definitions', 0)
+            return f"{created} extractions ({papers} papers, {defs} defs)"
+        return "-"
+    metrics_summary.short_description = "Metrics Summary"
 
     def step_type_badge(self, obj):
         colors = {

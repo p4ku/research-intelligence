@@ -225,12 +225,27 @@ def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_wor
             component_run.save(update_fields=['metrics', 'output_data', 'status', 'completed_at'])
             return True
 
-        # Target paper selection: preference for full_text_passed -> abstract_passed -> non-withdrawn
-        papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='full_text_passed')
-        if not papers_qs.exists():
+        # Target paper selection: strictly evaluate based on screening jobs in pipeline history
+        has_full_text_run = ComponentRun.objects.filter(
+            pipeline_run=pipeline_run,
+            step_type='screening',
+            component_name__icontains='full_text'
+        ).exists()
+        has_abstract_run = ComponentRun.objects.filter(
+            pipeline_run=pipeline_run,
+            step_type='screening',
+            component_name__icontains='abstract'
+        ).exists()
+
+        if has_full_text_run:
+            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='full_text_passed')
+            logger.info(f"🔍 [EXTRACTION FILTER] Prior Full-Text Screening job detected. Targeting {papers_qs.count()} papers with status='full_text_passed'.")
+        elif has_abstract_run:
             papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='abstract_passed')
-        if not papers_qs.exists():
-            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).exclude(screening_status='withdrawn')
+            logger.info(f"🔍 [EXTRACTION FILTER] Prior Abstract Screening job detected. Targeting {papers_qs.count()} papers with status='abstract_passed'.")
+        else:
+            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).exclude(screening_status__in=['rejected', 'withdrawn'])
+            logger.info(f"🔍 [EXTRACTION FILTER] No prior Screening jobs found. Targeting {papers_qs.count()} papers.")
 
         papers = list(papers_qs[:limit])
 
