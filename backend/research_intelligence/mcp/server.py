@@ -178,6 +178,11 @@ When asked to run research, review literature, or execute the full pipeline:
      Step 1: Search & Deduplication -> Step 2: PDF Download -> Step 3: OCR (skipped if None) -> Step 4: 2-Stage Screening -> Step 5: Parameter Extraction -> Completed.
 3. MONITOR STATUS:
    - Call `get_research_agent_status(process_id="<PROCESS_ID>")`.
+4. DISPLAYING RUN RESULTS & EXTRACTED PARAMETERS (SCORECARD):
+   - When asked to show run results, view extracted parameters, display a metrics scorecard, or compare parameter scores across accepted papers:
+     ALWAYS call `get_paper_extractions_matrix(process_id="<PROCESS_ID>", pipeline_run_id="<RUN_ID>", workspace_id="<WS_ID>")`.
+     This returns the complete aggregated matrix of all accepted papers mapped to their extracted metric scores (Novelty, Schwarz Fit, TRL, Rigour, Significance) in a SINGLE structured response.
+     DO NOT write custom bash/python scripts to combine papers and extractions.
 
 MODE 2: MANUAL COMPONENT DEBUGGING (ISOLATED STEPS ONLY)
 Use individual `trigger_*` tools ONLY when the user explicitly requests testing or re-running a single specific step in isolation:
@@ -792,9 +797,11 @@ def get_paper_extractions_matrix(
     limit: int = 100
 ) -> str:
     """
-    Retrieve aggregated parameter & claim extraction results per paper for all accepted/screened papers in a single call.
-    Returns paper metadata, PDF paths, abstracts, and all extracted definitions/metrics (e.g. Novelty, Fit, TRL, Rigour) with justifications.
-    Ideal for answering 'show params result per all accepted papers' without needing separate list_papers and list_extractions calls.
+    [PRIMARY TOOL FOR RUN RESULTS & PARAMETERS SCORECARD]
+    Retrieve aggregated parameter & claim extraction results per paper for all accepted/screened papers in a single structured call.
+    Use this tool whenever asked to 'show run results', 'display extracted parameters', 'show scorecard', or 'view parameter scores per paper'.
+    Returns paper title, authors, DOI, arXiv ID, PDF paths, abstracts, and all extracted definitions/metrics (e.g. Novelty, Schwarz Fit, TRL, Rigour, Significance) with evidence quotes and justifications.
+    Never write manual python/bash scripts to join papers and extractions; use this tool instead.
     """
     try:
         user, workspace, api_key = get_auth_context()

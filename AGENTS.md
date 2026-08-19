@@ -134,12 +134,12 @@ It orchestrates a 5-step processing pipeline:
 | `trigger_screening_job` | `runs:write` | [Manual Only] Triggers isolated Step 4: 2-Stage Abstract/Full-Text Screening. |
 | `trigger_extraction_job` | `runs:write` | [Manual Only] Triggers isolated Step 5: Dynamic Parameter Extraction. |
 | `list_pipeline_runs` | `runs:read` | Lists pipeline runs with status and component run tree. |
-| `get_pipeline_run_status` | `runs:read` | Detailed run status with paper counts, downloaded document metrics, and storage footprint. |
+| `get_pipeline_run_status` | `runs:read` | Detailed run status with `triggered_by` user, paper counts, downloaded document metrics, and extractions matrix preview. |
 | `get_component_run_status` | `runs:read` | Detailed status and error logs for an individual component step run. |
 | `abort_job` | `runs:write` | Aborts a pipeline run or individual component run. |
 | `delete_pipeline_run` | `runs:write` | Recursively deletes storage folder and purges pipeline run records from DB. |
 | `list_extractions` | `workspaces:read` | Queries extracted parameter objects filtered by workspace, definition, run, or paper. |
-| `get_paper_extractions_matrix` | `workspaces:read` | **Single-Call Matrix**: Aggregates all accepted papers with their extracted parameters, exit metrics, and justifications. |
+| `get_paper_extractions_matrix` | `workspaces:read` | **Primary Tool for Results & Scorecards**: Aggregates all accepted papers with their extracted parameters, exit metrics, and justifications in a single call. |
 | `get_extraction` | `workspaces:read` | Returns single extraction record with evidence quotes and confidence score. |
 
 #### 6. Diagnostics & Audit (`tools/llm_test.py`, `tools/activity_logs.py`)

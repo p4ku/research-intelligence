@@ -39,7 +39,8 @@ def trigger_search_job_logic(
     pipeline_run = PipelineRun.objects.create(
         workspace=workspace,
         status='running',
-        current_stage='search'
+        current_stage='search',
+        triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None
     )
 
     created_runs = []
@@ -235,6 +236,11 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
         "run_date": pipeline_run.run_date.isoformat(),
         "status": pipeline_run.status,
         "current_stage": pipeline_run.current_stage,
+        "triggered_by": {
+            "id": str(pipeline_run.triggered_by.id) if pipeline_run.triggered_by else None,
+            "username": pipeline_run.triggered_by.username if pipeline_run.triggered_by else "system",
+            "email": pipeline_run.triggered_by.email if pipeline_run.triggered_by else None
+        },
         "total_papers_fetched": total_papers_fetched,
         "downloaded_documents_count": downloaded_papers_count,
         "ocr_converted_documents_count": ocr_converted_papers_count,
@@ -293,21 +299,8 @@ def get_component_run_status_logic(user, component_run_id: str) -> str:
     if error:
         return error
 
-    from research_intelligence.models import Paper
-    papers_sample = Paper.objects.filter(pipeline_run=cr.pipeline_run).order_by('-created_at')[:10]
-    papers_preview = [
-        {
-            "paper_id": str(p.id),
-            "title": p.title,
-            "authors": p.authors,
-            "source_database": p.source_database,
-            "pdf_url": p.original_pdf_path,
-            "abstract": p.abstract,
-            "abstract_preview": p.abstract[:150] + "..." if len(p.abstract) > 150 else p.abstract
-        }
-        for p in papers_sample
-    ]
-
+    # Optional paper previews if present in output_data
+    papers_preview = cr.output_data.get("papers_preview", [])
     details = {
         "component_run_id": str(cr.id),
         "pipeline_run_id": str(cr.pipeline_run.id),
@@ -353,75 +346,73 @@ def abort_job_logic(user, component_run_id: str = None, pipeline_run_id: str = N
             except Exception:
                 pass
 
+        if cr.status in ['completed', 'failed', 'aborted']:
+            return f"Error: ComponentRun '{component_run_id}' is in status '{cr.status}' and cannot be aborted."
+
         cr.status = 'aborted'
         cr.completed_at = timezone.now()
         cr.save(update_fields=['status', 'completed_at'])
 
-        # Check PipelineRun state
-        pr = cr.pipeline_run
-        if not pr.component_runs.exclude(status='aborted').exists():
-            pr.status = 'aborted'
-            pr.completed_at = timezone.now()
-            pr.save(update_fields=['status', 'completed_at'])
+        # Check if parent PipelineRun should be updated
+        pipeline_run = cr.pipeline_run
+        remaining_active = ComponentRun.objects.filter(pipeline_run=pipeline_run, status__in=['pending', 'running']).exists()
+        if not remaining_active:
+            pipeline_run.status = 'aborted'
+            pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'completed_at'])
 
         return json.dumps({
+            "status": "success",
             "success": True,
-            "message": f"Successfully aborted ComponentRun '{component_run_id}'.",
+            "message": f"ComponentRun '{component_run_id}' has been aborted.",
             "component_run_id": str(cr.id),
-            "status": cr.status
+            "pipeline_run_id": str(pipeline_run.id)
         }, indent=2)
 
     elif pipeline_run_id:
         try:
             pr_uuid = uuid.UUID(pipeline_run_id)
-            pr = PipelineRun.objects.select_related('workspace').get(id=pr_uuid)
+            pipeline_run = PipelineRun.objects.select_related('workspace').get(id=pr_uuid)
         except (ValueError, PipelineRun.DoesNotExist):
             return f"Error: PipelineRun '{pipeline_run_id}' not found."
 
-        workspace, membership, error = _check_workspace_access(user, str(pr.workspace.id), required_roles=['admin', 'manager'])
+        workspace, membership, error = _check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager'])
         if error:
             return error
 
-        for cr in pr.component_runs.all():
-            if cr.celery_task_id:
-                try:
-                    from django_project.celery import app as celery_app
-                    celery_app.control.revoke(cr.celery_task_id, terminate=True)
-                except Exception:
-                    pass
-            cr.status = 'aborted'
-            cr.completed_at = timezone.now()
-            cr.save(update_fields=['status', 'completed_at'])
+        if pipeline_run.status in ['completed', 'failed', 'aborted']:
+            return f"Error: PipelineRun '{pipeline_run_id}' is already in status '{pipeline_run.status}'."
 
-        pr.status = 'aborted'
-        pr.completed_at = timezone.now()
-        pr.save(update_fields=['status', 'completed_at'])
+        # Mark all pending/running component runs as aborted
+        active_comp_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run, status__in=['pending', 'running'])
+        count = active_comp_runs.count()
+        active_comp_runs.update(status='aborted', completed_at=timezone.now())
+
+        pipeline_run.status = 'aborted'
+        pipeline_run.completed_at = timezone.now()
+        pipeline_run.save(update_fields=['status', 'completed_at'])
 
         return json.dumps({
+            "status": "success",
             "success": True,
-            "message": f"Successfully aborted PipelineRun '{pipeline_run_id}' and all attached component jobs.",
-            "pipeline_run_id": str(pr.id),
-            "status": pr.status
+            "message": f"PipelineRun '{pipeline_run_id}' and {count} active component run(s) have been aborted.",
+            "pipeline_run_id": str(pipeline_run.id)
         }, indent=2)
 
+    return "Error: Must specify either component_run_id or pipeline_run_id to abort."
+
+
+def list_pipeline_runs_logic(user, workspace_id: str = None) -> str:
+    """List pipeline runs and their component run status tree (filtered by workspace)."""
+    if workspace_id:
+        workspace, membership, error = _check_workspace_access(user, workspace_id)
+        if error:
+            return error
+        runs = PipelineRun.objects.filter(workspace=workspace).select_related('workspace', 'triggered_by').prefetch_related('component_runs', 'agent_processes').order_by('-started_at')
     else:
-        return "Error: Must specify either component_run_id or pipeline_run_id to abort."
-
-
-def list_pipeline_runs_logic(user, workspace_id: str, limit: int = 20) -> str:
-    """List historical PipelineRun executions along with nested ComponentRuns for a workspace."""
-    workspace, membership, error = _check_workspace_access(user, workspace_id)
-    if error:
-        return error
-
-    limit_val = max(1, min(int(limit or 20), 100))
-    runs = (
-        PipelineRun.objects.filter(workspace=workspace)
-        .prefetch_related('agent_processes', 'component_runs', 'component_runs__scraper')
-        .order_by('-started_at')[:limit_val]
-    )
-    if not runs.exists():
-        return json.dumps({"message": f"No pipeline runs found for workspace '{workspace.name}'."}, indent=2)
+        # User must have access to all listed workspaces
+        accessible_ws = Workspace.objects.filter(memberships__user=user)
+        runs = PipelineRun.objects.filter(workspace__in=accessible_ws).select_related('workspace', 'triggered_by').prefetch_related('component_runs', 'agent_processes').order_by('-started_at')
 
     result = []
     for r in runs:
@@ -455,6 +446,11 @@ def list_pipeline_runs_logic(user, workspace_id: str, limit: int = 20) -> str:
             "run_date": r.run_date.isoformat(),
             "status": r.status,
             "current_stage": r.current_stage,
+            "triggered_by": {
+                "id": str(r.triggered_by.id) if r.triggered_by else None,
+                "username": r.triggered_by.username if r.triggered_by else "system",
+                "email": r.triggered_by.email if r.triggered_by else None
+            },
             "total_papers_fetched": r.total_papers_fetched,
             "tokens_in": r.tokens_in,
             "tokens_out": r.tokens_out,

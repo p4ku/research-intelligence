@@ -215,6 +215,14 @@ class PipelineRun(models.Model):
     tokens_consumed = models.BigIntegerField(default=0, help_text="Total tokens used in this run (in + out)")
     usd_cost = models.DecimalField(max_digits=10, decimal_places=4, default=0.0000)
     
+    triggered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pipeline_runs",
+        help_text="User who launched this pipeline run"
+    )
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(blank=True, null=True)
 
@@ -286,6 +294,15 @@ class ResearchAgentProcess(models.Model):
 
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending')
     current_step = models.CharField(max_length=50, choices=STEP_CHOICES, default='initialized')
+
+    triggered_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="agent_processes",
+        help_text="User who launched this agent process"
+    )
 
     # Runtime configuration and dynamic query modifiers
     configuration_override = models.JSONField(

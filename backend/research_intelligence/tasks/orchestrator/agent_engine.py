@@ -178,7 +178,8 @@ def tick_agent_process(process_id: str) -> dict:
         pipeline_run = PipelineRun.objects.create(
             workspace=workspace,
             status='running',
-            current_stage='search'
+            current_stage='search',
+            triggered_by=process.triggered_by
         )
         process.pipeline_run = pipeline_run
         process.status = 'running'

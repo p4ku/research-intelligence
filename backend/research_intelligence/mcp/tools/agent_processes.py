@@ -40,6 +40,7 @@ def start_research_agent_logic(
         name=agent_name,
         status='running',
         current_step='initialized',
+        triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None,
         configuration_override=config_override,
         step_history=[{
             "step": "initialized",
@@ -58,6 +59,11 @@ def start_research_agent_logic(
         "process_id": str(agent_process.id),
         "workspace_id": str(workspace.id),
         "pipeline_run_id": str(agent_process.pipeline_run.id) if agent_process.pipeline_run else None,
+        "triggered_by": {
+            "id": str(agent_process.triggered_by.id) if agent_process.triggered_by else None,
+            "username": agent_process.triggered_by.username if agent_process.triggered_by else "system",
+            "email": agent_process.triggered_by.email if agent_process.triggered_by else None
+        },
         "agent_status": agent_process.status,
         "current_step": agent_process.current_step,
         "ocr_provider": workspace.ocr_provider or "None (Skipped)",
@@ -74,16 +80,16 @@ def list_research_agents_logic(user, workspace_id: str = None, limit: int = 20) 
         workspace, membership, error = _check_workspace_access(user, workspace_id)
         if error:
             return error
-        processes = ResearchAgentProcess.objects.filter(workspace=workspace).select_related('workspace', 'pipeline_run').order_by('-started_at')[:limit]
+        processes = ResearchAgentProcess.objects.filter(workspace=workspace).select_related('workspace', 'pipeline_run', 'triggered_by').order_by('-started_at')[:limit]
     else:
         # Accessible workspaces
         from research_intelligence.models import WorkspaceMember
         if getattr(user, 'is_superuser', False):
-            processes = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').order_by('-started_at')[:limit]
+            processes = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run', 'triggered_by').order_by('-started_at')[:limit]
         else:
             memberships = WorkspaceMember.objects.filter(user=user)
             ws_ids = [m.workspace_id for m in memberships]
-            processes = ResearchAgentProcess.objects.filter(workspace_id__in=ws_ids).select_related('workspace', 'pipeline_run').order_by('-started_at')[:limit]
+            processes = ResearchAgentProcess.objects.filter(workspace_id__in=ws_ids).select_related('workspace', 'pipeline_run', 'triggered_by').order_by('-started_at')[:limit]
 
     results = []
     for p in processes:
@@ -97,6 +103,11 @@ def list_research_agents_logic(user, workspace_id: str = None, limit: int = 20) 
             "current_step": p.current_step,
             "duration_seconds": p.duration_seconds,
             "execution_time": p.execution_time_display,
+            "triggered_by": {
+                "id": str(p.triggered_by.id) if p.triggered_by else None,
+                "username": p.triggered_by.username if p.triggered_by else "system",
+                "email": p.triggered_by.email if p.triggered_by else None
+            },
             "configuration_override": p.configuration_override,
             "started_at": p.started_at.isoformat(),
             "completed_at": p.completed_at.isoformat() if p.completed_at else None,
@@ -217,6 +228,11 @@ def get_research_agent_status_logic(user, process_id: str) -> str:
         "current_step": process.current_step,
         "duration_seconds": process.duration_seconds,
         "execution_time": process.execution_time_display,
+        "triggered_by": {
+            "id": str(process.triggered_by.id) if process.triggered_by else None,
+            "username": process.triggered_by.username if process.triggered_by else "system",
+            "email": process.triggered_by.email if process.triggered_by else None
+        },
         "ocr_provider": process.workspace.ocr_provider or "None (Skipped)",
         "configuration_override": process.configuration_override,
         "paper_metrics": paper_metrics,
