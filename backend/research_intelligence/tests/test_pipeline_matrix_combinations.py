@@ -2,6 +2,8 @@ import json
 from unittest.mock import patch
 from django.test import TestCase
 from django.utils import timezone
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 
 from research_intelligence.models import ComponentRun
 from research_intelligence.mcp.tools.extractions import get_paper_extractions_matrix_logic
@@ -527,3 +529,91 @@ class PipelineMatrixCombinationsTestCase(TestCase):
         status_json = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
         self.assertEqual(status_json["status"], "failed")
         self.assertIn("JSON Schema Validation Fatal", status_json["error_message"])
+
+    def test_end_to_end_document_registry_caching_and_run_deletion_isolation(self):
+        """
+        End-to-End Test:
+        1. Agent 1 (Workspace A) runs pipeline with OCR (populates DocumentRegistry with PDF & OCR artifacts).
+        2. Agent 2 (Workspace B) runs pipeline on same papers (uses Zero-Network PDF and Zero-Compute OCR Fastpath).
+        3. Delete Agent 1 & Workspace A run via delete_research_agent_logic.
+        4. Assert DocumentRegistry and Workspace B's data & storage remain 100% intact and functional.
+        """
+        from research_intelligence.models import DocumentRegistry, Paper
+        from research_intelligence.mcp.tools.agent_processes import delete_research_agent_logic
+        from django.core.files.storage import default_storage
+
+        # --- RUN 1: Workspace A executes full pipeline with pypdf OCR ---
+        harness_a = (
+            PipelineTestHarness(name="Workspace A - Primary Ingestion")
+            .configure_workspace(ocr_provider="pypdf", skip_abstract_screening=True)
+            .add_scraper(provider="arxiv", search_query="quantum benchmark")
+            .add_extraction_definition(name="Fidelity Benchmark")
+            .start_agent("Agent A Ingestor")
+        )
+
+        harness_a.complete_step_1_search([self.cohort_papers[0]])
+        harness_a.complete_step_2_download()
+        harness_a.complete_step_3_ocr()
+        harness_a.complete_step_4b_full_text_screening(passed_paper_indices=[0])
+        harness_a.complete_step_5_extraction()
+
+        self.assertEqual(harness_a.agent_process.status, "completed")
+        paper_a = Paper.objects.get(pipeline_run=harness_a.pipeline_run)
+        self.assertIsNotNone(paper_a.document_registry)
+        doc_reg = paper_a.document_registry
+        self.assertEqual(doc_reg.access_count, 1)
+        self.assertEqual(doc_reg.ocr_provider, "pypdf")
+        self.assertTrue(default_storage.exists(doc_reg.canonical_pdf_path))
+        self.assertTrue(default_storage.exists(doc_reg.canonical_ocr_md_path))
+
+        # --- RUN 2: Workspace B executes pipeline on same paper ---
+        harness_b = (
+            PipelineTestHarness(name="Workspace B - Cross-Workspace Reuser")
+            .configure_workspace(ocr_provider="pypdf", skip_abstract_screening=True)
+            .add_scraper(provider="arxiv", search_query="quantum benchmark")
+            .add_extraction_definition(name="Fidelity Benchmark")
+            .start_agent("Agent B Reuser")
+        )
+
+        # Note: Paper in Workspace B has its own unique hash_id but identical arxiv_id
+        paper_b_cohort = dict(self.cohort_papers[0])
+        paper_b_cohort["hash_id"] = "qml_p0_ws_b_instance"
+
+        harness_b.complete_step_1_search([paper_b_cohort])
+        harness_b.complete_step_2_download()
+        harness_b.complete_step_3_ocr()
+        harness_b.complete_step_4b_full_text_screening(passed_paper_indices=[0])
+        harness_b.complete_step_5_extraction()
+
+        self.assertEqual(harness_b.agent_process.status, "completed")
+        doc_reg.refresh_from_db()
+        self.assertGreaterEqual(doc_reg.access_count, 2)
+
+        paper_b = Paper.objects.get(pipeline_run=harness_b.pipeline_run)
+        self.assertTrue(default_storage.exists(paper_b.original_pdf_path))
+        self.assertTrue(default_storage.exists(paper_b.converted_md_path))
+
+        # --- STEP 3: Delete Agent A (Workspace A) via MCP tool ---
+        agent_a_id_str = str(harness_a.agent_process.id)
+        del_res = json.loads(delete_research_agent_logic(harness_a.user, agent_a_id_str))
+        self.assertEqual(del_res["status"], "success")
+
+        # --- STEP 4: Isolation Verifications ---
+        # Workspace A files & DB records deleted
+        self.assertFalse(Paper.objects.filter(id=paper_a.id).exists())
+        self.assertFalse(default_storage.exists(f"workspaces/{harness_a.workspace.id}/runs/{harness_a.pipeline_run.id}"))
+
+        # DocumentRegistry and canonical files PRESERVED
+        self.assertTrue(DocumentRegistry.objects.filter(id=doc_reg.id).exists())
+        self.assertTrue(default_storage.exists(doc_reg.canonical_pdf_path))
+        self.assertTrue(default_storage.exists(doc_reg.canonical_ocr_md_path))
+
+        # Workspace B Paper and extractions matrix 100% INTACT & FUNCTIONAL
+        paper_b.refresh_from_db()
+        self.assertTrue(default_storage.exists(paper_b.original_pdf_path))
+        self.assertTrue(default_storage.exists(paper_b.converted_md_path))
+
+        matrix_json = json.loads(get_paper_extractions_matrix_logic(harness_b.user, str(harness_b.workspace.id)))
+        self.assertEqual(matrix_json["total_papers"], 1)
+        self.assertEqual(len(matrix_json["papers"]), 1)
+        self.assertEqual(matrix_json["papers"][0]["title"], paper_b.title)

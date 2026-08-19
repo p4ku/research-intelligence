@@ -204,10 +204,15 @@ class PipelineTestHarness:
                 p.screening_reasoning = "Failed to download PDF: 404 Not Found at source."
                 p.save(update_fields=['screening_status', 'screening_reasoning'])
             else:
+                pdf_bytes = b"%PDF-1.4 Mock Binary Data for Harness Testing"
                 pdf_path = f"workspaces/{self.workspace.id}/runs/{self.pipeline_run.id}/documents/{p.hash_id}/original.pdf"
-                default_storage.save(pdf_path, ContentFile(b"%PDF-1.4 Mock Binary Data"))
-                p.original_pdf_path = pdf_path
-                p.save(update_fields=['original_pdf_path'])
+                from research_intelligence.tasks.step_2_download.pdf_cache import try_reuse_cached_pdf, register_document_pdf
+                cache_hit = try_reuse_cached_pdf(p, pdf_path)
+                if not cache_hit:
+                    default_storage.save(pdf_path, ContentFile(pdf_bytes))
+                    p.original_pdf_path = pdf_path
+                    p.save(update_fields=['original_pdf_path'])
+                    register_document_pdf(p, pdf_bytes)
 
         # Trigger tick to advance
         self._tick()
@@ -230,10 +235,18 @@ class PipelineTestHarness:
 
             for idx, p in enumerate(self.papers):
                 if idx not in failed_indices and p.screening_status != 'withdrawn':
+                    md_bytes = b"# Extracted Markdown Content from Harness"
                     md_path = f"workspaces/{self.workspace.id}/runs/{self.pipeline_run.id}/documents/{p.hash_id}/ocr.md"
-                    default_storage.save(md_path, ContentFile(b"# Extracted Markdown Content"))
+                    default_storage.save(md_path, ContentFile(md_bytes))
                     p.converted_md_path = md_path
                     p.save(update_fields=['converted_md_path'])
+                    p.refresh_from_db()
+                    if p.document_registry:
+                        p.document_registry.ocr_provider = self.workspace.ocr_provider
+                        canonical_ocr_path = f"cache/documents/{p.document_registry.sha256_hash}/ocr_{self.workspace.ocr_provider}.md"
+                        default_storage.save(canonical_ocr_path, ContentFile(md_bytes))
+                        p.document_registry.canonical_ocr_md_path = canonical_ocr_path
+                        p.document_registry.save(update_fields=['ocr_provider', 'canonical_ocr_md_path'])
 
             # Trigger tick to advance
             self._tick()
@@ -241,6 +254,10 @@ class PipelineTestHarness:
             self.pipeline_run.refresh_from_db()
 
         return self
+
+    def complete_step_3_ocr(self, failed_paper_indices: list[int] | None = None) -> "PipelineTestHarness":
+        """Alias for complete_step_3_ocr_if_needed."""
+        return self.complete_step_3_ocr_if_needed(failed_paper_indices=failed_paper_indices)
 
     def complete_step_4a_abstract_screening(
         self,

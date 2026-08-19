@@ -3,6 +3,7 @@ import time
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from celery import shared_task
+from django.db.models import Q
 from django.db import connection, close_old_connections
 from django.core.files.storage import default_storage
 from django.utils import timezone

@@ -1,10 +1,25 @@
+import os
 import json
 import uuid
+import shutil
+import logging
 from django.utils import timezone
 from django.core.serializers.json import DjangoJSONEncoder
-from research_intelligence.models import PipelineRun, ComponentRun, Scraper, Workspace
+from django.core.files.storage import default_storage
+from research_intelligence.models import (
+    PipelineRun,
+    ComponentRun,
+    Scraper,
+    Workspace,
+    Paper,
+    Extraction,
+    PaperMetric,
+    NarrativeReport,
+)
 from research_intelligence.tasks.step_1_search.search import execute_scraper_run_job
 from .workspaces import _check_workspace_access
+
+logger = logging.getLogger(__name__)
 
 
 def trigger_search_job_logic(
@@ -889,17 +904,17 @@ def delete_pipeline_run_logic(user, pipeline_run_id: str) -> str:
     run_storage_dir = f"workspaces/{workspace.id}/runs/{pipeline_run.id}"
     deleted_files_count = _recursive_delete_run_storage(run_storage_dir)
 
-    # Extra safety check for any papers whose paths might have been saved outside the run folder:
+    # Extra safety check: only delete paths strictly inside this run's directory
+    # NEVER delete paths outside this run directory (e.g. global cache/documents/ or other workspaces/runs)
     for paper in papers_qs.iterator():
         for path in (paper.original_pdf_path, paper.converted_md_path):
-            if path and not (path.startswith("http://") or path.startswith("https://")):
+            if path and path.startswith(run_storage_dir):
                 try:
                     if default_storage.exists(path):
                         default_storage.delete(path)
                         deleted_files_count += 1
                 except Exception as e:
-                    import logging
-                    logging.getLogger(__name__).warning(f"Failed deleting storage file {path}: {e}")
+                    logger.warning(f"Failed deleting storage file '{path}': {e}")
 
     pr_id_str = str(pipeline_run.id)
     ws_id_str = str(workspace.id)

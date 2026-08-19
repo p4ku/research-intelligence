@@ -138,3 +138,91 @@ class StoragePurgeAndDeleteLifecycleTestCase(TestCase):
 
         # Verify storage purged
         self.assertFalse(default_storage.exists(agent_file_path))
+
+    def test_delete_run_preserves_document_registry_and_other_workspaces_files(self):
+        """
+        Validates that deleting Workspace 1's PipelineRun ONLY purges Workspace 1's folder.
+        The global DocumentRegistry canonical files and Workspace 2's documents MUST REMAIN INTACT.
+        """
+        from research_intelligence.models import DocumentRegistry
+        from research_intelligence.tasks.step_2_download.pdf_cache import register_document_pdf, try_reuse_cached_pdf
+
+        pdf_binary = b"%PDF-1.4 Shared Quantum Review Document" * 40
+
+        # 1. Workspace 1 (Run 10) downloads and registers paper
+        ws1 = self.workspace
+        run10 = PipelineRun.objects.create(workspace=ws1, triggered_by=self.admin_user, status="completed")
+        ws1_file_path = default_storage.save(
+            f"workspaces/{ws1.id}/runs/{run10.id}/documents/doc_shared_01/original.pdf",
+            ContentFile(pdf_binary)
+        )
+        paper_ws1 = Paper.objects.create(
+            workspace=ws1,
+            pipeline_run=run10,
+            hash_id="doc_shared_01",
+            doi="10.1103/PhysRevLett.130.010401",
+            arxiv_id="2401.33333",
+            title="Shared Quantum Fault Tolerance Paper",
+            original_pdf_path=ws1_file_path,
+            source_database="arxiv"
+        )
+        doc_reg = register_document_pdf(paper_ws1, pdf_binary)
+        canonical_cache_path = doc_reg.canonical_pdf_path
+
+        # 2. Workspace 2 (Run 20) reuses the paper via DocumentRegistry fastpath
+        ws2 = Workspace.objects.create(name="Second Independent Workspace")
+        run20 = PipelineRun.objects.create(workspace=ws2, triggered_by=self.admin_user, status="running")
+        paper_ws2 = Paper.objects.create(
+            workspace=ws2,
+            pipeline_run=run20,
+            hash_id="doc_shared_ws2",
+            arxiv_id="2401.33333",
+            title="Shared Quantum Fault Tolerance Paper (WS2)",
+            original_pdf_path="https://arxiv.org/pdf/2401.33333.pdf",
+            source_database="arxiv"
+        )
+        ws2_target_path = f"workspaces/{ws2.id}/runs/{run20.id}/documents/doc_shared_ws2/original.pdf"
+        reuse_res = try_reuse_cached_pdf(paper_ws2, ws2_target_path)
+        self.assertIsNotNone(reuse_res)
+        self.assertTrue(reuse_res["cache_hit"])
+        self.assertTrue(default_storage.exists(ws2_target_path))
+
+        # 3. Purge Workspace 1's PipelineRun
+        res_str = delete_pipeline_run_logic(self.admin_user, str(run10.id))
+        res = json.loads(res_str)
+        self.assertEqual(res["status"], "success")
+
+        # 4. Critical Isolation Verifications:
+        # A. Workspace 1 run folder and paper records are deleted
+        self.assertFalse(PipelineRun.objects.filter(id=run10.id).exists())
+        self.assertFalse(Paper.objects.filter(id=paper_ws1.id).exists())
+        self.assertFalse(default_storage.exists(ws1_file_path))
+
+        # B. Global DocumentRegistry record and canonical storage file MUST STILL EXIST
+        self.assertTrue(DocumentRegistry.objects.filter(id=doc_reg.id).exists())
+        self.assertTrue(default_storage.exists(canonical_cache_path))
+
+        # C. Workspace 2 storage file and Paper record MUST REMAIN FULLY INTACT
+        self.assertTrue(Paper.objects.filter(id=paper_ws2.id).exists())
+        self.assertTrue(default_storage.exists(ws2_target_path))
+        paper_ws2.refresh_from_db()
+        self.assertEqual(paper_ws2.original_pdf_path, ws2_target_path)
+
+        # D. A NEW Workspace 3 can still reuse the document from DocumentRegistry with 0 network calls
+        ws3 = Workspace.objects.create(name="Third Workspace")
+        run30 = PipelineRun.objects.create(workspace=ws3, triggered_by=self.admin_user, status="running")
+        paper_ws3 = Paper.objects.create(
+            workspace=ws3,
+            pipeline_run=run30,
+            hash_id="doc_shared_ws3",
+            arxiv_id="2401.33333",
+            title="Shared Quantum Fault Tolerance Paper (WS3)",
+            original_pdf_path="https://arxiv.org/pdf/2401.33333.pdf",
+            source_database="arxiv"
+        )
+        ws3_target_path = f"workspaces/{ws3.id}/runs/{run30.id}/documents/doc_shared_ws3/original.pdf"
+        ws3_reuse_res = try_reuse_cached_pdf(paper_ws3, ws3_target_path)
+        self.assertIsNotNone(ws3_reuse_res)
+        self.assertTrue(ws3_reuse_res["cache_hit"])
+        self.assertTrue(default_storage.exists(ws3_target_path))
+

@@ -1,5 +1,6 @@
 import base64
 import json
+import uuid
 import logging
 import mimetypes
 import os

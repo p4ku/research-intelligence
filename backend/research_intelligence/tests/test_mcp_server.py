@@ -2,6 +2,8 @@ import json
 from unittest.mock import patch, MagicMock
 from django.test import TestCase, override_settings
 from django.contrib.auth import get_user_model
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 from research_intelligence.models import Workspace, WorkspaceMember, APIKey, Scraper
 from research_intelligence.mcp.tools import (
     create_workspace_logic,
