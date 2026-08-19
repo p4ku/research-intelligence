@@ -10,6 +10,7 @@ from research_intelligence.models import (
     ExtractionDefinition,
     PipelineRun,
     ComponentRun,
+    Paper,
     ResearchAgentProcess,
     Subscriber,
 )
@@ -38,6 +39,24 @@ class ResearchAgentProcessTest(TestCase):
             "decision_category": "ACCEPTED"
         }
         self.addCleanup(self.patcher.stop)
+
+        self.arxiv_patcher = patch("research_intelligence.scrapers.arxiv.ArxivScraperProvider.search")
+        self.mock_arxiv_search = self.arxiv_patcher.start()
+        self.mock_arxiv_search.return_value = [
+            {
+                "title": "Mock ArXiv AI Paper",
+                "authors": "Mock Author",
+                "abstract": "Mock Abstract for AI testing",
+                "hash_id": "2401.00001",
+                "pdf_url": "https://arxiv.org/pdf/2401.00001.pdf",
+                "other_url": "https://arxiv.org/abs/2401.00001",
+                "source_database": "arxiv",
+                "published_date": "2026-01-01",
+                "is_withdrawn": False,
+                "withdrawn_reason": ""
+            }
+        ]
+        self.addCleanup(self.arxiv_patcher.stop)
 
         self.tick_patcher = patch("research_intelligence.tasks.orchestrator.agent_engine.run_agent_process_tick.delay")
         self.mock_tick_delay = self.tick_patcher.start()
@@ -96,6 +115,15 @@ class ResearchAgentProcessTest(TestCase):
         comp_search = ComponentRun.objects.get(pipeline_run=pr, step_type="search")
         comp_search.status = "completed"
         comp_search.save()
+        Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=pr,
+            hash_id="test_paper_1",
+            title="Test AI Paper",
+            authors="Test Author",
+            abstract="Test Abstract",
+            source_database="arxiv"
+        )
 
         # Step 2: Search -> Download
         res2 = tick_agent_process(str(agent.id))
@@ -380,6 +408,15 @@ class ResearchAgentProcessTest(TestCase):
         comp_search = ComponentRun.objects.get(pipeline_run=pr, step_type="search")
         comp_search.status = "completed"
         comp_search.save()
+        Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=pr,
+            hash_id="test_paper_tick",
+            title="Test AI Paper Tick",
+            authors="Test Author",
+            abstract="Test Abstract",
+            source_database="arxiv"
+        )
 
         # ComponentRun completion calls notify_pipeline_orchestrator_tick
         self.mock_tick_delay.reset_mock()
@@ -403,5 +440,59 @@ class ResearchAgentProcessTest(TestCase):
         tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.current_step, "ocr")
+
+    def test_agent_process_search_step_failed_halts_process(self):
+        """
+        Tests that when a search ComponentRun fails, the agent process marks as failed and stops downstream jobs.
+        """
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Failing Search Agent",
+            status="running",
+            current_step="initialized"
+        )
+        tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "search")
+
+        # Mark search component run as failed
+        comp_search = ComponentRun.objects.get(pipeline_run=agent.pipeline_run, step_type="search")
+        comp_search.status = "failed"
+        comp_search.error_message = "Error querying arXiv API: The read operation timed out"
+        comp_search.save()
+
+        res = tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.status, "failed")
+        self.assertIn("The read operation timed out", agent.error_message)
+        self.assertEqual(agent.pipeline_run.status, "failed")
+
+    def test_agent_process_search_zero_papers_halts_gracefully(self):
+        """
+        Tests that when search yields 0 papers, the pipeline halts gracefully without running empty downstream jobs.
+        """
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Zero Papers Agent",
+            status="running",
+            current_step="initialized"
+        )
+        tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "search")
+
+        # Mark search component run as completed with 0 papers
+        comp_search = ComponentRun.objects.get(pipeline_run=agent.pipeline_run, step_type="search")
+        comp_search.status = "completed"
+        comp_search.save()
+        agent.pipeline_run.papers.all().delete()
+
+        res = tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.status, "completed")
+        self.assertEqual(agent.current_step, "completed")
+        self.assertIn("0 papers were found", agent.step_history[-1]["message"])
+        self.assertEqual(agent.pipeline_run.status, "completed")
+
 
 

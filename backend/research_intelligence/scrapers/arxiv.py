@@ -2,6 +2,7 @@ import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
 import logging
+import time
 from .base import BaseScraperProvider
 
 logger = logging.getLogger(__name__)
@@ -12,30 +13,54 @@ class ArxivScraperProvider(BaseScraperProvider):
     """
 
     def search(self, query: str, limit: int = 10, sort_by: str = "relevance", sort_order: str = "desc") -> list[dict]:
-        # Simple query string parsing. Remove complex quotes if present.
-        clean_query = query.replace('"', '').replace("'", "")
-        # Remove invalid prefixes like 'arxiv:' if passed in query_prefix
-        clean_query = clean_query.replace("arxiv:", "").strip()
-        
-        # If clean_query already contains field specifiers (cat:, ti:, au:, all:), do not double prefix
-        if any(clean_query.startswith(prefix) for prefix in ["cat:", "ti:", "au:", "all:", "abs:"]):
+        clean_query = query.strip()
+        if clean_query.lower().startswith("arxiv:"):
+            clean_query = clean_query[6:].strip()
+
+        # Check if query already contains field specifiers or boolean operators
+        has_field_prefixes = any(p in clean_query for p in ["cat:", "ti:", "au:", "all:", "abs:", "submittedDate:", "jr:"])
+        has_boolean_operators = any(b in clean_query for b in [" AND ", " OR ", " NOT "]) or clean_query.startswith("(")
+
+        if has_field_prefixes or has_boolean_operators:
             formatted_query = clean_query
         else:
-            formatted_query = f'all:{clean_query}'
-            
+            # Strip quotes if wrapping as all:"..."
+            raw = clean_query.replace('"', '').replace("'", "")
+            formatted_query = f'all:"{raw}"' if " " in raw else f'all:{raw}'
+
         encoded_query = urllib.parse.quote(formatted_query)
         sort_by_param = "submittedDate" if sort_by == "date" else "relevance"
         sort_order_param = "ascending" if sort_order == "asc" else "descending"
-        url = f"http://export.arxiv.org/api/query?search_query={encoded_query}&max_results={limit}&sortBy={sort_by_param}&sortOrder={sort_order_param}"
-        
+        url = f"https://export.arxiv.org/api/query?search_query={encoded_query}&max_results={limit}&sortBy={sort_by_param}&sortOrder={sort_order_param}"
+
+        max_retries = 3
+        timeout_sec = 30
+        xml_data = None
+        last_exc = None
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                req = urllib.request.Request(
+                    url,
+                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) SchwarzResearchIntelligence/1.0'}
+                )
+                with urllib.request.urlopen(req, timeout=timeout_sec) as response:
+                    xml_data = response.read()
+                break
+            except Exception as e:
+                last_exc = e
+                if attempt < max_retries:
+                    delay = 2 * attempt
+                    logger.warning(f"⚠️ [ARXIV RETRY {attempt}/{max_retries}] Error querying arXiv API: {e}. Retrying in {delay}s...")
+                    time.sleep(delay)
+                else:
+                    logger.error(f"❌ [ARXIV FAILED] Error querying arXiv API after {max_retries} attempts: {e}")
+                    raise e
+
+        if not xml_data:
+            return []
+
         try:
-            req = urllib.request.Request(
-                url, 
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
-            )
-            with urllib.request.urlopen(req, timeout=10) as response:
-                xml_data = response.read()
-            
             root = ET.fromstring(xml_data)
             entry_tag = "{http://www.w3.org/2005/Atom}entry"
             title_tag = "{http://www.w3.org/2005/Atom}title"
@@ -45,25 +70,25 @@ class ArxivScraperProvider(BaseScraperProvider):
             author_tag = "{http://www.w3.org/2005/Atom}author"
             name_tag = "{http://www.w3.org/2005/Atom}name"
             link_tag = "{http://www.w3.org/2005/Atom}link"
-            
+
             results = []
             for entry in root.findall(entry_tag):
                 title = entry.find(title_tag).text.strip().replace("\n", " ") if entry.find(title_tag) is not None else "Unknown Title"
                 summary = entry.find(summary_tag).text.strip() if entry.find(summary_tag) is not None else ""
                 raw_id = entry.find(id_tag).text.strip() if entry.find(id_tag) is not None else ""
                 published = entry.find(published_tag).text.strip() if entry.find(published_tag) is not None else ""
-                
+
                 hash_id = raw_id.split('/abs/')[-1] if '/abs/' in raw_id else raw_id
                 # Remove version suffixes if present
                 clean_hash_id = hash_id.split('v')[0] if 'v' in hash_id else hash_id
-                
+
                 authors_list = []
                 for author in entry.findall(author_tag):
                     name_el = author.find(name_tag)
                     if name_el is not None:
                         authors_list.append(name_el.text.strip())
                 authors = ", ".join(authors_list)
-                
+
                 pdf_url = ""
                 other_url = raw_id
                 for link in entry.findall(link_tag):
@@ -74,10 +99,10 @@ class ArxivScraperProvider(BaseScraperProvider):
                         pdf_url = href
                     elif href and href.endswith(".pdf"):
                         pdf_url = href
-                
+
                 if not pdf_url and clean_hash_id:
                     pdf_url = f"https://arxiv.org/pdf/{clean_hash_id}.pdf"
-                
+
                 comment_tag = "{http://arxiv.org/schemas/atom}comment"
                 comment_el = entry.find(comment_tag)
                 comment_text = comment_el.text.strip() if comment_el is not None and comment_el.text else ""
@@ -103,8 +128,8 @@ class ArxivScraperProvider(BaseScraperProvider):
                 })
             return results
         except Exception as e:
-            logger.exception(f"Error querying arXiv API: {str(e)}")
-            return []
+            logger.exception(f"Error parsing arXiv XML response: {str(e)}")
+            raise e
 
     def download_file(self, url: str) -> bytes:
         urls_to_try = [url]

@@ -243,6 +243,28 @@ def tick_agent_process(process_id: str) -> dict:
         if search_runs.filter(status__in=['pending', 'running']).exists():
             return {"success": True, "status": process.status, "current_step": "search", "message": "Search jobs still running."}
 
+        # Check for failures in search component runs
+        failed_search_runs = search_runs.filter(status='failed')
+        if failed_search_runs.exists():
+            error_msg = "; ".join([r.error_message for r in failed_search_runs if r.error_message]) or "Search scraper job failed."
+            logger.error(f"Agent '{process.name}': Search failed with error: {error_msg}")
+            process.status = 'failed'
+            process.error_message = error_msg
+            process.completed_at = timezone.now()
+            history.append({
+                "step": "search",
+                "event": "failed",
+                "error": error_msg,
+                "timestamp": timezone.now().isoformat()
+            })
+            process.step_history = history
+            process.save(update_fields=['status', 'error_message', 'completed_at', 'step_history', 'updated_at'])
+
+            pipeline_run.status = 'failed'
+            pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'completed_at'])
+            return {"success": False, "status": "failed", "error": error_msg}
+
         # Check papers ingested
         papers_count = pipeline_run.papers.count()
         history.append({
@@ -253,7 +275,28 @@ def tick_agent_process(process_id: str) -> dict:
         })
 
         if papers_count == 0:
-            logger.warning(f"Agent '{process.name}': 0 papers fetched during search step.")
+            msg = f"Search completed but 0 papers were found matching criteria for workspace '{workspace.name}'. Halting pipeline."
+            logger.warning(f"Agent '{process.name}': {msg}")
+            process.status = 'completed'
+            process.current_step = 'completed'
+            process.completed_at = timezone.now()
+            history.append({
+                "step": "search",
+                "event": "halted_zero_papers",
+                "papers_fetched": 0,
+                "message": msg,
+                "timestamp": timezone.now().isoformat()
+            })
+            process.step_history = history
+            process.save(update_fields=['status', 'current_step', 'completed_at', 'step_history', 'updated_at'])
+
+            pipeline_run.status = 'completed'
+            pipeline_run.current_stage = 'completed'
+            pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'current_stage', 'completed_at'])
+
+            _send_agent_notification(process)
+            return {"success": True, "status": "completed", "current_step": "completed", "message": msg}
 
         # Transition to Download
         pipeline_run.current_stage = 'download'
@@ -283,7 +326,7 @@ def tick_agent_process(process_id: str) -> dict:
             "success": True,
             "status": process.status,
             "current_step": process.current_step,
-            "message": f"Transitioned to 'download'. Launched PDF download job."
+            "message": f"Transitioned to 'download'. Launched PDF download job for {papers_count} paper(s)."
         }
 
     # 3. State: DOWNLOAD -> Check completion, launch Step 3 (OCR if configured) or Step 4 (Screening)
