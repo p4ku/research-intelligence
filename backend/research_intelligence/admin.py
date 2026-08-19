@@ -20,6 +20,7 @@ from research_intelligence.models import (
     NarrativeReport,
     HITLCorrection,
     UserActivityLog,
+    ResearchAgentProcess,
 )
 
 
@@ -434,6 +435,8 @@ class PipelineRunAdmin(admin.ModelAdmin):
     readonly_fields = ('started_at', 'completed_at')
     inlines = [ComponentRunInline]
 
+    actions = ['run_full_pipeline']
+
     def status_badge(self, obj):
         colors = {
             'pending': '#6c757d',
@@ -461,6 +464,138 @@ class PipelineRunAdmin(admin.ModelAdmin):
         text_color = '#000000' if bg == '#ffc107' else '#ffffff'
         return render_badge(obj.get_current_stage_display(), bg, text_color)
     current_stage_badge.short_description = "Current Stage"
+
+    @admin.action(description="🚀 Launch/Advance End-to-End Autonomous Pipeline")
+    def run_full_pipeline(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+        for pr in queryset:
+            agent = pr.agent_processes.filter(status__in=['running', 'pending', 'paused']).first()
+            if not agent:
+                agent = ResearchAgentProcess.objects.create(
+                    workspace=pr.workspace,
+                    pipeline_run=pr,
+                    name=f"Autonomous Pipeline - {pr.workspace.name}",
+                    status='running',
+                    current_step=pr.current_stage if pr.current_stage != 'completed' else 'initialized'
+                )
+            tick_agent_process(str(agent.id))
+        self.message_user(request, f"Triggered autonomous pipeline orchestrator for {queryset.count()} pipeline run(s).")
+
+
+@admin.register(ResearchAgentProcess)
+class ResearchAgentProcessAdmin(admin.ModelAdmin):
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
+    list_display = (
+        'name',
+        'workspace',
+        'status_badge',
+        'current_step_badge',
+        'pipeline_run_link',
+        'started_at',
+        'completed_at'
+    )
+    list_filter = ('status', 'current_step', 'workspace')
+    search_fields = ('name', 'id', 'workspace__name')
+    readonly_fields = ('started_at', 'completed_at', 'step_history_preview')
+
+    fieldsets = (
+        ('Agent Identification', {
+            'fields': ('workspace', 'name', 'status', 'current_step', 'pipeline_run')
+        }),
+        ('Configuration & Override', {
+            'fields': ('configuration_override',)
+        }),
+        ('Audit Log & History', {
+            'fields': ('step_history_preview', 'step_history', 'error_message')
+        }),
+        ('Lifecycle', {
+            'fields': ('started_at', 'completed_at')
+        }),
+    )
+
+    actions = ['tick_selected_agents', 'pause_selected_agents', 'resume_selected_agents', 'abort_selected_agents']
+
+    def status_badge(self, obj):
+        colors = {
+            'pending': '#6c757d',
+            'running': '#0d6efd',
+            'paused': '#ffc107',
+            'completed': '#198754',
+            'failed': '#dc3545',
+            'aborted': '#495057',
+        }
+        bg = colors.get(obj.status, '#6c757d')
+        text_color = '#000000' if bg == '#ffc107' else '#ffffff'
+        return render_badge(obj.status.upper(), bg, text_color)
+    status_badge.short_description = "Status"
+
+    def current_step_badge(self, obj):
+        colors = {
+            'initialized': '#6c757d',
+            'search': '#0d6efd',
+            'download': '#0dcaf0',
+            'ocr': '#6f42c1',
+            'screening': '#ffc107',
+            'extraction': '#198754',
+            'completed': '#198754',
+            'failed': '#dc3545',
+            'aborted': '#495057',
+        }
+        bg = colors.get(obj.current_step, '#6c757d')
+        text_color = '#000000' if bg == '#ffc107' else '#ffffff'
+        return render_badge(obj.get_current_step_display(), bg, text_color)
+    current_step_badge.short_description = "Active Step"
+
+    def pipeline_run_link(self, obj):
+        if obj.pipeline_run:
+            url = reverse('admin:research_intelligence_pipelinerun_change', args=[obj.pipeline_run.id])
+            return format_html('<a href="{}"><code>{}</code></a>', url, str(obj.pipeline_run.id)[:8] + '...')
+        return "-"
+    pipeline_run_link.short_description = "Pipeline Run"
+
+    def step_history_preview(self, obj):
+        if not obj.step_history:
+            return "-"
+        items = []
+        for step in obj.step_history:
+            step_name = step.get('step', 'unknown')
+            event = step.get('event', '')
+            ts = step.get('timestamp', '')[:19].replace('T', ' ')
+            items.append(f"<li><strong>[{ts}]</strong> <code>{step_name}</code> ({event})</li>")
+        return format_html('<ul style="margin: 0; padding-left: 18px;">{}</ul>', mark_safe("".join(items)))
+    step_history_preview.short_description = "History Trail"
+
+    @admin.action(description="▶️ Advance Step / Tick Selected Agent(s)")
+    def tick_selected_agents(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+        for agent in queryset:
+            tick_agent_process(str(agent.id))
+        self.message_user(request, f"Triggered state machine tick for {queryset.count()} agent process(es).")
+
+    @admin.action(description="⏸️ Pause Selected Agent(s)")
+    def pause_selected_agents(self, request, queryset):
+        for agent in queryset.filter(status='running'):
+            agent.status = 'paused'
+            agent.save(update_fields=['status'])
+        self.message_user(request, f"Paused {queryset.count()} agent process(es).")
+
+    @admin.action(description="▶️ Resume Selected Agent(s)")
+    def resume_selected_agents(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+        for agent in queryset.filter(status='paused'):
+            agent.status = 'running'
+            agent.save(update_fields=['status'])
+            tick_agent_process(str(agent.id))
+        self.message_user(request, f"Resumed {queryset.count()} agent process(es).")
+
+    @admin.action(description="⏹️ Abort Selected Agent(s)")
+    def abort_selected_agents(self, request, queryset):
+        for agent in queryset.exclude(status__in=['completed', 'failed', 'aborted']):
+            agent.status = 'aborted'
+            agent.save(update_fields=['status'])
+        self.message_user(request, f"Aborted {queryset.count()} agent process(es).")
 
 
 @admin.register(ComponentRun)

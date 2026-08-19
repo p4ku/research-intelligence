@@ -8,6 +8,30 @@ from research_intelligence.models import Workspace, PipelineRun, ComponentRun, R
 logger = logging.getLogger(__name__)
 
 
+def notify_pipeline_orchestrator_tick(pipeline_run_id_or_obj):
+    """
+    Called whenever a ComponentRun finishes to trigger the autonomous state machine
+    for any running ResearchAgentProcesses attached to this PipelineRun.
+    """
+    if not pipeline_run_id_or_obj:
+        return
+    try:
+        if isinstance(pipeline_run_id_or_obj, str):
+            pipeline_run = PipelineRun.objects.get(pk=pipeline_run_id_or_obj)
+        else:
+            pipeline_run = pipeline_run_id_or_obj
+
+        running_agents = list(pipeline_run.agent_processes.filter(status='running'))
+        for agent_proc in running_agents:
+            try:
+                run_agent_process_tick.delay(str(agent_proc.id))
+            except Exception:
+                # In eager/test environments without background worker, do not loop synchronously
+                pass
+    except Exception as e:
+        logger.warning(f"Failed to notify orchestrator tick: {e}")
+
+
 def _send_agent_notification(agent_process: ResearchAgentProcess):
     """
     Sends an email notification with formatted metrics when an agent process completes or fails.
@@ -189,17 +213,15 @@ def tick_agent_process(process_id: str) -> dict:
                 step_type='search',
                 component_name=f"{scraper.provider}_scraper",
                 scraper=scraper,
-                status='pending',
+                status='running',
                 input_params={"limit": limit, "search_query": query, "date_range_days": config.get("date_range_days")}
             )
             try:
-                comp_run.status = 'running'
-                comp_run.save(update_fields=['status'])
                 async_res = execute_scraper_run_job.delay(str(comp_run.id), limit=limit)
                 comp_run.celery_task_id = async_res.id
                 comp_run.save(update_fields=['celery_task_id'])
             except Exception:
-                execute_scraper_run_job(str(comp_run.id), limit=limit)
+                pass
 
         return {
             "success": True,
@@ -245,19 +267,17 @@ def tick_agent_process(process_id: str) -> dict:
             pipeline_run=pipeline_run,
             step_type='download',
             component_name="pdf_downloader",
-            status='pending',
+            status='running',
             input_params={"limit": limit, "pipeline_run_id": str(pipeline_run.id)}
         )
 
         from research_intelligence.tasks.step_2_download.fetch import execute_pdf_download_job
         try:
-            comp_run.status = 'running'
-            comp_run.save(update_fields=['status'])
             async_res = execute_pdf_download_job.delay(str(comp_run.id), limit=limit)
             comp_run.celery_task_id = async_res.id
             comp_run.save(update_fields=['celery_task_id'])
         except Exception:
-            execute_pdf_download_job(str(comp_run.id), limit=limit)
+            pass
 
         return {
             "success": True,
@@ -294,18 +314,16 @@ def tick_agent_process(process_id: str) -> dict:
                 pipeline_run=pipeline_run,
                 step_type='ocr',
                 component_name=f"{workspace.ocr_provider}_ocr",
-                status='pending',
+                status='running',
                 input_params={"limit": limit, "ocr_provider": workspace.ocr_provider}
             )
             from research_intelligence.tasks.step_3_ocr.convert import execute_ocr_job
             try:
-                comp_run.status = 'running'
-                comp_run.save(update_fields=['status'])
                 async_res = execute_ocr_job.delay(str(comp_run.id), limit=limit)
                 comp_run.celery_task_id = async_res.id
                 comp_run.save(update_fields=['celery_task_id'])
             except Exception:
-                execute_ocr_job(str(comp_run.id), limit=limit)
+                pass
 
             return {
                 "success": True,
@@ -393,18 +411,16 @@ def tick_agent_process(process_id: str) -> dict:
                     pipeline_run=pipeline_run,
                     step_type='screening',
                     component_name="full_text_screening",
-                    status='pending',
+                    status='running',
                     input_params={"limit": limit, "stage": "full_text"}
                 )
                 from research_intelligence.tasks.step_4_screening.full_text import execute_full_text_screening_job
                 try:
-                    comp_run.status = 'running'
-                    comp_run.save(update_fields=['status'])
                     async_res = execute_full_text_screening_job.delay(str(comp_run.id), limit=limit)
                     comp_run.celery_task_id = async_res.id
                     comp_run.save(update_fields=['celery_task_id'])
                 except Exception:
-                    execute_full_text_screening_job(str(comp_run.id), limit=limit)
+                    pass
 
                 return {
                     "success": True,
@@ -442,19 +458,17 @@ def tick_agent_process(process_id: str) -> dict:
             pipeline_run=pipeline_run,
             step_type='extraction',
             component_name="parameter_extraction",
-            status='pending',
+            status='running',
             input_params={"limit": limit}
         )
 
         from research_intelligence.tasks.step_5_extraction.extract import execute_extraction_job
         try:
-            comp_run.status = 'running'
-            comp_run.save(update_fields=['status'])
             async_res = execute_extraction_job.delay(str(comp_run.id), limit=limit)
             comp_run.celery_task_id = async_res.id
             comp_run.save(update_fields=['celery_task_id'])
         except Exception:
-            execute_extraction_job(str(comp_run.id), limit=limit)
+            pass
 
         return {
             "success": True,
@@ -506,7 +520,7 @@ def _launch_screening_step(process, pipeline_run, workspace, config, limit):
         pipeline_run=pipeline_run,
         step_type='screening',
         component_name=comp_name,
-        status='pending',
+        status='running',
         input_params={"limit": limit, "skip_abstract_screening": skip_abstract}
     )
 
@@ -518,13 +532,11 @@ def _launch_screening_step(process, pipeline_run, workspace, config, limit):
         func = execute_screening_job
 
     try:
-        comp_run.status = 'running'
-        comp_run.save(update_fields=['status'])
         async_res = func.delay(str(comp_run.id), limit=limit)
         comp_run.celery_task_id = async_res.id
         comp_run.save(update_fields=['celery_task_id'])
     except Exception:
-        func(str(comp_run.id), limit=limit)
+        pass
 
 
 @shared_task(bind=True)

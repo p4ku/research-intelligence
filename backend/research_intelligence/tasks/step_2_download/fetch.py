@@ -210,18 +210,24 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = 50, max_w
         pending_or_running = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status__in=['pending', 'running']).exists()
         has_failed = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status='failed').exists()
         has_aborted = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status='aborted').exists()
+        is_managed_by_agent = pipeline_run.agent_processes.filter(status='running').exists()
 
-        if not pending_or_running:
+        if not pending_or_running and not is_managed_by_agent:
             if has_failed:
                 pipeline_run.status = 'failed'
             elif has_aborted:
                 pipeline_run.status = 'aborted'
-            else:
+            elif pipeline_run.current_stage == 'completed':
                 pipeline_run.status = 'completed'
-            pipeline_run.completed_at = timezone.now()
+                pipeline_run.completed_at = timezone.now()
             pipeline_run.save(update_fields=['status', 'completed_at'])
 
         logger.info(f"Completed PDF Download ComponentRun '{component_run_id}'. Downloaded: {downloaded_count}, Skipped: {skipped_count}, Failed: {failed_count}.")
+
+        # Notify autonomous orchestrator to advance to next step
+        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+        notify_pipeline_orchestrator_tick(pipeline_run)
+
         return True
 
     except Exception as e:
@@ -233,6 +239,10 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = 50, max_w
 
         pipeline_run.status = 'failed'
         pipeline_run.save(update_fields=['status'])
+
+        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+        notify_pipeline_orchestrator_tick(pipeline_run)
+
         return False
 
 

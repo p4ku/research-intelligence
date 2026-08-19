@@ -201,10 +201,24 @@ def execute_ocr_job(self, component_run_id: str, limit: int = 50, max_workers: i
 
         pipeline_run.refresh_from_db()
         pending_or_running = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status__in=['pending', 'running']).exists()
-        if not pending_or_running:
-            pipeline_run.status = 'completed'
-            pipeline_run.completed_at = timezone.now()
+        has_failed = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status='failed').exists()
+        has_aborted = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status='aborted').exists()
+        is_managed_by_agent = pipeline_run.agent_processes.filter(status='running').exists()
+
+        if not pending_or_running and not is_managed_by_agent:
+            if has_failed:
+                pipeline_run.status = 'failed'
+            elif has_aborted:
+                pipeline_run.status = 'aborted'
+            elif pipeline_run.current_stage == 'completed':
+                pipeline_run.status = 'completed'
+                pipeline_run.completed_at = timezone.now()
             pipeline_run.save(update_fields=['status', 'completed_at'])
+
+        # Notify autonomous orchestrator to advance to next step
+        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+        notify_pipeline_orchestrator_tick(pipeline_run)
+
         return True
     except Exception as e:
         logger.exception(f"Fatal error in execute_ocr_job '{component_run_id}': {e}")
@@ -212,4 +226,11 @@ def execute_ocr_job(self, component_run_id: str, limit: int = 50, max_workers: i
         component_run.error_message = str(e)
         component_run.completed_at = timezone.now()
         component_run.save(update_fields=['status', 'error_message', 'completed_at'])
+
+        pipeline_run.status = 'failed'
+        pipeline_run.save(update_fields=['status'])
+
+        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+        notify_pipeline_orchestrator_tick(pipeline_run)
+
         return False

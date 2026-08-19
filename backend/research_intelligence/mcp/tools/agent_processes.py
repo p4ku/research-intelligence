@@ -215,14 +215,14 @@ def pause_research_agent_logic(user, process_id: str) -> str:
         p_uuid = uuid.UUID(process_id)
         process = ResearchAgentProcess.objects.select_related('workspace').get(id=p_uuid)
     except (ValueError, ResearchAgentProcess.DoesNotExist):
-        return f"Error: ResearchAgentProcess '{process_id}' not found."
+        return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
     workspace, membership, error = _check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
     if error:
-        return error
+        return json.dumps({"status": "error", "error": error}, indent=2)
 
     if process.status != 'running':
-        return f"Error: Agent process is in status '{process.status}' and cannot be paused."
+        return json.dumps({"status": "error", "error": f"Agent process is in status '{process.status}' and cannot be paused."}, indent=2)
 
     process.status = 'paused'
     history = process.step_history or []
@@ -251,14 +251,14 @@ def resume_research_agent_logic(user, process_id: str) -> str:
         p_uuid = uuid.UUID(process_id)
         process = ResearchAgentProcess.objects.select_related('workspace').get(id=p_uuid)
     except (ValueError, ResearchAgentProcess.DoesNotExist):
-        return f"Error: ResearchAgentProcess '{process_id}' not found."
+        return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
     workspace, membership, error = _check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
     if error:
-        return error
+        return json.dumps({"status": "error", "error": error}, indent=2)
 
     if process.status != 'paused':
-        return f"Error: Agent process is in status '{process.status}' and cannot be resumed."
+        return json.dumps({"status": "error", "error": f"Agent process is in status '{process.status}' and cannot be resumed."}, indent=2)
 
     process.status = 'running'
     history = process.step_history or []
@@ -292,11 +292,11 @@ def abort_research_agent_logic(user, process_id: str) -> str:
         p_uuid = uuid.UUID(process_id)
         process = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').get(id=p_uuid)
     except (ValueError, ResearchAgentProcess.DoesNotExist):
-        return f"Error: ResearchAgentProcess '{process_id}' not found."
+        return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
     workspace, membership, error = _check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
     if error:
-        return error
+        return json.dumps({"status": "error", "error": error}, indent=2)
 
     # Abort attached pipeline run jobs if running
     if process.pipeline_run:
@@ -331,11 +331,11 @@ def delete_research_agent_logic(user, process_id: str) -> str:
         p_uuid = uuid.UUID(process_id)
         process = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').get(id=p_uuid)
     except (ValueError, ResearchAgentProcess.DoesNotExist):
-        return f"Error: ResearchAgentProcess '{process_id}' not found."
+        return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
     workspace, membership, error = _check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
     if error:
-        return error
+        return json.dumps({"status": "error", "error": error}, indent=2)
 
     process_name = process.name
     pr_id = str(process.pipeline_run.id) if process.pipeline_run else None

@@ -39,6 +39,10 @@ class ResearchAgentProcessTest(TestCase):
         }
         self.addCleanup(self.patcher.stop)
 
+        self.tick_patcher = patch("research_intelligence.tasks.orchestrator.agent_engine.run_agent_process_tick.delay")
+        self.mock_tick_delay = self.tick_patcher.start()
+        self.addCleanup(self.tick_patcher.stop)
+
         self.user = User.objects.create_user(username="agent_user", email="agent_user@example.com", password="password123")
         self.workspace = Workspace.objects.create(
             name="Autonomous Agent Workspace",
@@ -352,4 +356,52 @@ class ResearchAgentProcessTest(TestCase):
         self.assertIn("[COMPLETED]", sent_email.subject)
         self.assertIn("Notification Test Agent", sent_email.body)
         self.assertIn("1,500", sent_email.body)
+
+    def test_autonomous_task_completion_notifies_orchestrator_tick(self):
+        """
+        Tests that calling notify_pipeline_orchestrator_tick automatically triggers run_agent_process_tick.delay.
+        """
+        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Autonomous Trigger Agent",
+            status="running",
+            current_step="initialized",
+            configuration_override={"limit": 5}
+        )
+
+        # Initialized -> Search
+        tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "search")
+        pr = agent.pipeline_run
+
+        # Simulate Search ComponentRun finishing
+        comp_search = ComponentRun.objects.get(pipeline_run=pr, step_type="search")
+        comp_search.status = "completed"
+        comp_search.save()
+
+        # ComponentRun completion calls notify_pipeline_orchestrator_tick
+        self.mock_tick_delay.reset_mock()
+        notify_pipeline_orchestrator_tick(pr)
+        self.mock_tick_delay.assert_called_once_with(str(agent.id))
+
+        # Executing the tick advances state to download
+        tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "download")
+
+        # Simulate Download ComponentRun finishing
+        comp_download = ComponentRun.objects.get(pipeline_run=pr, step_type="download")
+        comp_download.status = "completed"
+        comp_download.save()
+
+        self.mock_tick_delay.reset_mock()
+        notify_pipeline_orchestrator_tick(pr)
+        self.mock_tick_delay.assert_called_once_with(str(agent.id))
+
+        tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "ocr")
+
 

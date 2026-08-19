@@ -71,22 +71,28 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
 
         return Response(res_data, status=status.HTTP_200_OK)
 
+    def _parse_mcp_response(self, res_json):
+        try:
+            return json.loads(res_json)
+        except Exception:
+            return {"message": str(res_json)}
+
     @action(detail=True, methods=['post'])
     def pause(self, request, pk=None):
         res_json = pause_research_agent_logic(request.user, str(pk))
-        return Response(json.loads(res_json))
+        return Response(self._parse_mcp_response(res_json))
 
     @action(detail=True, methods=['post'])
     def resume(self, request, pk=None):
         res_json = resume_research_agent_logic(request.user, str(pk))
-        return Response(json.loads(res_json))
+        return Response(self._parse_mcp_response(res_json))
 
     @action(detail=True, methods=['post'])
     def abort(self, request, pk=None):
         res_json = abort_research_agent_logic(request.user, str(pk))
-        return Response(json.loads(res_json))
+        return Response(self._parse_mcp_response(res_json))
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         res_json = delete_research_agent_logic(request.user, str(instance.id))
-        return Response(json.loads(res_json), status=status.HTTP_200_OK)
+        return Response(self._parse_mcp_response(res_json), status=status.HTTP_200_OK)

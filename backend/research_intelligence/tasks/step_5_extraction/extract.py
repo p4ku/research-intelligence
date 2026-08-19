@@ -372,17 +372,24 @@ def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_wor
         pending_or_running = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status__in=['pending', 'running']).exists()
         has_failed = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status='failed').exists()
         has_aborted = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status='aborted').exists()
+        is_managed_by_agent = pipeline_run.agent_processes.filter(status='running').exists()
 
-        if not pending_or_running:
+        if not pending_or_running and not is_managed_by_agent:
             if has_failed:
                 pipeline_run.status = 'failed'
             elif has_aborted:
                 pipeline_run.status = 'aborted'
             else:
                 pipeline_run.status = 'completed'
-            pipeline_run.completed_at = timezone.now()
+                pipeline_run.completed_at = timezone.now()
             pipeline_run.save(update_fields=['status', 'completed_at'])
+
         logger.info(f"🎉 [EXTRACTION COMPLETE] ComponentRun '{component_run_id}' finished in {job_duration_sec}s. Succeeded: {succeeded_count}, Failed: {failed_count}, Tokens: {total_tokens}")
+
+        # Notify autonomous orchestrator to advance to completed state
+        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+        notify_pipeline_orchestrator_tick(pipeline_run)
+
         return True
 
     except Exception as e:
@@ -394,6 +401,10 @@ def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_wor
 
         pipeline_run.status = 'failed'
         pipeline_run.save(update_fields=['status'])
+
+        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+        notify_pipeline_orchestrator_tick(pipeline_run)
+
         return False
 
 
