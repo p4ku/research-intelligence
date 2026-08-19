@@ -357,6 +357,7 @@ def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_wor
         component_run.metrics["usd_cost"] = float(cost)
 
         # Aggregate tokens and cost to PipelineRun
+        pipeline_run.refresh_from_db()
         pipeline_run.tokens_in = (pipeline_run.tokens_in or 0) + total_prompt_tokens
         pipeline_run.tokens_out = (pipeline_run.tokens_out or 0) + total_candidates_tokens
         pipeline_run.tokens_consumed = (pipeline_run.tokens_consumed or 0) + total_tokens
