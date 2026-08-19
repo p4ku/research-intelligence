@@ -8,7 +8,7 @@ from django.db import connection, close_old_connections
 from django.utils import timezone
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
-from ...models import Workspace, Paper, PipelineRun, ComponentRun
+from ...models import Workspace, Paper, PipelineRun, ComponentRun, DocumentRegistry
 from ...ocr_providers.factory import get_ocr_provider
 
 logger = logging.getLogger(__name__)
@@ -19,6 +19,7 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
     """
     Downloads the paper PDF from storage, parses it into text using the Workspace's configured OCR provider,
     and saves the resulting layout (Markdown or HTML) back to storage.
+    Leverages DocumentRegistry for Zero-Compute OCR Fastpath reuse.
     """
     try:
         paper = paper_obj or Paper.objects.get(pk=paper_id)
@@ -37,14 +38,48 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
         elif paper.workspace_id and paper.hash_id:
             target_path = f"workspaces/{paper.workspace.id}/documents/{paper.hash_id}/ocr.md"
         else:
-            target_path = f"workspaces/{paper.workspace_id}/documents/{paper.id}/ocr.md"
+            target_path = f"workspaces/{paper.workspace.id}/documents/{paper.id}/ocr.md"
 
         if default_storage.exists(target_path):
             paper.converted_md_path = target_path
             paper.save(update_fields=['converted_md_path'])
             return {"success": True, "already_exists": True, "storage_path": target_path}
 
-        logger.info(f"Starting OCR conversion for paper {paper.id} from {paper.original_pdf_path} using {paper.workspace.ocr_provider}")
+        ocr_provider_name = paper.workspace.ocr_provider or "pypdf"
+
+        # Check DocumentRegistry OCR Cache (Zero-Compute Fastpath)
+        doc_reg = paper.document_registry
+        if not doc_reg and paper.hash_id:
+            doc_reg = DocumentRegistry.objects.filter(sha256_hash=paper.hash_id).first()
+
+        if (
+            doc_reg
+            and doc_reg.ocr_provider == ocr_provider_name
+            and doc_reg.canonical_ocr_md_path
+            and default_storage.exists(doc_reg.canonical_ocr_md_path)
+        ):
+            try:
+                with default_storage.open(doc_reg.canonical_ocr_md_path, 'rb') as ocr_file:
+                    cached_md_bytes = ocr_file.read()
+                if cached_md_bytes and len(cached_md_bytes) > 0:
+                    saved_path = default_storage.save(target_path, ContentFile(cached_md_bytes))
+                    paper.converted_md_path = saved_path
+                    paper.save(update_fields=['converted_md_path'])
+                    logger.info(
+                        f"⚡ [OCR CACHE HIT] Reused cached Markdown from DocumentRegistry "
+                        f"({doc_reg.canonical_ocr_md_path}) for paper {paper.id}",
+                    )
+                    return {
+                        "success": True,
+                        "already_exists": True,
+                        "cache_hit": True,
+                        "storage_path": saved_path,
+                        "character_count": len(cached_md_bytes)
+                    }
+            except Exception as cache_err:
+                logger.warning(f"Failed to read cached OCR from {doc_reg.canonical_ocr_md_path}: {cache_err}")
+
+        logger.info(f"Starting OCR conversion for paper {paper.id} from {paper.original_pdf_path} using {ocr_provider_name}")
 
         # 1. Download PDF to a local temporary file
         with default_storage.open(paper.original_pdf_path, 'rb') as pdf_file:
@@ -59,7 +94,7 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
         converted_content = None
         for attempt in range(1, max_attempts + 1):
             try:
-                provider = get_ocr_provider(paper.workspace.ocr_provider)
+                provider = get_ocr_provider(ocr_provider_name)
                 converted_content = provider.convert(temp_pdf_path, title=paper.title, output_format=output_format)
                 if converted_content:
                     break
@@ -81,9 +116,17 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
         # 3. Save converted output to storage
         saved_path = default_storage.save(target_path, ContentFile(converted_content.encode("utf-8")))
 
-        # 4. Update Paper model
+        # 4. Update Paper model & DocumentRegistry OCR Cache
         paper.converted_md_path = saved_path
         paper.save(update_fields=['converted_md_path'])
+
+        if doc_reg:
+            canonical_ocr_path = f"cache/documents/{doc_reg.sha256_hash}/ocr_{ocr_provider_name}.md"
+            if not default_storage.exists(canonical_ocr_path):
+                default_storage.save(canonical_ocr_path, ContentFile(converted_content.encode("utf-8")))
+            doc_reg.ocr_provider = ocr_provider_name
+            doc_reg.canonical_ocr_md_path = canonical_ocr_path
+            doc_reg.save(update_fields=['ocr_provider', 'canonical_ocr_md_path'])
 
         logger.info(f"Successfully converted paper {paper.id} to Markdown at {saved_path}")
         return {"success": True, "already_exists": False, "storage_path": saved_path, "character_count": len(converted_content)}

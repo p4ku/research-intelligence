@@ -14,6 +14,7 @@ from research_intelligence.models import (
     ExtractionDefinition,
     PipelineRun,
     ComponentRun,
+    DocumentRegistry,
     Paper,
     Extraction,
     PaperMetric,
@@ -1011,6 +1012,45 @@ class UserActivityLogAdmin(admin.ModelAdmin):
         return f"{obj.execution_time_ms:.1f} ms"
     execution_duration_fmt.short_description = "Duration"
     execution_duration_fmt.admin_order_field = "execution_time_ms"
+
+
+@admin.register(DocumentRegistry)
+class DocumentRegistryAdmin(admin.ModelAdmin):
+    list_display = (
+        'title_snippet',
+        'doi',
+        'arxiv_id',
+        'primary_source',
+        'file_size_formatted',
+        'ocr_status_badge',
+        'access_count_badge',
+        'last_accessed_at',
+    )
+    search_fields = ('title', 'doi', 'arxiv_id', 'sha256_hash', 'canonical_pdf_path')
+    list_filter = ('primary_source', 'ocr_provider', 'first_ingested_at', 'last_accessed_at')
+    readonly_fields = ('id', 'sha256_hash', 'first_ingested_at', 'last_accessed_at', 'access_count')
+
+    def title_snippet(self, obj):
+        return obj.title[:60] + "..." if len(obj.title) > 60 else obj.title
+    title_snippet.short_description = "Title"
+
+    def file_size_formatted(self, obj):
+        kb = obj.pdf_file_size_bytes / 1024
+        if kb > 1024:
+            return f"{kb / 1024:.2f} MB"
+        return f"{kb:.1f} KB"
+    file_size_formatted.short_description = "PDF Size"
+
+    def ocr_status_badge(self, obj):
+        if obj.canonical_ocr_md_path:
+            return format_html(f'<span style="background-color: #28a745; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px;">{obj.ocr_provider or "OCR OK"}</span>')
+        return format_html('<span style="color: #6c757d; font-size: 11px;">No OCR</span>')
+    ocr_status_badge.short_description = "OCR Layout"
+
+    def access_count_badge(self, obj):
+        color = "#17a2b8" if obj.access_count > 1 else "#6c757d"
+        return format_html(f'<span style="background-color: {color}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px;">⚡ {obj.access_count} hits</span>')
+    access_count_badge.short_description = "Reused"
 
 
 # Customize Admin Portal Branding Header & Titles

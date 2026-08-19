@@ -10,7 +10,7 @@ from django.core.files.base import ContentFile
 
 from ...models import Workspace, Paper, PipelineRun, ComponentRun
 from ...scrapers import get_scraper_provider
-from .pdf_cache import try_reuse_cached_pdf
+from .pdf_cache import try_reuse_cached_pdf, register_document_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -83,16 +83,18 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
                 saved_path = default_storage.save(target_path, ContentFile(file_bytes))
                 paper.original_pdf_path = saved_path
                 paper.save(update_fields=['original_pdf_path'])
+                doc_reg = register_document_pdf(paper, file_bytes)
                 size_bytes = len(file_bytes)
                 size_kb = size_bytes / 1024
-                logger.info(f"✅ [DOWNLOADED] Successfully fetched PDF [{size_kb:.1f} KB] from '{pdf_source_url}' -> saved to: '{saved_path}' (Paper: '{title_snippet}...')")
+                logger.info(f"✅ [DOWNLOADED] Successfully fetched PDF [{size_kb:.1f} KB] from '{pdf_source_url}' -> saved to: '{saved_path}' (Registered in DocumentRegistry: {doc_reg.id if doc_reg else 'None'})")
                 return {
                     "status": "downloaded",
                     "paper_id": str(paper.id),
                     "title": paper.title,
                     "size_bytes": size_bytes,
                     "size_kb": round(size_kb, 1),
-                    "storage_path": saved_path
+                    "storage_path": saved_path,
+                    "registry_id": str(doc_reg.id) if doc_reg else None
                 }
             else:
                 logger.warning(f"⚠️ [EMPTY PDF] Received 0 bytes for paper '{title_snippet}...' from '{pdf_source_url}' (attempt {attempt}/{max_attempts})")

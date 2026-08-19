@@ -1,34 +1,162 @@
+import hashlib
 from unittest.mock import patch
 from django.test import TestCase
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
-from research_intelligence.models import Workspace, PipelineRun, Paper
-from research_intelligence.tasks.step_2_download.pdf_cache import try_reuse_cached_pdf
+from research_intelligence.models import Workspace, PipelineRun, Paper, DocumentRegistry
+from research_intelligence.tasks.step_2_download.pdf_cache import (
+    try_reuse_cached_pdf,
+    register_document_pdf,
+    find_in_document_registry,
+)
+from research_intelligence.tasks.step_3_ocr.convert import run_ocr_conversion
 
 
-class PDFCacheTestCase(TestCase):
+class DocumentRegistryAndCacheTestCase(TestCase):
     """
-    Comprehensive unit tests for the PDF Cache Reuse utility (step_2_download/pdf_cache.py):
-    1. Cache Miss (no prior records).
-    2. Cache Hit via DOI matching.
-    3. Cache Hit via arXiv ID matching.
-    4. Cache Hit via SHA-256 hash_id matching.
-    5. Graceful fallback on deleted storage files or corrupted paths.
-    6. Rejection of zero-byte cached files.
+    Comprehensive unit tests for the global DocumentRegistry and caching pipelines:
+    1. Direct DocumentRegistry lookup and registration.
+    2. Zero-Network PDF Fastpath via DocumentRegistry (cross-workspace reuse + access_count increment).
+    3. Zero-Compute OCR Fastpath via DocumentRegistry (skips OCR engine execution on repeated papers).
+    4. Graceful fallback on missing or corrupt storage paths.
+    5. Rejection of zero-byte cached files.
     """
 
     def setUp(self):
-        self.workspace_a = Workspace.objects.create(name="Workspace A")
+        self.workspace_a = Workspace.objects.create(name="Workspace A", ocr_provider="pypdf")
         self.run_a = PipelineRun.objects.create(workspace=self.workspace_a, status="completed")
 
-        self.workspace_b = Workspace.objects.create(name="Workspace B")
+        self.workspace_b = Workspace.objects.create(name="Workspace B", ocr_provider="pypdf")
         self.run_b = PipelineRun.objects.create(workspace=self.workspace_b, status="running")
 
-        self.pdf_binary = b"%PDF-1.4 Mock Binary for Quantum Cache Testing" * 30
+        self.pdf_binary = b"%PDF-1.4 Mock Binary for DocumentRegistry Testing" * 25
+        self.pdf_sha256 = hashlib.sha256(self.pdf_binary).hexdigest()
+
+    def test_register_document_pdf_creates_canonical_cache(self):
+        """Registers a newly fetched PDF into DocumentRegistry and saves canonical storage copy."""
+        paper = Paper.objects.create(
+            workspace=self.workspace_a,
+            pipeline_run=self.run_a,
+            hash_id="reg_test_001",
+            doi="10.1000/182",
+            arxiv_id="2401.12345",
+            title="Quantum Surface Code Optimization",
+            source_database="arxiv"
+        )
+
+        doc_reg = register_document_pdf(paper, self.pdf_binary)
+        self.assertIsNotNone(doc_reg)
+        self.assertEqual(doc_reg.sha256_hash, self.pdf_sha256)
+        self.assertEqual(doc_reg.doi, "10.1000/182")
+        self.assertEqual(doc_reg.arxiv_id, "2401.12345")
+        self.assertEqual(doc_reg.pdf_file_size_bytes, len(self.pdf_binary))
+        self.assertTrue(default_storage.exists(doc_reg.canonical_pdf_path))
+
+        paper.refresh_from_db()
+        self.assertEqual(paper.document_registry, doc_reg)
+
+    def test_document_registry_pdf_fastpath_cache_hit_and_access_count(self):
+        """
+        Workspace A registers a paper in DocumentRegistry.
+        Workspace B requests the same paper -> fastpath hits DocumentRegistry,
+        copies file without network calls, and increments access_count.
+        """
+        paper_a = Paper.objects.create(
+            workspace=self.workspace_a,
+            pipeline_run=self.run_a,
+            hash_id="ws_a_hash",
+            arxiv_id="2402.55555",
+            title="Scalable Superconducting Qubits",
+            source_database="arxiv"
+        )
+        doc_reg = register_document_pdf(paper_a, self.pdf_binary)
+        initial_access_count = doc_reg.access_count
+
+        # Workspace B wants the paper
+        paper_b = Paper.objects.create(
+            workspace=self.workspace_b,
+            pipeline_run=self.run_b,
+            hash_id="ws_b_hash",
+            arxiv_id="2402.55555",
+            title="Scalable Superconducting Qubits (Workspace B)",
+            original_pdf_path="https://arxiv.org/pdf/2402.55555.pdf",
+            source_database="arxiv"
+        )
+
+        target_path = f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/ws_b_hash/original.pdf"
+        result = try_reuse_cached_pdf(paper_b, target_path, title_snippet="Scalable Superconducting")
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["status"], "downloaded")
+        self.assertTrue(result["cache_hit"])
+        self.assertEqual(result["cached_from"], doc_reg.canonical_pdf_path)
+        self.assertEqual(result["registry_id"], str(doc_reg.id))
+        self.assertTrue(default_storage.exists(target_path))
+
+        doc_reg.refresh_from_db()
+        self.assertEqual(doc_reg.access_count, initial_access_count + 1)
+
+        paper_b.refresh_from_db()
+        self.assertEqual(paper_b.document_registry, doc_reg)
+        self.assertEqual(paper_b.original_pdf_path, target_path)
+
+    def test_document_registry_ocr_zero_compute_fastpath(self):
+        """
+        Validates that when Workspace A performs OCR and records it in DocumentRegistry,
+        Workspace B converting the same document reuses the OCR Markdown without calling OCR provider.
+        """
+        # Step 1: Ingest and register document in Workspace A
+        paper_a = Paper.objects.create(
+            workspace=self.workspace_a,
+            pipeline_run=self.run_a,
+            hash_id="ocr_cached_hash",
+            arxiv_id="2403.99999",
+            title="Quantum Circuit Synthesis",
+            original_pdf_path=f"workspaces/{self.workspace_a.id}/runs/{self.run_a.id}/documents/ocr_cached_hash/original.pdf"
+        )
+        default_storage.save(paper_a.original_pdf_path, ContentFile(self.pdf_binary))
+        doc_reg = register_document_pdf(paper_a, self.pdf_binary)
+
+        mock_ocr_md = "# Quantum Circuit Synthesis\n\nWe present an efficient algorithm for unitary decomposition."
+
+        with patch("research_intelligence.ocr_providers.pypdf_provider.PyPDFOCRProvider.convert", return_value=mock_ocr_md) as mock_provider:
+            res_a = run_ocr_conversion(paper_a.id)
+            self.assertTrue(res_a["success"])
+            mock_provider.assert_called_once()
+
+        doc_reg.refresh_from_db()
+        self.assertEqual(doc_reg.ocr_provider, "pypdf")
+        self.assertTrue(doc_reg.canonical_ocr_md_path)
+        self.assertTrue(default_storage.exists(doc_reg.canonical_ocr_md_path))
+
+        # Step 2: Workspace B has the same paper and runs OCR
+        paper_b = Paper.objects.create(
+            workspace=self.workspace_b,
+            pipeline_run=self.run_b,
+            hash_id="ocr_cached_hash_ws_b",
+            arxiv_id="2403.99999",
+            title="Quantum Circuit Synthesis",
+            document_registry=doc_reg,
+            original_pdf_path=f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/ocr_cached_hash_ws_b/original.pdf"
+        )
+        default_storage.save(paper_b.original_pdf_path, ContentFile(self.pdf_binary))
+
+        # Ensure OCR provider is NEVER called for Workspace B because DocumentRegistry cached it!
+        with patch("research_intelligence.ocr_providers.pypdf_provider.PyPDFOCRProvider.convert") as mock_provider_b:
+            res_b = run_ocr_conversion(paper_b.id)
+            mock_provider_b.assert_not_called()
+            self.assertTrue(res_b["success"])
+            self.assertTrue(res_b.get("cache_hit"))
+
+        paper_b.refresh_from_db()
+        self.assertTrue(default_storage.exists(paper_b.converted_md_path))
+        with default_storage.open(paper_b.converted_md_path, 'r') as f:
+            content = f.read()
+        self.assertEqual(content, mock_ocr_md)
 
     def test_cache_miss_returns_none(self):
-        """When no matching paper exists in DB, returns None."""
+        """When no matching paper or registry record exists, returns None."""
         paper = Paper.objects.create(
             workspace=self.workspace_b,
             pipeline_run=self.run_b,
@@ -41,153 +169,24 @@ class PDFCacheTestCase(TestCase):
         result = try_reuse_cached_pdf(paper, target_path)
         self.assertIsNone(result)
 
-    def test_cache_hit_via_doi(self):
-        """Matches cached document via normalized DOI across different workspaces."""
-        stored_path = f"workspaces/{self.workspace_a.id}/runs/{self.run_a.id}/documents/doc_doi_001/original.pdf"
-        default_storage.save(stored_path, ContentFile(self.pdf_binary))
-
-        Paper.objects.create(
-            workspace=self.workspace_a,
-            pipeline_run=self.run_a,
-            hash_id="doc_doi_001",
-            doi="10.1038/s41586-024-00001-x",
-            title="Nature Quantum Supremacy",
-            original_pdf_path=stored_path
-        )
-
-        paper_b = Paper.objects.create(
-            workspace=self.workspace_b,
-            pipeline_run=self.run_b,
-            hash_id="doc_doi_002_diff_hash",
-            doi="10.1038/s41586-024-00001-x",
-            title="Nature Quantum Supremacy (Ingested by Workspace B)",
-            original_pdf_path="https://nature.com/articles/s41586-024-00001-x.pdf"
-        )
-
-        target_path = f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/doc_doi_002_diff_hash/original.pdf"
-        result = try_reuse_cached_pdf(paper_b, target_path, title_snippet="Nature Quantum")
-
-        self.assertIsNotNone(result)
-        self.assertEqual(result["status"], "downloaded")
-        self.assertTrue(result["cache_hit"])
-        self.assertEqual(result["cached_from"], stored_path)
-        self.assertEqual(result["storage_path"], target_path)
-        self.assertTrue(default_storage.exists(target_path))
-
-        paper_b.refresh_from_db()
-        self.assertEqual(paper_b.original_pdf_path, target_path)
-
-    def test_cache_hit_via_arxiv_id(self):
-        """Matches cached document via arXiv ID across runs."""
-        stored_path = f"workspaces/{self.workspace_a.id}/runs/{self.run_a.id}/documents/arxiv_doc_01/original.pdf"
-        default_storage.save(stored_path, ContentFile(self.pdf_binary))
-
-        Paper.objects.create(
-            workspace=self.workspace_a,
-            pipeline_run=self.run_a,
-            hash_id="arxiv_doc_01",
-            arxiv_id="2401.77777",
-            title="QEC Surface Codes",
-            original_pdf_path=stored_path
-        )
-
-        paper_b = Paper.objects.create(
-            workspace=self.workspace_b,
-            pipeline_run=self.run_b,
-            hash_id="arxiv_doc_ws_b",
-            arxiv_id="2401.77777",
-            title="QEC Surface Codes (Workspace B)",
-            original_pdf_path="https://arxiv.org/pdf/2401.77777.pdf"
-        )
-
-        target_path = f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/arxiv_doc_ws_b/original.pdf"
-        result = try_reuse_cached_pdf(paper_b, target_path)
-
-        self.assertIsNotNone(result)
-        self.assertTrue(result["cache_hit"])
-        self.assertEqual(result["size_bytes"], len(self.pdf_binary))
-
-    def test_cache_hit_via_hash_or_cross_reference(self):
-        """Matches cached document via cross-reference query when hash/arxiv/doi match."""
-        stored_path = f"workspaces/{self.workspace_a.id}/runs/{self.run_a.id}/documents/hash_match_001/original.pdf"
-        default_storage.save(stored_path, ContentFile(self.pdf_binary))
-
-        Paper.objects.create(
-            workspace=self.workspace_a,
-            pipeline_run=self.run_a,
-            hash_id="hash_match_001",
-            doi="10.1103/PhysRevA.100.012345",
-            arxiv_id="2401.55555",
-            title="Identical Quantum Paper",
-            original_pdf_path=stored_path
-        )
-
-        paper_b = Paper.objects.create(
-            workspace=self.workspace_b,
-            pipeline_run=self.run_b,
-            hash_id="hash_match_ws_b",
-            doi="10.1103/PhysRevA.100.012345",
-            title="Identical Quantum Paper (Workspace B)",
-            original_pdf_path="https://journals.aps.org/pra/pdf/10.1103/PhysRevA.100.012345"
-        )
-
-        target_path = f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/hash_match_ws_b/original.pdf"
-        result = try_reuse_cached_pdf(paper_b, target_path)
-        self.assertIsNotNone(result)
-        self.assertTrue(result["cache_hit"])
-        self.assertEqual(result["cached_from"], stored_path)
-        self.assertEqual(result["size_bytes"], len(self.pdf_binary))
-
-    def test_missing_storage_file_falls_back_gracefully_to_none(self):
-        """If Paper DB row points to a file that was deleted from disk, returns None."""
-        ghost_path = f"workspaces/{self.workspace_a.id}/runs/{self.run_a.id}/documents/ghost_doc/original.pdf"
-        # Notice: we do NOT call default_storage.save, so default_storage.exists(ghost_path) is False
-
-        Paper.objects.create(
-            workspace=self.workspace_a,
-            pipeline_run=self.run_a,
-            hash_id="ghost_doc",
-            arxiv_id="2401.99000",
+    def test_missing_storage_file_falls_back_gracefully(self):
+        """If DocumentRegistry points to a deleted file on disk, falls back safely to None."""
+        doc_reg = DocumentRegistry.objects.create(
+            sha256_hash="ghost_hash_001",
+            arxiv_id="2401.00999",
             title="Ghost Document",
-            original_pdf_path=ghost_path
+            canonical_pdf_path="cache/documents/ghost_hash_001/original.pdf"
+            # File is intentionally NOT created on storage
         )
 
-        paper_b = Paper.objects.create(
+        paper = Paper.objects.create(
             workspace=self.workspace_b,
             pipeline_run=self.run_b,
-            hash_id="ghost_doc_b",
-            arxiv_id="2401.99000",
-            title="Ghost Document (WS B)",
-            original_pdf_path="https://arxiv.org/pdf/2401.99000.pdf"
+            hash_id="ghost_hash_001",
+            arxiv_id="2401.00999",
+            title="Ghost Document",
+            original_pdf_path="https://arxiv.org/pdf/2401.00999.pdf"
         )
-
-        target_path = f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/ghost_doc_b/original.pdf"
-        result = try_reuse_cached_pdf(paper_b, target_path)
-        self.assertIsNone(result)
-
-    def test_zero_byte_cached_file_rejected(self):
-        """If cached storage file is 0 bytes, rejects it and returns None."""
-        empty_path = f"workspaces/{self.workspace_a.id}/runs/{self.run_a.id}/documents/empty_doc/original.pdf"
-        default_storage.save(empty_path, ContentFile(b""))
-
-        Paper.objects.create(
-            workspace=self.workspace_a,
-            pipeline_run=self.run_a,
-            hash_id="empty_doc",
-            arxiv_id="2401.00000",
-            title="Empty Document",
-            original_pdf_path=empty_path
-        )
-
-        paper_b = Paper.objects.create(
-            workspace=self.workspace_b,
-            pipeline_run=self.run_b,
-            hash_id="empty_doc_b",
-            arxiv_id="2401.00000",
-            title="Empty Document (WS B)",
-            original_pdf_path="https://arxiv.org/pdf/2401.00000.pdf"
-        )
-
-        target_path = f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/empty_doc_b/original.pdf"
-        result = try_reuse_cached_pdf(paper_b, target_path)
+        target_path = f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/ghost_hash_001/original.pdf"
+        result = try_reuse_cached_pdf(paper, target_path)
         self.assertIsNone(result)

@@ -455,6 +455,44 @@ class ComponentRun(models.Model):
     def __str__(self):
         return f"{self.step_type}:{self.component_name} - Run {self.pipeline_run.id} ({self.status})"
 
+
+class DocumentRegistry(models.Model):
+    """
+    Global, deduplicated document registry holding canonical binary storage references,
+    OCR layout artifacts, and cross-workspace access metrics.
+    """
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    sha256_hash = models.CharField(max_length=64, unique=True, db_index=True, help_text="Global SHA-256 hash of PDF binary")
+    doi = models.CharField(max_length=255, blank=True, null=True, db_index=True, help_text="Digital Object Identifier (DOI)")
+    arxiv_id = models.CharField(max_length=100, blank=True, null=True, db_index=True, help_text="arXiv repository ID")
+    title = models.CharField(max_length=512)
+    primary_source = models.CharField(max_length=50, default="arxiv", help_text="arxiv, openalex, lens, or pubmed")
+
+    # Canonical Storage References
+    canonical_pdf_path = models.CharField(max_length=512, blank=True, null=True, help_text="Storage key of canonical PDF binary")
+    pdf_file_size_bytes = models.BigIntegerField(default=0, help_text="Size of PDF in bytes")
+
+    # OCR Layout Cache
+    ocr_provider = models.CharField(max_length=50, blank=True, null=True, help_text="OCR provider used (e.g. pypdf, mistral, gemini)")
+    canonical_ocr_md_path = models.CharField(max_length=512, blank=True, null=True, help_text="Storage key of layout Markdown")
+
+    # Lifetime Metrics
+    access_count = models.PositiveIntegerField(default=1, help_text="Total times this document was accessed/reused across workspaces")
+    first_ingested_at = models.DateTimeField(auto_now_add=True)
+    last_accessed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-last_accessed_at', '-id']
+        indexes = [
+            models.Index(fields=['doi']),
+            models.Index(fields=['arxiv_id']),
+            models.Index(fields=['sha256_hash']),
+        ]
+
+    def __str__(self):
+        return f"{self.title[:50]} (Hits: {self.access_count})"
+
+
 class Paper(models.Model):
     """
     Holds metadata, file references, and screening states for articles ingested during a specific run.
@@ -462,6 +500,14 @@ class Paper(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="papers")
     pipeline_run = models.ForeignKey(PipelineRun, on_delete=models.CASCADE, related_name="papers", help_text="Ingestion run that fetched this paper")
+    document_registry = models.ForeignKey(
+        DocumentRegistry,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="paper_instances",
+        help_text="Reference to global canonical document registry entry"
+    )
     
     # Deduplication Keys
     hash_id = models.CharField(max_length=64, unique=True, help_text="SHA-256 hash of PDF or fallback unique hash to prevent duplicates")
