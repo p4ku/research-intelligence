@@ -63,6 +63,7 @@ from research_intelligence.mcp.tools import (
     update_extraction_definition_logic,
     delete_extraction_definition_logic,
     list_extractions_logic,
+    get_paper_extractions_matrix_logic,
     get_extraction_logic,
     trigger_search_job_logic,
     trigger_pdf_download_job_logic,
@@ -765,18 +766,42 @@ def trigger_extraction_job(pipeline_run_id: str = None, workspace_id: str = None
 @with_db_connection
 def list_extractions(
     workspace_id: str = None,
+    pipeline_run_id: str = None,
+    process_id: str = None,
     paper_id: str = None,
     category: str = None,
     validation_status: str = None,
-    limit: int = 50
+    limit: int = 100
 ) -> str:
-    """List extracted structured fields and claim records (Step 5 outputs). Supports filtering by workspace_id, paper_id, category, or validation_status."""
+    """List extracted structured fields and claim records (Step 5 outputs). Supports filtering by workspace_id, pipeline_run_id, process_id, paper_id, category, or validation_status."""
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:read")
     except Exception as e:
         return str(e)
-    return list_extractions_logic(user, workspace_id, paper_id, category, validation_status, limit)
+    return list_extractions_logic(user, workspace_id, pipeline_run_id, process_id, paper_id, category, validation_status, limit)
+
+
+@mcp.tool()
+@with_db_connection
+def get_paper_extractions_matrix(
+    workspace_id: str = None,
+    pipeline_run_id: str = None,
+    process_id: str = None,
+    screening_status: str = "full_text_passed",
+    limit: int = 100
+) -> str:
+    """
+    Retrieve aggregated parameter & claim extraction results per paper for all accepted/screened papers in a single call.
+    Returns paper metadata, PDF paths, abstracts, and all extracted definitions/metrics (e.g. Novelty, Fit, TRL, Rigour) with justifications.
+    Ideal for answering 'show params result per all accepted papers' without needing separate list_papers and list_extractions calls.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:read")
+    except Exception as e:
+        return str(e)
+    return get_paper_extractions_matrix_logic(user, workspace_id, pipeline_run_id, process_id, screening_status, limit)
 
 
 @mcp.tool()

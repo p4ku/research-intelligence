@@ -580,6 +580,20 @@ class MCPServerTest(TestCase):
         extractions = Extraction.objects.filter(workspace=ws)
         self.assertEqual(extractions.count(), 2)
 
+        # Test list_extractions_logic with pipeline_run_id
+        from research_intelligence.mcp.tools import list_extractions_logic, get_paper_extractions_matrix_logic
+        list_res = json.loads(list_extractions_logic(self.admin_user, pipeline_run_id=str(pr.id)))
+        self.assertEqual(len(list_res), 2)
+        self.assertEqual(list_res[0]["paper_id"], str(extractions.first().paper.id))
+
+        # Test get_paper_extractions_matrix_logic
+        matrix_res = json.loads(get_paper_extractions_matrix_logic(self.admin_user, pipeline_run_id=str(pr.id), screening_status="full_text_passed"))
+        self.assertEqual(matrix_res["total_papers"], 1)
+        paper_row = matrix_res["papers"][0]
+        self.assertEqual(paper_row["title"], "Mobile NPU Quantization")
+        self.assertEqual(paper_row["extractions_count"], 2)
+        self.assertIn("ML Methods", paper_row["metrics_summary"])
+
     @patch("research_intelligence.scrapers.arxiv.ArxivScraperProvider.download_file")
     @patch("research_intelligence.scrapers.arxiv.ArxivScraperProvider.search")
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")

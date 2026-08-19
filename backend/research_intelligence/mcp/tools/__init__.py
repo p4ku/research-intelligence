@@ -35,6 +35,7 @@ from .extraction_definitions import (
 )
 from .extractions import (
     list_extractions_logic,
+    get_paper_extractions_matrix_logic,
     get_extraction_logic,
 )
 from .agent_processes import (

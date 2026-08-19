@@ -1,23 +1,36 @@
 import json
 from typing import Optional
-from research_intelligence.models import Extraction, Workspace
+from research_intelligence.models import Extraction, Workspace, Paper, PipelineRun, ResearchAgentProcess
 
 
 def list_extractions_logic(
     user,
     workspace_id: Optional[str] = None,
+    pipeline_run_id: Optional[str] = None,
+    process_id: Optional[str] = None,
     paper_id: Optional[str] = None,
     category: Optional[str] = None,
     validation_status: Optional[str] = None,
-    limit: int = 50
+    limit: int = 100
 ) -> str:
     """
     Returns a JSON list of Extraction records (Step 5 outputs).
-    Filters by workspace_id, paper_id, category, or validation_status.
+    Filters by workspace_id, pipeline_run_id, process_id, paper_id, category, or validation_status.
     """
     qs = Extraction.objects.select_related('workspace', 'paper', 'extraction_definition').all()
 
-    if workspace_id:
+    if process_id:
+        try:
+            proc = ResearchAgentProcess.objects.select_related('pipeline_run').get(id=process_id)
+            if proc.pipeline_run:
+                qs = qs.filter(paper__pipeline_run=proc.pipeline_run)
+            else:
+                qs = qs.filter(workspace=proc.workspace)
+        except (ValueError, ResearchAgentProcess.DoesNotExist):
+            return json.dumps({"error": f"ResearchAgentProcess '{process_id}' not found."})
+    elif pipeline_run_id:
+        qs = qs.filter(paper__pipeline_run_id=pipeline_run_id)
+    elif workspace_id:
         qs = qs.filter(workspace__id=workspace_id)
     elif user and not user.is_superuser:
         user_ws_ids = Workspace.objects.filter(memberships__user=user).values_list('id', flat=True)
@@ -53,6 +66,95 @@ def list_extractions_logic(
         })
 
     return json.dumps(results, indent=2)
+
+
+def get_paper_extractions_matrix_logic(
+    user,
+    workspace_id: Optional[str] = None,
+    pipeline_run_id: Optional[str] = None,
+    process_id: Optional[str] = None,
+    screening_status: str = "full_text_passed",
+    limit: int = 100
+) -> str:
+    """
+    Returns an aggregated matrix of accepted/screened papers with all their extracted parameters,
+    exit metrics, justifications, and scores in a single structured response.
+    Eliminates manual joining of papers and extractions.
+    """
+    papers_qs = Paper.objects.select_related('workspace', 'pipeline_run').prefetch_related('extractions', 'extractions__extraction_definition').all()
+
+    if process_id:
+        try:
+            proc = ResearchAgentProcess.objects.select_related('pipeline_run', 'workspace').get(id=process_id)
+            if proc.pipeline_run:
+                papers_qs = papers_qs.filter(pipeline_run=proc.pipeline_run)
+            else:
+                papers_qs = papers_qs.filter(workspace=proc.workspace)
+        except (ValueError, ResearchAgentProcess.DoesNotExist):
+            return json.dumps({"error": f"ResearchAgentProcess '{process_id}' not found."})
+    elif pipeline_run_id:
+        papers_qs = papers_qs.filter(pipeline_run_id=pipeline_run_id)
+    elif workspace_id:
+        papers_qs = papers_qs.filter(workspace_id=workspace_id)
+    elif user and not user.is_superuser:
+        user_ws_ids = Workspace.objects.filter(memberships__user=user).values_list('id', flat=True)
+        papers_qs = papers_qs.filter(workspace__id__in=user_ws_ids)
+
+    if screening_status and screening_status != 'all':
+        if screening_status == 'all_screened':
+            papers_qs = papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'rejected'])
+        elif screening_status == 'all_passed':
+            papers_qs = papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed'])
+        else:
+            papers_qs = papers_qs.filter(screening_status=screening_status)
+
+    papers = list(papers_qs.order_by('-created_at')[:limit])
+    results = []
+
+    for idx, paper in enumerate(papers, 1):
+        extractions = list(paper.extractions.all())
+        extractions.sort(key=lambda x: (x.extraction_definition.name if x.extraction_definition else x.category))
+
+        metrics_summary = {}
+        extractions_list = []
+
+        for ext in extractions:
+            def_name = ext.extraction_definition.name if ext.extraction_definition else ext.category
+            metric_val = ext.exit_metric or ext.get_exit_metric()
+            if def_name:
+                metrics_summary[def_name] = metric_val
+
+            extractions_list.append({
+                "extraction_id": str(ext.id),
+                "definition_name": def_name,
+                "exit_metric": metric_val,
+                "validation_status": ext.validation_status,
+                "confidence_score": ext.confidence_score,
+                "fields_data": ext.fields_data
+            })
+
+        results.append({
+            "index": idx,
+            "paper_id": str(paper.id),
+            "title": paper.title,
+            "authors": paper.authors,
+            "doi": paper.doi,
+            "arxiv_id": paper.arxiv_id,
+            "screening_status": paper.screening_status,
+            "pdf_url": (f"https://arxiv.org/pdf/{paper.arxiv_id}.pdf" if paper.arxiv_id else None) or paper.original_pdf_path,
+            "original_pdf_path": paper.original_pdf_path,
+            "abstract": paper.abstract,
+            "metrics_summary": metrics_summary,
+            "extractions_count": len(extractions_list),
+            "extractions": extractions_list
+        })
+
+    payload = {
+        "total_papers": len(results),
+        "screening_status_filter": screening_status,
+        "papers": results
+    }
+    return json.dumps(payload, indent=2)
 
 
 def get_extraction_logic(user, extraction_id: str) -> str:

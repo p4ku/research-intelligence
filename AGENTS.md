@@ -139,6 +139,7 @@ It orchestrates a 5-step processing pipeline:
 | `abort_job` | `runs:write` | Aborts a pipeline run or individual component run. |
 | `delete_pipeline_run` | `runs:write` | Recursively deletes storage folder and purges pipeline run records from DB. |
 | `list_extractions` | `workspaces:read` | Queries extracted parameter objects filtered by workspace, definition, run, or paper. |
+| `get_paper_extractions_matrix` | `workspaces:read` | **Single-Call Matrix**: Aggregates all accepted papers with their extracted parameters, exit metrics, and justifications. |
 | `get_extraction` | `workspaces:read` | Returns single extraction record with evidence quotes and confidence score. |
 
 #### 6. Diagnostics & Audit (`tools/llm_test.py`, `tools/activity_logs.py`)
