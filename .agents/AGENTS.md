@@ -162,8 +162,8 @@ It orchestrates a 5-step processing pipeline:
 ## 🧪 5. Testing & Validation Protocol
 
 ```bash
-# Run complete test suite (92 tests across all modules)
-.venv/bin/python backend/manage.py test research_intelligence.tests
+# Run complete test suite in parallel (Fastest execution: ~8s across 102+ tests)
+.venv/bin/python backend/manage.py test --parallel auto research_intelligence.tests
 
 # Run specific task test module
 .venv/bin/python backend/manage.py test research_intelligence.tests.tasks.test_4_screening

@@ -769,8 +769,7 @@ class MCPServerTest(TestCase):
         cr_abort.refresh_from_db()
         self.assertEqual(cr_abort.status, "aborted")
 
-    @patch("time.sleep")
-    def test_google_llm_resource_exhausted_retry_backoff(self, mock_sleep):
+    def test_google_llm_resource_exhausted_retry_backoff(self):
         """
         Tests automatic retry strategy with exponential backoff when Google GenAI raises
         429 RESOURCE_EXHAUSTED errors.
@@ -792,7 +791,7 @@ class MCPServerTest(TestCase):
             mock_success_response
         ]
 
-        with patch.object(provider, "_get_client", return_value=mock_client):
+        with patch.object(provider, "_get_client", return_value=mock_client), patch("research_intelligence.llm_providers.google.time.sleep") as mock_sleep:
             self.patcher.stop()
             try:
                 res = provider.generate(prompt="Test prompt", max_retries=5)
