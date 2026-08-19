@@ -95,3 +95,5 @@ celerybeat-schedule
 celerybeat-schedule.db
 workspaces/
 backend/workspaces/
+cache/
+backend/cache/
