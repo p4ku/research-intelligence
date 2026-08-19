@@ -192,3 +192,53 @@ class Step2DownloadResilienceTestCase(TestCase):
         self.assertEqual(self.component_run.status, "completed")
         self.assertEqual(self.component_run.metrics["downloaded"], 1)
         self.assertEqual(self.component_run.metrics["failed"], 1)
+
+    def test_cross_workspace_and_cross_run_pdf_cache_reuse(self):
+        """
+        Validates that if Workspace 1 (Run 10) previously fetched a PDF,
+        Workspace 7 (Run 100) reuses the local cached binary with 0 network HTTP requests.
+        """
+        # Workspace 1 (Run 10) fetches paper
+        ws1 = Workspace.objects.create(name="Workspace 1")
+        run10 = PipelineRun.objects.create(workspace=ws1, status="completed")
+        pdf_bytes = b"%PDF-1.4 Cached Cross-Workspace Document Content" * 20
+        ws1_storage_path = f"workspaces/{ws1.id}/runs/{run10.id}/documents/qml_cached_01/original.pdf"
+        default_storage.save(ws1_storage_path, ContentFile(pdf_bytes))
+
+        Paper.objects.create(
+            workspace=ws1,
+            pipeline_run=run10,
+            hash_id="qml_cached_01",
+            arxiv_id="2401.99999",
+            title="Cross Workspace Quantum Benchmark Paper",
+            original_pdf_path=ws1_storage_path,
+            source_database="arxiv"
+        )
+
+        # Workspace 7 (Run 100) wants the exact same paper
+        ws7 = Workspace.objects.create(name="Workspace 7")
+        run100 = PipelineRun.objects.create(workspace=ws7, status="running")
+        paper_ws7 = Paper.objects.create(
+            workspace=ws7,
+            pipeline_run=run100,
+            hash_id="qml_cached_ws7_01",
+            arxiv_id="2401.99999",
+            title="Cross Workspace Quantum Benchmark Paper",
+            original_pdf_path="https://arxiv.org/pdf/2401.99999.pdf",
+            source_database="arxiv"
+        )
+
+        # Ensure network scraper is NEVER called because local cache hit occurs
+        with patch("research_intelligence.scrapers.arxiv.ArxivScraperProvider.download_file") as mock_network_download:
+            result = _download_paper_task(paper_ws7, ws7, run100)
+            mock_network_download.assert_not_called()
+
+        self.assertEqual(result["status"], "downloaded")
+        self.assertTrue(result.get("cache_hit"))
+        self.assertEqual(result.get("cached_from"), ws1_storage_path)
+
+        # Verify Workspace 7 has its own isolated PDF in storage
+        expected_ws7_path = f"workspaces/{ws7.id}/runs/{run100.id}/documents/{paper_ws7.hash_id}/original.pdf"
+        self.assertTrue(default_storage.exists(expected_ws7_path))
+        paper_ws7.refresh_from_db()
+        self.assertEqual(paper_ws7.original_pdf_path, expected_ws7_path)
