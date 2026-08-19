@@ -21,6 +21,10 @@ class Step2DownloadResilienceTestCase(TestCase):
     """
 
     def setUp(self):
+        self.sleep_patcher = patch("time.sleep", return_value=None)
+        self.sleep_patcher.start()
+        self.addCleanup(self.sleep_patcher.stop)
+
         self.workspace = Workspace.objects.create(
             name="Download Resilience Workspace",
             screening_llm_model="google/gemini-3.7-flash"

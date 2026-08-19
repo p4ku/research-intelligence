@@ -16,27 +16,33 @@ class PyPDFOCRProvider(BaseOCRProvider):
         try:
             reader = PdfReader(file_path)
             for page_num, page in enumerate(reader.pages):
-                text = page.extract_text()
-                if text:
-                    if is_html:
-                        output_content += f"<h2>Page {page_num + 1}</h2>\n<p>{text}</p>\n\n"
-                    else:
-                        output_content += f"## Page {page_num + 1}\n{text}\n\n"
-                
-                # Extract images and embed them as Base64
-                for image_file_object in page.images:
-                    try:
-                        base64_img = base64.b64encode(image_file_object.data).decode('utf-8')
-                        mime_type = "image/png"
-                        if image_file_object.name.lower().endswith((".jpg", ".jpeg")):
-                            mime_type = "image/jpeg"
-                            
+                try:
+                    text = page.extract_text()
+                    if text:
                         if is_html:
-                            output_content += f'<img src="data:{mime_type};base64,{base64_img}" alt="{image_file_object.name}" />\n\n'
+                            output_content += f"<h2>Page {page_num + 1}</h2>\n<p>{text}</p>\n\n"
                         else:
-                            output_content += f"![{image_file_object.name}](data:{mime_type};base64,{base64_img})\n\n"
-                    except Exception as img_err:
-                        logger.warning(f"Failed to extract image {image_file_object.name}: {str(img_err)}")
+                            output_content += f"## Page {page_num + 1}\n{text}\n\n"
+                except Exception as text_err:
+                    logger.warning(f"Failed extracting text on page {page_num + 1}: {text_err}")
+
+                # Extract images and embed them as Base64 (best-effort)
+                try:
+                    for image_file_object in getattr(page, 'images', []):
+                        try:
+                            base64_img = base64.b64encode(image_file_object.data).decode('utf-8')
+                            mime_type = "image/png"
+                            if image_file_object.name.lower().endswith((".jpg", ".jpeg")):
+                                mime_type = "image/jpeg"
+                                
+                            if is_html:
+                                output_content += f'<img src="data:{mime_type};base64,{base64_img}" alt="{image_file_object.name}" />\n\n'
+                            else:
+                                output_content += f"![{image_file_object.name}](data:{mime_type};base64,{base64_img})\n\n"
+                        except Exception as img_err:
+                            logger.warning(f"Failed to extract image {getattr(image_file_object, 'name', 'unknown')}: {str(img_err)}")
+                except Exception as img_iter_err:
+                    logger.warning(f"Failed reading image dictionary on page {page_num + 1}: {str(img_iter_err)}")
                         
             return output_content
         except Exception as e:
