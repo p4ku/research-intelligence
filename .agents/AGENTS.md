@@ -142,9 +142,10 @@ It orchestrates a 5-step processing pipeline:
 | `get_paper_extractions_matrix` | `workspaces:read` | **Primary Tool for Results & Scorecards**: Aggregates all accepted papers with their extracted parameters, exit metrics, and justifications in a single call. |
 | `get_extraction` | `workspaces:read` | Returns single extraction record with evidence quotes and confidence score. |
 
-#### 6. Diagnostics & Audit (`tools/llm_test.py`, `tools/activity_logs.py`)
+#### 6. Diagnostics & Audit (`tools/llm_test.py`, `tools/activity_logs.py`, `tools/document_registry.py`)
 | Tool Name | Scope | Description |
 | :--- | :--- | :--- |
+| `get_document_registry_stats` | `workspaces:read` | Returns global cache efficiency, bandwidth saved, total cached documents, and top reused papers. |
 | `test_google_llm` | `workspaces:read` | Validates Google GenAI / Vertex AI connectivity with `gemini-3.7-flash` and checks credentials. |
 | `list_user_activity_logs` | `workspaces:read` | Queries security audit trail and MCP tool execution history. |
 
@@ -162,11 +163,11 @@ It orchestrates a 5-step processing pipeline:
 ## 🧪 5. Testing & Validation Protocol
 
 ```bash
-# Run complete test suite in parallel (~8s across 102+ tests)
+# Run complete test suite in parallel (~8s across 152+ tests)
 ./run_tests.sh
 
 # Run specific task test module
-./run_tests.sh research_intelligence.tests.tasks.test_4_screening
+./run_tests.sh research_intelligence.tests.test_pdf_cache
 
 # Run FastMCP test suite
 ./run_tests.sh research_intelligence.tests.test_mcp_server

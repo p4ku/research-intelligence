@@ -1005,3 +1005,38 @@ class MCPServerTest(TestCase):
         self.assertEqual(matched["tokens_out_consumed_this_month"], 2910)
         self.assertEqual(matched["tokens_consumed_this_month"], 10129)
 
+    def test_get_document_registry_stats_logic(self):
+        """
+        Validates that get_document_registry_stats_logic returns aggregated counts,
+        bandwidth savings multipliers, and top reused papers.
+        """
+        from research_intelligence.models import DocumentRegistry
+        from research_intelligence.mcp.tools import get_document_registry_stats_logic
+
+        DocumentRegistry.objects.create(
+            sha256_hash="stat_hash_01",
+            doi="10.1000/1",
+            title="Top Reused Quantum Paper",
+            pdf_file_size_bytes=204800,
+            access_count=5
+        )
+        DocumentRegistry.objects.create(
+            sha256_hash="stat_hash_02",
+            doi="10.1000/2",
+            title="Second Paper",
+            pdf_file_size_bytes=102400,
+            access_count=1
+        )
+
+        res_str = get_document_registry_stats_logic(self.admin_user)
+        res = json.loads(res_str)
+
+        self.assertEqual(res["status"], "success")
+        self.assertGreaterEqual(res["total_cached_documents"], 2)
+        self.assertGreaterEqual(res["total_cache_hits"], 6)
+        self.assertGreater(res["total_storage_bytes"], 0)
+        self.assertIn("KB", res["total_storage_formatted"])
+        self.assertGreaterEqual(len(res["top_reused_documents"]), 1)
+        self.assertEqual(res["top_reused_documents"][0]["title"], "Top Reused Quantum Paper")
+        self.assertEqual(res["top_reused_documents"][0]["access_count"], 5)
+

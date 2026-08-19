@@ -86,6 +86,7 @@ from research_intelligence.mcp.tools import (
     resume_research_agent_logic,
     abort_research_agent_logic,
     delete_research_agent_logic,
+    get_document_registry_stats_logic,
     test_google_llm_logic,
     list_user_activity_logs_logic,
 )
@@ -1010,6 +1011,23 @@ def list_user_activity_logs(
     except Exception as e:
         return str(e)
     return list_user_activity_logs_logic(user, workspace_id, interface, status, limit)
+
+
+@mcp.tool()
+@with_db_connection
+def get_document_registry_stats() -> str:
+    """
+    Returns global efficiency analytics and cache metrics for the DocumentRegistry:
+    - Total cached papers and binary footprint (bytes/MB/GB)
+    - Total cache hits / reuse count (bandwidth and OCR compute saved)
+    - Top reused research documents across workspaces
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:read")
+    except Exception as e:
+        return str(e)
+    return get_document_registry_stats_logic(user)
 
 
 # 3. Pure ASGI HTTP/SSE Request Authentication Middleware

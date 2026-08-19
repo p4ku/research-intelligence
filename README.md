@@ -85,12 +85,17 @@ graph TD
 - **Abstract Screening Stage**: Evaluates paper title & abstract against `abstract_acceptance_criteria` and `abstract_rejection_criteria`.
 - **Full-Text Screening Stage**: Performs deep evaluation of OCR Markdown text or Multimodal PDF binaries against `full_text_acceptance_criteria` and `full_text_rejection_criteria`.
 
-### 3. Dynamic Parameter Extraction
+### 3. Global DocumentRegistry & Multi-Tier Caching
+- **Zero-Network PDF Fastpath**: Checks `DocumentRegistry` ($O(1)$ indexed by `sha256_hash`, `doi`, `arxiv_id`) before initiating HTTP requests, saving bandwidth and preventing rate-limits across runs and workspaces.
+- **Zero-Compute OCR Fastpath**: Caches layout Markdown in `cache/documents/{sha256}/ocr_{provider}.md`, skipping expensive OCR parser execution for previously converted documents.
+- **Strict Storage Isolation**: Workspace run deletions purge only their local workspace run folder (`workspaces/{ws_id}/runs/{run_id}/`), keeping canonical registry binaries and other workspaces' files 100% intact.
+
+### 4. Dynamic Parameter Extraction
 - **Schema-Validated Extraction**: Evaluates papers against `ExtractionDefinition` prompts and JSON schemas.
 - **Evidence & Confidence Scores**: Stores results in `Extraction` objects containing exact evidence quotes, normalized values, confidence scores, and validation statuses (`pass`, `warn`, `fail`).
 
-### 4. Dual Protocol Interface
-- **FastMCP SSE Interface (Port 8001)**: Exposes workspace tools, scrapers, state machine controls, and parameter extraction to LLM clients (Claude, Gemini, Cursor, Antigravity) via `@mcp.tool()` and `@mcp.prompt()`.
+### 5. Dual Protocol Interface
+- **FastMCP SSE Interface (Port 8001)**: Exposes workspace tools, scrapers, state machine controls, parameter extraction, and document registry stats to LLM clients (Claude, Gemini, Cursor, Antigravity) via `@mcp.tool()` and `@mcp.prompt()`.
 - **Django REST API (Port 8000)**: Exposes `/api/workspaces/`, `/api/agents/`, `/api/extractions/`, and `/api/pipeline-runs/` endpoints for web frontends.
 
 ---
@@ -106,8 +111,8 @@ schwarz_research_intelligence/
 │   └── research_intelligence/   # Core intelligence platform
 │       ├── mcp/                 # FastMCP SSE Server & Tool Registry
 │       ├── tasks/               # 5-Step Pipeline & Orchestrator State Engine
-│       ├── models.py            # Workspace, ResearchAgentProcess, Extraction, Paper models
-│       └── tests/               # Automated unit & integration test suite (54+ tests)
+│       ├── models.py            # Workspace, DocumentRegistry, Paper, Extraction models
+│       └── tests/               # Automated unit & integration test suite (152+ tests)
 ├── frontend/                    # Next.js User Interface
 ├── .github/                     # DevOps & CI/CD Pipelines
 │   └── workflows/

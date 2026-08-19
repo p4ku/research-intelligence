@@ -48,10 +48,12 @@ from .agent_processes import (
     delete_research_agent_logic,
     wait_for_research_agent_logic,
 )
+from .document_registry import get_document_registry_stats_logic
 from .llm_test import test_google_llm_logic
 from .activity_logs import list_user_activity_logs_logic
 
 __all__ = [
+    "get_document_registry_stats_logic",
     "list_workspaces_logic",
     "get_workspace_logic",
     "create_workspace_logic",
