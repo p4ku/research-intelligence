@@ -238,10 +238,10 @@ def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_wor
         ).exists()
 
         if has_full_text_run:
-            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='full_text_passed')
+            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=['full_text_passed', 'accepted'])
             logger.info(f"🔍 [EXTRACTION FILTER] Prior Full-Text Screening job detected. Targeting {papers_qs.count()} papers with status='full_text_passed'.")
         elif has_abstract_run:
-            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='abstract_passed')
+            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=['abstract_passed', 'accepted'])
             logger.info(f"🔍 [EXTRACTION FILTER] Prior Abstract Screening job detected. Targeting {papers_qs.count()} papers with status='abstract_passed'.")
         else:
             papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).exclude(screening_status__in=['rejected', 'withdrawn'])
