@@ -239,7 +239,13 @@ class PipelineTestHarness:
 
         return self
 
-    def complete_step_4a_abstract_screening(self, passed_paper_indices: list[int]) -> "PipelineTestHarness":
+    def complete_step_4a_abstract_screening(
+        self,
+        passed_paper_indices: list[int],
+        tokens_in: int = 0,
+        tokens_out: int = 0,
+        usd_cost: float = 0.0
+    ) -> "PipelineTestHarness":
         """Simulates completing Stage 4a (Abstract Screening)."""
         abs_runs = ComponentRun.objects.filter(pipeline_run=self.pipeline_run, step_type='screening', component_name__icontains='abstract')
         passed_count = len(passed_paper_indices)
@@ -249,7 +255,16 @@ class PipelineTestHarness:
             run.status = 'completed'
             run.completed_at = timezone.now()
             run.metrics = {'total_screened': len(self.papers), 'passed': passed_count, 'rejected': rejected_count}
+            if tokens_in or tokens_out or usd_cost:
+                run.output_data = {'tokens_in': tokens_in, 'tokens_out': tokens_out, 'usd_cost': usd_cost}
             run.save()
+
+        if tokens_in or tokens_out or usd_cost:
+            self.pipeline_run.tokens_in = (self.pipeline_run.tokens_in or 0) + tokens_in
+            self.pipeline_run.tokens_out = (self.pipeline_run.tokens_out or 0) + tokens_out
+            self.pipeline_run.tokens_consumed = self.pipeline_run.tokens_in + self.pipeline_run.tokens_out
+            self.pipeline_run.usd_cost = float(self.pipeline_run.usd_cost or 0) + usd_cost
+            self.pipeline_run.save(update_fields=['tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost'])
 
         for idx, p in enumerate(self.papers):
             if idx in passed_paper_indices:
@@ -263,7 +278,13 @@ class PipelineTestHarness:
         self.agent_process.refresh_from_db()
         return self
 
-    def complete_step_4b_full_text_screening(self, passed_paper_indices: list[int]) -> "PipelineTestHarness":
+    def complete_step_4b_full_text_screening(
+        self,
+        passed_paper_indices: list[int],
+        tokens_in: int = 0,
+        tokens_out: int = 0,
+        usd_cost: float = 0.0
+    ) -> "PipelineTestHarness":
         """Simulates completing Stage 4b (Full-Text Screening)."""
         ft_runs = ComponentRun.objects.filter(pipeline_run=self.pipeline_run, step_type='screening', component_name__icontains='full_text')
         passed_count = len(passed_paper_indices)
@@ -272,7 +293,16 @@ class PipelineTestHarness:
             run.status = 'completed'
             run.completed_at = timezone.now()
             run.metrics = {'total_screened': len(self.papers), 'passed': passed_count, 'rejected': len(self.papers) - passed_count}
+            if tokens_in or tokens_out or usd_cost:
+                run.output_data = {'tokens_in': tokens_in, 'tokens_out': tokens_out, 'usd_cost': usd_cost}
             run.save()
+
+        if tokens_in or tokens_out or usd_cost:
+            self.pipeline_run.tokens_in = (self.pipeline_run.tokens_in or 0) + tokens_in
+            self.pipeline_run.tokens_out = (self.pipeline_run.tokens_out or 0) + tokens_out
+            self.pipeline_run.tokens_consumed = self.pipeline_run.tokens_in + self.pipeline_run.tokens_out
+            self.pipeline_run.usd_cost = float(self.pipeline_run.usd_cost or 0) + usd_cost
+            self.pipeline_run.save(update_fields=['tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost'])
 
         for idx, p in enumerate(self.papers):
             if idx in passed_paper_indices:
@@ -286,7 +316,13 @@ class PipelineTestHarness:
         self.agent_process.refresh_from_db()
         return self
 
-    def complete_step_5_extraction(self, sample_extracted_fields: dict | None = None) -> "PipelineTestHarness":
+    def complete_step_5_extraction(
+        self,
+        sample_extracted_fields: dict | None = None,
+        tokens_in: int = 0,
+        tokens_out: int = 0,
+        usd_cost: float = 0.0
+    ) -> "PipelineTestHarness":
         """Simulates completing Step 5 (Parameter Extraction) for all passed papers."""
         ext_runs = ComponentRun.objects.filter(pipeline_run=self.pipeline_run, step_type='extraction')
         passed_papers = [p for p in self.papers if p.screening_status in ['full_text_passed', 'abstract_passed', 'accepted']]
@@ -299,7 +335,16 @@ class PipelineTestHarness:
                 'total_definitions': len(self.extraction_definitions),
                 'extractions_created': len(passed_papers) * len(self.extraction_definitions)
             }
+            if tokens_in or tokens_out or usd_cost:
+                run.output_data = {'tokens_in': tokens_in, 'tokens_out': tokens_out, 'usd_cost': usd_cost}
             run.save()
+
+        if tokens_in or tokens_out or usd_cost:
+            self.pipeline_run.tokens_in = (self.pipeline_run.tokens_in or 0) + tokens_in
+            self.pipeline_run.tokens_out = (self.pipeline_run.tokens_out or 0) + tokens_out
+            self.pipeline_run.tokens_consumed = self.pipeline_run.tokens_in + self.pipeline_run.tokens_out
+            self.pipeline_run.usd_cost = float(self.pipeline_run.usd_cost or 0) + usd_cost
+            self.pipeline_run.save(update_fields=['tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost'])
 
         fields = sample_extracted_fields or {"result": "Validated 99.2% Accuracy"}
         for p in passed_papers:

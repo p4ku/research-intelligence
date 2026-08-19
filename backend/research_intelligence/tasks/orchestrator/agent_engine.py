@@ -336,6 +336,27 @@ def tick_agent_process(process_id: str) -> dict:
         if download_runs.filter(status__in=['pending', 'running']).exists():
             return {"success": True, "status": process.status, "current_step": "download", "message": "Download jobs still running."}
 
+        failed_dl_runs = download_runs.filter(status='failed')
+        if failed_dl_runs.exists() and not download_runs.filter(status='completed').exists():
+            error_msg = "; ".join([r.error_message for r in failed_dl_runs if r.error_message]) or "PDF download job failed."
+            logger.error(f"Agent '{process.name}': Download failed with error: {error_msg}")
+            process.status = 'failed'
+            process.error_message = error_msg
+            process.completed_at = timezone.now()
+            history.append({
+                "step": "download",
+                "event": "failed",
+                "error": error_msg,
+                "timestamp": timezone.now().isoformat()
+            })
+            process.step_history = history
+            process.save(update_fields=['status', 'error_message', 'completed_at', 'step_history', 'updated_at'])
+
+            pipeline_run.status = 'failed'
+            pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'completed_at'])
+            return {"success": False, "status": "failed", "error": error_msg}
+
         history.append({
             "step": "download",
             "event": "completed",
@@ -399,6 +420,27 @@ def tick_agent_process(process_id: str) -> dict:
         if ocr_runs.filter(status__in=['pending', 'running']).exists():
             return {"success": True, "status": process.status, "current_step": "ocr", "message": "OCR jobs still running."}
 
+        failed_ocr_runs = ocr_runs.filter(status='failed')
+        if failed_ocr_runs.exists() and not ocr_runs.filter(status='completed').exists():
+            error_msg = "; ".join([r.error_message for r in failed_ocr_runs if r.error_message]) or "OCR conversion job failed."
+            logger.error(f"Agent '{process.name}': OCR failed with error: {error_msg}")
+            process.status = 'failed'
+            process.error_message = error_msg
+            process.completed_at = timezone.now()
+            history.append({
+                "step": "ocr",
+                "event": "failed",
+                "error": error_msg,
+                "timestamp": timezone.now().isoformat()
+            })
+            process.step_history = history
+            process.save(update_fields=['status', 'error_message', 'completed_at', 'step_history', 'updated_at'])
+
+            pipeline_run.status = 'failed'
+            pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'completed_at'])
+            return {"success": False, "status": "failed", "error": error_msg}
+
         history.append({
             "step": "ocr",
             "event": "completed",
@@ -425,6 +467,27 @@ def tick_agent_process(process_id: str) -> dict:
         screening_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run, step_type='screening')
         if screening_runs.filter(status__in=['pending', 'running']).exists():
             return {"success": True, "status": process.status, "current_step": "screening", "message": "Screening jobs still running."}
+
+        failed_screening_runs = screening_runs.filter(status='failed')
+        if failed_screening_runs.exists() and not screening_runs.filter(status='completed').exists():
+            error_msg = "; ".join([r.error_message for r in failed_screening_runs if r.error_message]) or "Screening job failed."
+            logger.error(f"Agent '{process.name}': Screening failed with error: {error_msg}")
+            process.status = 'failed'
+            process.error_message = error_msg
+            process.completed_at = timezone.now()
+            history.append({
+                "step": "screening",
+                "event": "failed",
+                "error": error_msg,
+                "timestamp": timezone.now().isoformat()
+            })
+            process.step_history = history
+            process.save(update_fields=['status', 'error_message', 'completed_at', 'step_history', 'updated_at'])
+
+            pipeline_run.status = 'failed'
+            pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'completed_at'])
+            return {"success": False, "status": "failed", "error": error_msg}
 
         skip_abstract = config.get("skip_abstract_screening", workspace.skip_abstract_screening)
         has_abstract_run = screening_runs.filter(component_name__icontains='abstract').exists()
@@ -526,6 +589,27 @@ def tick_agent_process(process_id: str) -> dict:
         extraction_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run, step_type='extraction')
         if extraction_runs.filter(status__in=['pending', 'running']).exists():
             return {"success": True, "status": process.status, "current_step": "extraction", "message": "Extraction jobs still running."}
+
+        failed_ext_runs = extraction_runs.filter(status='failed')
+        if failed_ext_runs.exists() and not extraction_runs.filter(status='completed').exists():
+            error_msg = "; ".join([r.error_message for r in failed_ext_runs if r.error_message]) or "Parameter extraction job failed."
+            logger.error(f"Agent '{process.name}': Extraction failed with error: {error_msg}")
+            process.status = 'failed'
+            process.error_message = error_msg
+            process.completed_at = timezone.now()
+            history.append({
+                "step": "extraction",
+                "event": "failed",
+                "error": error_msg,
+                "timestamp": timezone.now().isoformat()
+            })
+            process.step_history = history
+            process.save(update_fields=['status', 'error_message', 'completed_at', 'step_history', 'updated_at'])
+
+            pipeline_run.status = 'failed'
+            pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'completed_at'])
+            return {"success": False, "status": "failed", "error": error_msg}
 
         history.append({
             "step": "extraction",
