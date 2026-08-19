@@ -787,10 +787,103 @@ class UserActivityLog(models.Model):
         ip_address: str = None,
         user_agent: str = None
     ):
-        """Helper factory creating UserActivityLog entries with automatic denormalization."""
+        """Helper factory creating UserActivityLog entries with automatic workspace resolution and denormalization."""
+        # 1. Resolve Workspace if passed directly as Workspace instance or UUID/str
+        ws_obj = None
+        if isinstance(workspace, Workspace):
+            ws_obj = workspace
+        elif isinstance(workspace, (str, uuid.UUID)):
+            try:
+                ws_obj = Workspace.objects.filter(id=workspace).first()
+            except Exception:
+                ws_obj = None
+
+        # 2. Intelligent workspace resolution from input_params / kwargs
+        if not ws_obj and isinstance(input_params, dict):
+            try:
+                ws_val = input_params.get('workspace_id') or input_params.get('workspace')
+                if ws_val:
+                    if isinstance(ws_val, Workspace):
+                        ws_obj = ws_val
+                    else:
+                        ws_obj = Workspace.objects.filter(id=ws_val).first()
+
+                if not ws_obj and input_params.get('pipeline_run_id'):
+                    pr = PipelineRun.objects.filter(id=input_params['pipeline_run_id']).select_related('workspace').first()
+                    if pr:
+                        ws_obj = pr.workspace
+
+                if not ws_obj and (input_params.get('process_id') or input_params.get('agent_process_id')):
+                    p_id = input_params.get('process_id') or input_params.get('agent_process_id')
+                    proc = ResearchAgentProcess.objects.filter(id=p_id).select_related('workspace').first()
+                    if proc:
+                        ws_obj = proc.workspace
+
+                if not ws_obj and input_params.get('paper_id'):
+                    paper = Paper.objects.filter(id=input_params['paper_id']).select_related('workspace').first()
+                    if paper:
+                        ws_obj = paper.workspace
+
+                if not ws_obj and input_params.get('scraper_id'):
+                    scraper = Scraper.objects.filter(id=input_params['scraper_id']).select_related('workspace').first()
+                    if scraper:
+                        ws_obj = scraper.workspace
+
+                if not ws_obj and input_params.get('definition_id'):
+                    ext_def = ExtractionDefinition.objects.filter(id=input_params['definition_id']).select_related('workspace').first()
+                    if ext_def:
+                        ws_obj = ext_def.workspace
+
+                if not ws_obj and input_params.get('extraction_id'):
+                    ext = Extraction.objects.filter(id=input_params['extraction_id']).select_related('workspace').first()
+                    if ext:
+                        ws_obj = ext.workspace
+
+                if not ws_obj and input_params.get('component_run_id'):
+                    cr = ComponentRun.objects.filter(id=input_params['component_run_id']).select_related('pipeline_run__workspace').first()
+                    if cr and cr.pipeline_run:
+                        ws_obj = cr.pipeline_run.workspace
+            except Exception:
+                pass
+
+        # 3. Intelligent workspace resolution from output_summary (e.g. create_workspace returns workspace_id)
+        if not ws_obj and isinstance(output_summary, dict):
+            try:
+                out_ws = output_summary.get('workspace_id') or output_summary.get('workspace')
+                if not out_ws and action_name in ('create_workspace', 'POST /api/workspaces/'):
+                    out_ws = output_summary.get('id')
+                if out_ws:
+                    ws_obj = Workspace.objects.filter(id=out_ws).first()
+            except Exception:
+                pass
+
+        # 4. Intelligent workspace resolution from REST API URL path (e.g. /api/workspaces/<uuid>/)
+        if not ws_obj and action_name:
+            try:
+                import re
+                uuid_match = re.search(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', action_name)
+                if uuid_match:
+                    matched_id = uuid_match.group(0)
+                    if '/workspaces/' in action_name:
+                        ws_obj = Workspace.objects.filter(id=matched_id).first()
+                    elif '/agents/' in action_name:
+                        proc = ResearchAgentProcess.objects.filter(id=matched_id).select_related('workspace').first()
+                        if proc:
+                            ws_obj = proc.workspace
+                    elif '/pipeline-runs/' in action_name:
+                        pr = PipelineRun.objects.filter(id=matched_id).select_related('workspace').first()
+                        if pr:
+                            ws_obj = pr.workspace
+                    elif '/extractions/' in action_name:
+                        ext = Extraction.objects.filter(id=matched_id).select_related('workspace').first()
+                        if ext:
+                            ws_obj = ext.workspace
+            except Exception:
+                pass
+
         username = getattr(user, 'username', '') if user else ''
         email = getattr(user, 'email', '') if user else ''
-        ws_name = getattr(workspace, 'name', '') if workspace else ''
+        ws_name = getattr(ws_obj, 'name', '') if ws_obj else ''
 
         logger.info(
             f"📝 [USER ACTIVITY LOG] [{interface.upper()}] {action_name} | "
@@ -801,7 +894,7 @@ class UserActivityLog(models.Model):
 
         return cls.objects.create(
             user=user,
-            workspace=workspace,
+            workspace=ws_obj,
             user_username=username,
             user_email=email,
             workspace_name=ws_name,
@@ -820,5 +913,6 @@ class UserActivityLog(models.Model):
     def __str__(self):
         user_str = self.user_username or (str(self.user) if self.user else "Anonymous")
         return f"[{self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] {user_str} executed {self.action_name} ({self.status})"
+
 
 

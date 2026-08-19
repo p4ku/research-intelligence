@@ -76,6 +76,14 @@ class UserActionAuditMiddleware(MiddlewareMixin):
 
         # Capture response summary if brief
         output_summary = {"status_code": status_code}
+        try:
+            if hasattr(response, 'content') and response.content and len(response.content) < 4000:
+                res_data = json.loads(response.content.decode('utf-8'))
+                if isinstance(res_data, dict):
+                    output_summary.update(res_data)
+        except Exception:
+            pass
+
         error_msg = None
         if status_str != "success":
             try:
@@ -88,7 +96,7 @@ class UserActionAuditMiddleware(MiddlewareMixin):
         try:
             UserActivityLog.log_action(
                 user=user,
-                workspace=None, # Filled if endpoint contextualized workspace
+                workspace=None, # Automatically resolved by log_action from action_name, input_params, or output_summary
                 interface="rest_api",
                 action_name=action_name,
                 status=status_str,

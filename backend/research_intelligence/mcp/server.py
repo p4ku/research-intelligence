@@ -141,17 +141,35 @@ def with_db_connection(func):
                     else:
                         out_sum = {"result_length": len(str(result))}
 
+                req = None
+                try:
+                    req = get_http_request()
+                except Exception:
+                    pass
+
+                ip_addr = None
+                ua_str = None
+                if req:
+                    x_fwd = req.headers.get("x-forwarded-for")
+                    if x_fwd:
+                        ip_addr = x_fwd.split(",")[0].strip()
+                    elif hasattr(req, "client") and req.client:
+                        ip_addr = req.client.host
+                    ua_str = req.headers.get("user-agent", "")[:500]
+
                 UserActivityLog.log_action(
                     user=user,
                     workspace=workspace,
                     interface="mcp",
                     action_name=func.__name__,
                     status=status,
-                    input_params=kwargs if kwargs else {"args": [str(a) for a in args]},
+                    input_params=kwargs if kwargs else ({"args": [str(a) for a in args]} if args else {}),
                     output_summary=out_sum,
                     error_message=error_msg,
                     execution_time_ms=dt_ms,
-                    api_key_id=api_key_id
+                    api_key_id=api_key_id,
+                    ip_address=ip_addr,
+                    user_agent=ua_str
                 )
             except Exception as audit_err:
                 logger.warning(f"Failed to record UserActivityLog for {func.__name__}: {audit_err}")

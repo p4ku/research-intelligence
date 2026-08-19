@@ -153,3 +153,79 @@ class ActivityLogsTestCase(TestCase):
         self.assertEqual(log_after.user_email, "doomed@example.com")
         self.assertEqual(log_after.workspace_name, "Doomed Workspace")
         self.assertEqual(log_after.action_name, "start_research_agent")
+
+    def test_automatic_workspace_resolution(self):
+        """
+        Verifies that UserActivityLog.log_action automatically resolves workspace when
+        passed via input_params (workspace_id, pipeline_run_id, process_id, paper_id, etc.)
+        or output_summary.
+        """
+        from research_intelligence.models import PipelineRun, ResearchAgentProcess, Paper
+
+        # 1. Resolve via input_params['workspace_id']
+        log1 = UserActivityLog.log_action(
+            user=self.user,
+            workspace=None,
+            interface="mcp",
+            action_name="list_scrapers",
+            input_params={"workspace_id": str(self.workspace.id)}
+        )
+        self.assertEqual(log1.workspace, self.workspace)
+        self.assertEqual(log1.workspace_name, "Audit Target Workspace")
+
+        # 2. Resolve via input_params['pipeline_run_id']
+        run = PipelineRun.objects.create(workspace=self.workspace)
+        log2 = UserActivityLog.log_action(
+            user=self.user,
+            workspace=None,
+            interface="mcp",
+            action_name="get_pipeline_run_status",
+            input_params={"pipeline_run_id": str(run.id)}
+        )
+        self.assertEqual(log2.workspace, self.workspace)
+        self.assertEqual(log2.workspace_name, "Audit Target Workspace")
+
+        # 3. Resolve via input_params['process_id']
+        proc = ResearchAgentProcess.objects.create(workspace=self.workspace, pipeline_run=run)
+        log3 = UserActivityLog.log_action(
+            user=self.user,
+            workspace=None,
+            interface="mcp",
+            action_name="get_research_agent_status",
+            input_params={"process_id": str(proc.id)}
+        )
+        self.assertEqual(log3.workspace, self.workspace)
+        self.assertEqual(log3.workspace_name, "Audit Target Workspace")
+
+        # 4. Resolve via input_params['paper_id']
+        paper = Paper.objects.create(workspace=self.workspace, pipeline_run=run, hash_id="audit_hash", title="Audit Paper")
+        log4 = UserActivityLog.log_action(
+            user=self.user,
+            workspace=None,
+            interface="mcp",
+            action_name="get_paper_extractions_matrix",
+            input_params={"paper_id": str(paper.id)}
+        )
+        self.assertEqual(log4.workspace, self.workspace)
+        self.assertEqual(log4.workspace_name, "Audit Target Workspace")
+
+        # 5. Resolve via output_summary['workspace_id'] (e.g. create_workspace)
+        log5 = UserActivityLog.log_action(
+            user=self.user,
+            workspace=None,
+            interface="mcp",
+            action_name="create_workspace",
+            output_summary={"status": "success", "workspace_id": str(self.workspace.id)}
+        )
+        self.assertEqual(log5.workspace, self.workspace)
+        self.assertEqual(log5.workspace_name, "Audit Target Workspace")
+
+        # 6. Resolve via action_name URL containing workspace UUID
+        log6 = UserActivityLog.log_action(
+            user=self.user,
+            workspace=None,
+            interface="rest_api",
+            action_name=f"GET /api/workspaces/{str(self.workspace.id)}/"
+        )
+        self.assertEqual(log6.workspace, self.workspace)
+        self.assertEqual(log6.workspace_name, "Audit Target Workspace")
