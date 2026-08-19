@@ -269,11 +269,17 @@ def download_pdf_to_s3(paper_id):
         if not file_bytes:
             return False
             
-        target_path = f"papers/{paper.id}.pdf"
+        if paper.pipeline_run_id and paper.hash_id:
+            target_path = f"workspaces/{paper.workspace_id}/runs/{paper.pipeline_run_id}/documents/{paper.hash_id}/original.pdf"
+        elif paper.workspace_id and paper.hash_id:
+            target_path = f"workspaces/{paper.workspace_id}/documents/{paper.hash_id}/original.pdf"
+        else:
+            target_path = f"workspaces/{paper.workspace_id}/documents/{paper.id}/original.pdf"
+
         default_storage.save(target_path, ContentFile(file_bytes))
         
         paper.original_pdf_path = target_path
-        paper.save()
+        paper.save(update_fields=['original_pdf_path'])
         return True
     except Paper.DoesNotExist:
         return False

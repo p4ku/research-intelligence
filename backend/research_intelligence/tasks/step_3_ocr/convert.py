@@ -34,8 +34,10 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
         if paper.pipeline_run and paper.hash_id:
             doc_folder = f"workspaces/{paper.workspace.id}/runs/{paper.pipeline_run.id}/documents/{paper.hash_id}"
             target_path = f"{doc_folder}/ocr.md"
+        elif paper.workspace_id and paper.hash_id:
+            target_path = f"workspaces/{paper.workspace.id}/documents/{paper.hash_id}/ocr.md"
         else:
-            target_path = f"papers/{paper.id}.md"
+            target_path = f"workspaces/{paper.workspace_id}/documents/{paper.id}/ocr.md"
 
         if default_storage.exists(target_path):
             paper.converted_md_path = target_path
