@@ -402,7 +402,6 @@ class ComponentRun(models.Model):
     
     # Optional foreign key references for specific step types
     scraper = models.ForeignKey('Scraper', on_delete=models.SET_NULL, null=True, blank=True, related_name="component_runs")
-    extraction_definition = models.ForeignKey('ExtractionDefinition', on_delete=models.SET_NULL, null=True, blank=True, related_name="component_runs")
     
     celery_task_id = models.CharField(max_length=255, blank=True, null=True, help_text="Celery Task ID executing this job")
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending')
