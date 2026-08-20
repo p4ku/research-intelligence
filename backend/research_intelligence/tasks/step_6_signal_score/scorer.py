@@ -209,17 +209,37 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
     scores_list = []
     errors_list = []
 
+    evaluated_papers = []
     for paper in papers:
         close_old_connections()
         try:
             score, details = compute_paper_signal_score(paper)
             scores_list.append(score)
             scored_count += 1
+            evaluated_papers.append({
+                "paper_id": str(paper.id),
+                "hash_id": paper.hash_id,
+                "title": paper.title,
+                "authors": paper.authors,
+                "doi": paper.doi,
+                "arxiv_id": paper.arxiv_id,
+                "screening_status": paper.screening_status,
+                "signal_score": score,
+                "variables": details.get("variables", {}),
+                "error": details.get("error")
+            })
             if details.get("error"):
                 errors_list.append({"paper_id": str(paper.id), "error": details["error"]})
         except Exception as e:
             logger.exception(f"Unexpected error scoring paper {paper.id}: {e}")
             errors_list.append({"paper_id": str(paper.id), "error": str(e)})
+            evaluated_papers.append({
+                "paper_id": str(paper.id),
+                "hash_id": paper.hash_id,
+                "title": paper.title,
+                "signal_score": 0.0,
+                "error": str(e)
+            })
 
     avg_score = float(sum(scores_list) / len(scores_list)) if scores_list else 0.0
     max_score = float(max(scores_list)) if scores_list else 0.0
@@ -235,10 +255,24 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
         "errors": errors_list[:10],
     }
 
+    output_data = {
+        "summary": {
+            "total_papers": total_papers,
+            "scored_count": scored_count,
+            "avg_signal_score": round(avg_score, 2),
+            "max_signal_score": round(max_score, 2),
+            "min_signal_score": round(min_score, 2),
+            "errors_count": len(errors_list)
+        },
+        "signal_score_code": workspace.signal_score_code,
+        "papers": evaluated_papers
+    }
+
     comp_run.status = 'completed'
     comp_run.completed_at = timezone.now()
     comp_run.metrics = metrics
-    comp_run.save(update_fields=['status', 'completed_at', 'metrics'])
+    comp_run.output_data = output_data
+    comp_run.save(update_fields=['status', 'completed_at', 'metrics', 'output_data'])
 
     logger.info(
         f"🏁 [STEP 6 FINISHED] Signal Score Evaluation Run {pipeline_run.id}: "
