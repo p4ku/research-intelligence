@@ -137,6 +137,70 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
         agent.refresh_from_db()
         self.assertEqual(agent.status, "aborted")
 
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.tick_agent_process")
+    def test_agent_admin_save_model_auto_ticks_new_agent(self, mock_tick):
+        admin_obj = ResearchAgentProcessAdmin(ResearchAgentProcess, self.site)
+        req = self._get_request_with_messages()
+
+        agent = ResearchAgentProcess(
+            workspace=self.workspace,
+            name="New Admin Agent",
+            status="running",
+            current_step="initialized"
+        )
+        admin_obj.save_model(req, agent, form=None, change=False)
+        self.assertIsNotNone(agent.id)
+        mock_tick.assert_called_once_with(str(agent.id))
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.tick_agent_process")
+    def test_agent_admin_changelist_reconciles_stuck_agents(self, mock_tick):
+        agent1 = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Stuck Agent 1",
+            status="running",
+            current_step="initialized"
+        )
+        admin_obj = ResearchAgentProcessAdmin(ResearchAgentProcess, self.site)
+        req = self._get_request_with_messages()
+
+        admin_obj.changelist_view(req)
+        mock_tick.assert_called_with(str(agent1.id))
+
+    def test_agent_admin_badge_and_link_synchronization(self):
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="running",
+            current_stage="screening"
+        )
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Badge Test Agent",
+            pipeline_run=pr,
+            status="running",
+            current_step="initialized"
+        )
+        admin_obj = ResearchAgentProcessAdmin(ResearchAgentProcess, self.site)
+
+        # 1. Badge reflects underlying pipeline stage
+        badge_html = str(admin_obj.current_step_badge(agent))
+        self.assertIn("SCREENING", badge_html.upper())
+
+        # 2. Pipeline link renders link
+        link_html = str(admin_obj.pipeline_run_link(agent))
+        self.assertIn(str(pr.id)[:8], link_html)
+
+        # 3. Orphan agent auto-links to workspace pipeline run
+        orphan = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Orphan Link Agent",
+            pipeline_run=None,
+            status="running"
+        )
+        orphan_link_html = str(admin_obj.pipeline_run_link(orphan))
+        orphan.refresh_from_db()
+        self.assertEqual(orphan.pipeline_run, pr)
+        self.assertIn(str(pr.id)[:8], orphan_link_html)
+
     def test_storage_browser_helper_functions(self):
         # File icons
         self.assertEqual(_get_file_icon("paper.pdf"), "📄 PDF")

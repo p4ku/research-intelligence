@@ -891,7 +891,7 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
     def usd_cost(self, obj):
         pr = obj.pipeline_run
         if not pr and obj.workspace:
-            pr = obj.workspace.pipeline_runs.order_by('-started_at').first()
+            pr = PipelineRun.objects.filter(workspace=obj.workspace).order_by('-started_at').first()
         if pr:
             cost = float(pr.usd_cost or 0.0)
             if cost == 0.0:
@@ -970,7 +970,7 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
     def pipeline_run_link(self, obj):
         pr = obj.pipeline_run
         if not pr and obj.workspace:
-            pr = obj.workspace.pipeline_runs.order_by('-started_at').first()
+            pr = PipelineRun.objects.filter(workspace=obj.workspace).order_by('-started_at').first()
             if pr:
                 obj.pipeline_run = pr
                 obj.save(update_fields=['pipeline_run'])

@@ -367,4 +367,122 @@ class PipelineTokenAccumulationTestCase(TestCase):
         cost_1m = calculate_llm_cost("google/gemini-3.7-flash", 1_000_000, 0)
         self.assertEqual(cost_1m, Decimal("0.7500"))
 
+    def test_all_supported_llm_models_cost_calculation(self):
+        """
+        Validates cost calculation across all supported LLM model pricing tiers.
+        """
+        from research_intelligence.llm_providers.pricing import calculate_llm_cost
+
+        models = [
+            "google/gemini-3.7-flash",
+            "google/gemini-2.5-pro",
+            "anthropic/claude-3.5-sonnet",
+            "openai/gpt-4o",
+            "openai/gpt-4o-mini",
+            "deepseek/deepseek-r1",
+            "mistral/mistral-large",
+        ]
+
+        # 10,000 in, 2,000 out
+        for model in models:
+            cost = calculate_llm_cost(model, tokens_in=10_000, tokens_out=2_000)
+            self.assertIsInstance(cost, Decimal)
+            self.assertGreater(cost, Decimal("0.0000"), f"Cost for model {model} must be positive")
+
+    def test_research_agent_process_admin_usd_cost_resolution_and_aggregation(self):
+        """
+        Validates all resolution strategies in ResearchAgentProcessAdmin.usd_cost:
+        1. Direct pipeline_run.usd_cost.
+        2. Fallback sum from ComponentRun metrics when pipeline_run.usd_cost == 0.
+        3. Recalculation from tokens using calculate_llm_cost.
+        4. Auto-resolving pipeline_run from workspace when agent_process.pipeline_run is None.
+        5. Zero cost formatting when no cost or tokens exist.
+        """
+        from research_intelligence.models import ResearchAgentProcess
+        from research_intelligence.admin import ResearchAgentProcessAdmin
+        from django.contrib.admin.sites import AdminSite
+
+        admin_obj = ResearchAgentProcessAdmin(ResearchAgentProcess, AdminSite())
+
+        # Strategy 1: Direct pipeline_run.usd_cost
+        agent_with_cost = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Agent Direct Cost",
+            pipeline_run=self.pipeline_run,
+            status="running"
+        )
+        self.pipeline_run.usd_cost = Decimal("0.0450")
+        self.pipeline_run.save(update_fields=['usd_cost'])
+
+        rendered = str(admin_obj.usd_cost(agent_with_cost))
+        self.assertIn("$0.0450", rendered)
+
+        # Strategy 2: Fallback from ComponentRun metrics
+        run_with_comps = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="running",
+            usd_cost=Decimal("0.0000")
+        )
+        ComponentRun.objects.create(
+            pipeline_run=run_with_comps,
+            component_name="abstract_screening",
+            step_type="screening",
+            status="completed",
+            metrics={"usd_cost": 0.0125}
+        )
+        ComponentRun.objects.create(
+            pipeline_run=run_with_comps,
+            component_name="parameter_extraction",
+            step_type="extraction",
+            status="completed",
+            metrics={"usd_cost": 0.0210}
+        )
+        agent_with_comps = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Agent Comp Cost",
+            pipeline_run=run_with_comps,
+            status="running"
+        )
+        rendered_comp = str(admin_obj.usd_cost(agent_with_comps))
+        self.assertIn("$0.0335", rendered_comp)
+
+        # Strategy 3: Token recalculation fallback
+        run_with_tokens = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="running",
+            usd_cost=Decimal("0.0000"),
+            tokens_in=50000,
+            tokens_out=10000,
+            tokens_consumed=60000
+        )
+        agent_with_tokens = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Agent Token Recalc",
+            pipeline_run=run_with_tokens,
+            status="running"
+        )
+        rendered_tokens = str(admin_obj.usd_cost(agent_with_tokens))
+        self.assertNotIn("$0.0000", rendered_tokens)
+
+        # Strategy 4: Orphan agent auto-resolves from workspace recent pipeline run
+        orphan_agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Orphan Agent",
+            pipeline_run=None,
+            status="running"
+        )
+        rendered_orphan = str(admin_obj.usd_cost(orphan_agent))
+        self.assertNotIn("$0.0000", rendered_orphan)
+
+        # Strategy 5: Fresh empty workspace with 0 cost
+        empty_ws = Workspace.objects.create(name="Empty Cost Workspace")
+        empty_agent = ResearchAgentProcess.objects.create(
+            workspace=empty_ws,
+            name="Empty Agent",
+            pipeline_run=None,
+            status="running"
+        )
+        rendered_empty = str(admin_obj.usd_cost(empty_agent))
+        self.assertIn("$0.0000", rendered_empty)
+
 
