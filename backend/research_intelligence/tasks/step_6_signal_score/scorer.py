@@ -1,6 +1,6 @@
 import re
 import logging
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple, Optional, Union
 from celery import shared_task
 from django.utils import timezone
 from django.db import close_old_connections
