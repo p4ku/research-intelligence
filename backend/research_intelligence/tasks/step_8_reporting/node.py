@@ -45,4 +45,6 @@ class ReportingNode(BaseWorkflowNode):
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
         comp_run.status = "completed"
         comp_run.save(update_fields=['status'])
+        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+        notify_pipeline_orchestrator_tick(pipeline_run)
         return {"status": "completed"}

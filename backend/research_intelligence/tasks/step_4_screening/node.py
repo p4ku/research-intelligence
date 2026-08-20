@@ -61,7 +61,7 @@ class ScreeningNode(BaseWorkflowNode):
 
     def should_halt_pipeline(self, pipeline_run, workspace, config: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         from research_intelligence.models import Paper
-        accepted_count = Paper.objects.filter(workspace=workspace, screening_status='accepted').count()
+        accepted_count = Paper.objects.filter(workspace=workspace, screening_status__in=['accepted', 'full_text_passed']).count()
         if accepted_count > 0 or config.get("reprocess_existing", False):
             return False, None
 

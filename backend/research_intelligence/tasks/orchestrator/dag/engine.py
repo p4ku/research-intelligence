@@ -362,9 +362,13 @@ class WorkflowDAG:
                     "message": f"Dispatched DAG node(s): {', '.join(dispatched)}"
                 }
 
-            # 5. If any node is still running, report waiting
+            # 5. If any node is still running, report waiting and synchronize active step
             running_nodes = [name for name, st in status_map.items() if st == "running"]
             if running_nodes:
+                active_step = self.nodes[running_nodes[0]].step_type
+                if agent_process and agent_process.current_step != active_step:
+                    agent_process.current_step = active_step
+                    agent_process.save(update_fields=['current_step', 'updated_at'])
                 return {
                     "success": True,
                     "status": "running",
@@ -377,13 +381,24 @@ class WorkflowDAG:
             if all_done:
                 pipeline_run.status = 'completed'
                 pipeline_run.current_stage = 'completed'
-                pipeline_run.completed_at = timezone.now()
-                pipeline_run.save(update_fields=['status', 'current_stage', 'completed_at'])
+                if not pipeline_run.completed_at:
+                    pipeline_run.completed_at = timezone.now()
+
+                # Refresh and aggregate USD cost across component runs if needed
+                comp_costs = sum(
+                    float((cr.metrics or {}).get("usd_cost") or 0.0)
+                    for cr in pipeline_run.component_runs.all()
+                )
+                if comp_costs > float(pipeline_run.usd_cost or 0.0):
+                    pipeline_run.usd_cost = comp_costs
+
+                pipeline_run.save(update_fields=['status', 'current_stage', 'completed_at', 'usd_cost'])
 
                 if agent_process:
                     agent_process.status = 'completed'
                     agent_process.current_step = 'completed'
-                    agent_process.completed_at = timezone.now()
+                    if not agent_process.completed_at:
+                        agent_process.completed_at = timezone.now()
                     history = list(agent_process.step_history or [])
                     history.append({
                         "step": "pipeline",

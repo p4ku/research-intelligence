@@ -855,6 +855,28 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
 
     actions = ['tick_selected_agents', 'rerun_with_reprocessing', 'pause_selected_agents', 'resume_selected_agents', 'abort_selected_agents']
 
+    def save_model(self, request, obj, form, change):
+        is_new = obj._state.adding
+        super().save_model(request, obj, form, change)
+        if (is_new or obj.current_step == 'initialized') and obj.status == 'running':
+            from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+            try:
+                tick_agent_process(str(obj.id))
+            except Exception as e:
+                logger.warning(f"Failed to auto-tick newly created agent '{obj.id}': {e}")
+
+    def changelist_view(self, request, extra_context=None):
+        # Auto-reconcile any running agents that might be stuck on initialized
+        stuck_agents = list(ResearchAgentProcess.objects.filter(status='running', current_step='initialized')[:5])
+        if stuck_agents:
+            from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+            for agent in stuck_agents:
+                try:
+                    tick_agent_process(str(agent.id))
+                except Exception:
+                    pass
+        return super().changelist_view(request, extra_context=extra_context)
+
     def reprocess_mode_badge(self, obj):
         is_reprocess = False
         if isinstance(obj.configuration_override, dict) and obj.configuration_override.get('reprocess_existing'):
@@ -867,13 +889,23 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
     reprocess_mode_badge.short_description = "Reprocess"
 
     def usd_cost(self, obj):
-        if obj.pipeline_run:
-            cost = float(obj.pipeline_run.usd_cost or 0.0)
-            if cost == 0.0 and (obj.pipeline_run.tokens_in or obj.pipeline_run.tokens_out or obj.pipeline_run.tokens_consumed):
+        pr = obj.pipeline_run
+        if not pr and obj.workspace:
+            pr = obj.workspace.pipeline_runs.order_by('-started_at').first()
+        if pr:
+            cost = float(pr.usd_cost or 0.0)
+            if cost == 0.0:
+                comp_cost = sum(
+                    float((cr.metrics or {}).get("usd_cost") or 0.0)
+                    for cr in pr.component_runs.all()
+                )
+                if comp_cost > 0.0:
+                    cost = comp_cost
+            if cost == 0.0 and (pr.tokens_in or pr.tokens_out or pr.tokens_consumed):
                 try:
                     from research_intelligence.llm_providers.pricing import calculate_llm_cost
-                    model_name = obj.pipeline_run.workspace.screening_llm_model if obj.pipeline_run.workspace else "google/gemini-3.7-flash"
-                    cost = float(calculate_llm_cost(model_name, obj.pipeline_run.tokens_in or 0, obj.pipeline_run.tokens_out or 0))
+                    model_name = pr.workspace.screening_llm_model if pr.workspace else "google/gemini-3.7-flash"
+                    cost = float(calculate_llm_cost(model_name, pr.tokens_in or 0, pr.tokens_out or 0))
                 except Exception:
                     pass
             if cost > 0:
@@ -897,6 +929,10 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
     status_badge.short_description = "Status"
 
     def current_step_badge(self, obj):
+        step = obj.current_step
+        if step == 'initialized' and obj.status == 'running' and obj.pipeline_run and obj.pipeline_run.current_stage != 'initialized':
+            step = obj.pipeline_run.current_stage
+
         colors = {
             'initialized': '#6c757d',
             'search': '#0d6efd',
@@ -910,9 +946,10 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
             'failed': '#dc3545',
             'aborted': '#495057',
         }
-        bg = colors.get(obj.current_step, '#6c757d')
+        bg = colors.get(step, '#6c757d')
         text_color = '#000000' if bg in ('#ffc107', '#0dcaf0') else '#ffffff'
-        return render_badge(obj.get_current_step_display(), bg, text_color)
+        display_name = dict(ResearchAgentProcess.STEP_CHOICES).get(step, step.title())
+        return render_badge(display_name, bg, text_color)
     current_step_badge.short_description = "Active Step"
 
     def execution_time(self, obj):
@@ -931,10 +968,16 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
     execution_time.admin_order_field = 'completed_at'
 
     def pipeline_run_link(self, obj):
-        if not obj.pipeline_run:
+        pr = obj.pipeline_run
+        if not pr and obj.workspace:
+            pr = obj.workspace.pipeline_runs.order_by('-started_at').first()
+            if pr:
+                obj.pipeline_run = pr
+                obj.save(update_fields=['pipeline_run'])
+        if not pr:
             return "-"
-        url = reverse("admin:research_intelligence_pipelinerun_change", args=[obj.pipeline_run.id])
-        return format_html('<a href="{}"><code>{}</code></a>', url, str(obj.pipeline_run.id)[:8] + '...')
+        url = reverse("admin:research_intelligence_pipelinerun_change", args=[pr.id])
+        return format_html('<a href="{}"><code>{}</code></a>', url, str(pr.id)[:8] + '...')
     pipeline_run_link.short_description = "Pipeline Run"
 
     def step_history_preview(self, obj):

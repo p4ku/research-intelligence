@@ -132,7 +132,27 @@ class ResearchAgentRunner:
             else:
                 pipeline_run = pipeline_run_id_or_obj
 
+            # Refresh and aggregate cost on pipeline_run
+            comp_costs = sum(
+                float((cr.metrics or {}).get("usd_cost") or 0.0)
+                for cr in pipeline_run.component_runs.all()
+            )
+            if comp_costs > float(pipeline_run.usd_cost or 0.0):
+                pipeline_run.usd_cost = comp_costs
+                pipeline_run.save(update_fields=['usd_cost'])
+
             running_agents = list(pipeline_run.agent_processes.filter(status='running'))
+            if not running_agents and pipeline_run.workspace:
+                orphan_agents = list(ResearchAgentProcess.objects.filter(
+                    workspace=pipeline_run.workspace,
+                    status='running',
+                    pipeline_run__isnull=True
+                ))
+                for o_agent in orphan_agents:
+                    o_agent.pipeline_run = pipeline_run
+                    o_agent.save(update_fields=['pipeline_run'])
+                    running_agents.append(o_agent)
+
             if running_agents:
                 from research_intelligence.tasks.orchestrator.agent_engine import run_agent_process_tick
                 for agent_proc in running_agents:
@@ -154,7 +174,7 @@ class ResearchAgentRunner:
                         pipeline_run.current_stage = 'completed'
                         if not pipeline_run.completed_at:
                             pipeline_run.completed_at = timezone.now()
-                        pipeline_run.save(update_fields=['status', 'current_stage', 'completed_at'])
+                        pipeline_run.save(update_fields=['status', 'current_stage', 'completed_at', 'usd_cost'])
         except Exception as e:
             logger.warning(f"Failed to handle component completion tick: {e}")
 
