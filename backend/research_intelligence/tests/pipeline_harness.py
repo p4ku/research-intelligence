@@ -385,6 +385,24 @@ class PipelineTestHarness:
         self._tick()
         self.agent_process.refresh_from_db()
         self.pipeline_run.refresh_from_db()
+
+        if self.agent_process.current_step == 'signal_score':
+            self.complete_step_6_signal_score()
+
+        return self
+
+    def complete_step_6_signal_score(self) -> "PipelineTestHarness":
+        """Simulates completing Step 6 (Signal Score Evaluation)."""
+        sig_runs = ComponentRun.objects.filter(pipeline_run=self.pipeline_run, step_type='signal_score')
+        for run in sig_runs:
+            run.status = 'completed'
+            run.completed_at = timezone.now()
+            run.metrics = {'scored_count': len(self.papers), 'avg_signal_score': 85.0}
+            run.save()
+
+        self._tick()
+        self.agent_process.refresh_from_db()
+        self.pipeline_run.refresh_from_db()
         return self
 
     def inject_failure_at_current_step(self, error_message: str = "Simulated upstream failure") -> "PipelineTestHarness":

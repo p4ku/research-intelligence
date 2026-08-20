@@ -74,6 +74,7 @@ from research_intelligence.mcp.tools import (
     trigger_ocr_job_logic,
     trigger_screening_job_logic,
     trigger_extraction_job_logic,
+    trigger_signal_score_job_logic,
     get_pipeline_run_status_logic,
     get_component_run_status_logic,
     abort_job_logic,
@@ -789,6 +790,18 @@ def trigger_extraction_job(pipeline_run_id: str = None, workspace_id: str = None
     except Exception as e:
         return str(e)
     return trigger_extraction_job_logic(user, pipeline_run_id, workspace_id, limit)
+
+
+@mcp.tool()
+@with_db_connection
+def trigger_signal_score_job(pipeline_run_id: str, limit: int = 50) -> str:
+    """[MANUAL COMPONENT ONLY] Trigger only Step 6 (Composite Signal Score Evaluation). Evaluates the sandboxed Python signal score logic for all screened and accepted papers."""
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "scrapers:write")
+    except Exception as e:
+        return str(e)
+    return trigger_signal_score_job_logic(user, pipeline_run_id, limit)
 
 
 @mcp.tool()

@@ -178,8 +178,18 @@ class ResearchAgentProcessTest(TestCase):
         comp_ext.status = "completed"
         comp_ext.save()
 
-        # Step 6: Extraction -> Completed
+        # Step 6: Extraction -> Signal Score
         res6 = tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "signal_score")
+
+        # Simulate completion of Step 6 ComponentRun
+        comp_sig = ComponentRun.objects.get(pipeline_run=pr, step_type="signal_score")
+        comp_sig.status = "completed"
+        comp_sig.save()
+
+        # Step 7: Signal Score -> Completed
+        res7 = tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.current_step, "completed")
         self.assertEqual(agent.status, "completed")

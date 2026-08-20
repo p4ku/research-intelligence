@@ -68,6 +68,11 @@ class Workspace(models.Model):
     # Agent & Pipeline Configuration
     skip_abstract_screening = models.BooleanField(default=False, help_text="If True, skips Step 4 Abstract Screening and performs direct Full-Text Screening")
     notification_email = models.EmailField(blank=True, null=True, help_text="Email address notified upon agent completion or failure")
+    signal_score_code = models.TextField(
+        blank=True, 
+        null=True, 
+        help_text="Custom Python snippet / function to compute paper signal score from extracted parameters in Step 6"
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -185,9 +190,10 @@ class PipelineRun(models.Model):
         ('ocr', '3. Layout OCR Extraction'),
         ('screening', '4. Abstract & Full-Text Screening'),
         ('extraction', '5. Parameter & Claim Extraction'),
-        ('metrics', '6. TRL & Importance Metrics'),
-        ('deep_research', '7. Deep Research Iteration'),
-        ('reporting', '8. Narrative Report Generation'),
+        ('signal_score', '6. Composite Signal Score'),
+        ('metrics', '7. TRL & Importance Metrics'),
+        ('deep_research', '8. Deep Research Iteration'),
+        ('reporting', '9. Narrative Report Generation'),
         ('completed', 'Completed'),
     ]
 
@@ -287,6 +293,7 @@ class ResearchAgentProcess(models.Model):
         ('ocr', '3. OCR Conversion'),
         ('screening', '4. Abstract & Full-Text Screening'),
         ('extraction', '5. Parameter & Claim Extraction'),
+        ('signal_score', '6. Signal Score Evaluation'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
         ('aborted', 'Aborted')
@@ -370,6 +377,7 @@ class ComponentRun(models.Model):
         ('ocr', 'Layout OCR Extraction'),
         ('screening', 'Abstract & Full-Text Screening'),
         ('extraction', 'Parameter & Claim Extraction'),
+        ('signal_score', 'Signal Score Evaluation'),
         ('metrics', 'TRL & Graph Metrics'),
         ('deep_research', 'Deep Research Iteration'),
         ('reporting', 'Narrative Report Generation'),
@@ -546,6 +554,19 @@ class Paper(models.Model):
         blank=True,
         help_text="Stores the ground-truth review decision made by the human analyst lead"
     )
+
+    # Step 6: Signal Score
+    signal_score = models.FloatField(
+        blank=True,
+        null=True,
+        db_index=True,
+        help_text="Computed composite signal score from extraction parameters in Step 6"
+    )
+    signal_score_details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Detailed variable values and calculation audit for the signal score"
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -625,6 +646,8 @@ class PaperMetric(models.Model):
     citation_count = models.IntegerField(default=0)
     venue_impact_factor = models.FloatField(default=0.0)
     h_index = models.IntegerField(default=0)
+    signal_score = models.FloatField(blank=True, null=True, help_text="Calculated composite signal score")
+    signal_score_details = models.JSONField(default=dict, blank=True, help_text="Calculation audit for signal score")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

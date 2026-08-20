@@ -806,6 +806,67 @@ def trigger_extraction_job_logic(
     }, indent=2)
 
 
+def trigger_signal_score_job_logic(
+    user,
+    pipeline_run_id: str,
+    limit: int = 50
+) -> str:
+    """
+    Trigger Step 6 (Composite Signal Score Evaluation) for a PipelineRun.
+    Evaluates the sandboxed Python signal score logic for all screened and accepted papers.
+    """
+    try:
+        pr_uuid = uuid.UUID(pipeline_run_id)
+        pipeline_run = PipelineRun.objects.select_related('workspace').get(id=pr_uuid)
+    except (ValueError, PipelineRun.DoesNotExist):
+        return f"Error: PipelineRun '{pipeline_run_id}' not found."
+
+    workspace, membership, error = _check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    if error:
+        return error
+
+    accepted_statuses = ['accepted', 'full_text_passed', 'abstract_passed']
+    papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=accepted_statuses)
+    papers_count = papers_qs.count()
+
+    if papers_count == 0:
+        return f"Error: No accepted papers found in PipelineRun '{pipeline_run_id}' to score."
+
+    pipeline_run.status = 'running'
+    pipeline_run.current_stage = 'signal_score'
+    pipeline_run.save(update_fields=['status', 'current_stage'])
+
+    comp_run = ComponentRun.objects.create(
+        pipeline_run=pipeline_run,
+        step_type='signal_score',
+        component_name="signal_score_evaluation",
+        status='running',
+        input_params={"limit": limit}
+    )
+
+    from research_intelligence.tasks.step_6_signal_score.scorer import execute_signal_score_job
+    celery_task_id = None
+    try:
+        async_res = execute_signal_score_job.delay(str(comp_run.id), limit=limit)
+        celery_task_id = async_res.id
+        comp_run.celery_task_id = celery_task_id
+        comp_run.save(update_fields=['celery_task_id'])
+    except Exception:
+        execute_signal_score_job(str(comp_run.id), limit=limit)
+        comp_run.refresh_from_db()
+        celery_task_id = comp_run.celery_task_id or "sync_execution"
+
+    return json.dumps({
+        "success": True,
+        "message": f"Successfully launched Step 6 Signal Score evaluation for PipelineRun '{pipeline_run.id}' across {papers_count} papers.",
+        "pipeline_run_id": str(pipeline_run.id),
+        "component_run_id": str(comp_run.id),
+        "status": comp_run.status,
+        "celery_task_id": celery_task_id,
+        "total_papers_queued": min(papers_count, limit) if limit else papers_count
+    }, indent=2)
+
+
 def _recursive_delete_run_storage(dir_path: str) -> int:
     """Recursively delete all files and directory structures inside dir_path in default_storage."""
     import os

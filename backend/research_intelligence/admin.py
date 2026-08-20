@@ -258,6 +258,21 @@ def render_component_metrics_summary(obj):
                 ocr,
                 failed,
             )
+    elif obj.step_type == 'signal_score':
+        scored = m.get('scored_count', 0)
+        total = m.get('total_papers', 0)
+        avg_score = m.get('avg_signal_score', 0.0)
+        max_score = m.get('max_signal_score', 0.0)
+        return format_html(
+            '<div style="line-height: 1.35; white-space: nowrap;">'
+            '<strong>{}/{}</strong> scored<br>'
+            '<span style="color: #0d6efd; font-weight: 600;">Avg: {:.2f}</span> (Max: {:.2f})'
+            '</div>',
+            scored,
+            total,
+            avg_score,
+            max_score,
+        )
         return format_html(
             '<div style="line-height: 1.35; white-space: nowrap;">'
             '<strong>{}</strong> converted'
@@ -469,6 +484,10 @@ class WorkspaceAdmin(admin.ModelAdmin):
         }),
         ('Engine & Provider Configuration', {
             'fields': ('ocr_provider', 'screening_llm_model', 'llm_provider')
+        }),
+        ('Step 6: Signal Score Configuration', {
+            'fields': ('signal_score_code',),
+            'description': 'Custom Python snippet evaluated in Step 6 on paper extracted parameters (e.g. <code>k = fit_score + 2*novelty_score; return 5 if k > 10 else 99</code>). Executed securely in an isolated sandbox.'
         }),
         ('Monthly Quotas & Budgets', {
             'fields': (
@@ -1018,10 +1037,14 @@ class ComponentRunAdmin(admin.ModelAdmin):
 
 @admin.register(Paper)
 class PaperAdmin(admin.ModelAdmin):
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
     list_display = (
         'title',
         'workspace',
         'pipeline_run',
+        'signal_score_badge',
         'source_database',
         'screening_status_badge',
         'is_evaluation_benchmark',
@@ -1030,6 +1053,18 @@ class PaperAdmin(admin.ModelAdmin):
     ordering = ('-created_at', '-id')
     list_filter = ('source_database', 'screening_status', 'is_evaluation_benchmark', 'workspace')
     search_fields = ('title', 'authors', 'doi', 'arxiv_id', 'hash_id')
+
+    def signal_score_badge(self, obj):
+        if obj.signal_score is None:
+            return mark_safe('<span style="color: #6c757d; font-size: 0.85em;">-</span>')
+        return format_html(
+            '<span style="background-color: #0d6efd; color: #ffffff; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.9em;">'
+            '⚡ {:.2f}'
+            '</span>',
+            obj.signal_score
+        )
+    signal_score_badge.short_description = "Signal Score"
+    signal_score_badge.admin_order_field = 'signal_score'
 
     def screening_status_badge(self, obj):
         colors = {
@@ -1186,9 +1221,12 @@ class ExtractionAdmin(admin.ModelAdmin):
 
 @admin.register(PaperMetric)
 class PaperMetricAdmin(admin.ModelAdmin):
-    list_display = ('paper', 'workspace', 'trl_score', 'importance_score', 'citation_count', 'created_at')
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
+    list_display = ('paper', 'workspace', 'signal_score', 'trl_score', 'importance_score', 'citation_count', 'created_at')
     ordering = ('-created_at', '-id')
-    list_filter = ('trl_score', 'workspace')
+    list_filter = ('workspace', 'trl_score')
     search_fields = ('paper__title',)
 
 

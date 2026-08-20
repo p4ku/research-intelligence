@@ -68,6 +68,7 @@ def list_workspaces_logic(user) -> str:
             "tokens_consumed_this_month": ws.tokens_consumed_this_month,
             "monthly_usd_limit": float(ws.monthly_usd_limit),
             "usd_spent_this_month": float(ws.usd_spent_this_month),
+            "signal_score_code": ws.signal_score_code,
             "created_at": ws.created_at.isoformat()
         })
     return json.dumps(results, indent=2, cls=DjangoJSONEncoder)
@@ -129,6 +130,7 @@ def get_workspace_logic(user, workspace_id: str) -> str:
             "screening_llm_model": workspace.screening_llm_model,
             "llm_provider": workspace.llm_provider,
             "extraction_definitions": extractions_list,
+            "signal_score_code": workspace.signal_score_code,
             "digest_schedule": workspace.digest_schedule,
             "monthly_token_limit": workspace.monthly_token_limit,
             "tokens_in_consumed_this_month": workspace.tokens_in_consumed_this_month,
@@ -156,6 +158,7 @@ def create_workspace_logic(
     monthly_token_limit: int = 10000000,
     monthly_usd_limit: float = 100.0,
     cost_limit_usd: float = None,
+    signal_score_code: str = None,
     **kwargs
 ) -> str:
     """Create a new workspace project and assign the creating user as Admin."""
@@ -175,6 +178,7 @@ def create_workspace_logic(
             ocr_provider=ocr_provider,
             screening_llm_model=screening_llm_model,
             llm_provider=llm_provider,
+            signal_score_code=signal_score_code,
             digest_schedule=digest_schedule,
             monthly_token_limit=monthly_token_limit,
             monthly_usd_limit=cost_limit_usd if cost_limit_usd is not None else monthly_usd_limit
@@ -212,6 +216,7 @@ def update_workspace_logic(
     monthly_token_limit: int = None,
     monthly_usd_limit: float = None,
     cost_limit_usd: float = None,
+    signal_score_code: str = None,
     **kwargs
 ) -> str:
     """Update settings of an existing workspace (requires Admin or Manager role)."""
@@ -240,6 +245,8 @@ def update_workspace_logic(
         workspace.screening_llm_model = screening_llm_model
     if llm_provider is not None:
         workspace.llm_provider = llm_provider
+    if signal_score_code is not None:
+        workspace.signal_score_code = signal_score_code
     if digest_schedule is not None:
         workspace.digest_schedule = digest_schedule
     if monthly_token_limit is not None:

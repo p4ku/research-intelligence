@@ -617,6 +617,69 @@ def tick_agent_process(process_id: str) -> dict:
             "timestamp": timezone.now().isoformat()
         })
 
+        pipeline_run.current_stage = 'signal_score'
+        pipeline_run.save(update_fields=['current_stage'])
+
+        process.current_step = 'signal_score'
+        process.step_history = history
+        process.save(update_fields=['current_step', 'step_history', 'updated_at'])
+
+        comp_run = ComponentRun.objects.create(
+            pipeline_run=pipeline_run,
+            step_type='signal_score',
+            component_name="signal_score_evaluation",
+            status='running',
+            input_params={"limit": limit}
+        )
+
+        from research_intelligence.tasks.step_6_signal_score.scorer import execute_signal_score_job
+        try:
+            async_res = execute_signal_score_job.delay(str(comp_run.id), limit=limit)
+            comp_run.celery_task_id = async_res.id
+            comp_run.save(update_fields=['celery_task_id'])
+        except Exception:
+            pass
+
+        return {
+            "success": True,
+            "status": process.status,
+            "current_step": process.current_step,
+            "message": f"Extraction completed. Transitioned to 'signal_score' (Step 6)."
+        }
+
+    # 7. State: SIGNAL_SCORE -> Check completion, mark COMPLETED
+    if process.current_step == 'signal_score':
+        signal_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run, step_type='signal_score')
+        if signal_runs.filter(status__in=['pending', 'running']).exists():
+            return {"success": True, "status": process.status, "current_step": "signal_score", "message": "Signal score calculation jobs still running."}
+
+        failed_sig_runs = signal_runs.filter(status='failed')
+        if failed_sig_runs.exists() and not signal_runs.filter(status='completed').exists():
+            error_msg = "; ".join([r.error_message for r in failed_sig_runs if r.error_message]) or "Signal score evaluation job failed."
+            logger.error(f"Agent '{process.name}': Signal scoring failed with error: {error_msg}")
+            process.status = 'failed'
+            process.error_message = error_msg
+            process.completed_at = timezone.now()
+            history.append({
+                "step": "signal_score",
+                "event": "failed",
+                "error": error_msg,
+                "timestamp": timezone.now().isoformat()
+            })
+            process.step_history = history
+            process.save(update_fields=['status', 'error_message', 'completed_at', 'step_history', 'updated_at'])
+
+            pipeline_run.status = 'failed'
+            pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'completed_at'])
+            return {"success": False, "status": "failed", "error": error_msg}
+
+        history.append({
+            "step": "signal_score",
+            "event": "completed",
+            "timestamp": timezone.now().isoformat()
+        })
+
         pipeline_run.status = 'completed'
         pipeline_run.current_stage = 'completed'
         pipeline_run.completed_at = timezone.now()
@@ -634,7 +697,7 @@ def tick_agent_process(process_id: str) -> dict:
             "success": True,
             "status": process.status,
             "current_step": process.current_step,
-            "message": f"Research Agent process '{process.name}' completed full pipeline cycle successfully!"
+            "message": f"Research Agent process '{process.name}' completed full pipeline cycle (with Step 6 Signal Scoring) successfully!"
         }
 
     return {"success": True, "status": process.status, "current_step": process.current_step, "message": "No action required."}
