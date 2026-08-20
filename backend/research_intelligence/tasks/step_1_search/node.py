@@ -9,11 +9,34 @@ logger = logging.getLogger(__name__)
 class SearchNode(BaseWorkflowNode):
     """
     Step 1: Multi-source search & paper ingestion (ArXiv, OpenAlex, Lens, PubMed).
+    
+    Inputs:
+        - Active Scraper configurations on Workspace.
+        - Parameters: 'limit' (int), 'reprocess_existing' (bool).
+    Outputs:
+        - Ingested & deduplicated Paper records attached to PipelineRun.
+        - ComponentRun.metrics: total_found, ingested_new, duplicates_skipped.
     """
     name = "search"
     step_type = "search"
     component_name = "workspace_search"
+    description = "Queries academic data sources (ArXiv, OpenAlex, Lens, PubMed) and deduplicates paper records."
     dependencies = []
+
+    input_contract = {
+        "scrapers": "List[Scraper] (workspace.scrapers.filter(is_active=True))",
+        "limit": "Optional[int] (max papers to fetch per provider)",
+        "reprocess_existing": "bool (if True, reuse already ingested workspace papers)",
+    }
+
+    output_contract = {
+        "papers": "QuerySet[Paper] (ingested Paper objects with title, abstract, DOI, arXiv ID, PDF URL)",
+        "component_run_metrics": {
+            "total_found": "int",
+            "ingested_new": "int",
+            "duplicates_skipped": "int",
+        },
+    }
 
     def should_halt_pipeline(self, pipeline_run, workspace, config: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         from research_intelligence.models import ComponentRun, Paper

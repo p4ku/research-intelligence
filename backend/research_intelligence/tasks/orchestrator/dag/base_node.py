@@ -16,7 +16,10 @@ class BaseWorkflowNode(abc.ABC):
     name: str = ""
     step_type: str = ""
     component_name: str = ""
+    description: str = ""
     dependencies: List[str] = []
+    input_contract: Dict[str, Any] = {}
+    output_contract: Dict[str, Any] = {}
 
     def __init__(
         self,

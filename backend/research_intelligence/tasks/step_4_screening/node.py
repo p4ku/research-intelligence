@@ -9,11 +9,49 @@ logger = logging.getLogger(__name__)
 class ScreeningNode(BaseWorkflowNode):
     """
     Step 4: Two-stage AI Screening (Abstract Screening + Full-Text Screening).
+
+    Inputs:
+        - Abstract Stage: Paper title & abstract against Workspace abstract acceptance/rejection criteria.
+        - Full-Text Stage: Raw PDF binary (or OCR Markdown) against Workspace full-text acceptance/rejection criteria.
+        - Target LLM model: 'google/gemini-3.7-flash'.
+    Outputs:
+        - Updated Paper records with screening_status ('accepted', 'rejected', 'pending'),
+          screening_reason (criteria check), and screening_history audit log.
+        - Halts pipeline gracefully if 0 papers pass screening.
+        - ComponentRun.metrics: total_screened, passed, rejected.
     """
     name = "screening"
     step_type = "screening"
     component_name = "abstract_screening"
+    description = "Evaluates papers through dual-stage screening (Abstract -> Full-Text) using Gemini 3.7 Flash."
     dependencies = ["ocr"]
+
+    input_contract = {
+        "abstract_stage": {
+            "acceptance_criteria": "workspace.get_abstract_acceptance_criteria()",
+            "rejection_criteria": "workspace.get_abstract_rejection_criteria()",
+            "paper_fields": "Paper.title, Paper.abstract",
+        },
+        "full_text_stage": {
+            "acceptance_criteria": "workspace.get_full_text_acceptance_criteria()",
+            "rejection_criteria": "workspace.get_full_text_rejection_criteria()",
+            "document_content": "Raw binary PDF (or OCR markdown text)",
+        },
+        "llm_model": "google/gemini-3.7-flash",
+    }
+
+    output_contract = {
+        "updated_models": {
+            "Paper.screening_status": "'accepted' | 'rejected' | 'pending'",
+            "Paper.screening_reason": "Detailed markdown explanation with criteria evaluation",
+            "Paper.screening_history": "JSON audit trail with timestamps and LLM confidence",
+        },
+        "component_run_metrics": {
+            "total_screened": "int",
+            "passed": "int",
+            "rejected": "int",
+        },
+    }
 
     def get_input_params(self, pipeline_run, workspace, config: Dict[str, Any], limit: Optional[int] = None) -> Dict[str, Any]:
         skip_abstract = config.get("skip_abstract_screening", getattr(workspace, 'skip_abstract_screening', False))

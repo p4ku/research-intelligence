@@ -54,6 +54,17 @@ class TestWorkflowDAGTopologyAndNodes(TestCase):
         # Graph should validate without error
         dag.validate_graph()
 
+    def test_describe_pipeline_contracts(self):
+        dag = build_default_slr_dag(self.workspace)
+        desc = dag.describe_pipeline()
+        self.assertEqual(len(desc), 7)
+        for node_info in desc:
+            self.assertTrue(node_info["name"])
+            self.assertTrue(node_info["description"])
+            self.assertIsInstance(node_info["input_contract"], dict)
+            self.assertIsInstance(node_info["output_contract"], dict)
+            self.assertIsInstance(node_info["dependencies"], list)
+
     def test_dag_cycle_detection(self):
         dag = WorkflowDAG(name="cyclic_dag")
         node_a = SearchNode(name="node_a", dependencies=["node_b"])

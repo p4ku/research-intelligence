@@ -56,6 +56,24 @@ class WorkflowDAG:
             if visited[name] == 0:
                 dfs(name, [])
 
+    def describe_pipeline(self) -> List[Dict[str, Any]]:
+        """
+        Returns a structured list describing every node in the DAG, its dependencies,
+        description, input contract, and output contract.
+        """
+        result = []
+        for name, node in self.nodes.items():
+            result.append({
+                "name": node.name,
+                "step_type": node.step_type,
+                "component_name": node.component_name,
+                "description": getattr(node, 'description', ''),
+                "dependencies": list(node.dependencies),
+                "input_contract": getattr(node, 'input_contract', {}),
+                "output_contract": getattr(node, 'output_contract', {}),
+            })
+        return result
+
     def get_downstream_nodes(self, start_node_name: str) -> Set[str]:
         """
         Returns the set of all downstream nodes that depend directly or indirectly on start_node_name.
