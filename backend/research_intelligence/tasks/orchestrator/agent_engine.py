@@ -26,8 +26,11 @@ def notify_pipeline_orchestrator_tick(pipeline_run_id_or_obj):
             try:
                 run_agent_process_tick.delay(str(agent_proc.id))
             except Exception:
-                # In eager/test environments without background worker, do not loop synchronously
-                pass
+                # If Celery queueing fails or in sync environment, tick directly
+                try:
+                    tick_agent_process(str(agent_proc.id))
+                except Exception as sync_err:
+                    logger.warning(f"Fallback tick execution failed for agent '{agent_proc.id}': {sync_err}")
     except Exception as e:
         logger.warning(f"Failed to notify orchestrator tick: {e}")
 
@@ -221,8 +224,10 @@ def tick_agent_process(process_id: str) -> dict:
                 async_res = execute_scraper_run_job.delay(str(comp_run.id), limit=limit)
                 comp_run.celery_task_id = async_res.id
                 comp_run.save(update_fields=['celery_task_id'])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to queue scraper job async, executing synchronously: {e}")
+                execute_scraper_run_job(str(comp_run.id), limit=limit)
+                comp_run.refresh_from_db()
 
         return {
             "success": True,
@@ -268,6 +273,14 @@ def tick_agent_process(process_id: str) -> dict:
 
         # Check papers ingested
         papers_count = pipeline_run.papers.count()
+        if papers_count == 0:
+            # Check if pending papers exist in workspace (e.g. from prior ingestion or deduplication)
+            from research_intelligence.models import Paper
+            pending_ws_papers = Paper.objects.filter(workspace=workspace, screening_status='pending')
+            if pending_ws_papers.exists():
+                pending_ws_papers.update(pipeline_run=pipeline_run)
+                papers_count = pipeline_run.papers.count()
+
         history.append({
             "step": "search",
             "event": "completed",
@@ -320,8 +333,10 @@ def tick_agent_process(process_id: str) -> dict:
             async_res = execute_pdf_download_job.delay(str(comp_run.id), limit=limit)
             comp_run.celery_task_id = async_res.id
             comp_run.save(update_fields=['celery_task_id'])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to queue pdf download async, executing synchronously: {e}")
+            execute_pdf_download_job(str(comp_run.id), limit=limit)
+            comp_run.refresh_from_db()
 
         return {
             "success": True,
@@ -387,8 +402,10 @@ def tick_agent_process(process_id: str) -> dict:
                 async_res = execute_ocr_job.delay(str(comp_run.id), limit=limit)
                 comp_run.celery_task_id = async_res.id
                 comp_run.save(update_fields=['celery_task_id'])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to queue OCR async, executing synchronously: {e}")
+                execute_ocr_job(str(comp_run.id), limit=limit)
+                comp_run.refresh_from_db()
 
             return {
                 "success": True,
@@ -462,15 +479,15 @@ def tick_agent_process(process_id: str) -> dict:
             "message": f"Transitioned to 'screening'."
         }
 
-    # 5. State: SCREENING -> Check completion of Stage 4a (Abstract) and Stage 4b (Full-Text), then launch Step 5 (Extraction)
+    # 5. State: SCREENING -> Check completion, launch Step 5 (Extraction)
     if process.current_step == 'screening':
         screening_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run, step_type='screening')
         if screening_runs.filter(status__in=['pending', 'running']).exists():
             return {"success": True, "status": process.status, "current_step": "screening", "message": "Screening jobs still running."}
 
-        failed_screening_runs = screening_runs.filter(status='failed')
-        if failed_screening_runs.exists() and not screening_runs.filter(status='completed').exists():
-            error_msg = "; ".join([r.error_message for r in failed_screening_runs if r.error_message]) or "Screening job failed."
+        failed_scr_runs = screening_runs.filter(status='failed')
+        if failed_scr_runs.exists() and not screening_runs.filter(status='completed').exists():
+            error_msg = "; ".join([r.error_message for r in failed_scr_runs if r.error_message]) or "Screening job failed."
             logger.error(f"Agent '{process.name}': Screening failed with error: {error_msg}")
             process.status = 'failed'
             process.error_message = error_msg
@@ -489,12 +506,11 @@ def tick_agent_process(process_id: str) -> dict:
             pipeline_run.save(update_fields=['status', 'completed_at'])
             return {"success": False, "status": "failed", "error": error_msg}
 
-        skip_abstract = config.get("skip_abstract_screening", workspace.skip_abstract_screening)
+        # Check if 2-stage screening: abstract completed, full_text not yet run
         has_abstract_run = screening_runs.filter(component_name__icontains='abstract').exists()
         has_full_text_run = screening_runs.filter(component_name__icontains='full_text').exists()
 
-        # If 2-stage screening is enabled and only abstract screening has finished:
-        if not skip_abstract and has_abstract_run and not has_full_text_run:
+        if has_abstract_run and not has_full_text_run:
             from research_intelligence.models import Paper
             abstract_run = screening_runs.filter(component_name__icontains='abstract').first()
             abstract_passed = abstract_run.metrics.get('passed', 0) if (abstract_run and abstract_run.metrics) else Paper.objects.filter(pipeline_run=pipeline_run, screening_status='abstract_passed').count()
@@ -526,8 +542,10 @@ def tick_agent_process(process_id: str) -> dict:
                     async_res = execute_full_text_screening_job.delay(str(comp_run.id), limit=limit)
                     comp_run.celery_task_id = async_res.id
                     comp_run.save(update_fields=['celery_task_id'])
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning(f"Failed to queue full-text screening async, executing synchronously: {e}")
+                    execute_full_text_screening_job(str(comp_run.id), limit=limit)
+                    comp_run.refresh_from_db()
 
                 return {
                     "success": True,
@@ -538,7 +556,7 @@ def tick_agent_process(process_id: str) -> dict:
             else:
                 logger.info(f"Agent '{process.name}': 0 papers passed Abstract Screening. Skipping Full-Text Screening and proceeding to Extraction.")
 
-        # If both screening stages (or full_text when abstract skipped) have completed:
+        # If screening stage(s) completed, record completion in history
         from research_intelligence.models import Paper
         final_screening_run = screening_runs.filter(component_name__icontains='full_text').first() or screening_runs.first()
         ft_passed = final_screening_run.metrics.get('passed', 0) if (final_screening_run and final_screening_run.metrics) else Paper.objects.filter(pipeline_run=pipeline_run, screening_status='full_text_passed').count()
@@ -574,17 +592,19 @@ def tick_agent_process(process_id: str) -> dict:
             async_res = execute_extraction_job.delay(str(comp_run.id), limit=limit)
             comp_run.celery_task_id = async_res.id
             comp_run.save(update_fields=['celery_task_id'])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to queue extraction async, executing synchronously: {e}")
+            execute_extraction_job(str(comp_run.id), limit=limit)
+            comp_run.refresh_from_db()
 
         return {
             "success": True,
             "status": process.status,
             "current_step": process.current_step,
-            "message": f"Screening completed ({ft_passed} papers passed). Transitioned to 'extraction'."
+            "message": f"Screening completed. Transitioned to 'extraction'."
         }
 
-    # 6. State: EXTRACTION -> Check completion, mark COMPLETED
+    # 6. State: EXTRACTION -> Check completion, transition to Signal Score
     if process.current_step == 'extraction':
         extraction_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run, step_type='extraction')
         if extraction_runs.filter(status__in=['pending', 'running']).exists():
@@ -637,8 +657,10 @@ def tick_agent_process(process_id: str) -> dict:
             async_res = execute_signal_score_job.delay(str(comp_run.id), limit=limit)
             comp_run.celery_task_id = async_res.id
             comp_run.save(update_fields=['celery_task_id'])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to queue signal score async, executing synchronously: {e}")
+            execute_signal_score_job(str(comp_run.id), limit=limit)
+            comp_run.refresh_from_db()
 
         return {
             "success": True,
@@ -726,8 +748,10 @@ def _launch_screening_step(process, pipeline_run, workspace, config, limit):
         async_res = func.delay(str(comp_run.id), limit=limit)
         comp_run.celery_task_id = async_res.id
         comp_run.save(update_fields=['celery_task_id'])
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to queue screening async, executing synchronously: {e}")
+        func(str(comp_run.id), limit=limit)
+        comp_run.refresh_from_db()
 
 
 @shared_task(bind=True)
