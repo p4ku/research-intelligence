@@ -71,8 +71,12 @@ def register_document_pdf(paper: Paper, file_bytes: bytes, run_storage_path: str
         if paper.arxiv_id and not doc_reg.arxiv_id:
             doc_reg.arxiv_id = paper.arxiv_id
             updates.append("arxiv_id")
+        if paper.document_registry_id != doc_reg.id:
+            doc_reg.access_count = F('access_count') + 1
+            updates.append("access_count")
         if updates:
             doc_reg.save(update_fields=updates)
+            doc_reg.refresh_from_db(fields=['access_count'])
 
     # Link Paper instance
     paper.document_registry = doc_reg

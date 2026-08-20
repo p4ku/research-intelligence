@@ -1475,9 +1475,10 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
     ocr_status_badge.short_description = "OCR Layout"
 
     def access_count_badge(self, obj):
-        color = "#17a2b8" if obj.access_count > 1 else "#6c757d"
+        color = "#17a2b8" if obj.access_count > 1 else ("#6c757d" if obj.access_count == 1 else "#dc3545")
         return render_badge(f"⚡ {obj.access_count} hits", color)
     access_count_badge.short_description = "Reused"
+    access_count_badge.admin_order_field = "access_count"
 
 
 # Customize Admin Portal Branding Header & Titles

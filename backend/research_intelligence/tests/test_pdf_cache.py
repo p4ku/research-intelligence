@@ -190,3 +190,106 @@ class DocumentRegistryAndCacheTestCase(TestCase):
         target_path = f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/ghost_hash_001/original.pdf"
         result = try_reuse_cached_pdf(paper, target_path)
         self.assertIsNone(result)
+
+    def test_deleting_paper_decrements_document_registry_access_count(self):
+        """
+        Validates that when a Paper instance is deleted, the access_count
+        in the associated DocumentRegistry is decremented.
+        """
+        paper = Paper.objects.create(
+            workspace=self.workspace_a,
+            pipeline_run=self.run_a,
+            hash_id="del_test_001",
+            arxiv_id="2401.99901",
+            title="Delete Test Paper 1"
+        )
+        doc_reg = register_document_pdf(paper, self.pdf_binary)
+        self.assertEqual(doc_reg.access_count, 1)
+
+        # Workspace B reuses it -> access_count = 2
+        paper_b = Paper.objects.create(
+            workspace=self.workspace_b,
+            pipeline_run=self.run_b,
+            hash_id="del_test_002",
+            arxiv_id="2401.99901",
+            title="Delete Test Paper 2"
+        )
+        target_path = f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/del_test_002/original.pdf"
+        try_reuse_cached_pdf(paper_b, target_path)
+
+        doc_reg.refresh_from_db()
+        self.assertEqual(doc_reg.access_count, 2)
+
+        # Delete paper_b -> access_count should drop from 2 to 1
+        paper_b.delete()
+        doc_reg.refresh_from_db()
+        self.assertEqual(doc_reg.access_count, 1)
+
+        # Delete paper_a -> access_count should drop from 1 to 0
+        paper.delete()
+        doc_reg.refresh_from_db()
+        self.assertEqual(doc_reg.access_count, 0)
+
+    def test_cascading_pipeline_run_delete_decrements_registry_access_count(self):
+        """
+        Validates that deleting a PipelineRun (which cascade deletes its Papers)
+        properly decrements the DocumentRegistry access_count.
+        """
+        paper_a = Paper.objects.create(
+            workspace=self.workspace_a,
+            pipeline_run=self.run_a,
+            hash_id="cascade_run_001",
+            arxiv_id="2401.99902",
+            title="Cascade Run Paper A"
+        )
+        doc_reg = register_document_pdf(paper_a, self.pdf_binary)
+
+        paper_b = Paper.objects.create(
+            workspace=self.workspace_b,
+            pipeline_run=self.run_b,
+            hash_id="cascade_run_002",
+            arxiv_id="2401.99902",
+            title="Cascade Run Paper B"
+        )
+        target_path = f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/cascade_run_002/original.pdf"
+        try_reuse_cached_pdf(paper_b, target_path)
+
+        doc_reg.refresh_from_db()
+        self.assertEqual(doc_reg.access_count, 2)
+
+        # Cascade delete run_b -> deletes paper_b -> access_count becomes 1
+        self.run_b.delete()
+        doc_reg.refresh_from_db()
+        self.assertEqual(doc_reg.access_count, 1)
+
+    def test_cascading_workspace_delete_decrements_registry_access_count(self):
+        """
+        Validates that deleting an entire Workspace (which cascade deletes runs and papers)
+        properly decrements the DocumentRegistry access_count.
+        """
+        paper_a = Paper.objects.create(
+            workspace=self.workspace_a,
+            pipeline_run=self.run_a,
+            hash_id="cascade_ws_001",
+            arxiv_id="2401.99903",
+            title="Cascade WS Paper A"
+        )
+        doc_reg = register_document_pdf(paper_a, self.pdf_binary)
+
+        paper_b = Paper.objects.create(
+            workspace=self.workspace_b,
+            pipeline_run=self.run_b,
+            hash_id="cascade_ws_002",
+            arxiv_id="2401.99903",
+            title="Cascade WS Paper B"
+        )
+        target_path = f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/cascade_ws_002/original.pdf"
+        try_reuse_cached_pdf(paper_b, target_path)
+
+        doc_reg.refresh_from_db()
+        self.assertEqual(doc_reg.access_count, 2)
+
+        # Cascade delete workspace_b -> deletes run_b -> deletes paper_b -> access_count becomes 1
+        self.workspace_b.delete()
+        doc_reg.refresh_from_db()
+        self.assertEqual(doc_reg.access_count, 1)

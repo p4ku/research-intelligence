@@ -44,3 +44,7 @@ class ResearchIntelligenceConfig(AppConfig):
 
     def ready(self):
         post_migrate.connect(auto_create_default_superuser, sender=self)
+        try:
+            import research_intelligence.signals  # noqa
+        except ImportError:
+            pass
