@@ -404,15 +404,15 @@ def render_to_file(diagram_name: str, mermaid_source: str):
     rendered_via_cli = False
     if shutil.which("npx"):
         try:
-            print("  🎨 Rendering via local @mermaid-js/mermaid-cli...")
+            print("  🎨 Rendering via local @mermaid-js/mermaid-cli (High-Res Retina 3x)...")
             subprocess.run(
-                ["npx", "-y", "@mermaid-js/mermaid-cli", "-i", mmd_path, "-o", png_path, "-b", "white", "--scale", "2"],
+                ["npx", "-y", "@mermaid-js/mermaid-cli", "-i", mmd_path, "-o", png_path, "-b", "white", "-s", "3", "-w", "3200"],
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL
             )
             subprocess.run(
-                ["npx", "-y", "@mermaid-js/mermaid-cli", "-i", mmd_path, "-o", svg_path],
+                ["npx", "-y", "@mermaid-js/mermaid-cli", "-i", mmd_path, "-o", svg_path, "-b", "white"],
                 check=True,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL

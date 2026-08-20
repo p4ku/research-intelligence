@@ -110,13 +110,13 @@ The data layer is structured into 5 cohesive domains:
 5. **Intelligence & Scorecards**: `Extraction`, `PaperMetric`, `NarrativeReport`, `HITLCorrection`
 
 ### High-Level Domain Relationships
-![Database Schema Overview](docs/images/db_schema_overview.png)
+![Database Schema Overview](docs/images/db_schema_overview.svg)
 
 ### Detailed Entity-Relationship Diagram (ERD)
-![Detailed Database ERD](docs/images/db_schema_detailed.png)
+![Detailed Database ERD](docs/images/db_schema_detailed.svg)
 
 > **💡 Refreshing Schema Diagrams**:
-> Run `./docs/generate_db_schema.py` anytime models are modified to regenerate both diagrams in `docs/images/` and `docs/diagrams/`.
+> Run `./docs/generate_db_schema.py` anytime models are modified to regenerate both diagrams in `docs/images/` (.png & .svg) and `docs/diagrams/` (.mmd).
 
 ---
 
