@@ -183,13 +183,143 @@ class SubscriberInline(admin.TabularInline):
     readonly_fields = ('created_at',)
 
 
+# Helper function to render formatted component metrics summary
+def render_component_metrics_summary(obj):
+    if not obj.metrics:
+        return "-"
+    m = obj.metrics
+    if obj.step_type == 'screening':
+        total = m.get('total_screened', 0)
+        passed = m.get('passed', 0)
+        rejected = m.get('rejected', 0)
+        rej_color = '#6c757d' if rejected == 0 else '#dc3545'
+        return format_html(
+            '<div style="line-height: 1.35; white-space: nowrap;">'
+            '<strong>{} screened:</strong><br>'
+            '<span style="color: #198754; font-weight: 600;">{} passed</span>,<br>'
+            '<span style="color: {}; font-weight: 600;">{} rejected</span>'
+            '</div>',
+            total,
+            passed,
+            rej_color,
+            rejected,
+        )
+    elif obj.step_type == 'search':
+        fetched = m.get('total_fetched', m.get('total_created', 0))
+        skipped = m.get('total_duplicates_skipped', 0)
+        if skipped:
+            return format_html(
+                '<div style="line-height: 1.35; white-space: nowrap;">'
+                '<strong>{} papers</strong> fetched<br>'
+                '<span style="color: #6c757d; font-size: 11px;">({} dupes skipped)</span>'
+                '</div>',
+                fetched,
+                skipped,
+            )
+        return format_html(
+            '<div style="line-height: 1.35; white-space: nowrap;">'
+            '<strong>{} papers</strong> fetched'
+            '</div>',
+            fetched,
+        )
+    elif obj.step_type == 'download':
+        dl = m.get('downloaded', 0)
+        failed = m.get('failed', 0)
+        cached = m.get('cached_hits', 0)
+        extras = []
+        if cached:
+            extras.append(f"{cached} cached")
+        if failed:
+            extras.append(f"{failed} failed")
+        if extras:
+            return format_html(
+                '<div style="line-height: 1.35; white-space: nowrap;">'
+                '<strong>{} PDFs</strong> downloaded<br>'
+                '<span style="color: #6c757d; font-size: 11px;">({})</span>'
+                '</div>',
+                dl,
+                ", ".join(extras),
+            )
+        return format_html(
+            '<div style="line-height: 1.35; white-space: nowrap;">'
+            '<strong>{} PDFs</strong> downloaded'
+            '</div>',
+            dl,
+        )
+    elif obj.step_type == 'ocr':
+        ocr = m.get('ocr_converted', 0)
+        failed = m.get('failed', 0)
+        if failed:
+            return format_html(
+                '<div style="line-height: 1.35; white-space: nowrap;">'
+                '<strong>{}</strong> converted<br>'
+                '<span style="color: #dc3545; font-size: 11px;">({} failed)</span>'
+                '</div>',
+                ocr,
+                failed,
+            )
+        return format_html(
+            '<div style="line-height: 1.35; white-space: nowrap;">'
+            '<strong>{}</strong> converted'
+            '</div>',
+            ocr,
+        )
+    elif obj.step_type == 'extraction':
+        created = m.get('extractions_created', 0)
+        papers = m.get('total_papers', 0)
+        defs = m.get('total_definitions', 0)
+        return format_html(
+            '<div style="line-height: 1.35; white-space: nowrap;">'
+            '<strong>{} extractions</strong><br>'
+            '<span style="color: #6c757d; font-size: 11px;">({} papers, {} defs)</span>'
+            '</div>',
+            created,
+            papers,
+            defs,
+        )
+    elif obj.step_type == 'reporting':
+        reports = m.get('reports_generated', 1)
+        return format_html(
+            '<div style="line-height: 1.35; white-space: nowrap;">'
+            '<strong>{} report(s)</strong> generated'
+            '</div>',
+            reports,
+        )
+    return "-"
+
+
+# Helper function to render formatted component USD cost & tokens
+def render_component_cost(obj):
+    cost = 0.0
+    tokens = 0
+    if obj.metrics and isinstance(obj.metrics, dict):
+        cost = float(obj.metrics.get('usd_cost', 0.0) or 0.0)
+        tokens = int(obj.metrics.get('total_tokens', 0) or 0)
+    elif obj.output_data and isinstance(obj.output_data, dict):
+        cost = float(obj.output_data.get('usd_cost', 0.0) or 0.0)
+        tokens = int(obj.output_data.get('total_tokens', 0) or 0)
+
+    if cost > 0:
+        if tokens > 0:
+            return format_html(
+                '<div style="line-height: 1.35; white-space: nowrap;">'
+                '<strong style="color: #0d6efd;">${:.4f}</strong><br>'
+                '<span style="color: #6c757d; font-size: 11px;">{:,} tok</span>'
+                '</div>',
+                cost,
+                tokens,
+            )
+        return format_html('<strong style="color: #0d6efd;">${:.4f}</strong>', cost)
+    return format_html('<span style="color: #6c757d;">$0.0000</span>')
+
+
 # --- Inlines for PipelineRun ---
 
 class ComponentRunInline(admin.TabularInline):
     model = ComponentRun
     extra = 0
-    fields = ('step_type_badge', 'component_name', 'status_badge', 'execution_time', 'celery_task_id', 'raw_storage_path', 'started_at', 'completed_at')
-    readonly_fields = ('step_type_badge', 'status_badge', 'execution_time', 'started_at', 'completed_at')
+    fields = ('step_type_badge', 'component_name', 'status_badge', 'execution_time', 'cost_display', 'metrics_summary', 'celery_task_id', 'raw_storage_path', 'started_at', 'completed_at')
+    readonly_fields = ('step_type_badge', 'status_badge', 'execution_time', 'cost_display', 'metrics_summary', 'started_at', 'completed_at')
 
     def execution_time(self, obj):
         sec = obj.duration_seconds
@@ -204,6 +334,14 @@ class ComponentRunInline(admin.TabularInline):
             return format_html('<span style="color: #dc3545;">⏱️ {}</span>', formatted)
         return formatted
     execution_time.short_description = "Execution Time"
+
+    def cost_display(self, obj):
+        return render_component_cost(obj)
+    cost_display.short_description = "USD Cost"
+
+    def metrics_summary(self, obj):
+        return render_component_metrics_summary(obj)
+    metrics_summary.short_description = "Metrics Summary"
 
     def step_type_badge(self, obj):
         colors = {
@@ -437,12 +575,12 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'status_badge',
         'current_stage_badge',
         'execution_time',
+        'formatted_usd_cost',
         'total_papers_fetched',
         'total_papers_passed_screening',
         'tokens_in',
         'tokens_out',
         'tokens_consumed',
-        'usd_cost',
         'started_at',
         'completed_at'
     )
@@ -468,6 +606,15 @@ class PipelineRunAdmin(admin.ModelAdmin):
         return formatted
     execution_time.short_description = "Execution Time"
     execution_time.admin_order_field = 'completed_at'
+
+    def formatted_usd_cost(self, obj):
+        if obj.usd_cost is not None:
+            cost = float(obj.usd_cost)
+            if cost > 0:
+                return format_html('<strong style="color: #0d6efd;">${:.4f}</strong>', cost)
+        return format_html('<span style="color: #6c757d;">$0.0000</span>')
+    formatted_usd_cost.short_description = "USD Cost"
+    formatted_usd_cost.admin_order_field = 'usd_cost'
 
     def status_badge(self, obj):
         colors = {
@@ -525,6 +672,7 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         'status_badge',
         'current_step_badge',
         'execution_time',
+        'usd_cost',
         'pipeline_run_link',
         'started_at',
         'completed_at'
@@ -550,6 +698,15 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
     )
 
     actions = ['tick_selected_agents', 'pause_selected_agents', 'resume_selected_agents', 'abort_selected_agents']
+
+    def usd_cost(self, obj):
+        if obj.pipeline_run and obj.pipeline_run.usd_cost is not None:
+            cost = float(obj.pipeline_run.usd_cost)
+            if cost > 0:
+                return format_html('<strong style="color: #0d6efd;">${:.4f}</strong>', cost)
+        return format_html('<span style="color: #6c757d;">$0.0000</span>')
+    usd_cost.short_description = "USD Cost"
+    usd_cost.admin_order_field = 'pipeline_run__usd_cost'
 
     def status_badge(self, obj):
         colors = {
@@ -598,30 +755,30 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
     execution_time.admin_order_field = 'completed_at'
 
     def pipeline_run_link(self, obj):
-        if obj.pipeline_run:
-            url = reverse('admin:research_intelligence_pipelinerun_change', args=[obj.pipeline_run.id])
-            return format_html('<a href="{}"><code>{}</code></a>', url, str(obj.pipeline_run.id)[:8] + '...')
-        return "-"
+        if not obj.pipeline_run:
+            return "-"
+        url = reverse("admin:research_intelligence_pipelinerun_change", args=[obj.pipeline_run.id])
+        return format_html('<a href="{}"><code>{}</code></a>', url, str(obj.pipeline_run.id)[:8] + '...')
     pipeline_run_link.short_description = "Pipeline Run"
 
     def step_history_preview(self, obj):
         if not obj.step_history:
             return "-"
         items = []
-        for step in obj.step_history:
-            step_name = step.get('step', 'unknown')
-            event = step.get('event', '')
-            ts = step.get('timestamp', '')[:19].replace('T', ' ')
-            items.append(f"<li><strong>[{ts}]</strong> <code>{step_name}</code> ({event})</li>")
+        for entry in obj.step_history:
+            step = entry.get('step', 'unknown')
+            action = entry.get('action', 'unknown')
+            ts = entry.get('timestamp', '')
+            items.append(f"<li><strong>{step}</strong>: {action} <span style='color: #666; font-size: 11px;'>({ts})</span></li>")
         return format_html('<ul style="margin: 0; padding-left: 18px;">{}</ul>', mark_safe("".join(items)))
-    step_history_preview.short_description = "History Trail"
+    step_history_preview.short_description = "Recent History"
 
-    @admin.action(description="▶️ Advance Step / Tick Selected Agent(s)")
+    @admin.action(description="▶️ Advance/Tick Selected Agent(s)")
     def tick_selected_agents(self, request, queryset):
         from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
         for agent in queryset:
             tick_agent_process(str(agent.id))
-        self.message_user(request, f"Triggered state machine tick for {queryset.count()} agent process(es).")
+        self.message_user(request, f"Ticked state machine for {queryset.count()} agent process(es).")
 
     @admin.action(description="⏸️ Pause Selected Agent(s)")
     def pause_selected_agents(self, request, queryset):
@@ -659,6 +816,7 @@ class ComponentRunAdmin(admin.ModelAdmin):
         'component_name',
         'status_badge',
         'execution_time',
+        'cost_display',
         'metrics_summary',
         'celery_task_id',
         'started_at',
@@ -684,30 +842,12 @@ class ComponentRunAdmin(admin.ModelAdmin):
     execution_time.short_description = "Execution Time"
     execution_time.admin_order_field = 'completed_at'
 
+    def cost_display(self, obj):
+        return render_component_cost(obj)
+    cost_display.short_description = "USD Cost"
+
     def metrics_summary(self, obj):
-        if not obj.metrics:
-            return "-"
-        m = obj.metrics
-        if obj.step_type == 'screening':
-            total = m.get('total_screened', 0)
-            passed = m.get('passed', 0)
-            rejected = m.get('rejected', 0)
-            return f"{total} screened: {passed} passed, {rejected} rejected"
-        elif obj.step_type == 'search':
-            fetched = m.get('total_fetched', m.get('total_created', 0))
-            return f"{fetched} papers fetched"
-        elif obj.step_type == 'download':
-            dl = m.get('downloaded', 0)
-            return f"{dl} PDFs downloaded"
-        elif obj.step_type == 'ocr':
-            ocr = m.get('ocr_converted', 0)
-            return f"{ocr} converted"
-        elif obj.step_type == 'extraction':
-            created = m.get('extractions_created', 0)
-            papers = m.get('total_papers', 0)
-            defs = m.get('total_definitions', 0)
-            return f"{created} extractions ({papers} papers, {defs} defs)"
-        return "-"
+        return render_component_metrics_summary(obj)
     metrics_summary.short_description = "Metrics Summary"
 
     def step_type_badge(self, obj):
