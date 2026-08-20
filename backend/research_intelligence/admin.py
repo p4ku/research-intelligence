@@ -1224,13 +1224,13 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
 
     def ocr_status_badge(self, obj):
         if obj.canonical_ocr_md_path:
-            return format_html(f'<span style="background-color: #28a745; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px;">{obj.ocr_provider or "OCR OK"}</span>')
-        return format_html('<span style="color: #6c757d; font-size: 11px;">No OCR</span>')
+            return render_badge(obj.ocr_provider or "OCR OK", "#198754")
+        return format_html('<span style="color: #6c757d; font-size: 11px; white-space: nowrap;">No OCR</span>')
     ocr_status_badge.short_description = "OCR Layout"
 
     def access_count_badge(self, obj):
         color = "#17a2b8" if obj.access_count > 1 else "#6c757d"
-        return format_html(f'<span style="background-color: {color}; color: white; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px;">⚡ {obj.access_count} hits</span>')
+        return render_badge(f"⚡ {obj.access_count} hits", color)
     access_count_badge.short_description = "Reused"
 
 
