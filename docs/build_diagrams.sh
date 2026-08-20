@@ -54,13 +54,11 @@ else
 fi
 
 # 4. Fallback to Mermaid rendering (no Graphviz required, needs internet access)
-echo "Generating diagrams via Mermaid (Mermaid.ink)..."
-if python3 docs/diagrams/build_mermaid.py; then
-    echo "============================================="
-    echo "🎉 Diagrams generated successfully in docs/images/"
-    ls -la docs/images/
-    echo "============================================="
-else
-    echo "❌ Error: Both Python-Diagrams and Mermaid rendering failed."
-    exit 1
-fi
+echo "Generating diagrams via Mermaid (Mermaid.ink / mermaid-cli)..."
+python3 docs/diagrams/build_mermaid.py
+python3 docs/generate_db_schema.py
+
+echo "============================================="
+echo "🎉 Diagrams generated successfully in docs/images/"
+ls -la docs/images/
+echo "============================================="

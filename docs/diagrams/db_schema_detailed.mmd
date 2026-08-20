@@ -1,0 +1,261 @@
+erDiagram
+    Workspace ||--o{ WorkspaceMember : "has"
+    Workspace ||--o{ APIKey : "secures"
+    Workspace ||--o{ UserActivityLog : "audits"
+    Workspace ||--o{ Scraper : "configures"
+    Workspace ||--o{ ExtractionDefinition : "defines"
+    Workspace ||--o{ Subscriber : "notifies"
+    Workspace ||--o{ PipelineRun : "executes"
+    Workspace ||--o{ ResearchAgentProcess : "manages"
+    Workspace ||--o{ Paper : "owns"
+    Workspace ||--o{ Extraction : "contains"
+    Workspace ||--o{ PaperMetric : "evaluates"
+    Workspace ||--o{ NarrativeReport : "publishes"
+    Workspace ||--o{ HITLCorrection : "tracks"
+
+    User ||--o{ WorkspaceMember : "member_of"
+    User ||--o{ APIKey : "created_by"
+    User ||--o{ UserActivityLog : "acts"
+
+    PipelineRun ||--o{ ComponentRun : "executes_steps"
+    PipelineRun ||--o{ ResearchAgentProcess : "orchestrated_by"
+    PipelineRun ||--o{ Paper : "processes"
+    PipelineRun ||--o{ NarrativeReport : "outputs"
+
+    Paper ||--o{ Extraction : "yields"
+    Paper ||--o{ PaperMetric : "scored_by"
+    Paper ||--o{ HITLCorrection : "corrected_by"
+
+    ExtractionDefinition ||--o{ Extraction : "conforms_to"
+
+    Workspace {
+        uuid id PK
+        string name
+        text description
+        string ocr_provider
+        string llm_provider
+        string screening_llm_model
+        text abstract_acceptance_criteria
+        text abstract_rejection_criteria
+        text full_text_acceptance_criteria
+        text full_text_rejection_criteria
+        int monthly_token_quota
+        int tokens_consumed_this_month
+        datetime created_at
+        datetime updated_at
+    }
+
+    WorkspaceMember {
+        uuid id PK
+        uuid workspace_id FK
+        int user_id FK
+        string role
+        datetime joined_at
+    }
+
+    APIKey {
+        uuid id PK
+        string key_id UK
+        string hashed_secret
+        string name
+        int user_id FK
+        uuid workspace_id FK
+        json scopes
+        boolean is_active
+        datetime last_used_at
+        datetime created_at
+    }
+
+    UserActivityLog {
+        uuid id PK
+        int user_id FK
+        uuid workspace_id FK
+        string user_username
+        string user_email
+        string workspace_name
+        string interface
+        string action_name
+        string status
+        json input_params
+        json output_summary
+        text error_message
+        float execution_time_ms
+        string api_key_id
+        string ip_address
+        string user_agent
+        datetime timestamp
+    }
+
+    Scraper {
+        uuid id PK
+        uuid workspace_id FK
+        string provider
+        string search_query
+        json provider_params
+        string schedule_cron
+        int max_results_per_run
+        boolean is_active
+        datetime last_run_at
+        datetime created_at
+    }
+
+    ExtractionDefinition {
+        uuid id PK
+        uuid workspace_id FK
+        string name
+        string exit_metric
+        string llm_model
+        text system_prompt
+        text user_prompt_template
+        json response_schema
+        json example_json
+        datetime created_at
+        datetime updated_at
+    }
+
+    Subscriber {
+        uuid id PK
+        uuid workspace_id FK
+        string email
+        string notification_frequency
+        boolean is_active
+        datetime created_at
+    }
+
+    PipelineRun {
+        uuid id PK
+        uuid workspace_id FK
+        string status
+        string current_stage
+        decimal usd_cost
+        bigint tokens_in
+        bigint tokens_out
+        bigint tokens_consumed
+        int total_papers_fetched
+        int total_papers_passed_screening
+        json metrics
+        json error_details
+        datetime run_date
+        datetime started_at
+        datetime completed_at
+    }
+
+    ResearchAgentProcess {
+        uuid id PK
+        uuid workspace_id FK
+        uuid pipeline_run_id FK
+        string name
+        string status
+        string current_step
+        json configuration_override
+        json step_history
+        text error_message
+        datetime started_at
+        datetime completed_at
+    }
+
+    ComponentRun {
+        uuid id PK
+        uuid pipeline_run_id FK
+        string component_name
+        string step_type
+        string status
+        string celery_task_id
+        string raw_storage_path
+        json input_params
+        json output_data
+        json metrics
+        text error_traceback
+        datetime started_at
+        datetime completed_at
+    }
+
+    DocumentRegistry {
+        uuid id PK
+        string sha256_hash UK
+        string canonical_pdf_path
+        string canonical_ocr_md_path
+        string title
+        string doi
+        string arxiv_id
+        bigint pdf_file_size_bytes
+        string primary_source
+        string ocr_provider
+        int access_count
+        datetime first_ingested_at
+        datetime last_accessed_at
+    }
+
+    Paper {
+        uuid id PK
+        uuid workspace_id FK
+        uuid pipeline_run_id FK
+        string hash_id
+        string title
+        string doi
+        string arxiv_id
+        string primary_category
+        text abstract
+        string authors
+        date published_date
+        string pdf_url
+        string source_database
+        string raw_pdf_path
+        string ocr_md_path
+        string screening_status
+        text screening_reasoning
+        datetime ingested_at
+    }
+
+    Extraction {
+        uuid id PK
+        uuid workspace_id FK
+        uuid paper_id FK
+        uuid extraction_definition_id FK
+        string category
+        json fields_data
+        boolean is_hitl_validated
+        string validation_status
+        boolean review_required
+        float confidence_score
+        string confidence_method
+        json version_info
+        datetime created_at
+    }
+
+    PaperMetric {
+        uuid id PK
+        uuid workspace_id FK
+        uuid paper_id FK
+        string metric_name
+        float score_value
+        text qualitative_label
+        text justification
+        json raw_evidence
+        datetime calculated_at
+    }
+
+    NarrativeReport {
+        uuid id PK
+        uuid workspace_id FK
+        uuid pipeline_run_id FK
+        string title
+        string report_type
+        text executive_summary
+        text full_content_markdown
+        json structured_insights
+        string generated_by_model
+        datetime generated_at
+    }
+
+    HITLCorrection {
+        uuid id PK
+        uuid workspace_id FK
+        uuid paper_id FK
+        int user_id FK
+        string correction_target
+        json original_value
+        json corrected_value
+        text reviewer_comment
+        datetime applied_at
+    }

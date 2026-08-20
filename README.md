@@ -100,7 +100,27 @@ graph TD
 
 ---
 
-## 🏗️ 3. Repository Structure
+## 🗄️ 3. Database Architecture & Entity Relationships
+
+The data layer is structured into 5 cohesive domains:
+1. **Tenancy & Authentication**: `Workspace`, `WorkspaceMember`, `APIKey`, `UserActivityLog`
+2. **Configuration & Scrapers**: `Scraper`, `ExtractionDefinition`, `Subscriber`
+3. **Execution & Orchestration**: `PipelineRun`, `ResearchAgentProcess`, `ComponentRun`
+4. **Ingestion & Registry Cache**: `Paper`, `DocumentRegistry` (Global SHA-256 PDF & OCR Cache)
+5. **Intelligence & Scorecards**: `Extraction`, `PaperMetric`, `NarrativeReport`, `HITLCorrection`
+
+### High-Level Domain Relationships
+![Database Schema Overview](docs/images/db_schema_overview.png)
+
+### Detailed Entity-Relationship Diagram (ERD)
+![Detailed Database ERD](docs/images/db_schema_detailed.png)
+
+> **💡 Refreshing Schema Diagrams**:
+> Run `./docs/generate_db_schema.py` anytime models are modified to regenerate both diagrams in `docs/images/` and `docs/diagrams/`.
+
+---
+
+## 🏗️ 4. Repository Structure
 
 ```
 schwarz_research_intelligence/
@@ -112,8 +132,12 @@ schwarz_research_intelligence/
 │       ├── mcp/                 # FastMCP SSE Server & Tool Registry
 │       ├── tasks/               # 5-Step Pipeline & Orchestrator State Engine
 │       ├── models.py            # Workspace, DocumentRegistry, Paper, Extraction models
-│       └── tests/               # Automated unit & integration test suite (152+ tests)
+│       └── tests/               # Automated unit & integration test suite (164+ tests)
 ├── frontend/                    # Next.js User Interface
+├── docs/                        # Architecture documentation, diagrams & image generators
+│   ├── generate_db_schema.py    # Automated DB schema diagram builder (Mermaid/PNG/SVG)
+│   ├── diagrams/                # Raw Mermaid diagram definitions (.mmd)
+│   └── images/                  # Compiled architecture & DB schema images (.png / .svg)
 ├── .github/                     # DevOps & CI/CD Pipelines
 │   └── workflows/
 │       └── ci.yml               # GitHub Actions workflow (SQLite tests + pip & Docker caching)
@@ -124,7 +148,7 @@ schwarz_research_intelligence/
 
 ---
 
-## 🛠️ 4. Technology Stack
+## 🛠️ 5. Technology Stack
 
 | Component | Technology | Description |
 | :--- | :--- | :--- |
@@ -135,6 +159,7 @@ schwarz_research_intelligence/
 | **Storage Layer** | Django `default_storage` | Local filesystem / AWS S3 / MinIO storage abstraction. |
 | **LLM Engine** | Google GenAI / Gemini 3.7 Flash | Enterprise AI provider hosted on Schwarz Digits Cloud. |
 | **OCR Providers** | PyPDF / Mistral OCR API | Document layout parsing. |
+| **Diagram Engine** | Mermaid CLI / Python Generator | Automated DB schema and architecture diagram generation. |
 | **CI/CD** | GitHub Actions | Automated build, test, and container layer caching. |
 
 ---
