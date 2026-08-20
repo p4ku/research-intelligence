@@ -52,7 +52,7 @@ def notify_pipeline_orchestrator_tick(pipeline_run_id_or_obj):
 def _send_agent_notification(agent_process: ResearchAgentProcess):
     """
     Sends an email notification with formatted metrics when an agent process completes or fails.
-    Notifies all workspace active subscribers, workspace member users, and any explicit override email.
+    Notifies all workspace active subscribers and any explicit override email.
     """
     recipients = set()
 
@@ -64,18 +64,13 @@ def _send_agent_notification(agent_process: ResearchAgentProcess):
     if override_email:
         recipients.add(override_email.strip())
 
-    # Workspace Members
-    from research_intelligence.models import WorkspaceMember, Paper, Extraction
-    memberships = WorkspaceMember.objects.filter(workspace=agent_process.workspace).select_related('user')
-    for m in memberships:
-        if m.user and m.user.email:
-            recipients.add(m.user.email.strip())
-
-    # Workspace Subscribers
+    # Workspace Active Subscribers ONLY
     subscribers = agent_process.workspace.subscribers.filter(is_active=True)
     for s in subscribers:
         if s.email:
             recipients.add(s.email.strip())
+
+    from research_intelligence.models import Paper, Extraction
 
     title = agent_process.name
     ws_name = agent_process.workspace.name

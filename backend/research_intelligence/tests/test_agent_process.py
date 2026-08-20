@@ -383,12 +383,12 @@ class ResearchAgentProcessTest(TestCase):
             mock_send_mail.return_value = (True, {"message": "Queued"})
             _send_agent_notification(agent)
 
-            # Assert email was dispatched via Mailgun for all active recipients
-            self.assertEqual(mock_send_mail.call_count, 3)
+            # Assert email was dispatched via Mailgun only for active subscribers and override emails (not generic workspace members)
+            self.assertEqual(mock_send_mail.call_count, 2)
             recipients = [call_args[1]["to_email"] for call_args in mock_send_mail.call_args_list]
             self.assertIn("subscriber1@corp.com", recipients)
             self.assertIn("override_subscriber@corp.com", recipients)
-            self.assertIn("agent_user@example.com", recipients)
+            self.assertNotIn("agent_user@example.com", recipients)
             self.assertNotIn("inactive_subscriber@corp.com", recipients)
             first_kwargs = mock_send_mail.call_args_list[0][1]
             self.assertIn("[COMPLETED]", first_kwargs["subject"])
