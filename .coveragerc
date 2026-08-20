@@ -1,0 +1,20 @@
+[run]
+parallel = True
+concurrency =
+    multiprocessing
+source =
+    backend/research_intelligence
+omit =
+    */tests/*
+    */migrations/*
+    */wsgi.py
+    */asgi.py
+
+[report]
+show_missing = False
+skip_empty = True
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise NotImplementedError
+    if __name__ == .__main__.:
