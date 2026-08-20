@@ -97,6 +97,38 @@ It orchestrates a 6-step processing pipeline:
   )
   ```
 
+### Rule 7: Sandboxed Python Signal Score Formulas (`signal_score_code`)
+- **Execution & Scope**: Evaluated in Step 6 via AST sandbox (`tasks/step_6_signal_score/scorer.py`).
+- **Available Variables**: Extraction definitions are automatically available as sanitized snake_case variables:
+  - `trl_level` (from 'TRL Level')
+  - `novelty_score` (from 'Novelty Score')
+  - `fit_score` / `schwarz_fit` (from 'Schwarz Fit' or exit metric)
+  - `commercial_viability` (from 'Commercial Viability')
+  - `rigour_score` (from 'Rigour Score')
+  - Any custom extraction definition name sanitized to `snake_case`.
+- **Allowed Operations**: Math arithmetic (`+`, `-`, `*`, `/`, `**`, `//`, `%`), conditions (`if/elif/else`), assignments, comparisons, and built-ins (`min`, `max`, `abs`, `round`, `sum`, `pow`). Blocked: `import`, `exec`, `eval`, `open`, I/O.
+- **Representative Code Examples**:
+  - *Example A (Weighted Linear Metric)*:
+    ```python
+    score = 0.4 * fit_score + 0.3 * novelty_score + 0.3 * trl_level
+    return round(score, 2)
+    ```
+  - *Example B (Conditional Branching & Threshold Gating)*:
+    ```python
+    k = fit_score + 2.0 * novelty_score + trl_level
+    if k > 10.0:
+        return 5.0
+    else:
+        return 99.0
+    ```
+  - *Example C (Tiered Gated Multiplier)*:
+    ```python
+    if trl_level < 3.0:
+        return 0.0
+    base = 0.6 * fit_score + 0.4 * novelty_score
+    return round(base * (1.2 if trl_level >= 7.0 else 1.0), 2)
+    ```
+
 ---
 
 ## 🔌 4. FastMCP & REST API Reference
