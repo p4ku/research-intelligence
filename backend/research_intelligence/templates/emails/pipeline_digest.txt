@@ -1,0 +1,32 @@
+================================================================================
+SCHWARZ RESEARCH INTELLIGENCE - SYSTEMATIC LITERATURE REVIEW DIGEST
+================================================================================
+Workspace: {{ workspace_name }}
+Run ID: {{ pipeline_run.id }}
+Date: {{ run_date_str }}
+Status: COMPLETED
+
+METRICS SUMMARY:
+- Total Papers Ingested: {{ total_papers }}
+- Screened Accepted: {{ accepted_count }} (Rejected: {{ rejected_count }})
+- Parameters Extracted: {{ total_extractions }}
+- USD Cost: ${{ cost_usd|floatformat:4 }}
+- Token Consumption: {{ tokens_consumed }} tokens
+- Total Duration: {{ duration_str }}
+
+ACCEPTED PAPERS & EXTRACTED PARAMETERS:
+{% for paper in papers_data %}
+[{{ forloop.counter }}] {{ paper.title }}
+    Authors: {{ paper.authors }}
+    {% if paper.pdf_link %}Link: {{ paper.pdf_link }}{% endif %}
+    {% for ext in paper.extractions %}
+    - {{ ext.name }}: {{ ext.value }} (Status: {{ ext.status }})
+    {% empty %}
+    - No specific extraction parameters
+    {% endfor %}
+{% empty %}
+No accepted papers passed criteria in this execution run.
+{% endfor %}
+
+--------------------------------------------------------------------------------
+Automated notification from Schwarz Research Intelligence Platform.

@@ -12,13 +12,17 @@ from research_intelligence.models import (
 )
 from research_intelligence.utils.mailer import send_mailgun_message
 
+from django.template.loader import render_to_string
+from research_intelligence.utils.mailer import send_mailgun_message
+
 logger = logging.getLogger(__name__)
 
 
 def build_pipeline_run_digest_payload(pipeline_run: PipelineRun) -> Dict[str, Any]:
     """
     Gathers metrics, papers, extractions, and definitions for an executed PipelineRun
-    and generates both state-of-the-art responsive HTML and clean plaintext email content.
+    and generates both state-of-the-art responsive HTML and clean plaintext email content
+    using Django's template engine (emails/pipeline_digest.html and emails/pipeline_digest.txt).
     """
     workspace = pipeline_run.workspace
     ws_name = workspace.name if workspace else "Research Workspace"
@@ -66,6 +70,7 @@ def build_pipeline_run_digest_payload(pipeline_run: PipelineRun) -> Dict[str, An
                 "name": def_name,
                 "value": metric_val,
                 "confidence": ext.confidence_score,
+                "confidence_percent": int(ext.confidence_score * 100) if ext.confidence_score else None,
                 "status": ext.validation_status or "pass",
             })
 
@@ -81,180 +86,36 @@ def build_pipeline_run_digest_payload(pipeline_run: PipelineRun) -> Dict[str, An
             "doi": p.doi,
             "arxiv_id": p.arxiv_id,
             "pdf_link": pdf_link,
-            "screening_status": p.screening_status,
+            "screening_status": p.screening_status.replace('_', ' '),
             "screening_reason": p.screening_reasoning or "",
             "extractions": exts_list,
         })
 
-    # 4. Generate HTML Template
-    papers_html_blocks = []
-    for idx, paper in enumerate(papers_data, 1):
-        ext_badges = []
-        for ext in paper["extractions"]:
-            status_color = "#10b981" if ext["status"] == "pass" else ("#f59e0b" if ext["status"] == "warn" else "#6b7280")
-            conf_str = f" • {int(ext['confidence'] * 100)}%" if ext["confidence"] else ""
-            ext_badges.append(
-                f'<div style="display: inline-block; background: #f1f5f9; border-left: 3px solid {status_color}; padding: 6px 12px; margin: 4px 6px 4px 0; border-radius: 4px; font-size: 12px;">'
-                f'<strong style="color: #334155;">{ext["name"]}:</strong> <span style="color: #0f172a; font-weight: 600;">{ext["value"]}</span>'
-                f'<span style="color: #64748b; font-size: 11px;">{conf_str}</span>'
-                f'</div>'
-            )
-        
-        exts_markup = "".join(ext_badges) if ext_badges else '<span style="color: #94a3b8; font-size: 12px; font-style: italic;">No specific extraction parameters</span>'
-        link_markup = f'<a href="{paper["pdf_link"]}" style="color: #2563eb; text-decoration: none; font-size: 12px; font-weight: 600;" target="_blank">📄 View Document &rarr;</a>' if paper["pdf_link"] else ''
+    # 4. Context for Django Template Rendering
+    context = {
+        "workspace": workspace,
+        "workspace_name": ws_name,
+        "pipeline_run": pipeline_run,
+        "run_date_str": run_date_str,
+        "duration_str": duration_str,
+        "total_papers": total_papers,
+        "accepted_count": len(accepted_papers),
+        "rejected_count": rejected_count,
+        "total_extractions": total_extractions,
+        "cost_usd": cost_val,
+        "tokens_consumed": f"{tokens_val:,}",
+        "papers_data": papers_data,
+    }
 
-        papers_html_blocks.append(f"""
-        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                <div style="font-size: 11px; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Paper #{idx} • {paper["screening_status"].replace('_', ' ').upper()}</div>
-            </div>
-            <h3 style="margin: 0 0 8px 0; font-size: 15px; font-weight: 700; color: #0f172a; line-height: 1.4;">
-                {paper["title"]}
-            </h3>
-            <p style="margin: 0 0 12px 0; font-size: 12px; color: #64748b;">
-                <strong>Authors:</strong> {paper["authors"]}
-            </p>
-            <div style="margin-top: 10px; margin-bottom: 12px;">
-                {exts_markup}
-            </div>
-            {f'<div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0;">{link_markup}</div>' if link_markup else ''}
-        </div>
-        """)
-
-    rendered_papers_html = "".join(papers_html_blocks) if papers_html_blocks else """
-    <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 24px; text-align: center; color: #64748b;">
-        No accepted papers passed criteria in this execution run.
-    </div>
-    """
-
-    html_content = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>[Research Digest] {ws_name}</title>
-</head>
-<body style="margin: 0; padding: 24px 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
-    <div style="max-width: 680px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
-        
-        <!-- Header -->
-        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 32px 28px; text-align: left;">
-            <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                <span style="display: inline-block; background: #2563eb; color: #ffffff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.5px; text-transform: uppercase;">
-                    Systematic Review Complete
-                </span>
-                <span style="margin-left: auto; color: #10b981; font-size: 12px; font-weight: 600;">
-                    🟢 COMPLETED
-                </span>
-            </div>
-            <h1 style="margin: 8px 0 4px 0; font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;">
-                {ws_name}
-            </h1>
-            <p style="margin: 0; font-size: 13px; color: #94a3b8;">
-                Executive Literature Digest & Parameter Extraction Matrix • {run_date_str}
-            </p>
-        </div>
-
-        <!-- 4-Card KPI Grid -->
-        <div style="padding: 24px 28px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: separate; border-spacing: 12px 0;">
-                <tr>
-                    <td width="25%" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; text-align: center;">
-                        <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase;">Fetched</div>
-                        <div style="font-size: 20px; font-weight: 800; color: #0f172a; margin-top: 4px;">{total_papers}</div>
-                        <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">papers</div>
-                    </td>
-                    <td width="25%" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; text-align: center;">
-                        <div style="font-size: 11px; font-weight: 600; color: #10b981; text-transform: uppercase;">Accepted</div>
-                        <div style="font-size: 20px; font-weight: 800; color: #10b981; margin-top: 4px;">{len(accepted_papers)}</div>
-                        <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">{rejected_count} rejected</div>
-                    </td>
-                    <td width="25%" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; text-align: center;">
-                        <div style="font-size: 11px; font-weight: 600; color: #2563eb; text-transform: uppercase;">Extracted</div>
-                        <div style="font-size: 20px; font-weight: 800; color: #2563eb; margin-top: 4px;">{total_extractions}</div>
-                        <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">parameters</div>
-                    </td>
-                    <td width="25%" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; text-align: center;">
-                        <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase;">Cost / Time</div>
-                        <div style="font-size: 16px; font-weight: 800; color: #0f172a; margin-top: 6px;">${cost_val:.4f}</div>
-                        <div style="font-size: 10px; color: #64748b; margin-top: 2px;">{duration_str}</div>
-                    </td>
-                </tr>
-            </table>
-        </div>
-
-        <!-- Body / Accepted Papers Scorecard -->
-        <div style="padding: 28px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="margin: 0; font-size: 16px; font-weight: 700; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">
-                    🎯 Accepted Literature & Parameter Matrix
-                </h2>
-                <span style="font-size: 12px; color: #64748b; font-weight: 600;">
-                    {len(accepted_papers)} papers verified
-                </span>
-            </div>
-
-            {rendered_papers_html}
-
-            <!-- Pipeline Execution Footprint -->
-            <div style="margin-top: 28px; padding: 16px 20px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; color: #64748b; line-height: 1.6;">
-                <strong>Pipeline Execution Run ID:</strong> <code>{str(pipeline_run.id)}</code><br>
-                <strong>Token Footprint:</strong> {tokens_val:,} total tokens ({pipeline_run.tokens_in:,} prompt / {pipeline_run.tokens_out:,} completion)<br>
-                <strong>Criteria Dual-Stage:</strong> Abstract & Multimodal Full-Text Screening with Gemini 3.7 Flash
-            </div>
-        </div>
-
-        <!-- Footer -->
-        <div style="background: #f1f5f9; padding: 20px 28px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-            <p style="margin: 0 0 6px 0;">
-                You are receiving this automated research intelligence briefing because you are subscribed to <strong>{ws_name}</strong>.
-            </p>
-            <p style="margin: 0; color: #cbd5e1;">
-                Schwarz Research Intelligence • Enterprise SLR Platform
-            </p>
-        </div>
-    </div>
-</body>
-</html>
-"""
-
-    # Plain text alternative
-    text_content = f"""
-================================================================================
-SCHWARZ RESEARCH INTELLIGENCE - SYSTEMATIC LITERATURE REVIEW DIGEST
-================================================================================
-Workspace: {ws_name}
-Run ID: {str(pipeline_run.id)}
-Date: {run_date_str}
-Status: COMPLETED
-
-METRICS SUMMARY:
-- Total Papers Ingested: {total_papers}
-- Screened Accepted: {len(accepted_papers)} (Rejected: {rejected_count})
-- Parameters Extracted: {total_extractions}
-- USD Cost: ${cost_val:.4f}
-- Token Consumption: {tokens_val:,} tokens
-- Total Duration: {duration_str}
-
-ACCEPTED PAPERS & EXTRACTED PARAMETERS:
-"""
-    for idx, paper in enumerate(papers_data, 1):
-        text_content += f"\n[{idx}] {paper['title']}\n"
-        text_content += f"    Authors: {paper['authors']}\n"
-        if paper['pdf_link']:
-            text_content += f"    Link: {paper['pdf_link']}\n"
-        for ext in paper['extractions']:
-            text_content += f"    - {ext['name']}: {ext['value']} (Status: {ext['status']})\n"
-
-    text_content += """
---------------------------------------------------------------------------------
-Automated notification from Schwarz Research Intelligence Platform.
-"""
+    # 5. Render via Django Template Loader
+    html_content = render_to_string("emails/pipeline_digest.html", context)
+    text_content = render_to_string("emails/pipeline_digest.txt", context)
 
     subject = f"[Research Digest] {ws_name} - Review Complete ({len(accepted_papers)} accepted papers)"
 
     return {
         "subject": subject,
+        "context": context,
         "html_content": html_content,
         "text_content": text_content,
         "stats": {
@@ -278,7 +139,7 @@ def dispatch_pipeline_subscriber_digest(
 ) -> Dict[str, Any]:
     """
     Main dispatch engine: Validates pipeline completion, gathers subscriber list,
-    builds the rich executive email, and delivers messages via Mailgun.
+    builds the rich executive email using Django templates, and delivers messages via Mailgun.
     """
     close_old_connections()
 
@@ -329,13 +190,12 @@ def dispatch_pipeline_subscriber_digest(
             "recipients": []
         }
 
-    # 4. Generate Digest Payload
+    # 4. Generate Digest Payload & Context
     digest_payload = build_pipeline_run_digest_payload(pipeline_run)
     subject = digest_payload["subject"]
-    html_body = digest_payload["html_content"]
-    text_body = digest_payload["text_content"]
+    context = digest_payload["context"]
 
-    # 5. Dispatch to each recipient via Mailgun
+    # 5. Dispatch to each recipient via Mailgun (using template_name)
     sent_count = 0
     failed_count = 0
     delivery_results = []
@@ -344,8 +204,8 @@ def dispatch_pipeline_subscriber_digest(
         success, resp_or_err = send_mailgun_message(
             to_email=email,
             subject=subject,
-            text=text_body,
-            html=html_body,
+            template_name="emails/pipeline_digest",
+            context=context,
         )
         if success:
             sent_count += 1
