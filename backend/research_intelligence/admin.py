@@ -500,6 +500,36 @@ class WorkspaceAdmin(admin.ModelAdmin):
         }),
     )
 
+    actions = ['launch_agent_standard', 'launch_agent_reprocess']
+
+    @admin.action(description="🚀 Launch Autonomous Agent (Standard - Skip Duplicates)")
+    def launch_agent_standard(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+        for ws in queryset:
+            agent = ResearchAgentProcess.objects.create(
+                workspace=ws,
+                name=f"Admin Run - {ws.name}",
+                status='running',
+                current_step='initialized',
+                configuration_override={"reprocess_existing": False}
+            )
+            tick_agent_process(str(agent.id))
+        self.message_user(request, f"Launched standard autonomous agent for {queryset.count()} workspace(s).")
+
+    @admin.action(description="🔄 Launch Autonomous Agent (Reprocess All Workspace Papers)")
+    def launch_agent_reprocess(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+        for ws in queryset:
+            agent = ResearchAgentProcess.objects.create(
+                workspace=ws,
+                name=f"Reprocess Run - {ws.name}",
+                status='running',
+                current_step='initialized',
+                configuration_override={"reprocess_existing": True}
+            )
+            tick_agent_process(str(agent.id))
+        self.message_user(request, f"Launched reprocessing agent for {queryset.count()} workspace(s).")
+
 
 @admin.register(WorkspaceMember)
 class WorkspaceMemberAdmin(admin.ModelAdmin):
@@ -671,13 +701,27 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'started_at',
         'completed_at'
     )
+    list_editable = ('reprocess_existing',)
     ordering = ('-started_at', '-id')
     list_filter = ('status', 'current_stage', 'reprocess_existing', 'run_date', 'workspace')
     search_fields = ('id', 'workspace__name')
     readonly_fields = ('started_at', 'completed_at', 'execution_time')
     inlines = [ComponentRunInline]
 
-    actions = ['run_full_pipeline']
+    fieldsets = (
+        ('Execution Info', {
+            'fields': ('workspace', 'status', 'current_stage', 'triggered_by')
+        }),
+        ('Reprocessing & Ingestion Options', {
+            'fields': ('reprocess_existing',),
+            'description': 'When enabled, existing and duplicate papers in the workspace will be re-screened and re-extracted through all downstream stages instead of halted at Step 1.'
+        }),
+        ('Timestamps & Metrics', {
+            'fields': ('started_at', 'completed_at', 'execution_time', 'tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost')
+        }),
+    )
+
+    actions = ['run_full_pipeline', 'rerun_with_reprocessing']
 
     def execution_time(self, obj):
         sec = obj.duration_seconds
@@ -737,7 +781,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
         return render_badge(obj.get_current_stage_display(), bg, text_color)
     current_stage_badge.short_description = "Current Stage"
 
-    @admin.action(description="🚀 Launch/Advance End-to-End Autonomous Pipeline")
+    @admin.action(description="🚀 Launch/Advance Autonomous Pipeline (Current Settings)")
     def run_full_pipeline(self, request, queryset):
         from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
         for pr in queryset:
@@ -748,10 +792,28 @@ class PipelineRunAdmin(admin.ModelAdmin):
                     pipeline_run=pr,
                     name=f"Autonomous Pipeline - {pr.workspace.name}",
                     status='running',
-                    current_step=pr.current_stage if pr.current_stage != 'completed' else 'initialized'
+                    current_step=pr.current_stage if pr.current_stage != 'completed' else 'initialized',
+                    configuration_override={"reprocess_existing": pr.reprocess_existing}
                 )
             tick_agent_process(str(agent.id))
         self.message_user(request, f"Triggered autonomous pipeline orchestrator for {queryset.count()} pipeline run(s).")
+
+    @admin.action(description="🔄 Launch Pipeline with Forced Reprocessing of Existing Papers (ON)")
+    def rerun_with_reprocessing(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+        for pr in queryset:
+            pr.reprocess_existing = True
+            pr.save(update_fields=['reprocess_existing'])
+            agent = ResearchAgentProcess.objects.create(
+                workspace=pr.workspace,
+                pipeline_run=pr,
+                name=f"Reprocessing Run - {pr.workspace.name}",
+                status='running',
+                current_step='initialized',
+                configuration_override={"reprocess_existing": True}
+            )
+            tick_agent_process(str(agent.id))
+        self.message_user(request, f"Launched forced reprocessing run for {queryset.count()} pipeline run(s).")
 
 
 @admin.register(ResearchAgentProcess)
@@ -764,6 +826,7 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         'workspace',
         'status_badge',
         'current_step_badge',
+        'reprocess_mode_badge',
         'execution_time',
         'usd_cost',
         'pipeline_run_link',
@@ -780,7 +843,8 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
             'fields': ('workspace', 'name', 'status', 'current_step', 'pipeline_run')
         }),
         ('Configuration & Override', {
-            'fields': ('configuration_override',)
+            'fields': ('configuration_override',),
+            'description': 'Optional parameters such as <code>{"reprocess_existing": true, "limit": 50}</code>.'
         }),
         ('Audit Log & History', {
             'fields': ('step_history_preview', 'step_history', 'error_message')
@@ -790,7 +854,18 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         }),
     )
 
-    actions = ['tick_selected_agents', 'pause_selected_agents', 'resume_selected_agents', 'abort_selected_agents']
+    actions = ['tick_selected_agents', 'rerun_with_reprocessing', 'pause_selected_agents', 'resume_selected_agents', 'abort_selected_agents']
+
+    def reprocess_mode_badge(self, obj):
+        is_reprocess = False
+        if isinstance(obj.configuration_override, dict) and obj.configuration_override.get('reprocess_existing'):
+            is_reprocess = True
+        elif obj.pipeline_run and obj.pipeline_run.reprocess_existing:
+            is_reprocess = True
+        if is_reprocess:
+            return render_badge("🔄 REPROCESS ON", "#0dcaf0", "#000000")
+        return format_html('<span style="color: #6c757d;">Standard</span>')
+    reprocess_mode_badge.short_description = "Reprocess"
 
     def usd_cost(self, obj):
         if obj.pipeline_run:
@@ -896,6 +971,22 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         for agent in queryset:
             tick_agent_process(str(agent.id))
         self.message_user(request, f"Ticked state machine for {queryset.count()} agent process(es).")
+
+    @admin.action(description="🔄 Re-run Agent with Forced Reprocessing of Existing Papers (ON)")
+    def rerun_with_reprocessing(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+        for old_agent in queryset:
+            cfg = dict(old_agent.configuration_override or {})
+            cfg['reprocess_existing'] = True
+            new_agent = ResearchAgentProcess.objects.create(
+                workspace=old_agent.workspace,
+                name=f"Reprocess: {old_agent.name}",
+                status='running',
+                current_step='initialized',
+                configuration_override=cfg
+            )
+            tick_agent_process(str(new_agent.id))
+        self.message_user(request, f"Launched {queryset.count()} new agent process(es) with reprocess_existing=True.")
 
     @admin.action(description="⏸️ Pause Selected Agent(s)")
     def pause_selected_agents(self, request, queryset):
