@@ -290,7 +290,7 @@ def render_component_metrics_summary(obj):
 
 # Helper function to render formatted component USD cost & tokens
 def render_component_cost(obj):
-    if not obj.metrics and not obj.output_data:
+    if not obj.metrics and not obj.output_data and obj.step_type not in ['screening', 'extraction', 'metrics', 'deep_research']:
         return format_html('<span style="color: #6c757d;">$0.0000</span>')
 
     cost = 0.0
@@ -299,24 +299,63 @@ def render_component_cost(obj):
     tokens_out = 0
     model_name = None
 
-    if obj.metrics and isinstance(obj.metrics, dict):
-        cost = float(obj.metrics.get('usd_cost', 0.0) or 0.0)
-        tokens = int(obj.metrics.get('total_tokens', 0) or 0)
-        tokens_in = int(obj.metrics.get('tokens_in', 0) or 0)
-        tokens_out = int(obj.metrics.get('tokens_out', 0) or 0)
-        model_name = obj.metrics.get('model_used')
-    elif obj.output_data and isinstance(obj.output_data, dict):
-        cost = float(obj.output_data.get('usd_cost', 0.0) or 0.0)
-        tokens = int(obj.output_data.get('total_tokens_consumed', 0) or obj.output_data.get('total_tokens', 0) or 0)
-        model_name = obj.output_data.get('model_used')
+    metrics = obj.metrics if isinstance(obj.metrics, dict) else {}
+    output_data = obj.output_data if isinstance(obj.output_data, dict) else {}
 
-    # If cost was not persisted on historical run but tokens exist, calculate dynamically
+    # 1. Direct USD cost
+    if 'usd_cost' in metrics and metrics['usd_cost'] is not None:
+        cost = float(metrics.get('usd_cost') or 0.0)
+    elif 'usd_cost' in output_data and output_data['usd_cost'] is not None:
+        cost = float(output_data.get('usd_cost') or 0.0)
+
+    # 2. Extract input/output tokens from all known schema variants
+    tokens_in = int(
+        metrics.get('tokens_in') or metrics.get('input_tokens') or metrics.get('prompt_tokens') or
+        output_data.get('tokens_in') or output_data.get('input_tokens') or output_data.get('prompt_tokens') or 0
+    )
+    tokens_out = int(
+        metrics.get('tokens_out') or metrics.get('output_tokens') or metrics.get('candidates_tokens') or
+        output_data.get('tokens_out') or output_data.get('output_tokens') or output_data.get('candidates_tokens') or 0
+    )
+    tokens = int(
+        metrics.get('total_tokens') or metrics.get('total_tokens_consumed') or
+        output_data.get('total_tokens') or output_data.get('total_tokens_consumed') or (tokens_in + tokens_out) or 0
+    )
+
+    # 3. Model name
+    model_name = metrics.get('model_used') or output_data.get('model_used')
+    if not model_name and obj.pipeline_run and obj.pipeline_run.workspace:
+        model_name = obj.pipeline_run.workspace.screening_llm_model
+    model_name = model_name or "google/gemini-3.7-flash"
+
+    # 4. If only total_tokens is known, split 80% prompt / 20% completion
+    if tokens > 0 and tokens_in == 0 and tokens_out == 0:
+        tokens_in = int(tokens * 0.8)
+        tokens_out = max(1, tokens - tokens_in)
+
+    # 5. Historical LLM fallback if token fields were completely omitted in legacy runs
+    if obj.step_type in ['screening', 'extraction'] and tokens == 0 and cost == 0.0:
+        if obj.step_type == 'screening':
+            screened = int(metrics.get('total_screened') or 0)
+            if screened > 0:
+                if 'full_text' in str(obj.component_name).lower():
+                    tokens_in = screened * 5000
+                    tokens_out = screened * 300
+                else:
+                    tokens_in = screened * 800
+                    tokens_out = screened * 200
+                tokens = tokens_in + tokens_out
+        elif obj.step_type == 'extraction':
+            extracted = int(metrics.get('extractions_created') or metrics.get('total_extractions_attempted') or 0)
+            if extracted > 0:
+                tokens_in = extracted * 2500
+                tokens_out = extracted * 400
+                tokens = tokens_in + tokens_out
+
+    # 6. Calculate cost dynamically if missing / 0.0 and tokens exist
     if cost == 0.0 and (tokens > 0 or tokens_in > 0 or tokens_out > 0):
         try:
             from research_intelligence.llm_providers.pricing import calculate_llm_cost
-            if not model_name and obj.pipeline_run and obj.pipeline_run.workspace:
-                model_name = obj.pipeline_run.workspace.screening_llm_model
-            model_name = model_name or "google/gemini-3.7-flash"
             cost = float(calculate_llm_cost(model_name, tokens_in, tokens_out))
         except Exception:
             pass

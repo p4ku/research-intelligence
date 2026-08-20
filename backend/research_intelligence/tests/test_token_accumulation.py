@@ -313,6 +313,42 @@ class PipelineTokenAccumulationTestCase(TestCase):
         html_non_llm = str(render_component_cost(comp_non_llm))
         self.assertIn("$0.0000", html_non_llm)
 
+        # 4. Historical extraction step with only extractions_created (no tokens in metrics)
+        comp_hist_ext = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            component_name="parameter_extraction",
+            step_type="extraction",
+            status="completed",
+            metrics={"extractions_created": 65, "papers_count": 13, "definitions_count": 5}
+        )
+        html_hist_ext = str(render_component_cost(comp_hist_ext))
+        self.assertNotIn("$0.0000", html_hist_ext)
+        self.assertIn("tok", html_hist_ext)
+
+        # 5. Historical screening step with only total_screened (no tokens in metrics)
+        comp_hist_scr = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            component_name="abstract_screening",
+            step_type="screening",
+            status="completed",
+            metrics={"total_screened": 24, "passed": 13, "rejected": 11}
+        )
+        html_hist_scr = str(render_component_cost(comp_hist_scr))
+        self.assertNotIn("$0.0000", html_hist_scr)
+        self.assertIn("tok", html_hist_scr)
+
+        # 6. Legacy step with only total_tokens (missing in/out split)
+        comp_only_total = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            component_name="full_text_screening",
+            step_type="screening",
+            status="completed",
+            metrics={"total_tokens": 18000, "total_screened": 13}
+        )
+        html_only_total = str(render_component_cost(comp_only_total))
+        self.assertNotIn("$0.0000", html_only_total)
+        self.assertIn("18,000 tok", html_only_total)
+
     def test_calculate_llm_cost_precision(self):
         """
         Validates calculate_llm_cost calculation and precision boundaries.
@@ -330,4 +366,5 @@ class PipelineTokenAccumulationTestCase(TestCase):
         # 1M input tokens for gemini-3.7-flash ($0.75 / 1M in) -> 0.7500
         cost_1m = calculate_llm_cost("google/gemini-3.7-flash", 1_000_000, 0)
         self.assertEqual(cost_1m, Decimal("0.7500"))
+
 
