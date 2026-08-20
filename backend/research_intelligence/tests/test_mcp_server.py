@@ -1040,3 +1040,45 @@ class MCPServerTest(TestCase):
         self.assertEqual(res["top_reused_documents"][0]["title"], "Top Reused Quantum Paper")
         self.assertEqual(res["top_reused_documents"][0]["access_count"], 5)
 
+    def test_workspace_signal_score_code_mcp_lifecycle(self):
+        """
+        Validates that MCP can create, retrieve, update, and list workspace signal_score_code snippets.
+        """
+        from research_intelligence.mcp.tools import (
+            create_workspace_logic,
+            get_workspace_logic,
+            update_workspace_logic,
+            list_workspaces_logic,
+        )
+
+        initial_code = "score = fit_score * 2.0 + novelty_score\nreturn score"
+        ws_res = json.loads(create_workspace_logic(
+            self.admin_user,
+            name="Signal Score MCP Test WS",
+            signal_score_code=initial_code
+        ))
+        ws_id = ws_res["workspace_id"]
+
+        # Check get_workspace returns signal_score_code
+        ws_details = json.loads(get_workspace_logic(self.admin_user, ws_id))
+        self.assertEqual(ws_details["components_config"]["signal_score_code"], initial_code)
+
+        # Update signal_score_code via MCP
+        updated_code = "if novelty_score > 8:\n    return fit_score * 3.0\nreturn fit_score"
+        update_res = json.loads(update_workspace_logic(
+            self.admin_user,
+            workspace_id=ws_id,
+            signal_score_code=updated_code
+        ))
+        self.assertTrue(update_res.get("success", False))
+
+        # Verify update persisted
+        ws_details_updated = json.loads(get_workspace_logic(self.admin_user, ws_id))
+        self.assertEqual(ws_details_updated["components_config"]["signal_score_code"], updated_code)
+
+        # Verify list_workspaces returns signal_score_code
+        ws_list = json.loads(list_workspaces_logic(self.admin_user))
+        matched = [w for w in ws_list if w["workspace_id"] == ws_id][0]
+        self.assertEqual(matched["signal_score_code"], updated_code)
+
+

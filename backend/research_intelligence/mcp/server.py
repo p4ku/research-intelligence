@@ -418,7 +418,8 @@ def create_workspace(
     llm_provider: str = "google",
     digest_schedule: str = "0 9 * * 5",
     monthly_token_limit: int = 10000000,
-    cost_limit_usd: float = 100.00
+    cost_limit_usd: float = 100.00,
+    signal_score_code: str = None
 ) -> str:
     """
     Create a new isolated workspace project for systematic literature reviews and competitive intelligence.
@@ -430,6 +431,7 @@ def create_workspace(
     - full_text_acceptance_criteria: Specific inclusion criteria prompt evaluated during Step 4 Full-Text Screening.
     - full_text_rejection_criteria: Specific exclusion criteria prompt evaluated during Step 4 Full-Text Screening.
     - ocr_provider: Defaults to None (skips Step 3 OCR). Set to 'pypdf', 'mistral', or 'gemini' ONLY if OCR layout extraction is explicitly requested by the user.
+    - signal_score_code: Custom Python formula/function snippet executed in secure AST sandbox to calculate paper composite signal scores from extracted metrics.
 
     CRITICAL FOR LLM AGENTS: Do NOT set or enable ocr_provider unless the user explicitly requests OCR layout conversion. Leave ocr_provider as None by default.
     """
@@ -451,6 +453,7 @@ def create_workspace(
         digest_schedule=digest_schedule,
         monthly_token_limit=monthly_token_limit,
         monthly_usd_limit=cost_limit_usd,
+        signal_score_code=signal_score_code,
     )
 
 
@@ -468,7 +471,8 @@ def update_workspace(
     llm_provider: str = None,
     digest_schedule: str = None,
     monthly_token_limit: int = None,
-    cost_limit_usd: float = None
+    cost_limit_usd: float = None,
+    signal_score_code: str = None
 ) -> str:
     """
     Update configuration settings of an existing workspace (requires Admin or Manager role).
@@ -479,6 +483,7 @@ def update_workspace(
     - full_text_acceptance_criteria: Update inclusion criteria evaluated during Step 4 Full-Text Screening.
     - full_text_rejection_criteria: Update exclusion criteria evaluated during Step 4 Full-Text Screening.
     - ocr_provider: Set to 'pypdf', 'mistral', 'gemini', or None/'none' to skip/disable OCR step.
+    - signal_score_code: Update Python math code/formula executed in AST sandbox (e.g. 'k = fit_score + 2*novelty; return k').
 
     CRITICAL FOR LLM AGENTS: Do NOT modify existing workspace configuration settings (criteria, ocr_provider, llm_provider, screening_llm_model) unless explicitly instructed by the user to change configuration.
     """
@@ -501,6 +506,7 @@ def update_workspace(
         digest_schedule=digest_schedule,
         monthly_token_limit=monthly_token_limit,
         monthly_usd_limit=cost_limit_usd,
+        signal_score_code=signal_score_code,
     )
 
 
