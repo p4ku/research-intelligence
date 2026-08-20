@@ -866,10 +866,27 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         items = []
         for entry in obj.step_history:
             step = entry.get('step', 'unknown')
-            action = entry.get('action', 'unknown')
+            event = entry.get('event') or entry.get('action') or 'event'
             ts = entry.get('timestamp', '')
-            items.append(f"<li><strong>{step}</strong>: {action} <span style='color: #666; font-size: 11px;'>({ts})</span></li>")
-        return format_html('<ul style="margin: 0; padding-left: 18px;">{}</ul>', mark_safe("".join(items)))
+            details = []
+            if 'papers_fetched' in entry:
+                details.append(f"{entry['papers_fetched']} papers")
+            if 'passed' in entry and 'total_screened' in entry:
+                details.append(f"{entry['passed']}/{entry['total_screened']} passed")
+            elif 'passed' in entry:
+                details.append(f"{entry['passed']} passed")
+            if 'error' in entry:
+                details.append(f"<span style='color: #dc3545;'>{entry['error']}</span>")
+            if 'message' in entry:
+                details.append(f"<em>{entry['message']}</em>")
+
+            detail_str = f" &bull; {', '.join(details)}" if details else ""
+            badge_color = "#198754" if event == "completed" else ("#dc3545" if event in ["failed", "halted_zero_papers"] else "#0d6efd")
+            items.append(
+                f"<li><strong>{step}</strong>: <span style='color: {badge_color}; font-weight: 500;'>{event}</span>"
+                f"{detail_str} <span style='color: #888; font-size: 11px;'>({ts})</span></li>"
+            )
+        return format_html('<ul style="margin: 0; padding-left: 18px; line-height: 1.6;">{}</ul>', mark_safe("".join(items)))
     step_history_preview.short_description = "Recent History"
 
     @admin.action(description="▶️ Advance/Tick Selected Agent(s)")
