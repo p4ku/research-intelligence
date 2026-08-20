@@ -1,0 +1,396 @@
+import logging
+from typing import Dict, List, Any, Optional, Set
+from django.utils import timezone
+from django.db import transaction
+
+from .base_node import BaseWorkflowNode
+from .nodes import (
+    SearchNode,
+    DownloadNode,
+    OCRNode,
+    ScreeningNode,
+    ExtractionNode,
+    SignalScoreNode,
+    ReportingNode,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class WorkflowDAG:
+    """
+    State-of-the-Art Directed Acyclic Graph (DAG) Workflow Orchestrator.
+    
+    Provides declarative graph definition, topological dependency resolution,
+    parallel branch execution across distributed Celery workers, and restartable steps.
+    """
+
+    def __init__(self, name: str = "slr_pipeline_dag"):
+        self.name = name
+        self.nodes: Dict[str, BaseWorkflowNode] = {}
+
+    def add_node(self, node: BaseWorkflowNode) -> "WorkflowDAG":
+        """Adds a workflow node to the DAG."""
+        self.nodes[node.name] = node
+        return self
+
+    def validate_graph(self) -> None:
+        """
+        Validates that all dependencies exist and there are no cyclic dependencies in the DAG.
+        """
+        for name, node in self.nodes.items():
+            for dep in node.dependencies:
+                if dep not in self.nodes:
+                    raise ValueError(f"DAG validation error: Node '{name}' depends on unknown node '{dep}'.")
+
+        # Cycle detection using DFS
+        visited = {}  # name: 0 (unvisited), 1 (visiting), 2 (visited)
+        for name in self.nodes:
+            visited[name] = 0
+
+        def dfs(node_name: str, path: List[str]):
+            visited[node_name] = 1
+            path.append(node_name)
+            for dep in self.nodes[node_name].dependencies:
+                # In our definition, node depends on 'dep', so edge is dep -> node
+                # To check cycles in dependency graph:
+                if visited[dep] == 1:
+                    raise ValueError(f"DAG cycle detected: {' -> '.join(path + [dep])}")
+                if visited[dep] == 0:
+                    dfs(dep, path)
+            visited[node_name] = 2
+            path.pop()
+
+        for name in self.nodes:
+            if visited[name] == 0:
+                dfs(name, [])
+
+    def get_downstream_nodes(self, start_node_name: str) -> Set[str]:
+        """
+        Returns the set of all downstream nodes that depend directly or indirectly on start_node_name.
+        """
+        downstream = set()
+
+        def collect(parent_name: str):
+            for name, node in self.nodes.items():
+                if parent_name in node.dependencies and name not in downstream:
+                    downstream.add(name)
+                    collect(name)
+
+        collect(start_node_name)
+        return downstream
+
+    def get_node_status_map(self, pipeline_run, config: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+        """
+        Queries the database and returns a mapping of node_name -> status
+        ('pending', 'running', 'completed', 'skipped', 'failed').
+        """
+        from research_intelligence.models import ComponentRun
+        comp_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run).order_by('started_at', 'id')
+
+        status_map = {name: "pending" for name in self.nodes}
+        cfg = config or {}
+
+        for node_name, node in self.nodes.items():
+            matching_runs = comp_runs.filter(step_type=node.step_type)
+            if not matching_runs.exists():
+                status_map[node_name] = "pending"
+            elif matching_runs.filter(status='running').exists():
+                status_map[node_name] = "running"
+            elif matching_runs.filter(status='failed').exists() and not matching_runs.filter(status='completed').exists():
+                status_map[node_name] = "failed"
+            elif matching_runs.filter(status='completed').exists():
+                # Check for 2-stage screening: if abstract completed but full text not done yet
+                if node.step_type == 'screening':
+                    has_full = matching_runs.filter(component_name='full_text_screening', status='completed').exists()
+                    has_abstract = matching_runs.filter(component_name='abstract_screening', status='completed').exists()
+                    workspace = pipeline_run.workspace
+                    skip_abstract = cfg.get("skip_abstract_screening", getattr(workspace, 'skip_abstract_screening', False))
+                    skip_full = cfg.get("skip_full_text_screening", False)
+
+                    if has_full or (has_abstract and skip_full) or (has_abstract and not skip_abstract and skip_full):
+                        status_map[node_name] = "completed"
+                    elif has_abstract and not skip_full and not has_full:
+                        status_map[node_name] = "running"
+                    else:
+                        status_map[node_name] = "completed"
+                else:
+                    status_map[node_name] = "completed"
+            elif matching_runs.filter(status='skipped').exists():
+                status_map[node_name] = "skipped"
+
+        return status_map
+
+    def get_ready_nodes(self, pipeline_run, workspace, config: Optional[Dict[str, Any]] = None) -> List[BaseWorkflowNode]:
+        """
+        Calculates all nodes whose dependencies are all satisfied ('completed' or 'skipped')
+        and are currently 'pending'.
+        """
+        cfg = config or {}
+        status_map = self.get_node_status_map(pipeline_run, config=cfg)
+        ready = []
+
+        for name, node in self.nodes.items():
+            if status_map.get(name) != "pending":
+                continue
+
+            # Check if all dependency nodes are satisfied
+            deps_satisfied = True
+            for dep_name in node.dependencies:
+                dep_status = status_map.get(dep_name, "pending")
+                if dep_status not in ("completed", "skipped"):
+                    deps_satisfied = False
+                    break
+
+            if deps_satisfied:
+                ready.append(node)
+
+        return ready
+
+    def evaluate_and_dispatch(
+        self,
+        pipeline_run,
+        agent_process=None,
+        config: Optional[Dict[str, Any]] = None,
+        limit: Optional[int] = None
+    ) -> Dict[str, Any]:
+        """
+        Main DAG execution driver. Evaluates current graph state, handles skippable nodes,
+        and launches all ready nodes (in parallel on Celery workers).
+        """
+        from research_intelligence.models import ComponentRun
+        workspace = pipeline_run.workspace
+        cfg = dict(config or {})
+        if agent_process and getattr(agent_process, 'configuration_override', None):
+            cfg = {**agent_process.configuration_override, **cfg}
+
+        with transaction.atomic():
+            if agent_process:
+                # Refresh with row lock
+                from research_intelligence.models import ResearchAgentProcess
+                agent_process = ResearchAgentProcess.objects.select_for_update().get(id=agent_process.id)
+                if agent_process.status in ('paused', 'aborted', 'failed', 'completed'):
+                    return {
+                        "success": True,
+                        "status": agent_process.status,
+                        "current_step": agent_process.current_step,
+                        "message": f"Process in terminal or paused state: {agent_process.status}"
+                    }
+
+            status_map = self.get_node_status_map(pipeline_run, config=cfg)
+
+            # 1. Check for any failed nodes
+            failed_nodes = [name for name, st in status_map.items() if st == "failed"]
+            if failed_nodes:
+                failed_node_name = failed_nodes[0]
+                failed_comp_run = ComponentRun.objects.filter(
+                    pipeline_run=pipeline_run,
+                    step_type=self.nodes[failed_node_name].step_type,
+                    status='failed'
+                ).first()
+                err_msg = (failed_comp_run.error_message if failed_comp_run else f"Node '{failed_node_name}' failed.")
+                
+                pipeline_run.status = 'failed'
+                pipeline_run.completed_at = timezone.now()
+                pipeline_run.save(update_fields=['status', 'completed_at'])
+
+                if agent_process:
+                    agent_process.status = 'failed'
+                    agent_process.error_message = err_msg
+                    agent_process.completed_at = timezone.now()
+                    agent_process.save(update_fields=['status', 'error_message', 'completed_at', 'updated_at'])
+
+                return {"success": False, "status": "failed", "error": err_msg}
+
+            # 2. Check for early halting conditions (e.g. 0 papers found or accepted)
+            for name, st in status_map.items():
+                if st == "completed":
+                    node = self.nodes.get(name)
+                    if node:
+                        should_halt, halt_reason = node.should_halt_pipeline(pipeline_run, workspace, cfg)
+                        if should_halt:
+                            logger.info(f"Pipeline halted early at node '{name}': {halt_reason}")
+                            pipeline_run.status = 'completed'
+                            pipeline_run.completed_at = timezone.now()
+                            pipeline_run.save(update_fields=['status', 'completed_at'])
+                            if agent_process:
+                                agent_process.status = 'completed'
+                                agent_process.completed_at = timezone.now()
+                                agent_process.save(update_fields=['status', 'completed_at', 'updated_at'])
+                            return {
+                                "success": True,
+                                "status": "completed",
+                                "current_step": name,
+                                "message": halt_reason
+                            }
+
+            # 3. Check for multi-stage screening continuation (Abstract -> Full-Text)
+            screening_node = self.nodes.get("screening")
+            if screening_node:
+                comp_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run, step_type='screening')
+                has_abstract = comp_runs.filter(component_name='abstract_screening', status='completed').exists()
+                has_full_text = comp_runs.filter(component_name='full_text_screening').exists()
+                skip_abstract = cfg.get("skip_abstract_screening", getattr(workspace, 'skip_abstract_screening', False))
+                skip_full = cfg.get("skip_full_text_screening", False)
+
+                if has_abstract and not skip_full and not has_full_text and not comp_runs.filter(status='running').exists():
+                    # Launch Full-Text screening
+                    comp_run = ComponentRun.objects.create(
+                        pipeline_run=pipeline_run,
+                        step_type='screening',
+                        component_name='full_text_screening',
+                        status='running',
+                        input_params=screening_node.get_input_params(pipeline_run, workspace, cfg, limit=limit)
+                    )
+                    screening_node.execute(pipeline_run, comp_run, limit=limit)
+                    if agent_process:
+                        agent_process.current_step = 'screening'
+                        agent_process.save(update_fields=['current_step', 'updated_at'])
+                    return {
+                        "success": True,
+                        "status": "running",
+                        "current_step": "screening",
+                        "message": "Abstract screening completed. Dispatched full-text screening."
+                    }
+
+            # 4. Resolve Ready Nodes and Dispatch
+            ready_nodes = self.get_ready_nodes(pipeline_run, workspace, config=cfg)
+            dispatched = []
+
+            for node in ready_nodes:
+                if node.is_skippable(pipeline_run, workspace, cfg):
+                    logger.info(f"DAG Node '{node.name}' is skippable for workspace '{workspace.name}'. Marking skipped.")
+                    ComponentRun.objects.create(
+                        pipeline_run=pipeline_run,
+                        step_type=node.step_type,
+                        component_name=node.component_name,
+                        status='skipped',
+                        input_params=node.get_input_params(pipeline_run, workspace, cfg, limit=limit)
+                    )
+                    # Re-evaluate recursively to dispatch downstream nodes immediately
+                    return self.evaluate_and_dispatch(pipeline_run, agent_process=agent_process, config=cfg, limit=limit)
+
+                # Create ComponentRun and dispatch
+                input_params = node.get_input_params(pipeline_run, workspace, cfg, limit=limit)
+                comp_name = node.component_name
+                if node.step_type == 'screening':
+                    skip_abstract = cfg.get("skip_abstract_screening", getattr(workspace, 'skip_abstract_screening', False))
+                    comp_name = "full_text_screening" if skip_abstract else "abstract_screening"
+
+                comp_run = ComponentRun.objects.create(
+                    pipeline_run=pipeline_run,
+                    step_type=node.step_type,
+                    component_name=comp_name,
+                    status='running',
+                    input_params=input_params
+                )
+
+                if agent_process:
+                    agent_process.current_step = node.step_type
+                    history = list(agent_process.step_history or [])
+                    history.append({
+                        "step": node.step_type,
+                        "event": "started",
+                        "timestamp": timezone.now().isoformat()
+                    })
+                    agent_process.step_history = history
+                    agent_process.save(update_fields=['current_step', 'step_history', 'updated_at'])
+
+                node.execute(pipeline_run, comp_run, limit=limit)
+                dispatched.append(node.name)
+
+            if dispatched:
+                return {
+                    "success": True,
+                    "status": "running",
+                    "current_step": dispatched[0],
+                    "dispatched_nodes": dispatched,
+                    "message": f"Dispatched DAG node(s): {', '.join(dispatched)}"
+                }
+
+            # 5. If any node is still running, report waiting
+            running_nodes = [name for name, st in status_map.items() if st == "running"]
+            if running_nodes:
+                return {
+                    "success": True,
+                    "status": "running",
+                    "current_step": running_nodes[0],
+                    "message": f"DAG nodes currently running: {', '.join(running_nodes)}"
+                }
+
+            # 6. If all non-skippable nodes are completed / skipped -> COMPLETED!
+            all_done = all(st in ("completed", "skipped") for st in status_map.values())
+            if all_done:
+                pipeline_run.status = 'completed'
+                pipeline_run.current_stage = 'completed'
+                pipeline_run.completed_at = timezone.now()
+                pipeline_run.save(update_fields=['status', 'current_stage', 'completed_at'])
+
+                if agent_process:
+                    agent_process.status = 'completed'
+                    agent_process.current_step = 'completed'
+                    agent_process.completed_at = timezone.now()
+                    history = list(agent_process.step_history or [])
+                    history.append({
+                        "step": "pipeline",
+                        "event": "completed",
+                        "timestamp": timezone.now().isoformat()
+                    })
+                    agent_process.step_history = history
+                    agent_process.save(update_fields=['status', 'current_step', 'completed_at', 'step_history', 'updated_at'])
+
+                    from research_intelligence.tasks.orchestrator.agent_engine import _send_agent_notification
+                    _send_agent_notification(agent_process)
+
+                return {
+                    "success": True,
+                    "status": "completed",
+                    "current_step": "completed",
+                    "message": f"Workflow DAG '{self.name}' completed all steps successfully!"
+                }
+
+            return {
+                "success": True,
+                "status": "running",
+                "message": "DAG waiting for active components."
+            }
+
+    def rerun_from_node(self, pipeline_run, node_name: str) -> None:
+        """
+        Resets the target node and all downstream dependent nodes in the database,
+        allowing the workflow to re-execute from that step forward.
+        """
+        if node_name not in self.nodes:
+            raise ValueError(f"Unknown node '{node_name}' for DAG '{self.name}'.")
+
+        downstream_nodes = self.get_downstream_nodes(node_name)
+        affected_nodes = {node_name} | downstream_nodes
+
+        from research_intelligence.models import ComponentRun
+        step_types_to_reset = [self.nodes[n].step_type for n in affected_nodes]
+
+        with transaction.atomic():
+            ComponentRun.objects.filter(
+                pipeline_run=pipeline_run,
+                step_type__in=step_types_to_reset
+            ).delete()
+
+            pipeline_run.status = 'running'
+            pipeline_run.current_stage = self.nodes[node_name].step_type
+            pipeline_run.save(update_fields=['status', 'current_stage'])
+
+
+def build_default_slr_dag(workspace=None, config: Optional[Dict[str, Any]] = None) -> WorkflowDAG:
+    """
+    Constructs and returns the standard Systematic Literature Review Workflow DAG.
+    """
+    dag = WorkflowDAG(name="slr_systematic_review_dag")
+    dag.add_node(SearchNode())
+    dag.add_node(DownloadNode(dependencies=["search"]))
+    dag.add_node(OCRNode(dependencies=["download"]))
+    dag.add_node(ScreeningNode(dependencies=["ocr"]))
+    dag.add_node(ExtractionNode(dependencies=["screening"]))
+    dag.add_node(SignalScoreNode(dependencies=["extraction"]))
+    dag.add_node(ReportingNode(dependencies=["signal_score"]))
+    dag.validate_graph()
+    return dag
