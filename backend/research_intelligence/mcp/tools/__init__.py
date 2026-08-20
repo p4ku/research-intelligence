@@ -51,6 +51,7 @@ from .agent_processes import (
 from .document_registry import get_document_registry_stats_logic
 from .llm_test import test_google_llm_logic
 from .activity_logs import list_user_activity_logs_logic
+from .email_reports import send_pipeline_run_digest_email_logic
 
 __all__ = [
     "get_document_registry_stats_logic",
@@ -72,6 +73,7 @@ __all__ = [
     "update_extraction_definition_logic",
     "delete_extraction_definition_logic",
     "list_extractions_logic",
+    "get_paper_extractions_matrix_logic",
     "get_extraction_logic",
     "trigger_search_job_logic",
     "trigger_pdf_download_job_logic",
@@ -93,4 +95,5 @@ __all__ = [
     "delete_research_agent_logic",
     "test_google_llm_logic",
     "list_user_activity_logs_logic",
+    "send_pipeline_run_digest_email_logic",
 ]

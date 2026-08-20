@@ -89,6 +89,7 @@ from research_intelligence.mcp.tools import (
     get_document_registry_stats_logic,
     test_google_llm_logic,
     list_user_activity_logs_logic,
+    send_pipeline_run_digest_email_logic,
 )
 
 
@@ -1176,6 +1177,27 @@ def test_google_llm(
     except Exception as e:
         return str(e)
     return test_google_llm_logic(user, prompt, model, location)
+
+
+@mcp.tool()
+@with_db_connection
+def send_pipeline_run_digest_email(
+    workspace_id: str,
+    pipeline_run_id: str,
+    recipient_override: list[str] | None = None,
+    async_dispatch: bool = False
+) -> str:
+    """
+    Send an executive email report and parameter extraction scorecard to all active workspace subscribers (or custom recipients) for a completed PipelineRun.
+    Requires that the pipeline run is completed and has extractions ready.
+    Generates a responsive HTML email with KPI metrics (papers fetched, screened, accepted, cost, tokens) and accepted paper parameter summaries via Mailgun.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:write")
+    except Exception as e:
+        return str(e)
+    return send_pipeline_run_digest_email_logic(user, workspace_id, pipeline_run_id, recipient_override, async_dispatch)
 
 
 def create_app():
