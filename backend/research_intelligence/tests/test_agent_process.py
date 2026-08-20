@@ -378,22 +378,22 @@ class ResearchAgentProcessTest(TestCase):
             configuration_override={"notification_email": "override_subscriber@corp.com"}
         )
 
-        # Clear mail outbox
-        mail.outbox = []
+        # Send notification with mocked Mailgun
+        with patch("research_intelligence.tasks.orchestrator.agent_engine.send_mailgun_message") as mock_send_mail:
+            mock_send_mail.return_value = (True, {"message": "Queued"})
+            _send_agent_notification(agent)
 
-        # Send notification
-        _send_agent_notification(agent)
-
-        # Assert email was dispatched via Django mail backend
-        self.assertEqual(len(mail.outbox), 1)
-        sent_email = mail.outbox[0]
-        self.assertIn("subscriber1@corp.com", sent_email.to)
-        self.assertIn("override_subscriber@corp.com", sent_email.to)
-        self.assertIn("agent_user@example.com", sent_email.to)
-        self.assertNotIn("inactive_subscriber@corp.com", sent_email.to)
-        self.assertIn("[COMPLETED]", sent_email.subject)
-        self.assertIn("Notification Test Agent", sent_email.body)
-        self.assertIn("1,500", sent_email.body)
+            # Assert email was dispatched via Mailgun for all active recipients
+            self.assertEqual(mock_send_mail.call_count, 3)
+            recipients = [call_args[1]["to_email"] for call_args in mock_send_mail.call_args_list]
+            self.assertIn("subscriber1@corp.com", recipients)
+            self.assertIn("override_subscriber@corp.com", recipients)
+            self.assertIn("agent_user@example.com", recipients)
+            self.assertNotIn("inactive_subscriber@corp.com", recipients)
+            first_kwargs = mock_send_mail.call_args_list[0][1]
+            self.assertIn("[COMPLETED]", first_kwargs["subject"])
+            self.assertIn("Notification Test Agent", first_kwargs["text"])
+            self.assertIn("1,500", first_kwargs["text"])
 
     def test_autonomous_task_completion_notifies_orchestrator_tick(self):
         """

@@ -1,9 +1,11 @@
 import logging
 import time
 from celery import shared_task
+from django.conf import settings
 from django.utils import timezone
 from django.db import close_old_connections
 from research_intelligence.models import Workspace, PipelineRun, ComponentRun, ResearchAgentProcess, Scraper
+from research_intelligence.utils.mailer import send_mailgun_message
 
 logger = logging.getLogger(__name__)
 
@@ -144,21 +146,27 @@ def _send_agent_notification(agent_process: ResearchAgentProcess):
     </div>
     """
 
-    try:
-        from django.core.mail import send_mail
-        from django.conf import settings
-        from_email = getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@schwarz-digits.cloud')
-        send_mail(
-            subject=subject,
-            message=plain_message,
-            from_email=from_email,
-            recipient_list=recipient_list,
-            html_message=html_message,
-            fail_silently=False
-        )
-        logger.info(f"📧 [EMAIL NOTIFICATION SENT] To: [{', '.join(recipient_list)}] | Subject: '{subject}'")
-    except Exception as mail_err:
-        logger.warning(f"⚠️ Failed to send notification email: {mail_err}")
+    for to_email in recipient_list:
+        try:
+            success, resp_or_err = send_mailgun_message(
+                to_email=to_email,
+                subject=subject,
+                text=plain_message,
+                html=html_message
+            )
+            if success:
+                logger.info(f"📧 [EMAIL NOTIFICATION SENT via Mailgun] To: {to_email} | Subject: '{subject}' | Response: {resp_or_err}")
+            else:
+                mailgun_url = getattr(settings, 'MAILGUN_API_URL', 'https://api.eu.mailgun.net/v3')
+                mailgun_domain = getattr(settings, 'MAILGUN_SENDER_DOMAIN', 'soinventive.co.uk')
+                has_key = bool(getattr(settings, 'MAILGUN_API_KEY', ''))
+                logger.warning(
+                    f"⚠️ [MAILGUN NOTIFICATION FAILED] To: {to_email} | "
+                    f"Mailgun URL: {mailgun_url} | Domain: {mailgun_domain} | "
+                    f"API Key Set: {has_key} | Error: {resp_or_err}"
+                )
+        except Exception as mail_err:
+            logger.warning(f"⚠️ [MAIL NOTIFICATION EXCEPTION] To: {to_email} | Error: {mail_err}")
 
 
 def tick_agent_process(process_id: str) -> dict:
