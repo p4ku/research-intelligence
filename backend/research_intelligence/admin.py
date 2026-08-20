@@ -290,27 +290,55 @@ def render_component_metrics_summary(obj):
 
 # Helper function to render formatted component USD cost & tokens
 def render_component_cost(obj):
+    if not obj.metrics and not obj.output_data:
+        return format_html('<span style="color: #6c757d;">$0.0000</span>')
+
     cost = 0.0
     tokens = 0
+    tokens_in = 0
+    tokens_out = 0
+    model_name = None
+
     if obj.metrics and isinstance(obj.metrics, dict):
         cost = float(obj.metrics.get('usd_cost', 0.0) or 0.0)
         tokens = int(obj.metrics.get('total_tokens', 0) or 0)
+        tokens_in = int(obj.metrics.get('tokens_in', 0) or 0)
+        tokens_out = int(obj.metrics.get('tokens_out', 0) or 0)
+        model_name = obj.metrics.get('model_used')
     elif obj.output_data and isinstance(obj.output_data, dict):
         cost = float(obj.output_data.get('usd_cost', 0.0) or 0.0)
-        tokens = int(obj.output_data.get('total_tokens', 0) or 0)
+        tokens = int(obj.output_data.get('total_tokens_consumed', 0) or obj.output_data.get('total_tokens', 0) or 0)
+        model_name = obj.output_data.get('model_used')
+
+    # If cost was not persisted on historical run but tokens exist, calculate dynamically
+    if cost == 0.0 and (tokens > 0 or tokens_in > 0 or tokens_out > 0):
+        try:
+            from research_intelligence.llm_providers.pricing import calculate_llm_cost
+            if not model_name and obj.pipeline_run and obj.pipeline_run.workspace:
+                model_name = obj.pipeline_run.workspace.screening_llm_model
+            model_name = model_name or "google/gemini-3.7-flash"
+            cost = float(calculate_llm_cost(model_name, tokens_in, tokens_out))
+        except Exception:
+            pass
+
+    if tokens == 0 and (tokens_in > 0 or tokens_out > 0):
+        tokens = tokens_in + tokens_out
 
     if cost > 0:
+        cost_str = f"{cost:.4f}"
         if tokens > 0:
+            tokens_str = f"{tokens:,} tok"
             return format_html(
                 '<div style="line-height: 1.35; white-space: nowrap;">'
-                '<strong style="color: #0d6efd;">${:.4f}</strong><br>'
-                '<span style="color: #6c757d; font-size: 11px;">{:,} tok</span>'
+                '<strong style="color: #0d6efd;">${}</strong><br>'
+                '<span style="color: #6c757d; font-size: 11px;">{}</span>'
                 '</div>',
-                cost,
-                tokens,
+                cost_str,
+                tokens_str,
             )
-        return format_html('<strong style="color: #0d6efd;">${:.4f}</strong>', cost)
+        return format_html('<strong style="color: #0d6efd;">${}</strong>', cost_str)
     return format_html('<span style="color: #6c757d;">$0.0000</span>')
+
 
 
 # --- Inlines for PipelineRun ---
@@ -608,10 +636,16 @@ class PipelineRunAdmin(admin.ModelAdmin):
     execution_time.admin_order_field = 'completed_at'
 
     def formatted_usd_cost(self, obj):
-        if obj.usd_cost is not None:
-            cost = float(obj.usd_cost)
-            if cost > 0:
-                return format_html('<strong style="color: #0d6efd;">${:.4f}</strong>', cost)
+        cost = float(obj.usd_cost or 0.0)
+        if cost == 0.0 and (obj.tokens_in or obj.tokens_out or obj.tokens_consumed):
+            try:
+                from research_intelligence.llm_providers.pricing import calculate_llm_cost
+                model_name = obj.workspace.screening_llm_model if obj.workspace else "google/gemini-3.7-flash"
+                cost = float(calculate_llm_cost(model_name, obj.tokens_in or 0, obj.tokens_out or 0))
+            except Exception:
+                pass
+        if cost > 0:
+            return format_html('<strong style="color: #0d6efd;">${}</strong>', f"{cost:.4f}")
         return format_html('<span style="color: #6c757d;">$0.0000</span>')
     formatted_usd_cost.short_description = "USD Cost"
     formatted_usd_cost.admin_order_field = 'usd_cost'
@@ -700,10 +734,17 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
     actions = ['tick_selected_agents', 'pause_selected_agents', 'resume_selected_agents', 'abort_selected_agents']
 
     def usd_cost(self, obj):
-        if obj.pipeline_run and obj.pipeline_run.usd_cost is not None:
-            cost = float(obj.pipeline_run.usd_cost)
+        if obj.pipeline_run:
+            cost = float(obj.pipeline_run.usd_cost or 0.0)
+            if cost == 0.0 and (obj.pipeline_run.tokens_in or obj.pipeline_run.tokens_out or obj.pipeline_run.tokens_consumed):
+                try:
+                    from research_intelligence.llm_providers.pricing import calculate_llm_cost
+                    model_name = obj.pipeline_run.workspace.screening_llm_model if obj.pipeline_run.workspace else "google/gemini-3.7-flash"
+                    cost = float(calculate_llm_cost(model_name, obj.pipeline_run.tokens_in or 0, obj.pipeline_run.tokens_out or 0))
+                except Exception:
+                    pass
             if cost > 0:
-                return format_html('<strong style="color: #0d6efd;">${:.4f}</strong>', cost)
+                return format_html('<strong style="color: #0d6efd;">${}</strong>', f"{cost:.4f}")
         return format_html('<span style="color: #6c757d;">$0.0000</span>')
     usd_cost.short_description = "USD Cost"
     usd_cost.admin_order_field = 'pipeline_run__usd_cost'

@@ -39,4 +39,8 @@ def calculate_llm_cost(model_name: str | None, tokens_in: int = 0, tokens_out: i
 
     cost_in = (Decimal(tokens_in or 0) / Decimal("1000000")) * pricing["in"]
     cost_out = (Decimal(tokens_out or 0) / Decimal("1000000")) * pricing["out"]
-    return (cost_in + cost_out).quantize(Decimal("0.0001"))
+    raw_cost = cost_in + cost_out
+    if raw_cost > 0 and raw_cost < Decimal("0.0001"):
+        return Decimal("0.0001")
+    return raw_cost.quantize(Decimal("0.0001"))
+

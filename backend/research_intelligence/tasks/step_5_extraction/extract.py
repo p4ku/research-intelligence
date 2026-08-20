@@ -326,6 +326,11 @@ def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_wor
         job_duration_sec = round(time.time() - job_t0, 3)
         avg_duration_sec = round(job_duration_sec / len(work_items), 3) if work_items else 0.0
 
+        from decimal import Decimal
+        from ...llm_providers.pricing import calculate_llm_cost
+
+        cost = calculate_llm_cost(workspace.screening_llm_model, total_prompt_tokens, total_candidates_tokens)
+
         component_run.metrics = {
             "model_used": workspace.screening_llm_model,
             "parallel_workers": worker_concurrency,
@@ -337,6 +342,7 @@ def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_wor
             "tokens_in": total_prompt_tokens,
             "tokens_out": total_candidates_tokens,
             "total_tokens": total_tokens,
+            "usd_cost": float(cost),
             "total_duration_seconds": job_duration_sec,
             "avg_duration_per_extraction_seconds": avg_duration_sec
         }
@@ -344,17 +350,12 @@ def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_wor
             "summary": f"Extracted data for {len(papers)} papers across {len(active_definitions)} active definitions in {job_duration_sec}s ({worker_concurrency}x parallel): {succeeded_count} succeeded, {failed_count} failed.",
             "total_tokens_consumed": total_tokens,
             "total_duration_seconds": job_duration_sec,
+            "usd_cost": float(cost),
             "extractions": extractions_summary
         }
         component_run.status = 'completed'
         component_run.completed_at = timezone.now()
         component_run.save(update_fields=['metrics', 'output_data', 'status', 'completed_at'])
-
-        from decimal import Decimal
-        from ...llm_providers.pricing import calculate_llm_cost
-
-        cost = calculate_llm_cost(workspace.screening_llm_model, total_prompt_tokens, total_candidates_tokens)
-        component_run.metrics["usd_cost"] = float(cost)
 
         # Aggregate tokens and cost to PipelineRun
         pipeline_run.refresh_from_db()

@@ -236,6 +236,98 @@ class PipelineTokenAccumulationTestCase(TestCase):
         )
         self.assertEqual(sum_component_tokens, self.pipeline_run.tokens_consumed)
 
+        # Verify ComponentRun metrics persist positive USD cost
+        self.assertGreater(step4a_comp.metrics.get("usd_cost", 0.0), 0.0)
+        self.assertGreater(step4b_comp.metrics.get("usd_cost", 0.0), 0.0)
+        self.assertGreater(step5_comp.metrics.get("usd_cost", 0.0), 0.0)
+
+        sum_component_costs = (
+            step4a_comp.metrics.get("usd_cost", 0.0) +
+            step4b_comp.metrics.get("usd_cost", 0.0) +
+            step5_comp.metrics.get("usd_cost", 0.0)
+        )
+        self.assertAlmostEqual(sum_component_costs, float(self.pipeline_run.usd_cost), places=4)
+
         # Verify Workspace monthly quota recorded all tokens
         self.workspace.refresh_from_db()
         self.assertEqual(self.workspace.tokens_consumed_this_month, expected_final_total)
+
+    def test_component_run_cost_rendering_and_legacy_fallback(self):
+        """
+        Validates render_component_cost formatting across various scenarios:
+        1. Completed LLM step with persisted usd_cost and total_tokens.
+        2. Legacy/historical step with tokens_in/tokens_out but usd_cost=0 or missing.
+        3. Non-LLM step (search, download) -> renders $0.0000.
+        """
+        from research_intelligence.admin import render_component_cost, render_component_metrics_summary
+
+        # 1. Step with persisted usd_cost
+        comp_llm = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            component_name="abstract_screening",
+            step_type="screening",
+            status="completed",
+            metrics={
+                "usd_cost": 0.0125,
+                "total_tokens": 15000,
+                "total_screened": 10,
+                "passed": 8,
+                "rejected": 2
+            }
+        )
+        html_cost = str(render_component_cost(comp_llm))
+        self.assertIn("$0.0125", html_cost)
+        self.assertIn("15,000 tok", html_cost)
+
+        html_summary = str(render_component_metrics_summary(comp_llm))
+        self.assertIn("10 screened:", html_summary)
+        self.assertIn("8 passed", html_summary)
+        self.assertIn("2 rejected", html_summary)
+
+        # 2. Legacy step with tokens_in/tokens_out but usd_cost was missing / 0.0
+        comp_legacy = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            component_name="full_text_screening",
+            step_type="screening",
+            status="completed",
+            metrics={
+                "model_used": "google/gemini-3.7-flash",
+                "tokens_in": 10000,
+                "tokens_out": 2000,
+                "total_tokens": 12000,
+                "usd_cost": 0.0
+            }
+        )
+        html_legacy_cost = str(render_component_cost(comp_legacy))
+        self.assertNotIn("$0.0000", html_legacy_cost)
+        self.assertIn("12,000 tok", html_legacy_cost)
+
+        # 3. Non-LLM step without tokens (e.g. search / download)
+        comp_non_llm = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            component_name="arxiv_scraper",
+            step_type="search",
+            status="completed",
+            metrics={"total_fetched": 24}
+        )
+        html_non_llm = str(render_component_cost(comp_non_llm))
+        self.assertIn("$0.0000", html_non_llm)
+
+    def test_calculate_llm_cost_precision(self):
+        """
+        Validates calculate_llm_cost calculation and precision boundaries.
+        """
+        from research_intelligence.llm_providers.pricing import calculate_llm_cost
+
+        # 0 tokens -> 0.0000
+        cost_zero = calculate_llm_cost("google/gemini-3.7-flash", 0, 0)
+        self.assertEqual(cost_zero, Decimal("0.0000"))
+
+        # Small tokens (e.g. 10 in, 5 out) -> should return minimum 0.0001
+        cost_micro = calculate_llm_cost("google/gemini-3.7-flash", 10, 5)
+        self.assertGreaterEqual(cost_micro, Decimal("0.0001"))
+
+        # 1M input tokens for gemini-3.7-flash ($0.75 / 1M in) -> 0.7500
+        cost_1m = calculate_llm_cost("google/gemini-3.7-flash", 1_000_000, 0)
+        self.assertEqual(cost_1m, Decimal("0.7500"))
+
