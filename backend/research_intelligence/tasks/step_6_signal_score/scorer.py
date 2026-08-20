@@ -245,6 +245,15 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
         f"Scored {scored_count}/{total_papers} papers. Avg Score: {avg_score:.2f}, Max: {max_score:.2f}."
     )
 
+    # If no agent process is running (e.g. manual step trigger), update pipeline_run to completed
+    if not pipeline_run.agent_processes.filter(status='running').exists():
+        if not pipeline_run.component_runs.filter(status__in=['pending', 'running']).exclude(id=comp_run.id).exists():
+            pipeline_run.status = 'completed'
+            pipeline_run.current_stage = 'completed'
+            if not pipeline_run.completed_at:
+                pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'current_stage', 'completed_at'])
+
     # Notify Orchestrator state machine
     try:
         from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick

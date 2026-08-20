@@ -22,15 +22,27 @@ def notify_pipeline_orchestrator_tick(pipeline_run_id_or_obj):
             pipeline_run = pipeline_run_id_or_obj
 
         running_agents = list(pipeline_run.agent_processes.filter(status='running'))
-        for agent_proc in running_agents:
-            try:
-                run_agent_process_tick.delay(str(agent_proc.id))
-            except Exception:
-                # If Celery queueing fails or in sync environment, tick directly
+        if running_agents:
+            for agent_proc in running_agents:
                 try:
-                    tick_agent_process(str(agent_proc.id))
-                except Exception as sync_err:
-                    logger.warning(f"Fallback tick execution failed for agent '{agent_proc.id}': {sync_err}")
+                    run_agent_process_tick.delay(str(agent_proc.id))
+                except Exception:
+                    # If Celery queueing fails or in sync environment, tick directly
+                    try:
+                        tick_agent_process(str(agent_proc.id))
+                    except Exception as sync_err:
+                        logger.warning(f"Fallback tick execution failed for agent '{agent_proc.id}': {sync_err}")
+        else:
+            # Check if all component runs are done for this pipeline run
+            pending_runs = pipeline_run.component_runs.filter(status__in=['pending', 'running'])
+            if not pending_runs.exists() and pipeline_run.component_runs.filter(status='completed').exists():
+                last_comp = pipeline_run.component_runs.order_by('-completed_at', '-id').first()
+                if last_comp and last_comp.step_type in ['signal_score', 'extraction']:
+                    pipeline_run.status = 'completed'
+                    pipeline_run.current_stage = 'completed'
+                    if not pipeline_run.completed_at:
+                        pipeline_run.completed_at = timezone.now()
+                    pipeline_run.save(update_fields=['status', 'current_stage', 'completed_at'])
     except Exception as e:
         logger.warning(f"Failed to notify orchestrator tick: {e}")
 
