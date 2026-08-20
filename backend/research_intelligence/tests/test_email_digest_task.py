@@ -574,3 +574,111 @@ class EmailCompositionBuilderTests(TestCase):
         e4 = Extraction(workspace=self.workspace, paper=paper, extraction_definition=def_empty_exit, fields_data={"random_key": "Passed Criteria"})
         self.assertEqual(e4.exit_metric, "Passed Criteria")
 
+    def test_email_digest_multistage_screening_and_full_matrix_population(self):
+        """
+        Tests that when a pipeline runs 2-stage screening:
+        1. Only papers that reached terminal acceptance ('full_text_passed') are counted as accepted (e.g. 5 instead of 13).
+        2. All extraction definitions and columns are matched properly.
+        3. Signal scores and scorecard details are populated with confidence and metrics.
+        """
+        import uuid
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="completed",
+            total_papers_fetched=10,
+            usd_cost=0.0373,
+            tokens_consumed=32116
+        )
+
+        def_trl = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="TRL (Technology Readiness Level)",
+            exit_metric="trl_level",
+            system_prompt="TRL",
+            user_prompt_template="{paper_text}",
+            response_schema={}
+        )
+        def_novelty = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Novelty",
+            exit_metric="novelty_score",
+            system_prompt="Novelty",
+            user_prompt_template="{paper_text}",
+            response_schema={}
+        )
+        def_fit = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Schwarz Fit",
+            exit_metric="fit_score",
+            system_prompt="Fit",
+            user_prompt_template="{paper_text}",
+            response_schema={}
+        )
+
+        # 5 papers passed full-text screening
+        for i in range(5):
+            p = Paper.objects.create(
+                workspace=self.workspace,
+                pipeline_run=pr,
+                hash_id=uuid.uuid4().hex,
+                title=f"Accepted Hybrid Quantum Paper #{i+1}",
+                authors=f"Author {i+1}",
+                screening_status="full_text_passed",
+                signal_score=40.24 + i * 5.0,
+                abstract=f"Abstract for paper {i+1}"
+            )
+            Extraction.objects.create(
+                workspace=self.workspace,
+                paper=p,
+                extraction_definition=def_trl,
+                confidence_score=0.95,
+                validation_status="pass",
+                fields_data={"trl_level": f"TRL {4+i}"}
+            )
+            Extraction.objects.create(
+                workspace=self.workspace,
+                paper=p,
+                extraction_definition=def_novelty,
+                confidence_score=0.90,
+                validation_status="pass",
+                fields_data={"novelty_score": f"{7.0+i}/10"}
+            )
+            Extraction.objects.create(
+                workspace=self.workspace,
+                paper=p,
+                extraction_definition=def_fit,
+                confidence_score=0.88,
+                validation_status="pass",
+                fields_data={"fit_score": "High"}
+            )
+
+        # 5 papers rejected
+        for i in range(5):
+            Paper.objects.create(
+                workspace=self.workspace,
+                pipeline_run=pr,
+                hash_id=uuid.uuid4().hex,
+                title=f"Rejected Paper #{i+1}",
+                authors=f"Rejected Author {i+1}",
+                screening_status="rejected",
+                abstract=f"Rejected abstract {i+1}"
+            )
+
+        payload = build_pipeline_run_digest_payload(pr)
+        html = payload["html_content"]
+        text = payload["text_content"]
+
+        # Exactly 5 accepted papers (not 10 or 13)
+        self.assertEqual(payload["context"]["accepted_count"], 5)
+        self.assertEqual(payload["context"]["rejected_count"], 5)
+        self.assertEqual(payload["context"]["total_extractions"], 15)
+        self.assertEqual(len(payload["context"]["papers_data"]), 5)
+
+        # Matrix columns contain values
+        self.assertIn("Accepted Hybrid Quantum Paper #1", html)
+        self.assertIn("TRL 4", html)
+        self.assertIn("7.0/10", html)
+        self.assertIn("High", html)
+        self.assertIn("95% confidence", html)
+
+

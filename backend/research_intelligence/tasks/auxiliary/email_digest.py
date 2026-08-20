@@ -36,40 +36,67 @@ def build_pipeline_run_digest_payload(
     )
     duration_str = pipeline_run.execution_time_display if pipeline_run else "N/A"
 
-    # 1. Fetch active extraction definitions for the matrix columns
-    active_definitions = list(workspace.extraction_definitions.filter(is_active=True).order_by('created_at')) if workspace else []
-    definition_names = [d.name for d in active_definitions]
+    # 1. Fetch papers and extractions
+    if pipeline_run:
+        papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).prefetch_related(
+            'extractions', 'extractions__extraction_definition'
+        ).order_by('-created_at')
+    elif workspace:
+        papers_qs = Paper.objects.filter(workspace=workspace).prefetch_related(
+            'extractions', 'extractions__extraction_definition'
+        ).order_by('-created_at')
+    else:
+        papers_qs = Paper.objects.none()
 
-    # 2. Fetch papers and extractions
-    papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).prefetch_related(
-        'extractions', 'extractions__extraction_definition'
-    ).order_by('-created_at') if pipeline_run else Paper.objects.none()
+    # Determine truly accepted papers based on the terminal screening stage:
+    if papers_qs.filter(screening_status__in=['full_text_passed', 'accepted']).exists():
+        accepted_papers = list(papers_qs.filter(screening_status__in=['full_text_passed', 'accepted']))
+    elif papers_qs.filter(screening_status='abstract_passed').exists():
+        accepted_papers = list(papers_qs.filter(screening_status='abstract_passed'))
+    else:
+        accepted_papers = list(papers_qs.exclude(screening_status__in=['rejected', 'withdrawn', 'pending']))
 
-    total_papers = papers_qs.count()
-    accepted_papers = [
-        p for p in papers_qs
-        if p.screening_status in ['accepted', 'full_text_passed', 'abstract_passed']
-    ]
-    # Sort accepted papers primarily by signal_score (highest first), fallback to creation time
+    # Sort accepted papers: scored papers with highest signal_score first, then unscored by creation date
     accepted_papers.sort(
-        key=lambda p: (p.signal_score is not None, p.signal_score or 0.0, p.created_at),
+        key=lambda p: (
+            p.signal_score is not None,
+            p.signal_score if p.signal_score is not None else -1.0,
+            p.created_at
+        ),
         reverse=True
     )
-    rejected_count = total_papers - len(accepted_papers)
+
+    total_papers = papers_qs.count()
+    if total_papers == 0 and pipeline_run and pipeline_run.total_papers_fetched:
+        total_papers = pipeline_run.total_papers_fetched
+    rejected_count = max(0, total_papers - len(accepted_papers))
 
     # Calculate signal score summary
     scored_papers = [p for p in accepted_papers if p.signal_score is not None]
     avg_signal_score = (sum(p.signal_score for p in scored_papers) / len(scored_papers)) if scored_papers else None
     top_signal_score = max((p.signal_score for p in scored_papers), default=None)
 
-    # 3. Gather extractions
-    extractions_qs = Extraction.objects.filter(paper__pipeline_run=pipeline_run).select_related(
-        'paper', 'extraction_definition'
-    ) if pipeline_run else Extraction.objects.none()
-    total_extractions = extractions_qs.count()
+    # 2. Gather extractions across accepted papers
+    all_extractions = []
+    for p in accepted_papers:
+        all_extractions.extend(list(p.extractions.all()))
+    total_extractions = len(all_extractions)
+    if total_extractions == 0 and pipeline_run:
+        total_extractions = Extraction.objects.filter(paper__pipeline_run=pipeline_run).count()
 
     cost_val = float(pipeline_run.usd_cost or 0.0) if pipeline_run else 0.0
     tokens_val = int(pipeline_run.tokens_consumed or 0) if pipeline_run else 0
+
+    # 3. Fetch active extraction definitions for the matrix columns
+    active_definitions = list(workspace.extraction_definitions.filter(is_active=True).order_by('created_at')) if workspace else []
+    if not active_definitions and all_extractions:
+        seen_def_ids = set()
+        for ext in all_extractions:
+            if ext.extraction_definition and ext.extraction_definition.id not in seen_def_ids:
+                seen_def_ids.add(ext.extraction_definition.id)
+                active_definitions.append(ext.extraction_definition)
+
+    definition_names = [d.name for d in active_definitions]
 
     # 4. Build papers scorecard & matrix items
     papers_data = []
@@ -78,29 +105,56 @@ def build_pipeline_run_digest_payload(
     for idx, p in enumerate(accepted_papers, 1):
         paper_exts = list(p.extractions.all())
         exts_list = []
-        metrics_dict = {}
+        metrics_by_def_id = {}
+        metrics_by_name = {}
+        metrics_by_norm_name = {}
 
         for ext in paper_exts:
-            def_name = (
-                ext.extraction_definition.name
-                if ext.extraction_definition
-                else (ext.category or "Parameter")
-            )
-            metric_val = ext.exit_metric or ext.get_exit_metric() or "Extracted"
-            metrics_dict[def_name] = metric_val
+            def_obj = ext.extraction_definition
+            def_name = def_obj.name if def_obj else (ext.category or "Parameter")
+            metric_val = ext.exit_metric or ext.get_exit_metric()
+            if not metric_val or metric_val == "-":
+                if ext.fields_data and isinstance(ext.fields_data, dict):
+                    data = ext.fields_data.get("fields", ext.fields_data)
+                    if isinstance(data, dict):
+                        for k, v in data.items():
+                            if isinstance(v, dict) and "value" in v:
+                                metric_val = str(v["value"])
+                                break
+                            elif v is not None and not str(v).startswith("http") and len(str(v)) < 100:
+                                metric_val = str(v)
+                                break
+            metric_val = metric_val or "-"
+
+            if def_obj:
+                metrics_by_def_id[str(def_obj.id)] = metric_val
+            metrics_by_name[def_name] = metric_val
+            metrics_by_norm_name[def_name.lower().replace(" ", "_")] = metric_val
+            if ext.category:
+                metrics_by_norm_name[ext.category.lower().replace(" ", "_")] = metric_val
 
             exts_list.append({
                 "name": def_name,
                 "value": metric_val,
                 "confidence": ext.confidence_score,
-                "confidence_percent": int(ext.confidence_score * 100) if ext.confidence_score else None,
+                "confidence_percent": int(ext.confidence_score * 100) if ext.confidence_score is not None else None,
                 "status": ext.validation_status or "pass",
             })
 
         matrix_entries = []
         for def_obj in active_definitions:
-            val = metrics_dict.get(def_obj.name, "-")
-            matrix_entries.append({"name": def_obj.name, "value": val})
+            norm_key = def_obj.name.lower().replace(" ", "_")
+            val = (
+                metrics_by_def_id.get(str(def_obj.id))
+                or metrics_by_name.get(def_obj.name)
+                or metrics_by_norm_name.get(norm_key)
+            )
+            if not val or val == "-":
+                for k, v in metrics_by_norm_name.items():
+                    if k in norm_key or norm_key in k:
+                        val = v
+                        break
+            matrix_entries.append({"name": def_obj.name, "value": val or "-"})
 
         pdf_link = (
             f"https://arxiv.org/pdf/{p.arxiv_id}.pdf"
@@ -113,9 +167,12 @@ def build_pipeline_run_digest_payload(
             is_gated_paper = True
             has_gated = True
 
-        score_formatted = f"{p.signal_score:.2f}" if p.signal_score is not None else "0.00"
-        if is_gated_paper:
-            score_formatted += "*"
+        if p.signal_score is not None:
+            score_formatted = f"{p.signal_score:.2f}"
+            if is_gated_paper:
+                score_formatted += "*"
+        else:
+            score_formatted = "-"
 
         papers_data.append({
             "index": idx,
@@ -127,7 +184,7 @@ def build_pipeline_run_digest_payload(
             "abstract": p.abstract or "",
             "screening_status": p.screening_status.replace('_', ' '),
             "screening_reason": p.screening_reasoning or "",
-            "signal_score": round(p.signal_score, 2) if p.signal_score is not None else 0.0,
+            "signal_score": round(p.signal_score, 2) if p.signal_score is not None else None,
             "signal_score_formatted": score_formatted,
             "is_gated": is_gated_paper,
             "matrix_entries": matrix_entries,
