@@ -10,13 +10,14 @@ METRICS SUMMARY:
 - Total Papers Ingested: {{ total_papers }}
 - Screened Accepted: {{ accepted_count }} (Rejected: {{ rejected_count }})
 - Parameters Extracted: {{ total_extractions }}
+- Composite Signal Score: {% if avg_signal_score %}{{ avg_signal_score }} (Top: {{ top_signal_score }}){% else %}N/A{% endif %}
 - USD Cost: ${{ cost_usd|floatformat:4 }}
 - Token Consumption: {{ tokens_consumed }} tokens
 - Total Duration: {{ duration_str }}
 
 ACCEPTED PAPERS & EXTRACTED PARAMETERS:
 {% for paper in papers_data %}
-[{{ forloop.counter }}] {{ paper.title }}
+[{{ forloop.counter }}] {{ paper.title }}{% if paper.signal_score is not None %} [⚡ Signal Score: {{ paper.signal_score_formatted }}]{% endif %}
     Authors: {{ paper.authors }}
     {% if paper.pdf_link %}Link: {{ paper.pdf_link }}{% endif %}
     {% for ext in paper.extractions %}

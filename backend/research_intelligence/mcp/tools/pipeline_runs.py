@@ -4,6 +4,7 @@ import uuid
 import shutil
 import logging
 from django.utils import timezone
+from django.db.models import F
 from django.core.serializers.json import DjangoJSONEncoder
 from django.core.files.storage import default_storage
 from research_intelligence.models import (
@@ -285,13 +286,17 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
                 "paper_id": str(p.id),
                 "title": p.title,
                 "screening_status": p.screening_status,
+                "signal_score": p.signal_score,
                 "metrics": {
                     (e.extraction_definition.name if e.extraction_definition else e.category): (e.exit_metric or e.get_exit_metric())
                     for e in p.extractions.all()
                     if (e.extraction_definition or e.category)
                 }
             }
-            for p in Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=['full_text_passed', 'abstract_passed']).prefetch_related('extractions', 'extractions__extraction_definition')[:30]
+            for p in Paper.objects.filter(
+                pipeline_run=pipeline_run,
+                screening_status__in=['full_text_passed', 'abstract_passed', 'accepted']
+            ).order_by(F('signal_score').desc(nulls_last=True), '-created_at').prefetch_related('extractions', 'extractions__extraction_definition')[:30]
         ],
         "component_runs": runs_list
     }

@@ -43,7 +43,17 @@ def build_pipeline_run_digest_payload(pipeline_run: PipelineRun) -> Dict[str, An
         p for p in papers_qs
         if p.screening_status in ['accepted', 'full_text_passed', 'abstract_passed']
     ]
+    # Sort accepted papers primarily by signal_score (highest first), fallback to creation time
+    accepted_papers.sort(
+        key=lambda p: (p.signal_score is not None, p.signal_score or 0.0, p.created_at),
+        reverse=True
+    )
     rejected_count = total_papers - len(accepted_papers)
+
+    # Calculate signal score summary
+    scored_papers = [p for p in accepted_papers if p.signal_score is not None]
+    avg_signal_score = (sum(p.signal_score for p in scored_papers) / len(scored_papers)) if scored_papers else None
+    top_signal_score = max((p.signal_score for p in scored_papers), default=None)
 
     # 2. Gather extractions
     extractions_qs = Extraction.objects.filter(paper__pipeline_run=pipeline_run).select_related(
@@ -88,6 +98,8 @@ def build_pipeline_run_digest_payload(pipeline_run: PipelineRun) -> Dict[str, An
             "pdf_link": pdf_link,
             "screening_status": p.screening_status.replace('_', ' '),
             "screening_reason": p.screening_reasoning or "",
+            "signal_score": round(p.signal_score, 2) if p.signal_score is not None else None,
+            "signal_score_formatted": f"{p.signal_score:.2f}" if p.signal_score is not None else "N/A",
             "extractions": exts_list,
         })
 
@@ -102,6 +114,8 @@ def build_pipeline_run_digest_payload(pipeline_run: PipelineRun) -> Dict[str, An
         "accepted_count": len(accepted_papers),
         "rejected_count": rejected_count,
         "total_extractions": total_extractions,
+        "avg_signal_score": f"{avg_signal_score:.2f}" if avg_signal_score is not None else None,
+        "top_signal_score": f"{top_signal_score:.2f}" if top_signal_score is not None else None,
         "cost_usd": cost_val,
         "tokens_consumed": f"{tokens_val:,}",
         "papers_data": papers_data,

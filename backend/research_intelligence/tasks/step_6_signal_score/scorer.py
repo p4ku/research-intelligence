@@ -66,8 +66,18 @@ def extract_paper_parameters(paper: Paper) -> Dict[str, Any]:
     """
     Collects all parameter extractions for a Paper and returns a clean dictionary
     with sanitized Python variable names and parsed numeric/string values.
+    Initializes configured workspace extraction definitions to 0.0 default.
     """
     context: Dict[str, Any] = {}
+
+    # Pre-populate defaults from workspace extraction definitions
+    if paper.workspace:
+        for ed in paper.workspace.extraction_definitions.all():
+            if ed.name:
+                context[_sanitize_identifier(ed.name)] = 0.0
+            if ed.exit_metric:
+                context[_sanitize_identifier(ed.exit_metric)] = 0.0
+
     extractions = paper.extractions.all().select_related('extraction_definition')
 
     for ext in extractions:

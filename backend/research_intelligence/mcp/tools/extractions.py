@@ -108,7 +108,8 @@ def get_paper_extractions_matrix_logic(
         else:
             papers_qs = papers_qs.filter(screening_status=screening_status)
 
-    papers = list(papers_qs.order_by('-created_at')[:limit])
+    from django.db.models import F
+    papers = list(papers_qs.order_by(F('signal_score').desc(nulls_last=True), '-created_at')[:limit])
     results = []
 
     for idx, paper in enumerate(papers, 1):
@@ -141,6 +142,8 @@ def get_paper_extractions_matrix_logic(
             "doi": paper.doi,
             "arxiv_id": paper.arxiv_id,
             "screening_status": paper.screening_status,
+            "signal_score": paper.signal_score,
+            "signal_score_details": paper.signal_score_details,
             "pdf_url": (f"https://arxiv.org/pdf/{paper.arxiv_id}.pdf" if paper.arxiv_id else None) or paper.original_pdf_path,
             "original_pdf_path": paper.original_pdf_path,
             "abstract": paper.abstract,
@@ -149,9 +152,12 @@ def get_paper_extractions_matrix_logic(
             "extractions": extractions_list
         })
 
+    scored_vals = [p["signal_score"] for p in results if p.get("signal_score") is not None]
     payload = {
         "total_papers": len(results),
         "screening_status_filter": screening_status,
+        "avg_signal_score": round(sum(scored_vals) / len(scored_vals), 2) if scored_vals else None,
+        "top_signal_score": round(max(scored_vals), 2) if scored_vals else None,
         "papers": results
     }
     return json.dumps(payload, indent=2)
