@@ -55,13 +55,9 @@ class ResearchAgentRunner:
         with transaction.atomic():
             try:
                 if connection.vendor == 'postgresql':
-                    process = ResearchAgentProcess.objects.select_for_update().select_related(
-                        'workspace', 'pipeline_run'
-                    ).get(pk=process_id)
+                    process = ResearchAgentProcess.objects.select_for_update().get(pk=process_id)
                 else:
-                    process = ResearchAgentProcess.objects.select_related(
-                        'workspace', 'pipeline_run'
-                    ).get(pk=process_id)
+                    process = ResearchAgentProcess.objects.get(pk=process_id)
             except ResearchAgentProcess.DoesNotExist:
                 logger.error(f"ResearchAgentProcess '{process_id}' not found.")
                 return {"success": False, "error": f"ResearchAgentProcess '{process_id}' not found."}

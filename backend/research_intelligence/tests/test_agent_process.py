@@ -543,5 +543,27 @@ class ResearchAgentProcessTest(TestCase):
         self.assertEqual(agent.pipeline_run.papers.count(), 1)
         self.assertTrue(agent.pipeline_run.reprocess_existing)
 
+    def test_agent_runner_tick_with_postgresql_vendor_locking(self):
+        """
+        Validates that ResearchAgentRunner.tick() does not use select_related on nullable relations
+        under connection.vendor == 'postgresql', preventing FeatureNotSupported outer join lock errors.
+        """
+        from research_intelligence.tasks.orchestrator.runner import ResearchAgentRunner
+
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Postgres Lock Agent",
+            status="running",
+            current_step="initialized"
+        )
+
+        with patch("django.db.connection.vendor", "postgresql"):
+            result = ResearchAgentRunner.tick(str(agent.id))
+            self.assertTrue(result.get("success"), f"Tick failed: {result}")
+            agent.refresh_from_db()
+            self.assertIsNotNone(agent.pipeline_run)
+            self.assertEqual(agent.current_step, "search")
+
+
 
 
