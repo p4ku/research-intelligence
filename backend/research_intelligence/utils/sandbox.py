@@ -64,6 +64,7 @@ SAFE_BUILTINS = {
     "dict": dict,
     "tuple": tuple,
     "set": set,
+    "range": range,
     "math": math,
     "None": None,
     "True": True,

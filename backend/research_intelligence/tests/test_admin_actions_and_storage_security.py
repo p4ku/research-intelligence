@@ -1,0 +1,157 @@
+from unittest.mock import patch, MagicMock
+from django.test import TestCase, RequestFactory
+from django.contrib.admin.sites import AdminSite
+from django.contrib.auth import get_user_model
+from django.contrib.messages.storage.fallback import FallbackStorage
+
+from research_intelligence.models import (
+    Workspace,
+    APIKey,
+    ExtractionDefinition,
+    Paper,
+    Extraction,
+    PipelineRun,
+    ResearchAgentProcess
+)
+from research_intelligence.admin import (
+    WorkspaceAdmin,
+    APIKeyAdmin,
+    ExtractionAdmin,
+    ResearchAgentProcessAdmin
+)
+from research_intelligence.admin_views.storage_browser import (
+    _get_file_icon,
+    _format_size,
+    _recursive_delete_dir
+)
+
+User = get_user_model()
+
+
+class AdminActionsAndStorageSecurityTestCase(TestCase):
+    """
+    Validates Django Admin custom bulk actions, state machine triggers, and storage browser security utilities.
+    """
+
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.admin_user = User.objects.create_superuser(username="admin_sec", email="admin@sec.com", password="password")
+        self.site = AdminSite()
+
+        self.workspace = Workspace.objects.create(name="Secure Storage Project")
+        self.pipeline_run = PipelineRun.objects.create(workspace=self.workspace, status="running")
+
+    def _get_request_with_messages(self):
+        req = self.factory.get("/")
+        req.user = self.admin_user
+        setattr(req, 'session', {})
+        messages = FallbackStorage(req)
+        setattr(req, '_messages', messages)
+        return req
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.tick_agent_process")
+    def test_workspace_launch_agent_actions(self, mock_tick):
+        admin_obj = WorkspaceAdmin(Workspace, self.site)
+        req = self._get_request_with_messages()
+
+        # 1. Standard launch
+        admin_obj.launch_agent_standard(req, Workspace.objects.filter(id=self.workspace.id))
+        self.assertTrue(ResearchAgentProcess.objects.filter(workspace=self.workspace, configuration_override__reprocess_existing=False).exists())
+        self.assertEqual(mock_tick.call_count, 1)
+
+        # 2. Reprocess launch
+        admin_obj.launch_agent_reprocess(req, Workspace.objects.filter(id=self.workspace.id))
+        self.assertTrue(ResearchAgentProcess.objects.filter(workspace=self.workspace, configuration_override__reprocess_existing=True).exists())
+        self.assertEqual(mock_tick.call_count, 2)
+
+    def test_apikey_revoke_keys_action(self):
+        key = APIKey.objects.create(
+            key_id="test_key_revoke",
+            name="Revoke Key",
+            user=self.admin_user,
+            is_active=True
+        )
+        admin_obj = APIKeyAdmin(APIKey, self.site)
+        req = self._get_request_with_messages()
+
+        admin_obj.revoke_keys(req, APIKey.objects.filter(id=key.id))
+        key.refresh_from_db()
+        self.assertFalse(key.is_active)
+        self.assertIn("REVOKED", admin_obj.status_badge(key))
+
+    @patch("research_intelligence.tasks.step_5_extraction.extract._run_single_extraction_worker")
+    def test_rerun_selected_extractions_action(self, mock_worker):
+        mock_worker.return_value = {"success": True}
+
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="sec_paper_001",
+            title="Sec Paper"
+        )
+        def_ext = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Param Def",
+            system_prompt="P",
+            user_prompt_template="P",
+            response_schema={"type": "object"}
+        )
+        ext = Extraction.objects.create(
+            workspace=self.workspace,
+            paper=paper,
+            extraction_definition=def_ext,
+            category="Param Def",
+            fields_data={"score": 10}
+        )
+
+        admin_obj = ExtractionAdmin(Extraction, self.site)
+        req = self._get_request_with_messages()
+
+        admin_obj.rerun_selected_extractions(req, Extraction.objects.filter(id=ext.id))
+        self.assertEqual(mock_worker.call_count, 1)
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.tick_agent_process")
+    def test_agent_process_admin_actions(self, mock_tick):
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Test Agent Actions",
+            status="running",
+            current_step="screening"
+        )
+        admin_obj = ResearchAgentProcessAdmin(ResearchAgentProcess, self.site)
+        req = self._get_request_with_messages()
+
+        # Pause
+        admin_obj.pause_selected_agents(req, ResearchAgentProcess.objects.filter(id=agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.status, "paused")
+
+        # Resume
+        admin_obj.resume_selected_agents(req, ResearchAgentProcess.objects.filter(id=agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.status, "running")
+        mock_tick.assert_called_once()
+
+        # Abort
+        admin_obj.abort_selected_agents(req, ResearchAgentProcess.objects.filter(id=agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.status, "aborted")
+
+    def test_storage_browser_helper_functions(self):
+        # File icons
+        self.assertEqual(_get_file_icon("paper.pdf"), "📄 PDF")
+        self.assertEqual(_get_file_icon("chart.png"), "🖼️ Image")
+        self.assertEqual(_get_file_icon("data.json"), "📊 Data")
+        self.assertEqual(_get_file_icon("notes.md"), "📝 Text")
+        self.assertEqual(_get_file_icon("script.py"), "⚙️ Code")
+        self.assertEqual(_get_file_icon("unknown.xyz"), "📄 File")
+
+        # Size formatting
+        self.assertEqual(_format_size(500), "500 B")
+        self.assertEqual(_format_size(2048), "2.0 KB")
+        self.assertEqual(_format_size(5 * 1024 * 1024), "5.0 MB")
+        self.assertEqual(_format_size(None), "-")
+
+        # Recursive delete root protection
+        self.assertEqual(_recursive_delete_dir(""), 0)
+        self.assertEqual(_recursive_delete_dir("workspaces"), 0)
