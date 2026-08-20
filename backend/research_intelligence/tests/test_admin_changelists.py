@@ -229,3 +229,30 @@ class AdminChangelistViewsTestCase(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "get_paper_extractions_matrix")
+
+    def test_componentrun_filter_by_pipeline_run_id(self):
+        url = reverse('admin:research_intelligence_componentrun_changelist') + f"?pipeline_run_id={self.pipeline_run.id}"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "abstract_screening")
+        self.assertContains(response, "parameter_extraction")
+
+    def test_componentrun_filter_by_workspace_id(self):
+        url = reverse('admin:research_intelligence_componentrun_changelist') + f"?workspace_id={self.workspace.id}"
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "arxiv_scraper")
+
+    def test_componentrun_search_by_workspace_or_pipeline(self):
+        # Search by workspace name
+        url_search_ws = reverse('admin:research_intelligence_componentrun_changelist') + "?q=Quantum"
+        resp_ws = self.client.get(url_search_ws)
+        self.assertEqual(resp_ws.status_code, 200)
+        self.assertContains(resp_ws, "arxiv_scraper")
+
+        # Search by short pipeline UUID
+        url_search_id = reverse('admin:research_intelligence_componentrun_changelist') + f"?q={str(self.pipeline_run.id)[:8]}"
+        resp_id = self.client.get(url_search_id)
+        self.assertEqual(resp_id.status_code, 200)
+        self.assertContains(resp_id, "arxiv_scraper")
+

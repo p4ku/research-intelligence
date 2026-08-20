@@ -884,6 +884,45 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         self.message_user(request, f"Aborted {queryset.count()} agent process(es).")
 
 
+class RecentPipelineRunFilter(admin.SimpleListFilter):
+    title = "Pipeline Run (Recent 15)"
+    parameter_name = "pipeline_run_id"
+
+    def lookups(self, request, model_admin):
+        runs = (
+            PipelineRun.objects.select_related('workspace')
+            .order_by('-started_at', '-id')[:15]
+        )
+        options = []
+        for r in runs:
+            ws_name = r.workspace.name if r.workspace else "No Workspace"
+            short_id = str(r.id)[:8]
+            date_str = r.started_at.strftime('%Y-%m-%d %H:%M') if r.started_at else (r.run_date.strftime('%Y-%m-%d') if r.run_date else "No Date")
+            status_emoji = "🟢" if r.status == 'completed' else ("🔵" if r.status == 'running' else ("🔴" if r.status == 'failed' else "⚪"))
+            label = f"{status_emoji} [{short_id}] {ws_name} ({date_str})"
+            options.append((str(r.id), label))
+        return options
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(pipeline_run_id=self.value())
+        return queryset
+
+
+class ComponentRunWorkspaceFilter(admin.SimpleListFilter):
+    title = "Workspace"
+    parameter_name = "workspace_id"
+
+    def lookups(self, request, model_admin):
+        workspaces = Workspace.objects.order_by('name')[:30]
+        return [(str(w.id), w.name) for w in workspaces]
+
+    def queryset(self, request, queryset):
+        if self.value():
+            return queryset.filter(pipeline_run__workspace_id=self.value())
+        return queryset
+
+
 @admin.register(ComponentRun)
 class ComponentRunAdmin(admin.ModelAdmin):
     formfield_overrides = {
@@ -891,7 +930,7 @@ class ComponentRunAdmin(admin.ModelAdmin):
     }
     list_display = (
         'id',
-        'pipeline_run',
+        'pipeline_run_link',
         'step_type_badge',
         'component_name',
         'status_badge',
@@ -903,9 +942,28 @@ class ComponentRunAdmin(admin.ModelAdmin):
         'completed_at'
     )
     ordering = ('-started_at', '-id')
-    list_filter = ('step_type', 'status', 'started_at')
-    search_fields = ('id', 'component_name', 'celery_task_id', 'pipeline_run__id')
+    list_filter = (RecentPipelineRunFilter, ComponentRunWorkspaceFilter, 'step_type', 'status', 'started_at')
+    search_fields = ('id', 'component_name', 'celery_task_id', 'pipeline_run__id', 'pipeline_run__workspace__name')
     readonly_fields = ('started_at', 'completed_at', 'execution_time')
+
+    def pipeline_run_link(self, obj):
+        if not obj.pipeline_run:
+            return "-"
+        url = reverse("admin:research_intelligence_pipelinerun_change", args=[obj.pipeline_run.id])
+        ws_name = obj.pipeline_run.workspace.name if obj.pipeline_run.workspace else ""
+        short_id = str(obj.pipeline_run.id)[:8]
+        return format_html(
+            '<a href="{}" title="Pipeline Run: {}">'
+            '<strong>{}</strong><br>'
+            '<span style="color: #6c757d; font-size: 11px;">{}</span>'
+            '</a>',
+            url,
+            str(obj.pipeline_run.id),
+            short_id,
+            ws_name[:25] + ("..." if len(ws_name) > 25 else "")
+        )
+    pipeline_run_link.short_description = "Pipeline Run"
+    pipeline_run_link.admin_order_field = "pipeline_run"
 
     def execution_time(self, obj):
         sec = obj.duration_seconds
