@@ -25,14 +25,18 @@ def _sanitize_identifier(name: str) -> str:
     return clean or "param"
 
 
-def _parse_numeric_value(val: Any) -> Any:
-    """
-    Converts raw extraction value to float/int if possible, handling strings like '4', 'TRL 4', '95%'.
-    """
+def _parse_numeric_value(val: Any) -> Union[float, int, str]:
+    """Attempts to parse a numeric value from float, int, dict, or string with units."""
     if val is None:
         return 0.0
     if isinstance(val, (int, float)):
-        return float(val)
+        return val
+    if isinstance(val, dict):
+        if "value" in val and val["value"] is not None:
+            return _parse_numeric_value(val["value"])
+        if "normalized_value" in val and val["normalized_value"] is not None:
+            return _parse_numeric_value(val["normalized_value"])
+        return 0.0
 
     str_val = str(val).strip()
     if not str_val or str_val == "-":
