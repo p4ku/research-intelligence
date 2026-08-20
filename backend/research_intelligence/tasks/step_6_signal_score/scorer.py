@@ -179,13 +179,18 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
     Step 6 Celery Task: Evaluates the composite signal score for all screened/accepted papers
     in the active PipelineRun using the Workspace's sandboxed Python logic.
     """
-    close_old_connections()
-
-    try:
-        comp_run = ComponentRun.objects.select_related('pipeline_run', 'pipeline_run__workspace').get(pk=component_run_id)
-    except ComponentRun.DoesNotExist:
-        logger.error(f"ComponentRun {component_run_id} does not exist.")
-        return {"success": False, "error": "ComponentRun not found"}
+    comp_run = None
+    for attempt in range(4):
+        try:
+            close_old_connections()
+            comp_run = ComponentRun.objects.select_related('pipeline_run', 'pipeline_run__workspace').get(pk=component_run_id)
+            break
+        except ComponentRun.DoesNotExist:
+            if attempt < 3:
+                time.sleep(0.5)
+            else:
+                logger.error(f"ComponentRun {component_run_id} does not exist after 4 attempts.")
+                return {"success": False, "error": "ComponentRun not found"}
 
     pipeline_run = comp_run.pipeline_run
     workspace = pipeline_run.workspace

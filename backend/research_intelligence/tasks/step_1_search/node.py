@@ -67,44 +67,41 @@ class SearchNode(BaseWorkflowNode):
             comp_run.save(update_fields=['status', 'error_message'])
             return False
 
+        from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
+
         first_scraper = scrapers[0]
         comp_run.scraper = first_scraper
         comp_run.component_name = f"{first_scraper.provider}_scraper"
         comp_run.save(update_fields=['scraper', 'component_name'])
 
-        try:
-            async_res = execute_scraper_run_job.delay(str(comp_run.id), limit=limit)
-            comp_run.celery_task_id = async_res.id
-            comp_run.save(update_fields=['celery_task_id'])
+        additional_runs = []
+        for additional_scraper in scrapers[1:]:
+            add_run = ComponentRun.objects.create(
+                pipeline_run=pipeline_run,
+                step_type='search',
+                component_name=f"{additional_scraper.provider}_scraper",
+                scraper=additional_scraper,
+                status='running',
+                input_params=comp_run.input_params
+            )
+            additional_runs.append(add_run)
 
-            for additional_scraper in scrapers[1:]:
-                add_run = ComponentRun.objects.create(
-                    pipeline_run=pipeline_run,
-                    step_type='search',
-                    component_name=f"{additional_scraper.provider}_scraper",
-                    scraper=additional_scraper,
-                    status='running',
-                    input_params=comp_run.input_params
-                )
+        def _dispatch_scrapers():
+            try:
+                async_res = execute_scraper_run_job.delay(str(comp_run.id), limit=limit)
+                comp_run.celery_task_id = async_res.id
+                comp_run.save(update_fields=['celery_task_id'])
+            except Exception as e:
+                logger.warning(f"Failed to queue search scraper async, executing synchronously: {e}")
+                execute_scraper_run_job(str(comp_run.id), limit=limit)
+
+            for add_run in additional_runs:
                 try:
                     add_async = execute_scraper_run_job.delay(str(add_run.id), limit=limit)
                     add_run.celery_task_id = add_async.id
                     add_run.save(update_fields=['celery_task_id'])
                 except Exception:
                     execute_scraper_run_job(str(add_run.id), limit=limit)
-            return async_res
-        except Exception as e:
-            logger.warning(f"Failed to queue search scraper async, executing synchronously: {e}")
-            res = execute_scraper_run_job(str(comp_run.id), limit=limit)
-            comp_run.refresh_from_db()
-            for additional_scraper in scrapers[1:]:
-                add_run = ComponentRun.objects.create(
-                    pipeline_run=pipeline_run,
-                    step_type='search',
-                    component_name=f"{additional_scraper.provider}_scraper",
-                    scraper=additional_scraper,
-                    status='running',
-                    input_params=comp_run.input_params
-                )
-                execute_scraper_run_job(str(add_run.id), limit=limit)
-            return res
+
+        safe_dispatch_on_commit(_dispatch_scrapers)
+        return {"status": "dispatched"}

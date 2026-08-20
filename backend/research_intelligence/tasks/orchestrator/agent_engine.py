@@ -42,4 +42,6 @@ def run_agent_process_tick(self, process_id: str):
     """
     Celery task that executes a single state transition tick for a ResearchAgentProcess.
     """
+    from django.db import close_old_connections
+    close_old_connections()
     return ResearchAgentRunner.tick(process_id)

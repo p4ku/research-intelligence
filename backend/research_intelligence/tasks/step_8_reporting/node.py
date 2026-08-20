@@ -43,8 +43,9 @@ class ReportingNode(BaseWorkflowNode):
         return not config.get("generate_narrative_report", False)
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
+        from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
         comp_run.status = "completed"
         comp_run.save(update_fields=['status'])
         from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
-        notify_pipeline_orchestrator_tick(pipeline_run)
+        safe_dispatch_on_commit(lambda: notify_pipeline_orchestrator_tick(pipeline_run))
         return {"status": "completed"}

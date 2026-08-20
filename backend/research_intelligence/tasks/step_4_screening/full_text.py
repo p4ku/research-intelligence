@@ -209,11 +209,18 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = 50
     Celery worker task executing Full-Text Screening for papers in a ComponentRun job.
     Executes paper evaluations concurrently using a ThreadPoolExecutor.
     """
-    try:
-        component_run = ComponentRun.objects.select_related('pipeline_run', 'pipeline_run__workspace').get(pk=component_run_id)
-    except ComponentRun.DoesNotExist:
-        logger.error(f"ComponentRun '{component_run_id}' not found.")
-        return False
+    component_run = None
+    for attempt in range(4):
+        try:
+            close_old_connections()
+            component_run = ComponentRun.objects.select_related('pipeline_run', 'pipeline_run__workspace').get(pk=component_run_id)
+            break
+        except ComponentRun.DoesNotExist:
+            if attempt < 3:
+                time.sleep(0.5)
+            else:
+                logger.error(f"ComponentRun '{component_run_id}' not found after 4 attempts.")
+                return False
 
     pipeline_run = component_run.pipeline_run
     workspace = pipeline_run.workspace

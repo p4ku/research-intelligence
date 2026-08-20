@@ -286,3 +286,29 @@ class TestMultiAgentParallelProgress(TestCase):
 
         # Each agent must have its own isolated PipelineRun
         self.assertNotEqual(agent1.pipeline_run_id, agent2.pipeline_run_id)
+
+    def test_safe_dispatch_on_commit_behavior(self):
+        from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
+        called = []
+        safe_dispatch_on_commit(lambda: called.append(True))
+        self.assertEqual(called, [True])
+
+        # When vendor is simulated as postgresql within atomic block
+        with patch("research_intelligence.tasks.orchestrator.dag.base_node.connection") as mock_conn, \
+             patch("django.db.transaction.on_commit") as mock_on_commit:
+            mock_conn.vendor = "postgresql"
+            with patch("django.db.transaction.get_connection") as mock_get_conn:
+                mock_get_conn.return_value.in_atomic_block = True
+                cb = lambda: None
+                safe_dispatch_on_commit(cb)
+                mock_on_commit.assert_called_once_with(cb)
+
+    @patch("time.sleep", return_value=None)
+    def test_scraper_celery_task_lookup_retry_resilience(self, mock_sleep):
+        from research_intelligence.tasks.step_1_search.search import execute_scraper_run_job
+        # Invalid non-existent ID should exhaust 4 attempts and return False cleanly without crashing
+        fake_id = str(uuid.uuid4())
+        res = execute_scraper_run_job(fake_id)
+        self.assertFalse(res)
+        self.assertEqual(mock_sleep.call_count, 3)
+

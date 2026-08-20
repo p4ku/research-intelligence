@@ -150,16 +150,19 @@ class ResearchAgentRunner:
                     running_agents.append(o_agent)
 
             if running_agents:
+                from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
                 from research_intelligence.tasks.orchestrator.agent_engine import run_agent_process_tick
                 for agent_proc in running_agents:
-                    try:
-                        run_agent_process_tick.delay(str(agent_proc.id))
-                    except Exception:
-                        # Fallback for sync execution or when Celery queue is unavailable
+                    proc_id = str(agent_proc.id)
+                    def _dispatch_tick(target_id=proc_id):
                         try:
-                            cls.tick(str(agent_proc.id))
-                        except Exception as sync_err:
-                            logger.warning(f"Fallback tick execution failed for agent '{agent_proc.id}': {sync_err}")
+                            run_agent_process_tick.delay(target_id)
+                        except Exception:
+                            try:
+                                cls.tick(target_id)
+                            except Exception as sync_err:
+                                logger.warning(f"Fallback tick execution failed for agent '{target_id}': {sync_err}")
+                    safe_dispatch_on_commit(_dispatch_tick)
             else:
                 # Check if all component runs are done for this pipeline run
                 pending_runs = pipeline_run.component_runs.filter(status__in=['pending', 'running'])

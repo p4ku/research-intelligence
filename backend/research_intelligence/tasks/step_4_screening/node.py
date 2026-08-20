@@ -78,6 +78,7 @@ class ScreeningNode(BaseWorkflowNode):
         return False, None
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
+        from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
         skip_abstract = comp_run.input_params.get("skip_abstract_screening", False)
         if comp_run.component_name == "full_text_screening" or skip_abstract:
             from research_intelligence.tasks.step_4_screening.full_text import execute_full_text_screening_job
@@ -86,13 +87,14 @@ class ScreeningNode(BaseWorkflowNode):
             from research_intelligence.tasks.step_4_screening.abstract import execute_screening_job
             func = execute_screening_job
 
-        try:
-            async_res = func.delay(str(comp_run.id), limit=limit)
-            comp_run.celery_task_id = async_res.id
-            comp_run.save(update_fields=['celery_task_id'])
-            return async_res
-        except Exception as e:
-            logger.warning(f"Failed to queue screening async, executing synchronously: {e}")
-            res = func(str(comp_run.id), limit=limit)
-            comp_run.refresh_from_db()
-            return res
+        def _dispatch():
+            try:
+                async_res = func.delay(str(comp_run.id), limit=limit)
+                comp_run.celery_task_id = async_res.id
+                comp_run.save(update_fields=['celery_task_id'])
+            except Exception as e:
+                logger.warning(f"Failed to queue screening async, executing synchronously: {e}")
+                func(str(comp_run.id), limit=limit)
+
+        safe_dispatch_on_commit(_dispatch)
+        return {"status": "dispatched"}

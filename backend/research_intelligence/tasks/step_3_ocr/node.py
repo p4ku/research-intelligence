@@ -49,14 +49,16 @@ class OCRNode(BaseWorkflowNode):
         return not provider or provider in ("None", "none", "")
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
+        from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
         from research_intelligence.tasks.step_3_ocr.convert import execute_ocr_job
-        try:
-            async_res = execute_ocr_job.delay(str(comp_run.id), limit=limit)
-            comp_run.celery_task_id = async_res.id
-            comp_run.save(update_fields=['celery_task_id'])
-            return async_res
-        except Exception as e:
-            logger.warning(f"Failed to queue OCR async, executing synchronously: {e}")
-            res = execute_ocr_job(str(comp_run.id), limit=limit)
-            comp_run.refresh_from_db()
-            return res
+        def _dispatch():
+            try:
+                async_res = execute_ocr_job.delay(str(comp_run.id), limit=limit)
+                comp_run.celery_task_id = async_res.id
+                comp_run.save(update_fields=['celery_task_id'])
+            except Exception as e:
+                logger.warning(f"Failed to queue OCR async, executing synchronously: {e}")
+                execute_ocr_job(str(comp_run.id), limit=limit)
+
+        safe_dispatch_on_commit(_dispatch)
+        return {"status": "dispatched"}

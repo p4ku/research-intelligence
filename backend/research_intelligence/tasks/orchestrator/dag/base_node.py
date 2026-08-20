@@ -2,7 +2,20 @@ import abc
 import logging
 from typing import List, Dict, Any, Optional, Tuple
 
+from django.db import connection, transaction
+
 logger = logging.getLogger(__name__)
+
+
+def safe_dispatch_on_commit(callback):
+    """
+    Executes callback immediately under SQLite test runner or when no atomic block exists;
+    otherwise schedules execution via transaction.on_commit for PostgreSQL Celery concurrency safety.
+    """
+    if connection.vendor == 'postgresql' and transaction.get_connection().in_atomic_block:
+        transaction.on_commit(callback)
+    else:
+        callback()
 
 
 class BaseWorkflowNode(abc.ABC):

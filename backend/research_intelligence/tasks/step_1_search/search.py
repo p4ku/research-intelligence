@@ -5,6 +5,7 @@ import re
 import time
 from celery import shared_task
 from django.utils import timezone
+from django.db import connection, close_old_connections
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
@@ -52,11 +53,18 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
     Stores raw scraped payload in Django default_storage, updates ComponentRun lifecycle
     (running, completed, failed, aborted), deduplicates papers, and registers new Paper records.
     """
-    try:
-        component_run = ComponentRun.objects.select_related('pipeline_run', 'scraper', 'scraper__workspace').get(pk=component_run_id)
-    except ComponentRun.DoesNotExist:
-        logger.error(f"ComponentRun with ID '{component_run_id}' not found.")
-        return False
+    component_run = None
+    for attempt in range(4):
+        try:
+            close_old_connections()
+            component_run = ComponentRun.objects.select_related('pipeline_run', 'scraper', 'scraper__workspace').get(pk=component_run_id)
+            break
+        except ComponentRun.DoesNotExist:
+            if attempt < 3:
+                time.sleep(0.5)
+            else:
+                logger.error(f"ComponentRun with ID '{component_run_id}' not found after 4 attempts.")
+                return False
 
     # Check if already aborted before execution starts
     if component_run.status == 'aborted':

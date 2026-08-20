@@ -151,15 +151,22 @@ def execute_screening_job(self, component_run_id: str, limit: int = 50, max_work
     import os
     import time
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    from django.db import connection
+    from django.db import connection, close_old_connections
     from django.utils import timezone
     from ...models import ComponentRun
 
-    try:
-        component_run = ComponentRun.objects.select_related('pipeline_run', 'pipeline_run__workspace').get(pk=component_run_id)
-    except ComponentRun.DoesNotExist:
-        logger.error(f"ComponentRun '{component_run_id}' not found.")
-        return False
+    component_run = None
+    for attempt in range(4):
+        try:
+            close_old_connections()
+            component_run = ComponentRun.objects.select_related('pipeline_run', 'pipeline_run__workspace').get(pk=component_run_id)
+            break
+        except ComponentRun.DoesNotExist:
+            if attempt < 3:
+                time.sleep(0.5)
+            else:
+                logger.error(f"ComponentRun '{component_run_id}' not found after 4 attempts.")
+                return False
 
     pipeline_run = component_run.pipeline_run
     workspace = pipeline_run.workspace
