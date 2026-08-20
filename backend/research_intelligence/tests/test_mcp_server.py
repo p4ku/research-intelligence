@@ -1081,4 +1081,24 @@ class MCPServerTest(TestCase):
         matched = [w for w in ws_list if w["workspace_id"] == ws_id][0]
         self.assertEqual(matched["signal_score_code"], updated_code)
 
+    def test_get_workflow_dag_schema_mcp(self):
+        """
+        Validates that MCP tool get_workflow_dag_schema returns the complete
+        topological execution plan, input contracts, and output contracts.
+        """
+        from research_intelligence.mcp.tools import get_workflow_dag_schema_logic
+        res = json.loads(get_workflow_dag_schema_logic(self.admin_user))
+        self.assertEqual(res["status"], "success")
+        self.assertEqual(res["dag_name"], "slr_systematic_review_dag")
+        self.assertEqual(res["total_nodes"], 7)
+        self.assertEqual(
+            res["execution_topology"],
+            ["search", "download", "ocr", "screening", "extraction", "signal_score", "reporting"]
+        )
+        for node in res["nodes"]:
+            self.assertIn("input_contract", node)
+            self.assertIn("output_contract", node)
+            self.assertIn("dependencies", node)
+
+
 

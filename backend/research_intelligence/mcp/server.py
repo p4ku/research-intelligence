@@ -87,6 +87,7 @@ from research_intelligence.mcp.tools import (
     resume_research_agent_logic,
     abort_research_agent_logic,
     delete_research_agent_logic,
+    get_workflow_dag_schema_logic,
     get_document_registry_stats_logic,
     test_google_llm_logic,
     list_user_activity_logs_logic,
@@ -1073,6 +1074,22 @@ def delete_research_agent(process_id: str) -> str:
     except Exception as e:
         return str(e)
     return delete_research_agent_logic(user, process_id)
+
+
+@mcp.tool()
+@with_db_connection
+def get_workflow_dag_schema(workspace_id: str | None = None) -> str:
+    """
+    Returns the complete Systematic Literature Review (SLR) Workflow DAG schema, execution topology,
+    dependencies, input contracts, and output contracts for each node.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:read")
+    except Exception as e:
+        return str(e)
+    return get_workflow_dag_schema_logic(user, workspace_id)
+
 
 
 @mcp.tool()

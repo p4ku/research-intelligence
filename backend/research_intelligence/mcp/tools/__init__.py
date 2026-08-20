@@ -48,6 +48,7 @@ from .agent_processes import (
     abort_research_agent_logic,
     delete_research_agent_logic,
     wait_for_research_agent_logic,
+    get_workflow_dag_schema_logic,
 )
 from .document_registry import get_document_registry_stats_logic
 from .llm_test import test_google_llm_logic
@@ -95,6 +96,7 @@ __all__ = [
     "resume_research_agent_logic",
     "abort_research_agent_logic",
     "delete_research_agent_logic",
+    "get_workflow_dag_schema_logic",
     "test_google_llm_logic",
     "list_user_activity_logs_logic",
     "send_pipeline_run_digest_email_logic",

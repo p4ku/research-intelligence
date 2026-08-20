@@ -482,3 +482,29 @@ def wait_for_research_agent_logic(
         "details": final_status_dict
     }, indent=2, cls=DjangoJSONEncoder)
 
+
+def get_workflow_dag_schema_logic(user, workspace_id: str = None) -> str:
+    """
+    Returns the complete SLR Workflow DAG schema, execution topology,
+    dependencies, input contracts, and output contracts for each node.
+    """
+    workspace = None
+    if workspace_id:
+        workspace, membership, error = _check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
+        if error:
+            return json.dumps({"status": "error", "error": error}, indent=2)
+
+    from research_intelligence.tasks.orchestrator.dag import build_default_slr_dag
+    dag = build_default_slr_dag(workspace=workspace)
+    nodes_desc = dag.describe_pipeline()
+
+    return json.dumps({
+        "status": "success",
+        "dag_name": dag.name,
+        "workspace_id": str(workspace.id) if workspace else None,
+        "total_nodes": len(nodes_desc),
+        "execution_topology": [node["name"] for node in nodes_desc],
+        "nodes": nodes_desc,
+    }, indent=2, cls=DjangoJSONEncoder)
+
+

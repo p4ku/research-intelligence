@@ -155,6 +155,7 @@ It orchestrates a 6-step processing pipeline:
 | `resume_research_agent` | `workspaces:write` | Resumes paused state engine process from active step. |
 | `abort_research_agent` | `workspaces:write` | Aborts agent process and cancels background Celery tasks. |
 | `delete_research_agent` | `workspaces:write` | Purges agent process, pipeline run, downloaded files in storage, and DB extractions. |
+| `get_workflow_dag_schema` | `workspaces:read` | Returns the complete SLR DAG graph topology, execution dependencies, input contracts, and output contracts for all nodes. |
 
 #### 3. Data Scrapers & Search (`tools/scrapers.py`)
 | Tool Name | Scope | Description |
