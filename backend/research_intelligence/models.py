@@ -231,6 +231,10 @@ class PipelineRun(models.Model):
         related_name="pipeline_runs",
         help_text="User who launched this pipeline run"
     )
+    reprocess_existing = models.BooleanField(
+        default=False,
+        help_text="If True, re-evaluates and links existing workspace papers through screening, extraction, and signal scoring even if no new papers were scraped."
+    )
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(blank=True, null=True)
 

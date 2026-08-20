@@ -136,6 +136,26 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
                 is_duplicate = True
 
             if is_duplicate:
+                if getattr(pipeline_run, 'reprocess_existing', False):
+                    # Link existing workspace paper to this active run for re-screening and re-extraction
+                    from django.db.models import Q
+                    clean_doi = norm_doi if norm_doi else doi
+                    clean_arxiv = norm_arxiv if norm_arxiv else arxiv_id
+                    conds = Q(workspace=workspace)
+                    match_q = Q()
+                    if norm_doi:
+                        match_q |= Q(doi__iexact=clean_doi)
+                    if norm_arxiv:
+                        match_q |= Q(arxiv_id__iexact=clean_arxiv)
+                    if norm_title:
+                        match_q |= Q(title__iexact=title)
+                    existing_p = Paper.objects.filter(conds & match_q).first()
+                    if existing_p:
+                        existing_p.pipeline_run = pipeline_run
+                        existing_p.save(update_fields=['pipeline_run'])
+                        created_count += 1
+                        created_paper_ids.append(str(existing_p.id))
+                        continue
                 skipped_count += 1
                 continue
 

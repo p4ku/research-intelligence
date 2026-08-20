@@ -780,14 +780,14 @@ def delete_extraction_definition(definition_id: str) -> str:
 
 @mcp.tool()
 @with_db_connection
-def trigger_search_job(workspace_id: str, scraper_id: str | None = None, limit: int = 50) -> str:
-    """[MANUAL COMPONENT ONLY] Trigger only Step 1 (Search & Metadata Ingestion). Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
+def trigger_search_job(workspace_id: str, scraper_id: str | None = None, limit: int = 50, reprocess_existing: bool = False) -> str:
+    """[MANUAL COMPONENT ONLY] Trigger only Step 1 (Search & Metadata Ingestion). Set reprocess_existing=True to re-screen existing workspace papers. Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:write")
     except Exception as e:
         return str(e)
-    return trigger_search_job_logic(user, workspace_id, scraper_id, limit)
+    return trigger_search_job_logic(user, workspace_id, scraper_id, limit, reprocess_existing)
 
 
 @mcp.tool()
@@ -975,19 +975,20 @@ def start_research_agent(
     date_range_days: int = None,
     query_prefix: str = None,
     skip_abstract_screening: bool = None,
-    notification_email: str = None
+    notification_email: str = None,
+    reprocess_existing: bool = False
 ) -> str:
     """
-    (RECOMMENDED PRIMARY TOOL) Start an autonomous Research Agent Process that automatically executes the entire pipeline (1. Search -> 2. Download -> 3. OCR (skipped if None) -> 4. Screening -> 5. Extraction) in sequence without manual step-by-step triggering. Supports parallel runs, dynamic query modifiers, date windowing, and notification settings.
+    (RECOMMENDED PRIMARY TOOL) Start an autonomous Research Agent Process that automatically executes the entire pipeline (1. Search -> 2. Download -> 3. OCR (skipped if None) -> 4. Screening -> 5. Extraction -> 6. Signal Score) in sequence without manual step-by-step triggering. Supports parallel runs, dynamic query modifiers, date windowing, notification settings, and reprocess_existing to re-screen and re-extract existing workspace papers.
 
-    CRITICAL FOR LLM AGENTS: Calling start_research_agent executes the entire pipeline using the EXISTING workspace configuration. Do NOT modify workspace settings or criteria prior to launching an agent process unless explicitly instructed by the user.
+    CRITICAL FOR LLM AGENTS: Calling start_research_agent executes the entire pipeline using the EXISTING workspace configuration. Do NOT modify workspace settings or criteria prior to launching an agent process unless explicitly instructed by the user. Set reprocess_existing=True if you want the pipeline to process all already-ingested papers in the workspace even if no new papers were found by scrapers.
     """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:write")
     except Exception as e:
         return str(e)
-    return start_research_agent_logic(user, workspace_id, name, limit, date_range_days, query_prefix, skip_abstract_screening, notification_email)
+    return start_research_agent_logic(user, workspace_id, name, limit, date_range_days, query_prefix, skip_abstract_screening, notification_email, reprocess_existing)
 
 
 @mcp.tool()

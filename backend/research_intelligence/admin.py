@@ -660,6 +660,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'run_date',
         'status_badge',
         'current_stage_badge',
+        'reprocess_existing',
         'execution_time',
         'formatted_usd_cost',
         'total_papers_fetched',
@@ -671,7 +672,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'completed_at'
     )
     ordering = ('-started_at', '-id')
-    list_filter = ('status', 'current_stage', 'run_date', 'workspace')
+    list_filter = ('status', 'current_stage', 'reprocess_existing', 'run_date', 'workspace')
     search_fields = ('id', 'workspace__name')
     readonly_fields = ('started_at', 'completed_at', 'execution_time')
     inlines = [ComponentRunInline]

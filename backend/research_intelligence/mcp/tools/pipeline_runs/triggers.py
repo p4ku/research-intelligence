@@ -25,11 +25,13 @@ def trigger_search_job_logic(
     user,
     workspace_id: str,
     scraper_id: str = None,
-    limit: int = 50
+    limit: int = 50,
+    reprocess_existing: bool = False
 ) -> str:
     """
     Trigger a Celery background scraping job for a workspace within a PipelineRun.
     Creates ComponentRun records to track execution lifecycle, raw storage, and metrics.
+    Set reprocess_existing=True to re-screen and re-extract existing workspace papers.
     """
     workspace, membership, error = _check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
     if error:
@@ -54,6 +56,7 @@ def trigger_search_job_logic(
         workspace=workspace,
         status='running',
         current_stage='search',
+        reprocess_existing=bool(reprocess_existing),
         triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None
     )
 

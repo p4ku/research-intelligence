@@ -504,5 +504,44 @@ class ResearchAgentProcessTest(TestCase):
         self.assertIn("0 papers were found", agent.step_history[-1]["message"])
         self.assertEqual(agent.pipeline_run.status, "completed")
 
+    def test_agent_process_reprocess_existing_papers_advances(self):
+        """
+        Tests that when reprocess_existing=True, existing workspace papers are linked and the agent advances to download.
+        """
+        # Create an existing paper in workspace belonging to an older run
+        old_run = PipelineRun.objects.create(workspace=self.workspace, status='completed', current_stage='completed')
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=old_run,
+            hash_id="existing_doc_hash_123",
+            title="Existing Hybrid Paper",
+            authors="Test Author",
+            abstract="Test abstract",
+            source_database="arxiv"
+        )
+
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Reprocess Agent",
+            status="running",
+            current_step="initialized",
+            configuration_override={"reprocess_existing": True}
+        )
+        tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "search")
+
+        # Mark search component run as completed
+        comp_search = ComponentRun.objects.get(pipeline_run=agent.pipeline_run, step_type="search")
+        comp_search.status = "completed"
+        comp_search.save()
+
+        # Tick state machine
+        res = tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "download")
+        self.assertEqual(agent.pipeline_run.papers.count(), 1)
+        self.assertTrue(agent.pipeline_run.reprocess_existing)
+
 
 

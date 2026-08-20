@@ -178,10 +178,12 @@ def tick_agent_process(process_id: str) -> dict:
 
     # 1. State: INITIALIZED -> Launch Step 1 (Search & Ingestion)
     if process.current_step == 'initialized':
+        reprocess_existing = config.get("reprocess_existing", False)
         pipeline_run = PipelineRun.objects.create(
             workspace=workspace,
             status='running',
             current_stage='search',
+            reprocess_existing=reprocess_existing,
             triggered_by=process.triggered_by
         )
         process.pipeline_run = pipeline_run
@@ -273,13 +275,21 @@ def tick_agent_process(process_id: str) -> dict:
 
         # Check papers ingested
         papers_count = pipeline_run.papers.count()
+        reprocess_existing = config.get("reprocess_existing", getattr(pipeline_run, "reprocess_existing", False))
         if papers_count == 0:
-            # Check if pending papers exist in workspace (e.g. from prior ingestion or deduplication)
             from research_intelligence.models import Paper
-            pending_ws_papers = Paper.objects.filter(workspace=workspace, screening_status='pending')
-            if pending_ws_papers.exists():
-                pending_ws_papers.update(pipeline_run=pipeline_run)
-                papers_count = pipeline_run.papers.count()
+            if reprocess_existing:
+                ws_papers = Paper.objects.filter(workspace=workspace)
+                if ws_papers.exists():
+                    ws_papers.update(pipeline_run=pipeline_run)
+                    papers_count = pipeline_run.papers.count()
+                    logger.info(f"Agent '{process.name}': reprocess_existing=True. Linked {papers_count} existing workspace paper(s) to this run.")
+            else:
+                # Check if pending papers exist in workspace (e.g. from prior ingestion or deduplication)
+                pending_ws_papers = Paper.objects.filter(workspace=workspace, screening_status='pending')
+                if pending_ws_papers.exists():
+                    pending_ws_papers.update(pipeline_run=pipeline_run)
+                    papers_count = pipeline_run.papers.count()
 
         history.append({
             "step": "search",

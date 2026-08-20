@@ -19,11 +19,13 @@ def start_research_agent_logic(
     date_range_days: int = None,
     query_prefix: str = None,
     skip_abstract_screening: bool = None,
-    notification_email: str = None
+    notification_email: str = None,
+    reprocess_existing: bool = False
 ) -> str:
     """
     Start a new autonomous ResearchAgentProcess to execute an end-to-end ingestion and intelligence cycle.
     Supports parallel runs, dynamic query modifiers, date windowing, and notification settings.
+    Set reprocess_existing=True to re-evaluate and screen existing workspace papers even if no new papers were found.
     """
     workspace, membership, error = _check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
     if error:
@@ -36,7 +38,8 @@ def start_research_agent_logic(
         "date_range_days": date_range_days,
         "query_prefix": query_prefix,
         "skip_abstract_screening": skip_abstract_screening if skip_abstract_screening is not None else workspace.skip_abstract_screening,
-        "notification_email": notification_email or workspace.notification_email
+        "notification_email": notification_email or workspace.notification_email,
+        "reprocess_existing": bool(reprocess_existing)
     }
 
     agent_process = ResearchAgentProcess.objects.create(
