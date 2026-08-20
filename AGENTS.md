@@ -78,6 +78,23 @@ It orchestrates a 5-step processing pipeline:
 - When deleting a `PipelineRun` or `ResearchAgentProcess`, MCP tools MUST invoke recursive storage deletion to remove the run directory (`workspaces/{ws_id}/runs/{run_id}/`) and all related files (`.pdf`, `.md`, `.json`, `.txt`), while cascading deletion across DB records (`ComponentRun`, `Paper`, `Extraction`, `PaperMetric`, `NarrativeReport`).
 - Status tools (`get_pipeline_run_status`, `get_research_agent_status`) calculate dynamic metrics: `total_papers_fetched`, `downloaded_documents_count`, `ocr_converted_documents_count`, `screened_documents_count`, `extractions_count`, and the `storage` footprint (`total_files`, `size_bytes`, `size_formatted`).
 
+### Rule 6: Email Notifications & Mailgun Integration
+- **Mandatory Mailer Helper**: To send ANY emails or notifications (executive briefings, run alerts, subscriber digests), ALWAYS use `send_mailgun_message` from `research_intelligence.utils.mailer` (or `utils.mailer`).
+- **Avoid raw SMTP**: The platform routes all outbound transactional email directly via Mailgun HTTP API (`MAILGUN_API_KEY`, `MAILGUN_API_URL`, `MAILGUN_SENDER_DOMAIN`).
+- **Signature & Usage**:
+  ```python
+  from research_intelligence.utils.mailer import send_mailgun_message
+
+  success, resp_or_err = send_mailgun_message(
+      to_email="recipient@example.com",
+      subject="Systematic Review Complete",
+      text="Your research pipeline run finished.",
+      html="<h1>Review Ready</h1><p>...</p>",
+      template_name=None,  # optional template to render
+      context=None,
+  )
+  ```
+
 ---
 
 ## 🔌 4. FastMCP & REST API Reference
