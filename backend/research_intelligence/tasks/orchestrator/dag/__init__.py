@@ -4,7 +4,8 @@ Provides BaseWorkflowNode, concrete SLR pipeline nodes, and the WorkflowDAG grap
 """
 
 from .base_node import BaseWorkflowNode
-from .engine import WorkflowDAG, build_default_slr_dag
+from .engine import WorkflowDAG
+from .pipelines import build_default_slr_dag
 from .nodes import (
     SearchNode,
     DownloadNode,

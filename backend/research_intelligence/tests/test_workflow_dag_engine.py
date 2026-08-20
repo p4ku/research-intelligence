@@ -22,7 +22,7 @@ from research_intelligence.tasks.orchestrator.dag.nodes import (
     SignalScoreNode,
     ReportingNode,
 )
-from research_intelligence.tasks.orchestrator.dag.engine import (
+from research_intelligence.tasks.orchestrator.dag import (
     WorkflowDAG,
     build_default_slr_dag,
 )

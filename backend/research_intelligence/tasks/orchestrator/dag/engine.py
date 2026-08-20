@@ -4,15 +4,6 @@ from django.utils import timezone
 from django.db import transaction
 
 from .base_node import BaseWorkflowNode
-from .nodes import (
-    SearchNode,
-    DownloadNode,
-    OCRNode,
-    ScreeningNode,
-    ExtractionNode,
-    SignalScoreNode,
-    ReportingNode,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -423,19 +414,3 @@ class WorkflowDAG:
             pipeline_run.status = 'running'
             pipeline_run.current_stage = self.nodes[node_name].step_type
             pipeline_run.save(update_fields=['status', 'current_stage'])
-
-
-def build_default_slr_dag(workspace=None, config: Optional[Dict[str, Any]] = None) -> WorkflowDAG:
-    """
-    Constructs and returns the standard Systematic Literature Review Workflow DAG.
-    """
-    dag = WorkflowDAG(name="slr_systematic_review_dag")
-    dag.add_node(SearchNode())
-    dag.add_node(DownloadNode(dependencies=["search"]))
-    dag.add_node(OCRNode(dependencies=["download"]))
-    dag.add_node(ScreeningNode(dependencies=["ocr"]))
-    dag.add_node(ExtractionNode(dependencies=["screening"]))
-    dag.add_node(SignalScoreNode(dependencies=["extraction"]))
-    dag.add_node(ReportingNode(dependencies=["signal_score"]))
-    dag.validate_graph()
-    return dag
