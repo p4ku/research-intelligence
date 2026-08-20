@@ -91,6 +91,10 @@ services:
       - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
       - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
       - GS_BUCKET_NAME=${GS_BUCKET_NAME:-schwarz-research-intelligence}
+      # Mailgun Email Configuration
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY}
+      - MAILGUN_API_URL=${MAILGUN_API_URL:-https://api.eu.mailgun.net/v3}
+      - MAILGUN_SENDER_DOMAIN=${MAILGUN_SENDER_DOMAIN:-soinventive.co.uk}
       - SENTRY_DSN=
     depends_on:
       db:
@@ -136,6 +140,10 @@ services:
       - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
       - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
       - GS_BUCKET_NAME=${GS_BUCKET_NAME:-schwarz-research-intelligence}
+      # Mailgun Email Configuration
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY}
+      - MAILGUN_API_URL=${MAILGUN_API_URL:-https://api.eu.mailgun.net/v3}
+      - MAILGUN_SENDER_DOMAIN=${MAILGUN_SENDER_DOMAIN:-soinventive.co.uk}
     depends_on:
       db:
         condition: service_healthy
@@ -179,6 +187,10 @@ services:
       - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
       - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
       - GS_BUCKET_NAME=${GS_BUCKET_NAME:-schwarz-research-intelligence}
+      # Mailgun Email Configuration
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY}
+      - MAILGUN_API_URL=${MAILGUN_API_URL:-https://api.eu.mailgun.net/v3}
+      - MAILGUN_SENDER_DOMAIN=${MAILGUN_SENDER_DOMAIN:-soinventive.co.uk}
       - SENTRY_DSN=
     depends_on:
       db:
@@ -218,6 +230,10 @@ services:
       - AWS_S3_ENDPOINT_URL=${AWS_S3_ENDPOINT_URL:-http://minio:9000}
       - AWS_S3_REGION_NAME=${AWS_S3_REGION_NAME:-eu-central-1}
       - GS_BUCKET_NAME=${GS_BUCKET_NAME:-schwarz-research-intelligence}
+      # Mailgun Email Configuration
+      - MAILGUN_API_KEY=${MAILGUN_API_KEY}
+      - MAILGUN_API_URL=${MAILGUN_API_URL:-https://api.eu.mailgun.net/v3}
+      - MAILGUN_SENDER_DOMAIN=${MAILGUN_SENDER_DOMAIN:-soinventive.co.uk}
     depends_on:
       db:
         condition: service_healthy

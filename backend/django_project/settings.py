@@ -254,3 +254,11 @@ elif STORAGE_BACKEND in ['gcs', 'gcp']:
     GS_BUCKET_NAME = os.environ.get('GS_BUCKET_NAME', 'schwarz-research-intelligence')
 
 
+# Mailgun Email Configuration
+MAILGUN_API_KEY = os.environ.get('MAILGUN_API_KEY', '')
+MAILGUN_API_URL = os.environ.get('MAILGUN_API_URL', 'https://api.eu.mailgun.net/v3')
+MAILGUN_SENDER_DOMAIN = os.environ.get('MAILGUN_SENDER_DOMAIN', 'soinventive.co.uk')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', f'no-reply@{MAILGUN_SENDER_DOMAIN}')
+
+
+
