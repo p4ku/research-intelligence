@@ -406,3 +406,171 @@ class EmailCompositionBuilderTests(TestCase):
         self.assertIn("TRL &gt; 5 &amp; Verified", html)
         self.assertNotIn("<10nm>", html)  # Raw unescaped brackets should not exist
 
+    def test_rich_parameter_matrix_and_scorecard_with_abstracts(self):
+        """
+        Validates that:
+        1. Top Screened Papers & Parameter Matrix table renders with all definition column headers and cells.
+        2. Top Screened Papers & Parameter Scorecard Details renders authors, PDF links, metric chips with confidence %, and full abstracts.
+        3. Gated signal score indicators (*) appear for zero-scored papers.
+        """
+        import uuid
+        def_fit = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Schwarz Fit",
+            exit_metric="fit_score",
+            system_prompt="Fit",
+            user_prompt_template="Fit",
+            response_schema={"type": "object"}
+        )
+        def_novelty = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Novelty Score",
+            exit_metric="novelty",
+            system_prompt="Novelty",
+            user_prompt_template="Novelty",
+            response_schema={"type": "object"}
+        )
+
+        p1 = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id=uuid.uuid4().hex,
+            title="Top Superconducting Topological Qubit",
+            authors="Alice Quantum, Bob Qubit",
+            arxiv_id="2403.11111",
+            screening_status="accepted",
+            signal_score=94.50,
+            abstract="Detailed breakthrough abstract on Majorana zero modes and topological protection."
+        )
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=p1,
+            extraction_definition=self.def_trl,
+            category="TRL Level",
+            confidence_score=0.96,
+            fields_data={"trl": "TRL 6"}
+        )
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=p1,
+            extraction_definition=def_fit,
+            category="Schwarz Fit",
+            confidence_score=0.90,
+            fields_data={"fit_score": "9.5 / 10"}
+        )
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=p1,
+            extraction_definition=def_novelty,
+            category="Novelty Score",
+            confidence_score=0.88,
+            fields_data={"novelty": "8.5"}
+        )
+
+        # Paper 2: Gated paper (signal score 0.00*)
+        p2 = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id=uuid.uuid4().hex,
+            title="Gated Optical Transceiver",
+            authors="Charlie Optics",
+            doi="10.1038/s41586-gated",
+            screening_status="accepted",
+            signal_score=0.00,
+            abstract="Optical transceiver without sufficient TRL maturity."
+        )
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=p2,
+            extraction_definition=self.def_trl,
+            category="TRL Level",
+            confidence_score=0.95,
+            fields_data={"trl": "TRL 2"}
+        )
+
+        payload = build_pipeline_run_digest_payload(self.pipeline_run)
+        html = payload["html_content"]
+        text = payload["text_content"]
+
+        # 1. Verify Matrix Table in HTML
+        self.assertIn("Top Screened Papers &amp; Parameter Matrix", html)
+        self.assertIn("⚡ Signal Score", html)
+        self.assertIn("TRL Level", html)
+        self.assertIn("Schwarz Fit", html)
+        self.assertIn("Novelty Score", html)
+        self.assertIn("Top Superconducting Topological Qubit", html)
+        self.assertIn("94.50", html)
+        self.assertIn("TRL 6", html)
+        self.assertIn("9.5 / 10", html)
+        self.assertIn("8.5", html)
+        self.assertIn("0.00*", html)
+        self.assertIn("gated to 0.00 based on the workspace", html)
+
+        # 2. Verify Scorecard Details and Full Abstracts in HTML
+        self.assertIn("Top Screened Papers &amp; Parameter Scorecard Details", html)
+        self.assertIn("Alice Quantum, Bob Qubit", html)
+        self.assertIn("https://arxiv.org/pdf/2403.11111.pdf", html)
+        self.assertIn("96% confidence", html)
+        self.assertIn("Full Abstract", html)
+        self.assertIn("Detailed breakthrough abstract on Majorana zero modes and topological protection.", html)
+        self.assertIn("Optical transceiver without sufficient TRL maturity.", html)
+
+        # 3. Verify Plaintext Matrix and Scorecard Rendering
+        self.assertIn("TOP SCREENED PAPERS & PARAMETER MATRIX", text)
+        self.assertIn("[1] Top Superconducting Topological Qubit", text)
+        self.assertIn("TRL Level: TRL 6", text)
+        self.assertIn("Schwarz Fit: 9.5 / 10", text)
+        self.assertIn("Novelty Score: 8.5", text)
+        self.assertIn("TOP SCREENED PAPERS & PARAMETER SCORECARD DETAILS", text)
+        self.assertIn("Full Abstract:\n     Detailed breakthrough abstract on Majorana zero modes", text)
+
+    def test_smart_exit_metric_resolution_variants(self):
+        """
+        Tests that Extraction.exit_metric unpacks correctly across various JSON formats:
+        - Direct extraction_definition.exit_metric key match
+        - Nested fields wrapper {'fields': {'key': 'value'}}
+        - Nested value object {'key': {'value': 8.5}}
+        - Fallback snake_case candidate keys
+        - First scalar fallback
+        """
+        import uuid
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id=uuid.uuid4().hex,
+            title="Unpacking Test Paper",
+            screening_status="accepted"
+        )
+        def_test = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Commercial Viability",
+            exit_metric="market_score",
+            system_prompt="Test",
+            user_prompt_template="Test",
+            response_schema={"type": "object"}
+        )
+
+        # 1. Exact match
+        e1 = Extraction(workspace=self.workspace, paper=paper, extraction_definition=def_test, fields_data={"market_score": "High ($10M+)"})
+        self.assertEqual(e1.exit_metric, "High ($10M+)")
+
+        # 2. Nested {'fields': {'market_score': {'value': 'Tier 1'}}}
+        e2 = Extraction(workspace=self.workspace, paper=paper, extraction_definition=def_test, fields_data={"fields": {"market_score": {"value": "Tier 1"}}})
+        self.assertEqual(e2.exit_metric, "Tier 1")
+
+        # 3. Snake_case fallback when definition exit_metric is empty or mismatched
+        def_empty_exit = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Novelty Assessment Score",
+            exit_metric="",
+            system_prompt="Test",
+            user_prompt_template="Test",
+            response_schema={"type": "object"}
+        )
+        e3 = Extraction(workspace=self.workspace, paper=paper, extraction_definition=def_empty_exit, fields_data={"novelty_assessment_score": 9.2})
+        self.assertEqual(e3.exit_metric, "9.2")
+
+        # 4. First scalar fallback
+        e4 = Extraction(workspace=self.workspace, paper=paper, extraction_definition=def_empty_exit, fields_data={"random_key": "Passed Criteria"})
+        self.assertEqual(e4.exit_metric, "Passed Criteria")
+

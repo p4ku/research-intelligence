@@ -612,17 +612,57 @@ class Extraction(models.Model):
     @property
     def exit_metric(self) -> str:
         """
-        Dynamically unpacks the exit metric value from fields_data using extraction_definition.exit_metric key.
+        Dynamically unpacks the exit metric value from fields_data using extraction_definition.exit_metric key
+        with smart fallbacks for key variants and scalar values.
         """
-        if self.extraction_definition and self.extraction_definition.exit_metric and self.fields_data:
+        if self.fields_data and isinstance(self.fields_data, dict):
             data = self.fields_data
             if "fields" in data and isinstance(data["fields"], dict):
                 data = data["fields"]
-            val = data.get(self.extraction_definition.exit_metric)
-            if isinstance(val, dict) and "value" in val:
-                val = val["value"]
-            if val is not None:
-                return str(val)
+
+            # 1. Exact match on configured extraction_definition.exit_metric
+            if self.extraction_definition and self.extraction_definition.exit_metric:
+                exit_key = self.extraction_definition.exit_metric
+                val = data.get(exit_key)
+                if isinstance(val, dict) and "value" in val:
+                    return str(val["value"])
+                if val is not None:
+                    return str(val)
+                # Case-insensitive / snake_case lookup for the configured exit_key
+                for k, v in data.items():
+                    if k.lower().replace(" ", "_") == exit_key.lower().replace(" ", "_"):
+                        if isinstance(v, dict) and "value" in v:
+                            return str(v["value"])
+                        elif v is not None:
+                            return str(v)
+                return "-"
+
+            # 2. Case-insensitive / snake_case candidate keys when exit_metric not set
+            candidates = []
+            if self.extraction_definition:
+                cand_name = self.extraction_definition.name.lower().replace(" ", "_")
+                candidates.extend([cand_name, cand_name.replace("_extraction", ""), cand_name.replace("_score", "")])
+            if self.category:
+                cat_name = self.category.lower().replace(" ", "_")
+                candidates.extend([cat_name, cat_name.replace("_extraction", "")])
+
+            for ck in candidates:
+                for k, v in data.items():
+                    if k.lower().replace(" ", "_") == ck:
+                        if isinstance(v, dict) and "value" in v:
+                            return str(v["value"])
+                        elif v is not None:
+                            return str(v)
+
+            # 3. First non-empty scalar value in fields_data (excluding long text / urls)
+            for k, v in data.items():
+                if isinstance(v, dict) and "value" in v:
+                    return str(v["value"])
+                elif isinstance(v, (int, float, bool)):
+                    return str(v)
+                elif isinstance(v, str) and len(v) < 80 and not v.startswith("http"):
+                    return v
+
         return "-"
 
     def get_exit_metric(self) -> str:
