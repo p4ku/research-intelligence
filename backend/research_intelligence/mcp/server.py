@@ -315,42 +315,49 @@ def check_scope(api_key_instance, required_scope: str):
 # 3. MCP Prompts Registration (AI Client Workflows)
 # ==========================================
 
+# ==========================================
+# 3. MCP Prompts Registration (AI Client Workflows & Playbooks)
+# ==========================================
+
 @mcp.prompt()
-def quickstart_scraping_workflow(
-    workspace_name: str = "Mobile LLM Research",
-    search_topic: str = "Small LLM models on mobile",
-    time_restriction: str = "last month"
+def systematic_review_playbook(
+    workspace_name: str = "Deep Tech Scouting Review",
+    search_topic: str = "Energy-efficient Neuromorphic Computing",
+    time_restriction: str = "last 6 months"
 ) -> str:
-    """Prompt template guiding AI clients through Workspace creation, Scraper setup, Job execution, and Status monitoring."""
+    """End-to-end SLR Playbook: Guiding AI clients through Workspace creation, Scraper setup, Agent execution, and Scorecard inspection."""
     return f"""
-You are an AI research assistant executing a systematic review on the Schwarz Research Intelligence MCP Server.
+# 🚀 Systematic Literature Review (SLR) & Deep Tech Scouting Playbook
 
-Target Parameters:
-- Workspace Name: {workspace_name}
-- Search Topic: {search_topic}
-- Time Restriction: {time_restriction}
+You are executing a systematic literature review on the Schwarz Research Intelligence platform.
+Follow this standard 5-step operational protocol:
 
-Follow this exact step-by-step tool execution protocol:
+### Step 1: Discover or Create Workspace
+- Call `list_workspaces()` to find an existing project, or create a new one:
+  `create_workspace(
+      name="{workspace_name}",
+      abstract_acceptance_criteria="Target research on {search_topic}",
+      abstract_rejection_criteria="Out-of-scope or non-peer-reviewed survey summaries",
+      full_text_acceptance_criteria="Presents architectural hardware/software benchmarks or experimental energy efficiency metrics",
+      full_text_rejection_criteria="High-level opinion pieces without concrete quantitative data"
+  )`
+  *(Note: OCR provider defaults to None, enabling direct multimodal PDF analysis with Gemini 3.7 Flash).*
 
-1. WORKSPACE CREATION:
-   Call `create_workspace(
-       name="{workspace_name}",
-       abstract_acceptance_criteria="Target papers on {search_topic}",
-       abstract_rejection_criteria="Out of domain or irrelevant topics",
-       full_text_acceptance_criteria="Focus on architecture benchmarks and low-bit quantization for mobile",
-       full_text_rejection_criteria="Pure hardware ASIC design without software LLM evaluation"
-   )`.
-   (Note: The authenticated MCP user is automatically assigned as Workspace Admin).
+### Step 2: Configure Academic Scrapers (If New Workspace)
+- Call `create_scraper(workspace_id="<WORKSPACE_ID>", provider="arxiv", search_query='cat:cs.NE AND "neuromorphic"')`
+- Optionally add OpenAlex, Lens, or PubMed scrapers for multi-source ingestion.
 
-2. SCRAPER CONFIGURATION:
-   Call `create_scraper(workspace_id="<WORKSPACE_ID>", provider="arxiv", search_query='cat:cs.AI AND "small llm" AND "mobile"')`.
+### Step 3: Launch Autonomous State Machine Agent
+- Call `start_research_agent(workspace_id="<WORKSPACE_ID>", limit=50, date_range_days=180)`
+- Returns a `process_id` and starts the DAG workflow engine (Step 1 Search -> Step 2 Download -> Step 4 Screening -> Step 5 Extraction -> Step 6 Signal Score).
 
-3. TRIGGER AUTONOMOUS RESEARCH AGENT:
-   Call `start_research_agent(workspace_id="<WORKSPACE_ID>", limit=50, date_range_days=30)`.
+### Step 4: Monitor or Wait for Completion
+- Synchronous blocking: Call `wait_for_research_agent(process_id="<PROCESS_ID>", timeout_seconds=180)`
+- Asynchronous polling: Call `get_research_agent_status(process_id="<PROCESS_ID>")` to inspect active step and token/cost metrics.
 
-4. MONITOR AGENT PROCESS STATUS:
-   Call `get_research_agent_status(process_id="<PROCESS_ID>")`.
-   Report back the process status, active pipeline step, step history audit trail, and paper metrics.
+### Step 5: Retrieve Results & Parameters Scorecard
+- Call `get_paper_extractions_matrix(process_id="<PROCESS_ID>")` or `get_paper_extractions_matrix(workspace_id="<WORKSPACE_ID>")`
+- Presents accepted papers, extracted parameters, confidence scores, evidence quotes, and composite signal scores.
 """
 
 
@@ -361,51 +368,73 @@ def autonomous_research_agent_workflow(
     date_range_days: str = "30",
     notification_email: str = None
 ) -> str:
-    """Prompt template guiding AI clients through starting, monitoring, and managing an autonomous Research Agent process."""
+    """Playbook guiding AI clients through starting, monitoring, pausing, resuming, and waiting for an autonomous Research Agent process."""
     return f"""
-You are an AI research assistant managing an autonomous Research Agent Process on the Schwarz Research Intelligence platform.
+# 🤖 Autonomous Research Agent Process Management Guide
 
-Target Execution Parameters:
+Target Execution:
 - Workspace ID: {workspace_id}
-- Paper Fetch Limit: {limit}
-- Date Window (Days): {date_range_days}
-- Notification Email: {notification_email or 'Workspace members and subscribers'}
+- Limit: {limit} papers
+- Date Window: {date_range_days} days
+- Notification Email: {notification_email or 'Workspace default'}
 
-Execution Protocol:
-1. START AGENT PROCESS:
-   Call `start_research_agent(
-       workspace_id="{workspace_id}",
-       limit={limit},
-       date_range_days={date_range_days},
-       notification_email={f'"{notification_email}"' if notification_email else 'None'}
-   )`.
+### 1. Launch Agent
+Call `start_research_agent(
+    workspace_id="{workspace_id}",
+    limit={limit},
+    date_range_days={date_range_days},
+    notification_email={f'"{notification_email}"' if notification_email else 'None'},
+    reprocess_existing=False
+)`
+*(Set reprocess_existing=True if you want to re-screen and re-extract existing workspace papers without querying external scrapers).*
 
-2. MONITOR STATE ENGINE TRANSITIONS:
-   Periodically check progress by calling `get_research_agent_status(process_id="<PROCESS_ID>")`.
-   The state machine automatically advances through:
-   `initialized` -> `search` -> `download` -> `ocr` (skipped if ocr_provider is None) -> `screening` -> `extraction` -> `completed`.
+### 2. Wait for Completion
+Call `wait_for_research_agent(process_id="<PROCESS_ID>", timeout_seconds=180)`
+If timeout expires before completion, call `get_research_agent_status(process_id="<PROCESS_ID>")` to inspect the active step in the DAG.
 
-3. LIFECYCLE CONTROLS (IF NEEDED):
-   - To pause: Call `pause_research_agent(process_id="<PROCESS_ID>")`.
-   - To resume: Call `resume_research_agent(process_id="<PROCESS_ID>")`.
-   - To abort: Call `abort_research_agent(process_id="<PROCESS_ID>")`.
-   - To clean up: Call `delete_research_agent(process_id="<PROCESS_ID>")`.
+### 3. Lifecycle Controls
+- Pause: `pause_research_agent(process_id="<PROCESS_ID>")`
+- Resume: `resume_research_agent(process_id="<PROCESS_ID>")`
+- Abort: `abort_research_agent(process_id="<PROCESS_ID>")`
+- Purge: `delete_research_agent(process_id="<PROCESS_ID>")`
 """
 
 
 @mcp.prompt()
-def check_pipeline_run_status_guide(pipeline_run_id: str) -> str:
-    """Prompt template instructing AI clients on inspecting pipeline run status, active steps, and storage paths."""
+def parameter_extraction_and_scorecard_guide(workspace_id: str) -> str:
+    """Guide for defining custom JSON parameter schemas, signal score formulas, and retrieving extractions scorecards."""
     return f"""
-Inspect the execution state of PipelineRun '{pipeline_run_id}':
+# 📊 Dynamic Parameter Extraction & Signal Score Playbook
 
-1. Call `get_pipeline_run_status(pipeline_run_id="{pipeline_run_id}")`.
-2. Evaluate:
-   - Overall Pipeline Status ('pending', 'running', 'completed', 'failed', 'aborted').
-   - Active Component Step ('search', 'download', 'ocr', 'screening', 'extraction', 'reporting').
-   - Number of papers fetched, downloaded, screened, and extracted.
-   - Raw data storage path in Django default_storage.
-3. For specific component step details, call `get_component_run_status(component_run_id="<COMPONENT_RUN_ID>")`.
+Workspace: {workspace_id}
+
+### 1. View or Create Extraction Definitions
+- Call `list_extraction_definitions(workspace_id="{workspace_id}")` to inspect active schemas.
+- Call `create_extraction_definition(
+      workspace_id="{workspace_id}",
+      name="Technical TRL & Fit",
+      system_prompt="Extract technology readiness level (1-9) and fit with enterprise architecture.",
+      user_prompt_template="Analyze paper: {{paper_title}}\\nAbstract: {{abstract}}\\nFullText: {{full_text}}",
+      response_schema={{
+          "type": "object",
+          "properties": {{
+              "trl_level": {{"type": "number", "minimum": 1, "maximum": 9}},
+              "fit_score": {{"type": "number", "minimum": 0, "maximum": 10}},
+              "novelty_score": {{"type": "number", "minimum": 0, "maximum": 10}}
+          }},
+          "required": ["trl_level", "fit_score", "novelty_score"]
+      }},
+      exit_metric="fit_score"
+  )`
+
+### 2. Define Custom Signal Score Formula (AST Sandboxed Python)
+- Call `update_workspace(
+      workspace_id="{workspace_id}",
+      signal_score_code="score = 0.5 * fit_score + 0.3 * novelty_score + 0.2 * trl_level\\nreturn round(score, 2)"
+  )`
+
+### 3. View Aggregated Results Scorecard
+- Call `get_paper_extractions_matrix(workspace_id="{workspace_id}")`
 """
 
 
@@ -418,7 +447,16 @@ Inspect the execution state of PipelineRun '{pipeline_run_id}':
 @mcp.tool()
 @with_db_connection
 def list_workspaces() -> str:
-    """List all workspaces accessible to the authenticated user along with member roles."""
+    """
+    [DISCOVERY - STEP 0]
+    List all workspaces accessible to the authenticated user along with their unique IDs, member roles, default LLM models, and criteria summaries.
+    
+    WHEN TO USE:
+    - Call this tool first to discover available workspace IDs before starting research or listing scrapers.
+    
+    RETURNS:
+    - JSON list of workspaces with workspace_id, name, created_at, role ('admin', 'manager', 'researcher'), and component summaries.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:read")
@@ -431,12 +469,17 @@ def list_workspaces() -> str:
 @with_db_connection
 def get_workspace(workspace_id: str) -> str:
     """
-    Retrieve full configuration details, component configurations (Scrapers, OCR Engine, LLM Models, Prompt Templates, Extraction Definitions), and member roster for a workspace.
+    [INSPECTION - STEP 0]
+    Retrieve complete configuration details, dual-stage criteria, scrapers, OCR engine, screening LLM, dynamic extraction definitions, and member roster for a specific workspace.
     
-    GUIDELINE: Render the workspace component configurations as a structured hierarchical tree (using `├──` and `└──`), explicitly listing "Scraper Configurations", "OCR Engine", "Screening LLM Model", "Extraction Definitions", and "Prompt Templates". All output must be in English.
+    WHEN TO USE:
+    - Use when you need to inspect the exact abstract/full-text criteria, custom Python signal score formula, or extraction definitions configured for a workspace.
     
-    Parameters:
-    - workspace_id: The UUID of the workspace.
+    PARAMETERS:
+    - workspace_id: The UUID of the target workspace.
+    
+    RETURNS:
+    - JSON payload with full workspace configuration, criteria prompts, scrapers list, extraction targets, and signal_score_code.
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -463,18 +506,24 @@ def create_workspace(
     signal_score_code: str = None
 ) -> str:
     """
-    Create a new isolated workspace project for systematic literature reviews and competitive intelligence.
-    AUTOMATICALLY ASSIGNS THE AUTHENTICATED MCP USER AS WORKSPACE ADMIN.
-
-    Criteria Parameters:
-    - abstract_acceptance_criteria: Specific inclusion criteria prompt evaluated during Step 4 Abstract Screening.
-    - abstract_rejection_criteria: Specific exclusion criteria prompt evaluated during Step 4 Abstract Screening.
-    - full_text_acceptance_criteria: Specific inclusion criteria prompt evaluated during Step 4 Full-Text Screening.
-    - full_text_rejection_criteria: Specific exclusion criteria prompt evaluated during Step 4 Full-Text Screening.
-    - ocr_provider: Defaults to None (skips Step 3 OCR). Set to 'pypdf', 'mistral', or 'gemini' ONLY if OCR layout extraction is explicitly requested by the user.
-    - signal_score_code: Custom Python formula/function snippet executed in secure AST sandbox to calculate paper composite signal scores from extracted metrics.
-
-    CRITICAL FOR LLM AGENTS: Do NOT set or enable ocr_provider unless the user explicitly requests OCR layout conversion. Leave ocr_provider as None by default.
+    [PROJECT SETUP - STEP 1]
+    Create a new isolated systematic review workspace project. The calling MCP user is automatically assigned as Workspace Admin.
+    
+    WHEN TO USE:
+    - Use when starting a new literature review or technology scouting initiative that requires dedicated criteria, scrapers, and extractions.
+    
+    PARAMETERS & BEST PRACTICES:
+    - name: Human-readable workspace name (e.g. 'Quantum Error Correction Review 2026').
+    - abstract_acceptance_criteria: Inclusion prompt evaluated during Step 4 Abstract Screening (e.g. 'Focus on surface codes and fault-tolerant architectures').
+    - abstract_rejection_criteria: Exclusion prompt for abstracts (e.g. 'Pure hardware fabrication without algorithmic error correction').
+    - full_text_acceptance_criteria: Deep full-text inclusion prompt for raw PDF screening.
+    - full_text_rejection_criteria: Deep full-text exclusion prompt for raw PDF screening.
+    - ocr_provider: Defaults to None (skips OCR and passes native PDF binary directly to multimodal Gemini 3.7 Flash). Set to 'pypdf', 'mistral', or 'gemini' only if text layout markdown is explicitly required.
+    - screening_llm_model: Default 'google/gemini-3.7-flash'.
+    - signal_score_code: Optional sandboxed Python math formula to rank papers (e.g. 'score = 0.6 * fit_score + 0.4 * novelty_score\\nreturn score').
+    
+    NEXT STEPS:
+    - After creating a workspace, configure at least one scraper using `create_scraper(workspace_id=...)`, then launch the agent with `start_research_agent(workspace_id=...)`.
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -516,17 +565,18 @@ def update_workspace(
     signal_score_code: str = None
 ) -> str:
     """
-    Update configuration settings of an existing workspace (requires Admin or Manager role).
-
-    Criteria Parameters:
-    - abstract_acceptance_criteria: Update inclusion criteria evaluated during Step 4 Abstract Screening.
-    - abstract_rejection_criteria: Update exclusion criteria evaluated during Step 4 Abstract Screening.
-    - full_text_acceptance_criteria: Update inclusion criteria evaluated during Step 4 Full-Text Screening.
-    - full_text_rejection_criteria: Update exclusion criteria evaluated during Step 4 Full-Text Screening.
-    - ocr_provider: Set to 'pypdf', 'mistral', 'gemini', or None/'none' to skip/disable OCR step.
-    - signal_score_code: Update Python math code/formula executed in AST sandbox (e.g. 'k = fit_score + 2*novelty; return k').
-
-    CRITICAL FOR LLM AGENTS: Do NOT modify existing workspace configuration settings (criteria, ocr_provider, llm_provider, screening_llm_model) unless explicitly instructed by the user to change configuration.
+    [SETTINGS UPDATE]
+    Update configuration settings, dual-stage criteria, or sandboxed Python signal score formula for an existing workspace.
+    
+    WHEN TO USE:
+    - Call to refine screening inclusion/exclusion criteria or to install/update a custom `signal_score_code` mathematical ranking formula.
+    
+    KEY PARAMETERS:
+    - workspace_id: The UUID of the target workspace.
+    - abstract_acceptance_criteria / abstract_rejection_criteria: Inclusion/exclusion prompts for abstract screening (Step 4A).
+    - full_text_acceptance_criteria / full_text_rejection_criteria: Inclusion/exclusion prompts for deep raw PDF screening (Step 4B).
+    - signal_score_code: Custom Python AST snippet to calculate composite scores (e.g. 'score = 0.5*fit_score + 0.3*novelty_score + 0.2*trl_level\\nreturn round(score, 2)').
+    - ocr_provider: 'pypdf', 'mistral', 'gemini', or None/'none' (leave None to skip OCR and pass native PDF to Gemini).
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -558,7 +608,10 @@ def add_workspace_member(
     member_username_or_email: str,
     role: str = "researcher"
 ) -> str:
-    """Add a user to a workspace with a specific role ('admin', 'manager', 'researcher')."""
+    """
+    [TEAM MANAGEMENT]
+    Add a user to a workspace with a specific role ('admin', 'manager', 'researcher').
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:write")
@@ -572,7 +625,13 @@ def add_workspace_member(
 @mcp.tool()
 @with_db_connection
 def list_scrapers(workspace_id: str) -> str:
-    """List all scrapers configured for a workspace."""
+    """
+    [DISCOVERY - STEP 1]
+    List all search query scrapers configured for a workspace (e.g. ArXiv, OpenAlex, Lens, PubMed).
+    
+    WHEN TO USE:
+    - Call to check which queries and academic sources are active before starting a research agent run.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:read")
@@ -584,7 +643,9 @@ def list_scrapers(workspace_id: str) -> str:
 @mcp.tool()
 @with_db_connection
 def get_scraper(scraper_id: str) -> str:
-    """Retrieve details for a specific scraper."""
+    """
+    Retrieve full configuration details for a specific academic scraper by UUID.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:read")
@@ -604,7 +665,22 @@ def create_scraper(
     sort_order: str = "desc",
     is_active: bool = True
 ) -> str:
-    """Create a new academic data scraper for a workspace with sorting options and limit."""
+    """
+    [SCRAPER CONFIGURATION - STEP 1]
+    Configure a new academic data scraper query for a workspace.
+    
+    WHEN TO USE:
+    - Use when configuring which academic sources and query strings should be ingested during Step 1 of the pipeline.
+    
+    SUPPORTED PROVIDERS & QUERY SYNTAX:
+    - 'arxiv': Standard ArXiv syntax, e.g. `cat:cs.AI AND "machine learning"` or `all:"solid state battery"`.
+    - 'openalex': Keywords and titles, e.g. `quantum computing error correction`.
+    - 'lens': Open scholarly query syntax for patents and literature.
+    - 'pubmed': Medical / life sciences MeSH query.
+    
+    NEXT STEPS:
+    - After creating a scraper, call `start_research_agent(workspace_id=...)` to begin ingestion.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:write")
@@ -624,7 +700,9 @@ def update_scraper(
     sort_order: str | None = None,
     is_active: bool | None = None
 ) -> str:
-    """Update an existing scraper configuration with sorting options and limit."""
+    """
+    Update an existing scraper query, provider, limit, or active status.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:write")
@@ -636,7 +714,9 @@ def update_scraper(
 @mcp.tool()
 @with_db_connection
 def delete_scraper(scraper_id: str) -> str:
-    """Delete a scraper definition."""
+    """
+    Delete a scraper configuration from a workspace.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:write")
@@ -648,7 +728,13 @@ def delete_scraper(scraper_id: str) -> str:
 @mcp.tool()
 @with_db_connection
 def preview_search_query(provider: str, search_query: str, limit: int = 10) -> str:
-    """Execute a live search query against a scientific paper provider (arXiv, OpenAlex, Lens.org) without downloading PDFs or storing DB runs."""
+    """
+    [DRY RUN SEARCH]
+    Execute a live search query against a provider (arXiv, OpenAlex, Lens) to inspect results without downloading PDFs or saving to DB.
+    
+    WHEN TO USE:
+    - Use when designing and tuning queries to check the volume and quality of results before creating a scraper.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:read")
@@ -660,7 +746,10 @@ def preview_search_query(provider: str, search_query: str, limit: int = 10) -> s
 @mcp.tool()
 @with_db_connection
 def list_papers(workspace_id: str, pipeline_run_id: str | None = None, limit: int = 50) -> str:
-    """List fetched paper records and search results for a workspace (optionally filtered by pipeline_run_id) without downloading PDFs."""
+    """
+    [PAPERS INSPECTION]
+    List fetched papers, authors, abstracts, DOIs, and screening statuses for a workspace or pipeline run.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:read")
@@ -674,7 +763,10 @@ def list_papers(workspace_id: str, pipeline_run_id: str | None = None, limit: in
 @mcp.tool()
 @with_db_connection
 def list_extraction_definitions(workspace_id: str) -> str:
-    """List dynamic parameter/claim extraction definitions configured for a workspace."""
+    """
+    [DISCOVERY - EXTRACTIONS]
+    List all dynamic parameter extraction targets (schemas, system prompts, models) configured for a workspace.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "prompts:read")
@@ -686,7 +778,9 @@ def list_extraction_definitions(workspace_id: str) -> str:
 @mcp.tool()
 @with_db_connection
 def get_extraction_definition(definition_id: str) -> str:
-    """Retrieve detailed view of an extraction definition including prompts, response schema, and LLM configuration."""
+    """
+    Retrieve full JSON schema, system prompt, user template, and model configuration for a specific extraction definition.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "prompts:read")
@@ -709,7 +803,22 @@ def create_extraction_definition(
     requires_consensus: bool = False,
     is_active: bool = True
 ) -> str:
-    """Create a new dynamic extraction definition target for a workspace (e.g. 'Schwarz Fit', 'ML Methods', 'Benchmark Metrics'). `exit_metric` is the JSON key to unpack as primary metric (e.g. 'fit_score')."""
+    """
+    [PARAMETER DEFINITION - STEP 2]
+    Create a new dynamic parameter extraction definition target for a workspace.
+    
+    WHEN TO USE:
+    - Use to define structured JSON parameters that must be extracted from accepted full-text papers during Step 5.
+    
+    PARAMETERS:
+    - workspace_id: The UUID of the target workspace.
+    - name: Human-readable target name (e.g. 'Schwarz Strategic Fit', 'Hardware Specs', 'TRL Assessment').
+    - system_prompt: Guidance for the LLM on how to extract and evaluate fields.
+    - user_prompt_template: Template with variables `{{paper_title}}`, `{{abstract}}`, `{{full_text}}`.
+    - response_schema: JSON Schema dictionary defining the expected structure, field types, and constraints.
+    - exit_metric: Primary key to expose in summary matrices and snake_case variable for signal scoring (e.g. 'fit_score', 'novelty_score', 'trl_level').
+    - llm_model: Default 'google/gemini-3.7-flash'.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "prompts:write")
@@ -862,7 +971,13 @@ def list_extractions(
     validation_status: str = None,
     limit: int = 100
 ) -> str:
-    """List extracted structured fields and claim records (Step 5 outputs). Supports filtering by workspace_id, pipeline_run_id, process_id, paper_id, category, or validation_status."""
+    """
+    [EXTRACTIONS QUERY]
+    Query raw dynamic extraction objects with confidence scores, validation flags ('pass', 'warn', 'fail'), and evidence quotes.
+    
+    WHEN TO USE:
+    - Call to inspect low-level extraction items filtered by workspace, pipeline run, paper, category, or validation status.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:read")
@@ -883,9 +998,16 @@ def get_paper_extractions_matrix(
     """
     [PRIMARY TOOL FOR RUN RESULTS & PARAMETERS SCORECARD]
     Retrieve aggregated parameter & claim extraction results per paper for all accepted/screened papers in a single structured call.
-    Use this tool whenever asked to 'show run results', 'display extracted parameters', 'show scorecard', or 'view parameter scores per paper'.
-    Returns paper title, authors, DOI, arXiv ID, PDF paths, abstracts, and all extracted definitions/metrics (e.g. Novelty, Schwarz Fit, TRL, Rigour, Significance) with evidence quotes and justifications.
-    Never write manual python/bash scripts to join papers and extractions; use this tool instead.
+    
+    WHEN TO USE:
+    - ALWAYS call this tool when asked to:
+      • "Show review results"
+      • "Display extracted parameters / metrics"
+      • "Show technology scorecard"
+      • "What papers passed screening and what were their scores?"
+    
+    RETURNS:
+    - Aggregated list of papers with titles, authors, DOI, arXiv ID, PDF paths, abstracts, screening reasons, and all extracted definitions (e.g. Schwarz Fit, Novelty, TRL, Rigour) with evidence quotes and composite signal scores.
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -898,7 +1020,9 @@ def get_paper_extractions_matrix(
 @mcp.tool()
 @with_db_connection
 def get_extraction(extraction_id: str) -> str:
-    """Retrieve full details for a single Extraction object by UUID (e.g., '18f71398-2659-462f-8c71-5d76e02dc2ef'), including fields_data, prompts, paper title, and confidence scores."""
+    """
+    Retrieve full details for a single Extraction record by UUID, including raw LLM prompt, extracted JSON data, evidence quotes, and validation history.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:read")
@@ -910,7 +1034,9 @@ def get_extraction(extraction_id: str) -> str:
 @mcp.tool()
 @with_db_connection
 def get_pipeline_run_status(pipeline_run_id: str) -> str:
-    """Retrieve full execution status, active step, metrics, component run states, and fetched paper previews for a PipelineRun."""
+    """
+    Retrieve execution state, active component step, paper count metrics, and storage footprint for a PipelineRun.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:read")
@@ -922,7 +1048,9 @@ def get_pipeline_run_status(pipeline_run_id: str) -> str:
 @mcp.tool()
 @with_db_connection
 def get_component_run_status(component_run_id: str) -> str:
-    """Retrieve details, execution status, step_type, metrics, and raw storage path for a specific ComponentRun."""
+    """
+    Retrieve status, logs, error tracebacks, and execution metrics for a single component step run.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:read")
@@ -934,7 +1062,9 @@ def get_component_run_status(component_run_id: str) -> str:
 @mcp.tool()
 @with_db_connection
 def abort_job(component_run_id: str | None = None, pipeline_run_id: str | None = None) -> str:
-    """Abort a running component step or full PipelineRun (requires Admin or Manager role)."""
+    """
+    Abort a running component step or full PipelineRun (requires Admin or Manager role).
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:write")
@@ -946,7 +1076,9 @@ def abort_job(component_run_id: str | None = None, pipeline_run_id: str | None =
 @mcp.tool()
 @with_db_connection
 def list_pipeline_runs(workspace_id: str, limit: int = 20) -> str:
-    """List recent PipelineRuns for a workspace with stage, status, paper count, and duration metrics."""
+    """
+    List recent PipelineRuns for a workspace with stage, status, paper counts, duration, and token usage.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:read")
@@ -958,7 +1090,9 @@ def list_pipeline_runs(workspace_id: str, limit: int = 20) -> str:
 @mcp.tool()
 @with_db_connection
 def delete_pipeline_run(pipeline_run_id: str) -> str:
-    """Delete an entire PipelineRun along with all associated Papers, Extractions, ComponentRuns, PaperMetrics, NarrativeReports, and cleans up physical original PDF and OCR Markdown files from storage."""
+    """
+    Purge a PipelineRun record from database and recursively delete all storage artifacts (PDFs, Markdown, JSON) from disk.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:write")
@@ -980,9 +1114,23 @@ def start_research_agent(
     reprocess_existing: bool = False
 ) -> str:
     """
-    (RECOMMENDED PRIMARY TOOL) Start an autonomous Research Agent Process that automatically executes the entire pipeline (1. Search -> 2. Download -> 3. OCR (skipped if None) -> 4. Screening -> 5. Extraction -> 6. Signal Score) in sequence without manual step-by-step triggering. Supports parallel runs, dynamic query modifiers, date windowing, notification settings, and reprocess_existing to re-screen and re-extract existing workspace papers.
-
-    CRITICAL FOR LLM AGENTS: Calling start_research_agent executes the entire pipeline using the EXISTING workspace configuration. Do NOT modify workspace settings or criteria prior to launching an agent process unless explicitly instructed by the user. Set reprocess_existing=True if you want the pipeline to process all already-ingested papers in the workspace even if no new papers were found by scrapers.
+    [PRIMARY SLR ORCHESTRATOR - RECOMMENDED ENTRYPOINT]
+    Launch an autonomous state engine process (ResearchAgentProcess) executing the complete end-to-end SLR pipeline:
+    1. Search & Ingestion -> 2. Download PDFs -> 3. OCR (auto-skipped if None) -> 4. Dual-Stage Screening (Abstract + Full-Text via Gemini 3.7) -> 5. Dynamic Parameter Extraction -> 6. Composite Signal Scoring -> 7. Executive Narrative.
+    
+    WHEN TO USE:
+    - Primary entrypoint to run a review. Do not trigger individual steps manually unless debugging.
+    
+    KEY PARAMETERS:
+    - workspace_id: The target workspace UUID.
+    - limit: Maximum number of papers to ingest (default: 50).
+    - date_range_days: Optional date window filter (e.g. 30, 90, 180, 365).
+    - query_prefix: Optional query modifier prepended to workspace scrapers.
+    - reprocess_existing: Set to True to re-screen and re-extract parameters from already-ingested workspace papers.
+    - notification_email: Optional email to notify via Mailgun upon pipeline completion.
+    
+    NEXT STEPS:
+    - Immediately after calling this, call `wait_for_research_agent(process_id=...)` to await results, or poll with `get_research_agent_status(process_id=...)`.
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -995,7 +1143,9 @@ def start_research_agent(
 @mcp.tool()
 @with_db_connection
 def list_research_agents(workspace_id: str = None, limit: int = 20) -> str:
-    """List recent or active autonomous Research Agent Processes for a workspace or across accessible workspaces."""
+    """
+    List active or recent autonomous Research Agent Processes with current state, execution time, and paper counts.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:read")
@@ -1007,7 +1157,13 @@ def list_research_agents(workspace_id: str = None, limit: int = 20) -> str:
 @mcp.tool()
 @with_db_connection
 def get_research_agent_status(process_id: str) -> str:
-    """Retrieve full status, step history audit log, pipeline run ID, and component metrics for an autonomous Research Agent Process by UUID."""
+    """
+    [REAL-TIME AGENT MONITORING]
+    Retrieve state machine status, active step, full audit trail, component runs tree, token usage, USD cost, and scorecard preview for an agent process.
+    
+    WHEN TO USE:
+    - Use to inspect agent progress during asynchronous execution or to examine detailed step execution times and error tracebacks.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:read")
@@ -1019,7 +1175,17 @@ def get_research_agent_status(process_id: str) -> str:
 @mcp.tool()
 @with_db_connection
 def wait_for_research_agent(process_id: str, timeout_seconds: int = 120, poll_interval_seconds: int = 3) -> str:
-    """Block and wait synchronously until the autonomous Research Agent Process finishes executing (reaches 'completed', 'failed', or 'aborted'). Returns full completion status, paper metrics, token usage, and cost. If timeout is reached, returns current progress."""
+    """
+    [SYNCHRONOUS EXECUTION BLOCKER]
+    Block and wait synchronously until the autonomous Research Agent finishes all pipeline steps (reaches 'completed', 'failed', or 'aborted').
+    
+    WHEN TO USE:
+    - Call immediately after `start_research_agent` to wait for pipeline completion and get the final scorecard in a single workflow step.
+    
+    PARAMETERS:
+    - process_id: The UUID returned by `start_research_agent`.
+    - timeout_seconds: Maximum seconds to wait before returning progress status (default: 120s).
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:read")
@@ -1031,7 +1197,9 @@ def wait_for_research_agent(process_id: str, timeout_seconds: int = 120, poll_in
 @mcp.tool()
 @with_db_connection
 def pause_research_agent(process_id: str) -> str:
-    """Pause a running autonomous Research Agent Process (requires Admin or Manager role)."""
+    """
+    Pause a running autonomous Research Agent Process without losing state.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:write")
@@ -1043,7 +1211,9 @@ def pause_research_agent(process_id: str) -> str:
 @mcp.tool()
 @with_db_connection
 def resume_research_agent(process_id: str) -> str:
-    """Resume a paused autonomous Research Agent Process and trigger the state engine to continue execution."""
+    """
+    Resume a paused Research Agent Process and trigger the DAG state engine to continue execution from the active step.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:write")
@@ -1055,7 +1225,9 @@ def resume_research_agent(process_id: str) -> str:
 @mcp.tool()
 @with_db_connection
 def abort_research_agent(process_id: str) -> str:
-    """Abort a running or paused autonomous Research Agent Process and terminate attached Celery background tasks."""
+    """
+    Abort an active Research Agent Process and cancel all associated background Celery worker tasks.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:write")
@@ -1067,7 +1239,9 @@ def abort_research_agent(process_id: str) -> str:
 @mcp.tool()
 @with_db_connection
 def delete_research_agent(process_id: str) -> str:
-    """Delete a Research Agent Process record and cleanup associated PipelineRun database and storage data."""
+    """
+    Purge a Research Agent Process record, pipeline run, downloaded documents from storage, and database extractions.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:write")
@@ -1080,8 +1254,12 @@ def delete_research_agent(process_id: str) -> str:
 @with_db_connection
 def get_workflow_dag_schema(workspace_id: str | None = None) -> str:
     """
+    [DAG INTROSPECTION & CONTRACTS]
     Returns the complete Systematic Literature Review (SLR) Workflow DAG schema, execution topology,
     dependencies, input contracts, and output contracts for each node.
+    
+    WHEN TO USE:
+    - Call whenever you want to inspect how the pipeline is wired, what prerequisites each step has, what data models are mutated, and what storage artifacts are produced.
     """
     try:
         user, workspace, api_key = get_auth_context()
