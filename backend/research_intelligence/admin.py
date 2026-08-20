@@ -769,13 +769,14 @@ class PipelineRunAdmin(admin.ModelAdmin):
             'ocr': '#6f42c1',
             'screening': '#ffc107',
             'extraction': '#198754',
+            'signal_score': '#fd7e14',
             'metrics': '#fd7e14',
             'deep_research': '#d63384',
             'reporting': '#20c997',
             'completed': '#198754',
         }
         bg = colors.get(obj.current_stage, '#6c757d')
-        text_color = '#000000' if bg == '#ffc107' else '#ffffff'
+        text_color = '#000000' if bg in ('#ffc107', '#0dcaf0') else '#ffffff'
         return render_badge(obj.get_current_stage_display(), bg, text_color)
     current_stage_badge.short_description = "Current Stage"
 
@@ -903,12 +904,14 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
             'ocr': '#6f42c1',
             'screening': '#ffc107',
             'extraction': '#198754',
+            'signal_score': '#fd7e14',
+            'reporting': '#20c997',
             'completed': '#198754',
             'failed': '#dc3545',
             'aborted': '#495057',
         }
         bg = colors.get(obj.current_step, '#6c757d')
-        text_color = '#000000' if bg == '#ffc107' else '#ffffff'
+        text_color = '#000000' if bg in ('#ffc107', '#0dcaf0') else '#ffffff'
         return render_badge(obj.get_current_step_display(), bg, text_color)
     current_step_badge.short_description = "Active Step"
 
@@ -1121,12 +1124,13 @@ class ComponentRunAdmin(admin.ModelAdmin):
             'ocr': '#6f42c1',
             'screening': '#ffc107',
             'extraction': '#198754',
+            'signal_score': '#fd7e14',
             'metrics': '#fd7e14',
             'deep_research': '#d63384',
             'reporting': '#20c997',
         }
         bg = colors.get(obj.step_type, '#6c757d')
-        text_color = '#000000' if bg == '#ffc107' else '#ffffff'
+        text_color = '#000000' if bg in ('#ffc107', '#0dcaf0') else '#ffffff'
         return render_badge(obj.get_step_type_display(), bg, text_color)
     step_type_badge.short_description = "Step Type"
 
@@ -1140,6 +1144,31 @@ class ComponentRunAdmin(admin.ModelAdmin):
         }
         return render_badge(obj.status.upper(), colors.get(obj.status, '#6c757d'))
     status_badge.short_description = "Status"
+
+    actions = ['rerun_from_this_component_step']
+
+    @admin.action(description="🔄 Rerun Pipeline from Selected Step Forward")
+    def rerun_from_this_component_step(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.dag import build_default_slr_dag
+        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+        count = 0
+        for comp in queryset:
+            dag = build_default_slr_dag(comp.pipeline_run.workspace)
+            target_node = None
+            for n_name, node in dag.nodes.items():
+                if node.step_type == comp.step_type:
+                    target_node = n_name
+                    break
+            if target_node:
+                dag.rerun_from_node(comp.pipeline_run, target_node)
+                agent = comp.pipeline_run.agent_processes.filter(status__in=['running', 'pending', 'paused', 'failed', 'completed']).first()
+                if agent:
+                    agent.status = 'running'
+                    agent.current_step = comp.step_type
+                    agent.save(update_fields=['status', 'current_step'])
+                    tick_agent_process(str(agent.id))
+                count += 1
+        self.message_user(request, f"Triggered DAG rerun from step for {count} component run(s).")
 
 
 @admin.register(Paper)

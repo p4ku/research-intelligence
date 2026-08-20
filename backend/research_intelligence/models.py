@@ -298,6 +298,7 @@ class ResearchAgentProcess(models.Model):
         ('screening', '4. Abstract & Full-Text Screening'),
         ('extraction', '5. Parameter & Claim Extraction'),
         ('signal_score', '6. Signal Score Evaluation'),
+        ('reporting', '7. Narrative Reporting'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
         ('aborted', 'Aborted')

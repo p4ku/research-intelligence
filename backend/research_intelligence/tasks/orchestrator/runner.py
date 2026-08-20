@@ -149,7 +149,7 @@ class ResearchAgentRunner:
                 pending_runs = pipeline_run.component_runs.filter(status__in=['pending', 'running'])
                 if not pending_runs.exists() and pipeline_run.component_runs.filter(status='completed').exists():
                     last_comp = pipeline_run.component_runs.order_by('-completed_at', '-id').first()
-                    if last_comp and last_comp.step_type in ['signal_score', 'extraction']:
+                    if last_comp and last_comp.step_type in ['signal_score', 'extraction', 'reporting']:
                         pipeline_run.status = 'completed'
                         pipeline_run.current_stage = 'completed'
                         if not pipeline_run.completed_at:
