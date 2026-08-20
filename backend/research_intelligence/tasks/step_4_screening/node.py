@@ -24,13 +24,19 @@ class ScreeningNode(BaseWorkflowNode):
     def should_halt_pipeline(self, pipeline_run, workspace, config: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         from research_intelligence.models import Paper
         accepted_count = Paper.objects.filter(workspace=workspace, screening_status='accepted').count()
+        if accepted_count > 0 or config.get("reprocess_existing", False):
+            return False, None
+
         from research_intelligence.models import ComponentRun
         comp_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run, step_type='screening')
         has_full_text = comp_runs.filter(component_name='full_text_screening', status='completed').exists()
         has_abstract_only = comp_runs.filter(component_name='abstract_screening', status='completed').exists() and config.get("skip_full_text_screening", False)
 
-        if (has_full_text or has_abstract_only) and accepted_count == 0:
-            return True, f"Screening finished: 0 papers were accepted for workspace '{workspace.name}'. Halting pipeline."
+        if has_full_text or has_abstract_only:
+            rejected_count = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='rejected').count()
+            total_papers = Paper.objects.filter(pipeline_run=pipeline_run).count()
+            if rejected_count > 0 and rejected_count == total_papers:
+                return True, f"Screening finished: 0 papers were accepted for workspace '{workspace.name}'. Halting pipeline."
         return False, None
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:

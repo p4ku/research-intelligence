@@ -93,9 +93,7 @@ class WorkflowDAG:
 
         for node_name, node in self.nodes.items():
             matching_runs = comp_runs.filter(step_type=node.step_type)
-            if not matching_runs.exists():
-                status_map[node_name] = "pending"
-            elif matching_runs.filter(status='running').exists():
+            if matching_runs.filter(status='running').exists():
                 status_map[node_name] = "running"
             elif matching_runs.filter(status='failed').exists() and not matching_runs.filter(status='completed').exists():
                 status_map[node_name] = "failed"
@@ -107,8 +105,10 @@ class WorkflowDAG:
                     workspace = pipeline_run.workspace
                     skip_abstract = cfg.get("skip_abstract_screening", getattr(workspace, 'skip_abstract_screening', False))
                     skip_full = cfg.get("skip_full_text_screening", False)
+                    abstract_run = matching_runs.filter(component_name='abstract_screening', status='completed').first()
+                    abstract_passed_zero = (abstract_run and abstract_run.metrics and abstract_run.metrics.get("passed", 1) == 0)
 
-                    if has_full or (has_abstract and skip_full) or (has_abstract and not skip_abstract and skip_full):
+                    if has_full or (has_abstract and skip_full) or (has_abstract and abstract_passed_zero):
                         status_map[node_name] = "completed"
                     elif has_abstract and not skip_full and not has_full:
                         status_map[node_name] = "running"
@@ -118,6 +118,20 @@ class WorkflowDAG:
                     status_map[node_name] = "completed"
             elif matching_runs.filter(status='skipped').exists():
                 status_map[node_name] = "skipped"
+            elif node.name == 'reporting' and node.is_skippable(pipeline_run, pipeline_run.workspace, cfg):
+                status_map[node_name] = "skipped"
+            else:
+                # If no matching runs for this node, but any downstream node has started or completed,
+                # mark this prerequisite node as completed (implicit completion from downstream presence)
+                downstream = self.get_downstream_nodes(node_name)
+                downstream_started = comp_runs.filter(
+                    step_type__in=[self.nodes[d].step_type for d in downstream],
+                    status__in=['running', 'completed', 'skipped']
+                ).exists()
+                if downstream_started:
+                    status_map[node_name] = "completed"
+                else:
+                    status_map[node_name] = "pending"
 
         return status_map
 
@@ -211,16 +225,29 @@ class WorkflowDAG:
                         if should_halt:
                             logger.info(f"Pipeline halted early at node '{name}': {halt_reason}")
                             pipeline_run.status = 'completed'
+                            pipeline_run.current_stage = 'completed'
                             pipeline_run.completed_at = timezone.now()
-                            pipeline_run.save(update_fields=['status', 'completed_at'])
+                            pipeline_run.save(update_fields=['status', 'current_stage', 'completed_at'])
                             if agent_process:
                                 agent_process.status = 'completed'
+                                agent_process.current_step = 'completed'
                                 agent_process.completed_at = timezone.now()
-                                agent_process.save(update_fields=['status', 'completed_at', 'updated_at'])
+                                history = list(agent_process.step_history or [])
+                                event_name = "halted_zero_papers" if "0 papers" in halt_reason else "completed"
+                                history.append({
+                                    "step": name,
+                                    "event": event_name,
+                                    "message": halt_reason,
+                                    "timestamp": timezone.now().isoformat()
+                                })
+                                agent_process.step_history = history
+                                agent_process.save(update_fields=['status', 'current_step', 'completed_at', 'step_history', 'updated_at'])
+                                from research_intelligence.tasks.orchestrator.agent_engine import _send_agent_notification
+                                _send_agent_notification(agent_process)
                             return {
                                 "success": True,
                                 "status": "completed",
-                                "current_step": name,
+                                "current_step": "completed",
                                 "message": halt_reason
                             }
 
@@ -232,8 +259,10 @@ class WorkflowDAG:
                 has_full_text = comp_runs.filter(component_name='full_text_screening').exists()
                 skip_abstract = cfg.get("skip_abstract_screening", getattr(workspace, 'skip_abstract_screening', False))
                 skip_full = cfg.get("skip_full_text_screening", False)
+                abstract_run = comp_runs.filter(component_name='abstract_screening', status='completed').first()
+                abstract_passed_zero = (abstract_run and abstract_run.metrics and abstract_run.metrics.get("passed", 1) == 0)
 
-                if has_abstract and not skip_full and not has_full_text and not comp_runs.filter(status='running').exists():
+                if has_abstract and not skip_full and not has_full_text and not abstract_passed_zero and not comp_runs.filter(status='running').exists():
                     # Launch Full-Text screening
                     comp_run = ComponentRun.objects.create(
                         pipeline_run=pipeline_run,
@@ -245,7 +274,15 @@ class WorkflowDAG:
                     screening_node.execute(pipeline_run, comp_run, limit=limit)
                     if agent_process:
                         agent_process.current_step = 'screening'
-                        agent_process.save(update_fields=['current_step', 'updated_at'])
+                        history = list(agent_process.step_history or [])
+                        history.append({
+                            "step": "full_text_screening",
+                            "event": "started",
+                            "timestamp": timezone.now().isoformat()
+                        })
+                        agent_process.step_history = history
+                        agent_process.save(update_fields=['current_step', 'step_history', 'updated_at'])
+
                     return {
                         "success": True,
                         "status": "running",
@@ -260,15 +297,19 @@ class WorkflowDAG:
             for node in ready_nodes:
                 if node.is_skippable(pipeline_run, workspace, cfg):
                     logger.info(f"DAG Node '{node.name}' is skippable for workspace '{workspace.name}'. Marking skipped.")
-                    ComponentRun.objects.create(
-                        pipeline_run=pipeline_run,
-                        step_type=node.step_type,
-                        component_name=node.component_name,
-                        status='skipped',
-                        input_params=node.get_input_params(pipeline_run, workspace, cfg, limit=limit)
-                    )
+                    if node.name != 'reporting':
+                        ComponentRun.objects.create(
+                            pipeline_run=pipeline_run,
+                            step_type=node.step_type,
+                            component_name=node.component_name,
+                            status='skipped',
+                            input_params=node.get_input_params(pipeline_run, workspace, cfg, limit=limit)
+                        )
                     # Re-evaluate recursively to dispatch downstream nodes immediately
-                    return self.evaluate_and_dispatch(pipeline_run, agent_process=agent_process, config=cfg, limit=limit)
+                    res = self.evaluate_and_dispatch(pipeline_run, agent_process=agent_process, config=cfg, limit=limit)
+                    if node.name == 'ocr' and res.get("success"):
+                        res["message"] = f"OCR skipped (workspace.ocr_provider is None). {res.get('message', '')}"
+                    return res
 
                 # Create ComponentRun and dispatch
                 input_params = node.get_input_params(pipeline_run, workspace, cfg, limit=limit)
@@ -288,13 +329,17 @@ class WorkflowDAG:
                 if agent_process:
                     agent_process.current_step = node.step_type
                     history = list(agent_process.step_history or [])
+                    step_rec_name = comp_name if node.step_type == 'screening' else node.step_type
                     history.append({
-                        "step": node.step_type,
+                        "step": step_rec_name,
                         "event": "started",
                         "timestamp": timezone.now().isoformat()
                     })
                     agent_process.step_history = history
                     agent_process.save(update_fields=['current_step', 'step_history', 'updated_at'])
+
+                pipeline_run.current_stage = node.step_type
+                pipeline_run.save(update_fields=['current_stage'])
 
                 node.execute(pipeline_run, comp_run, limit=limit)
                 dispatched.append(node.name)

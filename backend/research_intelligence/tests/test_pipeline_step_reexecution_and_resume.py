@@ -209,12 +209,14 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
         self.assertEqual(paper.signal_score, 600.0)
 
     @patch("research_intelligence.tasks.step_4_screening.abstract.execute_screening_job")
+    @patch("research_intelligence.tasks.step_4_screening.full_text.execute_full_text_screening_job")
     @patch("research_intelligence.tasks.step_5_extraction.extract.execute_extraction_job")
     @patch("research_intelligence.tasks.step_6_signal_score.scorer.execute_signal_score_job")
     def test_restart_autonomous_agent_from_step_4_screening_onwards(
         self,
         mock_step6,
         mock_step5,
+        mock_step4_ft,
         mock_step4
     ):
         """
@@ -236,7 +238,8 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
             pipeline_run=pipeline_run,
             name="Restartable Agent",
             status="running",
-            current_step="screening"
+            current_step="screening",
+            configuration_override={"skip_full_text_screening": True}
         )
 
         def _finish_comp_run(cid, **kw):
@@ -247,22 +250,29 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
 
         mock_step4.side_effect = _finish_comp_run
         mock_step4.delay.side_effect = _finish_comp_run
+        mock_step4_ft.side_effect = _finish_comp_run
+        mock_step4_ft.delay.side_effect = _finish_comp_run
         mock_step5.side_effect = _finish_comp_run
         mock_step5.delay.side_effect = _finish_comp_run
         mock_step6.side_effect = _finish_comp_run
         mock_step6.delay.side_effect = _finish_comp_run
 
-        # Tick 1: Screening -> Extraction
+        # Tick 1: Run Screening
+        tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "screening")
+
+        # Tick 2: Screening -> Extraction
         tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.current_step, "extraction")
 
-        # Tick 2: Extraction -> Signal Score
+        # Tick 3: Extraction -> Signal Score
         tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.current_step, "signal_score")
 
-        # Tick 3: Signal Score -> Completed
+        # Tick 4: Signal Score -> Completed
         tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.status, "completed")
