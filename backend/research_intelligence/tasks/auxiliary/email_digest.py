@@ -18,25 +18,32 @@ from research_intelligence.utils.mailer import send_mailgun_message
 logger = logging.getLogger(__name__)
 
 
-def build_pipeline_run_digest_payload(pipeline_run: PipelineRun) -> Dict[str, Any]:
+def build_pipeline_run_digest_payload(
+    pipeline_run: PipelineRun,
+    agent_process: Optional[Any] = None
+) -> Dict[str, Any]:
     """
-    Gathers metrics, papers, extractions, and definitions for an executed PipelineRun
+    Gathers metrics, papers, extractions, and definitions for an executed PipelineRun/ResearchAgentProcess
     and generates both state-of-the-art responsive HTML and clean plaintext email content
     using Django's template engine (emails/pipeline_digest.html and emails/pipeline_digest.txt).
     """
-    workspace = pipeline_run.workspace
+    workspace = pipeline_run.workspace if pipeline_run else (agent_process.workspace if agent_process else None)
     ws_name = workspace.name if workspace else "Research Workspace"
     run_date_str = (
         pipeline_run.started_at.strftime("%B %d, %Y %H:%M UTC")
-        if pipeline_run.started_at
-        else timezone.now().strftime("%B %d, %Y")
+        if (pipeline_run and pipeline_run.started_at)
+        else timezone.now().strftime("%B %d, %Y %H:%M UTC")
     )
-    duration_str = pipeline_run.execution_time_display
+    duration_str = pipeline_run.execution_time_display if pipeline_run else "N/A"
 
-    # 1. Fetch papers and extractions
+    # 1. Fetch active extraction definitions for the matrix columns
+    active_definitions = list(workspace.extraction_definitions.filter(is_active=True).order_by('created_at')) if workspace else []
+    definition_names = [d.name for d in active_definitions]
+
+    # 2. Fetch papers and extractions
     papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).prefetch_related(
         'extractions', 'extractions__extraction_definition'
-    ).order_by('-created_at')
+    ).order_by('-created_at') if pipeline_run else Paper.objects.none()
 
     total_papers = papers_qs.count()
     accepted_papers = [
@@ -55,20 +62,24 @@ def build_pipeline_run_digest_payload(pipeline_run: PipelineRun) -> Dict[str, An
     avg_signal_score = (sum(p.signal_score for p in scored_papers) / len(scored_papers)) if scored_papers else None
     top_signal_score = max((p.signal_score for p in scored_papers), default=None)
 
-    # 2. Gather extractions
+    # 3. Gather extractions
     extractions_qs = Extraction.objects.filter(paper__pipeline_run=pipeline_run).select_related(
         'paper', 'extraction_definition'
-    )
+    ) if pipeline_run else Extraction.objects.none()
     total_extractions = extractions_qs.count()
 
-    cost_val = float(pipeline_run.usd_cost or 0.0)
-    tokens_val = int(pipeline_run.tokens_consumed or 0)
+    cost_val = float(pipeline_run.usd_cost or 0.0) if pipeline_run else 0.0
+    tokens_val = int(pipeline_run.tokens_consumed or 0) if pipeline_run else 0
 
-    # 3. Build papers scorecard items
+    # 4. Build papers scorecard & matrix items
     papers_data = []
-    for p in accepted_papers[:15]:  # top 15 in email digest for optimal reading length
+    has_gated = False
+
+    for idx, p in enumerate(accepted_papers, 1):
         paper_exts = list(p.extractions.all())
         exts_list = []
+        metrics_dict = {}
+
         for ext in paper_exts:
             def_name = (
                 ext.extraction_definition.name
@@ -76,6 +87,8 @@ def build_pipeline_run_digest_payload(pipeline_run: PipelineRun) -> Dict[str, An
                 else (ext.category or "Parameter")
             )
             metric_val = ext.exit_metric or ext.get_exit_metric() or "Extracted"
+            metrics_dict[def_name] = metric_val
+
             exts_list.append({
                 "name": def_name,
                 "value": metric_val,
@@ -84,29 +97,55 @@ def build_pipeline_run_digest_payload(pipeline_run: PipelineRun) -> Dict[str, An
                 "status": ext.validation_status or "pass",
             })
 
+        matrix_entries = []
+        for def_obj in active_definitions:
+            val = metrics_dict.get(def_obj.name, "-")
+            matrix_entries.append({"name": def_obj.name, "value": val})
+
         pdf_link = (
             f"https://arxiv.org/pdf/{p.arxiv_id}.pdf"
             if p.arxiv_id
-            else (f"https://doi.org/{p.doi}" if p.doi else None)
+            else (f"https://doi.org/{p.doi}" if p.doi else p.original_pdf_path)
         )
 
+        is_gated_paper = False
+        if p.signal_score == 0.0 and len(scored_papers) > 0 and (top_signal_score or 0.0) > 0.0:
+            is_gated_paper = True
+            has_gated = True
+
+        score_formatted = f"{p.signal_score:.2f}" if p.signal_score is not None else "0.00"
+        if is_gated_paper:
+            score_formatted += "*"
+
         papers_data.append({
+            "index": idx,
             "title": p.title,
             "authors": p.authors or "Unknown Authors",
             "doi": p.doi,
             "arxiv_id": p.arxiv_id,
             "pdf_link": pdf_link,
+            "abstract": p.abstract or "",
             "screening_status": p.screening_status.replace('_', ' '),
             "screening_reason": p.screening_reasoning or "",
-            "signal_score": round(p.signal_score, 2) if p.signal_score is not None else None,
-            "signal_score_formatted": f"{p.signal_score:.2f}" if p.signal_score is not None else "N/A",
+            "signal_score": round(p.signal_score, 2) if p.signal_score is not None else 0.0,
+            "signal_score_formatted": score_formatted,
+            "is_gated": is_gated_paper,
+            "matrix_entries": matrix_entries,
             "extractions": exts_list,
         })
 
-    # 4. Context for Django Template Rendering
+    agent_title = agent_process.name if agent_process else f"Pipeline Run {pipeline_run.id if pipeline_run else 'Manual'}"
+    status_val = (agent_process.status if agent_process else (pipeline_run.status if pipeline_run else 'completed')).upper()
+    error_msg = (agent_process.error_message if agent_process else None)
+
+    # 5. Context for Django Template Rendering
     context = {
         "workspace": workspace,
         "workspace_name": ws_name,
+        "agent_process": agent_process,
+        "agent_title": agent_title,
+        "status": status_val,
+        "error_message": error_msg,
         "pipeline_run": pipeline_run,
         "run_date_str": run_date_str,
         "duration_str": duration_str,
@@ -118,14 +157,20 @@ def build_pipeline_run_digest_payload(pipeline_run: PipelineRun) -> Dict[str, An
         "top_signal_score": f"{top_signal_score:.2f}" if top_signal_score is not None else None,
         "cost_usd": cost_val,
         "tokens_consumed": f"{tokens_val:,}",
+        "definition_names": definition_names,
+        "has_definitions": bool(definition_names),
         "papers_data": papers_data,
+        "has_gated": has_gated,
     }
 
-    # 5. Render via Django Template Loader
+    # 6. Render via Django Template Loader
     html_content = render_to_string("emails/pipeline_digest.html", context)
     text_content = render_to_string("emails/pipeline_digest.txt", context)
 
-    subject = f"[Research Digest] {ws_name} - Review Complete ({len(accepted_papers)} accepted papers)"
+    if agent_process:
+        subject = f"[{status_val}] Research Intelligence Pipeline: {agent_title} ({ws_name})"
+    else:
+        subject = f"[Research Digest] {ws_name} - Review Complete ({len(accepted_papers)} accepted papers)"
 
     return {
         "subject": subject,
@@ -135,7 +180,7 @@ def build_pipeline_run_digest_payload(pipeline_run: PipelineRun) -> Dict[str, An
         "stats": {
             "workspace_id": str(workspace.id) if workspace else None,
             "workspace_name": ws_name,
-            "pipeline_run_id": str(pipeline_run.id),
+            "pipeline_run_id": str(pipeline_run.id) if pipeline_run else None,
             "total_papers": total_papers,
             "accepted_papers": len(accepted_papers),
             "rejected_papers": rejected_count,

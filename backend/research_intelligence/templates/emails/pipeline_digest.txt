@@ -2,29 +2,57 @@
 SCHWARZ RESEARCH INTELLIGENCE - SYSTEMATIC LITERATURE REVIEW DIGEST
 ================================================================================
 Workspace: {{ workspace_name }}
-Run ID: {{ pipeline_run.id }}
+Agent Name: {{ agent_title }}
+Pipeline Run ID: {{ pipeline_run.id }}
 Date: {{ run_date_str }}
-Status: COMPLETED
+Status: {{ status }}
+{% if error_message %}
+ERROR: {{ error_message }}
+{% endif %}
 
 METRICS SUMMARY:
 - Total Papers Ingested: {{ total_papers }}
 - Screened Accepted: {{ accepted_count }} (Rejected: {{ rejected_count }})
 - Parameters Extracted: {{ total_extractions }}
 - Composite Signal Score: {% if avg_signal_score %}{{ avg_signal_score }} (Top: {{ top_signal_score }}){% else %}N/A{% endif %}
-- USD Cost: ${{ cost_usd|floatformat:4 }}
+- Estimated USD Cost: ${{ cost_usd|floatformat:4 }}
 - Token Consumption: {{ tokens_consumed }} tokens
 - Total Duration: {{ duration_str }}
 
-ACCEPTED PAPERS & EXTRACTED PARAMETERS:
+================================================================================
+TOP SCREENED PAPERS & PARAMETER MATRIX
+================================================================================
 {% for paper in papers_data %}
-[{{ forloop.counter }}] {{ paper.title }}{% if paper.signal_score is not None %} [⚡ Signal Score: {{ paper.signal_score_formatted }}]{% endif %}
-    Authors: {{ paper.authors }}
-    {% if paper.pdf_link %}Link: {{ paper.pdf_link }}{% endif %}
-    {% for ext in paper.extractions %}
-    - {{ ext.name }}: {{ ext.value }} (Status: {{ ext.status }})
-    {% empty %}
-    - No specific extraction parameters
+[{{ paper.index }}] {{ paper.title }}{% if paper.signal_score is not None %} [⚡ Signal Score: {{ paper.signal_score_formatted }}]{% endif %}
+    {% for m in paper.matrix_entries %}
+    - {{ m.name }}: {{ m.value }}
     {% endfor %}
+{% empty %}
+No accepted papers passed criteria in this execution run.
+{% endfor %}
+{% if has_gated %}
+*Papers marked with an asterisk (*) are gated to 0.00 based on the workspace signal score formula.
+{% endif %}
+
+================================================================================
+TOP SCREENED PAPERS & PARAMETER SCORECARD DETAILS
+================================================================================
+{% for paper in papers_data %}
+{{ paper.index }}. {{ paper.title }}
+   - Signal Score: {{ paper.signal_score_formatted }}
+   - Authors: {{ paper.authors }}
+   {% if paper.pdf_link %}- PDF URL: {{ paper.pdf_link }}{% endif %}
+   - Extracted Metrics:
+     {% for ext in paper.extractions %}
+     * {{ ext.name }}: {{ ext.value }}{% if ext.confidence %} ({{ ext.confidence_percent }}% confidence){% endif %}
+     {% empty %}
+     * No specific extraction parameters
+     {% endfor %}
+   {% if paper.abstract %}
+   - Full Abstract:
+     {{ paper.abstract }}
+   {% endif %}
+
 {% empty %}
 No accepted papers passed criteria in this execution run.
 {% endfor %}

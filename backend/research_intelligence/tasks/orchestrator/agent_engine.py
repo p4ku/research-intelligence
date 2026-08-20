@@ -70,76 +70,17 @@ def _send_agent_notification(agent_process: ResearchAgentProcess):
         if s.email:
             recipients.add(s.email.strip())
 
-    from research_intelligence.models import Paper, Extraction
-
-    title = agent_process.name
-    ws_name = agent_process.workspace.name
-    status = agent_process.status
-    pr = agent_process.pipeline_run
-    pr_id = str(pr.id) if pr else "N/A"
-
     recipient_list = sorted(list(recipients))
     if not recipient_list:
-        logger.info(f"📧 [NOTIFICATION] No recipients/subscribers found for Workspace '{ws_name}'.")
+        logger.info(f"📧 [NOTIFICATION] No active recipients/subscribers found for Workspace '{agent_process.workspace.name}'.")
         return
 
-    subject = f"[{status.upper()}] Research Intelligence Pipeline: {title} ({ws_name})"
+    from research_intelligence.tasks.auxiliary.email_digest import build_pipeline_run_digest_payload
 
-    # Calculate metrics
-    papers_count = Paper.objects.filter(pipeline_run=pr).count() if pr else 0
-    passed_count = Paper.objects.filter(pipeline_run=pr, screening_status__in=['abstract_passed', 'full_text_passed']).count() if pr else 0
-    extractions_count = Extraction.objects.filter(paper__pipeline_run=pr).count() if pr else 0
-    tokens_in = pr.tokens_in if pr else 0
-    tokens_out = pr.tokens_out if pr else 0
-    usd_cost = float(pr.usd_cost) if pr else 0.0
-
-    plain_message = (
-        f"Schwarz Research Intelligence - Pipeline Execution Report\n"
-        f"===========================================================\n"
-        f"Workspace: {ws_name}\n"
-        f"Agent Name: {title}\n"
-        f"Status: {status.upper()}\n"
-        f"Pipeline Run ID: {pr_id}\n\n"
-        f"Execution Metrics:\n"
-        f"- Papers Fetched: {papers_count}\n"
-        f"- Papers Passed Screening: {passed_count}\n"
-        f"- Extractions Created: {extractions_count}\n"
-        f"- Tokens Consumed: {tokens_in + tokens_out:,} (In: {tokens_in:,}, Out: {tokens_out:,})\n"
-        f"- Total Cost (USD): ${usd_cost:.4f}\n"
-    )
-
-    if agent_process.error_message:
-        plain_message += f"\nError Details:\n{agent_process.error_message}\n"
-
-    error_html = (
-        f"<div style='margin-top: 15px; padding: 10px; background-color: #f8d7da; color: #721c24; border-radius: 4px;'>"
-        f"<strong>Error:</strong> {agent_process.error_message}</div>"
-        if agent_process.error_message else ""
-    )
-    status_color = "#198754" if status == "completed" else "#dc3545"
-
-    html_message = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 8px;">
-        <h2 style="color: {status_color}; margin-top: 0;">
-            Research Agent {status.upper()}
-        </h2>
-        <p><strong>Workspace:</strong> {ws_name}</p>
-        <p><strong>Agent Name:</strong> {title}</p>
-        <p><strong>Pipeline Run ID:</strong> <code>{pr_id}</code></p>
-        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-        <h3 style="color: #333;">Pipeline Summary</h3>
-        <table style="width: 100%; border-collapse: collapse;">
-            <tr><td style="padding: 6px 0; color: #666;">Papers Fetched:</td><td style="padding: 6px 0; font-weight: bold;">{papers_count}</td></tr>
-            <tr><td style="padding: 6px 0; color: #666;">Passed Screening:</td><td style="padding: 6px 0; font-weight: bold;">{passed_count}</td></tr>
-            <tr><td style="padding: 6px 0; color: #666;">Extractions Created:</td><td style="padding: 6px 0; font-weight: bold;">{extractions_count}</td></tr>
-            <tr><td style="padding: 6px 0; color: #666;">Token Usage:</td><td style="padding: 6px 0; font-weight: bold;">{tokens_in + tokens_out:,} (In: {tokens_in:,}, Out: {tokens_out:,})</td></tr>
-            <tr><td style="padding: 6px 0; color: #666;">Estimated Cost:</td><td style="padding: 6px 0; font-weight: bold; color: #0d6efd;">${usd_cost:.4f} USD</td></tr>
-        </table>
-        {error_html}
-        <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;" />
-        <p style="font-size: 12px; color: #999;">Automated notification from Schwarz Research Intelligence Platform.</p>
-    </div>
-    """
+    payload = build_pipeline_run_digest_payload(agent_process.pipeline_run, agent_process=agent_process)
+    subject = payload["subject"]
+    html_message = payload["html_content"]
+    plain_message = payload["text_content"]
 
     for to_email in recipient_list:
         try:

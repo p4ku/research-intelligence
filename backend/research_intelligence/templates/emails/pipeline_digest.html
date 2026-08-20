@@ -3,56 +3,62 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>[Research Digest] {{ workspace_name }}</title>
+    <title>[{{ status }}] {{ workspace_name }} - {{ agent_title }}</title>
 </head>
-<body style="margin: 0; padding: 24px 0; background-color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b;">
-    <div style="max-width: 680px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); border: 1px solid #e2e8f0;">
+<body style="margin: 0; padding: 24px 0; background-color: #f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.5;">
+    <div style="max-width: 860px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -1px rgba(0, 0, 0, 0.04); border: 1px solid #cbd5e1;">
         
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 32px 28px; text-align: left;">
-            <div style="display: flex; align-items: center; margin-bottom: 8px;">
-                <span style="display: inline-block; background: #2563eb; color: #ffffff; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.5px; text-transform: uppercase;">
-                    Systematic Review Complete
+        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: #ffffff; padding: 28px 32px; text-align: left;">
+            <div style="display: flex; align-items: center; margin-bottom: 10px;">
+                <span style="display: inline-block; background: #3b82f6; color: #ffffff; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 4px; letter-spacing: 0.5px; text-transform: uppercase;">
+                    Systematic Literature Review
                 </span>
-                <span style="margin-left: auto; color: #10b981; font-size: 12px; font-weight: 600;">
-                    🟢 COMPLETED
+                <span style="margin-left: auto; color: {% if status == 'COMPLETED' %}#10b981{% else %}#ef4444{% endif %}; font-size: 13px; font-weight: 700;">
+                    {% if status == 'COMPLETED' %}🟢 COMPLETED{% else %}🔴 FAILED{% endif %}
                 </span>
             </div>
             <h1 style="margin: 8px 0 4px 0; font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px;">
                 {{ workspace_name }}
             </h1>
             <p style="margin: 0; font-size: 13px; color: #94a3b8;">
-                Executive Literature Digest &amp; Parameter Extraction Matrix • {{ run_date_str }}
+                <strong>Agent:</strong> {{ agent_title }} &bull; <strong>Pipeline Run:</strong> <code>{{ pipeline_run.id }}</code> &bull; {{ run_date_str }}
             </p>
         </div>
 
-        <!-- 4-Card KPI Grid -->
-        <!-- Key Execution KPI Metrics -->
-        <div style="padding: 24px 28px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: separate; border-spacing: 10px 0;">
+        {% if error_message %}
+        <!-- Error Banner -->
+        <div style="margin: 20px 32px 0 32px; padding: 14px 18px; background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; color: #991b1b; font-size: 13px;">
+            <strong>⚠️ Pipeline Execution Error:</strong> {{ error_message }}
+        </div>
+        {% endif %}
+
+        <!-- 5-Card KPI Grid -->
+        <div style="padding: 20px 32px; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse: separate; border-spacing: 8px 0;">
                 <tr>
-                    <td width="20%" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
-                        <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase;">Fetched</div>
+                    <td width="20%" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 10px; text-align: center;">
+                        <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Fetched</div>
                         <div style="font-size: 18px; font-weight: 800; color: #0f172a; margin-top: 4px;">{{ total_papers }}</div>
                         <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">papers</div>
                     </td>
-                    <td width="20%" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
-                        <div style="font-size: 11px; font-weight: 600; color: #10b981; text-transform: uppercase;">Accepted</div>
+                    <td width="20%" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 10px; text-align: center;">
+                        <div style="font-size: 10px; font-weight: 700; color: #10b981; text-transform: uppercase;">Accepted</div>
                         <div style="font-size: 18px; font-weight: 800; color: #10b981; margin-top: 4px;">{{ accepted_count }}</div>
                         <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">{{ rejected_count }} rejected</div>
                     </td>
-                    <td width="20%" style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px; text-align: center;">
-                        <div style="font-size: 11px; font-weight: 700; color: #b45309; text-transform: uppercase;">⚡ Signal Score</div>
+                    <td width="20%" style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 12px 10px; text-align: center;">
+                        <div style="font-size: 10px; font-weight: 800; color: #b45309; text-transform: uppercase;">⚡ Signal Score</div>
                         <div style="font-size: 18px; font-weight: 800; color: #92400e; margin-top: 4px;">{% if avg_signal_score %}{{ avg_signal_score }}{% else %}N/A{% endif %}</div>
-                        <div style="font-size: 10px; color: #b45309; margin-top: 2px;">{% if top_signal_score %}Top: {{ top_signal_score }}{% else %}composite{% endif %}</div>
+                        <div style="font-size: 10px; color: #b45309; margin-top: 2px;">{% if top_signal_score %}Top: {{ top_signal_score }}{% else %}avg score{% endif %}</div>
                     </td>
-                    <td width="20%" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
-                        <div style="font-size: 11px; font-weight: 600; color: #2563eb; text-transform: uppercase;">Extracted</div>
+                    <td width="20%" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 10px; text-align: center;">
+                        <div style="font-size: 10px; font-weight: 700; color: #2563eb; text-transform: uppercase;">Extractions</div>
                         <div style="font-size: 18px; font-weight: 800; color: #2563eb; margin-top: 4px;">{{ total_extractions }}</div>
                         <div style="font-size: 10px; color: #94a3b8; margin-top: 2px;">parameters</div>
                     </td>
-                    <td width="20%" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center;">
-                        <div style="font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase;">Cost / Time</div>
+                    <td width="20%" style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 10px; text-align: center;">
+                        <div style="font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase;">Cost / Time</div>
                         <div style="font-size: 15px; font-weight: 800; color: #0f172a; margin-top: 4px;">${{ cost_usd|floatformat:4 }}</div>
                         <div style="font-size: 10px; color: #64748b; margin-top: 2px;">{{ duration_str }}</div>
                     </td>
@@ -60,74 +66,146 @@
             </table>
         </div>
 
-        <!-- Body / Accepted Papers Scorecard -->
-        <div style="padding: 28px;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <h2 style="margin: 0; font-size: 16px; font-weight: 700; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">
-                    🎯 Accepted Literature &amp; Parameter Matrix
-                </h2>
-                <span style="font-size: 12px; color: #64748b; font-weight: 600;">
-                    {{ accepted_count }} papers verified
-                </span>
-            </div>
+        <!-- MAIN BODY -->
+        <div style="padding: 28px 32px;">
 
-            {% for paper in papers_data %}
-            <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px 20px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
-                    <div style="font-size: 11px; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: 0.5px;">
-                        Paper #{{ forloop.counter }} • {{ paper.screening_status|upper }}
-                    </div>
-                    {% if paper.signal_score is not None %}
-                    <div style="background: #fef3c7; border: 1px solid #fde68a; color: #92400e; padding: 3px 10px; border-radius: 9999px; font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; gap: 4px;">
-                        ⚡ Signal Score: <span style="font-size: 13px; color: #78350f;">{{ paper.signal_score_formatted }}</span>
-                    </div>
-                    {% endif %}
+            {% if papers_data %}
+            <!-- SECTION 1: Top Screened Papers & Parameter Matrix Table -->
+            <div style="margin-bottom: 36px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+                    <h2 style="margin: 0; font-size: 15px; font-weight: 800; color: #7c3aed; text-transform: uppercase; letter-spacing: 0.5px;">
+                        📊 Top Screened Papers &amp; Parameter Matrix
+                    </h2>
+                    <span style="font-size: 12px; color: #64748b; font-weight: 600;">
+                        {{ accepted_count }} Accepted Publications
+                    </span>
                 </div>
-                <h3 style="margin: 0 0 8px 0; font-size: 15px; font-weight: 700; color: #0f172a; line-height: 1.4;">
-                    {{ paper.title }}
-                </h3>
-                <p style="margin: 0 0 12px 0; font-size: 12px; color: #64748b;">
-                    <strong>Authors:</strong> {{ paper.authors }}
+
+                <div style="overflow-x: auto; background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: left;">
+                        <thead>
+                            <tr style="background: #0f172a; color: #ffffff;">
+                                <th style="padding: 10px 8px; font-weight: 700; text-align: center; border-right: 1px solid #334155; width: 32px;">#</th>
+                                <th style="padding: 10px 12px; font-weight: 700; border-right: 1px solid #334155;">Title</th>
+                                <th style="padding: 10px 10px; font-weight: 800; color: #fbbf24; text-align: center; border-right: 1px solid #334155; white-space: nowrap;">⚡ Signal Score</th>
+                                {% for def_name in definition_names %}
+                                <th style="padding: 10px 10px; font-weight: 700; color: #a5b4fc; text-align: center; border-right: 1px solid #334155; white-space: nowrap;">{{ def_name }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for paper in papers_data %}
+                            <tr style="border-bottom: 1px solid #e2e8f0; background-color: {% if forloop.counter|divisibleby:2 %}#f8fafc{% else %}#ffffff{% endif %};">
+                                <td style="padding: 10px 8px; text-align: center; font-weight: 700; color: #64748b; border-right: 1px solid #e2e8f0;">{{ paper.index }}</td>
+                                <td style="padding: 10px 12px; font-weight: 600; color: #0f172a; border-right: 1px solid #e2e8f0;">
+                                    {% if paper.pdf_link %}
+                                    <a href="{{ paper.pdf_link }}" target="_blank" style="color: #ea580c; text-decoration: none; font-weight: 600;">
+                                        {{ paper.title }}
+                                    </a>
+                                    {% else %}
+                                    <span style="color: #ea580c;">{{ paper.title }}</span>
+                                    {% endif %}
+                                </td>
+                                <td style="padding: 10px 10px; text-align: center; font-weight: 800; color: #b45309; border-right: 1px solid #e2e8f0; white-space: nowrap; background-color: #fffbeb;">
+                                    {{ paper.signal_score_formatted }}
+                                </td>
+                                {% for m in paper.matrix_entries %}
+                                <td style="padding: 10px 10px; text-align: center; font-weight: 600; color: #334155; border-right: 1px solid #e2e8f0; white-space: nowrap;">
+                                    {{ m.value }}
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if has_gated %}
+                <p style="margin: 8px 0 0 0; font-size: 11px; color: #64748b; font-style: italic;">
+                    \*<em>Papers marked with an asterisk (*) are gated to 0.00 based on the workspace composite signal score formula.</em>
                 </p>
-                <div style="margin-top: 10px; margin-bottom: 12px;">
-                    {% if paper.extractions %}
-                        {% for ext in paper.extractions %}
-                            <div style="display: inline-block; background: #f1f5f9; border-left: 3px solid {% if ext.status == 'pass' %}#10b981{% elif ext.status == 'warn' %}#f59e0b{% else %}#6b7280{% endif %}; padding: 6px 12px; margin: 4px 6px 4px 0; border-radius: 4px; font-size: 12px;">
-                                <strong style="color: #334155;">{{ ext.name }}:</strong> <span style="color: #0f172a; font-weight: 600;">{{ ext.value }}</span>
-                                {% if ext.confidence %}<span style="color: #64748b; font-size: 11px;"> • {{ ext.confidence_percent }}%</span>{% endif %}
-                            </div>
-                        {% endfor %}
-                    {% else %}
-                        <span style="color: #94a3b8; font-size: 12px; font-style: italic;">No specific extraction parameters</span>
-                    {% endif %}
-                </div>
-                {% if paper.pdf_link %}
-                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e2e8f0;">
-                    <a href="{{ paper.pdf_link }}" style="color: #2563eb; text-decoration: none; font-size: 12px; font-weight: 600;" target="_blank">📄 View Document &rarr;</a>
-                </div>
                 {% endif %}
             </div>
-            {% empty %}
-            <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 24px; text-align: center; color: #64748b;">
-                No accepted papers passed criteria in this execution run.
-            </div>
-            {% endfor %}
 
-            <!-- Pipeline Execution Footprint -->
-            <div style="margin-top: 28px; padding: 16px 20px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; color: #64748b; line-height: 1.6;">
-                <strong>Pipeline Execution Run ID:</strong> <code>{{ pipeline_run.id }}</code><br>
-                <strong>Token Footprint:</strong> {{ tokens_consumed }} total tokens ({{ pipeline_run.tokens_in }} prompt / {{ pipeline_run.tokens_out }} completion)<br>
-                <strong>Criteria Dual-Stage:</strong> Abstract &amp; Multimodal Full-Text Screening with Gemini 3.7 Flash
+            <!-- SECTION 2: Top Screened Papers & Parameter Scorecard Details -->
+            <div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px;">
+                    <h2 style="margin: 0; font-size: 15px; font-weight: 800; color: #7c3aed; text-transform: uppercase; letter-spacing: 0.5px;">
+                        📑 Top Screened Papers &amp; Parameter Scorecard Details
+                    </h2>
+                </div>
+
+                {% for paper in papers_data %}
+                <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px 22px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+                    <!-- Paper Title -->
+                    <h3 style="margin: 0 0 10px 0; font-size: 15px; font-weight: 800; color: #9333ea; line-height: 1.4;">
+                        {{ paper.index }}. {{ paper.title }}
+                    </h3>
+
+                    <!-- Paper Metadata -->
+                    <ul style="margin: 0 0 14px 0; padding-left: 20px; font-size: 13px; color: #334155; line-height: 1.6;">
+                        <li style="margin-bottom: 4px;">
+                            <strong>Signal Score:</strong> <span style="font-weight: 800; color: #16a34a;">{{ paper.signal_score_formatted }}</span>
+                        </li>
+                        <li style="margin-bottom: 4px;">
+                            <strong>Authors:</strong> {{ paper.authors }}
+                        </li>
+                        {% if paper.pdf_link %}
+                        <li style="margin-bottom: 4px;">
+                            <strong>PDF URL:</strong> <a href="{{ paper.pdf_link }}" target="_blank" style="color: #2563eb; text-decoration: underline;">{{ paper.pdf_link }}</a>
+                        </li>
+                        {% endif %}
+                        <li style="margin-bottom: 6px;">
+                            <strong>Extracted Metrics:</strong>
+                            <div style="margin-top: 6px; margin-left: 8px;">
+                                {% for ext in paper.extractions %}
+                                <div style="margin-bottom: 3px; font-size: 12px;">
+                                    &bull; <strong>{{ ext.name }}:</strong> <span style="color: #0f172a; font-weight: 600;">{{ ext.value }}</span>
+                                    {% if ext.confidence %}<span style="color: #64748b; font-size: 11px;"> ({{ ext.confidence_percent }}% confidence)</span>{% endif %}
+                                </div>
+                                {% empty %}
+                                <div style="color: #94a3b8; font-size: 12px; font-style: italic;">No specific extraction parameters recorded.</div>
+                                {% endfor %}
+                            </div>
+                        </li>
+                    </ul>
+
+                    <!-- Full Abstract -->
+                    {% if paper.abstract %}
+                    <div style="margin-top: 12px; border-left: 3px solid #9333ea; background: #f8fafc; padding: 12px 16px; border-radius: 0 6px 6px 0;">
+                        <div style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px; letter-spacing: 0.5px;">
+                            Full Abstract:
+                        </div>
+                        <p style="margin: 0; font-size: 12px; color: #334155; line-height: 1.6; font-style: italic;">
+                            {{ paper.abstract }}
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <!-- Empty State -->
+            <div style="background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 32px; text-align: center; color: #64748b;">
+                <p style="font-size: 14px; margin: 0 0 6px 0; font-weight: 600;">No accepted papers passed criteria in this execution run.</p>
+                <p style="font-size: 12px; margin: 0; color: #94a3b8;">All retrieved papers were filtered out during screening or search returned zero results.</p>
+            </div>
+            {% endif %}
+
+            <!-- Pipeline Footprint Box -->
+            <div style="margin-top: 24px; padding: 14px 18px; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0; font-size: 12px; color: #64748b; line-height: 1.6;">
+                <strong>Execution Run ID:</strong> <code>{{ pipeline_run.id }}</code> &bull; 
+                <strong>Tokens Consumed:</strong> {{ tokens_consumed }} total &bull; 
+                <strong>Dual-Stage Screening:</strong> Abstract &amp; Gemini 3.7 Flash Full-Text
             </div>
         </div>
 
         <!-- Footer -->
-        <div style="background: #f1f5f9; padding: 20px 28px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-            <p style="margin: 0 0 6px 0;">
+        <div style="background: #f1f5f9; padding: 18px 32px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            <p style="margin: 0 0 4px 0;">
                 You are receiving this automated research intelligence briefing because you are subscribed to <strong>{{ workspace_name }}</strong>.
             </p>
             <p style="margin: 0; color: #cbd5e1;">
-                Schwarz Research Intelligence • Enterprise SLR Platform
+                Schwarz Research Intelligence &bull; Enterprise Systematic Literature Review &amp; Scouting Platform
             </p>
         </div>
     </div>
