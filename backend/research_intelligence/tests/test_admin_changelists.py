@@ -108,6 +108,24 @@ class AdminChangelistViewsTestCase(TestCase):
             completed_at=timezone.now() - timezone.timedelta(minutes=1)
         )
 
+        self.comp_run_signal_score = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            component_name="signal_score_evaluation",
+            step_type="signal_score",
+            status="completed",
+            metrics={
+                "total_papers": 13,
+                "scored_count": 13,
+                "avg_signal_score": 35.04615384615385,
+                "max_signal_score": 71.2,
+                "min_signal_score": 0.0,
+                "errors_count": 0,
+                "errors": []
+            },
+            started_at=timezone.now() - timezone.timedelta(minutes=1),
+            completed_at=timezone.now()
+        )
+
         self.agent_process = ResearchAgentProcess.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
@@ -137,7 +155,8 @@ class AdminChangelistViewsTestCase(TestCase):
             hash_id="paper_hash_001",
             title="Quantum Circuit Synthesis",
             abstract="We present optimal synthesis for Clifford+T circuits.",
-            screening_status="accepted"
+            screening_status="accepted",
+            signal_score=Decimal("71.20")
         )
 
         self.ext_def = ExtractionDefinition.objects.create(
@@ -217,6 +236,7 @@ class AdminChangelistViewsTestCase(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Quantum Circuit Synthesis")
+        self.assertContains(response, "⚡ 71.20")
 
     def test_extraction_changelist_renders(self):
         url = reverse('admin:research_intelligence_extraction_changelist')
@@ -236,6 +256,9 @@ class AdminChangelistViewsTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "abstract_screening")
         self.assertContains(response, "parameter_extraction")
+        self.assertContains(response, "signal_score_evaluation")
+        self.assertContains(response, "Avg: 35.05")
+        self.assertContains(response, "Max: 71.20")
 
     def test_componentrun_filter_by_workspace_id(self):
         url = reverse('admin:research_intelligence_componentrun_changelist') + f"?workspace_id={self.workspace.id}"

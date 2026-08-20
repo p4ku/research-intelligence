@@ -261,23 +261,21 @@ def render_component_metrics_summary(obj):
     elif obj.step_type == 'signal_score':
         scored = m.get('scored_count', 0)
         total = m.get('total_papers', 0)
-        avg_score = m.get('avg_signal_score', 0.0)
-        max_score = m.get('max_signal_score', 0.0)
+        try:
+            avg_score_str = f"{float(m.get('avg_signal_score', 0.0)):.2f}"
+            max_score_str = f"{float(m.get('max_signal_score', 0.0)):.2f}"
+        except Exception:
+            avg_score_str = str(m.get('avg_signal_score', 0.0))
+            max_score_str = str(m.get('max_signal_score', 0.0))
         return format_html(
             '<div style="line-height: 1.35; white-space: nowrap;">'
             '<strong>{}/{}</strong> scored<br>'
-            '<span style="color: #0d6efd; font-weight: 600;">Avg: {:.2f}</span> (Max: {:.2f})'
+            '<span style="color: #0d6efd; font-weight: 600;">Avg: {}</span> (Max: {})'
             '</div>',
             scored,
             total,
-            avg_score,
-            max_score,
-        )
-        return format_html(
-            '<div style="line-height: 1.35; white-space: nowrap;">'
-            '<strong>{}</strong> converted'
-            '</div>',
-            ocr,
+            avg_score_str,
+            max_score_str,
         )
     elif obj.step_type == 'extraction':
         created = m.get('extractions_created', 0)
@@ -1166,11 +1164,15 @@ class PaperAdmin(admin.ModelAdmin):
     def signal_score_badge(self, obj):
         if obj.signal_score is None:
             return mark_safe('<span style="color: #6c757d; font-size: 0.85em;">-</span>')
+        try:
+            score_str = f"{float(obj.signal_score):.2f}"
+        except Exception:
+            score_str = str(obj.signal_score)
         return format_html(
             '<span style="background-color: #0d6efd; color: #ffffff; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.9em;">'
-            '⚡ {:.2f}'
+            '⚡ {}'
             '</span>',
-            obj.signal_score
+            score_str
         )
     signal_score_badge.short_description = "Signal Score"
     signal_score_badge.admin_order_field = 'signal_score'
