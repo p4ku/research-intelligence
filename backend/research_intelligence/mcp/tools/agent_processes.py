@@ -412,9 +412,9 @@ def wait_for_research_agent_logic(
     poll_interval_seconds: int = 3
 ) -> str:
     """
-    Block and wait synchronously for a ResearchAgentProcess to finish executing (reach 'completed', 'failed', or 'aborted').
-    Periodically ticks the state engine to drive background steps forward.
-    If timeout_seconds is reached before completion, returns current progress status.
+    Blocks and synchronously drives/polls a ResearchAgentProcess across all 7 SLR pipeline steps
+    until it finishes (status='completed', 'failed', or 'aborted') or timeout_seconds is reached.
+    Returns live step indicators, total duration, stop reason, stage results, and final extraction scorecards.
     """
     import time
     from django.db import close_old_connections

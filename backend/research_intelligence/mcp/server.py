@@ -1182,15 +1182,38 @@ def get_research_agent_status(process_id: str) -> str:
 @with_db_connection
 def wait_for_research_agent(process_id: str, timeout_seconds: int = 120, poll_interval_seconds: int = 3) -> str:
     """
-    [SYNCHRONOUS EXECUTION BLOCKER]
-    Block and wait synchronously until the autonomous Research Agent finishes all pipeline steps (reaches 'completed', 'failed', or 'aborted').
-    
-    WHEN TO USE:
-    - Call immediately after `start_research_agent` to wait for pipeline completion and get the final scorecard in a single workflow step.
-    
+    [SYNCHRONOUS EXECUTION BLOCKER & PROGRESS MONITOR]
+    Blocks and synchronously waits for an autonomous Research Agent Process to finish execution
+    across all 7 SLR pipeline steps (Search -> Download -> OCR -> Screening -> Extraction -> Signal Score -> Reporting).
+
+    RECOMMENDED MCP WORKFLOW:
+    1. Call `start_research_agent(workspace_id="...")` -> receives `process_id`.
+    2. Immediately call `wait_for_research_agent(process_id="...", timeout_seconds=120)`.
+    3. Evaluate the returned payload:
+       - If `status == "finished"`:
+           * Check `agent_status` (`"completed"`, `"failed"`, `"aborted"`).
+           * Inspect `stopped_at_step` and `stop_reason` to see if all 7 steps finished or if the pipeline cleanly halted early (e.g. 0 matching papers).
+           * Inspect `stage_results` for a per-stage summary of papers found, downloaded, screened, and extracted.
+           * Access the complete paper scorecard and metrics matrix inside `details.extractions_matrix_preview`.
+       - If `status == "timeout"`:
+           * The agent is still actively working on `current_step_display` (e.g. "4. Abstract & Full-Text Screening").
+           * Call `wait_for_research_agent(process_id=...)` again to continue waiting until completion.
+
     PARAMETERS:
-    - process_id: The UUID returned by `start_research_agent`.
-    - timeout_seconds: Maximum seconds to wait before returning progress status (default: 120s).
+    - process_id (str, required): The UUID of the ResearchAgentProcess returned by `start_research_agent`.
+    - timeout_seconds (int, optional): Max seconds to wait before returning a progress snapshot (default: 120s, min: 5s, max: 600s).
+    - poll_interval_seconds (int, optional): Polling interval in seconds to tick the DAG state engine (default: 3s).
+
+    OUTPUT PAYLOAD STRUCTURE:
+    - `status`: `"finished"` (completed/failed/aborted) or `"timeout"` (still running).
+    - `agent_status`: `"running"`, `"completed"`, `"failed"`, or `"aborted"`.
+    - `current_step`: Active/final step slug (`"search"`, `"download"`, `"ocr"`, `"screening"`, `"extraction"`, `"signal_score"`, `"reporting"`).
+    - `current_step_display`: Formatted human-readable step title (e.g. `"4. Abstract & Full-Text Screening"`).
+    - `stopped_at_step`: Step slug where execution concluded.
+    - `stop_reason`: Detailed message explaining why the run finished, halted cleanly, or failed.
+    - `stage_results`: Structured per-stage execution metrics, summaries, and timestamps.
+    - `total_duration_seconds` & `total_duration_display`: Total agent execution time (e.g. `45.2` / `"45s"`).
+    - `details`: Full workspace status report with token costs, paper metrics, and extractions matrix.
     """
     try:
         user, workspace, api_key = get_auth_context()
