@@ -1,6 +1,7 @@
 import json
 from django import forms
 from django.db import models
+from django.db.models import Q
 from django.contrib import admin
 from django.utils.html import format_html
 from django.utils.safestring import mark_safe
@@ -1404,7 +1405,7 @@ class PaperAdmin(admin.ModelAdmin):
     list_display = (
         'title',
         'workspace',
-        'pipeline_run',
+        'pipeline_run_link',
         'signal_score_badge',
         'source_database',
         'screening_status_badge',
@@ -1414,6 +1415,14 @@ class PaperAdmin(admin.ModelAdmin):
     ordering = ('-created_at', '-id')
     list_filter = ('source_database', 'screening_status', 'is_evaluation_benchmark', 'workspace')
     search_fields = ('title', 'authors', 'doi', 'arxiv_id', 'hash_id')
+
+    def pipeline_run_link(self, obj):
+        if not obj.pipeline_run:
+            return "-"
+        url = reverse("admin:research_intelligence_pipelinerun_change", args=[obj.pipeline_run.id])
+        return format_html('<a href="{}" title="Pipeline Run: {}"><code>{}</code></a>', url, str(obj.pipeline_run.id), str(obj.pipeline_run.id)[:8] + '...')
+    pipeline_run_link.short_description = "Pipeline Run"
+    pipeline_run_link.admin_order_field = "pipeline_run"
 
     def signal_score_badge(self, obj):
         if obj.signal_score is None:
@@ -1478,14 +1487,20 @@ class ExtractionAdmin(admin.ModelAdmin):
         'extraction_definition',
         'exit_metric_badge',
         'validation_confidence_badge',
-        'category',
         'workspace',
         'pipeline_run_link',
         'component_run_link',
         'created_at'
     )
+    list_select_related = (
+        'paper',
+        'paper__pipeline_run',
+        'paper__pipeline_run__workspace',
+        'extraction_definition',
+        'workspace'
+    )
     ordering = ('-created_at', '-id')
-    list_filter = ('validation_status', 'category', 'workspace')
+    list_filter = ('validation_status', 'workspace')
     search_fields = ('paper__title', 'category', 'extraction_definition__name', 'paper__pipeline_run__id')
     readonly_fields = ('exit_metric_preview', 'extraction_system_prompt', 'extraction_user_prompt_template', 'created_at')
 
@@ -1567,20 +1582,27 @@ class ExtractionAdmin(admin.ModelAdmin):
         if not pr:
             return "-"
         url = reverse("admin:research_intelligence_pipelinerun_change", args=[pr.id])
-        return format_html('<a href="{}"><code>{}</code></a>', url, str(pr.id)[:8] + '...')
+        return format_html('<a href="{}" title="Pipeline Run: {}"><code>{}</code></a>', url, str(pr.id), str(pr.id)[:8] + '...')
     pipeline_run_link.short_description = "Pipeline Run"
     pipeline_run_link.admin_order_field = "paper__pipeline_run"
 
     def component_run_link(self, obj):
         cr = None
         if obj.paper and obj.paper.pipeline_run:
-            cr = obj.paper.pipeline_run.component_runs.filter(step_type='extraction').order_by('-started_at').first()
+            cr = obj.paper.pipeline_run.component_runs.filter(
+                Q(step_type='extraction') | Q(component_name__icontains='extract')
+            ).order_by('-started_at').first()
+            if not cr:
+                cr = obj.paper.pipeline_run.component_runs.order_by('-started_at').first()
         if not cr and obj.workspace:
-            cr = ComponentRun.objects.filter(pipeline_run__workspace=obj.workspace, step_type='extraction').order_by('-started_at').first()
+            cr = ComponentRun.objects.filter(
+                pipeline_run__workspace=obj.workspace,
+                step_type='extraction'
+            ).order_by('-started_at').first()
         if not cr:
             return "-"
         url = reverse("admin:research_intelligence_componentrun_change", args=[cr.id])
-        return format_html('<a href="{}"><code>{}</code></a>', url, str(cr.id)[:8] + '...')
+        return format_html('<a href="{}" title="Component Run: {}"><code>{}</code></a>', url, str(cr.id), str(cr.id)[:8] + '...')
     component_run_link.short_description = "Component Run"
 
     def exit_metric_badge(self, obj):

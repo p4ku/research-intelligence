@@ -38,7 +38,26 @@ class StorageBrowserTestCase(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Storage Browser:")
+        self.assertContains(response, "workspaces/")
+        self.assertContains(response, "cache/")
         self.assertContains(response, "test_dir")
+
+    def test_storage_browser_list_cache_dir(self):
+        # Create a document in cache
+        cached_file = default_storage.save("cache/documents/1234567890abcdef/original.pdf", ContentFile(b"%PDF-1.4 test"))
+        try:
+            url = f"{reverse('admin:storage-browser')}?path=cache"
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, "documents/")
+
+            url_docs = f"{reverse('admin:storage-browser')}?path=cache/documents"
+            response_docs = self.client.get(url_docs)
+            self.assertEqual(response_docs.status_code, 200)
+            self.assertContains(response_docs, "1234567890abcdef/")
+        finally:
+            if default_storage.exists(cached_file):
+                default_storage.delete(cached_file)
 
     def test_storage_browser_list_subdir(self):
         url = f"{reverse('admin:storage-browser')}?path=test_dir"
@@ -53,6 +72,31 @@ class StorageBrowserTestCase(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Hello World text file content")
+
+    def test_storage_browser_preview_pdf(self):
+        pdf_path = default_storage.save("test_dir/paper.pdf", ContentFile(b"%PDF-1.4 sample pdf binary"))
+        try:
+            url = f"{reverse('admin:storage-browser')}?path=test_dir&action=preview&file=test_dir/paper.pdf"
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertContains(response, 'title="PDF Preview"')
+            self.assertContains(response, "action=view_raw&file=test_dir/paper.pdf")
+            self.assertContains(response, "Open Full Screen")
+        finally:
+            if default_storage.exists(pdf_path):
+                default_storage.delete(pdf_path)
+
+    def test_storage_browser_view_raw_pdf(self):
+        pdf_path = default_storage.save("test_dir/sample.pdf", ContentFile(b"%PDF-1.4 sample pdf binary"))
+        try:
+            url = f"{reverse('admin:storage-browser')}?action=view_raw&file=test_dir/sample.pdf"
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response['Content-Type'], 'application/pdf')
+            self.assertIn('inline', response['Content-Disposition'])
+        finally:
+            if default_storage.exists(pdf_path):
+                default_storage.delete(pdf_path)
 
     def test_storage_browser_download_file(self):
         url = f"{reverse('admin:storage-browser')}?path=test_dir&action=download&file=test_dir/file1.txt"

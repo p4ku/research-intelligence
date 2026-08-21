@@ -219,3 +219,4 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
         # Recursive delete root protection
         self.assertEqual(_recursive_delete_dir(""), 0)
         self.assertEqual(_recursive_delete_dir("workspaces"), 0)
+        self.assertEqual(_recursive_delete_dir("cache"), 0)

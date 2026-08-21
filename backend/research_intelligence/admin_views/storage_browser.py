@@ -49,7 +49,7 @@ def _recursive_delete_dir(dir_path: str) -> int:
     """
     import shutil
     clean_dir = dir_path.strip('/')
-    if not clean_dir or clean_dir in ('', 'workspaces'):
+    if not clean_dir or clean_dir in ('', 'workspaces', 'cache'):
         return 0
 
     deleted_count = 0
@@ -122,7 +122,7 @@ def _recursive_delete_dir(dir_path: str) -> int:
 
 def _is_allowed_path(path: str) -> bool:
     """
-    Ensure the path is within the allowed storage area ('workspaces' or test folders).
+    Ensure the path is within the allowed storage area ('workspaces', 'cache', or test folders).
     Prevents browsing, reading, or deleting codebase and system files.
     """
     clean_path = path.strip('/')
@@ -132,8 +132,8 @@ def _is_allowed_path(path: str) -> bool:
     if '..' in parts:
         return False
     root_folder = parts[0]
-    # Allow 'workspaces' and test directories
-    if root_folder == 'workspaces' or root_folder.startswith('test_'):
+    # Allow 'workspaces', 'cache' and test directories
+    if root_folder in ('workspaces', 'cache') or root_folder.startswith('test_'):
         return True
     return False
 
@@ -145,11 +145,7 @@ def storage_browser_view(request):
     if not request.user.is_staff:
         raise Http404("Permission denied")
 
-    # Default to 'workspaces' folder if path parameter is not explicitly provided
-    if 'path' not in request.GET and default_storage.exists('workspaces'):
-        current_path = 'workspaces'
-    else:
-        current_path = request.GET.get('path', '').strip('/')
+    current_path = request.GET.get('path', '').strip('/')
 
     action = request.GET.get('action', '')
     target_file = request.GET.get('file', '').strip('/')
@@ -160,7 +156,7 @@ def storage_browser_view(request):
     # Security check: disallow browsing, previewing, downloading or deleting codebase/system files
     if not _is_allowed_path(current_path):
         messages.error(request, f"Access denied: Path '{escape(current_path)}' is outside storage root.")
-        return HttpResponseRedirect(f"{base_url}?path=workspaces")
+        return HttpResponseRedirect(f"{base_url}?path=")
 
     if target_file and not _is_allowed_path(target_file):
         messages.error(request, f"Access denied: File '{escape(target_file)}' is outside storage root.")
@@ -179,8 +175,8 @@ def storage_browser_view(request):
     else:
         storage_badge = f'<span style="background-color: #6e7681; color: #fff; padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">📦 Storage: {escape(storage_engine_name)}</span>'
 
-    # 1. Handle File Download
-    if action == 'download' and target_file:
+    # 1. Handle File Download or Inline Raw Stream (PDFs / Images)
+    if action in ('download', 'view_raw', 'raw', 'raw_pdf') and target_file:
         if not default_storage.exists(target_file):
             messages.error(request, f"File '{target_file}' does not exist.")
             return HttpResponseRedirect(f"{base_url}?path={current_path}")
@@ -188,11 +184,14 @@ def storage_browser_view(request):
             file_obj = default_storage.open(target_file, 'rb')
             filename = os.path.basename(target_file)
             mime_type, _ = mimetypes.guess_type(target_file)
+            if target_file.lower().endswith('.pdf'):
+                mime_type = 'application/pdf'
+            disposition = 'attachment' if action == 'download' else 'inline'
             response = FileResponse(file_obj, content_type=mime_type or 'application/octet-stream')
-            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
             return response
         except Exception as e:
-            messages.error(request, f"Failed to download file: {str(e)}")
+            messages.error(request, f"Failed to access file: {str(e)}")
             return HttpResponseRedirect(f"{base_url}?path={current_path}")
 
     # 2. Handle File Deletion
@@ -221,12 +220,14 @@ def storage_browser_view(request):
     files_list = []
     try:
         raw_dirs, raw_files = default_storage.listdir(current_path)
-        # When browsing root (/), strictly filter to allowed storage roots (workspaces and test folders)
+        # When browsing root (/), strictly filter to allowed storage roots (workspaces, cache, and test folders)
         # and hide root codebase files/directories.
         if not current_path:
-            filtered_dirs = [d for d in raw_dirs if d == 'workspaces' or d.startswith('test_')]
+            filtered_dirs = [d for d in raw_dirs if d in ('workspaces', 'cache') or d.startswith('test_')]
             if 'workspaces' not in filtered_dirs and (default_storage.exists('workspaces') or not filtered_dirs):
                 filtered_dirs.append('workspaces')
+            if 'cache' not in filtered_dirs and (default_storage.exists('cache') or default_storage.exists('cache/documents') or not filtered_dirs):
+                filtered_dirs.append('cache')
             filtered_files = []
         else:
             filtered_dirs = raw_dirs
@@ -243,18 +244,25 @@ def storage_browser_view(request):
 
             # Fallback for S3/MinIO virtual prefixes where directories have no direct metadata:
             # If folder name is a valid UUID, look up matching Workspace or PipelineRun timestamp
+            # If folder name is a 64-character hex hash, look up DocumentRegistry timestamp
             if d_mtime_str == "-":
                 try:
-                    import uuid
-                    if len(d) == 36 and uuid.UUID(d):
-                        from research_intelligence.models import Workspace, PipelineRun
-                        ws = Workspace.objects.filter(id=d).only('created_at').first()
-                        if ws and ws.created_at:
-                            d_mtime_str = ws.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                        else:
-                            pr = PipelineRun.objects.filter(id=d).only('created_at').first()
-                            if pr and pr.created_at:
-                                d_mtime_str = pr.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                    if len(d) == 36:
+                        import uuid
+                        if uuid.UUID(d):
+                            from research_intelligence.models import Workspace, PipelineRun
+                            ws = Workspace.objects.filter(id=d).only('created_at').first()
+                            if ws and ws.created_at:
+                                d_mtime_str = ws.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                            else:
+                                pr = PipelineRun.objects.filter(id=d).only('created_at').first()
+                                if pr and pr.created_at:
+                                    d_mtime_str = pr.created_at.strftime("%Y-%m-%d %H:%M:%S")
+                    elif len(d) == 64:
+                        from research_intelligence.models import DocumentRegistry
+                        doc = DocumentRegistry.objects.filter(sha256_hash=d).only('created_at').first()
+                        if doc and doc.created_at:
+                            d_mtime_str = doc.created_at.strftime("%Y-%m-%d %H:%M:%S")
                 except Exception:
                     pass
 
@@ -312,7 +320,16 @@ def storage_browser_view(request):
             ext = os.path.splitext(target_file)[1].lower()
             mime_type, _ = mimetypes.guess_type(target_file)
 
-            if ext in ('.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'):
+            extra_btn = ""
+            if ext in ('.pdf',):
+                raw_url = f"{base_url}?action=view_raw&file={escape(target_file)}"
+                extra_btn = f'<a href="{raw_url}" target="_blank" style="display: inline-block; background-color: #0d6efd; color: #ffffff !important; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; line-height: 1.2; white-space: nowrap; margin-right: 8px;">↗️ Open Full Screen</a>'
+                preview_body = f"""
+                <div style="background-color: #525659; padding: 0;">
+                    <iframe src="{raw_url}" style="width: 100%; height: 750px; border: none; display: block; background: #525659;" title="PDF Preview"></iframe>
+                </div>
+                """
+            elif ext in ('.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp'):
                 f_bytes = default_storage.open(target_file, 'rb').read()
                 b64_str = base64.b64encode(f_bytes).decode('utf-8')
                 mime = mime_type or 'image/png'
@@ -339,6 +356,7 @@ def storage_browser_view(request):
                         <strong>🔍 File Preview:</strong> <code style="color: #58a6ff;">{escape(target_file)}</code> ({_format_size(size)})
                     </div>
                     <div>
+                        {extra_btn}
                         <a href="{base_url}?path={escape(current_path)}&action=download&file={escape(target_file)}" style="display: inline-block; background-color: #238636; color: #ffffff !important; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; line-height: 1.2; white-space: nowrap; margin-right: 8px;">⬇️ Download</a>
                         <a href="{base_url}?path={escape(current_path)}" style="display: inline-block; background-color: #6e7681; color: #ffffff !important; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; line-height: 1.2; white-space: nowrap;">✖️ Close</a>
                     </div>
@@ -382,14 +400,21 @@ def storage_browser_view(request):
 
     # List files
     for f in files_list:
+        is_pdf = f['name'].lower().endswith('.pdf')
+        pdf_extra_action = ""
+        if is_pdf:
+            raw_url = f"{base_url}?action=view_raw&file={escape(f['rel_path'])}"
+            pdf_extra_action = f'<a href="{raw_url}" target="_blank" style="color: #6f42c1; font-size: 12px; text-decoration: none; padding: 3px 8px; border: 1px solid #6f42c1; border-radius: 4px; margin-right: 4px;">↗️ New Tab</a>'
+
         rows_html.append(f"""
         <tr style="border-bottom: 1px solid #eee;">
             <td style="padding: 10px 12px;">
-                {f['icon']} <a href="{base_url}?path={escape(current_path)}&action=preview&file={escape(f['rel_path'])}" style="font-size: 14px; text-decoration: none; color: #212529;">{escape(f['name'])}</a>
+                {f['icon']} <a href="{base_url}?path={escape(current_path)}&action=preview&file={escape(f['rel_path'])}" style="font-size: 14px; text-decoration: none; color: #212529; font-weight: {'600' if is_pdf else 'normal'};">{escape(f['name'])}</a>
             </td>
             <td style="padding: 10px 12px; color: #495057; font-size: 13px;">{f['size_formatted']}</td>
             <td style="padding: 10px 12px; color: #6c757d; font-size: 13px;">{f['mtime_str']}</td>
             <td style="padding: 10px 12px; text-align: right; white-space: nowrap;">
+                {pdf_extra_action}
                 <a href="{base_url}?path={escape(current_path)}&action=preview&file={escape(f['rel_path'])}" 
                    style="color: #0d6efd; font-size: 12px; text-decoration: none; padding: 3px 8px; border: 1px solid #0d6efd; border-radius: 4px; margin-right: 4px;">👁️ Preview</a>
                 <a href="{base_url}?path={escape(current_path)}&action=download&file={escape(f['rel_path'])}" 

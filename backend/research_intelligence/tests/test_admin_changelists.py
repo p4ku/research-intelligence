@@ -237,12 +237,22 @@ class AdminChangelistViewsTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Quantum Circuit Synthesis")
         self.assertContains(response, "⚡ 71.20")
+        pr_change_url = reverse('admin:research_intelligence_pipelinerun_change', args=[self.pipeline_run.id])
+        self.assertContains(response, pr_change_url)
 
     def test_extraction_changelist_renders(self):
         url = reverse('admin:research_intelligence_extraction_changelist')
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Qubit Count Extraction")
+        # Pipeline Run link
+        pr_change_url = reverse('admin:research_intelligence_pipelinerun_change', args=[self.pipeline_run.id])
+        self.assertContains(response, pr_change_url)
+        # Component Run link
+        cr_change_url = reverse('admin:research_intelligence_componentrun_change', args=[self.comp_run_extraction.id])
+        self.assertContains(response, cr_change_url)
+        # Verify Category is not in the column headers
+        self.assertNotContains(response, '<div class="text"><span>Category</span></div>')
 
     def test_useractivitylog_changelist_renders(self):
         url = reverse('admin:research_intelligence_useractivitylog_changelist')
