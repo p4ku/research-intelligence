@@ -119,11 +119,14 @@ def with_db_connection(func):
             if isinstance(result, str):
                 try:
                     res_obj = json.loads(result)
-                    if isinstance(res_obj, dict) and res_obj.get("status") == "error":
-                        status = "failed"
-                        error_msg = res_obj.get("error")
+                    if isinstance(res_obj, dict):
+                        if res_obj.get("status") == "error" or (not res_obj.get("success", True) and "error" in res_obj):
+                            status = "failed"
+                            error_msg = res_obj.get("error")
                 except Exception:
-                    pass
+                    if result.strip().startswith("Error:"):
+                        status = "failed"
+                        error_msg = result.strip()
             return result
         except Exception as e:
             status = "failed"
@@ -281,23 +284,25 @@ def get_auth_context():
     """Retrieve authenticated user, workspace, and api_key from the active HTTP request."""
     try:
         request = get_http_request()
-        if request and hasattr(request.state, "user"):
-            return request.state.user, getattr(request.state, "workspace", None), getattr(request.state, "api_key", None)
-    except Exception:
-        pass
+        if request:
+            # 1. Check direct dictionary in request.scope['state']
+            if hasattr(request, 'scope') and isinstance(request.scope.get('state'), dict):
+                req_user = request.scope['state'].get('user')
+                if req_user:
+                    return req_user, request.scope['state'].get('workspace'), request.scope['state'].get('api_key')
 
-    # Fallback to default superuser for dev/single-user mode
-    try:
-        from django.contrib.auth import get_user_model
-        User = get_user_model()
-        admin_user = User.objects.filter(is_superuser=True).first()
-        if not admin_user:
-            admin_user = User.objects.create_superuser("admin", "admin@example.com", "schwarz123!")
-        return admin_user, None, None
-    except Exception:
-        pass
+            # 2. Check Starlette request.state
+            if hasattr(request, 'state'):
+                try:
+                    req_user = getattr(request.state, 'user', None)
+                    if req_user:
+                        return req_user, getattr(request.state, 'workspace', None), getattr(request.state, 'api_key', None)
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.debug(f"Could not retrieve HTTP request context: {e}")
 
-    raise PermissionError("Authentication required. Please connect with API credentials via query params or headers.")
+    raise PermissionError("Authentication required. Please connect with valid API Key credentials via headers or query parameters.")
 
 
 def check_scope(api_key_instance, required_scope: str):
@@ -1340,13 +1345,10 @@ class QueryParamAuthMiddleware:
         # 1. Check if auth is cached for this SSE session_id
         if session_id and session_id in SESSION_AUTH_CACHE and not (key_id and secret):
             user, workspace, api_key = SESSION_AUTH_CACHE[session_id]
-            class ScopeState:
-                pass
-            state = ScopeState()
-            state.user = user
-            state.workspace = workspace
-            state.api_key = api_key
-            scope["state"] = state
+            scope.setdefault("state", {})
+            scope["state"]["user"] = user
+            scope["state"]["workspace"] = workspace
+            scope["state"]["api_key"] = api_key
             return await self.app(scope, receive, send)
 
         async def send_error(status_code: int, error_message: str):
@@ -1366,8 +1368,10 @@ class QueryParamAuthMiddleware:
 
         try:
             @sync_to_async
-            def verify_or_fallback():
-                close_old_connections()
+            def verify_credentials():
+                from django.db import connection
+                if connection.vendor != 'sqlite':
+                    close_old_connections()
                 if key_id and secret:
                     try:
                         key_obj = APIKey.objects.select_related('user', 'workspace').get(key_id=key_id, is_active=True)
@@ -1376,39 +1380,23 @@ class QueryParamAuthMiddleware:
                             return key_obj.user, key_obj.workspace, key_obj
                     except APIKey.DoesNotExist:
                         pass
-                
-                # Auto-provision default admin user & key
-                from django.contrib.auth import get_user_model
-                User = get_user_model()
-                admin_user = User.objects.filter(is_superuser=True).first()
-                if not admin_user:
-                    admin_user = User.objects.create_superuser("admin", "admin@example.com", "schwarz123!")
-                
-                key_obj = APIKey.objects.filter(key_id="admin_mcp_key").first()
-                if not key_obj:
-                    key_obj = APIKey.objects.create(
-                        name="Default Admin Key",
-                        user=admin_user,
-                        key_id="admin_mcp_key",
-                        scopes=["*"]
-                    )
-                    key_obj.set_secret("schwarz123!")
-                    key_obj.save()
-                return admin_user, None, key_obj
+                return None, None, None
 
-            user_obj, ws_obj, api_key_obj = await verify_or_fallback()
+            user_obj, ws_obj, api_key_obj = await verify_credentials()
+
+            if not user_obj:
+                return await send_error(
+                    401,
+                    "Authentication required. Please provide valid api_key_id and api_secret credentials via headers (x-api-key-id / x-api-secret) or query parameters."
+                )
 
             if session_id:
                 SESSION_AUTH_CACHE[session_id] = (user_obj, ws_obj, api_key_obj)
 
-            class ScopeState:
-                pass
-
-            state = ScopeState()
-            state.user = user_obj
-            state.workspace = ws_obj
-            state.api_key = api_key_obj
-            scope["state"] = state
+            scope.setdefault("state", {})
+            scope["state"]["user"] = user_obj
+            scope["state"]["workspace"] = ws_obj
+            scope["state"]["api_key"] = api_key_obj
 
         except Exception as e:
             return await send_error(500, f"Authentication internal error: {str(e)}")

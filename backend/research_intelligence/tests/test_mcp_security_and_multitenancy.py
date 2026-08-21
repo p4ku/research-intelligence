@@ -1,5 +1,5 @@
 import json
-from django.test import TestCase
+from django.test import TransactionTestCase
 from django.contrib.auth import get_user_model
 
 from research_intelligence.models import Workspace, WorkspaceMember, APIKey
@@ -18,7 +18,7 @@ from research_intelligence.mcp.tools.agent_processes import start_research_agent
 User = get_user_model()
 
 
-class MCPSecurityAndMultiTenancyTestCase(TestCase):
+class MCPSecurityAndMultiTenancyTestCase(TransactionTestCase):
     """
     Validates tenant isolation, role-based access control (RBAC), and FastMCP API Key scope enforcement:
     1. Tenant isolation: Users cannot access, inspect, or launch pipelines on workspaces they do not own/belong to.
@@ -134,3 +134,139 @@ class MCPSecurityAndMultiTenancyTestCase(TestCase):
         check_scope(full_access_key, "workspaces:write")
         check_scope(full_access_key, "prompts:write")
         check_scope(full_access_key, "runs:write")
+
+    def test_mcp_auth_context_user_resolution_and_activity_logging(self):
+        """
+        Validates that when a request arrives with an API Key:
+        1. get_auth_context() resolves the specific user associated with that key (NOT admin).
+        2. Tool execution enforces workspace permissions for that specific user.
+        3. UserActivityLog records the action under that specific user and key_id.
+        """
+        from unittest.mock import patch, MagicMock
+        from research_intelligence.models import UserActivityLog
+        from research_intelligence.mcp.server import get_auth_context, list_workspaces, get_workspace
+
+        key_alice = APIKey(name="Alice Key", user=self.alice, scopes=["*"])
+        key_alice.generate_key()
+        key_alice.save()
+
+        key_bob = APIKey(name="Bob Key", user=self.bob, scopes=["*"])
+        key_bob.generate_key()
+        key_bob.save()
+
+        # 1. Simulate HTTP request authenticated as Bob
+        mock_req_bob = MagicMock()
+        mock_req_bob.scope = {
+            "type": "http",
+            "state": {
+                "user": self.bob,
+                "workspace": self.workspace_b,
+                "api_key": key_bob
+            }
+        }
+        mock_req_bob.state = MagicMock()
+        mock_req_bob.state.user = self.bob
+        mock_req_bob.state.workspace = self.workspace_b
+        mock_req_bob.state.api_key = key_bob
+        mock_req_bob.headers = {}
+        mock_req_bob.client = MagicMock(host="192.168.1.100")
+
+        with patch("research_intelligence.mcp.server.get_http_request", return_value=mock_req_bob):
+            user, ws, key = get_auth_context()
+            self.assertEqual(user, self.bob)
+            self.assertEqual(key, key_bob)
+
+            # Bob lists workspaces -> Only Bob's workspace returned
+            ws_list_str = list_workspaces()
+            ws_list = json.loads(ws_list_str)
+            self.assertEqual(len(ws_list), 1)
+            self.assertEqual(ws_list[0]["workspace_id"], str(self.workspace_b.id))
+
+            # Bob tries to get Alice's workspace -> Denied
+            denied_str = get_workspace(workspace_id=str(self.workspace_a.id))
+            self.assertIn("Error: Access denied", denied_str)
+
+            # Check UserActivityLog entries recorded for Bob
+            bob_logs = UserActivityLog.objects.filter(user=self.bob).order_by("-timestamp")
+            self.assertGreaterEqual(bob_logs.count(), 2)
+
+            get_ws_log = bob_logs.filter(action_name="get_workspace").first()
+            self.assertIsNotNone(get_ws_log)
+            self.assertEqual(get_ws_log.user_username, "bob")
+            self.assertEqual(get_ws_log.status, "failed")
+            self.assertEqual(get_ws_log.api_key_id, key_bob.key_id)
+
+    def test_asgi_auth_middleware_valid_and_invalid_keys(self):
+        """
+        Tests QueryParamAuthMiddleware ASGI request processing:
+        - Valid key_id/secret sets user in scope dictionary.
+        - Invalid secret returns HTTP 401 Unauthorized.
+        - Cached session_id recovers user credentials.
+        """
+        import asyncio
+        from unittest.mock import MagicMock
+        from research_intelligence.mcp.server import QueryParamAuthMiddleware, SESSION_AUTH_CACHE
+
+        key_alice = APIKey(name="Alice ASGI Key", user=self.alice, scopes=["*"])
+        raw_secret = key_alice.generate_key()
+        key_alice.save()
+
+        app_mock = MagicMock()
+        async def dummy_app(scope, receive, send):
+            return "app_called"
+        app_mock.side_effect = dummy_app
+
+        middleware = QueryParamAuthMiddleware(app_mock)
+
+        # 1. Valid API Key via query parameters
+        scope_valid = {
+            "type": "http",
+            "path": "/sse",
+            "headers": [],
+            "query_string": f"api_key_id={key_alice.key_id}&api_secret={raw_secret}&session_id=sess_123".encode()
+        }
+        sent_messages = []
+        async def mock_send(msg):
+            sent_messages.append(msg)
+
+        asyncio.run(middleware(scope_valid, None, mock_send))
+        self.assertIn("state", scope_valid)
+        self.assertEqual(scope_valid["state"]["user"], self.alice)
+        self.assertEqual(scope_valid["state"]["api_key"].key_id, key_alice.key_id)
+        self.assertIn("sess_123", SESSION_AUTH_CACHE)
+
+        # 2. Subsequent request with cached session_id
+        scope_session = {
+            "type": "http",
+            "path": "/messages",
+            "headers": [],
+            "query_string": b"session_id=sess_123"
+        }
+        asyncio.run(middleware(scope_session, None, mock_send))
+        self.assertEqual(scope_session["state"]["user"], self.alice)
+
+        # 3. Invalid API secret -> 401 Unauthorized
+        sent_messages.clear()
+        scope_invalid = {
+            "type": "http",
+            "path": "/sse",
+            "headers": [],
+            "query_string": f"api_key_id={key_alice.key_id}&api_secret=WRONG_SECRET".encode()
+        }
+        asyncio.run(middleware(scope_invalid, None, mock_send))
+        self.assertEqual(sent_messages[0]["type"], "http.response.start")
+        self.assertEqual(sent_messages[0]["status"], 401)
+
+        # 4. Completely unauthenticated request (no credentials) -> 401 Unauthorized (NEVER fallback to admin)
+        sent_messages.clear()
+        scope_unauthenticated = {
+            "type": "http",
+            "path": "/sse",
+            "headers": [],
+            "query_string": b""
+        }
+        asyncio.run(middleware(scope_unauthenticated, None, mock_send))
+        self.assertEqual(sent_messages[0]["type"], "http.response.start")
+        self.assertEqual(sent_messages[0]["status"], 401)
+        self.assertNotIn("state", scope_unauthenticated)
+
