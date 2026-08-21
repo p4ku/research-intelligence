@@ -868,7 +868,6 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
     list_display = (
         'name',
         'workspace',
-        'triggered_by_display',
         'status_badge',
         'stopped_stage_badge',
         'stop_reason_display',
@@ -877,7 +876,8 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         'usd_cost',
         'pipeline_run_link',
         'started_at',
-        'completed_at'
+        'completed_at',
+        'triggered_by_display'
     )
     ordering = ('-started_at', '-id')
     list_filter = ('status', 'current_step', 'stopped_at_step', 'workspace', 'triggered_by')
@@ -1477,16 +1477,16 @@ class ExtractionAdmin(admin.ModelAdmin):
         'paper',
         'extraction_definition',
         'exit_metric_badge',
+        'validation_confidence_badge',
         'category',
         'workspace',
-        'validation_status',
-        'confidence_score',
-        'review_required',
+        'pipeline_run_link',
+        'component_run_link',
         'created_at'
     )
     ordering = ('-created_at', '-id')
-    list_filter = ('validation_status', 'review_required', 'category', 'workspace')
-    search_fields = ('paper__title', 'category', 'extraction_definition__name')
+    list_filter = ('validation_status', 'category', 'workspace')
+    search_fields = ('paper__title', 'category', 'extraction_definition__name', 'paper__pipeline_run__id')
     readonly_fields = ('exit_metric_preview', 'extraction_system_prompt', 'extraction_user_prompt_template', 'created_at')
 
     fieldsets = (
@@ -1517,6 +1517,71 @@ class ExtractionAdmin(admin.ModelAdmin):
     )
 
     actions = ['rerun_selected_extractions']
+
+    def validation_confidence_badge(self, obj):
+        status = (obj.validation_status or "pending").lower()
+        score = obj.confidence_score
+        
+        if score is not None:
+            score_formatted = f"{score:.2f}".rstrip('0').rstrip('.') if '.' in f"{score:.2f}" else f"{score}"
+            score_str = f" ({score_formatted})"
+        else:
+            score_str = ""
+
+        if status == 'pass':
+            bg = "#198754"
+            text_color = "#ffffff"
+            label = f"PASS{score_str}"
+        elif status == 'warn':
+            bg = "#ffc107"
+            text_color = "#000000"
+            label = f"WARN{score_str}"
+        elif status in ('fail', 'failed'):
+            bg = "#dc3545"
+            text_color = "#ffffff"
+            label = f"FAIL{score_str}"
+        elif status == 'pending':
+            bg = "#6c757d"
+            text_color = "#ffffff"
+            label = f"PENDING{score_str}"
+        else:
+            bg = "#dc3545"
+            text_color = "#ffffff"
+            label = f"{status.upper()}{score_str}"
+
+        return format_html(
+            '<span style="background-color: {}; color: {}; padding: 4px 10px; border-radius: 12px; '
+            'font-size: 11px; font-weight: 600; display: inline-block; white-space: nowrap; '
+            'box-shadow: 0 1px 2px rgba(0,0,0,0.1); text-transform: uppercase;">{}</span>',
+            bg, text_color, label
+        )
+    validation_confidence_badge.short_description = "Validation & Confidence"
+    validation_confidence_badge.admin_order_field = "confidence_score"
+
+    def pipeline_run_link(self, obj):
+        pr = None
+        if obj.paper and obj.paper.pipeline_run:
+            pr = obj.paper.pipeline_run
+        if not pr and obj.workspace:
+            pr = PipelineRun.objects.filter(workspace=obj.workspace).order_by('-started_at').first()
+        if not pr:
+            return "-"
+        url = reverse("admin:research_intelligence_pipelinerun_change", args=[pr.id])
+        return format_html('<a href="{}"><code>{}</code></a>', url, str(pr.id)[:8] + '...')
+    pipeline_run_link.short_description = "Pipeline Run"
+    pipeline_run_link.admin_order_field = "paper__pipeline_run"
+
+    def component_run_link(self, obj):
+        cr = None
+        if obj.paper and obj.paper.pipeline_run:
+            cr = obj.paper.pipeline_run.component_runs.filter(step_type='extraction').order_by('-started_at').first()
+        if not cr and obj.workspace:
+            cr = ComponentRun.objects.filter(pipeline_run__workspace=obj.workspace, step_type='extraction').order_by('-started_at').first()
+        if not cr:
+            return "-"
+        url = reverse("admin:research_intelligence_componentrun_change", args=[cr.id])
+        return format_html('<a href="{}"><code>{}</code></a>', url, str(cr.id)[:8] + '...')
+    component_run_link.short_description = "Component Run"
 
     def exit_metric_badge(self, obj):
         metric_str = obj.get_exit_metric()

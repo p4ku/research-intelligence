@@ -377,3 +377,69 @@ class StageResultsAndStopReasonTestCase(TestCase):
         display = comp_admin.triggered_by_display(cr)
         self.assertIn("analyst_test", str(display))
         self.assertIn("analyst@example.com", str(display))
+
+    def test_extraction_admin_validation_confidence_badge_and_links(self):
+        """
+        Verifies ExtractionAdmin combines validation status & confidence score into pills
+        and generates links to pipeline run and component run.
+        """
+        from research_intelligence.admin import ExtractionAdmin
+        from research_intelligence.models import Extraction, ExtractionDefinition
+        
+        ext_admin = ExtractionAdmin(Extraction, self.site)
+
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            triggered_by=self.user,
+            status="running"
+        )
+        cr = ComponentRun.objects.create(
+            pipeline_run=pr,
+            step_type="extraction",
+            component_name="gemini_extractor",
+            status="completed"
+        )
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=pr,
+            title="Quantum Matrix Synthesis",
+            screening_status="accepted"
+        )
+        ext_def = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Methodology",
+            response_schema={"type": "object"}
+        )
+
+        ext_pass = Extraction.objects.create(
+            workspace=self.workspace,
+            paper=paper,
+            extraction_definition=ext_def,
+            category="ml_method",
+            fields_data={"value": "Quantum Net"},
+            validation_status="pass",
+            confidence_score=0.9
+        )
+        badge_pass = ext_admin.validation_confidence_badge(ext_pass)
+        self.assertIn("PASS (0.9)", str(badge_pass))
+        self.assertIn("#198754", str(badge_pass))
+
+        ext_fail = Extraction.objects.create(
+            workspace=self.workspace,
+            paper=paper,
+            extraction_definition=ext_def,
+            category="ml_method",
+            fields_data={"value": "Inconclusive"},
+            validation_status="fail",
+            confidence_score=0.45
+        )
+        badge_fail = ext_admin.validation_confidence_badge(ext_fail)
+        self.assertIn("FAIL (0.45)", str(badge_fail))
+        self.assertIn("#dc3545", str(badge_fail))
+
+        # Links verification
+        pr_link = ext_admin.pipeline_run_link(ext_pass)
+        self.assertIn(str(pr.id)[:8], str(pr_link))
+
+        cr_link = ext_admin.component_run_link(ext_pass)
+        self.assertIn(str(cr.id)[:8], str(cr_link))
