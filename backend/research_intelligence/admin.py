@@ -1697,9 +1697,13 @@ class PaperMetricAdmin(admin.ModelAdmin):
     def signal_score_badge(self, obj):
         if obj.signal_score is None:
             return mark_safe('<span style="color: #6c757d;">-</span>')
+        try:
+            score_str = f"{float(obj.signal_score):.2f}"
+        except Exception:
+            score_str = str(obj.signal_score)
         return format_html(
-            '<span style="background-color: #0d6efd; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px;">{:.2f}</span>',
-            obj.signal_score
+            '<span style="background-color: #0d6efd; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px;">⚡ {}</span>',
+            score_str
         )
     signal_score_badge.short_description = "Signal Score"
     signal_score_badge.admin_order_field = "signal_score"

@@ -11,13 +11,15 @@ from research_intelligence.models import (
     Paper,
     Extraction,
     PipelineRun,
-    ResearchAgentProcess
+    ResearchAgentProcess,
+    PaperMetric
 )
 from research_intelligence.admin import (
     WorkspaceAdmin,
     APIKeyAdmin,
     ExtractionAdmin,
-    ResearchAgentProcessAdmin
+    ResearchAgentProcessAdmin,
+    PaperMetricAdmin
 )
 from research_intelligence.admin_views.storage_browser import (
     _get_file_icon,
@@ -220,3 +222,47 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
         self.assertEqual(_recursive_delete_dir(""), 0)
         self.assertEqual(_recursive_delete_dir("workspaces"), 0)
         self.assertEqual(_recursive_delete_dir("cache"), 0)
+
+    def test_papermetric_admin_badge_and_changelist_rendering(self):
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="pm_paper_001",
+            title="Quantum Photonic Systems"
+        )
+        metric = PaperMetric.objects.create(
+            workspace=self.workspace,
+            paper=paper,
+            pipeline_run=self.pipeline_run,
+            signal_score=87.456,
+            metrics_data={"fit_score": 92.5, "novelty": 88.0, "trl_level": 6.0}
+        )
+        metric_none = PaperMetric.objects.create(
+            workspace=self.workspace,
+            paper=Paper.objects.create(workspace=self.workspace, pipeline_run=self.pipeline_run, hash_id="pm_paper_002", title="Unscreened Paper"),
+            pipeline_run=self.pipeline_run,
+            signal_score=None,
+            metrics_data={}
+        )
+
+        admin_obj = PaperMetricAdmin(PaperMetric, self.site)
+
+        # 1. Badge rendering
+        score_badge = str(admin_obj.signal_score_badge(metric))
+        self.assertIn("87.46", score_badge)
+        self.assertIn("⚡", score_badge)
+
+        score_none_badge = str(admin_obj.signal_score_badge(metric_none))
+        self.assertIn("-", score_none_badge)
+
+        # 2. Metrics preview rendering
+        preview = str(admin_obj.metrics_preview(metric))
+        self.assertIn("fit_score", preview)
+        self.assertIn("92.5", preview)
+
+        preview_empty = str(admin_obj.metrics_preview(metric_none))
+        self.assertIn("-", preview_empty)
+
+        # 3. Pipeline run link
+        pr_link = str(admin_obj.pipeline_run_link(metric))
+        self.assertIn(str(self.pipeline_run.id)[:8], pr_link)
