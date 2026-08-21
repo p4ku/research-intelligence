@@ -685,7 +685,6 @@ class PipelineRunAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'workspace',
-        'triggered_by_display',
         'run_date',
         'status_badge',
         'current_stage_badge',
@@ -696,7 +695,8 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'total_papers_fetched',
         'total_papers_passed_screening',
         'started_at',
-        'completed_at'
+        'completed_at',
+        'triggered_by_display'
     )
     list_editable = ('reprocess_existing',)
     ordering = ('-started_at', '-id')
@@ -1262,7 +1262,6 @@ class ComponentRunAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'pipeline_run_link',
-        'triggered_by_display',
         'step_type_badge',
         'component_name',
         'status_badge',
@@ -1271,7 +1270,8 @@ class ComponentRunAdmin(admin.ModelAdmin):
         'metrics_summary',
         'celery_task_id',
         'started_at',
-        'completed_at'
+        'completed_at',
+        'triggered_by_display'
     )
     ordering = ('-started_at', '-id')
     list_filter = (RecentPipelineRunFilter, ComponentRunWorkspaceFilter, 'pipeline_run__triggered_by', 'step_type', 'status', 'started_at')
