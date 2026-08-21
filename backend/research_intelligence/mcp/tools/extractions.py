@@ -153,11 +153,32 @@ def get_paper_extractions_matrix_logic(
         })
 
     scored_vals = [p["signal_score"] for p in results if p.get("signal_score") is not None]
+    avg_score = round(sum(scored_vals) / len(scored_vals), 2) if scored_vals else None
+    top_score = round(max(scored_vals), 2) if scored_vals else None
+
+    # Build ready-to-use markdown summary for LLM clients so they don't need external parsing scripts
+    md_lines = [
+        f"### Paper Extractions Matrix ({len(results)} papers, Avg Score: {avg_score or 'N/A'}, Top Score: {top_score or 'N/A'})\n"
+    ]
+    for p in results[:30]:
+        score_str = f"Score: {p['signal_score']}" if p.get('signal_score') is not None else "Unscored"
+        metrics_str = ", ".join(f"{k}: {v}" for k, v in p.get("metrics_summary", {}).items())
+        md_lines.append(f"{p['index']}. **{p['title']}** [{score_str}]")
+        if p.get('authors'):
+            md_lines.append(f"   *Authors:* {p['authors']}")
+        if p.get('pdf_url'):
+            md_lines.append(f"   *PDF:* {p['pdf_url']}")
+        if metrics_str:
+            md_lines.append(f"   *Extracted Metrics:* {metrics_str}")
+        md_lines.append("")
+    markdown_summary = "\n".join(md_lines)
+
     payload = {
         "total_papers": len(results),
         "screening_status_filter": screening_status,
-        "avg_signal_score": round(sum(scored_vals) / len(scored_vals), 2) if scored_vals else None,
-        "top_signal_score": round(max(scored_vals), 2) if scored_vals else None,
+        "avg_signal_score": avg_score,
+        "top_signal_score": top_score,
+        "markdown_summary": markdown_summary,
         "papers": results
     }
     return json.dumps(payload, indent=2)
