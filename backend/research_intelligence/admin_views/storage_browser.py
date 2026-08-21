@@ -1,12 +1,15 @@
 import base64
 import json
-import uuid
 import logging
 import mimetypes
 import os
+import re
+import uuid
 from pathlib import Path
+from urllib.parse import quote
 from django.contrib import messages
 from django.core.files.storage import default_storage
+from django.db import models
 from django.http import HttpResponse, FileResponse, HttpResponseRedirect, Http404
 from django.urls import reverse
 from django.utils.html import format_html, escape
@@ -14,6 +17,75 @@ from django.utils.safestring import mark_safe
 from django.views.decorators.clickjacking import xframe_options_sameorigin
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_filename(name: str, max_length: int = 120) -> str:
+    """Sanitizes a string to be used safely as a downloaded filename across operating systems."""
+    clean = re.sub(r'[\\/*?:"<>|]', '', name)
+    clean = re.sub(r'\s+', '_', clean.strip())
+    clean = re.sub(r'[^a-zA-Z0-9_\-\.]', '', clean)
+    clean = clean.strip('._-')
+    if len(clean) > max_length:
+        clean = clean[:max_length].rstrip('._-')
+    return clean or "document"
+
+
+def _resolve_friendly_filename(target_file: str) -> str:
+    """
+    Resolves a human-friendly paper/document title filename instead of generic 'original.pdf'
+    by looking up matching DocumentRegistry or Paper entries.
+    """
+    default_name = os.path.basename(target_file)
+    ext = os.path.splitext(target_file)[1].lower()
+    base_stem = os.path.splitext(default_name)[0]
+
+    # Only rename generic file names like original.pdf, paper.pdf, doc.pdf or ocr_*.md
+    if base_stem.lower() not in ('original', 'paper', 'doc', 'document') and not base_stem.startswith('ocr_'):
+        return default_name
+
+    try:
+        from research_intelligence.models import DocumentRegistry, Paper
+
+        # 1. Direct path lookup
+        doc = DocumentRegistry.objects.filter(
+            models.Q(canonical_pdf_path=target_file) | models.Q(canonical_ocr_md_path=target_file)
+        ).first()
+
+        paper = None
+        if not doc:
+            paper = Paper.objects.filter(
+                models.Q(original_pdf_path=target_file) | models.Q(converted_md_path=target_file)
+            ).first()
+
+        # 2. Hash segment lookup (e.g. cache/documents/{sha256_hash}/original.pdf)
+        if not doc and not paper:
+            for part in target_file.split('/'):
+                if len(part) == 64 and all(c in '0123456789abcdefABCDEF' for c in part):
+                    doc = DocumentRegistry.objects.filter(sha256_hash=part).first()
+                    if not doc:
+                        paper = Paper.objects.filter(hash_id=part).first()
+                    if doc or paper:
+                        break
+
+        title = None
+        prefix = ""
+        if doc:
+            title = doc.title
+            if doc.arxiv_id:
+                prefix = f"{_sanitize_filename(doc.arxiv_id)}_"
+        elif paper:
+            title = paper.title
+            if paper.arxiv_id:
+                prefix = f"{_sanitize_filename(paper.arxiv_id)}_"
+
+        if title:
+            safe_title = _sanitize_filename(title)
+            suffix = f"_{base_stem}" if base_stem.startswith('ocr_') else ""
+            return f"{prefix}{safe_title}{suffix}{ext}"
+    except Exception as e:
+        logger.warning(f"Failed to resolve friendly filename for '{target_file}': {e}")
+
+    return default_name
 
 
 def _get_file_icon(filename: str) -> str:
@@ -184,13 +256,13 @@ def storage_browser_view(request):
             return HttpResponseRedirect(f"{base_url}?path={current_path}")
         try:
             file_obj = default_storage.open(target_file, 'rb')
-            filename = os.path.basename(target_file)
+            filename = _resolve_friendly_filename(target_file)
             mime_type, _ = mimetypes.guess_type(target_file)
             if target_file.lower().endswith('.pdf'):
                 mime_type = 'application/pdf'
             disposition = 'attachment' if action == 'download' else 'inline'
             response = FileResponse(file_obj, content_type=mime_type or 'application/octet-stream')
-            response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+            response['Content-Disposition'] = f'{disposition}; filename="{filename}"; filename*=UTF-8\'\'{quote(filename)}'
             response['X-Frame-Options'] = 'SAMEORIGIN'
             return response
         except Exception as e:
@@ -322,6 +394,8 @@ def storage_browser_view(request):
             size = default_storage.size(target_file)
             ext = os.path.splitext(target_file)[1].lower()
             mime_type, _ = mimetypes.guess_type(target_file)
+            friendly_name = _resolve_friendly_filename(target_file)
+            friendly_display = f'<span style="color: #7ee787; margin-left: 8px; font-weight: normal;">(📥 {escape(friendly_name)})</span>' if friendly_name != os.path.basename(target_file) else ""
 
             extra_btn = ""
             if ext in ('.pdf',):
@@ -356,11 +430,11 @@ def storage_browser_view(request):
             <div style="margin: 20px 0; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; background-color: #161b22; box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
                 <div style="padding: 10px 16px; background-color: #21262d; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; color: #f0f6fc;">
                     <div>
-                        <strong>🔍 File Preview:</strong> <code style="color: #58a6ff;">{escape(target_file)}</code> ({_format_size(size)})
+                        <strong>🔍 File Preview:</strong> <code style="color: #58a6ff;">{escape(target_file)}</code> ({_format_size(size)}){friendly_display}
                     </div>
                     <div>
                         {extra_btn}
-                        <a href="{base_url}?path={escape(current_path)}&action=download&file={escape(target_file)}" style="display: inline-block; background-color: #238636; color: #ffffff !important; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; line-height: 1.2; white-space: nowrap; margin-right: 8px;">⬇️ Download</a>
+                        <a href="{base_url}?path={escape(current_path)}&action=download&file={escape(target_file)}" title="Download as {escape(friendly_name)}" style="display: inline-block; background-color: #238636; color: #ffffff !important; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; line-height: 1.2; white-space: nowrap; margin-right: 8px;">⬇️ Download</a>
                         <a href="{base_url}?path={escape(current_path)}" style="display: inline-block; background-color: #6e7681; color: #ffffff !important; text-decoration: none; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; line-height: 1.2; white-space: nowrap;">✖️ Close</a>
                     </div>
                 </div>

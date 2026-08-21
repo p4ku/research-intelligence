@@ -107,6 +107,28 @@ class StorageBrowserTestCase(TestCase):
         self.assertEqual(response['Content-Type'], 'text/plain')
         self.assertIn('attachment', response['Content-Disposition'])
 
+    def test_storage_browser_download_friendly_paper_name(self):
+        from research_intelligence.models import DocumentRegistry
+        sha = "0195bb61fa7ebd6e921692ea2ff2e92dd70ebfd3cbffa33992d6b27fd178f9bf"
+        doc = DocumentRegistry.objects.create(
+            sha256_hash=sha,
+            title="Attention Is All You Need",
+            arxiv_id="1706.03762",
+            canonical_pdf_path=f"cache/documents/{sha}/original.pdf"
+        )
+        pdf_path = default_storage.save(f"cache/documents/{sha}/original.pdf", ContentFile(b"%PDF-1.4 sample"))
+        try:
+            url = f"{reverse('admin:storage-browser')}?path=cache/documents/{sha}&action=download&file=cache/documents/{sha}/original.pdf"
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response['Content-Type'], 'application/pdf')
+            # Should have the original paper title instead of generic original.pdf
+            self.assertIn('1706.03762_Attention_Is_All_You_Need.pdf', response['Content-Disposition'])
+        finally:
+            if default_storage.exists(pdf_path):
+                default_storage.delete(pdf_path)
+            doc.delete()
+
     def test_storage_browser_delete_file(self):
         self.assertTrue(default_storage.exists(self.file_1))
         url = f"{reverse('admin:storage-browser')}?path=test_dir&action=delete_file&file=test_dir/file1.txt"
