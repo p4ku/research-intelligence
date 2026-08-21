@@ -806,6 +806,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
                 agent = ResearchAgentProcess.objects.create(
                     workspace=pr.workspace,
                     pipeline_run=pr,
+                    triggered_by=request.user if request.user.is_authenticated else pr.triggered_by,
                     name=f"Autonomous Pipeline - {pr.workspace.name}",
                     status='running',
                     current_step=pr.current_stage if pr.current_stage != 'completed' else 'initialized',
@@ -823,6 +824,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
             agent = ResearchAgentProcess.objects.create(
                 workspace=pr.workspace,
                 pipeline_run=pr,
+                triggered_by=request.user if request.user.is_authenticated else pr.triggered_by,
                 name=f"Reprocessing Run - {pr.workspace.name}",
                 status='running',
                 current_step='initialized',
@@ -840,6 +842,7 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
     list_display = (
         'name',
         'workspace',
+        'triggered_by_display',
         'status_badge',
         'stopped_stage_badge',
         'stop_reason_display',
@@ -851,13 +854,13 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         'completed_at'
     )
     ordering = ('-started_at', '-id')
-    list_filter = ('status', 'current_step', 'stopped_at_step', 'workspace')
-    search_fields = ('name', 'id', 'workspace__name', 'stop_reason', 'error_message')
+    list_filter = ('status', 'current_step', 'stopped_at_step', 'workspace', 'triggered_by')
+    search_fields = ('name', 'id', 'workspace__name', 'stop_reason', 'error_message', 'triggered_by__username', 'triggered_by__email')
     readonly_fields = ('started_at', 'completed_at', 'execution_time', 'stage_results_preview', 'step_history_preview')
 
     fieldsets = (
         ('Agent Identification', {
-            'fields': ('workspace', 'name', 'status', 'current_step', 'stopped_at_step', 'stop_reason', 'pipeline_run')
+            'fields': ('workspace', 'name', 'triggered_by', 'status', 'current_step', 'stopped_at_step', 'stop_reason', 'pipeline_run')
         }),
         ('Stage Execution Results & Breakdown', {
             'fields': ('stage_results_preview', 'stage_results'),
@@ -879,6 +882,8 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         is_new = obj._state.adding
+        if not obj.triggered_by and request.user.is_authenticated:
+            obj.triggered_by = request.user
         super().save_model(request, obj, form, change)
         if (is_new or obj.current_step == 'initialized') and obj.status == 'running':
             from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
@@ -886,6 +891,24 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
                 tick_agent_process(str(obj.id))
             except Exception as e:
                 logger.warning(f"Failed to auto-tick newly created agent '{obj.id}': {e}")
+
+    def triggered_by_display(self, obj):
+        user = obj.triggered_by
+        if not user and obj.pipeline_run:
+            user = obj.pipeline_run.triggered_by
+
+        if not user:
+            return format_html('<span style="color: #6c757d; font-style: italic;">⚙️ System / Automated</span>')
+
+        username = user.username or "User"
+        email_part = f" ({user.email})" if user.email else ""
+        return format_html(
+            '<span style="font-weight: 500; color: #212529;">👤 {}<span style="color: #6c757d; font-size: 0.85em;">{}</span></span>',
+            username,
+            email_part
+        )
+    triggered_by_display.short_description = "Triggered By"
+    triggered_by_display.admin_order_field = 'triggered_by__username'
 
     def changelist_view(self, request, extra_context=None):
         # Auto-reconcile any running agents that might be stuck on initialized
