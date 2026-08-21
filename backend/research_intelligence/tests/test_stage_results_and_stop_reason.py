@@ -333,3 +333,47 @@ class StageResultsAndStopReasonTestCase(TestCase):
         created_agent = pr.agent_processes.last()
         self.assertIsNotNone(created_agent)
         self.assertEqual(created_agent.triggered_by, self.user)
+
+    def test_pipeline_run_admin_triggered_by_display_and_auto_populate(self):
+        """
+        Verifies PipelineRunAdmin displays triggered_by user, falls back to agent if needed,
+        and save_model auto-populates request.user.
+        """
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            triggered_by=self.user,
+            status="running"
+        )
+        display = self.run_admin.triggered_by_display(pr)
+        self.assertIn("analyst_test", str(display))
+        self.assertIn("analyst@example.com", str(display))
+
+        # Auto populate in save_model
+        pr_new = PipelineRun(workspace=self.workspace, status="pending")
+        request = MagicMock()
+        request.user = self.user
+        self.run_admin.save_model(request, pr_new, form=None, change=False)
+        pr_new.refresh_from_db()
+        self.assertEqual(pr_new.triggered_by, self.user)
+
+    def test_component_run_admin_triggered_by_display(self):
+        """
+        Verifies ComponentRunAdmin displays the user who triggered the parent PipelineRun/Agent.
+        """
+        from research_intelligence.admin import ComponentRunAdmin
+        comp_admin = ComponentRunAdmin(ComponentRun, self.site)
+
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            triggered_by=self.user,
+            status="running"
+        )
+        cr = ComponentRun.objects.create(
+            pipeline_run=pr,
+            step_type="screening",
+            component_name="abstract_screening",
+            status="completed"
+        )
+        display = comp_admin.triggered_by_display(cr)
+        self.assertIn("analyst_test", str(display))
+        self.assertIn("analyst@example.com", str(display))

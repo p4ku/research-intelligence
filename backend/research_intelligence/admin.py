@@ -685,6 +685,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'workspace',
+        'triggered_by_display',
         'run_date',
         'status_badge',
         'current_stage_badge',
@@ -699,8 +700,8 @@ class PipelineRunAdmin(admin.ModelAdmin):
     )
     list_editable = ('reprocess_existing',)
     ordering = ('-started_at', '-id')
-    list_filter = ('status', 'current_stage', 'reprocess_existing', 'run_date', 'workspace')
-    search_fields = ('id', 'workspace__name', 'status_message')
+    list_filter = ('status', 'current_stage', 'reprocess_existing', 'run_date', 'workspace', 'triggered_by')
+    search_fields = ('id', 'workspace__name', 'status_message', 'triggered_by__username', 'triggered_by__email')
     readonly_fields = ('started_at', 'completed_at', 'execution_time')
     inlines = [ComponentRunInline]
 
@@ -718,6 +719,31 @@ class PipelineRunAdmin(admin.ModelAdmin):
     )
 
     actions = ['run_full_pipeline', 'rerun_with_reprocessing']
+
+    def save_model(self, request, obj, form, change):
+        if not obj.triggered_by and request.user.is_authenticated:
+            obj.triggered_by = request.user
+        super().save_model(request, obj, form, change)
+
+    def triggered_by_display(self, obj):
+        user = obj.triggered_by
+        if not user:
+            agent = obj.agent_processes.filter(triggered_by__isnull=False).first()
+            if agent:
+                user = agent.triggered_by
+
+        if not user:
+            return format_html('<span style="color: #6c757d; font-style: italic;">⚙️ System / Automated</span>')
+
+        username = user.username or "User"
+        email_part = f" ({user.email})" if user.email else ""
+        return format_html(
+            '<span style="font-weight: 500; color: #212529;">👤 {}<span style="color: #6c757d; font-size: 0.85em;">{}</span></span>',
+            username,
+            email_part
+        )
+    triggered_by_display.short_description = "Triggered By"
+    triggered_by_display.admin_order_field = 'triggered_by__username'
 
     def status_message_display(self, obj):
         msg = (obj.status_message or "").strip()
@@ -1236,6 +1262,7 @@ class ComponentRunAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'pipeline_run_link',
+        'triggered_by_display',
         'step_type_badge',
         'component_name',
         'status_badge',
@@ -1247,9 +1274,31 @@ class ComponentRunAdmin(admin.ModelAdmin):
         'completed_at'
     )
     ordering = ('-started_at', '-id')
-    list_filter = (RecentPipelineRunFilter, ComponentRunWorkspaceFilter, 'step_type', 'status', 'started_at')
-    search_fields = ('id', 'component_name', 'celery_task_id', 'pipeline_run__id', 'pipeline_run__workspace__name')
+    list_filter = (RecentPipelineRunFilter, ComponentRunWorkspaceFilter, 'pipeline_run__triggered_by', 'step_type', 'status', 'started_at')
+    search_fields = ('id', 'component_name', 'celery_task_id', 'pipeline_run__id', 'pipeline_run__workspace__name', 'pipeline_run__triggered_by__username', 'pipeline_run__triggered_by__email')
     readonly_fields = ('started_at', 'completed_at', 'execution_time')
+
+    def triggered_by_display(self, obj):
+        user = None
+        if obj.pipeline_run:
+            user = obj.pipeline_run.triggered_by
+            if not user:
+                agent = obj.pipeline_run.agent_processes.filter(triggered_by__isnull=False).first()
+                if agent:
+                    user = agent.triggered_by
+
+        if not user:
+            return format_html('<span style="color: #6c757d; font-style: italic;">⚙️ System / Automated</span>')
+
+        username = user.username or "User"
+        email_part = f" ({user.email})" if user.email else ""
+        return format_html(
+            '<span style="font-weight: 500; color: #212529;">👤 {}<span style="color: #6c757d; font-size: 0.85em;">{}</span></span>',
+            username,
+            email_part
+        )
+    triggered_by_display.short_description = "Triggered By"
+    triggered_by_display.admin_order_field = 'pipeline_run__triggered_by__username'
 
     def pipeline_run_link(self, obj):
         if not obj.pipeline_run:
