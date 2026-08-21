@@ -690,7 +690,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'status_badge',
         'current_stage_badge',
         'status_message_display',
-        'reprocess_existing',
+        'reprocess_existing_badge',
         'execution_time',
         'formatted_usd_cost',
         'total_papers_fetched',
@@ -699,7 +699,6 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'completed_at',
         'triggered_by_display'
     )
-    list_editable = ('reprocess_existing',)
     ordering = ('-started_at', '-id')
     list_filter = ('status', 'current_stage', 'reprocess_existing', 'run_date', 'workspace', 'triggered_by')
     search_fields = ('id', 'workspace__name', 'status_message', 'triggered_by__username', 'triggered_by__email')
@@ -764,6 +763,10 @@ class PipelineRunAdmin(admin.ModelAdmin):
             return format_html('<span title="{}" style="color: #198754;">✅ {}</span>', msg, display_text)
         return format_html('<span title="{}">{}</span>', msg, display_text)
     status_message_display.short_description = "Status Message / Reason"
+
+    @admin.display(boolean=True, description="Reprocess Existing", ordering="reprocess_existing")
+    def reprocess_existing_badge(self, obj):
+        return obj.reprocess_existing
 
     def execution_time(self, obj):
         sec = obj.duration_seconds
