@@ -74,11 +74,22 @@ class ScreeningNode(BaseWorkflowNode):
             rejected_count = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='rejected').count()
             total_papers = Paper.objects.filter(pipeline_run=pipeline_run).count()
             if rejected_count > 0 and rejected_count == total_papers:
-                return True, f"Screening finished: 0 papers were accepted for workspace '{workspace.name}'. Halting pipeline."
+                stage_name = "Full-Text Screening" if has_full_text else "Abstract Screening"
+                return True, f"Step 4 ({stage_name}): 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
         return False, None
 
+    def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
+        if status == 'completed' and comp_run:
+            metrics = comp_run.metrics or {}
+            passed = metrics.get('passed', 0)
+            rejected = metrics.get('rejected', 0)
+            total = metrics.get('total_screened', 0)
+            comp_name = comp_run.component_name or 'screening'
+            stage_label = "Full-Text Screening" if "full_text" in comp_name else "Abstract Screening"
+            return f"{stage_label}: {passed} accepted, {rejected} rejected out of {total} screened."
+        return super().generate_stage_summary(comp_run, status=status)
+
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
-        from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
         skip_abstract = comp_run.input_params.get("skip_abstract_screening", False)
         if comp_run.component_name == "full_text_screening" or skip_abstract:
             from research_intelligence.tasks.step_4_screening.full_text import execute_full_text_screening_job
@@ -87,14 +98,4 @@ class ScreeningNode(BaseWorkflowNode):
             from research_intelligence.tasks.step_4_screening.abstract import execute_screening_job
             func = execute_screening_job
 
-        def _dispatch():
-            try:
-                async_res = func.delay(str(comp_run.id), limit=limit)
-                comp_run.celery_task_id = async_res.id
-                comp_run.save(update_fields=['celery_task_id'])
-            except Exception as e:
-                logger.warning(f"Failed to queue screening async, executing synchronously: {e}")
-                func(str(comp_run.id), limit=limit)
-
-        safe_dispatch_on_commit(_dispatch)
-        return {"status": "dispatched"}
+        return self.dispatch_celery_task(func, comp_run, limit=limit)

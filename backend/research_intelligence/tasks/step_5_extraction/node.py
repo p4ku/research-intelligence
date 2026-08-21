@@ -39,17 +39,14 @@ class ExtractionNode(BaseWorkflowNode):
         },
     }
 
-    def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
-        from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
-        from research_intelligence.tasks.step_5_extraction.extract import execute_extraction_job
-        def _dispatch():
-            try:
-                async_res = execute_extraction_job.delay(str(comp_run.id), limit=limit)
-                comp_run.celery_task_id = async_res.id
-                comp_run.save(update_fields=['celery_task_id'])
-            except Exception as e:
-                logger.warning(f"Failed to queue extraction async, executing synchronously: {e}")
-                execute_extraction_job(str(comp_run.id), limit=limit)
+    def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
+        if status == 'completed' and comp_run:
+            metrics = comp_run.metrics or {}
+            extracted = metrics.get('extractions_count', metrics.get('succeeded', metrics.get('extractions_created', 0)))
+            papers = metrics.get('papers_processed', 0)
+            return f"Extraction: {extracted} parameters extracted across {papers} accepted paper(s)."
+        return super().generate_stage_summary(comp_run, status=status)
 
-        safe_dispatch_on_commit(_dispatch)
-        return {"status": "dispatched"}
+    def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
+        from research_intelligence.tasks.step_5_extraction.extract import execute_extraction_job
+        return self.dispatch_celery_task(execute_extraction_job, comp_run, limit=limit)

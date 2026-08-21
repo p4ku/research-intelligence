@@ -42,6 +42,11 @@ class ReportingNode(BaseWorkflowNode):
     def is_skippable(self, pipeline_run, workspace, config: Dict[str, Any]) -> bool:
         return not config.get("generate_narrative_report", False)
 
+    def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
+        if status == 'completed':
+            return "Reporting: Narrative SLR executive report compiled."
+        return super().generate_stage_summary(comp_run, status=status)
+
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
         from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
         comp_run.status = "completed"

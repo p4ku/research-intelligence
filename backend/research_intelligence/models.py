@@ -235,6 +235,11 @@ class PipelineRun(models.Model):
         default=False,
         help_text="If True, re-evaluates and links existing workspace papers through screening, extraction, and signal scoring even if no new papers were scraped."
     )
+    status_message = models.TextField(
+        blank=True,
+        default="",
+        help_text="Detailed status, halting reason, or completion summary message."
+    )
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(blank=True, null=True)
 
@@ -311,6 +316,23 @@ class ResearchAgentProcess(models.Model):
 
     status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending')
     current_step = models.CharField(max_length=50, choices=STEP_CHOICES, default='initialized')
+    stopped_at_step = models.CharField(
+        max_length=50,
+        choices=STEP_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Pipeline step at which the agent process halted, completed, or failed"
+    )
+    stop_reason = models.TextField(
+        blank=True,
+        default="",
+        help_text="Detailed explanation or status message describing why the pipeline completed, halted early, or failed"
+    )
+    stage_results = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Structured status, summary message, and metrics for each executed pipeline stage (search, download, ocr, screening, extraction, signal_score, reporting)."
+    )
 
     triggered_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

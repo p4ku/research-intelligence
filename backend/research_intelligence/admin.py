@@ -688,27 +688,25 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'run_date',
         'status_badge',
         'current_stage_badge',
+        'status_message_display',
         'reprocess_existing',
         'execution_time',
         'formatted_usd_cost',
         'total_papers_fetched',
         'total_papers_passed_screening',
-        'tokens_in',
-        'tokens_out',
-        'tokens_consumed',
         'started_at',
         'completed_at'
     )
     list_editable = ('reprocess_existing',)
     ordering = ('-started_at', '-id')
     list_filter = ('status', 'current_stage', 'reprocess_existing', 'run_date', 'workspace')
-    search_fields = ('id', 'workspace__name')
+    search_fields = ('id', 'workspace__name', 'status_message')
     readonly_fields = ('started_at', 'completed_at', 'execution_time')
     inlines = [ComponentRunInline]
 
     fieldsets = (
         ('Execution Info', {
-            'fields': ('workspace', 'status', 'current_stage', 'triggered_by')
+            'fields': ('workspace', 'status', 'current_stage', 'status_message', 'triggered_by')
         }),
         ('Reprocessing & Ingestion Options', {
             'fields': ('reprocess_existing',),
@@ -720,6 +718,25 @@ class PipelineRunAdmin(admin.ModelAdmin):
     )
 
     actions = ['run_full_pipeline', 'rerun_with_reprocessing']
+
+    def status_message_display(self, obj):
+        msg = (obj.status_message or "").strip()
+        if not msg:
+            if obj.status == 'running':
+                return format_html('<span style="color: #0d6efd;">⏳ Active stage in progress...</span>')
+            elif obj.status == 'completed':
+                return format_html('<span style="color: #198754;">✅ Completed</span>')
+            return "-"
+        
+        display_text = msg if len(msg) <= 60 else (msg[:57] + "...")
+        if "0 new papers" in msg or "0 papers" in msg or "halted" in msg.lower():
+            return format_html('<span title="{}" style="color: #d63384; font-weight: 500;">⚠️ {}</span>', msg, display_text)
+        elif obj.status == 'failed':
+            return format_html('<span title="{}" style="color: #dc3545; font-weight: 500;">❌ {}</span>', msg, display_text)
+        elif obj.status == 'completed':
+            return format_html('<span title="{}" style="color: #198754;">✅ {}</span>', msg, display_text)
+        return format_html('<span title="{}">{}</span>', msg, display_text)
+    status_message_display.short_description = "Status Message / Reason"
 
     def execution_time(self, obj):
         sec = obj.duration_seconds
@@ -824,7 +841,8 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         'name',
         'workspace',
         'status_badge',
-        'current_step_badge',
+        'stopped_stage_badge',
+        'stop_reason_display',
         'reprocess_mode_badge',
         'execution_time',
         'usd_cost',
@@ -833,13 +851,17 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         'completed_at'
     )
     ordering = ('-started_at', '-id')
-    list_filter = ('status', 'current_step', 'workspace')
-    search_fields = ('name', 'id', 'workspace__name')
-    readonly_fields = ('started_at', 'completed_at', 'execution_time', 'step_history_preview')
+    list_filter = ('status', 'current_step', 'stopped_at_step', 'workspace')
+    search_fields = ('name', 'id', 'workspace__name', 'stop_reason', 'error_message')
+    readonly_fields = ('started_at', 'completed_at', 'execution_time', 'stage_results_preview', 'step_history_preview')
 
     fieldsets = (
         ('Agent Identification', {
-            'fields': ('workspace', 'name', 'status', 'current_step', 'pipeline_run')
+            'fields': ('workspace', 'name', 'status', 'current_step', 'stopped_at_step', 'stop_reason', 'pipeline_run')
+        }),
+        ('Stage Execution Results & Breakdown', {
+            'fields': ('stage_results_preview', 'stage_results'),
+            'description': 'Per-stage execution status, summary explanations, and metrics.'
         }),
         ('Configuration & Override', {
             'fields': ('configuration_override',),
@@ -928,6 +950,56 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         return render_badge(obj.status.upper(), bg, text_color)
     status_badge.short_description = "Status"
 
+    def stopped_stage_badge(self, obj):
+        step = obj.stopped_at_step or obj.current_step
+        if obj.status == 'running':
+            active_step = obj.current_step or 'initialized'
+            step_name = dict(ResearchAgentProcess.STEP_CHOICES).get(active_step, active_step.title())
+            return render_badge(f"⏳ IN PROGRESS ({step_name.upper()})", "#0d6efd", "#ffffff")
+        elif obj.status == 'failed':
+            step_name = dict(ResearchAgentProcess.STEP_CHOICES).get(step, step.title() if step else 'Unknown')
+            return render_badge(f"❌ FAILED AT {step_name.upper()}", "#dc3545", "#ffffff")
+        elif obj.status == 'completed':
+            if step and step not in ('completed', 'reporting'):
+                step_name = dict(ResearchAgentProcess.STEP_CHOICES).get(step, step.title())
+                return render_badge(f"⚠️ HALTED AT {step_name.upper()}", "#fd7e14", "#ffffff")
+            return render_badge("✅ ALL 7 STEPS DONE", "#198754", "#ffffff")
+        elif obj.status == 'paused':
+            return render_badge("⏸️ PAUSED", "#ffc107", "#000000")
+        elif obj.status == 'aborted':
+            return render_badge("🛑 ABORTED", "#495057", "#ffffff")
+        return render_badge((obj.status or "PENDING").upper(), "#6c757d", "#ffffff")
+    stopped_stage_badge.short_description = "Halt / Final Stage"
+
+    def stop_reason_display(self, obj):
+        msg = (obj.stop_reason or "").strip()
+        if not msg and obj.error_message:
+            msg = obj.error_message.strip()
+        if not msg and obj.pipeline_run and obj.pipeline_run.status_message:
+            msg = obj.pipeline_run.status_message.strip()
+        if not msg and obj.step_history:
+            for entry in reversed(obj.step_history):
+                if entry.get('message'):
+                    msg = entry['message'].strip()
+                    break
+        
+        if not msg:
+            if obj.status == 'running':
+                return format_html('<span style="color: #0d6efd;">⏳ Active step in progress...</span>')
+            elif obj.status == 'completed':
+                return format_html('<span style="color: #198754;">✅ Systematic review completed.</span>')
+            return "-"
+        
+        display_text = msg if len(msg) <= 75 else (msg[:72] + "...")
+        if "0 new papers" in msg or "0 papers" in msg or "halted" in msg.lower() or ("0" in msg and "paper" in msg.lower()):
+            return format_html('<span title="{}" style="color: #d63384; font-weight: 500;">⚠️ {}</span>', msg, display_text)
+        elif obj.status == 'failed':
+            return format_html('<span title="{}" style="color: #dc3545; font-weight: 500;">❌ {}</span>', msg, display_text)
+        elif obj.status == 'completed':
+            return format_html('<span title="{}" style="color: #198754; font-weight: 500;">✅ {}</span>', msg, display_text)
+        return format_html('<span title="{}">{}</span>', msg, display_text)
+    stop_reason_display.short_description = "Stop Reason / Status Message"
+
     def current_step_badge(self, obj):
         step = obj.current_step
         if step == 'initialized' and obj.status == 'running' and obj.pipeline_run and obj.pipeline_run.current_stage != 'initialized':
@@ -979,6 +1051,44 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         url = reverse("admin:research_intelligence_pipelinerun_change", args=[pr.id])
         return format_html('<a href="{}"><code>{}</code></a>', url, str(pr.id)[:8] + '...')
     pipeline_run_link.short_description = "Pipeline Run"
+
+    def stage_results_preview(self, obj):
+        if not obj.stage_results:
+            return format_html('<span style="color: #6c757d;">No stage results recorded yet.</span>')
+        rows = []
+        status_colors = {
+            'completed': '#198754',
+            'running': '#0d6efd',
+            'failed': '#dc3545',
+            'skipped': '#6c757d',
+            'pending': '#adb5bd',
+        }
+        for stage, data in obj.stage_results.items():
+            if not isinstance(data, dict):
+                continue
+            st = data.get('status', 'pending')
+            color = status_colors.get(st, '#6c757d')
+            summary = data.get('summary') or data.get('error') or '-'
+            badge = render_badge(st.upper(), color, '#ffffff')
+            updated_at = data.get('updated_at', '')
+            ts_str = f"<span style='color: #888; font-size: 11px;'> ({updated_at[:19]})</span>" if updated_at else ""
+            rows.append(
+                f"<tr>"
+                f"<td style='padding: 6px 10px; font-weight: bold; border-bottom: 1px solid #e9ecef;'>{stage.title()}</td>"
+                f"<td style='padding: 6px 10px; border-bottom: 1px solid #e9ecef;'>{badge}</td>"
+                f"<td style='padding: 6px 10px; border-bottom: 1px solid #e9ecef;'>{summary}{ts_str}</td>"
+                f"</tr>"
+            )
+        
+        return format_html(
+            '<table style="border-collapse: collapse; width: 100%; max-width: 850px; background: #ffffff; border: 1px solid #dee2e6; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">'
+            '<thead><tr style="background: #f8f9fa; text-align: left; border-bottom: 2px solid #dee2e6;">'
+            '<th style="padding: 8px 10px;">Pipeline Stage</th><th style="padding: 8px 10px;">Status</th><th style="padding: 8px 10px;">Execution Summary / Reason</th>'
+            '</tr></thead>'
+            '<tbody>{}</tbody></table>',
+            mark_safe(''.join(rows))
+        )
+    stage_results_preview.short_description = "Pipeline Stages Breakdown"
 
     def step_history_preview(self, obj):
         if not obj.step_history:

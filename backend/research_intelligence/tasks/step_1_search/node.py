@@ -52,8 +52,36 @@ class SearchNode(BaseWorkflowNode):
             papers_count = pipeline_run.papers.count()
 
         if papers_count == 0:
-            return True, f"Search completed but 0 papers were found matching criteria for workspace '{workspace.name}'. Halting pipeline."
+            last_run = search_runs.filter(status='completed').last()
+            metrics = last_run.metrics if (last_run and last_run.metrics) else {}
+            duplicates = metrics.get("duplicates_skipped", 0)
+            total_found = metrics.get("total_found", 0)
+            if duplicates > 0 or total_found > 0:
+                msg = (
+                    f"Step 1 (Search): 0 papers were found matching criteria (0 new papers ingested - "
+                    f"found {total_found} on data sources, but all {duplicates} were already ingested in prior runs). "
+                    f"Pipeline halted cleanly. (Enable 'reprocess_existing' to re-screen/extract existing workspace papers)."
+                )
+            else:
+                msg = (
+                    f"Step 1 (Search): 0 papers were found matching criteria for workspace '{workspace.name}'. "
+                    f"Check scraper query parameters or provider connectivity. Pipeline halted cleanly."
+                )
+            return True, msg
         return False, None
+
+    def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
+        if status == 'completed' and comp_run:
+            metrics = comp_run.metrics or {}
+            total = metrics.get('total_found', 0)
+            ingested = metrics.get('ingested_new', 0)
+            dups = metrics.get('duplicates_skipped', 0)
+            if total == 0 and ingested == 0:
+                return "Search: 0 papers returned by queries."
+            elif ingested == 0 and dups > 0:
+                return f"Search: 0 new papers ({total} discovered, all {dups} were duplicates/previously ingested)."
+            return f"Search: {total} found, {ingested} newly ingested ({dups} duplicates skipped)."
+        return super().generate_stage_summary(comp_run, status=status)
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
         from research_intelligence.models import ComponentRun
@@ -66,8 +94,6 @@ class SearchNode(BaseWorkflowNode):
             comp_run.error_message = f"No active scrapers configured for workspace '{workspace.name}'."
             comp_run.save(update_fields=['status', 'error_message'])
             return False
-
-        from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
 
         first_scraper = scrapers[0]
         comp_run.scraper = first_scraper
@@ -86,22 +112,4 @@ class SearchNode(BaseWorkflowNode):
             )
             additional_runs.append(add_run)
 
-        def _dispatch_scrapers():
-            try:
-                async_res = execute_scraper_run_job.delay(str(comp_run.id), limit=limit)
-                comp_run.celery_task_id = async_res.id
-                comp_run.save(update_fields=['celery_task_id'])
-            except Exception as e:
-                logger.warning(f"Failed to queue search scraper async, executing synchronously: {e}")
-                execute_scraper_run_job(str(comp_run.id), limit=limit)
-
-            for add_run in additional_runs:
-                try:
-                    add_async = execute_scraper_run_job.delay(str(add_run.id), limit=limit)
-                    add_run.celery_task_id = add_async.id
-                    add_run.save(update_fields=['celery_task_id'])
-                except Exception:
-                    execute_scraper_run_job(str(add_run.id), limit=limit)
-
-        safe_dispatch_on_commit(_dispatch_scrapers)
-        return {"status": "dispatched"}
+        return self.dispatch_multiple_celery_tasks(execute_scraper_run_job, [comp_run] + additional_runs, limit=limit)

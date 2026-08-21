@@ -76,13 +76,82 @@ class BaseWorkflowNode(abc.ABC):
             params.update({k: v for k, v in config.items() if k not in params})
         return params
 
+    def dispatch_celery_task(self, task_func, comp_run, limit: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Standardized, transactional dispatch routine for Celery tasks across all nodes.
+        Attempts async Celery dispatch with celery_task_id tracking, falling back to
+        synchronous execution if Celery is not available (or under test runners).
+        Guarantees PostgreSQL transaction commit safety via safe_dispatch_on_commit.
+        """
+        def _dispatch():
+            try:
+                async_res = task_func.delay(str(comp_run.id), limit=limit)
+                comp_run.celery_task_id = async_res.id
+                comp_run.save(update_fields=['celery_task_id'])
+            except Exception as e:
+                logger.warning(f"Failed to queue {self.name} async, executing synchronously: {e}")
+                task_func(str(comp_run.id), limit=limit)
+
+        safe_dispatch_on_commit(_dispatch)
+        return {"status": "dispatched"}
+
+    def dispatch_multiple_celery_tasks(self, task_func, comp_runs: List[Any], limit: Optional[int] = None) -> Dict[str, Any]:
+        """
+        Dispatches multiple ComponentRuns (e.g. multi-source parallel scrapers)
+        safely on database transaction commit.
+        """
+        def _dispatch_all():
+            for comp_run in comp_runs:
+                try:
+                    async_res = task_func.delay(str(comp_run.id), limit=limit)
+                    comp_run.celery_task_id = async_res.id
+                    comp_run.save(update_fields=['celery_task_id'])
+                except Exception as e:
+                    logger.warning(f"Failed to queue {self.name} scraper async, executing synchronously: {e}")
+                    task_func(str(comp_run.id), limit=limit)
+
+        safe_dispatch_on_commit(_dispatch_all)
+        return {"status": "dispatched", "tasks_count": len(comp_runs)}
+
     @abc.abstractmethod
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
         """
-        Launches execution for this node. Typically queues a Celery task or
-        runs synchronously as fallback.
+        Launches execution for this node. Typically delegates to self.dispatch_celery_task().
         """
         raise NotImplementedError("Subclasses must implement execute().")
+
+    def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
+        """
+        Subclasses override this to return rich, domain-specific summary text
+        describing what happened during this stage (e.g. counts, results, decisions).
+        """
+        if status == 'failed':
+            err = (comp_run.error_message if comp_run else None) or 'Unknown error'
+            return f"{self.name.title()} failed: {err}"
+        elif status == 'skipped':
+            return f"{self.name.title()}: Skipped."
+        elif status == 'running':
+            return f"{self.name.title()} currently executing..."
+        return f"{self.name.title()} completed successfully."
+
+    def get_stage_result_entry(self, comp_run=None, status: str = "pending") -> Dict[str, Any]:
+        """
+        Constructs the structured stage results payload for this node.
+        """
+        from django.utils import timezone
+        st = comp_run.status if comp_run else status
+        metrics = dict(comp_run.metrics or {}) if comp_run else {}
+        error = comp_run.error_message if comp_run else None
+        comp_name = getattr(comp_run, 'component_name', self.component_name)
+
+        return {
+            "status": st,
+            "summary": self.generate_stage_summary(comp_run, status=st),
+            "metrics": metrics,
+            "error": error,
+            "component_name": comp_name,
+            "updated_at": timezone.now().isoformat()
+        }
 
     def on_completed(self, pipeline_run, comp_run, result_data: Optional[Dict[str, Any]] = None):
         """
