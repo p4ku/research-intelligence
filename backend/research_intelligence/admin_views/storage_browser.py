@@ -11,6 +11,7 @@ from django.http import HttpResponse, FileResponse, HttpResponseRedirect, Http40
 from django.urls import reverse
 from django.utils.html import format_html, escape
 from django.utils.safestring import mark_safe
+from django.views.decorators.clickjacking import xframe_options_sameorigin
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +139,7 @@ def _is_allowed_path(path: str) -> bool:
     return False
 
 
+@xframe_options_sameorigin
 def storage_browser_view(request):
     """
     Django Admin custom view for browsing, previewing, downloading, and deleting files/directories in default_storage (S3/Local).
@@ -189,6 +191,7 @@ def storage_browser_view(request):
             disposition = 'attachment' if action == 'download' else 'inline'
             response = FileResponse(file_obj, content_type=mime_type or 'application/octet-stream')
             response['Content-Disposition'] = f'{disposition}; filename="{filename}"'
+            response['X-Frame-Options'] = 'SAMEORIGIN'
             return response
         except Exception as e:
             messages.error(request, f"Failed to access file: {str(e)}")
@@ -450,7 +453,7 @@ def storage_browser_view(request):
 
     # Render Django Admin page layout
     page_html = f"""
-    <!語html>
+    <!DOCTYPE html>
     <div id="content" class="colM" style="padding: 20px;">
         <div style="margin-bottom: 16px; font-size: 16px; background: #fff; padding: 12px 16px; border-radius: 6px; border: 1px solid #dee2e6; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; justify-content: space-between; align-items: center;">
             <div>📂 <strong>Storage Browser:</strong> {breadcrumb_nav}</div>
@@ -479,5 +482,6 @@ def storage_browser_view(request):
     </div>
     """
 
-    # Wrap in Django admin site rendering context if available or standard HttpResponse
-    return HttpResponse(page_html)
+    response = HttpResponse(page_html)
+    response['X-Frame-Options'] = 'SAMEORIGIN'
+    return response

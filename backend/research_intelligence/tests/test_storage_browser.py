@@ -79,6 +79,7 @@ class StorageBrowserTestCase(TestCase):
             url = f"{reverse('admin:storage-browser')}?path=test_dir&action=preview&file=test_dir/paper.pdf"
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
+            self.assertEqual(response['X-Frame-Options'], 'SAMEORIGIN')
             self.assertContains(response, 'title="PDF Preview"')
             self.assertContains(response, "action=view_raw&file=test_dir/paper.pdf")
             self.assertContains(response, "Open Full Screen")
@@ -93,6 +94,7 @@ class StorageBrowserTestCase(TestCase):
             response = self.client.get(url)
             self.assertEqual(response.status_code, 200)
             self.assertEqual(response['Content-Type'], 'application/pdf')
+            self.assertEqual(response['X-Frame-Options'], 'SAMEORIGIN')
             self.assertIn('inline', response['Content-Disposition'])
         finally:
             if default_storage.exists(pdf_path):

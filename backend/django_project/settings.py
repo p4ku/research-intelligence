@@ -260,5 +260,9 @@ MAILGUN_API_URL = os.environ.get('MAILGUN_API_URL', 'https://api.eu.mailgun.net/
 MAILGUN_SENDER_DOMAIN = os.environ.get('MAILGUN_SENDER_DOMAIN', 'soinventive.co.uk')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', f'no-reply@{MAILGUN_SENDER_DOMAIN}')
 
+# Allow internal same-origin iframes (e.g. Storage Browser PDF preview & admin popups)
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+
+
 
 
