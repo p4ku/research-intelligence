@@ -399,7 +399,7 @@ def render_component_cost(obj):
 class ComponentRunInline(admin.TabularInline):
     model = ComponentRun
     extra = 0
-    fields = ('step_type_badge', 'component_name', 'status_badge', 'execution_time', 'cost_display', 'metrics_summary', 'celery_task_id', 'raw_storage_path', 'started_at', 'completed_at')
+    fields = ('step_type_badge', 'status_badge', 'execution_time', 'cost_display', 'metrics_summary', 'celery_task_id', 'raw_storage_path', 'started_at', 'completed_at')
     readonly_fields = ('step_type_badge', 'status_badge', 'execution_time', 'cost_display', 'metrics_summary', 'started_at', 'completed_at')
 
     def execution_time(self, obj):
@@ -1267,7 +1267,6 @@ class ComponentRunAdmin(admin.ModelAdmin):
         'id',
         'pipeline_run_link',
         'step_type_badge',
-        'component_name',
         'status_badge',
         'execution_time',
         'cost_display',
