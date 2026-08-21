@@ -11,24 +11,24 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AlterUniqueTogether(
-            name='papermetric',
-            unique_together={('paper', 'pipeline_run')},
+        migrations.AddField(
+            model_name='papermetric',
+            name='pipeline_run',
+            field=models.ForeignKey(blank=True, help_text='PipelineRun during which these metrics were evaluated', null=True, on_delete=django.db.models.deletion.CASCADE, related_name='paper_metrics', to='research_intelligence.pipelinerun'),
         ),
         migrations.AddField(
             model_name='papermetric',
             name='metrics_data',
             field=models.JSONField(blank=True, default=dict, help_text='Dynamic dictionary of computed metrics, extracted parameters, and evaluation attributes'),
         ),
-        migrations.AddField(
-            model_name='papermetric',
-            name='pipeline_run',
-            field=models.ForeignKey(blank=True, help_text='PipelineRun during which these metrics were evaluated', null=True, on_delete=django.db.models.deletion.CASCADE, related_name='paper_metrics', to='research_intelligence.pipelinerun'),
-        ),
         migrations.AlterField(
             model_name='papermetric',
             name='signal_score',
             field=models.FloatField(blank=True, db_index=True, help_text='Calculated composite signal score', null=True),
+        ),
+        migrations.AlterUniqueTogether(
+            name='papermetric',
+            unique_together={('paper', 'pipeline_run')},
         ),
         migrations.RemoveField(
             model_name='papermetric',
