@@ -83,6 +83,7 @@ from research_intelligence.mcp.tools import (
     start_research_agent_logic,
     list_research_agents_logic,
     get_research_agent_status_logic,
+    wait_for_research_agent_logic,
     pause_research_agent_logic,
     resume_research_agent_logic,
     abort_research_agent_logic,

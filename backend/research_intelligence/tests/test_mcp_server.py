@@ -1100,5 +1100,29 @@ class MCPServerTest(TestCase):
             self.assertIn("output_contract", node)
             self.assertIn("dependencies", node)
 
+    def test_wait_for_research_agent_server_tool_invocation(self):
+        """
+        Ensures wait_for_research_agent in server.py can be invoked without NameError.
+        """
+        from research_intelligence.mcp import server
+        from research_intelligence.models import ResearchAgentProcess
+
+        ws = Workspace.objects.create(name="Wait Tool WS")
+        WorkspaceMember.objects.create(workspace=ws, user=self.admin_user, role="admin")
+        agent = ResearchAgentProcess.objects.create(
+            workspace=ws,
+            name="Test Agent Wait",
+            status="completed",
+            current_step="completed",
+            triggered_by=self.admin_user
+        )
+
+        with patch("research_intelligence.mcp.server.get_auth_context", return_value=(self.admin_user, agent.workspace, self.api_key)):
+            res_str = server.wait_for_research_agent(process_id=str(agent.id), timeout_seconds=5)
+            res = json.loads(res_str)
+            self.assertEqual(res.get("status"), "finished")
+            self.assertEqual(res.get("agent_status"), "completed")
+            self.assertEqual(res.get("process_id"), str(agent.id))
+
 
 
