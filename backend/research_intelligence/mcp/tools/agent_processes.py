@@ -247,6 +247,9 @@ def get_research_agent_status_logic(user, process_id: str) -> str:
         "storage": storage_metrics,
         "step_history": process.step_history,
         "component_runs": component_runs_summary,
+        "stopped_at_step": process.stopped_at_step,
+        "stop_reason": process.stop_reason,
+        "stage_results": process.stage_results,
         "error_message": process.error_message,
         "started_at": process.started_at.isoformat(),
         "completed_at": process.completed_at.isoformat() if process.completed_at else None
@@ -454,12 +457,19 @@ def wait_for_research_agent_logic(
             except Exception:
                 status_dict = {"raw_status": status_json_str}
 
+            step_label = dict(ResearchAgentProcess.STEP_CHOICES).get(process.current_step, process.current_step)
             return json.dumps({
                 "status": "timeout",
-                "message": f"Timeout of {max_timeout}s elapsed. Research agent '{process.name}' is still processing step '{process.current_step}'. You can call wait_for_research_agent again or check status using get_research_agent_status.",
-                "elapsed_seconds": round(elapsed, 1),
+                "message": f"Timeout of {max_timeout}s elapsed. Research agent '{process.name}' is currently at '{step_label}' (running for {process.execution_time_display}). Call wait_for_research_agent again to continue waiting or check status using get_research_agent_status.",
                 "agent_status": process.status,
                 "current_step": process.current_step,
+                "current_step_display": step_label,
+                "stopped_at_step": process.stopped_at_step,
+                "stop_reason": process.stop_reason,
+                "stage_results": process.stage_results,
+                "total_duration_seconds": process.duration_seconds,
+                "total_duration_display": process.execution_time_display,
+                "wait_elapsed_seconds": round(elapsed, 1),
                 "details": status_dict
             }, indent=2, cls=DjangoJSONEncoder)
 
@@ -472,13 +482,20 @@ def wait_for_research_agent_logic(
     except Exception:
         final_status_dict = {"raw_status": final_status_json_str}
 
+    final_step_label = dict(ResearchAgentProcess.STEP_CHOICES).get(process.current_step, process.current_step)
     return json.dumps({
         "status": "finished",
-        "message": f"Research agent '{process.name}' finished with status: {process.status.upper()}!",
+        "message": f"Research agent '{process.name}' finished with status: {process.status.upper()} in {process.execution_time_display}.",
         "process_id": str(process.id),
         "agent_status": process.status,
         "current_step": process.current_step,
-        "elapsed_seconds": round(time.time() - t0, 1),
+        "current_step_display": final_step_label,
+        "stopped_at_step": process.stopped_at_step,
+        "stop_reason": process.stop_reason,
+        "stage_results": process.stage_results,
+        "total_duration_seconds": process.duration_seconds,
+        "total_duration_display": process.execution_time_display,
+        "wait_elapsed_seconds": round(time.time() - t0, 1),
         "details": final_status_dict
     }, indent=2, cls=DjangoJSONEncoder)
 
