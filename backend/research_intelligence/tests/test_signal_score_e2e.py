@@ -209,8 +209,9 @@ else:
         self.assertEqual(paper_low.signal_score, 12.0)
         self.assertIn("fit_score", paper_high.signal_score_details["variables"])
 
-        metric_high = PaperMetric.objects.get(paper=paper_high)
+        metric_high = PaperMetric.objects.get(paper=paper_high, pipeline_run=pipeline_run)
         self.assertEqual(metric_high.signal_score, 95.5)
+        self.assertEqual(metric_high.pipeline_run, pipeline_run)
 
         # 3. Verify MCP Matrix Tool: get_paper_extractions_matrix
         matrix_res = json.loads(get_paper_extractions_matrix_logic(
@@ -305,3 +306,57 @@ else:
         paper.refresh_from_db()
         # With fit_score=8, novelty=0, trl=0 -> k=8 <= 10 -> score=12.0
         self.assertEqual(paper.signal_score, 12.0)
+
+        metric = PaperMetric.objects.get(paper=paper, pipeline_run=pipeline_run)
+        self.assertEqual(metric.signal_score, 12.0)
+        self.assertEqual(metric.pipeline_run, pipeline_run)
+
+    def test_paper_metrics_isolation_across_multiple_runs(self):
+        """
+        Tests that multiple pipeline runs evaluating the same Paper generate distinct,
+        isolated PaperMetric records per pipeline_run.
+        """
+        run1 = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="completed",
+            current_stage="extraction"
+        )
+        run2 = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="completed",
+            current_stage="extraction"
+        )
+
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run1,
+            hash_id="multi_run_paper_hash_12345",
+            title="Neuromorphic Vision Transformers",
+            screening_status="accepted"
+        )
+
+        # Run 1 Extractions & Evaluation
+        ext1 = Extraction.objects.create(
+            workspace=self.workspace,
+            paper=paper,
+            extraction_definition=self.def_fit,
+            fields_data={"fit_score": "9.0"}
+        )
+        score1, _ = compute_paper_signal_score(paper, custom_code="return fit_score * 10.0", pipeline_run=run1)
+        self.assertEqual(score1, 90.0)
+
+        # Run 2 Evaluation on the same paper with different formula or parameters
+        score2, _ = compute_paper_signal_score(paper, custom_code="return fit_score * 2.0", pipeline_run=run2)
+        self.assertEqual(score2, 18.0)
+
+        # Verify distinct PaperMetric instances exist for each run
+        metrics = PaperMetric.objects.filter(paper=paper).order_by("created_at")
+        self.assertEqual(metrics.count(), 2)
+
+        metric_run1 = PaperMetric.objects.get(paper=paper, pipeline_run=run1)
+        self.assertEqual(metric_run1.signal_score, 90.0)
+        self.assertEqual(metric_run1.pipeline_run, run1)
+
+        metric_run2 = PaperMetric.objects.get(paper=paper, pipeline_run=run2)
+        self.assertEqual(metric_run2.signal_score, 18.0)
+        self.assertEqual(metric_run2.pipeline_run, run2)

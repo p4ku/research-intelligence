@@ -29,14 +29,20 @@ TRL 7–9 → Ready product / deployment
 You are an expert in technology evaluation and innovation. Your task is to assess the current TRL based on the provided text from a research publication. Justify your assessment."""
 
 @shared_task
-def assess_technology_readiness(paper_id):
+def assess_technology_readiness(paper_id, pipeline_run_id=None):
     """
     Evaluates the Technology Readiness Level (TRL) of a given paper.
-    Updates or creates a PaperMetric record with the TRL score and reasoning.
+    Updates or creates a PaperMetric record with the TRL score and reasoning per pipeline_run.
     """
     try:
-        paper = Paper.objects.get(pk=paper_id)
+        from ...models import PipelineRun
+        paper = Paper.objects.select_related('workspace', 'pipeline_run').get(pk=paper_id)
         workspace = paper.workspace
+        pipeline_run = None
+        if pipeline_run_id:
+            pipeline_run = PipelineRun.objects.filter(pk=pipeline_run_id).first()
+        if not pipeline_run:
+            pipeline_run = paper.pipeline_run
     except Paper.DoesNotExist:
         logger.error(f"Paper {paper_id} does not exist.")
         return False
@@ -83,7 +89,7 @@ def assess_technology_readiness(paper_id):
             prompt=user_prompt,
             system_instruction=TRL_SYSTEM_PROMPT,
             response_schema=response_schema,
-            temperature=0.1 # Low temp for deterministic analytical assessment
+            temperature=0.1  # Low temp for deterministic analytical assessment
         )
 
         trl_score = response.get("trl_score")
@@ -91,22 +97,24 @@ def assess_technology_readiness(paper_id):
         trl_evidence = response.get("trl_evidence", [])
 
         if trl_score is not None:
-            # Update or create the paper metric
+            trl_data = {
+                "trl_score": trl_score,
+                "trl_reasoning": trl_reasoning,
+                "trl_evidence": trl_evidence
+            }
+            # Update or create the paper metric per pipeline run
             metric, created = PaperMetric.objects.get_or_create(
                 paper=paper,
+                pipeline_run=pipeline_run,
                 workspace=workspace,
                 defaults={
-                    "trl_score": trl_score,
-                    "trl_reasoning": trl_reasoning,
-                    "trl_evidence": trl_evidence
+                    "metrics_data": trl_data
                 }
             )
             
             if not created:
-                metric.trl_score = trl_score
-                metric.trl_reasoning = trl_reasoning
-                metric.trl_evidence = trl_evidence
-                metric.save(update_fields=['trl_score', 'trl_reasoning', 'trl_evidence'])
+                metric.metrics_data.update(trl_data)
+                metric.save(update_fields=['metrics_data'])
 
             logger.info(f"Successfully assessed TRL {trl_score} for Paper {paper_id}")
             return True

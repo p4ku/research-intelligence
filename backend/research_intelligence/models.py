@@ -699,25 +699,41 @@ class Extraction(models.Model):
 
 class PaperMetric(models.Model):
     """
-    Stores paper-level evaluations (TRL levels, graph-based importance indices, and citation facts).
+    Stores paper-level evaluations, dynamic metric dictionaries, and composite signal scores
+    evaluated per pipeline run.
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     paper = models.ForeignKey(Paper, on_delete=models.CASCADE, related_name="metrics")
+    pipeline_run = models.ForeignKey(
+        PipelineRun,
+        on_delete=models.CASCADE,
+        related_name="paper_metrics",
+        blank=True,
+        null=True,
+        help_text="PipelineRun during which these metrics were evaluated"
+    )
     workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="metrics")
-    trl_score = models.IntegerField(blank=True, null=True, help_text="TRL scale score (1-9)")
-    trl_reasoning = models.TextField(blank=True, null=True)
-    trl_evidence = models.JSONField(default=list, blank=True, help_text="List of exact quotes supporting the TRL score")
-    importance_score = models.FloatField(default=0.0, help_text="PageRank centrality score in cross-citations graph")
-    importance_reasoning = models.TextField(blank=True, null=True)
-    citation_count = models.IntegerField(default=0)
-    venue_impact_factor = models.FloatField(default=0.0)
-    h_index = models.IntegerField(default=0)
-    signal_score = models.FloatField(blank=True, null=True, help_text="Calculated composite signal score")
+    
+    # Composite Signal Score
+    signal_score = models.FloatField(blank=True, null=True, db_index=True, help_text="Calculated composite signal score")
     signal_score_details = models.JSONField(default=dict, blank=True, help_text="Calculation audit for signal score")
+    
+    # Dynamic Metrics Payload (all extracted parameters e.g. trl, fit_score, novelty, custom criteria)
+    metrics_data = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Dynamic dictionary of computed metrics, extracted parameters, and evaluation attributes"
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at', '-id']
+        unique_together = ('paper', 'pipeline_run')
+
+    def __str__(self):
+        score_str = f"{self.signal_score:.2f}" if self.signal_score is not None else "-"
+        pr_str = str(self.pipeline_run_id)[:8] if self.pipeline_run_id else "global"
+        return f"{self.paper.title[:30]}... (Run: {pr_str} | Score: {score_str})"
 
 class NarrativeReport(models.Model):
     """

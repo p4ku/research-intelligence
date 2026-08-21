@@ -232,9 +232,10 @@ else:
         self.assertEqual(self.paper.signal_score, 100.0)
         self.assertIn("fit_score", self.paper.signal_score_details["variables"])
 
-        # Also verify PaperMetric updated
-        metric = PaperMetric.objects.get(paper=self.paper)
+        # Also verify PaperMetric updated per pipeline_run
+        metric = PaperMetric.objects.get(paper=self.paper, pipeline_run=self.pipeline_run)
         self.assertEqual(metric.signal_score, 100.0)
+        self.assertEqual(metric.pipeline_run, self.pipeline_run)
 
     def test_execute_signal_score_job(self):
         comp_run = ComponentRun.objects.create(

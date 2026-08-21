@@ -177,11 +177,12 @@ def delete_pipeline_run_logic(user, pipeline_run_id: str) -> str:
     if error:
         return error
 
+    from django.db.models import Q
     papers_qs = Paper.objects.filter(pipeline_run=pipeline_run)
     papers_count = papers_qs.count()
     component_runs_count = pipeline_run.component_runs.count()
     extractions_count = Extraction.objects.filter(paper__pipeline_run=pipeline_run).count()
-    metrics_count = PaperMetric.objects.filter(paper__pipeline_run=pipeline_run).count()
+    metrics_count = PaperMetric.objects.filter(Q(pipeline_run=pipeline_run) | Q(paper__pipeline_run=pipeline_run)).distinct().count()
     reports_count = NarrativeReport.objects.filter(pipeline_run=pipeline_run).count()
 
     # Clean up physical storage files and folder recursively: workspaces/{workspace_id}/runs/{pipeline_run_id}

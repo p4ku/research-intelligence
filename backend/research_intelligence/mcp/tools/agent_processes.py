@@ -181,7 +181,8 @@ def get_research_agent_status_logic(user, process_id: str) -> str:
         full_text_passed = full_text_metrics.get("passed", papers_qs.filter(screening_status='full_text_passed').count()) if full_text_run else 0
         full_text_rejected = full_text_metrics.get("rejected", max(0, full_text_screened - full_text_passed)) if full_text_run else 0
 
-        total_screened_papers = abstract_screened or full_text_screened or PaperMetric.objects.filter(paper__pipeline_run=process.pipeline_run).count()
+        from django.db.models import Q
+        total_screened_papers = abstract_screened or full_text_screened or PaperMetric.objects.filter(Q(pipeline_run=process.pipeline_run) | Q(paper__pipeline_run=process.pipeline_run)).distinct().count()
 
         paper_metrics = {
             "total_papers_fetched": process.pipeline_run.total_papers_fetched or papers_qs.count(),

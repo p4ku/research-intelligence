@@ -269,7 +269,13 @@ class ReprocessExistingPipelineE2ETestCase(TestCase):
             extractions = Extraction.objects.filter(paper__pipeline_run=proc.pipeline_run)
             self.assertTrue(extractions.count() >= 2)
 
-            # Check signal score evaluated
+            # Check signal score evaluated and PaperMetric records generated per pipeline_run
+            metrics = PaperMetric.objects.filter(pipeline_run=proc.pipeline_run)
+            self.assertEqual(metrics.count(), 2)
+            for m in metrics:
+                self.assertEqual(float(m.signal_score), 7.25)
+                self.assertEqual(m.pipeline_run, proc.pipeline_run)
+
             for paper in proc.pipeline_run.papers.all():
                 self.assertIsNotNone(paper.signal_score)
                 # TRL=6, Novelty=8.5 -> score = 0.5 * 6 + 0.5 * 8.5 = 7.25

@@ -66,7 +66,7 @@ def _parse_numeric_value(val: Any) -> Union[float, int, str]:
     return str_val
 
 
-def extract_paper_parameters(paper: Paper) -> Dict[str, Any]:
+def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -> Dict[str, Any]:
     """
     Collects all parameter extractions for a Paper and returns a clean dictionary
     with sanitized Python variable names and parsed numeric/string values.
@@ -82,7 +82,7 @@ def extract_paper_parameters(paper: Paper) -> Dict[str, Any]:
             if ed.exit_metric:
                 context[_sanitize_identifier(ed.exit_metric)] = 0.0
 
-    extractions = paper.extractions.all().select_related('extraction_definition')
+    extractions = list(paper.extractions.all().select_related('extraction_definition'))
 
     for ext in extractions:
         raw_val = ext.exit_metric or ext.get_exit_metric() or ""
@@ -118,21 +118,25 @@ def extract_paper_parameters(paper: Paper) -> Dict[str, Any]:
 
 def compute_paper_signal_score(
     paper_id_or_obj: Any,
-    custom_code: Optional[str] = None
+    custom_code: Optional[str] = None,
+    pipeline_run: Optional[Any] = None
 ) -> Tuple[float, Dict[str, Any]]:
     """
     Computes the composite signal score for a Paper using the Workspace's sandboxed Python code.
-    Saves the calculated signal_score and audit details onto the Paper and PaperMetric models.
+    Saves the calculated signal_score and audit details onto the Paper and PaperMetric models per pipeline_run.
     """
     if isinstance(paper_id_or_obj, Paper):
         paper = paper_id_or_obj
     else:
-        paper = Paper.objects.select_related('workspace').get(pk=paper_id_or_obj)
+        paper = Paper.objects.select_related('workspace', 'pipeline_run').get(pk=paper_id_or_obj)
 
     workspace = paper.workspace
+    if pipeline_run is None:
+        pipeline_run = getattr(paper, 'pipeline_run', None)
+
     code_to_run = custom_code if custom_code is not None else (workspace.signal_score_code or "")
 
-    context_vars = extract_paper_parameters(paper)
+    context_vars = extract_paper_parameters(paper, pipeline_run=pipeline_run)
 
     error_msg = None
     try:
@@ -159,16 +163,18 @@ def compute_paper_signal_score(
     paper.signal_score_details = details
     paper.save(update_fields=['signal_score', 'signal_score_details'])
 
-    # Persist on PaperMetric model
+    # Persist on PaperMetric model per pipeline run
     metric, _ = PaperMetric.objects.get_or_create(
         paper=paper,
+        pipeline_run=pipeline_run,
         workspace=workspace,
-        defaults={"signal_score": score, "signal_score_details": details}
+        defaults={"signal_score": score, "signal_score_details": details, "metrics_data": context_vars}
     )
-    if metric.signal_score != score or metric.signal_score_details != details:
+    if metric.signal_score != score or metric.signal_score_details != details or metric.metrics_data != context_vars:
         metric.signal_score = score
         metric.signal_score_details = details
-        metric.save(update_fields=['signal_score', 'signal_score_details'])
+        metric.metrics_data = context_vars
+        metric.save(update_fields=['signal_score', 'signal_score_details', 'metrics_data'])
 
     return score, details
 
@@ -222,7 +228,7 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
     for paper in papers:
         close_old_connections()
         try:
-            score, details = compute_paper_signal_score(paper)
+            score, details = compute_paper_signal_score(paper, pipeline_run=pipeline_run)
             scores_list.append(score)
             scored_count += 1
             evaluated_papers.append({

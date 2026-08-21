@@ -75,8 +75,10 @@ class StoragePurgeAndDeleteLifecycleTestCase(TestCase):
         )
         metric = PaperMetric.objects.create(
             workspace=self.workspace,
+            pipeline_run=pr,
             paper=paper,
-            trl_score=5
+            signal_score=5.0,
+            metrics_data={"trl_score": 5}
         )
         report = NarrativeReport.objects.create(
             workspace=self.workspace,

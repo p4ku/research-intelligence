@@ -3,7 +3,7 @@ from django import forms
 from django.db import models
 from django.db.models import Q
 from django.contrib import admin
-from django.utils.html import format_html
+from django.utils.html import format_html, escape
 from django.utils.safestring import mark_safe
 from django.urls import reverse
 from research_intelligence.models import (
@@ -1676,10 +1676,43 @@ class PaperMetricAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.JSONField: {'widget': PrettyJSONWidget},
     }
-    list_display = ('paper', 'workspace', 'signal_score', 'trl_score', 'importance_score', 'citation_count', 'created_at')
+    list_display = ('paper', 'pipeline_run_link', 'workspace', 'signal_score_badge', 'metrics_preview', 'created_at')
     ordering = ('-created_at', '-id')
-    list_filter = ('workspace', 'trl_score')
-    search_fields = ('paper__title',)
+    list_filter = ('workspace', 'pipeline_run')
+    search_fields = ('paper__title', 'pipeline_run__id')
+
+    def pipeline_run_link(self, obj):
+        pr = obj.pipeline_run
+        if not pr and obj.paper and obj.paper.pipeline_run:
+            pr = obj.paper.pipeline_run
+        if not pr:
+            return "-"
+        url = reverse("admin:research_intelligence_pipelinerun_change", args=[pr.id])
+        return format_html('<a href="{}" title="Pipeline Run: {}"><code>{}</code></a>', url, str(pr.id), str(pr.id)[:8] + '...')
+    pipeline_run_link.short_description = "Pipeline Run"
+    pipeline_run_link.admin_order_field = "pipeline_run"
+
+    def signal_score_badge(self, obj):
+        if obj.signal_score is None:
+            return mark_safe('<span style="color: #6c757d;">-</span>')
+        return format_html(
+            '<span style="background-color: #0d6efd; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px;">{:.2f}</span>',
+            obj.signal_score
+        )
+    signal_score_badge.short_description = "Signal Score"
+    signal_score_badge.admin_order_field = "signal_score"
+
+    def metrics_preview(self, obj):
+        if not obj.metrics_data:
+            return mark_safe('<span style="color: #6c757d;">-</span>')
+        items = []
+        for k, v in list(obj.metrics_data.items())[:4]:
+            items.append(f"<strong>{escape(str(k))}</strong>: {escape(str(v))}")
+        preview_str = " | ".join(items)
+        if len(obj.metrics_data) > 4:
+            preview_str += " ..."
+        return mark_safe(f'<span style="font-size: 12px; color: #495057;">{preview_str}</span>')
+    metrics_preview.short_description = "Extracted Metrics"
 
 
 @admin.register(NarrativeReport)

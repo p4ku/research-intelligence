@@ -113,9 +113,9 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
     full_text_screened = full_text_metrics.get("total_screened", papers_qs.filter(screening_status__in=['full_text_passed', 'rejected']).count()) if full_text_run else 0
     full_text_passed = full_text_metrics.get("passed", papers_qs.filter(screening_status='full_text_passed').count()) if full_text_run else 0
     full_text_rejected = full_text_metrics.get("rejected", papers_qs.filter(screening_status='rejected').count()) if full_text_run else 0
-
+    from django.db.models import Q
     extractions_count = Extraction.objects.filter(paper__pipeline_run=pipeline_run).count()
-    paper_metrics_count = PaperMetric.objects.filter(paper__pipeline_run=pipeline_run).count()
+    paper_metrics_count = PaperMetric.objects.filter(Q(pipeline_run=pipeline_run) | Q(paper__pipeline_run=pipeline_run)).distinct().count()
 
     # Calculate physical storage footprint for run directory
     run_storage_dir = f"workspaces/{pipeline_run.workspace.id}/runs/{pipeline_run.id}"

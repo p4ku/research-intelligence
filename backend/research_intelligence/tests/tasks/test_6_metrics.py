@@ -53,9 +53,9 @@ class TRLAssessmentTaskTestCase(TestCase):
         
         # Verify PaperMetric model instance is created in database
         metric = PaperMetric.objects.get(paper=self.paper)
-        self.assertEqual(metric.trl_score, 4)
-        self.assertEqual(metric.trl_reasoning, "The research describes lab validation of efficacy.")
-        self.assertEqual(metric.trl_evidence, ["TRL 4 details"])
+        self.assertEqual(metric.metrics_data["trl_score"], 4)
+        self.assertEqual(metric.metrics_data["trl_reasoning"], "The research describes lab validation of efficacy.")
+        self.assertEqual(metric.metrics_data["trl_evidence"], ["TRL 4 details"])
 
         # Verify LLM provider was resolved and called
         mock_get_llm_provider.assert_called_once_with("google")
@@ -83,8 +83,8 @@ class TRLAssessmentTaskTestCase(TestCase):
         self.assertTrue(result)
         
         metric = PaperMetric.objects.get(paper=self.paper)
-        self.assertEqual(metric.trl_score, 3)
-        self.assertEqual(metric.trl_reasoning, "Abstract details a proof of concept.")
+        self.assertEqual(metric.metrics_data["trl_score"], 3)
+        self.assertEqual(metric.metrics_data["trl_reasoning"], "Abstract details a proof of concept.")
         
         # Confirm provider prompt contained the abstract since md file was missing
         called_args, called_kwargs = mock_provider.generate.call_args
