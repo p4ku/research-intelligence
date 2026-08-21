@@ -248,3 +248,88 @@ class StageResultsAndStopReasonTestCase(TestCase):
         preview = self.agent_admin.stage_results_preview(agent)
         self.assertIn("Extraction", str(preview))
         self.assertIn("Reporting", str(preview))
+
+    def test_triggered_by_display_explicit_user(self):
+        """
+        Verifies triggered_by_display renders the user username and email properly.
+        """
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Explicit Creator Agent",
+            triggered_by=self.user,
+            status="running"
+        )
+        display = self.agent_admin.triggered_by_display(agent)
+        self.assertIn("analyst_test", str(display))
+        self.assertIn("analyst@example.com", str(display))
+        self.assertIn("👤", str(display))
+
+    def test_triggered_by_display_fallback_to_pipeline_run(self):
+        """
+        When agent.triggered_by is None, verifies fallback to pipeline_run.triggered_by.
+        """
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            triggered_by=self.user,
+            status="running"
+        )
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            pipeline_run=pr,
+            name="Fallback Creator Agent",
+            triggered_by=None,
+            status="running"
+        )
+        display = self.agent_admin.triggered_by_display(agent)
+        self.assertIn("analyst_test", str(display))
+        self.assertIn("analyst@example.com", str(display))
+
+    def test_triggered_by_display_automated_system(self):
+        """
+        When neither agent nor pipeline_run has a triggered_by user, renders System / Automated.
+        """
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="System Agent",
+            triggered_by=None,
+            pipeline_run=None,
+            status="running"
+        )
+        display = self.agent_admin.triggered_by_display(agent)
+        self.assertIn("System / Automated", str(display))
+
+    def test_admin_save_model_auto_populates_creator(self):
+        """
+        Verifies that save_model in ResearchAgentProcessAdmin automatically sets
+        triggered_by to the authenticated request.user if not specified.
+        """
+        agent = ResearchAgentProcess(
+            workspace=self.workspace,
+            name="Admin Created Agent",
+            status="pending"
+        )
+        request = MagicMock()
+        request.user = self.user
+
+        self.agent_admin.save_model(request, agent, form=None, change=False)
+        agent.refresh_from_db()
+        self.assertEqual(agent.triggered_by, self.user)
+
+    def test_admin_run_full_pipeline_action_assigns_creator(self):
+        """
+        Verifies that running the admin action run_full_pipeline assigns request.user as triggered_by.
+        """
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="pending",
+            current_stage="search"
+        )
+        request = MagicMock()
+        request.user = self.user
+
+        with patch("research_intelligence.tasks.orchestrator.agent_engine.tick_agent_process"):
+            self.run_admin.run_full_pipeline(request, PipelineRun.objects.filter(id=pr.id))
+
+        created_agent = pr.agent_processes.last()
+        self.assertIsNotNone(created_agent)
+        self.assertEqual(created_agent.triggered_by, self.user)
