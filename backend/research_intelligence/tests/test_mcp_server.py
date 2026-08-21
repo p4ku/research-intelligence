@@ -218,12 +218,11 @@ class MCPServerTest(TestCase):
             self.assertEqual(sr_status["metrics"]["total_fetched"], 1)
             self.assertEqual(sr_status["metrics"]["total_created"], 1)
 
-            # Verify orthogonal storage file in default_storage
-            raw_path = sr_status["raw_storage_path"]
-            self.assertTrue(default_storage.exists(raw_path))
-            raw_data = json.loads(default_storage.open(raw_path).read().decode('utf-8'))
-            self.assertEqual(len(raw_data), 1)
-            self.assertEqual(raw_data[0]["title"], "Agentic AI Reasoning Engine")
+            # Verify ingested paper in DB
+            from research_intelligence.models import Paper
+            papers = Paper.objects.filter(workspace_id=ws_id)
+            self.assertEqual(papers.count(), 1)
+            self.assertEqual(papers.first().title, "Agentic AI Reasoning Engine")
 
             # Verify list pipeline runs
             history = json.loads(list_pipeline_runs_logic(self.admin_user, ws_id))

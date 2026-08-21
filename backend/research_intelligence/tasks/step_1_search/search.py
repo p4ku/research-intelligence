@@ -99,17 +99,9 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
         sort_order = getattr(scraper, 'sort_order', 'desc')
         results = provider.search(scraper.search_query, limit=final_limit, sort_by=sort_by, sort_order=sort_order)
         
-        # 1. Save raw response payload in Django default_storage (Orthogonal Path Structure)
-        raw_storage_path = f"workspaces/{workspace.id}/runs/{pipeline_run.id}/scrapes/{scraper.provider}/{component_run.id}_raw.json"
-        if default_storage.exists(raw_storage_path):
-            default_storage.delete(raw_storage_path)
-            
-        raw_content = json.dumps(results, indent=2, ensure_ascii=False)
-        default_storage.save(raw_storage_path, ContentFile(raw_content.encode('utf-8')))
-
-        component_run.raw_storage_path = raw_storage_path
+        # 1. Update component run metrics
         component_run.metrics['total_fetched'] = len(results)
-        component_run.save(update_fields=['raw_storage_path', 'metrics'])
+        component_run.save(update_fields=['metrics'])
 
         # 2. Prepare in-memory deduplication index
         existing_papers = list(Paper.objects.filter(workspace_id=workspace.id).values("title", "doi", "arxiv_id"))
@@ -171,11 +163,6 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
             clean_arxiv = norm_arxiv if norm_arxiv else arxiv_id
             unique_hash = hashlib.sha256(f"{item['source_database']}:{item['hash_id']}".encode()).hexdigest()
 
-            # Save individual document metadata in default_storage
-            doc_meta_path = f"workspaces/{workspace.id}/runs/{pipeline_run.id}/documents/{unique_hash}/metadata.json"
-            if not default_storage.exists(doc_meta_path):
-                default_storage.save(doc_meta_path, ContentFile(json.dumps(item, indent=2).encode('utf-8')))
-
             is_withdrawn = item.get('is_withdrawn', False)
             screening_status = 'withdrawn' if is_withdrawn else 'pending'
             screening_reasoning = item.get('withdrawn_reason', '') if is_withdrawn else None
@@ -228,7 +215,6 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
         component_run.output_data = {
             "total_results": len(results),
             "created_paper_ids": created_paper_ids,
-            "raw_storage_path": raw_storage_path,
             "papers_preview": fetched_papers_sample,
             "total_duration_seconds": duration_sec
         }

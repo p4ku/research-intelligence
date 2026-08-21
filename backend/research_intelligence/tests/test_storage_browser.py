@@ -44,7 +44,14 @@ class StorageBrowserTestCase(TestCase):
 
     def test_storage_browser_list_cache_dir(self):
         # Create a document in cache
-        cached_file = default_storage.save("cache/documents/1234567890abcdef/original.pdf", ContentFile(b"%PDF-1.4 test"))
+        from research_intelligence.models import DocumentRegistry
+        sha = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
+        doc = DocumentRegistry.objects.create(
+            sha256_hash=sha,
+            title="Transformer Architecture Research",
+            canonical_pdf_path=f"cache/documents/{sha}/original.pdf"
+        )
+        cached_file = default_storage.save(f"cache/documents/{sha}/original.pdf", ContentFile(b"%PDF-1.4 test"))
         try:
             url = f"{reverse('admin:storage-browser')}?path=cache"
             response = self.client.get(url)
@@ -54,10 +61,12 @@ class StorageBrowserTestCase(TestCase):
             url_docs = f"{reverse('admin:storage-browser')}?path=cache/documents"
             response_docs = self.client.get(url_docs)
             self.assertEqual(response_docs.status_code, 200)
-            self.assertContains(response_docs, "1234567890abcdef/")
+            self.assertContains(response_docs, f"{sha}/")
+            self.assertContains(response_docs, "Transformer Architecture Research")
         finally:
             if default_storage.exists(cached_file):
                 default_storage.delete(cached_file)
+            doc.delete()
 
     def test_storage_browser_list_subdir(self):
         url = f"{reverse('admin:storage-browser')}?path=test_dir"

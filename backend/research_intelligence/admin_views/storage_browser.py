@@ -304,13 +304,20 @@ def storage_browser_view(request):
             if 'cache' not in filtered_dirs and (default_storage.exists('cache') or default_storage.exists('cache/documents') or not filtered_dirs):
                 filtered_dirs.append('cache')
             filtered_files = []
+        elif current_path == 'cache':
+            filtered_dirs = [d for d in raw_dirs]
+            if 'documents' not in filtered_dirs and (default_storage.exists('cache/documents') or not filtered_dirs):
+                filtered_dirs.append('documents')
+            filtered_files = raw_files
         else:
             filtered_dirs = raw_dirs
             filtered_files = raw_files
 
-        for d in sorted(filtered_dirs):
+        for d in filtered_dirs:
             d_rel_path = os.path.join(current_path, d) if current_path else d
             d_mtime_str = "-"
+            doc_title = None
+            ws_name = None
             try:
                 d_mtime = default_storage.get_modified_time(d_rel_path)
                 d_mtime_str = d_mtime.strftime("%Y-%m-%d %H:%M:%S")
@@ -319,34 +326,46 @@ def storage_browser_view(request):
 
             # Fallback for S3/MinIO virtual prefixes where directories have no direct metadata:
             # If folder name is a valid UUID, look up matching Workspace or PipelineRun timestamp
-            # If folder name is a 64-character hex hash, look up DocumentRegistry timestamp
-            if d_mtime_str == "-":
-                try:
-                    if len(d) == 36:
-                        import uuid
-                        if uuid.UUID(d):
-                            from research_intelligence.models import Workspace, PipelineRun
-                            ws = Workspace.objects.filter(id=d).only('created_at').first()
-                            if ws and ws.created_at:
+            # If folder name is a 64-character hex hash, look up DocumentRegistry timestamp & Title
+            try:
+                if len(d) == 36:
+                    import uuid
+                    if uuid.UUID(d):
+                        from research_intelligence.models import Workspace, PipelineRun
+                        ws = Workspace.objects.filter(id=d).only('name', 'created_at').first()
+                        if ws:
+                            ws_name = ws.name
+                            if d_mtime_str == "-" and ws.created_at:
                                 d_mtime_str = ws.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                            else:
-                                pr = PipelineRun.objects.filter(id=d).only('created_at').first()
-                                if pr and pr.created_at:
+                        else:
+                            pr = PipelineRun.objects.filter(id=d).only('created_at').first()
+                            if pr and pr.created_at:
+                                if d_mtime_str == "-" and pr.created_at:
                                     d_mtime_str = pr.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                    elif len(d) == 64:
-                        from research_intelligence.models import DocumentRegistry
-                        doc = DocumentRegistry.objects.filter(sha256_hash=d).only('created_at').first()
-                        if doc and doc.created_at:
-                            d_mtime_str = doc.created_at.strftime("%Y-%m-%d %H:%M:%S")
-                except Exception:
-                    pass
+                elif len(d) == 64:
+                    from research_intelligence.models import DocumentRegistry, Paper
+                    doc = DocumentRegistry.objects.filter(sha256_hash=d).only('title', 'first_ingested_at').first()
+                    if doc:
+                        doc_title = doc.title
+                        if d_mtime_str == "-" and doc.first_ingested_at:
+                            d_mtime_str = doc.first_ingested_at.strftime("%Y-%m-%d %H:%M:%S")
+                    else:
+                        p = Paper.objects.filter(sha256_hash=d).only('title', 'created_at').first()
+                        if p:
+                            doc_title = p.title
+                            if d_mtime_str == "-" and p.created_at:
+                                d_mtime_str = p.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                pass
 
             dirs_list.append({
                 'name': d,
                 'rel_path': d_rel_path,
-                'mtime_str': d_mtime_str
+                'mtime_str': d_mtime_str,
+                'doc_title': doc_title,
+                'ws_name': ws_name,
             })
-        for f in sorted(filtered_files):
+        for f in filtered_files:
             f_rel_path = os.path.join(current_path, f) if current_path else f
             size = None
             mtime_str = "-"
@@ -364,9 +383,32 @@ def storage_browser_view(request):
                 'name': f,
                 'rel_path': f_rel_path,
                 'icon': _get_file_icon(f),
+                'size_bytes': size or 0,
                 'size_formatted': _format_size(size),
                 'mtime_str': mtime_str
             })
+
+        # Determine sorting preference (default to newest modified first for cache/documents and runs)
+        default_sort_by = 'mtime' if (current_path.startswith('cache/documents') or '/runs' in current_path or current_path.endswith('/documents')) else 'name'
+        default_sort_order = 'desc' if default_sort_by == 'mtime' else 'asc'
+
+        sort_by = request.GET.get('sort', default_sort_by)
+        sort_order = request.GET.get('order', default_sort_order).lower()
+        if sort_order not in ('asc', 'desc'):
+            sort_order = default_sort_order
+
+        is_desc = (sort_order == 'desc')
+
+        if sort_by == 'mtime':
+            dirs_list.sort(key=lambda x: (x['mtime_str'] if x['mtime_str'] != '-' else '0000-00-00 00:00:00', x['name']), reverse=is_desc)
+            files_list.sort(key=lambda x: (x['mtime_str'] if x['mtime_str'] != '-' else '0000-00-00 00:00:00', x['name']), reverse=is_desc)
+        elif sort_by == 'size':
+            dirs_list.sort(key=lambda x: x['name'].lower(), reverse=is_desc)
+            files_list.sort(key=lambda x: x.get('size_bytes', 0) or 0, reverse=is_desc)
+        else:  # sort_by == 'name'
+            dirs_list.sort(key=lambda x: x['name'].lower(), reverse=is_desc)
+            files_list.sort(key=lambda x: x['name'].lower(), reverse=is_desc)
+
     except Exception as e:
         messages.error(request, f"Error listing path '{current_path}': {str(e)}")
 
@@ -460,10 +502,17 @@ def storage_browser_view(request):
 
     # List subdirectories
     for d in dirs_list:
+        doc_title_span = ""
+        if d.get('doc_title'):
+            doc_title_span = f'<span style="color: #495057; font-size: 13px; font-weight: normal; margin-left: 8px;">— <strong>{escape(d["doc_title"])}</strong></span>'
+        elif d.get('ws_name'):
+            doc_title_span = f'<span style="color: #495057; font-size: 13px; font-weight: normal; margin-left: 8px;">— <strong>{escape(d["ws_name"])}</strong></span>'
+
         rows_html.append(f"""
         <tr style="border-bottom: 1px solid #eee;">
             <td style="padding: 10px 12px;">
                 📁 <a href="{base_url}?path={escape(d['rel_path'])}" style="font-weight: bold; font-size: 14px; text-decoration: none; color: #0d6efd;">{escape(d['name'])}/</a>
+                {doc_title_span}
             </td>
             <td style="padding: 10px 12px; color: #6c757d;">Directory</td>
             <td style="padding: 10px 12px; color: #6c757d; font-size: 13px;">{d['mtime_str']}</td>
@@ -525,6 +574,14 @@ def storage_browser_view(request):
         text_color = "#842029" if "error" in tag else ("#0f5132" if "success" in tag else "#664d03")
         messages_html += f'<div style="margin-bottom: 12px; padding: 10px 14px; border-radius: 4px; background-color: {bg_color}; border: 1px solid {border_color}; color: {text_color}; font-size: 13px;">{mark_safe(str(msg))}</div>'
 
+    # Helper for building sort links in table headers
+    def _sort_link(col_name: str, col_label: str) -> str:
+        if sort_by == col_name:
+            next_order = 'asc' if sort_order == 'desc' else 'desc'
+            arrow = ' 🔽' if sort_order == 'desc' else ' 🔼'
+            return f'<a href="{base_url}?path={escape(current_path)}&sort={col_name}&order={next_order}" style="color: #0d6efd; text-decoration: none; font-weight: bold;">{col_label}{arrow}</a>'
+        return f'<a href="{base_url}?path={escape(current_path)}&sort={col_name}&order=desc" style="color: #495057; text-decoration: none;">{col_label}</a>'
+
     # Render Django Admin page layout
     page_html = f"""
     <!DOCTYPE html>
@@ -542,9 +599,9 @@ def storage_browser_view(request):
             <table style="width: 100%; border-collapse: collapse; text-align: left; font-family: system-ui, -apple-system, sans-serif;">
                 <thead>
                     <tr style="background-color: #f1f3f5; border-bottom: 2px solid #dee2e6; color: #495057; font-size: 13px;">
-                        <th style="padding: 12px;">Name</th>
-                        <th style="padding: 12px; width: 120px;">Size</th>
-                        <th style="padding: 12px; width: 180px;">Modified</th>
+                        <th style="padding: 12px;">{_sort_link('name', 'Name')}</th>
+                        <th style="padding: 12px; width: 120px;">{_sort_link('size', 'Size')}</th>
+                        <th style="padding: 12px; width: 220px;">{_sort_link('mtime', 'Modified / Created')}</th>
                         <th style="padding: 12px; width: 260px; text-align: right;">Actions</th>
                     </tr>
                 </thead>
