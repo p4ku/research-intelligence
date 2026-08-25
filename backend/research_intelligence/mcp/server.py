@@ -83,7 +83,7 @@ from research_intelligence.mcp.tools import (
     start_research_agent_logic,
     list_research_agents_logic,
     get_research_agent_status_logic,
-    wait_for_research_agent_logic,
+    check_run_status_logic,
     pause_research_agent_logic,
     resume_research_agent_logic,
     abort_research_agent_logic,
@@ -355,11 +355,10 @@ Follow this standard 5-step operational protocol:
 
 ### Step 3: Launch Autonomous State Machine Agent
 - Call `start_research_agent(workspace_id="<WORKSPACE_ID>", limit=50, date_range_days=180)`
-- Returns a `process_id` and starts the DAG workflow engine (Step 1 Search -> Step 2 Download -> Step 4 Screening -> Step 5 Extraction -> Step 6 Signal Score).
+- Returns a `process_id` and starts the DAG workflow engine (Step 1 Search -> Step 2 Download -> Step 4 Screening -> Step 5 Extraction -> Step 6 Signal Score -> Step 7 Reporting).
 
-### Step 4: Monitor or Wait for Completion
-- Synchronous blocking: Call `wait_for_research_agent(process_id="<PROCESS_ID>", timeout_seconds=180)`
-- Asynchronous polling: Call `get_research_agent_status(process_id="<PROCESS_ID>")` to inspect active step and token/cost metrics.
+### Step 4: Check Live Progress & Status
+- Real-time status: Call `check_run_status(process_id="<PROCESS_ID>")` to inspect active stage, execution duration, live paper metrics, and a formatted Markdown progress card.
 
 ### Step 5: Retrieve Results & Parameters Scorecard
 - Call `get_paper_extractions_matrix(process_id="<PROCESS_ID>")` or `get_paper_extractions_matrix(workspace_id="<WORKSPACE_ID>")`
@@ -374,7 +373,7 @@ def autonomous_research_agent_workflow(
     date_range_days: str = "30",
     notification_email: str = None
 ) -> str:
-    """Playbook guiding AI clients through starting, monitoring, pausing, resuming, and waiting for an autonomous Research Agent process."""
+    """Playbook guiding AI clients through starting, monitoring, pausing, resuming, and checking status for an autonomous Research Agent process."""
     return f"""
 # 🤖 Autonomous Research Agent Process Management Guide
 
@@ -394,9 +393,9 @@ Call `start_research_agent(
 )`
 *(Set reprocess_existing=True if you want to re-screen and re-extract existing workspace papers without querying external scrapers).*
 
-### 2. Wait for Completion
-Call `wait_for_research_agent(process_id="<PROCESS_ID>", timeout_seconds=180)`
-If timeout expires before completion, call `get_research_agent_status(process_id="<PROCESS_ID>")` to inspect the active step in the DAG.
+### 2. Check Execution Status & Progress
+Call `check_run_status(process_id="<PROCESS_ID>")`
+Returns real-time execution progress, stage breakdown table, paper screening counts, and next-step recommendations.
 
 ### 3. Lifecycle Controls
 - Pause: `pause_research_agent(process_id="<PROCESS_ID>")`
@@ -1136,7 +1135,7 @@ def start_research_agent(
     - notification_email: Optional email to notify via Mailgun upon pipeline completion.
     
     NEXT STEPS:
-    - Immediately after calling this, call `wait_for_research_agent(process_id=...)` to await results, or poll with `get_research_agent_status(process_id=...)`.
+    - Immediately after calling this, call `check_run_status(process_id=...)` to check real-time progress without blocking, or query `get_paper_extractions_matrix(process_id=...)` once complete.
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -1162,6 +1161,45 @@ def list_research_agents(workspace_id: str = None, limit: int = 20) -> str:
 
 @mcp.tool()
 @with_db_connection
+def check_run_status(process_id: str = None, pipeline_run_id: str = None, run_id: str = None) -> str:
+    """
+    [PRIMARY LIVE RUN STATUS & REAL-TIME PROGRESS INSPECTOR]
+    Checks the real-time execution status of an autonomous SLR Research Agent Process or Pipeline Run.
+    Non-blocking: advances the state machine if active and returns the active stage, execution duration,
+    what has already completed vs in-progress vs pending, paper metrics, token/cost usage, and a beautiful
+    visual Markdown progress card (summary_markdown) with progress bars and timeline tables.
+
+    WHEN TO USE:
+    - Primary tool to monitor pipeline progress immediately after `start_research_agent`.
+    - Check what stage is currently executing, paper screening counts, and next-step recommendations.
+
+    PARAMETERS:
+    - process_id (str, optional): UUID of the ResearchAgentProcess returned by `start_research_agent`.
+    - pipeline_run_id (str, optional): UUID of a PipelineRun.
+    - run_id (str, optional): Alias for process_id or pipeline_run_id.
+
+    RETURNS:
+    - `summary_markdown`: Formatted Markdown report with ASCII progress bars, stage timeline table, paper counts, and top papers.
+    - `is_finished`: Boolean indicating whether execution completed, failed, or was aborted/halted.
+    - `status`: Current state ('running', 'completed', 'failed', 'paused', 'aborted').
+    - `current_step` & `current_step_display`: Active/final SLR stage name (e.g. '4. Dual-Stage Screening').
+    - `progress_percent`: Estimated percentage of total pipeline completion (0-100%).
+    - `duration_seconds` & `execution_time`: Total execution elapsed time (e.g. 45.2, '45s').
+    - `stages_breakdown`: Detailed breakdown of all 7 SLR stages (Search, Download, OCR, Screening, Extraction, Signal Score, Reporting).
+    - `paper_metrics`: Live paper counts (ingested, downloaded, abstract/full-text screened, accepted, extractions count, AI tokens, USD cost).
+    - `top_papers_preview`: Preview of top accepted papers with signal scores and extracted parameters.
+    - `next_action_recommendation`: Contextual advice on what tool to call next.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:read")
+    except Exception as e:
+        return str(e)
+    return check_run_status_logic(user, process_id=process_id, pipeline_run_id=pipeline_run_id, run_id=run_id)
+
+
+@mcp.tool()
+@with_db_connection
 def get_research_agent_status(process_id: str) -> str:
     """
     [REAL-TIME AGENT MONITORING]
@@ -1176,51 +1214,6 @@ def get_research_agent_status(process_id: str) -> str:
     except Exception as e:
         return str(e)
     return get_research_agent_status_logic(user, process_id)
-
-
-@mcp.tool()
-@with_db_connection
-def wait_for_research_agent(process_id: str, timeout_seconds: int = 120, poll_interval_seconds: int = 3) -> str:
-    """
-    [SYNCHRONOUS EXECUTION BLOCKER & PROGRESS MONITOR]
-    Blocks and synchronously waits for an autonomous Research Agent Process to finish execution
-    across all 7 SLR pipeline steps (Search -> Download -> OCR -> Screening -> Extraction -> Signal Score -> Reporting).
-
-    RECOMMENDED MCP WORKFLOW:
-    1. Call `start_research_agent(workspace_id="...")` -> receives `process_id`.
-    2. Immediately call `wait_for_research_agent(process_id="...", timeout_seconds=120)`.
-    3. Evaluate the returned payload:
-       - If `status == "finished"`:
-           * Check `agent_status` (`"completed"`, `"failed"`, `"aborted"`).
-           * Inspect `stopped_at_step` and `stop_reason` to see if all 7 steps finished or if the pipeline cleanly halted early (e.g. 0 matching papers).
-           * Inspect `stage_results` for a per-stage summary of papers found, downloaded, screened, and extracted.
-           * Access the complete paper scorecard and metrics matrix inside `details.extractions_matrix_preview`.
-       - If `status == "timeout"`:
-           * The agent is still actively working on `current_step_display` (e.g. "4. Abstract & Full-Text Screening").
-           * Call `wait_for_research_agent(process_id=...)` again to continue waiting until completion.
-
-    PARAMETERS:
-    - process_id (str, required): The UUID of the ResearchAgentProcess returned by `start_research_agent`.
-    - timeout_seconds (int, optional): Max seconds to wait before returning a progress snapshot (default: 120s, min: 5s, max: 600s).
-    - poll_interval_seconds (int, optional): Polling interval in seconds to tick the DAG state engine (default: 3s).
-
-    OUTPUT PAYLOAD STRUCTURE:
-    - `status`: `"finished"` (completed/failed/aborted) or `"timeout"` (still running).
-    - `agent_status`: `"running"`, `"completed"`, `"failed"`, or `"aborted"`.
-    - `current_step`: Active/final step slug (`"search"`, `"download"`, `"ocr"`, `"screening"`, `"extraction"`, `"signal_score"`, `"reporting"`).
-    - `current_step_display`: Formatted human-readable step title (e.g. `"4. Abstract & Full-Text Screening"`).
-    - `stopped_at_step`: Step slug where execution concluded.
-    - `stop_reason`: Detailed message explaining why the run finished, halted cleanly, or failed.
-    - `stage_results`: Structured per-stage execution metrics, summaries, and timestamps.
-    - `total_duration_seconds` & `total_duration_display`: Total agent execution time (e.g. `45.2` / `"45s"`).
-    - `details`: Full workspace status report with token costs, paper metrics, and extractions matrix.
-    """
-    try:
-        user, workspace, api_key = get_auth_context()
-        check_scope(api_key, "workspaces:read")
-    except Exception as e:
-        return str(e)
-    return wait_for_research_agent_logic(user, process_id, timeout_seconds, poll_interval_seconds)
 
 
 @mcp.tool()

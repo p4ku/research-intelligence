@@ -18,7 +18,7 @@ from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_pro
 from research_intelligence.mcp.tools.agent_processes import (
     start_research_agent_logic,
     get_research_agent_status_logic,
-    wait_for_research_agent_logic,
+    check_run_status_logic,
     pause_research_agent_logic,
     resume_research_agent_logic,
     abort_research_agent_logic,
@@ -321,9 +321,9 @@ class ResearchAgentProcessTest(TestCase):
         self.assertEqual(del_resp.status_code, 200)
         self.assertFalse(ResearchAgentProcess.objects.filter(id=agent_id).exists())
 
-    def test_wait_for_research_agent_mcp_tool(self):
+    def test_check_run_status_mcp_tool(self):
         """
-        Verifies wait_for_research_agent_logic returns completed status when agent finishes.
+        Verifies check_run_status_logic returns completed status, rich markdown visual card, and stage breakdown.
         """
         agent = ResearchAgentProcess.objects.create(
             workspace=self.workspace,
@@ -333,15 +333,19 @@ class ResearchAgentProcessTest(TestCase):
             pipeline_run=PipelineRun.objects.create(workspace=self.workspace, status="completed")
         )
 
-        res = json.loads(wait_for_research_agent_logic(
+        res = json.loads(check_run_status_logic(
             self.user,
-            process_id=str(agent.id),
-            timeout_seconds=5,
-            poll_interval_seconds=1
+            process_id=str(agent.id)
         ))
-        self.assertEqual(res["status"], "finished")
+        self.assertEqual(res["status"], "completed")
+        self.assertTrue(res["is_finished"])
         self.assertEqual(res["agent_status"], "completed")
         self.assertEqual(res["current_step"], "completed")
+        self.assertEqual(res["progress_percent"], 100)
+        self.assertIn("summary_markdown", res)
+        self.assertIn("SLR Pipeline Status", res["summary_markdown"])
+        self.assertIn("stages_breakdown", res)
+        self.assertEqual(len(res["stages_breakdown"]), 7)
 
     def test_email_notification_to_subscribers_on_completion(self):
         """

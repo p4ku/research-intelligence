@@ -20,7 +20,7 @@ from research_intelligence.models import (
 from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
 from research_intelligence.mcp.tools.agent_processes import (
     start_research_agent_logic,
-    wait_for_research_agent_logic,
+    check_run_status_logic,
     get_research_agent_status_logic,
 )
 from research_intelligence.mcp.tools.pipeline_runs import trigger_search_job_logic, get_pipeline_run_status_logic
@@ -127,6 +127,15 @@ class ReprocessExistingPipelineE2ETestCase(TestCase):
 
         return mock_pdf_resp, mock_llm_generate
 
+    def _drive_agent_to_completion(self, process_id: str, max_ticks: int = 15):
+        """Helper to advance the agent process via check_run_status_logic until completion."""
+        for _ in range(max_ticks):
+            res_str = check_run_status_logic(user=self.user, process_id=process_id)
+            res = json.loads(res_str)
+            if res.get("is_finished") or res.get("status") in ["completed", "failed", "aborted"]:
+                return res
+        return json.loads(check_run_status_logic(user=self.user, process_id=process_id))
+
     def test_reprocess_existing_false_halts_at_step_1_when_all_papers_are_duplicates(self):
         """
         Scenario 1:
@@ -156,9 +165,8 @@ class ReprocessExistingPipelineE2ETestCase(TestCase):
             self.assertEqual(run1_info["status"], "success")
             proc1_id = run1_info["process_id"]
 
-            # Wait for Run 1 to complete all steps 1-6
-            wait_res_str = wait_for_research_agent_logic(user=self.user, process_id=proc1_id, timeout_seconds=15, poll_interval_seconds=1)
-            wait_res = json.loads(wait_res_str)
+            # Drive Run 1 to complete all steps 1-6
+            wait_res = self._drive_agent_to_completion(proc1_id)
             self.assertEqual(wait_res["agent_status"], "completed")
 
             proc1 = ResearchAgentProcess.objects.get(id=proc1_id)
@@ -175,9 +183,9 @@ class ReprocessExistingPipelineE2ETestCase(TestCase):
             run2_info = json.loads(res2_str)
             proc2_id = run2_info["process_id"]
 
-            # Wait for Run 2 to finish
-            wait2_res_str = wait_for_research_agent_logic(user=self.user, process_id=proc2_id, timeout_seconds=15, poll_interval_seconds=1)
-            wait2_res = json.loads(wait2_res_str)
+            # Drive Run 2 to finish
+            wait2_res = self._drive_agent_to_completion(proc2_id)
+            self.assertEqual(wait2_res["agent_status"], "completed")
 
             proc2 = ResearchAgentProcess.objects.get(id=proc2_id)
             self.assertEqual(proc2.status, "completed")
@@ -248,9 +256,8 @@ class ReprocessExistingPipelineE2ETestCase(TestCase):
             self.assertEqual(run_info["status"], "success")
             proc_id = run_info["process_id"]
 
-            # Wait for execution across all stages
-            wait_res_str = wait_for_research_agent_logic(user=self.user, process_id=proc_id, timeout_seconds=20, poll_interval_seconds=1)
-            wait_res = json.loads(wait_res_str)
+            # Drive execution across all stages
+            wait_res = self._drive_agent_to_completion(proc_id)
             self.assertEqual(wait_res["agent_status"], "completed")
 
             proc = ResearchAgentProcess.objects.get(id=proc_id)

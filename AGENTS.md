@@ -148,9 +148,9 @@ It orchestrates a 6-step processing pipeline:
 | Tool Name | Scope | Description |
 | :--- | :--- | :--- |
 | `start_research_agent` | `workspaces:write` | **Primary Entrypoint**: Launches autonomous state machine process (`ResearchAgentProcess`) executing all steps 1-6 automatically. Supports `reprocess_existing=True` to re-screen/extract existing workspace papers. |
+| `check_run_status` | `workspaces:read` | **Primary Status Inspector**: Non-blocking status checker returning live progress percentage, visual Markdown card (`summary_markdown`), stage breakdown table, and paper screening metrics. |
 | `list_research_agents` | `workspaces:read` | Lists all research agent processes for a workspace with current state and runtime. |
 | `get_research_agent_status` | `workspaces:read` | Returns agent state (`initialized`, `search`, `download`, `ocr`, `screening`, `extraction`, `completed`, `paused`, `aborted`), active step, audit trail, paper metrics, and storage footprint. |
-| `wait_for_research_agent` | `workspaces:read` | **Synchronous Wait**: Blocks until agent reaches `completed`/`failed` or timeout, returning full report and token/cost metrics. |
 | `pause_research_agent` | `workspaces:write` | Pauses running state engine process. |
 | `resume_research_agent` | `workspaces:write` | Resumes paused state engine process from active step. |
 | `abort_research_agent` | `workspaces:write` | Aborts agent process and cancels background Celery tasks. |
