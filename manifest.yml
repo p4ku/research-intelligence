@@ -1,0 +1,53 @@
+---
+applications:
+  - name: sri-api
+    docker:
+      image: ((backend_image))
+    instances: 2
+    memory: 1G
+    routes:
+      - route: sri.soinventive.co.uk/api
+      - route: sri.soinventive.co.uk/admin
+      - route: sri.soinventive.co.uk/static
+    env:
+      PORT: "8000"
+      DEBUG: "False"
+      ALLOWED_HOSTS: "sri.soinventive.co.uk"
+      CSRF_TRUSTED_ORIGINS: "https://sri.soinventive.co.uk"
+
+  - name: sri-mcp
+    docker:
+      image: ((backend_image))
+    instances: 1
+    memory: 512M
+    no-route: true
+    health-check-type: process
+    command: python research_intelligence/mcp/server.py
+
+  - name: sri-worker
+    docker:
+      image: ((backend_image))
+    instances: 2
+    memory: 1G
+    no-route: true
+    health-check-type: process
+    command: celery -A django_project worker --loglevel=info -Q celery,tenant-default,tenant-bulk-scraping
+
+  - name: sri-beat
+    docker:
+      image: ((backend_image))
+    instances: 1
+    memory: 512M
+    no-route: true
+    health-check-type: process
+    command: celery -A django_project beat --loglevel=info
+
+  - name: sri-frontend
+    docker:
+      image: ((frontend_image))
+    instances: 2
+    memory: 512M
+    routes:
+      - route: sri.soinventive.co.uk
+    env:
+      PORT: "3000"
