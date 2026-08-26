@@ -6,11 +6,12 @@ on:
       - main
 
 env:
-  REGISTRY: object.storage.eu01.onstackit.cloud
+  REGISTRY: registry.eu01.onstackit.cloud
   REGISTRY_PROJECT: sri-production
 
-  BACKEND_IMAGE: object.storage.eu01.onstackit.cloud/sri-production/sri-backend
-  FRONTEND_IMAGE: object.storage.eu01.onstackit.cloud/sri-production/sri-frontend
+  BACKEND_IMAGE: registry.eu01.onstackit.cloud/sri-production/sri-backend
+  FRONTEND_IMAGE: registry.eu01.onstackit.cloud/sri-production/sri-frontend
+
 
 jobs:
   deploy:
