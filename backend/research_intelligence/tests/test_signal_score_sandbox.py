@@ -124,9 +124,37 @@ else:
         res = execute_sandboxed_snippet(code, {"novelty": 16.0})
         self.assertEqual(res, 18.0)
 
+    def test_safe_builtins_collection_functions(self):
+        code = "return max([fit_score, novelty_score, trl_level]) + min(1, 2, 3)"
+        result = execute_sandboxed_snippet(code, {"fit_score": 5.0, "novelty_score": 8.0, "trl_level": 4.0})
+        self.assertEqual(result, 9.0)
+
+    def test_complex_multi_branch_conditional_formula(self):
+        code = """
+if trl_level < 3:
+    score = 0.0
+elif trl_level >= 7 and fit_score >= 8.0:
+    score = 100.0 * (1.1 if novelty_score > 7 else 1.0)
+else:
+    score = 50.0 + 5.0 * novelty_score
+return round(score, 1)
+"""
+        # Branch 1
+        res1 = execute_sandboxed_snippet(code, {"trl_level": 2, "fit_score": 9.0, "novelty_score": 8.0})
+        self.assertEqual(res1, 0.0)
+
+        # Branch 2
+        res2 = execute_sandboxed_snippet(code, {"trl_level": 7, "fit_score": 8.5, "novelty_score": 8.0})
+        self.assertEqual(res2, 110.0)
+
+        # Branch 3
+        res3 = execute_sandboxed_snippet(code, {"trl_level": 5, "fit_score": 6.0, "novelty_score": 6.0})
+        self.assertEqual(res3, 80.0)
+
     def test_fallback_when_code_is_empty(self):
         res = execute_sandboxed_snippet("", {"a": 10.0, "b": 25.0})
         self.assertEqual(res, 35.0)
+
 
     def test_helper_numeric_parser(self):
         self.assertEqual(_parse_numeric_value("4"), 4.0)

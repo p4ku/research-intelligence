@@ -1,4 +1,5 @@
 import json
+from decimal import Decimal
 from django import forms
 from django.db import models
 from django.db.models import Q
@@ -149,6 +150,114 @@ class PrettyJSONWidget(forms.Textarea):
         </script>
         """
         return mark_safe(html)
+
+
+class PrettyPythonCodeWidget(forms.Textarea):
+    """
+    Interactive Python code viewer and editor widget for Django Admin with dark theme styling,
+    syntax highlighting, copy support, and live code preview.
+    """
+    def render(self, name, value, attrs=None, renderer=None):
+        raw_code = value if value is not None else ""
+        attrs = attrs or {}
+        attrs['style'] = "width: 100%; min-height: 240px; font-family: 'Fira Code', 'SFMono-Regular', Consolas, Menlo, monospace; font-size: 13px; line-height: 1.5; background-color: #0d1117; color: #e6edf3; padding: 12px; border-radius: 6px; border: 1px solid #30363d; tab-size: 4;"
+        textarea_html = super().render(name, raw_code, attrs, renderer)
+        widget_id = attrs.get('id', f'python_widget_{name}')
+
+        js_helpers = """
+        <script>
+        if (typeof window.syntaxHighlightPython !== 'function') {
+            window.syntaxHighlightPython = function(code) {
+                if (typeof code !== 'string') code = String(code);
+                var escaped = code.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                var lines = escaped.split('\\n');
+                var highlightedLines = lines.map(function(line) {
+                    var commentIdx = line.indexOf('#');
+                    var codePart = commentIdx !== -1 ? line.substring(0, commentIdx) : line;
+                    var commentPart = commentIdx !== -1 ? line.substring(commentIdx) : '';
+
+                    // Highlight strings
+                    codePart = codePart.replace(/(["'])(?:(?=(\\\\?))\\2.)*?\\1/g, '<span style="color: #a5d6ff;">$&</span>');
+
+                    // Highlight keywords
+                    var keywords = ['def', 'return', 'if', 'elif', 'else', 'for', 'while', 'in', 'and', 'or', 'not', 'is', 'None', 'True', 'False', 'class', 'try', 'except', 'with', 'as', 'pass', 'break', 'continue', 'lambda'];
+                    var kwRegex = new RegExp('\\\\b(' + keywords.join('|') + ')\\\\b', 'g');
+                    codePart = codePart.replace(kwRegex, '<span style="color: #ff7b72; font-weight: 600;">$1</span>');
+
+                    // Highlight builtins and math
+                    var builtins = ['min', 'max', 'abs', 'round', 'sum', 'pow', 'len', 'int', 'float', 'str', 'math', 'sqrt', 'log', 'exp'];
+                    var biRegex = new RegExp('\\\\b(' + builtins.join('|') + ')\\\\b', 'g');
+                    codePart = codePart.replace(biRegex, '<span style="color: #d2a8ff; font-weight: 500;">$1</span>');
+
+                    // Highlight paper metrics & extraction variables
+                    var vars = ['fit_score', 'novelty_score', 'trl_level', 'rigour_score', 'commercial_viability', 'score', 'base', 'multiplier'];
+                    var varRegex = new RegExp('\\\\b(' + vars.join('|') + ')\\\\b', 'g');
+                    codePart = codePart.replace(varRegex, '<span style="color: #7ee787;">$1</span>');
+
+                    // Highlight numbers
+                    codePart = codePart.replace(/\\b(\\d+(?:\\.\\d+)?)\\b/g, '<span style="color: #79c0ff; font-weight: 500;">$1</span>');
+
+                    // Comment part in green/grey italic
+                    if (commentPart) {
+                        commentPart = '<span style="color: #8b949e; font-style: italic;">' + commentPart + '</span>';
+                    }
+
+                    return codePart + commentPart;
+                });
+                return highlightedLines.join('\\n');
+            };
+            window.togglePythonView = function(widgetId) {
+                var rawDiv = document.getElementById(widgetId + '_raw');
+                var prettyDiv = document.getElementById(widgetId + '_pretty');
+                if (rawDiv.style.display === 'none') {
+                    rawDiv.style.display = 'block';
+                    prettyDiv.style.display = 'none';
+                } else {
+                    rawDiv.style.display = 'none';
+                    prettyDiv.style.display = 'block';
+                }
+            };
+            window.copyPythonCode = function(widgetId) {
+                var rawEl = document.getElementById(widgetId);
+                if (rawEl) {
+                    navigator.clipboard.writeText(rawEl.value).then(function() {
+                        alert('Python code copied to clipboard!');
+                    });
+                }
+            };
+        }
+        </script>
+        """
+
+        html = f"""
+        {js_helpers}
+        <div class="pretty-python-container" style="margin: 8px 0; width: 100%; max-width: 950px;">
+            <div style="margin-bottom: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <button type="button" class="button" onclick="togglePythonView('{widget_id}')" style="padding: 5px 12px; font-size: 11px; cursor: pointer; background: #0d6efd; color: white; border: none; border-radius: 4px;">⇄ Switch View (Editor / Highlighted Code)</button>
+                <button type="button" class="button" onclick="copyPythonCode('{widget_id}')" style="padding: 5px 12px; font-size: 11px; cursor: pointer; background: #495057; color: white; border: none; border-radius: 4px;">📋 Copy Python Code</button>
+                <span style="font-size: 11px; color: #8b949e; font-family: monospace;">🐍 Python AST Sandboxed</span>
+            </div>
+            <div id="{widget_id}_raw" style="display: block;">
+                {textarea_html}
+            </div>
+            <pre id="{widget_id}_pretty" style="display: none; background: #0d1117; color: #c9d1d9; padding: 14px; border-radius: 8px; border: 1px solid #30363d; font-family: 'Fira Code', 'SFMono-Regular', Consolas, Menlo, monospace; font-size: 13px; line-height: 1.5; max-height: 500px; overflow: auto; margin: 0; white-space: pre-wrap; word-break: break-word;"></pre>
+        </div>
+        <script>
+        (function() {{
+            var rawEl = document.getElementById('{widget_id}');
+            var prettyEl = document.getElementById('{widget_id}_pretty');
+            if (rawEl && prettyEl) {{
+                function syncHighlight() {{
+                    prettyEl.innerHTML = window.syntaxHighlightPython(rawEl.value);
+                }}
+                rawEl.addEventListener('input', syncHighlight);
+                syncHighlight();
+            }}
+        }})();
+        </script>
+        """
+        return mark_safe(html)
+
 
 
 # Helper function to render CSS badges in Django Admin
@@ -463,11 +572,8 @@ class WorkspaceAdmin(admin.ModelAdmin):
         'name',
         'ocr_provider',
         'screening_llm_model',
-        'abstract_screening_exit_metric',
-        'full_text_screening_exit_metric',
-        'monthly_token_limit',
-        'tokens_consumed_this_month',
-        'usd_spent_this_month',
+        'tokens_consumed_display',
+        'usd_spent_display',
         'created_at'
     )
     search_fields = (
@@ -475,13 +581,44 @@ class WorkspaceAdmin(admin.ModelAdmin):
         'abstract_acceptance_criteria',
         'abstract_rejection_criteria',
         'full_text_acceptance_criteria',
-        'full_text_rejection_criteria',
-        'abstract_screening_exit_metric',
-        'full_text_screening_exit_metric'
+        'full_text_rejection_criteria'
     )
     list_filter = ('ocr_provider', 'llm_provider', 'created_at')
     inlines = [WorkspaceMemberInline, ScraperInline, SubscriberInline]
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(
+            all_time_tokens=models.Sum('runs__tokens_consumed'),
+            all_time_usd=models.Sum('runs__usd_cost')
+        )
+
+    @admin.display(description="Tokens Consumed (Total / Month)", ordering="tokens_consumed_this_month")
+    def tokens_consumed_display(self, obj):
+        all_time = getattr(obj, 'all_time_tokens', None)
+        if all_time is None:
+            all_time = obj.runs.aggregate(t=models.Sum('tokens_consumed'))['t'] or 0
+        all_time_int = max(int(all_time or 0), int(obj.tokens_consumed_this_month or 0))
+        month_int = int(obj.tokens_consumed_this_month or 0)
+        return f"{all_time_int:,} ({month_int:,} this month)"
+
+    @admin.display(description="USD Spent (Total / Month)", ordering="usd_spent_this_month")
+    def usd_spent_display(self, obj):
+        all_time = getattr(obj, 'all_time_usd', None)
+        if all_time is None:
+            all_time = obj.runs.aggregate(u=models.Sum('usd_cost'))['u'] or Decimal("0.0000")
+        all_time_dec = Decimal(str(all_time or 0))
+        month_dec = Decimal(str(obj.usd_spent_this_month or 0))
+        all_time_dec = max(all_time_dec, month_dec)
+        return f"${all_time_dec:,.2f} (${month_dec:,.2f} this month)"
+
+    def formfield_for_dbfield(self, db_field, **kwargs):
+        if db_field.name == 'signal_score_code':
+            kwargs['widget'] = PrettyPythonCodeWidget
+        return super().formfield_for_dbfield(db_field, **kwargs)
+
     fieldsets = (
+
         ('Basic Information', {
             'fields': ('name', 'digest_schedule', 'skip_abstract_screening', 'notification_email')
         }),

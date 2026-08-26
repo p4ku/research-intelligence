@@ -235,3 +235,50 @@ class ArchitecturalConsistencyTestCase(TestCase):
         self.assertIn(str(p_abs_passed.id), all_screened_ids)
         self.assertIn(str(p_rejected.id), all_screened_ids)
         self.assertNotIn(str(p_pending.id), all_screened_ids)
+
+    def test_workspace_screening_defaults_and_custom_override_invariants(self):
+        """
+        Validates that Workspace model methods return well-formed defaults when fields are None/empty,
+        and cleanly return custom overrides when configured.
+        """
+        ws_default = Workspace.objects.create(name="Default Workspace")
+        
+        # 1. Check default abstract screening properties
+        self.assertIn("expert AI Research Scanner", ws_default.get_abstract_screening_system_prompt())
+        self.assertIn("Title: {title}", ws_default.get_abstract_screening_user_prompt_template())
+        default_abs_schema = ws_default.get_abstract_screening_response_schema()
+        self.assertEqual(default_abs_schema["type"], "object")
+        self.assertIn("passed", default_abs_schema["properties"])
+        self.assertIn("decision_category", default_abs_schema["properties"])
+        self.assertEqual(ws_default.get_abstract_screening_exit_metric(), "decision_category")
+
+        # 2. Check default full-text screening properties
+        self.assertIn("expert AI Research Analyst", ws_default.get_full_text_screening_system_prompt())
+        self.assertIn("Full-Text Markdown Content:", ws_default.get_full_text_screening_user_prompt_template())
+        default_ft_schema = ws_default.get_full_text_screening_response_schema()
+        self.assertEqual(default_ft_schema["type"], "object")
+        self.assertIn("passed", default_ft_schema["properties"])
+        self.assertEqual(ws_default.get_full_text_screening_exit_metric(), "decision_category")
+
+        # 3. Check custom overrides
+        custom_schema = {"type": "object", "properties": {"score": {"type": "number"}}}
+        ws_custom = Workspace.objects.create(
+            name="Custom Workspace",
+            abstract_screening_system_prompt="Custom abstract system prompt.",
+            abstract_screening_user_prompt_template="Custom abstract template {title}",
+            abstract_screening_response_schema=custom_schema,
+            abstract_screening_exit_metric="score",
+            full_text_screening_system_prompt="Custom full text system prompt.",
+            full_text_screening_user_prompt_template="Custom full text template {full_text}",
+            full_text_screening_response_schema=custom_schema,
+            full_text_screening_exit_metric="custom_fit"
+        )
+        self.assertEqual(ws_custom.get_abstract_screening_system_prompt(), "Custom abstract system prompt.")
+        self.assertEqual(ws_custom.get_abstract_screening_user_prompt_template(), "Custom abstract template {title}")
+        self.assertEqual(ws_custom.get_abstract_screening_response_schema(), custom_schema)
+        self.assertEqual(ws_custom.get_abstract_screening_exit_metric(), "score")
+        self.assertEqual(ws_custom.get_full_text_screening_system_prompt(), "Custom full text system prompt.")
+        self.assertEqual(ws_custom.get_full_text_screening_user_prompt_template(), "Custom full text template {full_text}")
+        self.assertEqual(ws_custom.get_full_text_screening_response_schema(), custom_schema)
+        self.assertEqual(ws_custom.get_full_text_screening_exit_metric(), "custom_fit")
+

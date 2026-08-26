@@ -230,6 +230,25 @@ class AdminChangelistViewsTestCase(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Quantum Computing Intelligence")
+        self.assertContains(response, "Tokens Consumed (Total / Month)")
+        self.assertContains(response, "USD Spent (Total / Month)")
+
+
+    def test_workspace_changeform_renders_dynamic_screening_fieldsets(self):
+        url = reverse('admin:research_intelligence_workspace_change', args=[self.workspace.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Step 4: Abstract Screening Engine")
+        self.assertContains(response, "Step 4: Full-Text Screening Engine")
+        self.assertContains(response, "abstract_screening_system_prompt")
+        self.assertContains(response, "full_text_screening_system_prompt")
+        self.assertContains(response, "Switch View (Editor / Readonly)")
+        self.assertContains(response, "Copy JSON")
+        self.assertContains(response, "Copy Python Code")
+        self.assertContains(response, "Python AST Sandboxed")
+
+
+
 
     def test_paper_changelist_renders(self):
         url = reverse('admin:research_intelligence_paper_changelist')

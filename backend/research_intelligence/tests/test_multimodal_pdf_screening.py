@@ -156,3 +156,62 @@ class MultimodalPDFScreeningTestCase(TestCase):
 
             self.assertTrue(result["success"])
             self.assertEqual(result["input_source"], "abstract_fallback")
+
+    def test_multimodal_pdf_screening_with_custom_dynamic_schema_and_exit_metric(self):
+        """
+        Validates that multimodal PDF screening utilizes workspace custom prompts, response schema,
+        and exit metric, saving dynamic results into PaperMetric.
+        """
+        custom_schema = {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean"},
+                "fidelity_score": {"type": "number"},
+                "reasoning": {"type": "string"}
+            },
+            "required": ["passed", "fidelity_score"]
+        }
+        self.workspace.full_text_screening_system_prompt = "Custom Multimodal Quantum Screener System Prompt"
+        self.workspace.full_text_screening_user_prompt_template = "Analyze PDF: {full_text} for criteria: {acceptance_criteria}"
+        self.workspace.full_text_screening_response_schema = custom_schema
+        self.workspace.full_text_screening_exit_metric = "fidelity_score"
+        self.workspace.save()
+
+        mock_llm_response = {
+            "passed": True,
+            "fidelity_score": 99.8,
+            "reasoning": "High fidelity state preparation achieved in 3D cavity.",
+            "decision_category": "ACCEPTED: High Fidelity"
+        }
+        mock_usage = {"prompt_tokens": 5200, "candidates_tokens": 80, "total_tokens": 5280}
+
+        with patch("research_intelligence.tasks.step_4_screening.full_text.get_llm_provider") as mock_provider_factory:
+            mock_provider = MagicMock()
+            mock_provider.generate.return_value = (mock_llm_response, mock_usage)
+            mock_provider_factory.return_value = mock_provider
+
+            result = screen_full_text(
+                str(self.paper.id),
+                str(self.workspace.id),
+                workspace_obj=self.workspace,
+                paper_obj=self.paper
+            )
+
+            self.assertTrue(result["success"])
+            self.assertTrue(result["passed"])
+            self.assertEqual(result["exit_metric_key"], "fidelity_score")
+            self.assertEqual(result["exit_metric_value"], 99.8)
+
+            call_kwargs = mock_provider.generate.call_args[1]
+            self.assertEqual(call_kwargs.get("system_instruction"), "Custom Multimodal Quantum Screener System Prompt")
+            self.assertEqual(call_kwargs.get("response_schema"), custom_schema)
+            self.assertEqual(call_kwargs.get("pdf_bytes"), self.mock_pdf_binary)
+            self.assertEqual(call_kwargs.get("mime_type"), "application/pdf")
+
+            # Check PaperMetric
+            from research_intelligence.models import PaperMetric
+            pm = PaperMetric.objects.get(paper=self.paper, pipeline_run=self.pipeline_run)
+            self.assertIn("full_text_screening", pm.metrics_data)
+            self.assertEqual(pm.metrics_data["full_text_screening"]["exit_metric_value"], 99.8)
+            self.assertEqual(pm.metrics_data["full_text_screening"]["dynamic_data"]["fidelity_score"], 99.8)
+

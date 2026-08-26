@@ -188,3 +188,70 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
 
         agent.refresh_from_db()
         self.assertEqual(agent.current_step, "extraction")
+
+    def test_dynamic_dual_stage_screening_transitions_and_metrics(self):
+        """
+        Tests sequential Abstract Screening -> Full-Text Screening flow with custom dynamic schemas
+        and verifies that PaperMetric aggregates both screening evaluation dictionaries.
+        """
+        from research_intelligence.tasks.step_4_screening.abstract import screen_abstract
+        from research_intelligence.tasks.step_4_screening.full_text import screen_full_text
+        from research_intelligence.models import PaperMetric
+
+        self.workspace.abstract_screening_system_prompt = "Custom Abstract Scanner"
+        self.workspace.abstract_screening_response_schema = {
+            "type": "object",
+            "properties": {"passed": {"type": "boolean"}, "novelty": {"type": "number"}}
+        }
+        self.workspace.abstract_screening_exit_metric = "novelty"
+
+        self.workspace.full_text_screening_system_prompt = "Custom Full Text Analyst"
+        self.workspace.full_text_screening_response_schema = {
+            "type": "object",
+            "properties": {"passed": {"type": "boolean"}, "rigour": {"type": "number"}}
+        }
+        self.workspace.full_text_screening_exit_metric = "rigour"
+        self.workspace.save()
+
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="flow_dynamic_paper",
+            title="Flow Paper Dynamic Screening",
+            abstract="Study on self-driving agents."
+        )
+
+        with patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate") as mock_generate:
+            # 1. Abstract screening passes with custom novelty score
+            mock_generate.return_value = {
+                "passed": True,
+                "novelty": 9.2,
+                "reasoning": "High novelty in multi-agent coordination."
+            }
+            abs_res = screen_abstract(paper.id, self.workspace.id)
+            self.assertTrue(abs_res["passed"])
+            self.assertEqual(abs_res["exit_metric_value"], 9.2)
+
+            paper.refresh_from_db()
+            self.assertEqual(paper.screening_status, "abstract_passed")
+
+            # 2. Full-Text screening passes with custom rigour score
+            mock_generate.return_value = {
+                "passed": True,
+                "rigour": 8.7,
+                "reasoning": "Empirical rigour backed by statistical tests."
+            }
+            ft_res = screen_full_text(paper.id, self.workspace.id)
+            self.assertTrue(ft_res["passed"])
+            self.assertEqual(ft_res["exit_metric_value"], 8.7)
+
+            paper.refresh_from_db()
+            self.assertEqual(paper.screening_status, "full_text_passed")
+
+            # Check that PaperMetric recorded both stages cleanly
+            pm = PaperMetric.objects.get(paper=paper, pipeline_run=self.pipeline_run)
+            self.assertIn("abstract_screening", pm.metrics_data)
+            self.assertIn("full_text_screening", pm.metrics_data)
+            self.assertEqual(pm.metrics_data["abstract_screening"]["exit_metric_value"], 9.2)
+            self.assertEqual(pm.metrics_data["full_text_screening"]["exit_metric_value"], 8.7)
+
