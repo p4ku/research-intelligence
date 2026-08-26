@@ -10,7 +10,6 @@ applications:
       - route: sri.soinventive.co.uk/admin
       - route: sri.soinventive.co.uk/static
     env:
-      PORT: "8000"
       DEBUG: "False"
       ALLOWED_HOSTS: "sri.soinventive.co.uk"
       CSRF_TRUSTED_ORIGINS: "https://sri.soinventive.co.uk"
@@ -49,5 +48,4 @@ applications:
     memory: 512M
     routes:
       - route: sri.soinventive.co.uk
-    env:
-      PORT: "3000"
+
