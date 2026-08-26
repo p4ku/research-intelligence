@@ -1,3 +1,4 @@
-backend_image: registry.eu01.onstackit.cloud/sri-production/sri-backend
-frontend_image: registry.eu01.onstackit.cloud/sri-production/sri-frontend
+backend_image: registry.onstackit.cloud/sri-production/sri-backend
+frontend_image: registry.onstackit.cloud/sri-production/sri-frontend
+
 
