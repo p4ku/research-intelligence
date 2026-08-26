@@ -1,0 +1,22 @@
+================================================================================
+🚨 PIPELINE EXECUTION ALERT: {{ workspace_name|upper }}
+================================================================================
+
+Time: {{ run_date }}
+Failed Stage: {{ failed_stage|upper }}
+
+ERROR DETAILS:
+--------------------------------------------------------------------------------
+{{ main_error }}
+
+{% if failed_components %}
+FAILED COMPONENTS:
+--------------------------------------------------------------------------------
+{% for comp in failed_components %}
+* Step: {{ comp.step_type }} (Duration: {{ comp.duration }})
+  Log: {{ comp.error_log }}
+{% endfor %}
+{% endif %}
+
+================================================================================
+Schwarz Research Intelligence • Workspace ID: {{ workspace_id }}

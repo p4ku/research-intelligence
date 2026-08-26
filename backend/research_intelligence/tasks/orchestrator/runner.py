@@ -196,16 +196,24 @@ class ResearchAgentRunner:
         if override_email:
             recipients.add(override_email.strip())
 
-        # Workspace Active Subscribers ONLY
-        subscribers = agent_process.workspace.subscribers.filter(is_active=True)
+        # Determine event type
+        is_error = agent_process.status in ['failed', 'aborted']
+        target_types = ['pipeline_errors', 'all'] if is_error else ['result_report', 'pipeline_status', 'all']
+
+        # Workspace Active Subscribers filtered by subscription_type
+        subscribers = agent_process.workspace.subscribers.filter(
+            is_active=True,
+            subscription_type__in=target_types
+        )
         for s in subscribers:
             if s.email:
                 recipients.add(s.email.strip())
 
         recipient_list = sorted(list(recipients))
         if not recipient_list:
-            logger.info(f"📧 [NOTIFICATION] No active recipients/subscribers found for Workspace '{agent_process.workspace.name}'.")
+            logger.info(f"📧 [NOTIFICATION] No active recipients/subscribers found for Workspace '{agent_process.workspace.name}' (event={agent_process.status}).")
             return
+
 
         from research_intelligence.tasks.auxiliary.email_digest import build_pipeline_run_digest_payload
 

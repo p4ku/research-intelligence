@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ subject }}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f6f8fa; margin: 0; padding: 0; color: #24292f; }
+    .container { max-width: 720px; margin: 24px auto; background: #ffffff; border-radius: 8px; border: 1px solid #d0d7de; overflow: hidden; }
+    .header { background: #0969da; color: #ffffff; padding: 24px 32px; }
+    .header h1 { margin: 0 0 8px 0; font-size: 20px; font-weight: 700; }
+    .header p { margin: 0; font-size: 14px; opacity: 0.9; }
+    .content { padding: 32px; }
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+    .stat-box { background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 12px; text-align: center; }
+    .stat-val { font-size: 18px; font-weight: 700; color: #0969da; }
+    .stat-label { font-size: 11px; color: #57606a; text-transform: uppercase; margin-top: 4px; }
+    .section-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; color: #24292f; }
+    .stage-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; font-size: 13px; }
+    .stage-table th { background: #f6f8fa; text-align: left; padding: 10px 12px; border-bottom: 2px solid #d0d7de; color: #57606a; font-weight: 600; }
+    .stage-table td { padding: 10px 12px; border-bottom: 1px solid #d0d7de; }
+    .badge-completed { background: #dafbe1; color: #1a7f37; padding: 3px 8px; font-size: 11px; font-weight: 600; border-radius: 12px; }
+    .badge-running { background: #ddf4ff; color: #0969da; padding: 3px 8px; font-size: 11px; font-weight: 600; border-radius: 12px; }
+    .badge-failed { background: #ffebe9; color: #cf222e; padding: 3px 8px; font-size: 11px; font-weight: 600; border-radius: 12px; }
+    .footer { background: #f6f8fa; padding: 20px 32px; font-size: 12px; color: #57606a; border-top: 1px solid #d0d7de; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>⚡ Pipeline Status Digest</h1>
+      <p>Workspace: <strong>{{ workspace_name }}</strong> | Status: <strong>{{ status }}</strong> | Time: {{ run_date }}</p>
+    </div>
+    <div class="content">
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-val">{{ stats.total_papers }}</div>
+          <div class="stat-label">Ingested Papers</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val">{{ stats.passed_papers }}</div>
+          <div class="stat-label">Qualified</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val">{{ stats.tokens_formatted }}</div>
+          <div class="stat-label">Tokens</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-val">{{ stats.cost_formatted }}</div>
+          <div class="stat-label">USD Cost</div>
+        </div>
+      </div>
+
+      {% if stages %}
+      <div class="section-title">Stage Progression & Timeline</div>
+      <table class="stage-table">
+        <thead>
+          <tr>
+            <th>Stage</th>
+            <th>Status</th>
+            <th>Duration</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for stage in stages %}
+          <tr>
+            <td><strong>{{ stage.step_type }}</strong></td>
+            <td>
+              {% if stage.status == 'COMPLETED' %}
+                <span class="badge-completed">✓ {{ stage.status }}</span>
+              {% elif stage.status == 'RUNNING' %}
+                <span class="badge-running">⏳ {{ stage.status }}</span>
+              {% else %}
+                <span class="badge-failed">{{ stage.status }}</span>
+              {% endif %}
+            </td>
+            <td>{{ stage.duration }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+    </div>
+    <div class="footer">
+      Schwarz Research Intelligence &bull; Execution Digest &bull; Run ID: {{ pipeline_run_id }}
+    </div>
+  </div>
+</body>
+</html>

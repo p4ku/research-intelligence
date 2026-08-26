@@ -244,17 +244,31 @@ class Workspace(models.Model):
 
 class Subscriber(models.Model):
     """
-    Represents a recipient of the weekly narrative reports and digests.
+    Represents a recipient of weekly digests, result scorecards, status alerts, or pipeline error reports.
     """
+    SUBSCRIPTION_TYPE_CHOICES = [
+        ('result_report', 'Result Report (Scorecard & Findings)'),
+        ('pipeline_errors', 'Pipeline Errors (Failure Alerts)'),
+        ('pipeline_status', 'Pipeline Status (Execution Digest)'),
+        ('all', 'All Notifications (Full Broadcast)'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="subscribers")
     email = models.EmailField()
     name = models.CharField(max_length=255, blank=True, null=True)
+    subscription_type = models.CharField(
+        max_length=50,
+        choices=SUBSCRIPTION_TYPE_CHOICES,
+        default='result_report',
+        help_text="Type of notification or report this subscriber receives"
+    )
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.email} ({self.workspace.name})"
+        return f"{self.email} [{self.get_subscription_type_display()}] ({self.workspace.name})"
+
 
 class Scraper(models.Model):
     """

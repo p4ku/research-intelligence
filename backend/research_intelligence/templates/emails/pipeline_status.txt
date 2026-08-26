@@ -1,0 +1,25 @@
+================================================================================
+⚡ PIPELINE STATUS DIGEST: {{ workspace_name|upper }}
+================================================================================
+
+Time: {{ run_date }}
+Status: {{ status }}
+Duration: {{ duration }}
+
+METRICS SUMMARY:
+--------------------------------------------------------------------------------
+* Ingested Papers: {{ stats.total_papers }}
+* Qualified Papers: {{ stats.passed_papers }}
+* Tokens Consumed: {{ stats.tokens_formatted }}
+* USD Cost: {{ stats.cost_formatted }}
+
+{% if stages %}
+STAGES TIMELINE:
+--------------------------------------------------------------------------------
+{% for stage in stages %}
+* {{ stage.step_type }} | Status: {{ stage.status }} | Duration: {{ stage.duration }}
+{% endfor %}
+{% endif %}
+
+================================================================================
+Schwarz Research Intelligence • Run ID: {{ pipeline_run_id }}

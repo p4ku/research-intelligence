@@ -289,8 +289,9 @@ class ScraperInline(admin.TabularInline):
 class SubscriberInline(admin.TabularInline):
     model = Subscriber
     extra = 1
-    fields = ('name', 'email', 'is_active', 'created_at')
+    fields = ('name', 'email', 'subscription_type', 'is_active', 'created_at')
     readonly_fields = ('created_at',)
+
 
 
 # Helper function to render formatted component metrics summary
@@ -1902,10 +1903,31 @@ class HITLCorrectionAdmin(admin.ModelAdmin):
 
 @admin.register(Subscriber)
 class SubscriberAdmin(admin.ModelAdmin):
-    list_display = ('email', 'name', 'workspace', 'is_active', 'created_at')
+    list_display = ('email', 'name', 'workspace', 'subscription_type_badge', 'is_active', 'created_at')
+    list_filter = ('subscription_type', 'is_active', 'workspace', 'created_at')
+    search_fields = ('email', 'name', 'workspace__name')
+    readonly_fields = ('created_at',)
     ordering = ('-created_at', '-id')
-    list_filter = ('is_active', 'workspace')
-    search_fields = ('email', 'name')
+
+    @admin.display(description="Subscription Type", ordering="subscription_type")
+    def subscription_type_badge(self, obj):
+        colors = {
+            'result_report': '#198754',
+            'pipeline_errors': '#dc3545',
+            'pipeline_status': '#0d6efd',
+            'all': '#6f42c1',
+        }
+        icons = {
+            'result_report': '📊 ',
+            'pipeline_errors': '🚨 ',
+            'pipeline_status': '⚡ ',
+            'all': '🌐 ',
+        }
+        color = colors.get(obj.subscription_type, '#6c757d')
+        icon = icons.get(obj.subscription_type, '')
+        label = f"{icon}{obj.get_subscription_type_display()}"
+        return render_badge(label, color)
+
 
 
 @admin.register(UserActivityLog)
@@ -2025,6 +2047,7 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
 
 
 # Customize Admin Portal Branding Header & Titles
+
 admin.site.site_header = "Schwarz Research Intelligence Admin"
 admin.site.site_title = "Schwarz Research Intelligence Admin"
 admin.site.index_title = mark_safe(
