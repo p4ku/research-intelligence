@@ -176,6 +176,35 @@ class ExtractionDefinition(models.Model):
     def __str__(self):
         return f"{self.workspace.name} - {self.name}"
 
+
+class ScreeningDefinition(models.Model):
+    """Defines the prompt and JSON response contract for one screening stage."""
+    STAGE_CHOICES = [
+        ('abstract', 'Abstract Screening'),
+        ('full_text', 'Full-Text Screening'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="screening_definitions")
+    name = models.CharField(max_length=255, help_text="e.g. 'Default Abstract Screening'")
+    stage = models.CharField(max_length=20, choices=STAGE_CHOICES)
+    system_prompt = models.TextField(help_text="System instructions for this screening stage")
+    user_prompt_template = models.TextField(
+        help_text="Use {paper_title}, {abstract}, {full_text}, {acceptance_criteria}, and {rejection_criteria}."
+    )
+    response_schema = models.JSONField(help_text="JSON schema describing the screening response")
+    llm_model = models.CharField(max_length=100, blank=True, help_text="Leave blank to use the workspace screening model")
+    version = models.IntegerField(default=1, help_text="Tracks prompt/schema evolution")
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['stage', '-version', '-created_at']
+
+    def __str__(self):
+        return f"{self.workspace.name} - {self.get_stage_display()} - {self.name} (v{self.version})"
+
+
 class PipelineRun(models.Model):
     """
     Represents a specific scheduled execution run (e.g., weekly batch run).
@@ -602,6 +631,35 @@ class Paper(models.Model):
     def __str__(self):
         return self.title
 
+
+
+class Screening(models.Model):
+    """Stores one structured abstract or full-text screening response for a paper."""
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    workspace = models.ForeignKey(Workspace, on_delete=models.CASCADE, related_name="screenings")
+    paper = models.ForeignKey(Paper, on_delete=models.CASCADE, related_name="screenings")
+    screening_definition = models.ForeignKey(
+        ScreeningDefinition,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="screenings",
+    )
+    stage = models.CharField(max_length=20, choices=ScreeningDefinition.STAGE_CHOICES)
+    response_data = models.JSONField(help_text="Raw structured LLM screening response")
+    passed = models.BooleanField()
+    reasoning = models.TextField(blank=True, default="")
+    input_source = models.CharField(max_length=50, blank=True, default="")
+    version_info = models.JSONField(default=dict, blank=True, help_text="Prompt, schema, model, and provider audit data")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+
+    def __str__(self):
+        return f"{self.paper.title[:50]} - {self.get_stage_display()} ({'passed' if self.passed else 'rejected'})"
+
+
 class Extraction(models.Model):
     """
     Stores schema-validated claims, research parameters, technical attributes, or patent details.
@@ -1018,6 +1076,5 @@ class UserActivityLog(models.Model):
     def __str__(self):
         user_str = self.user_username or (str(self.user) if self.user else "Anonymous")
         return f"[{self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] {user_str} executed {self.action_name} ({self.status})"
-
 
 

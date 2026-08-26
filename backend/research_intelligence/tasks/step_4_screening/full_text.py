@@ -7,8 +7,9 @@ from django.db.models import Q
 from django.db import connection, close_old_connections
 from django.core.files.storage import default_storage
 from django.utils import timezone
-from ...models import Workspace, Paper, ComponentRun
+from ...models import Workspace, Paper, ComponentRun, Screening
 from ...llm_providers import get_llm_provider
+from .prompts import get_active_screening_definition, render_user_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,7 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
             logger.warning(f"Failed reading PDF binary from {paper.original_pdf_path} for paper {paper_id}: {e}")
 
     # System instruction for comprehensive full-text screening
-    system_prompt = (
+    default_system_prompt = (
         "You are an expert AI Research Analyst. Perform a deep full-text evaluation of the provided "
         "academic paper against the workspace Acceptance Criteria and Rejection Criteria.\n"
         "Provide a strict structured evaluation including:\n"
@@ -80,27 +81,30 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
         "- 'evidence_quotes': list of exact quotes or key technical phrases from the paper supporting your decision\n"
         "- 'decision_category': string category such as 'ACCEPTED: Full-text validation', 'REJECTED: Excluded methodology', etc."
     )
+    definition = get_active_screening_definition(workspace, 'full_text')
+    system_prompt = definition.system_prompt if definition else default_system_prompt
+    response_schema = definition.response_schema if definition else {
+        "type": "object",
+        "properties": {
+            "passed": {"type": "boolean"},
+            "reasoning": {"type": "string"},
+            "evidence_quotes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Specific quotes or key technical phrases extracted from the paper supporting the decision"
+            },
+            "decision_category": {
+                "type": "string",
+                "description": "High level category describing why the paper passed or failed full-text evaluation"
+            }
+        },
+        "required": ["passed", "reasoning"]
+    }
 
     gen_kwargs = {
         "system_instruction": system_prompt,
-        "response_schema": {
-            "type": "object",
-            "properties": {
-                "passed": {"type": "boolean"},
-                "reasoning": {"type": "string"},
-                "evidence_quotes": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Specific quotes or key technical phrases extracted from the paper supporting the decision"
-                },
-                "decision_category": {
-                    "type": "string",
-                    "description": "High level category describing why the paper passed or failed full-text evaluation"
-                }
-            },
-            "required": ["passed", "reasoning"]
-        },
-        "model": workspace.screening_llm_model,
+        "response_schema": response_schema,
+        "model": (definition.llm_model or workspace.screening_llm_model) if definition else workspace.screening_llm_model,
         "return_usage": True
     }
 
@@ -134,6 +138,16 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
         )
         gen_kwargs["prompt"] = user_prompt
 
+    if definition:
+        gen_kwargs["prompt"] = render_user_prompt(
+            definition.user_prompt_template,
+            paper_title=paper.title,
+            abstract=paper.abstract,
+            full_text=md_text[:120000] if md_text else 'PDF document attached.' if pdf_bytes else paper.abstract,
+            acceptance_criteria=workspace.get_full_text_acceptance_criteria() or 'Relevant AI research',
+            rejection_criteria=workspace.get_full_text_rejection_criteria() or 'Out of domain',
+        )
+
     max_attempts = 3
     last_error = None
 
@@ -165,6 +179,21 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
             paper.screening_status = "full_text_passed" if passed else "rejected"
             paper.screening_reasoning = reasoning
             paper.save(update_fields=['screening_status', 'screening_reasoning'])
+            Screening.objects.create(
+                workspace=workspace,
+                paper=paper,
+                screening_definition=definition,
+                stage='full_text',
+                response_data=parsed if isinstance(parsed, dict) else {"raw_response": str(response)},
+                passed=passed,
+                reasoning=reasoning,
+                input_source=input_source,
+                version_info={
+                    "prompt_version": definition.version if definition else None,
+                    "llm_model": (definition.llm_model or workspace.screening_llm_model) if definition else workspace.screening_llm_model,
+                    "provider": workspace.llm_provider,
+                },
+            )
 
             duration_sec = round(time.time() - t0, 3)
 

@@ -3,8 +3,9 @@ import time
 import logging
 from django.utils import timezone
 from celery import shared_task
-from ...models import Workspace, Paper
+from ...models import Workspace, Paper, Screening
 from ...llm_providers import get_llm_provider
+from .prompts import get_active_screening_definition, render_user_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,7 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
 
     provider = get_llm_provider(workspace.llm_provider)
     
-    system_prompt = (
+    default_system_prompt = (
         "You are an expert AI Research Scanner. Screen the provided academic abstract against "
         "the workspace Acceptance Criteria and Rejection Criteria.\n"
         "Provide a strict structured evaluation including:\n"
@@ -50,12 +51,39 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
         "- 'evidence_quotes': list of exact quotes or key phrases from the abstract supporting your decision\n"
         "- 'decision_category': string category such as 'ACCEPTED: Core scope match', 'REJECTED: Excluded domain', etc."
     )
-    user_prompt = (
+    default_user_prompt = (
         f"Title: {paper.title}\n"
         f"Abstract:\n{paper.abstract}\n\n"
         f"Acceptance Criteria (must satisfy to pass):\n{workspace.get_abstract_acceptance_criteria() or 'Relevant AI research'}\n\n"
         f"Rejection Criteria (if matched, paper is rejected):\n{workspace.get_abstract_rejection_criteria() or 'Out of domain'}"
     )
+    definition = get_active_screening_definition(workspace, 'abstract')
+    system_prompt = definition.system_prompt if definition else default_system_prompt
+    user_prompt = render_user_prompt(
+        definition.user_prompt_template,
+        paper_title=paper.title,
+        abstract=paper.abstract,
+        full_text='',
+        acceptance_criteria=workspace.get_abstract_acceptance_criteria() or 'Relevant AI research',
+        rejection_criteria=workspace.get_abstract_rejection_criteria() or 'Out of domain',
+    ) if definition else default_user_prompt
+    response_schema = definition.response_schema if definition else {
+        "type": "object",
+        "properties": {
+            "passed": {"type": "boolean"},
+            "reasoning": {"type": "string"},
+            "evidence_quotes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Specific quotes or key phrases extracted from the abstract supporting the decision"
+            },
+            "decision_category": {
+                "type": "string",
+                "description": "High level category describing why the paper passed or failed"
+            }
+        },
+        "required": ["passed", "reasoning"]
+    }
 
     max_attempts = 3
     last_error = None
@@ -65,24 +93,8 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
             gen_res = provider.generate(
                 prompt=user_prompt,
                 system_instruction=system_prompt,
-                response_schema={
-                    "type": "object",
-                    "properties": {
-                        "passed": {"type": "boolean"},
-                        "reasoning": {"type": "string"},
-                        "evidence_quotes": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Specific quotes or key phrases extracted from the abstract supporting the decision"
-                        },
-                        "decision_category": {
-                            "type": "string",
-                            "description": "High level category describing why the paper passed or failed"
-                        }
-                    },
-                    "required": ["passed", "reasoning"]
-                },
-                model=workspace.screening_llm_model,
+                response_schema=response_schema,
+                model=definition.llm_model or workspace.screening_llm_model if definition else workspace.screening_llm_model,
                 return_usage=True
             )
             
@@ -110,6 +122,21 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
             paper.screening_status = "abstract_passed" if passed else "rejected"
             paper.screening_reasoning = reasoning
             paper.save(update_fields=['screening_status', 'screening_reasoning'])
+            Screening.objects.create(
+                workspace=workspace,
+                paper=paper,
+                screening_definition=definition,
+                stage='abstract',
+                response_data=parsed if isinstance(parsed, dict) else {"raw_response": str(response)},
+                passed=passed,
+                reasoning=reasoning,
+                input_source='abstract',
+                version_info={
+                    "prompt_version": definition.version if definition else None,
+                    "llm_model": definition.llm_model or workspace.screening_llm_model if definition else workspace.screening_llm_model,
+                    "provider": workspace.llm_provider,
+                },
+            )
 
             duration_sec = round(time.time() - t0, 3)
 

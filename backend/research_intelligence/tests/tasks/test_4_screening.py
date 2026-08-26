@@ -1,6 +1,6 @@
 from django.test import TestCase
 from unittest.mock import patch
-from ...models import Workspace, PipelineRun, Paper, Scraper
+from ...models import Workspace, PipelineRun, Paper, Scraper, Screening, ScreeningDefinition
 from ...tasks.step_4_screening.abstract import screen_abstract
 from ...tasks.step_4_screening.full_text import screen_full_text
 
@@ -52,6 +52,64 @@ class ScreeningTasksTestCase(TestCase):
         # Ensure correct model parameter was passed
         mock_generate.assert_called_once()
         self.assertEqual(mock_generate.call_args.kwargs.get("model"), "google/gemini-3.7-flash")
+
+    @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
+    def test_screening_definition_controls_abstract_prompt_schema_and_audit_record(self, mock_generate):
+        definition = ScreeningDefinition.objects.create(
+            workspace=self.workspace,
+            name="Custom Abstract Screening",
+            stage="abstract",
+            system_prompt="Custom system instruction.",
+            user_prompt_template=(
+                "Paper: {paper_title}\nAbstract: {abstract}\n"
+                "Include: {acceptance_criteria}\nExclude: {rejection_criteria}"
+            ),
+            response_schema={
+                "type": "object",
+                "properties": {"passed": {"type": "boolean"}, "reasoning": {"type": "string"}},
+                "required": ["passed", "reasoning"],
+            },
+            llm_model="custom-screening-model",
+            version=3,
+        )
+        mock_generate.return_value = {"passed": True, "reasoning": "Custom definition accepted it."}
+
+        screen_abstract(self.paper.id, self.workspace.id)
+
+        self.assertEqual(mock_generate.call_args.kwargs["system_instruction"], definition.system_prompt)
+        self.assertEqual(mock_generate.call_args.kwargs["response_schema"], definition.response_schema)
+        self.assertEqual(mock_generate.call_args.kwargs["model"], "custom-screening-model")
+        self.assertIn("Paper: Reasoning loop architectures", mock_generate.call_args.kwargs["prompt"])
+        screening = Screening.objects.get(paper=self.paper, stage="abstract")
+        self.assertEqual(screening.screening_definition, definition)
+        self.assertEqual(screening.response_data["passed"], True)
+        self.assertEqual(screening.version_info["prompt_version"], 3)
+
+    @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
+    def test_screening_definition_controls_full_text_prompt_schema_and_audit_record(self, mock_generate):
+        definition = ScreeningDefinition.objects.create(
+            workspace=self.workspace,
+            name="Custom Full-Text Screening",
+            stage="full_text",
+            system_prompt="Custom full-text system instruction.",
+            user_prompt_template="Paper: {paper_title}\nDocument: {full_text}",
+            response_schema={
+                "type": "object",
+                "properties": {"passed": {"type": "boolean"}, "reasoning": {"type": "string"}},
+                "required": ["passed", "reasoning"],
+            },
+            version=2,
+        )
+        mock_generate.return_value = {"passed": True, "reasoning": "Custom full-text definition accepted it."}
+
+        screen_full_text(self.paper.id, self.workspace.id)
+
+        self.assertEqual(mock_generate.call_args.kwargs["system_instruction"], definition.system_prompt)
+        self.assertEqual(mock_generate.call_args.kwargs["response_schema"], definition.response_schema)
+        self.assertIn("Document: We present a framework for agentic workflows.", mock_generate.call_args.kwargs["prompt"])
+        screening = Screening.objects.get(paper=self.paper, stage="full_text")
+        self.assertEqual(screening.screening_definition, definition)
+        self.assertEqual(screening.input_source, "abstract_fallback")
 
     @patch("django.core.files.storage.default_storage.open")
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")

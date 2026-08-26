@@ -13,10 +13,12 @@ from research_intelligence.models import (
     Subscriber,
     Scraper,
     ExtractionDefinition,
+    ScreeningDefinition,
     PipelineRun,
     ComponentRun,
     DocumentRegistry,
     Paper,
+    Screening,
     Extraction,
     PaperMetric,
     NarrativeReport,
@@ -1479,6 +1481,38 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(ScreeningDefinition)
+class ScreeningDefinitionAdmin(admin.ModelAdmin):
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
+    list_display = ('name', 'stage', 'workspace', 'version', 'llm_model', 'is_active', 'created_at')
+    list_filter = ('stage', 'is_active', 'workspace')
+    search_fields = ('name', 'system_prompt', 'user_prompt_template')
+    fields = (
+        'workspace',
+        'name',
+        'stage',
+        'system_prompt',
+        'user_prompt_template',
+        'response_schema',
+        'llm_model',
+        'version',
+        'is_active',
+    )
+
+
+@admin.register(Screening)
+class ScreeningAdmin(admin.ModelAdmin):
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
+    list_display = ('paper', 'stage', 'passed', 'screening_definition', 'input_source', 'created_at')
+    list_filter = ('stage', 'passed', 'workspace', 'screening_definition')
+    search_fields = ('paper__title', 'reasoning')
+    readonly_fields = ('workspace', 'paper', 'screening_definition', 'stage', 'response_data', 'passed', 'reasoning', 'input_source', 'version_info', 'created_at')
+
+
 @admin.register(Extraction)
 class ExtractionAdmin(admin.ModelAdmin):
     formfield_overrides = {
@@ -1881,5 +1915,4 @@ def get_admin_urls():
     return custom_urls + _original_admin_get_urls()
 
 admin.site.get_urls = get_admin_urls
-
 
