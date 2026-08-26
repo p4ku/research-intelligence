@@ -1,0 +1,2 @@
+backend_image: object.storage.eu01.onstackit.cloud/sri-production/sri-backend
+frontend_image: object.storage.eu01.onstackit.cloud/sri-production/sri-frontend
