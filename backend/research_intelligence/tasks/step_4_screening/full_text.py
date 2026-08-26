@@ -70,68 +70,82 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
         except Exception as e:
             logger.warning(f"Failed reading PDF binary from {paper.original_pdf_path} for paper {paper_id}: {e}")
 
-    # System instruction for comprehensive full-text screening
-    system_prompt = (
-        "You are an expert AI Research Analyst. Perform a deep full-text evaluation of the provided "
-        "academic paper against the workspace Acceptance Criteria and Rejection Criteria.\n"
-        "Provide a strict structured evaluation including:\n"
-        "- 'passed': boolean (True if the full methodology satisfies Acceptance Criteria and avoids Rejection Criteria)\n"
-        "- 'reasoning': concise, high-impact justification citing key findings from the text/document\n"
-        "- 'evidence_quotes': list of exact quotes or key technical phrases from the paper supporting your decision\n"
-        "- 'decision_category': string category such as 'ACCEPTED: Full-text validation', 'REJECTED: Excluded methodology', etc."
-    )
+    # Resolve dynamic workspace prompt templates and schemas
+    system_prompt = workspace.get_full_text_screening_system_prompt()
+    user_prompt_template = workspace.get_full_text_screening_user_prompt_template()
+    acceptance = workspace.get_full_text_acceptance_criteria() or "Relevant AI research"
+    rejection = workspace.get_full_text_rejection_criteria() or "Out of domain"
+    response_schema = workspace.get_full_text_screening_response_schema()
+    exit_metric_key = workspace.get_full_text_screening_exit_metric()
 
     gen_kwargs = {
         "system_instruction": system_prompt,
-        "response_schema": {
-            "type": "object",
-            "properties": {
-                "passed": {"type": "boolean"},
-                "reasoning": {"type": "string"},
-                "evidence_quotes": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Specific quotes or key technical phrases extracted from the paper supporting the decision"
-                },
-                "decision_category": {
-                    "type": "string",
-                    "description": "High level category describing why the paper passed or failed full-text evaluation"
-                }
-            },
-            "required": ["passed", "reasoning"]
-        },
+        "response_schema": response_schema,
         "model": workspace.screening_llm_model,
         "return_usage": True
     }
 
     if md_text:
         # Pass truncated Markdown document to prompt
-        user_prompt = (
-            f"Title: {paper.title}\n\n"
-            f"Full-Text Markdown Content:\n{md_text[:120000]}\n\n"
-            f"Acceptance Criteria (must satisfy to pass):\n{workspace.get_full_text_acceptance_criteria() or 'Relevant AI research'}\n\n"
-            f"Rejection Criteria (if matched, paper is rejected):\n{workspace.get_full_text_rejection_criteria() or 'Out of domain'}"
-        )
+        try:
+            user_prompt = user_prompt_template.format(
+                title=paper.title,
+                full_text=md_text[:120000],
+                abstract=paper.abstract or "",
+                acceptance_criteria=acceptance,
+                rejection_criteria=rejection,
+                paper_title=paper.title,
+                paper_text=md_text[:120000]
+            )
+        except Exception:
+            user_prompt = (
+                f"Title: {paper.title}\n\n"
+                f"Full-Text Markdown Content:\n{md_text[:120000]}\n\n"
+                f"Acceptance Criteria (must satisfy to pass):\n{acceptance}\n\n"
+                f"Rejection Criteria (if matched, paper is rejected):\n{rejection}"
+            )
         gen_kwargs["prompt"] = user_prompt
     elif pdf_bytes:
         # Pass PDF binary directly to Google GenAI multimodal engine
-        user_prompt = (
-            f"Title: {paper.title}\n\n"
-            f"Please analyze the attached PDF document for full-text screening.\n\n"
-            f"Acceptance Criteria (must satisfy to pass):\n{workspace.get_full_text_acceptance_criteria() or 'Relevant AI research'}\n\n"
-            f"Rejection Criteria (if matched, paper is rejected):\n{workspace.get_full_text_rejection_criteria() or 'Out of domain'}"
-        )
+        try:
+            user_prompt = user_prompt_template.format(
+                title=paper.title,
+                full_text="Please analyze the attached PDF document for full-text screening.",
+                abstract=paper.abstract or "",
+                acceptance_criteria=acceptance,
+                rejection_criteria=rejection,
+                paper_title=paper.title,
+                paper_text="Please analyze the attached PDF document for full-text screening."
+            )
+        except Exception:
+            user_prompt = (
+                f"Title: {paper.title}\n\n"
+                f"Please analyze the attached PDF document for full-text screening.\n\n"
+                f"Acceptance Criteria (must satisfy to pass):\n{acceptance}\n\n"
+                f"Rejection Criteria (if matched, paper is rejected):\n{rejection}"
+            )
         gen_kwargs["prompt"] = user_prompt
         gen_kwargs["pdf_bytes"] = pdf_bytes
         gen_kwargs["mime_type"] = "application/pdf"
     else:
         # Fallback to abstract text if full content is unavailable
-        user_prompt = (
-            f"Title: {paper.title}\n\n"
-            f"Abstract (Full-Text/PDF unavailable):\n{paper.abstract}\n\n"
-            f"Acceptance Criteria (must satisfy to pass):\n{workspace.get_full_text_acceptance_criteria() or 'Relevant AI research'}\n\n"
-            f"Rejection Criteria (if matched, paper is rejected):\n{workspace.get_full_text_rejection_criteria() or 'Out of domain'}"
-        )
+        try:
+            user_prompt = user_prompt_template.format(
+                title=paper.title,
+                full_text=f"Abstract (Full-Text/PDF unavailable):\n{paper.abstract}",
+                abstract=paper.abstract or "",
+                acceptance_criteria=acceptance,
+                rejection_criteria=rejection,
+                paper_title=paper.title,
+                paper_text=paper.abstract or ""
+            )
+        except Exception:
+            user_prompt = (
+                f"Title: {paper.title}\n\n"
+                f"Abstract (Full-Text/PDF unavailable):\n{paper.abstract}\n\n"
+                f"Acceptance Criteria (must satisfy to pass):\n{acceptance}\n\n"
+                f"Rejection Criteria (if matched, paper is rejected):\n{rejection}"
+            )
         gen_kwargs["prompt"] = user_prompt
 
     max_attempts = 3
@@ -158,13 +172,46 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
 
             parsed = response if isinstance(response, dict) else {}
             passed = parsed.get("passed", False)
+            if "passed" not in parsed:
+                dec_cat = str(parsed.get("decision_category", "")).lower()
+                passed = ("accept" in dec_cat or "pass" in dec_cat)
+
             reasoning = parsed.get("reasoning", "") or str(response)
             evidence_quotes = parsed.get("evidence_quotes", [])
             decision_category = parsed.get("decision_category", "ACCEPTED" if passed else "REJECTED")
 
+            exit_metric_val = parsed.get(exit_metric_key)
+            if exit_metric_val is None:
+                exit_metric_val = decision_category
+
             paper.screening_status = "full_text_passed" if passed else "rejected"
             paper.screening_reasoning = reasoning
             paper.save(update_fields=['screening_status', 'screening_reasoning'])
+
+            # Store dynamic full-text output in PaperMetric if pipeline_run is present
+            if paper.pipeline_run_id:
+                try:
+                    from ...models import PaperMetric
+                    pm, _ = PaperMetric.objects.get_or_create(
+                        paper=paper,
+                        pipeline_run_id=paper.pipeline_run_id,
+                        defaults={"workspace": workspace}
+                    )
+                    m_data = pm.metrics_data or {}
+                    m_data["full_text_screening"] = {
+                        "passed": passed,
+                        "reasoning": reasoning,
+                        "evidence_quotes": evidence_quotes,
+                        "decision_category": decision_category,
+                        "exit_metric_key": exit_metric_key,
+                        "exit_metric_value": exit_metric_val,
+                        "input_source": input_source,
+                        "dynamic_data": parsed
+                    }
+                    pm.metrics_data = m_data
+                    pm.save(update_fields=['metrics_data'])
+                except Exception as pm_err:
+                    logger.warning(f"Could not record PaperMetric for paper {paper.id}: {pm_err}")
 
             duration_sec = round(time.time() - t0, 3)
 
@@ -175,6 +222,9 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
                 "reasoning": reasoning,
                 "evidence_quotes": evidence_quotes,
                 "decision_category": decision_category,
+                "exit_metric_key": exit_metric_key,
+                "exit_metric_value": exit_metric_val,
+                "dynamic_data": parsed,
                 "input_source": input_source,
                 "duration_seconds": duration_sec,
                 "usage": usage

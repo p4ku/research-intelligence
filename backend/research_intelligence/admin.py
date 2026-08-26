@@ -456,33 +456,59 @@ class ComponentRunInline(admin.TabularInline):
 
 @admin.register(Workspace)
 class WorkspaceAdmin(admin.ModelAdmin):
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
     list_display = (
         'name',
         'ocr_provider',
         'screening_llm_model',
+        'abstract_screening_exit_metric',
+        'full_text_screening_exit_metric',
         'monthly_token_limit',
-        'tokens_in_consumed_this_month',
-        'tokens_out_consumed_this_month',
         'tokens_consumed_this_month',
-        'monthly_usd_limit',
         'usd_spent_this_month',
         'created_at'
     )
-    search_fields = ('name', 'abstract_acceptance_criteria', 'abstract_rejection_criteria', 'full_text_acceptance_criteria', 'full_text_rejection_criteria')
+    search_fields = (
+        'name',
+        'abstract_acceptance_criteria',
+        'abstract_rejection_criteria',
+        'full_text_acceptance_criteria',
+        'full_text_rejection_criteria',
+        'abstract_screening_exit_metric',
+        'full_text_screening_exit_metric'
+    )
     list_filter = ('ocr_provider', 'llm_provider', 'created_at')
     inlines = [WorkspaceMemberInline, ScraperInline, SubscriberInline]
     fieldsets = (
         ('Basic Information', {
-            'fields': ('name', 'digest_schedule')
-        }),
-        ('Pipeline Guidelines & Criteria', {
-            'fields': (
-                'abstract_acceptance_criteria', 'abstract_rejection_criteria',
-                'full_text_acceptance_criteria', 'full_text_rejection_criteria'
-            )
+            'fields': ('name', 'digest_schedule', 'skip_abstract_screening', 'notification_email')
         }),
         ('Engine & Provider Configuration', {
             'fields': ('ocr_provider', 'screening_llm_model', 'llm_provider')
+        }),
+        ('🎯 Step 4: Abstract Screening Engine & Dynamic Prompting', {
+            'fields': (
+                'abstract_acceptance_criteria',
+                'abstract_rejection_criteria',
+                'abstract_screening_system_prompt',
+                'abstract_screening_user_prompt_template',
+                'abstract_screening_response_schema',
+                'abstract_screening_exit_metric',
+            ),
+            'description': 'Configure criteria, system prompt, user prompt template (placeholders: <code>{title}</code>, <code>{abstract}</code>, <code>{acceptance_criteria}</code>, <code>{rejection_criteria}</code>), custom JSON schema, and exit metric for Abstract Screening. If left blank, standard defaults are used.'
+        }),
+        ('📄 Step 4: Full-Text Screening Engine & Dynamic Prompting', {
+            'fields': (
+                'full_text_acceptance_criteria',
+                'full_text_rejection_criteria',
+                'full_text_screening_system_prompt',
+                'full_text_screening_user_prompt_template',
+                'full_text_screening_response_schema',
+                'full_text_screening_exit_metric',
+            ),
+            'description': 'Configure criteria, system prompt, user prompt template (placeholders: <code>{title}</code>, <code>{abstract}</code>, <code>{full_text}</code>, <code>{acceptance_criteria}</code>, <code>{rejection_criteria}</code>), custom JSON schema, and exit metric for Full-Text Screening. If left blank, standard defaults are used.'
         }),
         ('Step 6: Signal Score Configuration', {
             'fields': ('signal_score_code',),

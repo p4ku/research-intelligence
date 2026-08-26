@@ -122,6 +122,56 @@ class MCPServerTest(TestCase):
         ws.refresh_from_db()
         self.assertIsNone(ws.ocr_provider)
 
+    def test_workspace_dynamic_screening_crud(self):
+        """Test creating and updating workspace with dynamic screening prompts, schemas, and exit metrics."""
+        schema = {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean"},
+                "custom_metric": {"type": "number"}
+            }
+        }
+        res_str = create_workspace_logic(
+            user=self.admin_user,
+            name="Dynamic Screening MCP Workspace",
+            abstract_screening_system_prompt="Custom abstract system prompt",
+            abstract_screening_user_prompt_template="Title: {title}",
+            abstract_screening_response_schema=schema,
+            abstract_screening_exit_metric="custom_metric",
+            full_text_screening_system_prompt="Custom full text system prompt",
+            full_text_screening_user_prompt_template="Doc: {full_text}",
+            full_text_screening_response_schema=schema,
+            full_text_screening_exit_metric="custom_metric"
+        )
+        res = json.loads(res_str)
+        self.assertTrue(res["success"])
+        ws_id = res["workspace_id"]
+
+        ws = Workspace.objects.get(id=ws_id)
+        self.assertEqual(ws.abstract_screening_system_prompt, "Custom abstract system prompt")
+        self.assertEqual(ws.abstract_screening_user_prompt_template, "Title: {title}")
+        self.assertEqual(ws.abstract_screening_response_schema, schema)
+        self.assertEqual(ws.abstract_screening_exit_metric, "custom_metric")
+        self.assertEqual(ws.full_text_screening_system_prompt, "Custom full text system prompt")
+        self.assertEqual(ws.full_text_screening_user_prompt_template, "Doc: {full_text}")
+        self.assertEqual(ws.full_text_screening_response_schema, schema)
+        self.assertEqual(ws.full_text_screening_exit_metric, "custom_metric")
+
+        # Verify get_workspace_logic returns the screening configuration
+        details = json.loads(get_workspace_logic(self.admin_user, ws_id))
+        self.assertEqual(details["abstract_screening_system_prompt"], "Custom abstract system prompt")
+        self.assertEqual(details["abstract_screening_exit_metric"], "custom_metric")
+        self.assertEqual(details["full_text_screening_exit_metric"], "custom_metric")
+
+        # Update dynamic screening configuration
+        update_workspace_logic(
+            self.admin_user,
+            workspace_id=ws_id,
+            abstract_screening_exit_metric="updated_metric"
+        )
+        ws.refresh_from_db()
+        self.assertEqual(ws.abstract_screening_exit_metric, "updated_metric")
+
     def test_scraper_crud(self):
         ws_res = json.loads(create_workspace_logic(self.admin_user, name="Scraper Test Workspace"))
         ws_id = ws_res["workspace_id"]

@@ -184,3 +184,93 @@ class ScreeningTasksTestCase(TestCase):
         self.assertTrue(result)
         self.paper.refresh_from_db()
         self.assertEqual(self.paper.screening_status, "full_text_passed")
+
+    @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
+    def test_dynamic_abstract_screening_custom_prompt_and_schema(self, mock_generate):
+        """Test custom system prompt, prompt template, response schema, and exit metric in abstract screening."""
+        self.workspace.abstract_screening_system_prompt = "Custom Abstract Scanner System Prompt."
+        self.workspace.abstract_screening_user_prompt_template = "PAPER_TITLE: {title} | CRITERIA: {acceptance_criteria}"
+        self.workspace.abstract_screening_response_schema = {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean"},
+                "relevance_score": {"type": "number"},
+                "reasoning": {"type": "string"}
+            },
+            "required": ["passed", "relevance_score"]
+        }
+        self.workspace.abstract_screening_exit_metric = "relevance_score"
+        self.workspace.save()
+
+        mock_generate.return_value = {
+            "passed": True,
+            "relevance_score": 9.5,
+            "reasoning": "Highly relevant custom output.",
+            "decision_category": "ACCEPTED: High Score"
+        }
+
+        res = screen_abstract(self.paper.id, self.workspace.id)
+        self.assertTrue(res["success"])
+        self.assertTrue(res["passed"])
+        self.assertEqual(res["exit_metric_key"], "relevance_score")
+        self.assertEqual(res["exit_metric_value"], 9.5)
+        self.assertEqual(res["dynamic_data"]["relevance_score"], 9.5)
+
+        # Check prompt args passed to LLM provider
+        call_kwargs = mock_generate.call_args.kwargs
+        self.assertEqual(call_kwargs.get("system_instruction"), "Custom Abstract Scanner System Prompt.")
+        self.assertIn("PAPER_TITLE: Reasoning loop architectures", call_kwargs.get("prompt", ""))
+        self.assertEqual(call_kwargs.get("response_schema"), self.workspace.abstract_screening_response_schema)
+
+        # Check PaperMetric storage
+        from ...models import PaperMetric
+        pm = PaperMetric.objects.get(paper=self.paper, pipeline_run=self.pipeline_run)
+        self.assertIn("abstract_screening", pm.metrics_data)
+        self.assertEqual(pm.metrics_data["abstract_screening"]["exit_metric_value"], 9.5)
+
+    @patch("django.core.files.storage.default_storage.exists", return_value=True)
+    @patch("django.core.files.storage.default_storage.open")
+    @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
+    def test_dynamic_full_text_screening_custom_prompt_and_schema(self, mock_generate, mock_open, mock_exists):
+        """Test custom system prompt, prompt template, response schema, and exit metric in full-text screening."""
+        from unittest.mock import mock_open as django_mock_open
+        mock_open.side_effect = django_mock_open(read_data=b"Detailed quantum algorithm paper.")
+
+        self.workspace.full_text_screening_system_prompt = "Custom Full-Text Screener System Prompt."
+        self.workspace.full_text_screening_user_prompt_template = "FULL_DOC: {full_text} | REJECT_IF: {rejection_criteria}"
+        self.workspace.full_text_screening_response_schema = {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean"},
+                "fit_score": {"type": "number"},
+                "reasoning": {"type": "string"}
+            },
+            "required": ["passed", "fit_score"]
+        }
+        self.workspace.full_text_screening_exit_metric = "fit_score"
+        self.workspace.save()
+
+        mock_generate.return_value = {
+            "passed": True,
+            "fit_score": 8.8,
+            "reasoning": "Fits full-text criteria accurately.",
+            "decision_category": "ACCEPTED: Full-text"
+        }
+
+        res = screen_full_text(self.paper.id, self.workspace.id)
+        self.assertTrue(res["success"])
+        self.assertTrue(res["passed"])
+        self.assertEqual(res["exit_metric_key"], "fit_score")
+        self.assertEqual(res["exit_metric_value"], 8.8)
+
+        call_kwargs = mock_generate.call_args.kwargs
+        self.assertEqual(call_kwargs.get("system_instruction"), "Custom Full-Text Screener System Prompt.")
+        self.assertIn("FULL_DOC: Detailed quantum algorithm paper.", call_kwargs.get("prompt", ""))
+        self.assertEqual(call_kwargs.get("response_schema"), self.workspace.full_text_screening_response_schema)
+
+        # Check PaperMetric storage
+        from ...models import PaperMetric
+        pm = PaperMetric.objects.get(paper=self.paper, pipeline_run=self.pipeline_run)
+        self.assertIn("full_text_screening", pm.metrics_data)
+        self.assertEqual(pm.metrics_data["full_text_screening"]["exit_metric_value"], 8.8)
+

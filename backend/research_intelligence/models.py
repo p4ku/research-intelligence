@@ -22,6 +22,51 @@ class Workspace(models.Model):
     full_text_acceptance_criteria = models.TextField(default="", blank=True, help_text="Specific inclusion criteria for Step 4 Full-Text Screening")
     full_text_rejection_criteria = models.TextField(default="", blank=True, help_text="Specific exclusion criteria for Step 4 Full-Text Screening")
 
+    # Dynamic Prompts & JSON Response Schemas for Step 4 Screening
+    abstract_screening_system_prompt = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Custom system instruction for Abstract Screening. Leave empty to use default standard prompt."
+    )
+    abstract_screening_user_prompt_template = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Custom user prompt template for Abstract Screening (supports {title}, {abstract}, {acceptance_criteria}, {rejection_criteria}). Leave empty for default."
+    )
+    abstract_screening_response_schema = models.JSONField(
+        blank=True,
+        null=True,
+        help_text="Custom JSON schema for Abstract Screening. Leave empty for default schema ({passed, reasoning, evidence_quotes, decision_category})."
+    )
+    abstract_screening_exit_metric = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Optional field key from abstract screening output to extract as the primary exit metric (e.g. 'decision_category', 'relevance_score')."
+    )
+
+    full_text_screening_system_prompt = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Custom system instruction for Full-Text Screening. Leave empty to use default standard prompt."
+    )
+    full_text_screening_user_prompt_template = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Custom user prompt template for Full-Text Screening (supports {title}, {abstract}, {full_text}, {acceptance_criteria}, {rejection_criteria}). Leave empty for default."
+    )
+    full_text_screening_response_schema = models.JSONField(
+        blank=True,
+        null=True,
+        help_text="Custom JSON schema for Full-Text Screening. Leave empty for default schema ({passed, reasoning, evidence_quotes, decision_category})."
+    )
+    full_text_screening_exit_metric = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="Optional field key from full-text screening output to extract as the primary exit metric (e.g. 'decision_category', 'fit_score')."
+    )
+
     def get_abstract_acceptance_criteria(self) -> str:
         return self.abstract_acceptance_criteria.strip()
 
@@ -33,6 +78,100 @@ class Workspace(models.Model):
 
     def get_full_text_rejection_criteria(self) -> str:
         return self.full_text_rejection_criteria.strip()
+
+    def get_abstract_screening_system_prompt(self) -> str:
+        if self.abstract_screening_system_prompt and self.abstract_screening_system_prompt.strip():
+            return self.abstract_screening_system_prompt.strip()
+        return (
+            "You are an expert AI Research Scanner. Screen the provided academic abstract against "
+            "the workspace Acceptance Criteria and Rejection Criteria.\n"
+            "Provide a strict structured evaluation including:\n"
+            "- 'passed': boolean (True if it satisfies Acceptance Criteria and avoids Rejection Criteria)\n"
+            "- 'reasoning': concise, high-impact justification for the decision\n"
+            "- 'evidence_quotes': list of exact quotes or key phrases from the abstract supporting your decision\n"
+            "- 'decision_category': string category such as 'ACCEPTED: Core scope match', 'REJECTED: Excluded domain', etc."
+        )
+
+    def get_abstract_screening_user_prompt_template(self) -> str:
+        if self.abstract_screening_user_prompt_template and self.abstract_screening_user_prompt_template.strip():
+            return self.abstract_screening_user_prompt_template.strip()
+        return (
+            "Title: {title}\n"
+            "Abstract:\n{abstract}\n\n"
+            "Acceptance Criteria (must satisfy to pass):\n{acceptance_criteria}\n\n"
+            "Rejection Criteria (if matched, paper is rejected):\n{rejection_criteria}"
+        )
+
+    def get_abstract_screening_response_schema(self) -> dict:
+        if self.abstract_screening_response_schema and isinstance(self.abstract_screening_response_schema, dict):
+            return self.abstract_screening_response_schema
+        return {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean"},
+                "reasoning": {"type": "string"},
+                "evidence_quotes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Specific quotes or key phrases extracted from the abstract supporting the decision"
+                },
+                "decision_category": {
+                    "type": "string",
+                    "description": "High level category describing why the paper passed or failed"
+                }
+            },
+            "required": ["passed", "reasoning"]
+        }
+
+    def get_abstract_screening_exit_metric(self) -> str:
+        return (self.abstract_screening_exit_metric or "").strip() or "decision_category"
+
+    def get_full_text_screening_system_prompt(self) -> str:
+        if self.full_text_screening_system_prompt and self.full_text_screening_system_prompt.strip():
+            return self.full_text_screening_system_prompt.strip()
+        return (
+            "You are an expert AI Research Analyst. Perform a deep full-text evaluation of the provided "
+            "academic paper against the workspace Acceptance Criteria and Rejection Criteria.\n"
+            "Provide a strict structured evaluation including:\n"
+            "- 'passed': boolean (True if the full methodology satisfies Acceptance Criteria and avoids Rejection Criteria)\n"
+            "- 'reasoning': concise, high-impact justification citing key findings from the text/document\n"
+            "- 'evidence_quotes': list of exact quotes or key technical phrases from the paper supporting your decision\n"
+            "- 'decision_category': string category such as 'ACCEPTED: Full-text validation', 'REJECTED: Excluded methodology', etc."
+        )
+
+    def get_full_text_screening_user_prompt_template(self) -> str:
+        if self.full_text_screening_user_prompt_template and self.full_text_screening_user_prompt_template.strip():
+            return self.full_text_screening_user_prompt_template.strip()
+        return (
+            "Title: {title}\n\n"
+            "Full-Text Markdown Content:\n{full_text}\n\n"
+            "Acceptance Criteria (must satisfy to pass):\n{acceptance_criteria}\n\n"
+            "Rejection Criteria (if matched, paper is rejected):\n{rejection_criteria}"
+        )
+
+    def get_full_text_screening_response_schema(self) -> dict:
+        if self.full_text_screening_response_schema and isinstance(self.full_text_screening_response_schema, dict):
+            return self.full_text_screening_response_schema
+        return {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean"},
+                "reasoning": {"type": "string"},
+                "evidence_quotes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Specific quotes or key technical phrases extracted from the paper supporting the decision"
+                },
+                "decision_category": {
+                    "type": "string",
+                    "description": "High level category describing why the paper passed or failed full-text evaluation"
+                }
+            },
+            "required": ["passed", "reasoning"]
+        }
+
+    def get_full_text_screening_exit_metric(self) -> str:
+        return (self.full_text_screening_exit_metric or "").strip() or "decision_category"
     
     # Digest distribution schedule
     digest_schedule = models.CharField(max_length=100, default="0 9 * * 5", help_text="Cron expression for weekly digest execution (e.g. every Friday at 9am)")

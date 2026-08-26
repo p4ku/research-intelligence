@@ -61,6 +61,8 @@ def list_workspaces_logic(user) -> str:
             "ocr_provider": ws.ocr_provider,
             "screening_llm_model": ws.screening_llm_model,
             "llm_provider": ws.llm_provider,
+            "abstract_screening_exit_metric": ws.abstract_screening_exit_metric,
+            "full_text_screening_exit_metric": ws.full_text_screening_exit_metric,
             "digest_schedule": ws.digest_schedule,
             "monthly_token_limit": ws.monthly_token_limit,
             "tokens_in_consumed_this_month": ws.tokens_in_consumed_this_month,
@@ -121,8 +123,16 @@ def get_workspace_logic(user, workspace_id: str) -> str:
         "name": workspace.name,
         "abstract_acceptance_criteria": workspace.abstract_acceptance_criteria,
         "abstract_rejection_criteria": workspace.abstract_rejection_criteria,
+        "abstract_screening_system_prompt": workspace.abstract_screening_system_prompt,
+        "abstract_screening_user_prompt_template": workspace.abstract_screening_user_prompt_template,
+        "abstract_screening_response_schema": workspace.abstract_screening_response_schema,
+        "abstract_screening_exit_metric": workspace.abstract_screening_exit_metric,
         "full_text_acceptance_criteria": workspace.full_text_acceptance_criteria,
         "full_text_rejection_criteria": workspace.full_text_rejection_criteria,
+        "full_text_screening_system_prompt": workspace.full_text_screening_system_prompt,
+        "full_text_screening_user_prompt_template": workspace.full_text_screening_user_prompt_template,
+        "full_text_screening_response_schema": workspace.full_text_screening_response_schema,
+        "full_text_screening_exit_metric": workspace.full_text_screening_exit_metric,
         "created_at": workspace.created_at.isoformat(),
         "components_config": {
             "search_scrapers": scrapers_list,
@@ -151,6 +161,14 @@ def create_workspace_logic(
     abstract_rejection_criteria: str = "",
     full_text_acceptance_criteria: str = "",
     full_text_rejection_criteria: str = "",
+    abstract_screening_system_prompt: str = None,
+    abstract_screening_user_prompt_template: str = None,
+    abstract_screening_response_schema: dict = None,
+    abstract_screening_exit_metric: str = None,
+    full_text_screening_system_prompt: str = None,
+    full_text_screening_user_prompt_template: str = None,
+    full_text_screening_response_schema: dict = None,
+    full_text_screening_exit_metric: str = None,
     ocr_provider: str = None,
     screening_llm_model: str = "google/gemini-3.7-flash",
     llm_provider: str = "google",
@@ -168,6 +186,18 @@ def create_workspace_logic(
     if isinstance(ocr_provider, str) and ocr_provider.strip().lower() in ('none', 'null', '', 'disabled'):
         ocr_provider = None
 
+    if isinstance(abstract_screening_response_schema, str) and abstract_screening_response_schema.strip():
+        try:
+            abstract_screening_response_schema = json.loads(abstract_screening_response_schema)
+        except Exception:
+            pass
+
+    if isinstance(full_text_screening_response_schema, str) and full_text_screening_response_schema.strip():
+        try:
+            full_text_screening_response_schema = json.loads(full_text_screening_response_schema)
+        except Exception:
+            pass
+
     try:
         workspace = Workspace.objects.create(
             name=name.strip(),
@@ -175,6 +205,14 @@ def create_workspace_logic(
             abstract_rejection_criteria=abstract_rejection_criteria,
             full_text_acceptance_criteria=full_text_acceptance_criteria,
             full_text_rejection_criteria=full_text_rejection_criteria,
+            abstract_screening_system_prompt=abstract_screening_system_prompt,
+            abstract_screening_user_prompt_template=abstract_screening_user_prompt_template,
+            abstract_screening_response_schema=abstract_screening_response_schema,
+            abstract_screening_exit_metric=abstract_screening_exit_metric,
+            full_text_screening_system_prompt=full_text_screening_system_prompt,
+            full_text_screening_user_prompt_template=full_text_screening_user_prompt_template,
+            full_text_screening_response_schema=full_text_screening_response_schema,
+            full_text_screening_exit_metric=full_text_screening_exit_metric,
             ocr_provider=ocr_provider,
             screening_llm_model=screening_llm_model,
             llm_provider=llm_provider,
@@ -209,6 +247,14 @@ def update_workspace_logic(
     abstract_rejection_criteria: str = None,
     full_text_acceptance_criteria: str = None,
     full_text_rejection_criteria: str = None,
+    abstract_screening_system_prompt: str = None,
+    abstract_screening_user_prompt_template: str = None,
+    abstract_screening_response_schema: dict = None,
+    abstract_screening_exit_metric: str = None,
+    full_text_screening_system_prompt: str = None,
+    full_text_screening_user_prompt_template: str = None,
+    full_text_screening_response_schema: dict = None,
+    full_text_screening_exit_metric: str = None,
     ocr_provider: str = None,
     screening_llm_model: str = None,
     llm_provider: str = None,
@@ -236,6 +282,32 @@ def update_workspace_logic(
         workspace.full_text_acceptance_criteria = full_text_acceptance_criteria
     if full_text_rejection_criteria is not None:
         workspace.full_text_rejection_criteria = full_text_rejection_criteria
+    if abstract_screening_system_prompt is not None:
+        workspace.abstract_screening_system_prompt = abstract_screening_system_prompt
+    if abstract_screening_user_prompt_template is not None:
+        workspace.abstract_screening_user_prompt_template = abstract_screening_user_prompt_template
+    if abstract_screening_response_schema is not None:
+        if isinstance(abstract_screening_response_schema, str) and abstract_screening_response_schema.strip():
+            try:
+                abstract_screening_response_schema = json.loads(abstract_screening_response_schema)
+            except Exception:
+                pass
+        workspace.abstract_screening_response_schema = abstract_screening_response_schema
+    if abstract_screening_exit_metric is not None:
+        workspace.abstract_screening_exit_metric = abstract_screening_exit_metric
+    if full_text_screening_system_prompt is not None:
+        workspace.full_text_screening_system_prompt = full_text_screening_system_prompt
+    if full_text_screening_user_prompt_template is not None:
+        workspace.full_text_screening_user_prompt_template = full_text_screening_user_prompt_template
+    if full_text_screening_response_schema is not None:
+        if isinstance(full_text_screening_response_schema, str) and full_text_screening_response_schema.strip():
+            try:
+                full_text_screening_response_schema = json.loads(full_text_screening_response_schema)
+            except Exception:
+                pass
+        workspace.full_text_screening_response_schema = full_text_screening_response_schema
+    if full_text_screening_exit_metric is not None:
+        workspace.full_text_screening_exit_metric = full_text_screening_exit_metric
     if ocr_provider is not None:
         if isinstance(ocr_provider, str) and ocr_provider.strip().lower() in ('none', 'null', '', 'disabled'):
             workspace.ocr_provider = None

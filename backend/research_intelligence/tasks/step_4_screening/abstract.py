@@ -41,21 +41,29 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
 
     provider = get_llm_provider(workspace.llm_provider)
     
-    system_prompt = (
-        "You are an expert AI Research Scanner. Screen the provided academic abstract against "
-        "the workspace Acceptance Criteria and Rejection Criteria.\n"
-        "Provide a strict structured evaluation including:\n"
-        "- 'passed': boolean (True if it satisfies Acceptance Criteria and avoids Rejection Criteria)\n"
-        "- 'reasoning': concise, high-impact justification for the decision\n"
-        "- 'evidence_quotes': list of exact quotes or key phrases from the abstract supporting your decision\n"
-        "- 'decision_category': string category such as 'ACCEPTED: Core scope match', 'REJECTED: Excluded domain', etc."
-    )
-    user_prompt = (
-        f"Title: {paper.title}\n"
-        f"Abstract:\n{paper.abstract}\n\n"
-        f"Acceptance Criteria (must satisfy to pass):\n{workspace.get_abstract_acceptance_criteria() or 'Relevant AI research'}\n\n"
-        f"Rejection Criteria (if matched, paper is rejected):\n{workspace.get_abstract_rejection_criteria() or 'Out of domain'}"
-    )
+    system_prompt = workspace.get_abstract_screening_system_prompt()
+    user_prompt_template = workspace.get_abstract_screening_user_prompt_template()
+    acceptance = workspace.get_abstract_acceptance_criteria() or "Relevant AI research"
+    rejection = workspace.get_abstract_rejection_criteria() or "Out of domain"
+    response_schema = workspace.get_abstract_screening_response_schema()
+    exit_metric_key = workspace.get_abstract_screening_exit_metric()
+
+    try:
+        user_prompt = user_prompt_template.format(
+            title=paper.title,
+            abstract=paper.abstract or "",
+            acceptance_criteria=acceptance,
+            rejection_criteria=rejection,
+            paper_title=paper.title,
+            paper_abstract=paper.abstract or ""
+        )
+    except Exception:
+        user_prompt = (
+            f"Title: {paper.title}\n"
+            f"Abstract:\n{paper.abstract}\n\n"
+            f"Acceptance Criteria (must satisfy to pass):\n{acceptance}\n\n"
+            f"Rejection Criteria (if matched, paper is rejected):\n{rejection}"
+        )
 
     max_attempts = 3
     last_error = None
@@ -65,23 +73,7 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
             gen_res = provider.generate(
                 prompt=user_prompt,
                 system_instruction=system_prompt,
-                response_schema={
-                    "type": "object",
-                    "properties": {
-                        "passed": {"type": "boolean"},
-                        "reasoning": {"type": "string"},
-                        "evidence_quotes": {
-                            "type": "array",
-                            "items": {"type": "string"},
-                            "description": "Specific quotes or key phrases extracted from the abstract supporting the decision"
-                        },
-                        "decision_category": {
-                            "type": "string",
-                            "description": "High level category describing why the paper passed or failed"
-                        }
-                    },
-                    "required": ["passed", "reasoning"]
-                },
+                response_schema=response_schema,
                 model=workspace.screening_llm_model,
                 return_usage=True
             )
@@ -103,13 +95,45 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
 
             parsed = response if isinstance(response, dict) else {}
             passed = parsed.get("passed", False)
+            if "passed" not in parsed:
+                dec_cat = str(parsed.get("decision_category", "")).lower()
+                passed = ("accept" in dec_cat or "pass" in dec_cat)
+
             reasoning = parsed.get("reasoning", "") or str(response)
             evidence_quotes = parsed.get("evidence_quotes", [])
             decision_category = parsed.get("decision_category", "ACCEPTED" if passed else "REJECTED")
 
+            exit_metric_val = parsed.get(exit_metric_key)
+            if exit_metric_val is None:
+                exit_metric_val = decision_category
+
             paper.screening_status = "abstract_passed" if passed else "rejected"
             paper.screening_reasoning = reasoning
             paper.save(update_fields=['screening_status', 'screening_reasoning'])
+
+            # Store dynamic output in PaperMetric if pipeline_run is present
+            if paper.pipeline_run_id:
+                try:
+                    from ...models import PaperMetric
+                    pm, _ = PaperMetric.objects.get_or_create(
+                        paper=paper,
+                        pipeline_run_id=paper.pipeline_run_id,
+                        defaults={"workspace": workspace}
+                    )
+                    m_data = pm.metrics_data or {}
+                    m_data["abstract_screening"] = {
+                        "passed": passed,
+                        "reasoning": reasoning,
+                        "evidence_quotes": evidence_quotes,
+                        "decision_category": decision_category,
+                        "exit_metric_key": exit_metric_key,
+                        "exit_metric_value": exit_metric_val,
+                        "dynamic_data": parsed
+                    }
+                    pm.metrics_data = m_data
+                    pm.save(update_fields=['metrics_data'])
+                except Exception as pm_err:
+                    logger.warning(f"Could not record PaperMetric for paper {paper.id}: {pm_err}")
 
             duration_sec = round(time.time() - t0, 3)
 
@@ -120,6 +144,9 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
                 "reasoning": reasoning,
                 "evidence_quotes": evidence_quotes,
                 "decision_category": decision_category,
+                "exit_metric_key": exit_metric_key,
+                "exit_metric_value": exit_metric_val,
+                "dynamic_data": parsed,
                 "duration_seconds": duration_sec,
                 "usage": usage
             }

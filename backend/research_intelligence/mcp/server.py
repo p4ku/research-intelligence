@@ -502,6 +502,14 @@ def create_workspace(
     abstract_rejection_criteria: str = "",
     full_text_acceptance_criteria: str = "",
     full_text_rejection_criteria: str = "",
+    abstract_screening_system_prompt: str = None,
+    abstract_screening_user_prompt_template: str = None,
+    abstract_screening_response_schema: dict = None,
+    abstract_screening_exit_metric: str = None,
+    full_text_screening_system_prompt: str = None,
+    full_text_screening_user_prompt_template: str = None,
+    full_text_screening_response_schema: dict = None,
+    full_text_screening_exit_metric: str = None,
     ocr_provider: str = None,
     screening_llm_model: str = "google/gemini-3.7-flash",
     llm_provider: str = "google",
@@ -521,8 +529,16 @@ def create_workspace(
     - name: Human-readable workspace name (e.g. 'Quantum Error Correction Review 2026').
     - abstract_acceptance_criteria: Inclusion prompt evaluated during Step 4 Abstract Screening (e.g. 'Focus on surface codes and fault-tolerant architectures').
     - abstract_rejection_criteria: Exclusion prompt for abstracts (e.g. 'Pure hardware fabrication without algorithmic error correction').
+    - abstract_screening_system_prompt: Optional custom system prompt for abstract screening (leave None for default).
+    - abstract_screening_user_prompt_template: Optional custom user prompt template (supports {title}, {abstract}, {acceptance_criteria}, {rejection_criteria}).
+    - abstract_screening_response_schema: Optional JSON schema for structured abstract screening outputs.
+    - abstract_screening_exit_metric: Optional field key to extract from abstract screening as primary metric (e.g. 'decision_category', 'relevance_score').
     - full_text_acceptance_criteria: Deep full-text inclusion prompt for raw PDF screening.
     - full_text_rejection_criteria: Deep full-text exclusion prompt for raw PDF screening.
+    - full_text_screening_system_prompt: Optional custom system prompt for full-text screening (leave None for default).
+    - full_text_screening_user_prompt_template: Optional custom user prompt template (supports {title}, {abstract}, {full_text}, {acceptance_criteria}, {rejection_criteria}).
+    - full_text_screening_response_schema: Optional JSON schema for structured full-text screening outputs.
+    - full_text_screening_exit_metric: Optional field key to extract from full-text screening as primary metric (e.g. 'decision_category', 'fit_score').
     - ocr_provider: Defaults to None (skips OCR and passes native PDF binary directly to multimodal Gemini 3.7 Flash). Set to 'pypdf', 'mistral', or 'gemini' only if text layout markdown is explicitly required.
     - screening_llm_model: Default 'google/gemini-3.7-flash'.
     - signal_score_code: Optional sandboxed Python math formula to rank papers (e.g. 'score = 0.6 * fit_score + 0.4 * novelty_score\\nreturn score').
@@ -542,6 +558,14 @@ def create_workspace(
         abstract_rejection_criteria=abstract_rejection_criteria,
         full_text_acceptance_criteria=full_text_acceptance_criteria,
         full_text_rejection_criteria=full_text_rejection_criteria,
+        abstract_screening_system_prompt=abstract_screening_system_prompt,
+        abstract_screening_user_prompt_template=abstract_screening_user_prompt_template,
+        abstract_screening_response_schema=abstract_screening_response_schema,
+        abstract_screening_exit_metric=abstract_screening_exit_metric,
+        full_text_screening_system_prompt=full_text_screening_system_prompt,
+        full_text_screening_user_prompt_template=full_text_screening_user_prompt_template,
+        full_text_screening_response_schema=full_text_screening_response_schema,
+        full_text_screening_exit_metric=full_text_screening_exit_metric,
         ocr_provider=ocr_provider,
         screening_llm_model=screening_llm_model,
         llm_provider=llm_provider,
@@ -561,6 +585,14 @@ def update_workspace(
     abstract_rejection_criteria: str = None,
     full_text_acceptance_criteria: str = None,
     full_text_rejection_criteria: str = None,
+    abstract_screening_system_prompt: str = None,
+    abstract_screening_user_prompt_template: str = None,
+    abstract_screening_response_schema: dict = None,
+    abstract_screening_exit_metric: str = None,
+    full_text_screening_system_prompt: str = None,
+    full_text_screening_user_prompt_template: str = None,
+    full_text_screening_response_schema: dict = None,
+    full_text_screening_exit_metric: str = None,
     ocr_provider: str = None,
     screening_llm_model: str = None,
     llm_provider: str = None,
@@ -571,15 +603,17 @@ def update_workspace(
 ) -> str:
     """
     [SETTINGS UPDATE]
-    Update configuration settings, dual-stage criteria, or sandboxed Python signal score formula for an existing workspace.
+    Update configuration settings, dual-stage criteria, dynamic screening prompts/schemas, or sandboxed Python signal score formula for an existing workspace.
     
     WHEN TO USE:
-    - Call to refine screening inclusion/exclusion criteria or to install/update a custom `signal_score_code` mathematical ranking formula.
+    - Call to refine screening inclusion/exclusion criteria, customize dynamic screening prompts/schemas, or install/update a custom `signal_score_code` mathematical ranking formula.
     
     KEY PARAMETERS:
     - workspace_id: The UUID of the target workspace.
     - abstract_acceptance_criteria / abstract_rejection_criteria: Inclusion/exclusion prompts for abstract screening (Step 4A).
+    - abstract_screening_system_prompt / abstract_screening_user_prompt_template / abstract_screening_response_schema / abstract_screening_exit_metric: Dynamic abstract screening configuration.
     - full_text_acceptance_criteria / full_text_rejection_criteria: Inclusion/exclusion prompts for deep raw PDF screening (Step 4B).
+    - full_text_screening_system_prompt / full_text_screening_user_prompt_template / full_text_screening_response_schema / full_text_screening_exit_metric: Dynamic full-text screening configuration.
     - signal_score_code: Custom Python AST snippet to calculate composite scores (e.g. 'score = 0.5*fit_score + 0.3*novelty_score + 0.2*trl_level\\nreturn round(score, 2)').
     - ocr_provider: 'pypdf', 'mistral', 'gemini', or None/'none' (leave None to skip OCR and pass native PDF to Gemini).
     """
@@ -596,13 +630,21 @@ def update_workspace(
         abstract_rejection_criteria=abstract_rejection_criteria,
         full_text_acceptance_criteria=full_text_acceptance_criteria,
         full_text_rejection_criteria=full_text_rejection_criteria,
+        abstract_screening_system_prompt=abstract_screening_system_prompt,
+        abstract_screening_user_prompt_template=abstract_screening_user_prompt_template,
+        abstract_screening_response_schema=abstract_screening_response_schema,
+        abstract_screening_exit_metric=abstract_screening_exit_metric,
+        full_text_screening_system_prompt=full_text_screening_system_prompt,
+        full_text_screening_user_prompt_template=full_text_screening_user_prompt_template,
+        full_text_screening_response_schema=full_text_screening_response_schema,
+        full_text_screening_exit_metric=full_text_screening_exit_metric,
         ocr_provider=ocr_provider,
         screening_llm_model=screening_llm_model,
         llm_provider=llm_provider,
         digest_schedule=digest_schedule,
         monthly_token_limit=monthly_token_limit,
-        monthly_usd_limit=cost_limit_usd,
-        signal_score_code=signal_score_code,
+        cost_limit_usd=cost_limit_usd,
+        signal_score_code=signal_score_code
     )
 
 
