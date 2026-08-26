@@ -19,8 +19,9 @@ applications:
       image: ((backend_image))
     instances: 1
     memory: 512M
-    no-route: true
-    health-check-type: process
+    routes:
+      - route: sri.soinventive.co.uk/sse
+      - route: sri.soinventive.co.uk/messages
     command: python research_intelligence/mcp/server.py
 
   - name: sri-worker
@@ -48,4 +49,5 @@ applications:
     memory: 512M
     routes:
       - route: sri.soinventive.co.uk
+
 
