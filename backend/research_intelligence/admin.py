@@ -1903,30 +1903,54 @@ class HITLCorrectionAdmin(admin.ModelAdmin):
 
 @admin.register(Subscriber)
 class SubscriberAdmin(admin.ModelAdmin):
-    list_display = ('email', 'name', 'workspace', 'subscription_type_badge', 'is_active', 'created_at')
+    list_display = ('email', 'name', 'workspace', 'subscribed_reports_display', 'is_active', 'created_at')
     list_filter = ('subscription_type', 'is_active', 'workspace', 'created_at')
     search_fields = ('email', 'name', 'workspace__name')
     readonly_fields = ('created_at',)
     ordering = ('-created_at', '-id')
 
-    @admin.display(description="Subscription Type", ordering="subscription_type")
-    def subscription_type_badge(self, obj):
-        colors = {
-            'result_report': '#198754',
-            'pipeline_errors': '#dc3545',
-            'pipeline_status': '#0d6efd',
-            'all': '#6f42c1',
-        }
-        icons = {
-            'result_report': '📊 ',
-            'pipeline_errors': '🚨 ',
-            'pipeline_status': '⚡ ',
-            'all': '🌐 ',
-        }
-        color = colors.get(obj.subscription_type, '#6c757d')
-        icon = icons.get(obj.subscription_type, '')
-        label = f"{icon}{obj.get_subscription_type_display()}"
-        return render_badge(label, color)
+    @admin.display(description="Subscribed Feeds & Reports", ordering="subscription_type")
+    def subscribed_reports_display(self, obj):
+        """
+        Renders a clean, multi-line stacked badge layout showing exactly what notifications
+        and report types this user receives.
+        """
+        if obj.subscription_type == 'all':
+            return format_html(
+                '<div style="display: flex; flex-direction: column; gap: 4px; line-height: 1.25; min-width: 260px;">'
+                '  <div style="font-weight: 700; color: #6f42c1; font-size: 11px; margin-bottom: 2px;">🌐 ALL NOTIFICATIONS (Full Broadcast):</div>'
+                '  <div><span style="background: #198754; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">📊 Result Report</span> <span style="font-size: 11px; color: #6c757d;">— Findings & Scorecard</span></div>'
+                '  <div><span style="background: #dc3545; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">🚨 Pipeline Errors</span> <span style="font-size: 11px; color: #6c757d;">— Stage Crash Alerts</span></div>'
+                '  <div><span style="background: #0d6efd; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">⚡ Pipeline Status</span> <span style="font-size: 11px; color: #6c757d;">— DAG Execution Digest</span></div>'
+                '</div>'
+            )
+        elif obj.subscription_type == 'result_report':
+            return format_html(
+                '<div style="display: flex; flex-direction: column; gap: 3px; line-height: 1.25;">'
+                '  <div><span style="background: #198754; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">📊 Result Report</span></div>'
+                '  <div style="font-size: 11px; color: #6c757d;">Scorecards, Parameter Matrix & Findings</div>'
+                '</div>'
+            )
+        elif obj.subscription_type == 'pipeline_errors':
+            return format_html(
+                '<div style="display: flex; flex-direction: column; gap: 3px; line-height: 1.25;">'
+                '  <div><span style="background: #dc3545; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">🚨 Pipeline Errors</span></div>'
+                '  <div style="font-size: 11px; color: #6c757d;">Immediate Incident & Stage Failure Alerts</div>'
+                '</div>'
+            )
+        elif obj.subscription_type == 'pipeline_status':
+            return format_html(
+                '<div style="display: flex; flex-direction: column; gap: 3px; line-height: 1.25;">'
+                '  <div><span style="background: #0d6efd; color: white; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">⚡ Pipeline Status</span></div>'
+                '  <div style="font-size: 11px; color: #6c757d;">DAG Progression, Throughput & Resource Digest</div>'
+                '</div>'
+            )
+        else:
+            return render_badge(f"📋 {obj.get_subscription_type_display()}", '#6c757d')
+
+    # Alias for backwards compatibility
+    subscription_type_badge = subscribed_reports_display
+
 
 
 
