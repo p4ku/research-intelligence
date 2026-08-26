@@ -1,0 +1,107 @@
+name: Deploy to STACKIT Cloud Foundry
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  REGISTRY: object.storage.eu01.onstackit.cloud
+  REGISTRY_PROJECT: sri-production
+
+  BACKEND_IMAGE: object.storage.eu01.onstackit.cloud/sri-production/sri-backend
+  FRONTEND_IMAGE: object.storage.eu01.onstackit.cloud/sri-production/sri-frontend
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ------------------------------------------------------------
+      # Docker / Container Registry
+      # ------------------------------------------------------------
+
+      - name: Login to STACKIT Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build backend image
+        run: |
+          docker build \
+            -t "${BACKEND_IMAGE}:${GITHUB_SHA}" \
+            ./backend
+
+      - name: Build frontend image
+        run: |
+          docker build \
+            -t "${FRONTEND_IMAGE}:${GITHUB_SHA}" \
+            ./frontend
+
+      - name: Push backend image
+        run: |
+          docker push "${BACKEND_IMAGE}:${GITHUB_SHA}"
+
+      - name: Push frontend image
+        run: |
+          docker push "${FRONTEND_IMAGE}:${GITHUB_SHA}"
+
+      # ------------------------------------------------------------
+      # Cloud Foundry
+      # ------------------------------------------------------------
+
+      - name: Install Cloud Foundry CLI
+        run: |
+          wget -q \
+            https://packages.cloudfoundry.org/stable?release=linux64-binary \
+            -O cf-cli.tgz
+
+          tar -xzf cf-cli.tgz
+          sudo mv cf8 /usr/local/bin/cf
+
+          cf version
+
+      - name: Login to Cloud Foundry
+        run: |
+          cf api "${{ secrets.CF_API }}"
+          cf auth \
+            "${{ secrets.CF_USERNAME }}" \
+            "${{ secrets.CF_PASSWORD }}"
+
+          cf target \
+            -o "${{ secrets.CF_ORG }}" \
+            -s "${{ secrets.CF_SPACE }}"
+
+      # ------------------------------------------------------------
+      # Generate vars file
+      # ------------------------------------------------------------
+
+      - name: Create Cloud Foundry vars file
+        run: |
+          cat > vars-ci.yml <<EOF
+          backend_image: ${BACKEND_IMAGE}:${GITHUB_SHA}
+          frontend_image: ${FRONTEND_IMAGE}:${GITHUB_SHA}
+          EOF
+
+      # ------------------------------------------------------------
+      # Deploy
+      # ------------------------------------------------------------
+
+      - name: Deploy to Cloud Foundry
+        run: |
+          cf push \
+            -f manifest.yml \
+            --vars-file vars-ci.yml
+
+      # ------------------------------------------------------------
+      # Verify deployment
+      # ------------------------------------------------------------
+
+      - name: Show applications
+        run: |
+          cf apps
