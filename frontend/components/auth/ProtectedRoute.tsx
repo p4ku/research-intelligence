@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { useAuth } from '../../lib/auth/auth-context';
-import { Sparkles } from 'lucide-react';
+import { Crosshair } from 'lucide-react';
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
@@ -15,11 +15,11 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
 
   if (isLoading) {
     return (
-      <div className="min-h-[80vh] flex flex-col items-center justify-center gap-4 text-slate-400">
-        <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-sky-600 to-sky-400 flex items-center justify-center shadow-lg shadow-sky-500/25 animate-pulse">
-          <Sparkles className="w-6 h-6 text-white" />
+      <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3 text-slate-500">
+        <div className="w-10 h-10 rounded-full border border-slate-900 flex items-center justify-center text-slate-900 animate-pulse">
+          <Crosshair className="w-5 h-5 stroke-[2.2]" />
         </div>
-        <div className="text-sm font-medium text-slate-400">
+        <div className="text-xs font-mono text-slate-400">
           Verifying session...
         </div>
       </div>

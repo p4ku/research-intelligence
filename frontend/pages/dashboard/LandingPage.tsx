@@ -2,9 +2,19 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Crosshair, ArrowRight, Activity, ShieldCheck, ExternalLink } from 'lucide-react';
+import { useAuth } from '../../lib/auth/auth-context';
+import { 
+  Crosshair, 
+  ArrowRight, 
+  Activity, 
+  ShieldCheck, 
+  ExternalLink,
+  Layers
+} from 'lucide-react';
 
 export default function LandingPage() {
+  const { isAuthenticated, user } = useAuth();
+
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-white flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 py-16">
       <div className="max-w-xl w-full text-center">
@@ -29,13 +39,24 @@ export default function LandingPage() {
 
         {/* Action Buttons */}
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-          <Link
-            href="/login"
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white bg-slate-950 hover:bg-slate-800 active:scale-[0.99] shadow-sm transition-all"
-          >
-            <span>Sign In</span>
-            <ArrowRight className="w-4 h-4" />
-          </Link>
+          {isAuthenticated ? (
+            <Link
+              href="/dashboard"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white bg-slate-950 hover:bg-slate-800 active:scale-[0.99] shadow-sm transition-all"
+            >
+              <Layers className="w-4 h-4" />
+              <span>Enter Workspaces</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          ) : (
+            <Link
+              href="/login"
+              className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white bg-slate-950 hover:bg-slate-800 active:scale-[0.99] shadow-sm transition-all"
+            >
+              <span>Sign In</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          )}
 
           <Link
             href="/status"
