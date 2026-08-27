@@ -23,6 +23,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
     subscribers = SubscriberSerializer(many=True, read_only=True)
     scrapers = ScraperSerializer(many=True, read_only=True)
     extraction_definitions = ExtractionDefinitionSerializer(many=True, read_only=True)
+    user_role = serializers.SerializerMethodField()
 
     class Meta:
         model = Workspace
@@ -35,5 +36,17 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             'monthly_token_limit',
             'tokens_in_consumed_this_month', 'tokens_out_consumed_this_month', 'tokens_consumed_this_month',
             'monthly_usd_limit', 'usd_spent_this_month', 'subscribers',
+            'user_role',
             'created_at'
         ]
+
+    def get_user_role(self, obj):
+        request = self.context.get('request')
+        if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
+            return None
+        if getattr(request.user, 'is_superuser', False):
+            return 'admin'
+        from research_intelligence.models import WorkspaceMember
+        member = WorkspaceMember.objects.filter(workspace=obj, user=request.user).first()
+        return member.role if member else None
+

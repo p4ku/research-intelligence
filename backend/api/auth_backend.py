@@ -6,16 +6,12 @@ from django.contrib.auth.models import User
 class WorkspaceJWTAuthentication(JWTAuthentication):
     """
     Subclasses SimpleJWT's default authentication class to extract
-    the tenant 'workspace_id' claim and resolve the authenticated user
+    optional tenant 'workspace_id' claim and resolve the authenticated user
     from the database.
 
-    Rejects tokens that don't contain a valid, saved user_id.
+    Rejects tokens that don't contain a valid, active user_id.
     """
     def get_user(self, validated_token):
-        workspace_id = validated_token.get('workspace_id')
-        if not workspace_id:
-            raise AuthenticationFailed('Token payload missing workspace context.')
-
         # Resolve a real user from the token's user_id claim
         user_id = validated_token.get('user_id')
         if not user_id or user_id == 0:
@@ -29,5 +25,8 @@ class WorkspaceJWTAuthentication(JWTAuthentication):
         if not user.is_active:
             raise AuthenticationFailed('User account is disabled.')
 
+        # Attach optional workspace_id if present in token payload
+        workspace_id = validated_token.get('workspace_id')
         user._workspace_id = workspace_id
         return user
+

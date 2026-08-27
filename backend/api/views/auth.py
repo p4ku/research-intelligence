@@ -1,30 +1,38 @@
-from rest_framework import serializers
+import hashlib
+from django.contrib.auth import authenticate
+from django.contrib.auth.models import User
+from rest_framework import serializers, status, permissions
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import InvalidToken
-from ..serializers.auth import LoginSerializer
-from research_intelligence.models import APIKey
+
+from ..serializers.auth import LoginSerializer, UserProfileSerializer
+from research_intelligence.models import APIKey, WorkspaceMember
 
 
 class LoginView(APIView):
     """
-    Authenticates via MCP API key and returns JWT tokens with the real user_id.
-    The api_key must be in format 'key_id:secret' and must match an active APIKey.
+    Authenticates via:
+    1. Email or Username + Password (standard Django credentials).
+    2. FastMCP / Agent API key (in format 'key_id:secret' or secret).
+    Returns JWT access & refresh tokens along with user profile metadata.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [permissions.AllowAny]
     authentication_classes = []
 
     def post(self, request, *args, **kwargs):
         serializer = LoginSerializer(data=request.data)
-        if serializer.is_valid():
-            api_key_raw = serializer.validated_data['api_key']
-            workspace_id = serializer.validated_data['workspace_id']
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-            # Validate API key against APIKey model
-            # Expected format: "key_id:secret" or just "secret" for legacy compat
+        validated_data = serializer.validated_data
+
+        # --- 1. FastMCP API Key Authentication ---
+        if validated_data.get('api_key'):
+            api_key_raw = validated_data['api_key']
+            workspace_id = validated_data.get('workspace_id')
+
             parts = api_key_raw.split(':', 1)
             if len(parts) == 2:
                 key_id, secret = parts
@@ -33,47 +41,96 @@ class LoginView(APIView):
                         key_id=key_id, is_active=True
                     )
                 except APIKey.DoesNotExist:
-                    return Response(
-                        {"error": "Invalid API key."},
-                        status=status.HTTP_401_UNAUTHORIZED
-                    )
+                    return Response({"error": "Invalid API key."}, status=status.HTTP_401_UNAUTHORIZED)
+
                 if not api_key_obj.check_secret(secret):
-                    return Response(
-                        {"error": "Invalid API key secret."},
-                        status=status.HTTP_401_UNAUTHORIZED
-                    )
+                    return Response({"error": "Invalid API key secret."}, status=status.HTTP_401_UNAUTHORIZED)
             else:
-                # Legacy: try to find by matching hashed secret across all active keys
-                import hashlib
                 hashed = hashlib.sha256(api_key_raw.encode()).hexdigest()
                 try:
                     api_key_obj = APIKey.objects.select_related('user').get(
                         hashed_secret=hashed, is_active=True
                     )
                 except APIKey.DoesNotExist:
-                    return Response(
-                        {"error": "Invalid API key."},
-                        status=status.HTTP_401_UNAUTHORIZED
-                    )
+                    return Response({"error": "Invalid API key."}, status=status.HTTP_401_UNAUTHORIZED)
 
             user = api_key_obj.user
             api_key_obj.update_last_used()
 
-            # Generate token with real user_id
             refresh = RefreshToken.for_user(user)
-            refresh['workspace_id'] = str(workspace_id)
+            if workspace_id:
+                refresh['workspace_id'] = str(workspace_id)
 
             return Response(
                 {
                     "access": str(refresh.access_token),
                     "refresh": str(refresh),
-                    "workspace_id": workspace_id,
+                    "workspace_id": str(workspace_id) if workspace_id else None,
                     "user_id": user.id,
-                    "username": user.username
+                    "username": user.username,
+                    "user": UserProfileSerializer(user).data,
                 },
                 status=status.HTTP_200_OK
             )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # --- 2. Username / Email + Password Authentication ---
+        identifier = validated_data.get('identifier')
+        password = validated_data.get('password')
+        workspace_id = validated_data.get('workspace_id')
+
+        # Try authenticating directly with username
+        user = authenticate(request, username=identifier, password=password)
+
+        # If direct username auth failed, lookup user by email
+        if user is None:
+            user_by_email = User.objects.filter(email__iexact=identifier).first()
+            if user_by_email:
+                user = authenticate(request, username=user_by_email.username, password=password)
+
+        if user is None:
+            return Response(
+                {"error": "Invalid email/username or password."},
+                status=status.HTTP_401_UNAUTHORIZED
+            )
+
+        if not user.is_active:
+            return Response(
+                {"error": "User account is disabled."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        refresh = RefreshToken.for_user(user)
+        if workspace_id:
+            refresh['workspace_id'] = str(workspace_id)
+
+        return Response(
+            {
+                "access": str(refresh.access_token),
+                "refresh": str(refresh),
+                "workspace_id": str(workspace_id) if workspace_id else None,
+                "user_id": user.id,
+                "username": user.username,
+                "user": UserProfileSerializer(user).data,
+            },
+            status=status.HTTP_200_OK
+        )
+
+
+
+class UserProfileView(APIView):
+    """
+    Returns the authenticated user's profile and workspace membership summary.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        profile_data = UserProfileSerializer(user).data
+        
+        # Summary of accessible workspaces
+        memberships = WorkspaceMember.objects.filter(user=user).select_related('workspace')
+        profile_data['workspaces_count'] = memberships.count() if not user.is_superuser else None
+        return Response(profile_data, status=status.HTTP_200_OK)
 
 
 class WorkspaceTokenRefreshSerializer(serializers.Serializer):
@@ -88,12 +145,12 @@ class WorkspaceTokenRefreshSerializer(serializers.Serializer):
         except Exception as e:
             raise InvalidToken(str(e))
 
+
 class TokenRefreshView(APIView):
     """
-    Regenerates a fresh access token given a valid SimpleJWT refresh token,
-    without executing database user queries.
+    Regenerates a fresh access token given a valid SimpleJWT refresh token.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [permissions.AllowAny]
     authentication_classes = []
 
     def post(self, request, *args, **kwargs):
@@ -101,9 +158,3 @@ class TokenRefreshView(APIView):
         if serializer.is_valid():
             return Response(serializer.validated_data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_401_UNAUTHORIZED)
-
-
-
-
-
-
