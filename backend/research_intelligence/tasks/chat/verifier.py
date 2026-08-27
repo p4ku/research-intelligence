@@ -134,12 +134,3 @@ class CitationFactChecker:
         }
 
         return verified_citations, guard_summary
-
-
-def verify_citations_against_source(
-    source_text: str,
-    visual_citations: list[dict],
-    answer_text: str = ""
-) -> tuple[list[dict], dict]:
-    """Convenience functional wrapper around CitationFactChecker."""
-    return CitationFactChecker().verify(source_text, visual_citations, answer_text)

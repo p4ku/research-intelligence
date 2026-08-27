@@ -18,8 +18,7 @@ from ..serializers.chat import (
     PaperChatSubmitSerializer,
     PaperChatAsyncResponseSerializer,
 )
-from research_intelligence.tasks.chat.tasks import execute_paper_chat_task
-from research_intelligence.tasks.chat.engine import execute_paper_chat_logic
+from research_intelligence.tasks.chat import execute_paper_chat_task, PaperChatEngine
 from research_intelligence.mcp.tools.workspaces import _check_workspace_access
 
 
@@ -123,7 +122,7 @@ class ChatSubmitView(APIView):
 
         # Synchronous execution flow
         if is_sync:
-            result = execute_paper_chat_logic(message)
+            result = PaperChatEngine().execute(message)
             message.refresh_from_db()
             return Response(PaperChatMessageSerializer(message).data, status=status.HTTP_200_OK)
 

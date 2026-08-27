@@ -11,7 +11,7 @@ from research_intelligence.llm_providers import get_llm_provider
 from .context_builder import PaperContextBuilder
 from .summarizer import HierarchicalSessionSummarizer
 from .citations import VisualCitationExtractor
-from .verifier import CitationFactChecker, verify_citations_against_source
+from .verifier import CitationFactChecker
 
 logger = logging.getLogger(__name__)
 
@@ -211,25 +211,3 @@ Please provide a detailed, accurate response grounded strictly in the source doc
 
         citations_list = getattr(llm_response, 'citations', []) or []
         return answer_raw, citations_list, tokens_in, tokens_out
-
-
-# --- Functional Wrappers for Clean Backwards Compatibility ---
-
-def build_paper_context(paper: Paper) -> tuple[str, bytes | None, str | None]:
-    """Builds structured, concise paper context for LLM prompt using PaperContextBuilder."""
-    return PaperContextBuilder().build(paper)
-
-
-def execute_paper_chat_logic(message: PaperChatMessage) -> dict:
-    """Executes paper chat generation logic using PaperChatEngine."""
-    return PaperChatEngine().execute(message)
-
-
-def extract_visual_citations_from_response(raw_text: str) -> tuple[str, list[dict]]:
-    """Extracts structured visual citations using VisualCitationExtractor."""
-    return VisualCitationExtractor().extract(raw_text)
-
-
-def update_hierarchical_session_summary(session: PaperChatSession, history_messages) -> None:
-    """Updates hierarchical session summary using HierarchicalSessionSummarizer."""
-    HierarchicalSessionSummarizer().compress_and_update(session, history_messages)

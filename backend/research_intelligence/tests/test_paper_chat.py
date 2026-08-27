@@ -20,7 +20,13 @@ from research_intelligence.models import (
     PaperChatMessage,
     APIKey,
 )
-from research_intelligence.tasks.chat.engine import build_paper_context, execute_paper_chat_logic
+from research_intelligence.tasks.chat import (
+    PaperChatEngine,
+    PaperContextBuilder,
+    CitationFactChecker,
+    HierarchicalSessionSummarizer,
+    VisualCitationExtractor,
+)
 from research_intelligence.tasks.chat.tasks import execute_paper_chat_task
 from research_intelligence.mcp.tools.chat import ask_paper_logic
 
@@ -129,7 +135,7 @@ class PaperChatTestCase(TestCase):
 
     def test_build_paper_context_full_data(self):
         """Verifies that full OCR markdown, screening rationale, extractions, and signal score are gathered when all data is present."""
-        context_text, pdf_bytes, mime_type = build_paper_context(self.paper_a)
+        context_text, pdf_bytes, mime_type = PaperContextBuilder().build(self.paper_a)
         
         self.assertIn("Scalable Quantum Circuit Compilation", context_text)
         self.assertIn("Authors: A. Lovelace, C. Babbage", context_text)
@@ -154,7 +160,7 @@ class PaperChatTestCase(TestCase):
             abstract="Short abstract about minimalist theory."
         )
 
-        context_text, pdf_bytes, mime_type = build_paper_context(paper_minimal)
+        context_text, pdf_bytes, mime_type = PaperContextBuilder().build(paper_minimal)
 
         self.assertIn("Title: Minimalist Research Paper", context_text)
         self.assertIn("Short abstract about minimalist theory.", context_text)
@@ -188,7 +194,7 @@ class PaperChatTestCase(TestCase):
         )
 
         try:
-            context_text, pdf_bytes, mime_type = build_paper_context(paper_pdf)
+            context_text, pdf_bytes, mime_type = PaperContextBuilder().build(paper_pdf)
             self.assertIn("Multimodal PDF Paper", context_text)
             self.assertIn("Full Document Binary: Attached as native multimodal PDF.", context_text)
             self.assertEqual(pdf_bytes, dummy_pdf_content)
@@ -355,15 +361,13 @@ class PaperChatTestCase(TestCase):
 
     def test_fact_checking_verifier_deterministic(self):
         """Tests that the hallucination guard verifies authentic quotes and flags ungrounded claims."""
-        from research_intelligence.tasks.chat.verifier import verify_citations_against_source
-
         source_doc = "The scalable compiler demonstrates 99.4% gate fidelity across 128 physical qubits with 450ns latency."
 
         # Case 1: Grounded citation
         grounded_citations = [
             {"page": 2, "label": "Figure 2b", "quote": "99.4% gate fidelity across 128 physical qubits"}
         ]
-        verified_cits, guard = verify_citations_against_source(source_doc, grounded_citations)
+        verified_cits, guard = CitationFactChecker().verify(source_doc, grounded_citations)
         self.assertTrue(verified_cits[0]["verified_in_source"])
         self.assertEqual(guard["grounding_score"], 1.0)
         self.assertTrue(guard["verified"])
@@ -373,7 +377,7 @@ class PaperChatTestCase(TestCase):
         hallucinated_citations = [
             {"page": 5, "label": "Table 1", "quote": "Achieved room-temperature superconductor at 300 Kelvin"}
         ]
-        verified_cits_h, guard_h = verify_citations_against_source(source_doc, hallucinated_citations)
+        verified_cits_h, guard_h = CitationFactChecker().verify(source_doc, hallucinated_citations)
         self.assertFalse(verified_cits_h[0]["verified_in_source"])
         self.assertEqual(guard_h["grounding_score"], 0.0)
         self.assertFalse(guard_h["verified"])

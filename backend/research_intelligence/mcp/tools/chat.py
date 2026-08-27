@@ -8,7 +8,7 @@ from research_intelligence.models import (
     PaperChatMessage,
     WorkspaceMember,
 )
-from research_intelligence.tasks.chat.engine import execute_paper_chat_logic
+from research_intelligence.tasks.chat import PaperChatEngine
 from .workspaces import _check_workspace_access
 
 logger = logging.getLogger(__name__)
@@ -69,5 +69,5 @@ def ask_paper_logic(
     )
 
     # Execute synchronous generation for FastMCP client
-    res = execute_paper_chat_logic(message)
+    res = PaperChatEngine().execute(message)
     return json.dumps(res, indent=2)

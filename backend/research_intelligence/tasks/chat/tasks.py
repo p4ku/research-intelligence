@@ -4,7 +4,7 @@ import django.db
 from celery import shared_task
 
 from research_intelligence.models import PaperChatMessage
-from .engine import execute_paper_chat_logic
+from .engine import PaperChatEngine
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,6 @@ def execute_paper_chat_task(self, message_id: str):
     message.celery_task_id = self.request.id
     message.save(update_fields=['celery_task_id'])
 
-    result = execute_paper_chat_logic(message)
+    result = PaperChatEngine().execute(message)
     django.db.close_old_connections()
     return result
