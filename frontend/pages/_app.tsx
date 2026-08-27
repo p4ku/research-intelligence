@@ -8,8 +8,7 @@ export default function App({ Component, pageProps }: AppProps) {
   return (
     <>
       <Head>
-        <title>Schwarz Research Intelligence | SLR & Deep Tech Platform</title>
-        <meta name="description" content="Automated Systematic Literature Review & Intelligence Platform powered by Gemini 3.7 Flash" />
+        <title>Schwarz Research Intelligence</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
       <div className="min-h-screen bg-[#090d16] text-slate-100 antialiased selection:bg-sky-500 selection:text-white">

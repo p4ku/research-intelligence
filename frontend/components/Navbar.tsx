@@ -5,7 +5,6 @@ import { useAuth } from '../lib/auth/auth-context';
 import { 
   Sparkles, 
   LogOut, 
-  User, 
   Layers, 
   Activity, 
   Lock, 
@@ -32,17 +31,12 @@ export default function Navbar() {
         {/* Brand / Logo */}
         <div className="flex items-center gap-6">
           <a href="/" className="flex items-center gap-3 no-underline group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-600 to-sky-400 flex items-center justify-center shadow-lg shadow-sky-500/20 group-hover:scale-105 transition-transform">
-              <Sparkles className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-600 to-sky-400 flex items-center justify-center shadow-md shadow-sky-500/20 group-hover:scale-105 transition-transform">
+              <Sparkles className="w-4 h-4 text-white" />
             </div>
-            <div>
-              <div className="font-extrabold text-base tracking-tight bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent group-hover:from-white group-hover:to-sky-200 transition-colors">
-                Schwarz Research Intelligence
-              </div>
-              <div className="text-[10px] text-slate-500 font-semibold tracking-wider uppercase">
-                Enterprise Systematic Review
-              </div>
-            </div>
+            <span className="font-bold text-base tracking-tight text-slate-100 group-hover:text-white transition-colors">
+              Schwarz Research Intelligence
+            </span>
           </a>
 
           {/* Navigation Links */}
@@ -59,17 +53,7 @@ export default function Navbar() {
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors"
             >
               <Activity className="w-3.5 h-3.5 text-emerald-400" />
-              System Status
-            </a>
-            <a
-              href="/admin/"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-slate-800/40 transition-colors"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
-              Django Admin
-              <ExternalLink className="w-3 h-3 text-slate-500" />
+              Status
             </a>
           </nav>
         </div>
@@ -97,7 +81,7 @@ export default function Navbar() {
               <button
                 onClick={logout}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all cursor-pointer"
-                title="Sign out of current session"
+                title="Sign out"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Sign Out</span>
@@ -107,7 +91,7 @@ export default function Navbar() {
             <div className="flex items-center gap-2">
               <a
                 href="/login"
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold text-white bg-sky-600 hover:bg-sky-500 shadow-md shadow-sky-600/30 hover:shadow-sky-500/40 hover:-translate-y-0.5 transition-all"
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold text-white bg-sky-600 hover:bg-sky-500 shadow-md shadow-sky-600/30 hover:shadow-sky-500/40 transition-all"
               >
                 <Lock className="w-3.5 h-3.5" />
                 Sign In

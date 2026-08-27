@@ -324,22 +324,22 @@ export default function StatusPage() {
         </header>
 
         {/* Title */}
-        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
           <div style={{
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: '64px',
-            height: '64px',
+            width: '56px',
+            height: '56px',
             borderRadius: '16px',
             background: 'linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%)',
             boxShadow: '0 8px 24px rgba(56, 189, 248, 0.2)',
-            marginBottom: '1.25rem',
+            marginBottom: '1rem',
           }}>
-            <Activity size={32} color="#ffffff" />
+            <Activity size={28} color="#ffffff" />
           </div>
           <h1 style={{
-            fontSize: '2.5rem',
+            fontSize: '2rem',
             fontWeight: '800',
             letterSpacing: '-0.025em',
             margin: 0,
@@ -347,11 +347,8 @@ export default function StatusPage() {
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
           }}>
-            Infrastructure Diagnostics
+            System Status
           </h1>
-          <p style={{ color: '#94a3b8', marginTop: '0.5rem', fontSize: '1.1rem' }}>
-            Real-time live health probes across Database, Redis, Celery Workers, S3 Storage, LLM Providers, FastMCP, and Mailgun
-          </p>
         </div>
 
         {/* Top Status Overview Cards (Primary Services) */}
@@ -1008,23 +1005,6 @@ export default function StatusPage() {
           </div>
         </div>
 
-        {/* Footer */}
-        <div style={{
-          backgroundColor: '#0f172a',
-          border: '1px solid #1e293b',
-          borderRadius: '12px',
-          padding: '1.25rem 1.75rem',
-          color: '#64748b',
-          fontSize: '0.85rem',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem',
-        }}>
-          <Server size={20} style={{ color: '#475569', flexShrink: 0 }} />
-          <div>
-            <strong>Automated SLR & Intelligence Engine:</strong> All microservices are active on STACKIT Cloud Foundry.
-          </div>
-        </div>
       </div>
 
       <style jsx global>{`
@@ -1036,3 +1016,4 @@ export default function StatusPage() {
     </div>
   );
 }
+

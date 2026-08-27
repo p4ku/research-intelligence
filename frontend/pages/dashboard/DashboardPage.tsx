@@ -69,12 +69,10 @@ export default function DashboardPage() {
               <ShieldCheck className="w-3.5 h-3.5" />
               Logged in as {user?.is_superuser ? 'Superuser' : (user?.email || user?.username)}
             </div>
-            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-slate-100 to-slate-400 bg-clip-text text-transparent mb-1">
-              Welcome back, {user?.first_name || user?.username}!
+            <h1 className="text-3xl font-bold tracking-tight text-white mb-1">
+              Workspaces
             </h1>
-            <p className="text-sm sm:text-base text-slate-400">
-              Your assigned systematic literature review projects and intelligence workspaces.
-            </p>
+
           </div>
 
           <div className="flex items-center gap-3">
