@@ -7,7 +7,7 @@ import {
   Mail, 
   Eye, 
   EyeOff, 
-  Sparkles, 
+  Crosshair, 
   ShieldAlert, 
   ArrowRight, 
   ArrowLeft 
@@ -48,46 +48,35 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-65px)] bg-[#090d16] bg-[radial-gradient(circle_at_50%_20%,#1e1b4b_0%,#090d16_65%)] text-slate-100 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8">
+    <div className="min-h-screen bg-[#f8f9fa] flex flex-col items-center justify-center p-6 sm:p-8">
       <div className="max-w-md w-full">
         
-        {/* Back Link */}
-        <div className="mb-6">
-          <a
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-300 transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back
-          </a>
-        </div>
-
-        {/* Header Branding */}
+        {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-sky-600 to-sky-400 shadow-lg shadow-sky-500/20 mb-4">
-            <Sparkles className="w-6 h-6 text-white" />
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-full border border-slate-900 bg-white shadow-sm mb-4">
+            <Crosshair className="w-6 h-6 text-slate-900 stroke-[2.2]" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white mb-1">
-            Sign In
+          <h1 className="text-2xl font-extrabold tracking-tight text-slate-950 mb-1">
+            Research Scanner
           </h1>
-          <p className="text-xs text-slate-500">
-            Schwarz Research Intelligence
+          <p className="text-xs text-slate-500 font-mono">
+            Schwarz Intelligence Platform
           </p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
+        <div className="bg-white border border-[#e5e7eb] rounded-2xl p-6 sm:p-8 shadow-sm">
           {error && (
-            <div className="flex items-start gap-3 bg-rose-500/10 border border-rose-500/25 rounded-xl p-3 text-rose-400 text-xs mb-5 leading-snug">
+            <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-xl p-3 text-rose-700 text-xs mb-5 leading-snug">
               <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <div>{error}</div>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email / Username Field */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Username or Email
               </label>
               <div className="relative">
@@ -95,18 +84,18 @@ export default function LoginPage() {
                   type="text"
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="Username or email"
+                  placeholder="admin or username"
                   autoComplete="username"
                   required
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 pl-10 text-sm text-slate-100 placeholder:text-slate-600 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 transition-all"
+                  className="w-full bg-[#f8f9fa] border border-[#e5e7eb] rounded-xl px-4 py-2.5 pl-10 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:bg-white focus:border-slate-400 transition-all"
                 />
-                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
               </div>
             </div>
 
             {/* Password Field */}
             <div>
-              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                 Password
               </label>
               <div className="relative">
@@ -117,13 +106,13 @@ export default function LoginPage() {
                   placeholder="••••••••••••"
                   autoComplete="current-password"
                   required
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder:text-slate-600 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 transition-all"
+                  className="w-full bg-[#f8f9fa] border border-[#e5e7eb] rounded-xl px-4 py-2.5 pl-10 pr-10 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:bg-white focus:border-slate-400 transition-all"
                 />
-                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors p-1"
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -134,7 +123,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="mt-2 flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl text-sm font-bold text-white bg-sky-600 hover:bg-sky-500 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed shadow-md shadow-sky-600/25 transition-all cursor-pointer"
+              className="mt-2 flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl text-sm font-bold text-white bg-slate-950 hover:bg-slate-800 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed shadow-sm transition-all cursor-pointer"
             >
               {isSubmitting ? (
                 <span>Signing In...</span>

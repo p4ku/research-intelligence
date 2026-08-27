@@ -1,256 +1,410 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '../../lib/auth/auth-context';
-import { workspaceService, WorkspaceItem } from '../../lib/services/workspace-service';
 import { 
-  Layers, 
+  Star, 
+  ArrowRight, 
+  Radio, 
+  Briefcase, 
   Sparkles, 
-  Cpu, 
-  Search, 
-  Activity, 
-  RefreshCw, 
-  CheckCircle, 
-  AlertCircle, 
-  ShieldCheck, 
-  Globe, 
-  Database 
+  Zap, 
+  Scale 
 } from 'lucide-react';
+
+interface PaperItem {
+  id: string;
+  score: number;
+  sector: string;
+  sectorColor: string;
+  source: string;
+  date: string;
+  starred?: boolean;
+  title: string;
+  summary: string;
+  trl: number;
+  stage: string;
+  novelty: number;
+  significance: number;
+  fit: number;
+  rigour: number;
+  lab: string;
+}
+
+const mockPapers: PaperItem[] = [
+  {
+    id: 'every-sku-one-policy',
+    score: 85,
+    sector: 'Physical AI',
+    sectorColor: 'text-amber-600 bg-amber-500/10 border-amber-500/30',
+    source: 'arXiv · cs.RO',
+    date: 'Jun 29, 2026',
+    starred: true,
+    title: 'Every SKU, One Policy: A Generalist Vision-Language-Action Model from 10,000 Hours of Warehouse Teleoperation',
+    summary: 'One policy, trained on real warehouse teleop, picks unseen SKUs at 91% first-attempt success — at production cycle times, in live facilities.',
+    trl: 6,
+    stage: 'Development',
+    novelty: 84,
+    significance: 90,
+    fit: 88,
+    rigour: 81,
+    lab: 'Vela Robotics',
+  },
+  {
+    id: 'consolidated-memory',
+    score: 84,
+    sector: 'Agentic AI',
+    sectorColor: 'text-teal-600 bg-teal-500/10 border-teal-500/30',
+    source: 'arXiv · cs.MA',
+    date: 'Jun 28, 2026',
+    starred: true,
+    title: 'Consolidated Memory: Learned Retrieval and Forgetting for Long-Horizon Agents',
+    summary: 'Agents get a real memory: learned store-retrieve-forget beats stuffing transcripts into context, 31% better at 1/6 the tokens.',
+    trl: 4,
+    stage: 'Development',
+    novelty: 86,
+    significance: 88,
+    fit: 82,
+    rigour: 84,
+    lab: 'Meridian AI Lab',
+  },
+  {
+    id: 'provenance-survives-internet',
+    score: 82,
+    sector: 'Provenance',
+    sectorColor: 'text-indigo-600 bg-indigo-500/10 border-indigo-500/30',
+    source: 'arXiv · cs.CR',
+    date: 'Jul 1, 2026',
+    starred: true,
+    title: 'Provenance That Survives the Internet: Durable Content Credentials Through Re-Encoding, Cropping, and Platform Pipelines',
+    summary: 'Content credentials that survive being posted: manifest + soft-binding watermark recovers provenance for 94% of assets after real platform pipelines, vs 31% today.',
+    trl: 6,
+    stage: 'Development',
+    novelty: 78,
+    significance: 87,
+    fit: 89,
+    rigour: 86,
+    lab: 'TrustFabric',
+  },
+  {
+    id: 'verifier-in-the-loop',
+    score: 79,
+    sector: 'Agentic AI',
+    sectorColor: 'text-teal-600 bg-teal-500/10 border-teal-500/30',
+    source: 'arXiv · cs.MA',
+    date: 'Jun 24, 2026',
+    starred: true,
+    title: 'Verifier-in-the-Loop: Deterministic Control Flow for Multi-Agent Systems',
+    summary: 'Treat agent fleets like workflow engines with a verifier gating every step — 44% fewer catastrophic failures than debate.',
+    trl: 4,
+    stage: 'Development',
+    novelty: 72,
+    significance: 84,
+    fit: 85,
+    rigour: 82,
+    lab: 'Northwind Research',
+  },
+  {
+    id: 'provenance-first-pipelines',
+    score: 78,
+    sector: 'Provenance',
+    sectorColor: 'text-indigo-600 bg-indigo-500/10 border-indigo-500/30',
+    source: 'arXiv · cs.CR',
+    date: 'Jun 30, 2026',
+    starred: false,
+    title: 'Provenance-First Pipelines: End-to-End C2PA Signing for Generated Media',
+    summary: 'Sign everything at generation time, verify at the gateway — C2PA provenance as pipeline infrastructure, deployed in a newsroom.',
+    trl: 7,
+    stage: 'Deployment',
+    novelty: 63,
+    significance: 85,
+    fit: 80,
+    rigour: 88,
+    lab: 'TrustFabric',
+  },
+];
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const [workspaces, setWorkspaces] = useState<WorkspaceItem[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'score' | 'fit' | 'novelty' | 'significance' | 'rigour'>('score');
 
-  const fetchWorkspaces = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await workspaceService.getWorkspaces();
-      setWorkspaces(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch accessible workspaces');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchWorkspaces();
-  }, []);
-
-  const filteredWorkspaces = workspaces.filter(ws => 
-    ws.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ws.abstract_acceptance_criteria?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (ws.user_role && ws.user_role.toLowerCase().includes(searchQuery.toLowerCase()))
-  );
-
-  const getRoleBadge = (role?: string | null) => {
-    const r = (role || (user?.is_superuser ? 'admin' : 'researcher')).toLowerCase();
-    if (r === 'admin') {
-      return { label: 'Admin', icon: '👑', color: 'bg-amber-500/15 text-amber-300 border-amber-500/30' };
-    }
-    if (r === 'manager') {
-      return { label: 'Manager', icon: '🛡️', color: 'bg-purple-500/15 text-purple-300 border-purple-500/30' };
-    }
-    return { label: 'Researcher', icon: '🔬', color: 'bg-sky-500/15 text-sky-300 border-sky-500/30' };
-  };
+  const greetingName = user?.first_name || user?.username || 'Johann';
 
   return (
-    <div className="min-h-[calc(100vh-65px)] bg-[#090d16] bg-[radial-gradient(circle_at_50%_10%,#1e1b4b_0%,#090d16_60%)] text-slate-100 flex flex-col items-center p-6 sm:p-8 lg:p-10">
-      <div className="max-w-6xl w-full">
-        
-        {/* Welcome Header */}
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
-          <div>
-            <div className="inline-flex items-center gap-2 bg-sky-500/10 border border-sky-500/20 rounded-full px-3 py-1 text-xs font-semibold text-sky-400 mb-3">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              Logged in as {user?.is_superuser ? 'Superuser' : (user?.email || user?.username)}
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight text-white mb-1">
-              Workspaces
-            </h1>
+    <div className="p-8 sm:p-10 max-w-6xl mx-auto">
+      
+      {/* Header Top Meta */}
+      <div className="flex flex-wrap items-center justify-between gap-4 pb-6 border-b border-[#f0f0f0]">
+        <div>
+          <div className="flex items-center gap-1.5 text-[11px] font-mono font-semibold uppercase tracking-wider text-slate-500 mb-1">
+            <span className="text-teal-600 font-bold">■</span> TODAY · FRIDAY, JULY 3, 2026
+          </div>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-950">
+            Good morning, {greetingName}
+          </h1>
+        </div>
 
+        <div className="text-right">
+          <div className="text-[11px] font-mono text-slate-500 mb-2">
+            <span className="font-bold text-slate-900">24</span> identified → <span className="font-bold text-slate-900">9</span> screened → <span className="font-bold text-slate-900">4</span> deep-dived → <span className="font-bold text-slate-900">4</span> handed off · <span className="text-slate-400">week of 29 Jun</span>
+          </div>
+          <div className="flex items-center justify-end gap-2">
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold font-mono px-2 py-0.5 rounded bg-teal-600 text-white">
+              ● Agentic AI / MAS
+            </span>
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold font-mono px-2 py-0.5 rounded bg-indigo-900 text-white">
+              ● Digital Provenance & Trust
+            </span>
+            <span className="inline-flex items-center gap-1 text-[10px] font-semibold font-mono px-2 py-0.5 rounded bg-orange-600 text-white">
+              ● Physical AI & Humanoids
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* HEADLINE STORIES Section */}
+      <section className="my-8">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xs font-bold font-mono tracking-wider uppercase text-slate-900 flex items-center gap-1.5">
+            <span className="text-teal-600">■</span> Headline Stories
+          </h2>
+          <span className="text-xs text-slate-400 font-mono">1 lead · 3 more</span>
+        </div>
+
+        {/* Lead Story Card */}
+        <div className="bg-white border border-[#e5e7eb] rounded-xl p-6 sm:p-8 mb-6 hover:shadow-sm transition-shadow">
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 text-xs text-slate-500 font-mono mb-2">
+                <span className="inline-flex items-center gap-1 text-orange-600 font-semibold">
+                  ● Physical AI
+                </span>
+                <span>·</span>
+                <span>Lead story</span>
+              </div>
+
+              <Link href="/papers/every-sku-one-policy" className="group">
+                <h3 className="text-2xl sm:text-3xl font-extrabold text-slate-950 tracking-tight leading-snug mb-3 group-hover:text-teal-700 transition-colors">
+                  The warehouse generalist has arrived — and it was trained in buildings like yours
+                </h3>
+              </Link>
+
+              <p className="text-sm text-slate-600 leading-relaxed mb-4 max-w-3xl">
+                Vela Robotics trained one vision-language-action policy on 10,000 hours of teleoperation from live distribution centers, and it picks unseen SKUs at 91% first-attempt success — at production takt, measured in running facilities. The strategic read: the moat is shifting from model architecture to manipulation data from varied real environments, which is an asset operators hold and labs do not. The engagement window has a clock on it — a European 3PL announced a pilot last week.
+              </p>
+
+              <div className="text-xs text-slate-400 font-mono">
+                Every SKU, One Policy: A Generalist Vision-Language-Action Model from 10,000 Hours of Warehouse Teleoperation
+              </div>
+            </div>
+
+            {/* Circular Signal Score */}
+            <div className="flex flex-col items-center flex-shrink-0">
+              <div className="w-20 h-20 rounded-full border-4 border-teal-500 flex items-center justify-center text-slate-900 font-extrabold text-2xl">
+                85
+              </div>
+              <span className="text-[10px] font-mono uppercase tracking-widest text-slate-400 font-bold mt-1">
+                Signal
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* 3 Sub-Headline Stories */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {/* Sub 1 */}
+          <div className="bg-white border border-[#e5e7eb] rounded-xl p-5 hover:border-slate-300 transition-colors flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between text-xs text-slate-500 font-mono mb-2">
+                <span className="text-indigo-600 font-semibold">● Provenance</span>
+                <span className="font-bold text-slate-900">82</span>
+              </div>
+              <h4 className="text-base font-bold text-slate-950 leading-snug mb-2">
+                Provenance that survives being posted
+              </h4>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                C2PA credentials die on first re-encode — until now. Pairing manifests with a robust soft-binding watermark recovers provenance for 94% of assets after real platform pipelines, versus 31% today. Article 50 compliance that holds up on the actual Internet.
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* Sub 2 */}
+          <div className="bg-white border border-[#e5e7eb] rounded-xl p-5 hover:border-slate-300 transition-colors flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between text-xs text-slate-500 font-mono mb-2">
+                <span className="text-teal-600 font-semibold">● Agentic AI</span>
+                <span className="font-bold text-slate-900">84</span>
+              </div>
+              <h4 className="text-base font-bold text-slate-950 leading-snug mb-2">
+                Agents finally get a memory worth the name
+              </h4>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Learned store-retrieve-forget beats stuffing transcripts into context by 31% at a sixth of the tokens — and keeps the memory trend at the top of the board.
+              </p>
+            </div>
+          </div>
+
+          {/* Sub 3 */}
+          <div className="bg-white border border-[#e5e7eb] rounded-xl p-5 hover:border-slate-300 transition-colors flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between text-xs text-slate-500 font-mono mb-2">
+                <span className="text-indigo-600 font-semibold">● Provenance</span>
+                <span className="font-bold text-slate-900">78</span>
+              </div>
+              <h4 className="text-base font-bold text-slate-950 leading-snug mb-2">
+                Your next fraudulent customer will be an agent — make it show ID
+              </h4>
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Cryptographic delegation credentials let a merchant verify an autonomous shopping agent acts for a real, accountable customer — spend caps and revocation included — in 40ms at checkout. The know-your-agent standard war starts now.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* THE PAPERS Section */}
+      <section className="my-10">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xs font-bold font-mono tracking-wider uppercase text-slate-900 flex items-center gap-1.5">
+            <span className="text-teal-600">■</span> The Papers
+          </h2>
+          <Link href="/papers" className="text-xs text-teal-600 hover:text-teal-700 font-semibold flex items-center gap-1">
+            All papers <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        {/* Tab Filters */}
+        <div className="flex items-center justify-between border-b border-[#e5e7eb] mb-6">
+          <div className="flex items-center gap-6">
             <button
-              onClick={fetchWorkspaces}
-              disabled={isLoading}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-xs font-semibold text-slate-200 transition-colors cursor-pointer disabled:opacity-60"
+              onClick={() => setActiveTab('score')}
+              className={`pb-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors ${
+                activeTab === 'score'
+                  ? 'border-teal-600 text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh
+              <Radio className="w-3.5 h-3.5" />
+              Overall score
             </button>
 
-            <a
-              href="/status"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-500/10 border border-sky-500/30 hover:bg-sky-500/20 text-xs font-semibold text-sky-400 transition-colors"
+            <button
+              onClick={() => setActiveTab('fit')}
+              className={`pb-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors ${
+                activeTab === 'fit'
+                  ? 'border-teal-600 text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
             >
-              <Activity className="w-3.5 h-3.5" />
-              System Diagnostics
-            </a>
+              <Briefcase className="w-3.5 h-3.5" />
+              Schwarz Fit
+            </button>
+
+            <button
+              onClick={() => setActiveTab('novelty')}
+              className={`pb-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors ${
+                activeTab === 'novelty'
+                  ? 'border-teal-600 text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Novelty
+            </button>
+
+            <button
+              onClick={() => setActiveTab('significance')}
+              className={`pb-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors ${
+                activeTab === 'significance'
+                  ? 'border-teal-600 text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <Zap className="w-3.5 h-3.5" />
+              Significance
+            </button>
+
+            <button
+              onClick={() => setActiveTab('rigour')}
+              className={`pb-3 text-xs font-semibold flex items-center gap-1.5 border-b-2 transition-colors ${
+                activeTab === 'rigour'
+                  ? 'border-teal-600 text-slate-900'
+                  : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <Scale className="w-3.5 h-3.5" />
+              Rigour
+            </button>
+          </div>
+
+          <div className="text-xs text-slate-400 font-mono pb-3">
+            {mockPapers.length} papers
           </div>
         </div>
 
-        {/* Quick KPI Overview Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
-          {/* Card 1: Accessible Workspaces */}
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-slate-400 mb-3">
-              <span className="text-xs font-medium uppercase tracking-wider">Accessible Workspaces</span>
-              <Layers className="w-5 h-5 text-sky-400" />
-            </div>
-            <div className="text-3xl font-extrabold text-white">
-              {workspaces.length}
-            </div>
-            <div className="text-xs text-slate-500 mt-1">
-              Role-based tenant memberships
-            </div>
-          </div>
+        {/* Paper Items List */}
+        <div className="space-y-4">
+          {mockPapers.map((paper) => (
+            <div
+              key={paper.id}
+              className="bg-white border border-[#e5e7eb] rounded-xl p-5 sm:p-6 hover:border-slate-300 transition-colors"
+            >
+              <div className="flex items-start gap-4">
+                {/* Signal Badge */}
+                <div className="w-12 h-12 rounded-full border-2 border-teal-500 flex items-center justify-center font-extrabold text-base text-slate-900 flex-shrink-0 mt-0.5">
+                  {paper.score}
+                </div>
 
-          {/* Card 2: AI Reasoning Engine */}
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-slate-400 mb-3">
-              <span className="text-xs font-medium uppercase tracking-wider">Screening Engine</span>
-              <Cpu className="w-5 h-5 text-purple-400" />
-            </div>
-            <div className="text-2xl font-extrabold text-purple-300">
-              Gemini 3.7 Flash
-            </div>
-            <div className="text-xs text-slate-500 mt-1">
-              Google Vertex AI (EU Sovereign)
-            </div>
-          </div>
-
-          {/* Card 3: Ingestion Sources */}
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg">
-            <div className="flex items-center justify-between text-slate-400 mb-3">
-              <span className="text-xs font-medium uppercase tracking-wider">Scrapers & Ingestion</span>
-              <Globe className="w-5 h-5 text-emerald-400" />
-            </div>
-            <div className="text-2xl font-extrabold text-emerald-300">
-              ArXiv, OpenAlex, Lens
-            </div>
-            <div className="text-xs text-slate-500 mt-1">
-              Multi-source deduplication active
-            </div>
-          </div>
-        </div>
-
-        {/* Search & Filter Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          <h2 className="text-xl font-bold text-slate-100">
-            Your SLR Workspaces ({filteredWorkspaces.length})
-          </h2>
-
-          <div className="relative min-w-[280px]">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by name, role, or criteria..."
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 pl-9 text-xs sm:text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 transition-all"
-            />
-            <Search className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
-          </div>
-        </div>
-
-        {/* Error banner if any */}
-        {error && (
-          <div className="flex items-center gap-3 bg-rose-500/10 border border-rose-500/25 rounded-xl p-4 text-rose-400 text-sm mb-6">
-            <AlertCircle className="w-5 h-5 flex-shrink-0" />
-            <span>{error}</span>
-          </div>
-        )}
-
-        {/* Workspaces Grid */}
-        {isLoading && workspaces.length === 0 ? (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-16 text-center text-slate-400">
-            <RefreshCw className="w-7 h-7 text-sky-400 animate-spin mx-auto mb-4" />
-            <div className="text-sm font-medium">Loading your workspace registry...</div>
-          </div>
-        ) : filteredWorkspaces.length === 0 ? (
-          <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-16 text-center text-slate-400">
-            <Layers className="w-10 h-10 text-slate-600 mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-slate-200 mb-2">No workspaces found</h3>
-            <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
-              {searchQuery 
-                ? `No workspaces match "${searchQuery}". Try a different search term.` 
-                : "You don't have any workspaces assigned yet. Create one via the REST API or FastMCP agent interface."}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredWorkspaces.map((ws) => {
-              const roleBadge = getRoleBadge(ws.user_role);
-              return (
-                <div
-                  key={ws.id}
-                  className="bg-slate-900/80 border border-slate-800 hover:border-sky-500/50 rounded-2xl p-6 flex flex-col justify-between shadow-xl hover:-translate-y-1 transition-all"
-                >
-                  <div>
-                    {/* Role & Model Header */}
-                    <div className="flex items-center justify-between mb-3">
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${roleBadge.color}`}>
-                        {roleBadge.icon} {roleBadge.label}
-                      </span>
-
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-500/10 text-sky-400 uppercase tracking-wider">
-                        {ws.screening_llm_model || 'gemini-3.7-flash'}
-                      </span>
-                    </div>
-
-                    {/* Workspace Title */}
-                    <h3 className="text-lg font-bold text-white mb-2 leading-snug">
-                      {ws.name}
-                    </h3>
-
-                    {/* Criteria Snippet */}
-                    {ws.abstract_acceptance_criteria && (
-                      <div className="mb-4">
-                        <span className="block text-[10px] uppercase font-bold text-slate-500 tracking-wider mb-1">
-                          Inclusion Criteria
-                        </span>
-                        <p className="text-xs text-slate-300 line-clamp-2 leading-relaxed">
-                          {ws.abstract_acceptance_criteria}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Metadata Chips */}
-                    <div className="flex flex-wrap gap-2 mb-6">
-                      <span className="text-[11px] bg-slate-950 border border-slate-800 text-slate-400 px-2 py-1 rounded-lg">
-                        📡 {ws.scrapers?.length || 0} Scrapers
-                      </span>
-                      <span className="text-[11px] bg-slate-950 border border-slate-800 text-slate-400 px-2 py-1 rounded-lg">
-                        🎯 {ws.extraction_definitions?.length || 0} Targets
-                      </span>
-                      <span className="text-[11px] bg-slate-950 border border-slate-800 text-slate-400 px-2 py-1 rounded-lg">
-                        📄 {ws.ocr_provider ? ws.ocr_provider.toUpperCase() : 'Multimodal'}
-                      </span>
-                    </div>
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  {/* Meta Bar */}
+                  <div className="flex items-center gap-2 text-xs font-mono text-slate-500 mb-1.5 flex-wrap">
+                    <span className="font-semibold text-slate-800">● {paper.sector}</span>
+                    <span>·</span>
+                    <span>{paper.source}</span>
+                    <span>·</span>
+                    <span>{paper.date}</span>
+                    {paper.starred && <Star className="w-3 h-3 text-amber-500 fill-amber-500" />}
                   </div>
 
-                  {/* Card Footer */}
-                  <div className="border-t border-slate-800/80 pt-4 flex items-center justify-between text-xs">
-                    <span className="text-slate-500 text-[11px]">
-                      Created {new Date(ws.created_at).toLocaleDateString()}
-                    </span>
+                  {/* Title */}
+                  <Link href={`/papers/${paper.id}`} className="group">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-950 leading-snug mb-1.5 group-hover:text-teal-700 transition-colors">
+                      {paper.title}
+                    </h3>
+                  </Link>
 
-                    <div className="flex items-center gap-1.5 text-sky-400 font-semibold">
-                      <span>SLR Active</span>
-                      <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                  {/* Summary */}
+                  <p className="text-xs sm:text-sm text-slate-600 leading-relaxed mb-3">
+                    {paper.summary}
+                  </p>
+
+                  {/* Bottom Metrics Pill Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
+                    <div className="flex items-center gap-3">
+                      <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-semibold">
+                        TRL {paper.trl} · {paper.stage}
+                      </span>
+                      <span className="text-slate-500">
+                        Novelty <strong className="text-slate-800">{paper.novelty}</strong>
+                      </span>
+                      <span className="text-slate-500">
+                        Significance <strong className="text-slate-800">{paper.significance}</strong>
+                      </span>
+                    </div>
+
+                    <div className="text-slate-400 font-sans font-medium text-xs">
+                      {paper.lab}
                     </div>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
     </div>
   );
 }
