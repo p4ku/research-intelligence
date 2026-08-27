@@ -6,13 +6,13 @@ applications:
     instances: 2
     memory: 1G
     routes:
-      - route: sri.soinventive.co.uk/api
-      - route: sri.soinventive.co.uk/admin
-      - route: sri.soinventive.co.uk/static
+      - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/api
+      - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/admin
+      - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/static
     env:
       DEBUG: "False"
-      ALLOWED_HOSTS: "sri.soinventive.co.uk"
-      CSRF_TRUSTED_ORIGINS: "https://sri.soinventive.co.uk"
+      ALLOWED_HOSTS: "sri-prod.apps.01.cf.eu01.onstackit.cloud,sri.soinventive.co.uk,localhost"
+      CSRF_TRUSTED_ORIGINS: "https://sri-prod.apps.01.cf.eu01.onstackit.cloud,https://sri.soinventive.co.uk"
 
   - name: sri-mcp
     docker:
@@ -20,8 +20,8 @@ applications:
     instances: 1
     memory: 512M
     routes:
-      - route: sri.soinventive.co.uk/sse
-      - route: sri.soinventive.co.uk/messages
+      - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/sse
+      - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/messages
     command: python research_intelligence/mcp/server.py
 
   - name: sri-worker
@@ -48,6 +48,7 @@ applications:
     instances: 2
     memory: 512M
     routes:
-      - route: sri.soinventive.co.uk
+      - route: sri-prod.apps.01.cf.eu01.onstackit.cloud
+
 
 
