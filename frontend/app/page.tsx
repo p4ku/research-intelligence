@@ -23,6 +23,9 @@ import {
   ShieldAlert,
   UserCheck,
   Lock,
+  Mail,
+  Eye,
+  EyeOff,
   BookOpen,
   Database
 } from 'lucide-react';
@@ -61,13 +64,39 @@ export default function HomePage() {
   }
 
   if (!isAuthenticated) {
-    return <UnauthenticatedLanding />;
+    return <UnauthenticatedLandingWithForm />;
   }
 
   return <DashboardContent />;
 }
 
-function UnauthenticatedLanding() {
+function UnauthenticatedLandingWithForm() {
+  const { login } = useAuth();
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!identifier || !password) {
+      setError('Please enter your username/email and password.');
+      return;
+    }
+
+    setError(null);
+    setIsSubmitting(true);
+
+    try {
+      await login(identifier, password);
+    } catch (err: any) {
+      setError(err.message || 'Authentication failed. Please check your credentials.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div style={{
       minHeight: 'calc(100vh - 65px)',
@@ -80,115 +109,263 @@ function UnauthenticatedLanding() {
       flexDirection: 'column',
       alignItems: 'center',
     }}>
-      <div style={{ maxWidth: '850px', width: '100%', textAlign: 'center' }}>
-        {/* Badge */}
+      <div style={{ maxWidth: '1100px', width: '100%' }}>
+        {/* Main Grid: Hero Info + Direct Sign-In Card */}
         <div style={{
-          display: 'inline-flex',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
+          gap: '3rem',
           alignItems: 'center',
-          gap: '0.5rem',
-          backgroundColor: 'rgba(56, 189, 248, 0.1)',
-          border: '1px solid rgba(56, 189, 248, 0.25)',
-          borderRadius: '9999px',
-          padding: '0.35rem 0.9rem',
-          fontSize: '0.85rem',
-          fontWeight: '600',
-          color: '#38bdf8',
-          marginBottom: '1.5rem',
+          marginBottom: '4rem',
         }}>
-          <Sparkles size={15} />
-          Multi-Agent Systematic Literature Review & Intelligence Platform
-        </div>
-
-        {/* Title */}
-        <h1 style={{
-          fontSize: '3rem',
-          fontWeight: '800',
-          letterSpacing: '-0.03em',
-          lineHeight: '1.15',
-          margin: '0 0 1.25rem 0',
-          background: 'linear-gradient(to right, #f8fafc 30%, #94a3b8 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-        }}>
-          Automated Academic Literature Review & Deep-Tech Scouting
-        </h1>
-
-        <p style={{
-          fontSize: '1.2rem',
-          color: '#94a3b8',
-          maxWidth: '640px',
-          margin: '0 auto 2.5rem auto',
-          lineHeight: '1.6',
-        }}>
-          Ingest papers across ArXiv, OpenAlex, and Lens. Screen full-text PDFs with multimodal Gemini 3.7 Flash and extract validated intelligence matrices.
-        </p>
-
-        {/* Action Buttons */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '1rem',
-          flexWrap: 'wrap',
-          marginBottom: '3.5rem',
-        }}>
-          <a
-            href="/login"
-            style={{
+          {/* Left: Platform Overview */}
+          <div>
+            <div style={{
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.5rem',
-              backgroundColor: '#0284c7',
-              color: '#ffffff',
-              padding: '0.85rem 1.75rem',
-              borderRadius: '10px',
-              textDecoration: 'none',
-              fontSize: '1rem',
-              fontWeight: '700',
-              boxShadow: '0 8px 24px rgba(2, 132, 199, 0.4)',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = '#0369a1';
-              e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = '#0284c7';
-              e.currentTarget.style.transform = 'translateY(0)';
-            }}
-          >
-            <Lock size={18} />
-            Sign In to Workspaces
-            <ArrowRight size={18} />
-          </a>
-
-          <a
-            href="/status"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              backgroundColor: '#1e293b',
-              border: '1px solid #334155',
-              color: '#f1f5f9',
-              padding: '0.85rem 1.5rem',
-              borderRadius: '10px',
-              textDecoration: 'none',
-              fontSize: '1rem',
+              backgroundColor: 'rgba(56, 189, 248, 0.1)',
+              border: '1px solid rgba(56, 189, 248, 0.25)',
+              borderRadius: '9999px',
+              padding: '0.35rem 0.9rem',
+              fontSize: '0.85rem',
               fontWeight: '600',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#334155'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#1e293b'; }}
-          >
-            <Activity size={18} color="#38bdf8" />
-            System Diagnostics
-          </a>
+              color: '#38bdf8',
+              marginBottom: '1.25rem',
+            }}>
+              <Sparkles size={15} />
+              SLR & Deep-Tech Scouting Intelligence
+            </div>
+
+            <h1 style={{
+              fontSize: '2.75rem',
+              fontWeight: '800',
+              letterSpacing: '-0.03em',
+              lineHeight: '1.15',
+              margin: '0 0 1.25rem 0',
+              background: 'linear-gradient(to right, #f8fafc 30%, #94a3b8 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}>
+              Schwarz Research Intelligence Platform
+            </h1>
+
+            <p style={{
+              fontSize: '1.1rem',
+              color: '#94a3b8',
+              lineHeight: '1.6',
+              margin: '0 0 2rem 0',
+            }}>
+              Automate multi-source academic literature ingestion across ArXiv, OpenAlex, and Lens. Screen full-text PDFs with multimodal Gemini 3.7 Flash and extract validated intelligence matrices.
+            </p>
+
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+              <a
+                href="/status"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  backgroundColor: '#1e293b',
+                  border: '1px solid #334155',
+                  color: '#f1f5f9',
+                  padding: '0.75rem 1.25rem',
+                  borderRadius: '8px',
+                  textDecoration: 'none',
+                  fontSize: '0.9rem',
+                  fontWeight: '600',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#334155'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#1e293b'; }}
+              >
+                <Activity size={16} color="#38bdf8" />
+                Live Infrastructure Status
+              </a>
+            </div>
+          </div>
+
+          {/* Right: Embedded Interactive Sign-In Card */}
+          <div style={{
+            backgroundColor: '#111827',
+            border: '1px solid #1f2937',
+            borderRadius: '16px',
+            padding: '2.25rem',
+            boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.5)',
+          }}>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
+                <Lock size={20} color="#38bdf8" />
+                <h2 style={{ fontSize: '1.4rem', fontWeight: '700', margin: 0, color: '#f8fafc' }}>
+                  Sign In to Workspaces
+                </h2>
+              </div>
+              <p style={{ fontSize: '0.875rem', color: '#94a3b8', margin: 0 }}>
+                Enter your credentials to access assigned SLR projects
+              </p>
+            </div>
+
+            {error && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '0.625rem',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.25)',
+                borderRadius: '8px',
+                padding: '0.75rem 1rem',
+                color: '#f87171',
+                fontSize: '0.85rem',
+                marginBottom: '1.25rem',
+                lineHeight: '1.4',
+              }}>
+                <ShieldAlert size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>{error}</div>
+              </div>
+            )}
+
+            <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.8rem',
+                  fontWeight: '600',
+                  color: '#cbd5e1',
+                  marginBottom: '0.4rem',
+                }}>
+                  Email or Username
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="text"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                    placeholder="admin or user@schwarz.de"
+                    autoComplete="username"
+                    required
+                    style={{
+                      width: '100%',
+                      backgroundColor: '#0f172a',
+                      border: '1px solid #334155',
+                      borderRadius: '8px',
+                      padding: '0.7rem 1rem 0.7rem 2.4rem',
+                      color: '#f8fafc',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = '#38bdf8'; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = '#334155'; }}
+                  />
+                  <Mail size={15} color="#64748b" style={{
+                    position: 'absolute',
+                    left: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                  }} />
+                </div>
+              </div>
+
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '0.8rem',
+                  fontWeight: '600',
+                  color: '#cbd5e1',
+                  marginBottom: '0.4rem',
+                }}>
+                  Password
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    autoComplete="current-password"
+                    required
+                    style={{
+                      width: '100%',
+                      backgroundColor: '#0f172a',
+                      border: '1px solid #334155',
+                      borderRadius: '8px',
+                      padding: '0.7rem 2.4rem 0.7rem 2.4rem',
+                      color: '#f8fafc',
+                      fontSize: '0.9rem',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                    }}
+                    onFocus={(e) => { e.currentTarget.style.borderColor = '#38bdf8'; }}
+                    onBlur={(e) => { e.currentTarget.style.borderColor = '#334155'; }}
+                  />
+                  <Lock size={15} color="#64748b" style={{
+                    position: 'absolute',
+                    left: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                  }} />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: 'absolute',
+                      right: '12px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#64748b',
+                      cursor: 'pointer',
+                      padding: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                    }}
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                style={{
+                  marginTop: '0.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  backgroundColor: isSubmitting ? '#0369a1' : '#0284c7',
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  padding: '0.8rem',
+                  fontSize: '0.95rem',
+                  fontWeight: '700',
+                  cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                  boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => { if (!isSubmitting) e.currentTarget.style.backgroundColor = '#0369a1'; }}
+                onMouseLeave={(e) => { if (!isSubmitting) e.currentTarget.style.backgroundColor = '#0284c7'; }}
+              >
+                {isSubmitting ? (
+                  <span>Signing In...</span>
+                ) : (
+                  <>
+                    <span>Sign In</span>
+                    <ArrowRight size={16} />
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
         </div>
 
         {/* Feature Highlights Grid */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
           gap: '1.5rem',
           textAlign: 'left',
         }}>
@@ -201,7 +378,7 @@ function UnauthenticatedLanding() {
             <div style={{ color: '#38bdf8', marginBottom: '0.75rem' }}><Globe size={24} /></div>
             <h3 style={{ fontSize: '1.1rem', fontWeight: '700', margin: '0 0 0.5rem 0', color: '#f8fafc' }}>Multi-Source Ingestion</h3>
             <p style={{ fontSize: '0.875rem', color: '#94a3b8', margin: 0, lineHeight: '1.5' }}>
-              Real-time scrapers for ArXiv, OpenAlex, Lens, and PubMed with title, DOI, and arXiv ID deduplication.
+              Scrapers for ArXiv, OpenAlex, and Lens with title, DOI, and arXiv ID deduplication across millions of papers.
             </p>
           </div>
 
@@ -225,7 +402,7 @@ function UnauthenticatedLanding() {
             padding: '1.5rem',
           }}>
             <div style={{ color: '#10b981', marginBottom: '0.75rem' }}><Database size={24} /></div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: '700', margin: '0 0 0.5rem 0', color: '#f8fafc' }}>Parameter Extraction</h3>
+            <h3 style={{ fontSize: '1.1rem', fontWeight: '700', margin: '0 0 0.5rem 0', color: '#f8fafc' }}>Structured Extractions</h3>
             <p style={{ fontSize: '0.875rem', color: '#94a3b8', margin: 0, lineHeight: '1.5' }}>
               Schema-validated extraction into structured matrices with evidence quotes, confidence, and TRL metrics.
             </p>
