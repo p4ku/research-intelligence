@@ -11,7 +11,7 @@ from .views.scrapers import ScraperViewSet
 from .views.papers import PaperViewSet
 from .views.extractions import ExtractionViewSet
 from .views.hitl import HITLViewSet
-from .views.chat import ChatSubmitView, ChatMessageDetailView, PaperChatSessionViewSet
+from .views.chat import ChatSubmitView, ChatStreamView, ChatMessageDetailView, PaperChatSessionViewSet
 from .views.reports import ReportViewSet
 from .views.agents import ResearchAgentViewSet
 from .views.pipeline_runs import PipelineRunViewSet, ComponentRunViewSet
@@ -50,6 +50,7 @@ urlpatterns = [
 
     # Interactive Paper Chat & Knowledge Explorer
     path('chat/', ChatSubmitView.as_view(), name='chat-submit'),
+    path('chat/stream/', ChatStreamView.as_view(), name='chat-stream'),
     path('chat/messages/<uuid:message_id>/', ChatMessageDetailView.as_view(), name='chat-message-detail'),
 
     # REST ViewSets

@@ -14,6 +14,8 @@ class PaperChatSessionAdmin(admin.ModelAdmin):
     inlines = [PaperChatMessageInline]
 
     def paper_link(self, obj):
+        if not obj.paper:
+            return format_html('<span style="color: #6c757d; font-style: italic;">Workspace-Level</span>')
         try:
             url = reverse("admin:research_intelligence_paper_change", args=[obj.paper.id])
             return format_html('<a href="{}">{}</a>', url, obj.paper.title[:50] + ("..." if len(obj.paper.title) > 50 else ""))

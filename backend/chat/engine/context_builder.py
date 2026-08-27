@@ -2,6 +2,7 @@ import logging
 from django.core.files.storage import default_storage
 
 from research_intelligence.models import (
+    Workspace,
     Paper,
     Extraction,
     PaperMetric,
@@ -12,22 +13,43 @@ logger = logging.getLogger(__name__)
 
 class PaperContextBuilder:
     """
-    Constructs a clean, dense, structured context block for academic paper Q&A.
+    Constructs a clean, dense, structured context block for academic paper and workspace Q&A.
     Only includes sections that contain actual verified data, omitting empty placeholders.
     """
 
-    def build(self, paper: Paper) -> tuple[str, bytes | None, str | None]:
+    def build(self, paper: Paper | None, workspace: Workspace | None = None) -> tuple[str, bytes | None, str | None]:
         """
-        Gathers paper metadata, layout markdown (or raw PDF bytes), screening evaluations,
-        dynamic extractions, and calculated mathematical signal scores.
+        Gathers paper metadata (or workspace overview), layout markdown / PDF binary,
+        screening evaluations, dynamic extractions, and signal scores.
 
         Returns:
             context_text (str): Structured textual context to inject into prompt.
             pdf_bytes (bytes | None): Raw PDF binary if layout markdown is absent and PDF exists.
             mime_type (str | None): 'application/pdf' if pdf_bytes is loaded, else None.
         """
-        workspace = paper.workspace
         context_parts = []
+        pdf_bytes = None
+        mime_type = None
+
+        target_workspace = workspace or (paper.workspace if paper else None)
+
+        # Handle Workspace-Level Chat (when no single paper is selected)
+        if not paper and target_workspace:
+            ws_lines = [
+                f"Workspace: {target_workspace.name}",
+                f"Description: {getattr(target_workspace, 'description', '') or 'Systematic Literature Review Workspace'}"
+            ]
+            accepted_papers = Paper.objects.filter(workspace=target_workspace, screening_status='full_text_passed')[:10]
+            if accepted_papers.exists():
+                ws_lines.append("\nTop Accepted Papers:")
+                for p in accepted_papers:
+                    score_str = f" (Signal Score: {p.signal_score})" if p.signal_score is not None else ""
+                    ws_lines.append(f"- {p.title}{score_str}")
+            context_parts.append("### Workspace Overview\n" + "\n".join(ws_lines))
+            return "\n\n".join(context_parts), None, None
+
+        if not paper:
+            return "", None, None
 
         # 1. Paper Core Metadata
         meta_lines = [f"Title: {paper.title}"]
@@ -48,9 +70,6 @@ class PaperContextBuilder:
         context_parts.append("### Paper Metadata\n" + "\n".join(meta_lines))
 
         # 2. Document Content (Layout Markdown vs Multimodal PDF)
-        pdf_bytes = None
-        mime_type = None
-
         if paper.converted_md_path and default_storage.exists(paper.converted_md_path):
             try:
                 with default_storage.open(paper.converted_md_path, 'r') as f:
@@ -111,8 +130,8 @@ class PaperContextBuilder:
                     for k, v in m.metrics_data.items():
                         metric_lines.append(f"- {k}: {v}")
 
-            if getattr(workspace, 'signal_score_code', None):
-                metric_lines.append(f"\nSignal Score Formula (Python AST):\n```python\n{workspace.signal_score_code.strip()}\n```")
+            if target_workspace and getattr(target_workspace, 'signal_score_code', None):
+                metric_lines.append(f"\nSignal Score Formula (Python AST):\n```python\n{target_workspace.signal_score_code.strip()}\n```")
 
             context_parts.append("### Computed Quality & Signal Metrics\n" + "\n".join(metric_lines))
 

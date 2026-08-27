@@ -5,8 +5,8 @@ from .message import PaperChatMessageSerializer
 
 
 class PaperChatSessionSerializer(serializers.ModelSerializer):
-    paper_title = serializers.CharField(source='paper.title', read_only=True)
-    paper_doi = serializers.CharField(source='paper.doi', read_only=True, default=None)
+    paper_title = serializers.CharField(source='paper.title', read_only=True, default=None, allow_null=True)
+    paper_doi = serializers.CharField(source='paper.doi', read_only=True, default=None, allow_null=True)
     messages_count = serializers.SerializerMethodField()
 
     class Meta:

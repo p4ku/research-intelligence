@@ -1,9 +1,11 @@
 from .submit import ChatSubmitView
 from .message import ChatMessageDetailView
 from .session import PaperChatSessionViewSet
+from .stream import ChatStreamView
 
 __all__ = [
     "ChatSubmitView",
     "ChatMessageDetailView",
     "PaperChatSessionViewSet",
+    "ChatStreamView",
 ]

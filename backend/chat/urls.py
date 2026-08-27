@@ -5,6 +5,7 @@ from .views import (
     ChatSubmitView,
     ChatMessageDetailView,
     PaperChatSessionViewSet,
+    ChatStreamView,
 )
 
 router = DefaultRouter()
@@ -12,6 +13,7 @@ router.register(r'sessions', PaperChatSessionViewSet, basename='chat-session')
 
 urlpatterns = [
     path('', ChatSubmitView.as_view(), name='chat-submit'),
+    path('stream/', ChatStreamView.as_view(), name='chat-stream'),
     path('messages/<uuid:message_id>/', ChatMessageDetailView.as_view(), name='chat-message-detail'),
     path('', include(router.urls)),
 ]

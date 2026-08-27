@@ -3,10 +3,12 @@ from chat.views import (
     ChatSubmitView,
     ChatMessageDetailView,
     PaperChatSessionViewSet,
+    ChatStreamView,
 )
 
 __all__ = [
     "ChatSubmitView",
     "ChatMessageDetailView",
     "PaperChatSessionViewSet",
+    "ChatStreamView",
 ]

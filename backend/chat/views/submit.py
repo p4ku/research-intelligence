@@ -64,7 +64,7 @@ class ChatSubmitView(APIView):
         elif workspace_id:
             try:
                 target_workspace = Workspace.objects.get(id=workspace_id)
-                paper = Paper.objects.filter(workspace=target_workspace).first()
+                paper = None
             except Workspace.DoesNotExist:
                 return Response(
                     {"error": f"Workspace with id '{workspace_id}' not found."},
@@ -76,8 +76,8 @@ class ChatSubmitView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # If explicit workspace_id was passed, ensure it matches paper's workspace
-        if workspace_id and target_workspace and str(target_workspace.id) != str(workspace_id):
+        # If explicit workspace_id was passed with a paper, ensure it matches paper's workspace
+        if workspace_id and paper and str(paper.workspace_id) != str(workspace_id):
             return Response(
                 {"error": "Mismatch between provided workspace_id and paper's workspace."},
                 status=status.HTTP_400_BAD_REQUEST
@@ -91,19 +91,6 @@ class ChatSubmitView(APIView):
         )
         if error_msg:
             return Response({"error": error_msg}, status=status.HTTP_403_FORBIDDEN)
-
-        # Ensure fallback paper if workspace had no papers
-        if not paper:
-            run, _ = PipelineRun.objects.get_or_create(workspace=target_workspace)
-            paper, _ = Paper.objects.get_or_create(
-                workspace=target_workspace,
-                pipeline_run=run,
-                hash_id=f"ws_paper_{target_workspace.id}",
-                defaults={
-                    "title": f"Workspace: {target_workspace.name}",
-                    "abstract": "Workspace document aggregate."
-                }
-            )
 
         # 3. Resolve or Create Chat Session
         session = None
@@ -149,7 +136,7 @@ class ChatSubmitView(APIView):
             "message_id": message.id,
             "session_id": session.id,
             "task_id": task_id,
-            "paper_id": paper.id,
+            "paper_id": paper.id if paper else None,
             "question": message.question,
             "deep_thinking": message.deep_thinking,
             "created_at": message.created_at

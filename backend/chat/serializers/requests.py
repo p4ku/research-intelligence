@@ -15,7 +15,7 @@ class PaperChatAsyncResponseSerializer(serializers.Serializer):
     message_id = serializers.UUIDField()
     session_id = serializers.UUIDField()
     task_id = serializers.CharField(required=False, allow_blank=True)
-    paper_id = serializers.UUIDField()
+    paper_id = serializers.UUIDField(required=False, allow_null=True)
     question = serializers.CharField()
     deep_thinking = serializers.BooleanField(default=False)
     created_at = serializers.DateTimeField()

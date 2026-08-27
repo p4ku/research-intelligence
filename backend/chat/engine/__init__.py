@@ -4,6 +4,7 @@ from .context_builder import PaperContextBuilder
 from .summarizer import HierarchicalSessionSummarizer
 from .citations import VisualCitationExtractor
 from .verifier import CitationFactChecker
+from .cache_manager import GeminiContextCacheManager
 
 __all__ = [
     "get_llm_provider",
@@ -12,4 +13,5 @@ __all__ = [
     "HierarchicalSessionSummarizer",
     "VisualCitationExtractor",
     "CitationFactChecker",
+    "GeminiContextCacheManager",
 ]

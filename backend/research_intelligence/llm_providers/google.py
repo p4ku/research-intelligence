@@ -199,6 +199,10 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
             config_args["response_mime_type"] = "application/json"
             config_args["response_json_schema"] = response_schema
 
+        cached_content = kwargs.get("cached_content")
+        if cached_content:
+            config_args["cached_content"] = cached_content
+
         config = types.GenerateContentConfig(**config_args)
 
         # 5. Call API with Exponential Backoff Retry Strategy for 429 / RESOURCE_EXHAUSTED
@@ -232,16 +236,16 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                     raise
 
         # 6. Parse response if schema was requested
-        parsed_result = response.text
+        parsed_result = response.text if hasattr(response, 'text') else str(response)
         if response_schema:
             try:
-                result = response.parsed
+                result = getattr(response, 'parsed', None)
                 if result is not None:
                     if hasattr(result, "model_dump"):
                         parsed_result = result.model_dump()
                     else:
                         parsed_result = result
-                elif response.text:
+                elif getattr(response, 'text', None):
                     raw_json = response.text
                     if "```json" in raw_json:
                         raw_json = raw_json.split("```json")[1].split("```")[0].strip()
@@ -272,3 +276,105 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
             return parsed_result, usage
 
         return parsed_result
+
+    def generate_stream(
+        self,
+        prompt: str,
+        system_instruction: str = None,
+        temperature: float = 0.2,
+        max_tokens: int = 4096,
+        model: str = None,
+        file_bytes: bytes = None,
+        pdf_bytes: bytes = None,
+        mime_type: str = None,
+        cached_content: str = None,
+        **kwargs
+    ):
+        """
+        Streams response chunks from Gemini generate_content_stream.
+        Yields (chunk_text, is_final, usage_dict).
+        """
+        model_name = model or "gemini-3.7-flash"
+        if model_name.startswith("google/"):
+            model_name = model_name.replace("google/", "", 1)
+        if "mock" in model_name:
+            model_name = "gemini-3.7-flash"
+
+        client = self._get_client(location=kwargs.get("location") or self.location or "eu")
+
+        contents = []
+        f_bytes = file_bytes or pdf_bytes
+        if f_bytes:
+            resolved_mime = mime_type or "application/pdf"
+            file_part = types.Part.from_bytes(data=f_bytes, mime_type=resolved_mime)
+            contents.append(file_part)
+
+        contents.append(prompt)
+        if len(contents) == 1:
+            contents = prompt
+
+        config_args = {"temperature": temperature}
+        if max_tokens:
+            config_args["max_output_tokens"] = max_tokens
+        if system_instruction:
+            config_args["system_instruction"] = system_instruction
+        if cached_content:
+            config_args["cached_content"] = cached_content
+
+        config = types.GenerateContentConfig(**config_args)
+
+        try:
+            response_stream = client.models.generate_content_stream(
+                model=model_name,
+                contents=contents,
+                config=config,
+            )
+            for chunk in response_stream:
+                chunk_text = getattr(chunk, 'text', '') or ''
+                usage = None
+                if hasattr(chunk, 'usage_metadata') and chunk.usage_metadata:
+                    meta = chunk.usage_metadata
+                    p_tok = getattr(meta, "prompt_token_count", 0) or 0
+                    c_tok = getattr(meta, "candidates_token_count", 0) or 0
+                    t_tok = getattr(meta, "total_token_count", 0) or (p_tok + c_tok)
+                    usage = {"prompt_tokens": p_tok, "candidates_tokens": c_tok, "total_tokens": t_tok}
+                yield chunk_text, usage
+        except Exception as e:
+            logger.exception(f"Error during streaming generate_content_stream: {e}")
+            raise
+
+    def create_context_cache(
+        self,
+        model: str,
+        contents: list | Any,
+        ttl: str = "3600s",
+        display_name: str = None,
+        system_instruction: str = None,
+        **kwargs
+    ) -> str | None:
+        """
+        Creates a server-side Gemini CachedContent resource.
+        Returns the unique cached content resource name (e.g. 'cachedContents/12345') or None on failure.
+        """
+        model_name = model or "gemini-3.7-flash"
+        if model_name.startswith("google/"):
+            model_name = model_name.replace("google/", "", 1)
+        if "mock" in model_name:
+            model_name = "gemini-3.7-flash"
+
+        client = self._get_client(location=kwargs.get("location") or self.location or "eu")
+        try:
+            cache_config = types.CreateCachedContentConfig(
+                contents=contents if isinstance(contents, list) else [contents],
+                ttl=ttl,
+                display_name=display_name,
+                system_instruction=system_instruction
+            )
+            cached_content = client.caches.create(
+                model=model_name,
+                config=cache_config
+            )
+            return getattr(cached_content, 'name', None)
+        except Exception as e:
+            logger.warning(f"Failed to create Gemini context cache: {e}")
+            return None
