@@ -247,14 +247,17 @@ services:
       dockerfile: Dockerfile
     container_name: sri_frontend
     restart: always
+    command: npm run dev
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
+      - NEXT_PUBLIC_MCP_URL=${NEXT_PUBLIC_MCP_URL:-http://localhost:8001/sse}
     volumes:
       - ./frontend:/app
       - /app/node_modules
+      - /app/.next
     depends_on:
       - api
 
