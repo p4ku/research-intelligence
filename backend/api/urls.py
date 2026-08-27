@@ -9,7 +9,8 @@ from .views.chat import ChatViewSet
 from .views.reports import ReportViewSet
 from .views.agents import ResearchAgentViewSet
 from .views.activity_logs import UserActivityLogViewSet
-from .views.auth import LoginView, TokenRefreshView, HealthCheckView
+from .views.auth import LoginView, TokenRefreshView
+from .views.diagnostics import HealthCheckView, DeepDiagnosticsView
 
 router = DefaultRouter()
 router.register(r'workspaces', WorkspaceViewSet, basename='workspace')
@@ -26,5 +27,7 @@ urlpatterns = [
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='refresh-token'),
     path('health/', HealthCheckView.as_view(), name='health-check'),
+    path('health/diagnostics/', DeepDiagnosticsView.as_view(), name='deep-diagnostics'),
     path('', include(router.urls)),
 ]
+

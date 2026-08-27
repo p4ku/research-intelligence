@@ -115,6 +115,7 @@ export default function StatusPage() {
       const mcp = process.env.NEXT_PUBLIC_MCP_URL || 'http://localhost:8001/sse';
       return {
         targetApiUrl: `${cleanBase}/health/`,
+        targetDiagnosticsUrl: `${cleanBase}/health/diagnostics/`,
         targetMcpUrl: mcp,
         displayApiUrl: `${cleanBase}/health/`,
         displayMcpUrl: mcp,
@@ -126,6 +127,7 @@ export default function StatusPage() {
     if (!isLocalhost) {
       return {
         targetApiUrl: `${window.location.origin}/api/health/`,
+        targetDiagnosticsUrl: `${window.location.origin}/api/health/diagnostics/`,
         targetMcpUrl: `${window.location.origin}/sse`,
         displayApiUrl: `${window.location.origin}/api/health/`,
         displayMcpUrl: `${window.location.origin}/sse`,
@@ -137,6 +139,7 @@ export default function StatusPage() {
     const mcp = process.env.NEXT_PUBLIC_MCP_URL || 'http://localhost:8001/sse';
     return {
       targetApiUrl: `${cleanBase}/health/`,
+      targetDiagnosticsUrl: `${cleanBase}/health/diagnostics/`,
       targetMcpUrl: mcp,
       displayApiUrl: `${cleanBase}/health/`,
       displayMcpUrl: mcp,
@@ -151,62 +154,72 @@ export default function StatusPage() {
 
   const checkStatuses = async () => {
     setIsRefreshing(true);
-    const { targetApiUrl, targetMcpUrl, displayApiUrl, displayMcpUrl } = getEndpoints();
+    const { targetApiUrl, targetDiagnosticsUrl, targetMcpUrl, displayApiUrl, displayMcpUrl } = getEndpoints();
     setApiUrl(displayApiUrl);
     setMcpUrl(displayMcpUrl);
 
-    // 1. Check API & Deep Backend Diagnostics
     const apiStart = performance.now();
-    try {
-      const response = await fetch(targetApiUrl, {
-        method: 'GET',
-        headers: { 'Accept': 'application/json' },
-      });
+    const mcpStart = performance.now();
+
+    // Execute all probes concurrently without blocking UI
+    const [apiRes, mcpRes, diagRes] = await Promise.allSettled([
+      fetch(targetApiUrl, { method: 'GET', headers: { 'Accept': 'application/json' } }),
+      fetch(targetMcpUrl, { method: 'GET' }),
+      fetch(targetDiagnosticsUrl, { method: 'GET', headers: { 'Accept': 'application/json' } }),
+    ]);
+
+    // 1. Process API Liveness Probe
+    if (apiRes.status === 'fulfilled') {
       const apiEnd = performance.now();
-      const data: DeepHealthData = await response.json();
-      
       setApiStatus({
-        status: response.ok ? 'online' : 'offline',
+        status: apiRes.value.ok ? 'online' : 'offline',
         latency: Math.round(apiEnd - apiStart),
-        statusCode: response.status,
-        error: response.ok ? null : `HTTP Error ${response.status}`,
+        statusCode: apiRes.value.status,
+        error: apiRes.value.ok ? null : `HTTP Error ${apiRes.value.status}`,
       });
-      setDeepHealth(data);
-    } catch (err: any) {
+    } else {
       setApiStatus({
         status: 'offline',
         latency: null,
         statusCode: null,
-        error: err.message || 'Network connection to backend failed',
+        error: apiRes.reason?.message || 'Network connection failed',
       });
-      setDeepHealth(null);
     }
 
-    // 2. Check FastMCP SSE Endpoint
-    const mcpStart = performance.now();
-    try {
-      const response = await fetch(targetMcpUrl, {
-        method: 'GET',
-      });
+    // 2. Process MCP SSE Probe
+    if (mcpRes.status === 'fulfilled') {
       const mcpEnd = performance.now();
-      
+      const isMcpOk = mcpRes.value.ok || mcpRes.value.status === 401 || mcpRes.value.status === 400;
       setMcpStatus({
-        status: response.ok || response.status === 401 || response.status === 400 ? 'online' : 'offline',
+        status: isMcpOk ? 'online' : 'offline',
         latency: Math.round(mcpEnd - mcpStart),
-        statusCode: response.status,
-        error: null,
+        statusCode: mcpRes.value.status,
+        error: isMcpOk ? null : `HTTP Error ${mcpRes.value.status}`,
       });
-    } catch (err: any) {
+    } else {
       setMcpStatus({
         status: 'offline',
         latency: null,
         statusCode: null,
-        error: err.message || 'Network connection to MCP SSE failed',
+        error: mcpRes.reason?.message || 'FastMCP SSE unreachable',
       });
+    }
+
+    // 3. Process Deep Diagnostics Probes
+    if (diagRes.status === 'fulfilled' && (diagRes.value.ok || diagRes.value.status === 207)) {
+      try {
+        const data: DeepHealthData = await diagRes.value.json();
+        setDeepHealth(data);
+      } catch (err: any) {
+        setDeepHealth(null);
+      }
+    } else {
+      setDeepHealth(null);
     }
 
     setIsRefreshing(false);
   };
+
 
   useEffect(() => {
     const { displayApiUrl, displayMcpUrl } = getEndpoints();
