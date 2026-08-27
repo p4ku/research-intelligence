@@ -27,34 +27,52 @@ export default function StatusPage() {
 
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
-  const [apiUrl, setApiUrl] = useState<string>(
-    (() => {
-      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/';
+  const getEndpoints = () => {
+    if (typeof window === 'undefined') {
+      const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
       const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
-      return `${cleanBase}/health/`;
-    })()
-  );
-  const [mcpUrl, setMcpUrl] = useState<string>(
-    process.env.NEXT_PUBLIC_MCP_URL || 'http://localhost:8001/sse'
-  );
+      const mcp = process.env.NEXT_PUBLIC_MCP_URL || 'http://localhost:8001/sse';
+      return {
+        targetApiUrl: `${cleanBase}/health/`,
+        targetMcpUrl: mcp,
+        displayApiUrl: `${cleanBase}/health/`,
+        displayMcpUrl: mcp,
+      };
+    }
+
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+    if (!isLocalhost) {
+      return {
+        targetApiUrl: `${window.location.origin}/api/health/`,
+        targetMcpUrl: `${window.location.origin}/sse`,
+        displayApiUrl: `${window.location.origin}/api/health/`,
+        displayMcpUrl: `${window.location.origin}/sse`,
+      };
+    }
+
+    const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+    const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
+    const mcp = process.env.NEXT_PUBLIC_MCP_URL || 'http://localhost:8001/sse';
+    return {
+      targetApiUrl: `${cleanBase}/health/`,
+      targetMcpUrl: mcp,
+      displayApiUrl: `${cleanBase}/health/`,
+      displayMcpUrl: mcp,
+    };
+  };
+
+  const [apiUrl, setApiUrl] = useState<string>('http://localhost:8000/api/health/');
+  const [mcpUrl, setMcpUrl] = useState<string>('http://localhost:8001/sse');
 
   const [showMcpGuide, setShowMcpGuide] = useState<boolean>(false);
   const [showApiGuide, setShowApiGuide] = useState<boolean>(false);
 
   const checkStatuses = async () => {
     setIsRefreshing(true);
-    
-    const targetApiUrl = typeof window !== 'undefined' && window.location.hostname === 'sri.soinventive.co.uk'
-      ? '/api/health/'
-      : (() => {
-          const base = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/';
-          const cleanBase = base.endsWith('/') ? base.slice(0, -1) : base;
-          return `${cleanBase}/health/`;
-        })();
-      
-    const targetMcpUrl = typeof window !== 'undefined' && window.location.hostname === 'sri.soinventive.co.uk'
-      ? '/sse'
-      : (process.env.NEXT_PUBLIC_MCP_URL || 'http://localhost:8001/sse');
+    const { targetApiUrl, targetMcpUrl, displayApiUrl, displayMcpUrl } = getEndpoints();
+    setApiUrl(displayApiUrl);
+    setMcpUrl(displayMcpUrl);
 
     // Check API Status
     const apiStart = performance.now();
@@ -106,12 +124,12 @@ export default function StatusPage() {
   };
 
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.location.hostname === 'sri.soinventive.co.uk') {
-      setApiUrl('/api/health/');
-      setMcpUrl('/sse');
-    }
+    const { displayApiUrl, displayMcpUrl } = getEndpoints();
+    setApiUrl(displayApiUrl);
+    setMcpUrl(displayMcpUrl);
     checkStatuses();
   }, []);
+
 
   return (
     <div style={{
