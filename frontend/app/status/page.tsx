@@ -171,18 +171,23 @@ export default function StatusPage() {
     // 1. Process API Liveness Probe
     if (apiRes.status === 'fulfilled') {
       const apiEnd = performance.now();
+      const isOk = apiRes.value.ok;
+      let errorMsg: string | null = null;
+      if (!isOk) {
+        errorMsg = `Server unreachable / Error (HTTP ${apiRes.value.status})`;
+      }
       setApiStatus({
-        status: apiRes.value.ok ? 'online' : 'offline',
-        latency: Math.round(apiEnd - apiStart),
+        status: isOk ? 'online' : 'offline',
+        latency: isOk ? Math.round(apiEnd - apiStart) : null,
         statusCode: apiRes.value.status,
-        error: apiRes.value.ok ? null : `HTTP Error ${apiRes.value.status}`,
+        error: errorMsg,
       });
     } else {
       setApiStatus({
         status: 'offline',
         latency: null,
         statusCode: null,
-        error: apiRes.reason?.message || 'Network connection failed',
+        error: 'Network connection failed / Service offline',
       });
     }
 
@@ -194,23 +199,28 @@ export default function StatusPage() {
         status: isMcpOk ? 'online' : 'offline',
         latency: Math.round(mcpEnd - mcpStart),
         statusCode: mcpRes.value.status,
-        error: isMcpOk ? null : `HTTP Error ${mcpRes.value.status}`,
+        error: isMcpOk ? null : `HTTP ${mcpRes.value.status}`,
       });
     } else {
       setMcpStatus({
         status: 'offline',
         latency: null,
         statusCode: null,
-        error: mcpRes.reason?.message || 'FastMCP SSE unreachable',
+        error: 'FastMCP SSE unreachable',
       });
     }
 
     // 3. Process Deep Diagnostics Probes
-    if (diagRes.status === 'fulfilled' && (diagRes.value.ok || diagRes.value.status === 207)) {
-      try {
-        const data: DeepHealthData = await diagRes.value.json();
-        setDeepHealth(data);
-      } catch (err: any) {
+    if (diagRes.status === 'fulfilled') {
+      const ct = diagRes.value.headers.get('content-type') || '';
+      if (diagRes.value.ok && ct.includes('application/json')) {
+        try {
+          const data: DeepHealthData = await diagRes.value.json();
+          setDeepHealth(data);
+        } catch {
+          setDeepHealth(null);
+        }
+      } else {
         setDeepHealth(null);
       }
     } else {
@@ -220,13 +230,25 @@ export default function StatusPage() {
     setIsRefreshing(false);
   };
 
-
   useEffect(() => {
     const { displayApiUrl, displayMcpUrl } = getEndpoints();
     setApiUrl(displayApiUrl);
     setMcpUrl(displayMcpUrl);
     checkStatuses();
   }, []);
+
+  const getBadge = (serviceStatus?: string) => {
+    if (isRefreshing) {
+      return { text: 'PROBING...', bg: 'rgba(56,189,248,0.1)', color: '#38bdf8' };
+    }
+    if (!serviceStatus || serviceStatus === 'offline' || !deepHealth) {
+      return { text: 'OFFLINE', bg: 'rgba(239,68,68,0.1)', color: '#ef4444' };
+    }
+    if (serviceStatus === 'online' || serviceStatus === 'configured') {
+      return { text: serviceStatus.toUpperCase(), bg: 'rgba(16,185,129,0.1)', color: '#10b981' };
+    }
+    return { text: serviceStatus.toUpperCase(), bg: 'rgba(245,158,11,0.1)', color: '#f59e0b' };
+  };
 
   return (
     <div style={{
@@ -394,7 +416,7 @@ export default function StatusPage() {
               {apiStatus.status === 'offline' && (
                 <div style={{ padding: '0.75rem', backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '6px', color: '#f87171' }}>
                   <ShieldAlert size={16} style={{ display: 'inline', marginRight: '0.5rem' }} />
-                  {apiStatus.error}
+                  {apiStatus.error || 'Backend service unreachable'}
                 </div>
               )}
             </div>
@@ -455,7 +477,7 @@ export default function StatusPage() {
               {mcpStatus.status === 'offline' && (
                 <div style={{ padding: '0.75rem', backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '6px', color: '#f87171' }}>
                   <ShieldAlert size={16} style={{ display: 'inline', marginRight: '0.5rem' }} />
-                  {mcpStatus.error}
+                  {mcpStatus.error || 'MCP SSE service unreachable'}
                 </div>
               )}
             </div>
@@ -485,16 +507,21 @@ export default function StatusPage() {
                 <Database size={18} color="#38bdf8" />
                 <span style={{ fontWeight: '600', color: '#f8fafc' }}>PostgreSQL</span>
               </div>
-              <span style={{
-                fontSize: '0.75rem',
-                fontWeight: '700',
-                padding: '0.2rem 0.5rem',
-                borderRadius: '4px',
-                backgroundColor: deepHealth?.services.database?.status === 'online' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                color: deepHealth?.services.database?.status === 'online' ? '#10b981' : '#ef4444',
-              }}>
-                {deepHealth?.services.database?.status?.toUpperCase() || 'CHECKING'}
-              </span>
+              {(() => {
+                const badge = getBadge(deepHealth?.services.database?.status);
+                return (
+                  <span style={{
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    padding: '0.2rem 0.5rem',
+                    borderRadius: '4px',
+                    backgroundColor: badge.bg,
+                    color: badge.color,
+                  }}>
+                    {badge.text}
+                  </span>
+                );
+              })()}
             </div>
 
             <div style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -504,7 +531,7 @@ export default function StatusPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Query Latency:</span>
-                <strong style={{ color: '#e2e8f0' }}>{deepHealth?.services.database?.latency_ms ?? '-'} ms</strong>
+                <strong style={{ color: '#e2e8f0' }}>{deepHealth?.services.database?.latency_ms ? `${deepHealth.services.database.latency_ms} ms` : '-'}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Workspaces / Papers:</span>
@@ -527,16 +554,21 @@ export default function StatusPage() {
                 <Zap size={18} color="#f59e0b" />
                 <span style={{ fontWeight: '600', color: '#f8fafc' }}>Redis Cache & TLS</span>
               </div>
-              <span style={{
-                fontSize: '0.75rem',
-                fontWeight: '700',
-                padding: '0.2rem 0.5rem',
-                borderRadius: '4px',
-                backgroundColor: deepHealth?.services.redis?.status === 'online' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                color: deepHealth?.services.redis?.status === 'online' ? '#10b981' : '#ef4444',
-              }}>
-                {deepHealth?.services.redis?.status?.toUpperCase() || 'CHECKING'}
-              </span>
+              {(() => {
+                const badge = getBadge(deepHealth?.services.redis?.status);
+                return (
+                  <span style={{
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    padding: '0.2rem 0.5rem',
+                    borderRadius: '4px',
+                    backgroundColor: badge.bg,
+                    color: badge.color,
+                  }}>
+                    {badge.text}
+                  </span>
+                );
+              })()}
             </div>
 
             <div style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -546,11 +578,13 @@ export default function StatusPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Ping Probe Latency:</span>
-                <strong style={{ color: '#e2e8f0' }}>{deepHealth?.services.redis?.latency_ms ?? '-'} ms</strong>
+                <strong style={{ color: '#e2e8f0' }}>{deepHealth?.services.redis?.latency_ms ? `${deepHealth.services.redis.latency_ms} ms` : '-'}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Task Broker Status:</span>
-                <strong style={{ color: '#10b981' }}>Connected</strong>
+                <strong style={{ color: deepHealth?.services.redis?.status === 'online' ? '#10b981' : '#94a3b8' }}>
+                  {deepHealth?.services.redis?.status === 'online' ? 'Connected' : 'Disconnected'}
+                </strong>
               </div>
             </div>
           </div>
@@ -567,16 +601,21 @@ export default function StatusPage() {
                 <Cpu size={18} color="#a855f7" />
                 <span style={{ fontWeight: '600', color: '#f8fafc' }}>Celery Workers</span>
               </div>
-              <span style={{
-                fontSize: '0.75rem',
-                fontWeight: '700',
-                padding: '0.2rem 0.5rem',
-                borderRadius: '4px',
-                backgroundColor: deepHealth?.services.celery?.status === 'online' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                color: deepHealth?.services.celery?.status === 'online' ? '#10b981' : '#ef4444',
-              }}>
-                {deepHealth?.services.celery?.status?.toUpperCase() || 'CHECKING'}
-              </span>
+              {(() => {
+                const badge = getBadge(deepHealth?.services.celery?.status);
+                return (
+                  <span style={{
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    padding: '0.2rem 0.5rem',
+                    borderRadius: '4px',
+                    backgroundColor: badge.bg,
+                    color: badge.color,
+                  }}>
+                    {badge.text}
+                  </span>
+                );
+              })()}
             </div>
 
             <div style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -586,12 +625,12 @@ export default function StatusPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Task Roundtrip:</span>
-                <strong style={{ color: '#e2e8f0' }}>{deepHealth?.services.celery?.latency_ms ?? '-'} ms</strong>
+                <strong style={{ color: '#e2e8f0' }}>{deepHealth?.services.celery?.latency_ms ? `${deepHealth.services.celery.latency_ms} ms` : '-'}</strong>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Live Task Result:</span>
                 <strong style={{ color: deepHealth?.services.celery?.result ? '#10b981' : '#f59e0b' }}>
-                  {deepHealth?.services.celery?.result ? 'PONG (Task Verified)' : 'Awaiting worker'}
+                  {deepHealth?.services.celery?.result ? 'PONG (Task Verified)' : (deepHealth ? 'No worker response' : '-')}
                 </strong>
               </div>
             </div>
@@ -609,16 +648,21 @@ export default function StatusPage() {
                 <HardDrive size={18} color="#10b981" />
                 <span style={{ fontWeight: '600', color: '#f8fafc' }}>S3 Object Storage</span>
               </div>
-              <span style={{
-                fontSize: '0.75rem',
-                fontWeight: '700',
-                padding: '0.2rem 0.5rem',
-                borderRadius: '4px',
-                backgroundColor: deepHealth?.services.storage?.status === 'online' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                color: deepHealth?.services.storage?.status === 'online' ? '#10b981' : '#ef4444',
-              }}>
-                {deepHealth?.services.storage?.status?.toUpperCase() || 'CHECKING'}
-              </span>
+              {(() => {
+                const badge = getBadge(deepHealth?.services.storage?.status);
+                return (
+                  <span style={{
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    padding: '0.2rem 0.5rem',
+                    borderRadius: '4px',
+                    backgroundColor: badge.bg,
+                    color: badge.color,
+                  }}>
+                    {badge.text}
+                  </span>
+                );
+              })()}
             </div>
 
             <div style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -632,8 +676,8 @@ export default function StatusPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Write/Read/Delete Test:</span>
-                <strong style={{ color: '#10b981' }}>
-                  {deepHealth?.services.storage?.verified ? 'Verified (100% OK)' : 'Pass'} ({deepHealth?.services.storage?.latency_ms ?? '-'} ms)
+                <strong style={{ color: deepHealth?.services.storage?.verified ? '#10b981' : '#94a3b8' }}>
+                  {deepHealth?.services.storage?.verified ? `Verified (${deepHealth.services.storage.latency_ms} ms)` : '-'}
                 </strong>
               </div>
             </div>
@@ -651,16 +695,21 @@ export default function StatusPage() {
                 <Mail size={18} color="#ec4899" />
                 <span style={{ fontWeight: '600', color: '#f8fafc' }}>Mailgun Email API</span>
               </div>
-              <span style={{
-                fontSize: '0.75rem',
-                fontWeight: '700',
-                padding: '0.2rem 0.5rem',
-                borderRadius: '4px',
-                backgroundColor: deepHealth?.services.mailgun?.status === 'configured' ? 'rgba(16,185,129,0.1)' : 'rgba(245,158,11,0.1)',
-                color: deepHealth?.services.mailgun?.status === 'configured' ? '#10b981' : '#f59e0b',
-              }}>
-                {deepHealth?.services.mailgun?.status?.toUpperCase() || 'CHECKING'}
-              </span>
+              {(() => {
+                const badge = getBadge(deepHealth?.services.mailgun?.status);
+                return (
+                  <span style={{
+                    fontSize: '0.75rem',
+                    fontWeight: '700',
+                    padding: '0.2rem 0.5rem',
+                    borderRadius: '4px',
+                    backgroundColor: badge.bg,
+                    color: badge.color,
+                  }}>
+                    {badge.text}
+                  </span>
+                );
+              })()}
             </div>
 
             <div style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -674,7 +723,9 @@ export default function StatusPage() {
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Notification Digest:</span>
-                <strong style={{ color: '#10b981' }}>Executive Reports Ready</strong>
+                <strong style={{ color: deepHealth?.services.mailgun?.status === 'configured' ? '#10b981' : '#94a3b8' }}>
+                  {deepHealth?.services.mailgun?.status === 'configured' ? 'Executive Reports Ready' : 'Unconfigured'}
+                </strong>
               </div>
             </div>
           </div>
@@ -712,17 +763,22 @@ export default function StatusPage() {
                   </div>
                 </div>
 
-                <span style={{
-                  fontSize: '0.75rem',
-                  fontWeight: '700',
-                  padding: '0.25rem 0.625rem',
-                  borderRadius: '9999px',
-                  backgroundColor: deepHealth?.services.llm_providers?.google?.status === 'online' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                  color: deepHealth?.services.llm_providers?.google?.status === 'online' ? '#10b981' : '#ef4444',
-                  textTransform: 'uppercase',
-                }}>
-                  {deepHealth?.services.llm_providers?.google?.status || 'CHECKING'}
-                </span>
+                {(() => {
+                  const badge = getBadge(deepHealth?.services.llm_providers?.google?.status);
+                  return (
+                    <span style={{
+                      fontSize: '0.75rem',
+                      fontWeight: '700',
+                      padding: '0.25rem 0.625rem',
+                      borderRadius: '9999px',
+                      backgroundColor: badge.bg,
+                      color: badge.color,
+                      textTransform: 'uppercase',
+                    }}>
+                      {badge.text}
+                    </span>
+                  );
+                })()}
               </div>
 
               <div style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
@@ -736,7 +792,7 @@ export default function StatusPage() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>Inference Latency:</span>
-                  <strong style={{ color: '#e2e8f0' }}>{deepHealth?.services.llm_providers?.google?.latency_ms ?? '-'} ms</strong>
+                  <strong style={{ color: '#e2e8f0' }}>{deepHealth?.services.llm_providers?.google?.latency_ms ? `${deepHealth.services.llm_providers.google.latency_ms} ms` : '-'}</strong>
                 </div>
                 
                 {deepHealth?.services.llm_providers?.google?.service_account_email && (
