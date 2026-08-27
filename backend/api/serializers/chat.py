@@ -13,9 +13,12 @@ class PaperChatMessageSerializer(serializers.ModelSerializer):
             'session',
             'sender',
             'status',
+            'deep_thinking',
             'question',
             'message',
             'citations',
+            'visual_citations',
+            'hallucination_guard',
             'celery_task_id',
             'tokens_in',
             'tokens_out',
@@ -42,6 +45,7 @@ class PaperChatSessionSerializer(serializers.ModelSerializer):
             'paper_doi',
             'user',
             'title',
+            'summary',
             'messages_count',
             'created_at',
             'updated_at',
@@ -65,6 +69,7 @@ class PaperChatSubmitSerializer(serializers.Serializer):
     paper_id = serializers.UUIDField(required=False, allow_null=True, help_text="Target Paper UUID (optional for workspace-level corpus chat)")
     question = serializers.CharField(required=True, min_length=2, help_text="Research question or query for the paper")
     session_id = serializers.UUIDField(required=False, allow_null=True, help_text="Existing chat session UUID to continue conversation")
+    deep_thinking = serializers.BooleanField(required=False, default=False, help_text="If True, enables Gemini 3.7 Flash deep scientific reasoning mode")
     sync = serializers.BooleanField(required=False, default=False, help_text="If True, executes synchronously and returns answer immediately. Default False returns 202 Accepted async task.")
 
 

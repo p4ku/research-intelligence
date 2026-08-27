@@ -350,3 +350,105 @@ class PaperChatTestCase(TestCase):
         self.assertEqual(parsed['status'], 'completed')
         self.assertIn("99.4% fidelity confirmed", parsed['answer'])
         self.assertEqual(parsed['paper_title'], self.paper_a.title)
+        self.assertIn('visual_citations', parsed)
+        self.assertIn('hallucination_guard', parsed)
+
+    def test_fact_checking_verifier_deterministic(self):
+        """Tests that the hallucination guard verifies authentic quotes and flags ungrounded claims."""
+        from research_intelligence.tasks.chat.verifier import verify_citations_against_source
+
+        source_doc = "The scalable compiler demonstrates 99.4% gate fidelity across 128 physical qubits with 450ns latency."
+
+        # Case 1: Grounded citation
+        grounded_citations = [
+            {"page": 2, "label": "Figure 2b", "quote": "99.4% gate fidelity across 128 physical qubits"}
+        ]
+        verified_cits, guard = verify_citations_against_source(source_doc, grounded_citations)
+        self.assertTrue(verified_cits[0]["verified_in_source"])
+        self.assertEqual(guard["grounding_score"], 1.0)
+        self.assertTrue(guard["verified"])
+        self.assertEqual(guard["status"], "PASS")
+
+        # Case 2: Hallucinated / Fabricated claim
+        hallucinated_citations = [
+            {"page": 5, "label": "Table 1", "quote": "Achieved room-temperature superconductor at 300 Kelvin"}
+        ]
+        verified_cits_h, guard_h = verify_citations_against_source(source_doc, hallucinated_citations)
+        self.assertFalse(verified_cits_h[0]["verified_in_source"])
+        self.assertEqual(guard_h["grounding_score"], 0.0)
+        self.assertFalse(guard_h["verified"])
+        self.assertEqual(guard_h["status"], "WARNING_UNVERIFIED_CLAIMS")
+
+    @patch("research_intelligence.tasks.chat.engine.get_llm_provider")
+    def test_visual_citations_and_deep_thinking_in_chat(self, mock_get_llm_provider):
+        """Tests that deep_thinking flag is accepted and visual citations [Page X, Fig Y] are parsed and verified."""
+        mock_provider = MagicMock()
+        mock_provider.generate.return_value = (
+            "The architecture achieves high fidelity [Page 2, Figure 2b, quote: \"99.4% gate fidelity\"] on the benchmark.",
+            {"prompt_tokens": 1500, "candidates_tokens": 120}
+        )
+        mock_get_llm_provider.return_value = mock_provider
+
+        login_resp = self.client.post('/api/auth/login/', {
+            'username': 'researcher_a',
+            'password': self.password
+        }, format='json')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {login_resp.data["access"]}')
+
+        res = self.client.post('/api/chat/', {
+            'paper_id': str(self.paper_a.id),
+            'question': 'Derive the exact gate fidelity equation from Figure 2b',
+            'deep_thinking': True,
+            'sync': True
+        }, format='json')
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertTrue(res.data['deep_thinking'])
+        self.assertGreater(len(res.data['visual_citations']), 0)
+        
+        vis_cit = res.data['visual_citations'][0]
+        self.assertEqual(vis_cit['page'], 2)
+        self.assertEqual(vis_cit['label'], 'Figure 2b')
+        self.assertTrue(vis_cit['verified_in_source'])
+        
+        # Hallucination guard verified
+        self.assertTrue(res.data['hallucination_guard']['verified'])
+        self.assertEqual(res.data['hallucination_guard']['status'], 'PASS')
+
+    @patch("research_intelligence.tasks.chat.engine.get_llm_provider")
+    def test_hierarchical_session_summarization(self, mock_get_llm_provider):
+        """Tests that long multi-turn sessions compress older turns into session.summary."""
+        mock_provider = MagicMock()
+        mock_provider.generate.return_value = (
+            "Response to turn.",
+            {"prompt_tokens": 500, "candidates_tokens": 50}
+        )
+        mock_get_llm_provider.return_value = mock_provider
+
+        login_resp = self.client.post('/api/auth/login/', {
+            'username': 'researcher_a',
+            'password': self.password
+        }, format='json')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {login_resp.data["access"]}')
+
+        # Create session and simulate 5 sequential turns
+        session = PaperChatSession.objects.create(
+            workspace=self.workspace_a,
+            paper=self.paper_a,
+            user=self.user_a,
+            title="Multi-turn Deep Exploration"
+        )
+
+        for i in range(1, 6):
+            res = self.client.post('/api/chat/', {
+                'paper_id': str(self.paper_a.id),
+                'session_id': str(session.id),
+                'question': f'Scientific question turn {i}',
+                'sync': True
+            }, format='json')
+            self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        session.refresh_from_db()
+        self.assertGreater(len(session.summary), 0)
+        self.assertIn("Scientific question turn", session.summary)
+        self.assertEqual(session.messages.count(), 5)

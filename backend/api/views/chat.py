@@ -110,12 +110,15 @@ class ChatSubmitView(APIView):
                 title=title
             )
 
+        deep_thinking = validated.get('deep_thinking', False)
+
         # Create pending message record
         message = PaperChatMessage.objects.create(
             session=session,
             sender='user',
             status='pending',
-            question=question
+            question=question,
+            deep_thinking=deep_thinking
         )
 
         # Synchronous execution flow

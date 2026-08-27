@@ -1511,7 +1511,8 @@ def ask_paper(
     workspace_id: str,
     paper_id: str,
     question: str,
-    session_id: str | None = None
+    session_id: str | None = None,
+    deep_thinking: bool = False
 ) -> str:
     """
     [INTERACTIVE Q&A - KNOWLEDGE EXPLORER / ASK PAPER]
@@ -1523,7 +1524,7 @@ def ask_paper(
     
     WORKFLOW & USAGE PATTERN FOR AI CLIENTS:
     1. Locate the target paper's UUID via `list_papers(workspace_id)`.
-    2. Turn 1 (Start session): Call `ask_paper(workspace_id, paper_id, question)`.
+    2. Turn 1 (Start session): Call `ask_paper(workspace_id, paper_id, question, deep_thinking=True/False)`.
        The JSON response returns a unique `session_id`.
     3. Turn 2+ (Continue dialogue): Pass the returned `session_id` in subsequent calls to maintain conversational memory and multi-turn context.
     
@@ -1533,22 +1534,25 @@ def ask_paper(
     - Parameter Extraction Matrix: All extracted parameter definitions, JSON values, evidence quotes, and HITL validation flags.
     - Composite Signal Score: Calculated score (`paper.signal_score`), audit details (`signal_score_details`), and the sandboxed Python formula (`workspace.signal_score_code`).
     - Multi-Turn History: All preceding questions and answers within the conversation thread.
+    - Visual Grounding: Automatically parses and verifies figure/table/page citations with bounding boxes.
+    - Hallucination Guard: Validates quoted claims against the source document.
     
     PARAMETERS:
     - workspace_id: Target workspace UUID.
     - paper_id: Target Paper UUID to interrogate.
     - question: Detailed research question or instruction.
     - session_id: (Optional) UUID of an existing conversation session to continue. Omit to start a new session.
+    - deep_thinking: (Optional) Set to True to enable deep mathematical/thermodynamic derivation scratchpad reasoning.
     
     OUTPUT:
-    JSON string containing `{ "status": "completed", "session_id": "...", "message_id": "...", "paper_id": "...", "paper_title": "...", "answer": "...", "citations": [...], "tokens_in": int, "tokens_out": int, "usd_cost": float }`.
+    JSON string containing `{ "status": "completed", "session_id": "...", "message_id": "...", "paper_id": "...", "paper_title": "...", "answer": "...", "citations": [...], "visual_citations": [...], "hallucination_guard": {...}, "deep_thinking": bool, "tokens_in": int, "tokens_out": int, "usd_cost": float }`.
     """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:read")
     except Exception as e:
         return str(e)
-    return ask_paper_logic(user, workspace_id, paper_id, question, session_id)
+    return ask_paper_logic(user, workspace_id, paper_id, question, session_id, deep_thinking=deep_thinking)
 
 
 def create_app():

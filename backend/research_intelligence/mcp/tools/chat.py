@@ -19,7 +19,8 @@ def ask_paper_logic(
     workspace_id: str,
     paper_id: str,
     question: str,
-    session_id: str = None
+    session_id: str = None,
+    deep_thinking: bool = False
 ) -> str:
     """
     Interrogates an ingested academic paper using the workspace's configured LLM (e.g. Gemini 3.7 Flash).
@@ -63,7 +64,8 @@ def ask_paper_logic(
         session=session,
         sender='user',
         status='pending',
-        question=question.strip()
+        question=question.strip(),
+        deep_thinking=deep_thinking
     )
 
     # Execute synchronous generation for FastMCP client

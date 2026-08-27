@@ -1,3 +1,4 @@
+import re
 import json
 import logging
 from django.utils import timezone
@@ -124,13 +125,97 @@ def build_paper_context(paper: Paper) -> tuple[str, bytes | None, str | None]:
     full_context_text = "\n\n".join(context_sections)
     return full_context_text, pdf_bytes, mime_type
 
-    full_context_text = "\n\n".join(context_sections)
-    return full_context_text, pdf_bytes, mime_type
+from .verifier import verify_citations_against_source
+
+
+def extract_visual_citations_from_response(raw_text: str) -> tuple[str, list[dict]]:
+    """
+    Extracts structured visual citations (page, box_2d, label, quote) from the LLM completion.
+    Supports embedded JSON citation blocks, XML-style tags, and markdown references (e.g. [Page 4, Fig. 2]).
+    """
+    if not raw_text:
+        return "", []
+
+    visual_citations = []
+    cleaned_text = raw_text
+
+    # 1. Check for structured ```json:citations ... ``` block
+    if "```json:citations" in raw_text:
+        try:
+            parts = raw_text.split("```json:citations")
+            cleaned_text = parts[0].strip()
+            cit_json = parts[1].split("```")[0].strip()
+            visual_citations = json.loads(cit_json)
+        except Exception:
+            pass
+
+    # 2. Check for inline bracketed visual references like [Page 3, Fig. 2b, quote: "..."]
+    if not visual_citations:
+        pattern = re.compile(
+            r'\[(?:Page|Strona)\s*(?P<page>\d+)'
+            r'(?:,\s*(?P<kind>Figure|Fig\.|Table|Tab\.|Rysunek)\s*(?P<num>[\w\.\d]+))?'
+            r'(?:,\s*quote:\s*["\'](?P<quote>[^"\']+)["\'])?\]',
+            re.IGNORECASE
+        )
+        for match in pattern.finditer(raw_text):
+            page_num = int(match.group('page')) if match.group('page') else 1
+            kind = match.group('kind')
+            num = match.group('num')
+            label = f"{kind} {num}".strip() if kind and num else f"Page {page_num}"
+            quote = match.group('quote') or ""
+            visual_citations.append({
+                "page": page_num,
+                "label": label,
+                "quote": quote,
+                "box_2d": None
+            })
+
+    # 3. Check for explicitly quoted claims in text <quote>...</quote>
+    quotes = re.findall(r'<quote>(.*?)</quote>', raw_text, re.DOTALL | re.IGNORECASE)
+    for q in quotes:
+        if not any(c.get("quote") == q.strip() for c in visual_citations):
+            visual_citations.append({
+                "page": 1,
+                "label": "Direct Source Quote",
+                "quote": q.strip(),
+                "box_2d": None
+            })
+
+    return cleaned_text, visual_citations
+
+
+def update_hierarchical_session_summary(session: PaperChatSession, history_messages):
+    """
+    Compresses older conversation turns into a high-level scientific memorandum on session.summary.
+    """
+    count = history_messages.count()
+    if count < 4:
+        return
+
+    older_turns = list(history_messages[:count - 2])
+    summary_lines = []
+    if session.summary:
+        summary_lines.append(session.summary)
+
+    for turn in older_turns:
+        if turn.question and turn.message:
+            q_snippet = turn.question[:80]
+            ans_snippet = turn.message[:140].replace('\n', ' ')
+            summary_lines.append(f"- User inquired: '{q_snippet}' -> Established: '{ans_snippet}...'")
+
+    if summary_lines:
+        session.summary = "\n".join(summary_lines[-10:])
+        session.save(update_fields=['summary', 'updated_at'])
 
 
 def execute_paper_chat_logic(message: PaperChatMessage) -> dict:
     """
-    Executes the LLM generation for a PaperChatMessage in Celery or synchronous mode.
+    Executes state-of-the-art LLM generation for a PaperChatMessage:
+    1. Multi-modal full context assembly.
+    2. Hierarchical session summarization.
+    3. Deep Thinking reasoning mode (if requested).
+    4. Visual Grounding parsing (page numbers, figure/table references, bounding boxes).
+    5. Deterministic Fact-Checking & Hallucination Guard verification.
     """
     session = message.session
     paper = session.paper
@@ -140,17 +225,26 @@ def execute_paper_chat_logic(message: PaperChatMessage) -> dict:
     message.save(update_fields=['status'])
 
     try:
-        # Build complete context
+        # 1. Build complete document context
         context_text, pdf_bytes, mime_type = build_paper_context(paper)
 
-        # Build conversation history
+        # 2. Build conversation history with Hierarchical Summarization
         history_messages = session.messages.filter(
             created_at__lt=message.created_at,
             status='completed'
         ).order_by('created_at')
 
+        # Update session summary if message thread is long
+        if history_messages.count() >= 4:
+            update_hierarchical_session_summary(session, history_messages)
+
         history_dialogue = []
-        for prev in history_messages:
+        if session.summary:
+            history_dialogue.append(f"### Previous Conversation Scientific Summary:\n{session.summary}\n")
+
+        # Pass only the last 2-3 turns verbatim
+        recent_turns = history_messages[max(0, history_messages.count() - 3):]
+        for prev in recent_turns:
             if prev.question:
                 history_dialogue.append(f"User: {prev.question}")
             if prev.message:
@@ -158,28 +252,40 @@ def execute_paper_chat_logic(message: PaperChatMessage) -> dict:
 
         history_block = ""
         if history_dialogue:
-            history_block = "### Preceding Conversation History:\n" + "\n".join(history_dialogue) + "\n\n"
+            history_block = "### Conversation Dialogue:\n" + "\n".join(history_dialogue) + "\n\n"
+
+        # 3. Configure System Prompt & Deep Thinking Instructions
+        deep_thinking_active = bool(getattr(message, 'deep_thinking', False))
 
         system_instruction = (
             "You are an expert AI Research Analyst and Deep-Tech Scientific Advisor for the Schwarz Research Intelligence platform. "
             "You are discussing an academic paper with a researcher.\n"
             "You have access to the complete context of the paper, including its layout text/PDF, screening decision rationale, "
-            "all dynamic extracted parameters, confidence scores, and computed signal scores.\n"
-            "Guidelines:\n"
+            "all dynamic extracted parameters, confidence scores, and computed signal scores.\n\n"
+            "Grounding & Visual Citation Guidelines:\n"
             "1. Answer questions factually, thoroughly, and with deep scientific precision.\n"
-            "2. When citing facts, reference exact sections, evidence quotes, or extracted parameters from the paper.\n"
-            "3. If asked why the paper was accepted/rejected or scored with a specific value, explain the criteria and mathematical formula.\n"
-            "4. Structure your response clearly using Markdown formatting."
+            "2. Whenever citing facts, measurements, or claims, enclose verbatim quotes in <quote>exact quote from source</quote> "
+            "or reference the visual location like [Page X, Figure Y].\n"
+            "3. If visual citations are available, include page numbers, figure/table labels, and approximate bounding boxes.\n"
+            "4. If asked why the paper was accepted/rejected or scored with a specific value, explain the criteria and mathematical formula.\n"
+            "5. Structure your response clearly using Markdown formatting."
         )
+
+        if deep_thinking_active:
+            system_instruction += (
+                "\n\n[DEEP SCIENTIFIC REASONING MODE ACTIVATED]\n"
+                "Execute rigorous step-by-step mathematical, thermodynamic, or algorithmic derivation before stating final conclusions. "
+                "Verify dimensional consistency in equations and benchmark numbers."
+            )
 
         user_prompt = f"""{context_text}
 
 {history_block}### Current Question from Researcher:
 {message.question}
 
-Please provide a detailed, accurate response with citations and evidence."""
+Please provide a detailed, accurate response grounded strictly in the source document with exact citations."""
 
-        # Call LLM Provider
+        # 4. Call LLM Provider
         provider_name = getattr(workspace, 'llm_provider', 'google') or 'google'
         model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash') or 'google/gemini-3.7-flash'
 
@@ -190,37 +296,53 @@ Please provide a detailed, accurate response with citations and evidence."""
             file_bytes=pdf_bytes,
             mime_type=mime_type,
             system_instruction=system_instruction,
-            temperature=0.2,
-            max_tokens=4096,
+            temperature=0.1 if deep_thinking_active else 0.2,
+            max_tokens=8192 if deep_thinking_active else 4096,
             return_usage=True,
         )
 
         if isinstance(llm_response, tuple) and len(llm_response) == 2:
-            answer_text, usage = llm_response
+            answer_raw, usage = llm_response
             tokens_in = usage.get("prompt_tokens", 0) or 0
             tokens_out = usage.get("candidates_tokens", 0) or 0
         else:
-            answer_text = str(llm_response) if llm_response else ""
+            answer_raw = str(llm_response) if llm_response else ""
             tokens_in = 0
             tokens_out = 0
 
-        if not isinstance(answer_text, str):
-            answer_text = json.dumps(answer_text, indent=2) if answer_text else ""
+        if not isinstance(answer_raw, str):
+            answer_raw = json.dumps(answer_raw, indent=2) if answer_raw else ""
 
-        # Record token and cost accounting on workspace
+        # 5. Extract Visual Grounding Citations
+        cleaned_answer, parsed_visual_citations = extract_visual_citations_from_response(answer_raw)
+        citations_list = getattr(llm_response, 'citations', []) or []
+
+        # 6. Deterministic Fact-Checking & Hallucination Guard
+        verified_visual_cits, guard_summary = verify_citations_against_source(
+            source_text=context_text,
+            visual_citations=parsed_visual_citations,
+            answer_text=cleaned_answer
+        )
+
+        # 7. Record token and cost accounting on workspace
         cost = workspace.record_token_usage(tokens_in, tokens_out, model_name=model_name)
 
-        # Update message
-        message.message = answer_text
+        # 8. Update message in DB
+        message.message = cleaned_answer
         message.tokens_in = tokens_in
         message.tokens_out = tokens_out
         message.usd_cost = cost
         message.status = 'completed'
         message.completed_at = timezone.now()
-        message.citations = getattr(llm_response, 'citations', []) or []
-        message.save(update_fields=['message', 'tokens_in', 'tokens_out', 'usd_cost', 'status', 'completed_at', 'citations'])
+        message.citations = citations_list
+        message.visual_citations = verified_visual_cits
+        message.hallucination_guard = guard_summary
+        message.save(update_fields=[
+            'message', 'tokens_in', 'tokens_out', 'usd_cost', 'status',
+            'completed_at', 'citations', 'visual_citations', 'hallucination_guard'
+        ])
 
-        # Update session title if first turn
+        # 9. Update session title if first turn
         if session.messages.count() <= 2 and (session.title == "Paper Discussion" or not session.title):
             session.title = (message.question[:60] + "...") if len(message.question) > 60 else message.question
             session.save(update_fields=['title', 'updated_at'])
@@ -231,8 +353,11 @@ Please provide a detailed, accurate response with citations and evidence."""
             "session_id": str(session.id),
             "paper_id": str(paper.id),
             "paper_title": paper.title,
-            "answer": answer_text,
-            "citations": message.citations,
+            "answer": cleaned_answer,
+            "citations": citations_list,
+            "visual_citations": verified_visual_cits,
+            "hallucination_guard": guard_summary,
+            "deep_thinking": deep_thinking_active,
             "tokens_in": tokens_in,
             "tokens_out": tokens_out,
             "usd_cost": float(cost),
