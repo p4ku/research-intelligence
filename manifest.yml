@@ -5,7 +5,7 @@ applications:
       image: ((backend_image))
       username: ((registry_username))
     instances: 1
-    memory: 1G
+    memory: 2G
     disk_quota: 3G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/api
@@ -33,11 +33,12 @@ applications:
       image: ((backend_image))
       username: ((registry_username))
     instances: 1
-    memory: 1G
+    memory: 2G
     disk_quota: 3G
     no-route: true
     health-check-type: process
-    command: celery -A django_project worker --loglevel=info -Q celery,tenant-default,tenant-bulk-scraping
+    command: celery -A django_project worker --loglevel=info -Q celery,tenant-default,tenant-bulk-scraping --concurrency=2 --max-tasks-per-child=100
+
 
   - name: sri-beat
     docker:
