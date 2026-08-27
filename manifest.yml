@@ -9,8 +9,10 @@ applications:
     disk_quota: 3G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/api
+      - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/health
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/admin
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/static
+
     env:
       DEBUG: "False"
       ALLOWED_HOSTS: "sri-prod.apps.01.cf.eu01.onstackit.cloud,sri.soinventive.co.uk,localhost"
