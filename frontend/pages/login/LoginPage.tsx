@@ -9,10 +9,8 @@ import {
   EyeOff, 
   Sparkles, 
   ShieldAlert, 
-  ArrowRight,
-  ShieldCheck,
-  Activity,
-  ArrowLeft
+  ArrowRight, 
+  ArrowLeft 
 } from 'lucide-react';
 
 export default function LoginPage() {
@@ -50,112 +48,49 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{
-      minHeight: 'calc(100vh - 65px)',
-      backgroundColor: '#090d16',
-      backgroundImage: 'radial-gradient(circle at 50% 20%, #1e1b4b 0%, #090d16 65%)',
-      color: '#f8fafc',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '3rem 1rem',
-    }}>
-      <div style={{ maxWidth: '440px', width: '100%' }}>
+    <div className="min-h-[calc(100vh-65px)] bg-[#090d16] bg-[radial-gradient(circle_at_50%_20%,#1e1b4b_0%,#090d16_65%)] text-slate-100 flex flex-col items-center justify-center p-4 sm:p-6 lg:p-8">
+      <div className="max-w-md w-full">
         
         {/* Back Link */}
-        <div style={{ marginBottom: '1.5rem' }}>
+        <div className="mb-6">
           <a
             href="/"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              color: '#94a3b8',
-              textDecoration: 'none',
-              fontSize: '0.875rem',
-              transition: 'color 0.2s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.color = '#f8fafc'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.color = '#94a3b8'; }}
+            className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition-colors"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft className="w-4 h-4" />
             Back to Home
           </a>
         </div>
 
         {/* Header Branding */}
-        <div style={{ textAlign: 'center', marginBottom: '2.25rem' }}>
-          <div style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: '56px',
-            height: '56px',
-            borderRadius: '16px',
-            background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
-            boxShadow: '0 8px 24px rgba(56, 189, 248, 0.25)',
-            marginBottom: '1.25rem',
-          }}>
-            <Sparkles size={28} color="#ffffff" />
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-600 to-sky-400 shadow-xl shadow-sky-500/20 mb-4">
+            <Sparkles className="w-7 h-7 text-white" />
           </div>
-          <h1 style={{
-            fontSize: '1.85rem',
-            fontWeight: '800',
-            letterSpacing: '-0.025em',
-            margin: '0 0 0.5rem 0',
-            background: 'linear-gradient(to right, #f8fafc, #94a3b8)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-          }}>
+          <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400 bg-clip-text text-transparent mb-2">
             Sign In to Workspaces
           </h1>
-          <p style={{ color: '#94a3b8', fontSize: '0.95rem', margin: 0 }}>
+          <p className="text-sm text-slate-400">
             Enter your credentials to access assigned SLR projects
           </p>
         </div>
 
         {/* Login Card */}
-        <div style={{
-          backgroundColor: '#111827',
-          border: '1px solid #1f2937',
-          borderRadius: '16px',
-          padding: '2.25rem',
-          boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.5)',
-        }}>
+        <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-6 sm:p-8 shadow-2xl backdrop-blur-xl">
           {error && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.75rem',
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.25)',
-              borderRadius: '8px',
-              padding: '0.875rem 1rem',
-              color: '#f87171',
-              fontSize: '0.875rem',
-              marginBottom: '1.5rem',
-              lineHeight: '1.4',
-            }}>
-              <ShieldAlert size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
+            <div className="flex items-start gap-3 bg-rose-500/10 border border-rose-500/25 rounded-xl p-3.5 text-rose-400 text-sm mb-6 leading-snug">
+              <ShieldAlert className="w-5 h-5 flex-shrink-0 mt-0.5" />
               <div>{error}</div>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <form onSubmit={handleSubmit} className="flex flex-col gap-5">
             {/* Email / Username Field */}
             <div>
-              <label style={{
-                display: 'block',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                color: '#cbd5e1',
-                marginBottom: '0.5rem',
-              }}>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Email or Username
               </label>
-              <div style={{ position: 'relative' }}>
+              <div className="relative">
                 <input
                   type="text"
                   value={identifier}
@@ -163,42 +98,18 @@ export default function LoginPage() {
                   placeholder="admin or researcher@schwarz.de"
                   autoComplete="username"
                   required
-                  style={{
-                    width: '100%',
-                    backgroundColor: '#0f172a',
-                    border: '1px solid #334155',
-                    borderRadius: '8px',
-                    padding: '0.75rem 1rem 0.75rem 2.5rem',
-                    color: '#f8fafc',
-                    fontSize: '0.95rem',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    transition: 'border-color 0.2s',
-                  }}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = '#38bdf8'; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = '#334155'; }}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 pl-10 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 transition-all"
                 />
-                <Mail size={16} color="#64748b" style={{
-                  position: 'absolute',
-                  left: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                }} />
+                <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               </div>
             </div>
 
             {/* Password Field */}
             <div>
-              <label style={{
-                display: 'block',
-                fontSize: '0.85rem',
-                fontWeight: '600',
-                color: '#cbd5e1',
-                marginBottom: '0.5rem',
-              }}>
+              <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Password
               </label>
-              <div style={{ position: 'relative' }}>
+              <div className="relative">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
@@ -206,45 +117,15 @@ export default function LoginPage() {
                   placeholder="••••••••••••"
                   autoComplete="current-password"
                   required
-                  style={{
-                    width: '100%',
-                    backgroundColor: '#0f172a',
-                    border: '1px solid #334155',
-                    borderRadius: '8px',
-                    padding: '0.75rem 2.5rem 0.75rem 2.5rem',
-                    color: '#f8fafc',
-                    fontSize: '0.95rem',
-                    outline: 'none',
-                    boxSizing: 'border-box',
-                    transition: 'border-color 0.2s',
-                  }}
-                  onFocus={(e) => { e.currentTarget.style.borderColor = '#38bdf8'; }}
-                  onBlur={(e) => { e.currentTarget.style.borderColor = '#334155'; }}
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 pl-10 pr-10 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-sky-400 focus:ring-1 focus:ring-sky-400 transition-all"
                 />
-                <Lock size={16} color="#64748b" style={{
-                  position: 'absolute',
-                  left: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                }} />
+                <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute',
-                    right: '12px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#64748b',
-                    cursor: 'pointer',
-                    padding: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                  }}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors p-1"
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
             </div>
@@ -253,52 +134,22 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              style={{
-                marginTop: '0.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                backgroundColor: isSubmitting ? '#0369a1' : '#0284c7',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '8px',
-                padding: '0.85rem',
-                fontSize: '1rem',
-                fontWeight: '700',
-                cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                boxShadow: '0 4px 14px rgba(2, 132, 199, 0.4)',
-                transition: 'background-color 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                if (!isSubmitting) e.currentTarget.style.backgroundColor = '#0369a1';
-              }}
-              onMouseLeave={(e) => {
-                if (!isSubmitting) e.currentTarget.style.backgroundColor = '#0284c7';
-              }}
+              className="mt-2 flex items-center justify-center gap-2 w-full py-3 px-4 rounded-xl text-sm font-bold text-white bg-sky-600 hover:bg-sky-500 active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed shadow-lg shadow-sky-600/30 hover:shadow-sky-500/40 transition-all cursor-pointer"
             >
               {isSubmitting ? (
                 <span>Signing In...</span>
               ) : (
                 <>
                   <span>Sign In</span>
-                  <ArrowRight size={16} />
+                  <ArrowRight className="w-4 h-4" />
                 </>
               )}
             </button>
           </form>
 
           {/* Footer note */}
-          <div style={{
-            marginTop: '1.75rem',
-            paddingTop: '1.25rem',
-            borderTop: '1px solid #1f2937',
-            fontSize: '0.8rem',
-            color: '#64748b',
-            textAlign: 'center',
-            lineHeight: '1.5',
-          }}>
-            <div>Secure JWT token session with automatic renewal.</div>
+          <div className="mt-6 pt-5 border-t border-slate-800/80 text-xs text-slate-500 text-center leading-relaxed">
+            Secure JWT token session with automatic renewal.
           </div>
         </div>
       </div>
