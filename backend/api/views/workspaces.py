@@ -1,8 +1,10 @@
 from rest_framework import viewsets, permissions
+from drf_spectacular.utils import extend_schema
 from research_intelligence.models import Workspace, WorkspaceMember
 from ..serializers.workspaces import WorkspaceSerializer
 
 
+@extend_schema(tags=['Workspaces Management'])
 class WorkspaceViewSet(viewsets.ModelViewSet):
     """
     CRUD endpoints for Workspace (Projects) and prompt limits configurations.

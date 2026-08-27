@@ -1,8 +1,10 @@
 from rest_framework import viewsets, permissions
+from drf_spectacular.utils import extend_schema
 from research_intelligence.models import Paper, WorkspaceMember
 from ..serializers.papers import PaperSerializer
 
 
+@extend_schema(tags=['Literature & Papers'])
 class PaperViewSet(viewsets.ModelViewSet):
     """
     Explore papers ingested in weekly batch runs.

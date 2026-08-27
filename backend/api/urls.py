@@ -14,19 +14,22 @@ from .views.hitl import HITLViewSet
 from .views.chat import ChatViewSet
 from .views.reports import ReportViewSet
 from .views.agents import ResearchAgentViewSet
+from .views.pipeline_runs import PipelineRunViewSet, ComponentRunViewSet
 from .views.activity_logs import UserActivityLogViewSet
 from .views.auth import LoginView, TokenRefreshView, UserProfileView
 from .views.diagnostics import HealthCheckView, DeepDiagnosticsView
 
 router = DefaultRouter()
 router.register(r'workspaces', WorkspaceViewSet, basename='workspace')
+router.register(r'pipeline-runs', PipelineRunViewSet, basename='pipeline-run')
+router.register(r'component-runs', ComponentRunViewSet, basename='component-run')
+router.register(r'agents', ResearchAgentViewSet, basename='agent')
 router.register(r'scrapers', ScraperViewSet, basename='scraper')
 router.register(r'papers', PaperViewSet, basename='paper')
 router.register(r'extractions', ExtractionViewSet, basename='extraction')
 router.register(r'hitl', HITLViewSet, basename='hitl')
 router.register(r'chat', ChatViewSet, basename='chat')
 router.register(r'reports', ReportViewSet, basename='report')
-router.register(r'agents', ResearchAgentViewSet, basename='agent')
 router.register(r'activity-logs', UserActivityLogViewSet, basename='activity-log')
 
 urlpatterns = [

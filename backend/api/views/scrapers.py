@@ -1,9 +1,11 @@
 from rest_framework import viewsets, permissions
 from rest_framework.exceptions import PermissionDenied
+from drf_spectacular.utils import extend_schema
 from research_intelligence.models import Scraper, WorkspaceMember
 from ..serializers.workspaces import ScraperSerializer
 
 
+@extend_schema(tags=['Scrapers Configuration'])
 class ScraperViewSet(viewsets.ModelViewSet):
     """
     CRUD endpoints for Scraper configurations.

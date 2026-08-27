@@ -14,6 +14,10 @@ from research_intelligence.mcp.tools.agent_processes import (
 )
 
 
+from drf_spectacular.utils import extend_schema, OpenApiResponse
+
+
+@extend_schema(tags=['Autonomous Agents & Pipelines'])
 class ResearchAgentViewSet(viewsets.ModelViewSet):
     """
     REST API ViewSet for autonomous Research Agent Processes.

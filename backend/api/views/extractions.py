@@ -1,4 +1,5 @@
 from rest_framework import viewsets, serializers, permissions
+from drf_spectacular.utils import extend_schema
 from research_intelligence.models import Extraction, WorkspaceMember
 
 
@@ -8,6 +9,7 @@ class ExtractionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+@extend_schema(tags=['Dynamic Extractions'])
 class ExtractionViewSet(viewsets.ModelViewSet):
     """
     Lists extracted claims and parameters matching schema settings.

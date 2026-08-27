@@ -1,8 +1,10 @@
 from rest_framework import viewsets, permissions
+from drf_spectacular.utils import extend_schema
 from research_intelligence.models import NarrativeReport, WorkspaceMember
 from ..serializers.reports import NarrativeReportSerializer
 
 
+@extend_schema(tags=['Narrative & Executive Reports'])
 class ReportViewSet(viewsets.ModelViewSet):
     """
     Weekly compiled narrative briefings.

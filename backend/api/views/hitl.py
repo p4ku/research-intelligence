@@ -1,4 +1,5 @@
 from rest_framework import viewsets, serializers, permissions
+from drf_spectacular.utils import extend_schema
 from research_intelligence.models import HITLCorrection, WorkspaceMember
 
 
@@ -8,6 +9,7 @@ class HITLCorrectionSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
+@extend_schema(tags=['Human-in-the-Loop (HITL)'])
 class HITLViewSet(viewsets.ModelViewSet):
     """
     Scientists validation overrides (verify, modify, reject).

@@ -76,7 +76,7 @@ def trigger_search_job_logic(
             comp_run.status = 'running'
             comp_run.save(update_fields=['status'])
             async_res = execute_scraper_run_job.delay(str(comp_run.id), limit=limit)
-            celery_task_id = async_res.id
+            celery_task_id = str(async_res.id) if async_res and getattr(async_res, 'id', None) else "async_task"
             comp_run.celery_task_id = celery_task_id
             comp_run.save(update_fields=['celery_task_id'])
             comp_run.refresh_from_db()
@@ -165,7 +165,7 @@ def trigger_pdf_download_job_logic(
         comp_run.status = 'running'
         comp_run.save(update_fields=['status'])
         async_res = execute_pdf_download_job.delay(str(comp_run.id), limit=limit)
-        celery_task_id = async_res.id
+        celery_task_id = str(async_res.id) if async_res and getattr(async_res, 'id', None) else "async_task"
         comp_run.celery_task_id = celery_task_id
         comp_run.save(update_fields=['celery_task_id'])
         comp_run.refresh_from_db()
@@ -244,7 +244,7 @@ def trigger_ocr_job_logic(
         comp_run.status = 'running'
         comp_run.save(update_fields=['status'])
         async_res = execute_ocr_job.delay(str(comp_run.id), limit=limit)
-        celery_task_id = async_res.id
+        celery_task_id = str(async_res.id) if async_res and getattr(async_res, 'id', None) else "async_task"
         comp_run.celery_task_id = celery_task_id
         comp_run.save(update_fields=['celery_task_id'])
         comp_run.refresh_from_db()
@@ -322,7 +322,7 @@ def trigger_screening_job_logic(
         comp_run.status = 'running'
         comp_run.save(update_fields=['status'])
         async_res = execute_screening_job.delay(str(comp_run.id), limit=limit)
-        celery_task_id = async_res.id
+        celery_task_id = str(async_res.id) if async_res and getattr(async_res, 'id', None) else "async_task"
         comp_run.celery_task_id = celery_task_id
         comp_run.save(update_fields=['celery_task_id'])
         comp_run.refresh_from_db()
@@ -402,7 +402,7 @@ def trigger_extraction_job_logic(
         comp_run.status = 'running'
         comp_run.save(update_fields=['status'])
         async_res = execute_extraction_job.delay(str(comp_run.id), limit=limit)
-        celery_task_id = async_res.id
+        celery_task_id = str(async_res.id) if async_res and getattr(async_res, 'id', None) else "async_task"
         comp_run.celery_task_id = celery_task_id
         comp_run.save(update_fields=['celery_task_id'])
         comp_run.refresh_from_db()

@@ -1,8 +1,10 @@
 from rest_framework import viewsets, permissions
+from drf_spectacular.utils import extend_schema
 from research_intelligence.models import UserActivityLog, WorkspaceMember
 from api.serializers.activity_logs import UserActivityLogSerializer
 
 
+@extend_schema(tags=['Operational Activity Logs'])
 class UserActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
     REST API endpoint for querying user activity & operational audit logs.
