@@ -84,10 +84,13 @@ jobs:
       # ------------------------------------------------------------
 
       - name: Create Cloud Foundry vars file
+        env:
+          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
         run: |
           cat > vars-ci.yml <<EOF
           backend_image: ${BACKEND_IMAGE}:${GITHUB_SHA}
           frontend_image: ${FRONTEND_IMAGE}:${GITHUB_SHA}
+          registry_username: ${REGISTRY_USERNAME}
           EOF
 
       # ------------------------------------------------------------
@@ -95,6 +98,8 @@ jobs:
       # ------------------------------------------------------------
 
       - name: Deploy to Cloud Foundry
+        env:
+          CF_DOCKER_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
         run: |
           cf push \
             -f manifest.yml \
@@ -107,3 +112,4 @@ jobs:
       - name: Show applications
         run: |
           cf apps
+

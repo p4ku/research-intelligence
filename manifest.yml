@@ -3,6 +3,7 @@ applications:
   - name: sri-api
     docker:
       image: ((backend_image))
+      username: ((registry_username))
     instances: 2
     memory: 1G
     routes:
@@ -17,6 +18,7 @@ applications:
   - name: sri-mcp
     docker:
       image: ((backend_image))
+      username: ((registry_username))
     instances: 1
     memory: 512M
     routes:
@@ -27,6 +29,7 @@ applications:
   - name: sri-worker
     docker:
       image: ((backend_image))
+      username: ((registry_username))
     instances: 2
     memory: 1G
     no-route: true
@@ -36,6 +39,7 @@ applications:
   - name: sri-beat
     docker:
       image: ((backend_image))
+      username: ((registry_username))
     instances: 1
     memory: 512M
     no-route: true
@@ -45,10 +49,12 @@ applications:
   - name: sri-frontend
     docker:
       image: ((frontend_image))
+      username: ((registry_username))
     instances: 2
     memory: 512M
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud
+
 
 
 
