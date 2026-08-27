@@ -220,12 +220,32 @@ SIMPLE_JWT = {
 }
 
 # Celery Configuration Options
-CELERY_BROKER_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+import ssl
+
+raw_redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
+
+if raw_redis_url.startswith('rediss://'):
+    cert_reqs_str = os.environ.get('REDIS_SSL_CERT_REQS', 'CERT_NONE')
+    cert_reqs_val = getattr(ssl, cert_reqs_str, ssl.CERT_NONE)
+
+    if 'ssl_cert_reqs' not in raw_redis_url:
+        delimiter = '&' if '?' in raw_redis_url else '?'
+        raw_redis_url = f"{raw_redis_url}{delimiter}ssl_cert_reqs={cert_reqs_str}"
+
+    CELERY_BROKER_USE_SSL = {
+        'ssl_cert_reqs': cert_reqs_val
+    }
+    CELERY_REDIS_BACKEND_USE_SSL = {
+        'ssl_cert_reqs': cert_reqs_val
+    }
+
+CELERY_BROKER_URL = raw_redis_url
+CELERY_RESULT_BACKEND = raw_redis_url
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
+
 
 if is_testing:
     CELERY_TASK_ALWAYS_EAGER = True
