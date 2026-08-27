@@ -163,14 +163,19 @@ class HealthCheckView(APIView):
         redis_start = time.perf_counter()
         try:
             import redis
+            import ssl
             broker_url = getattr(settings, "CELERY_BROKER_URL", "redis://localhost:6379/0")
-            r = redis.from_url(broker_url, socket_connect_timeout=2)
+            clean_url = broker_url.replace("ssl_cert_reqs=CERT_NONE", "ssl_cert_reqs=none")
+            if "rediss://" in clean_url:
+                r = redis.from_url(clean_url, ssl_cert_reqs=ssl.CERT_NONE, socket_connect_timeout=2)
+            else:
+                r = redis.from_url(clean_url, socket_connect_timeout=2)
             r.ping()
             redis_latency = round((time.perf_counter() - redis_start) * 1000, 2)
             services["redis"] = {
                 "status": "online",
                 "latency_ms": redis_latency,
-                "scheme": "rediss" if "rediss://" in broker_url else "redis",
+                "scheme": "rediss (TLS)" if "rediss://" in broker_url else "redis",
             }
         except Exception as e:
             overall_status = "degraded"
@@ -179,6 +184,7 @@ class HealthCheckView(APIView):
                 "latency_ms": round((time.perf_counter() - redis_start) * 1000, 2),
                 "error": str(e),
             }
+
 
         # 3. Celery Worker Probe
         celery_start = time.perf_counter()
