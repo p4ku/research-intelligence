@@ -255,9 +255,10 @@ if STORAGE_BACKEND in ['s3', 'minio']:
     endpoint_url = os.environ.get('AWS_S3_ENDPOINT_URL', os.environ.get('MINIO_ENDPOINT'))
     if endpoint_url:
         if not endpoint_url.startswith('http'):
-            endpoint_url = f"http://{endpoint_url}"
+            endpoint_url = f"https://{endpoint_url}"
         AWS_S3_ENDPOINT_URL = endpoint_url
-        AWS_S3_USE_SSL = os.environ.get('MINIO_SECURE', 'False').lower() == 'true'
+        AWS_S3_USE_SSL = os.environ.get('AWS_S3_USE_SSL', 'True' if endpoint_url.startswith('https') else 'False').lower() == 'true'
+
 elif STORAGE_BACKEND in ['gcs', 'gcp']:
     DEFAULT_FILE_STORAGE = 'storages.backends.gcp_storage.GoogleCloudStorage'
     GS_BUCKET_NAME = os.environ.get('GS_BUCKET_NAME', 'schwarz-research-intelligence')
