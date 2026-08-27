@@ -6,6 +6,7 @@ applications:
       username: ((registry_username))
     instances: 2
     memory: 1G
+    disk_quota: 3G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/api
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/admin
@@ -21,6 +22,7 @@ applications:
       username: ((registry_username))
     instances: 1
     memory: 512M
+    disk_quota: 3G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/sse
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/messages
@@ -32,6 +34,7 @@ applications:
       username: ((registry_username))
     instances: 2
     memory: 1G
+    disk_quota: 3G
     no-route: true
     health-check-type: process
     command: celery -A django_project worker --loglevel=info -Q celery,tenant-default,tenant-bulk-scraping
@@ -42,6 +45,7 @@ applications:
       username: ((registry_username))
     instances: 1
     memory: 512M
+    disk_quota: 3G
     no-route: true
     health-check-type: process
     command: celery -A django_project beat --loglevel=info
@@ -52,8 +56,10 @@ applications:
       username: ((registry_username))
     instances: 2
     memory: 512M
+    disk_quota: 2G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud
+
 
 
 
