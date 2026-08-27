@@ -1,87 +1,101 @@
 "use client";
 
 import React from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/router';
 import { useAuth } from '../lib/auth/auth-context';
 import { 
-  Sparkles, 
+  Crosshair, 
   LogOut, 
+  User as UserIcon, 
   Layers, 
   Activity, 
-  Lock, 
   ShieldCheck, 
   ExternalLink 
 } from 'lucide-react';
 
 export default function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
-
-  const getRoleBadge = () => {
-    if (user?.is_superuser) {
-      return { label: 'Admin', icon: '👑', color: 'bg-amber-500/15 text-amber-300 border-amber-500/30' };
-    }
-    return { label: 'Researcher', icon: '🔬', color: 'bg-sky-500/15 text-sky-300 border-sky-500/30' };
-  };
-
-  const badge = getRoleBadge();
+  const router = useRouter();
 
   return (
-    <header className="sticky top-0 z-50 w-full backdrop-blur-md bg-[#090d16]/85 border-b border-slate-800 transition-colors">
+    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-[#e5e7eb]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         
-        {/* Brand / Logo */}
+        {/* Brand */}
         <div className="flex items-center gap-6">
-          <a href="/" className="flex items-center gap-3 no-underline group">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-sky-600 to-sky-400 flex items-center justify-center shadow-md shadow-sky-500/20 group-hover:scale-105 transition-transform">
-              <Sparkles className="w-4 h-4 text-white" />
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <div className="w-8 h-8 rounded-full border border-slate-900 flex items-center justify-center text-slate-900 group-hover:bg-slate-900 group-hover:text-white transition-all shadow-sm">
+              <Crosshair className="w-4 h-4 stroke-[2.2]" />
             </div>
-            <span className="font-bold text-base tracking-tight text-slate-100 group-hover:text-white transition-colors">
-              Schwarz Research Intelligence
-            </span>
-          </a>
+            <div className="flex flex-col">
+              <span className="text-sm font-bold tracking-tight text-slate-950">
+                Schwarz Research Intelligence
+              </span>
+            </div>
+          </Link>
 
           {/* Navigation Links */}
-          <nav className="hidden md:flex items-center gap-1">
-            <a
+          <nav className="hidden md:flex items-center gap-1 pl-4 border-l border-[#e5e7eb]">
+            <Link
               href="/"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                router.pathname === '/' || router.pathname.startsWith('/dashboard')
+                  ? 'text-slate-950 bg-slate-100'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
             >
-              <Layers className="w-3.5 h-3.5 text-sky-400" />
+              <Layers className="w-3.5 h-3.5" />
               Workspaces
-            </a>
-            <a
+            </Link>
+
+            <Link
               href="/status"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-colors"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
+                router.pathname === '/status'
+                  ? 'text-slate-950 bg-slate-100'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+              }`}
             >
-              <Activity className="w-3.5 h-3.5 text-emerald-400" />
-              Status
+              <Activity className="w-3.5 h-3.5" />
+              System Status
+            </Link>
+
+            <a
+              href="/admin/"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
+            >
+              <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
+              Django Admin
+              <ExternalLink className="w-3 h-3 text-slate-400" />
             </a>
           </nav>
         </div>
 
-        {/* Right Auth Controls */}
+        {/* Right Actions */}
         <div className="flex items-center gap-3">
           {isAuthenticated && user ? (
             <div className="flex items-center gap-3">
-              {/* User Profile Pill */}
-              <div className="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-slate-900 border border-slate-800">
-                <div className="w-6 h-6 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-sky-400">
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#f8f9fa] border border-[#e5e7eb] text-xs">
+                <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px]">
                   {user.first_name ? user.first_name[0].toUpperCase() : user.username[0].toUpperCase()}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-200">
-                    {user.first_name || user.username}
+                <span className="font-semibold text-slate-900">
+                  {user.first_name ? `${user.first_name} ${user.last_name || ''}` : user.username}
+                </span>
+                {user.is_superuser && (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-50 text-amber-800 border border-amber-200">
+                    ADMIN
                   </span>
-                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border uppercase tracking-wider ${badge.color}`}>
-                    {badge.icon} {badge.label}
-                  </span>
-                </div>
+                )}
               </div>
 
-              {/* Logout Button */}
               <button
                 onClick={logout}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 transition-all cursor-pointer"
-                title="Sign out"
+                title="Sign Out"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-rose-600 hover:bg-rose-50 border border-[#e5e7eb] transition-all cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Sign Out</span>
@@ -89,13 +103,13 @@ export default function Navbar() {
             </div>
           ) : (
             <div className="flex items-center gap-2">
-              <a
+              <Link
                 href="/login"
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold text-white bg-sky-600 hover:bg-sky-500 shadow-md shadow-sky-600/30 hover:shadow-sky-500/40 transition-all"
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold text-white bg-slate-950 hover:bg-slate-800 active:scale-[0.99] shadow-sm transition-all"
               >
-                <Lock className="w-3.5 h-3.5" />
+                <UserIcon className="w-3.5 h-3.5" />
                 Sign In
-              </a>
+              </Link>
             </div>
           )}
         </div>

@@ -1,45 +1,59 @@
 "use client";
 
 import React from 'react';
-import { 
-  Sparkles, 
-  Lock, 
-  ArrowRight, 
-  Activity 
-} from 'lucide-react';
+import Link from 'next/link';
+import { Crosshair, ArrowRight, Activity, ShieldCheck, ExternalLink } from 'lucide-react';
 
 export default function LandingPage() {
   return (
-    <div className="min-h-[calc(100vh-65px)] bg-[#090d16] bg-[radial-gradient(circle_at_50%_25%,#1e1b4b_0%,#090d16_65%)] text-slate-100 flex flex-col items-center justify-center px-4 py-16">
-      <div className="max-w-2xl w-full text-center">
+    <div className="min-h-[calc(100vh-4rem)] bg-white flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 py-16">
+      <div className="max-w-xl w-full text-center">
         
-        {/* Stealth Icon */}
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-sky-600 to-sky-400 shadow-xl shadow-sky-500/20 mb-8">
-          <Sparkles className="w-8 h-8 text-white" />
+        {/* Stealth Brand Icon */}
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full border border-slate-900 bg-white mb-6 shadow-sm">
+          <Crosshair className="w-8 h-8 text-slate-900 stroke-[2.2]" />
         </div>
 
-        {/* Title */}
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight leading-tight mb-8 bg-gradient-to-r from-slate-100 via-slate-200 to-slate-400 bg-clip-text text-transparent">
+        {/* Minimalist Header */}
+        <div className="flex items-center justify-center gap-1.5 text-xs font-mono font-bold tracking-widest uppercase text-teal-700 mb-3">
+          <span>■</span> SCHWARZ RESEARCH INTELLIGENCE
+        </div>
+
+        <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-950 tracking-tight leading-tight mb-4">
           Schwarz Research Intelligence
         </h1>
 
-        {/* Minimal Action Buttons */}
-        <div className="flex flex-wrap items-center justify-center gap-4">
-          <a
+        <p className="text-sm text-slate-500 max-w-md mx-auto mb-8 leading-relaxed">
+          Autonomous systematic literature review, deep-tech intelligence, and validated parameter extraction.
+        </p>
+
+        {/* Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <Link
             href="/login"
-            className="inline-flex items-center gap-2.5 bg-sky-600 hover:bg-sky-500 text-white font-bold text-sm sm:text-base px-7 py-3 rounded-xl shadow-lg shadow-sky-600/25 hover:shadow-sky-500/35 hover:-translate-y-0.5 active:translate-y-0 transition-all"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white bg-slate-950 hover:bg-slate-800 active:scale-[0.99] shadow-sm transition-all"
           >
-            <Lock className="w-4 h-4" />
-            Sign In
+            <span>Sign In</span>
             <ArrowRight className="w-4 h-4" />
-          </a>
+          </Link>
+
+          <Link
+            href="/status"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-[#e5e7eb] shadow-sm transition-all"
+          >
+            <Activity className="w-4 h-4 text-teal-600" />
+            <span>System Status</span>
+          </Link>
 
           <a
-            href="/status"
-            className="inline-flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 font-semibold text-sm sm:text-base px-6 py-3 rounded-xl transition-all"
+            href="/admin/"
+            target="_blank"
+            rel="noreferrer"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-[#e5e7eb] shadow-sm transition-all"
           >
-            <Activity className="w-4 h-4 text-emerald-400" />
-            System Status
+            <ShieldCheck className="w-4 h-4 text-slate-400" />
+            <span>Django Admin</span>
+            <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
           </a>
         </div>
 
