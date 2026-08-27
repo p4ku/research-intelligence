@@ -7,13 +7,11 @@ import {
   Crosshair, 
   ArrowRight, 
   Activity, 
-  ShieldCheck, 
-  ExternalLink,
   Layers
 } from 'lucide-react';
 
 export default function LandingPage() {
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-white flex flex-col justify-center items-center px-4 sm:px-6 lg:px-8 py-16">
@@ -65,17 +63,6 @@ export default function LandingPage() {
             <Activity className="w-4 h-4 text-teal-600" />
             <span>System Status</span>
           </Link>
-
-          <a
-            href="/admin/"
-            target="_blank"
-            rel="noreferrer"
-            className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-[#e5e7eb] shadow-sm transition-all"
-          >
-            <ShieldCheck className="w-4 h-4 text-slate-400" />
-            <span>Django Admin</span>
-            <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-          </a>
         </div>
 
       </div>

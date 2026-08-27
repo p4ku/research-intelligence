@@ -9,9 +9,7 @@ import {
   LogOut, 
   User as UserIcon, 
   Layers, 
-  Activity, 
-  ShieldCheck, 
-  ExternalLink 
+  Activity 
 } from 'lucide-react';
 
 export default function Navbar() {
@@ -41,7 +39,7 @@ export default function Navbar() {
               href="/"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 router.pathname === '/' || router.pathname.startsWith('/dashboard')
-                  ? 'text-slate-950 bg-slate-100'
+                  ? 'text-slate-950 bg-slate-100 font-bold'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
@@ -53,24 +51,13 @@ export default function Navbar() {
               href="/status"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors ${
                 router.pathname === '/status'
-                  ? 'text-slate-950 bg-slate-100'
+                  ? 'text-slate-950 bg-slate-100 font-bold'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
               }`}
             >
               <Activity className="w-3.5 h-3.5" />
               System Status
             </Link>
-
-            <a
-              href="/admin/"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
-            >
-              <ShieldCheck className="w-3.5 h-3.5 text-slate-400" />
-              Django Admin
-              <ExternalLink className="w-3 h-3 text-slate-400" />
-            </a>
           </nav>
         </div>
 
@@ -78,16 +65,24 @@ export default function Navbar() {
         <div className="flex items-center gap-3">
           {isAuthenticated && user ? (
             <div className="flex items-center gap-3">
-              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#f8f9fa] border border-[#e5e7eb] text-xs">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#f8f9fa] border border-[#e5e7eb] text-xs">
                 <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-[10px]">
                   {user.first_name ? user.first_name[0].toUpperCase() : user.username[0].toUpperCase()}
                 </div>
                 <span className="font-semibold text-slate-900">
                   {user.first_name ? `${user.first_name} ${user.last_name || ''}` : user.username}
                 </span>
-                {user.is_superuser && (
+                {user.is_superuser ? (
                   <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-amber-50 text-amber-800 border border-amber-200">
                     ADMIN
+                  </span>
+                ) : user.is_staff ? (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-indigo-50 text-indigo-800 border border-indigo-200">
+                    STAFF
+                  </span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-teal-50 text-teal-800 border border-teal-200">
+                    RESEARCHER
                   </span>
                 )}
               </div>

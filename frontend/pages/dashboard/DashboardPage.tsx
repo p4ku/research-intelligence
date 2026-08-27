@@ -1,19 +1,15 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useAuth } from '../../lib/auth/auth-context';
 import { workspaceService, WorkspaceItem } from '../../lib/services/workspace-service';
 import { 
   Layers, 
-  Plus, 
-  ExternalLink, 
   Bot, 
   Search, 
-  ShieldCheck, 
-  CheckCircle2,
   Sliders,
-  AlertCircle
+  AlertCircle,
+  Clock
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -38,7 +34,12 @@ export default function DashboardPage() {
   }, []);
 
   const getRoleBadge = (role?: string | null) => {
-    if (!role) return null;
+    if (!role) {
+      if (user?.is_superuser) {
+        return <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">👑 Admin</span>;
+      }
+      return <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-teal-50 text-teal-800 border border-teal-200">🔬 Researcher</span>;
+    }
     const r = role.toLowerCase();
     if (r === 'admin') {
       return <span className="px-2 py-0.5 rounded text-xs font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">👑 Admin</span>;
@@ -63,16 +64,8 @@ export default function DashboardPage() {
           </h1>
         </div>
 
-        <div className="flex items-center gap-3">
-          <a
-            href="/admin/research_intelligence/workspace/add/"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-2 px-4 py-2 bg-slate-950 hover:bg-slate-800 text-white rounded-xl text-xs font-bold shadow-sm transition-all cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Workspace</span>
-          </a>
+        <div className="text-xs font-mono text-slate-500">
+          <span className="font-bold text-slate-900">{workspaces.length}</span> active workspaces enrolled
         </div>
       </div>
 
@@ -97,17 +90,9 @@ export default function DashboardPage() {
             <Layers className="w-6 h-6" />
           </div>
           <h3 className="text-base font-bold text-slate-900 mb-1">No Active Workspaces Found</h3>
-          <p className="text-xs text-slate-500 mb-6">
-            You are not currently enrolled in any research workspaces. You can create one in the Django Admin.
+          <p className="text-xs text-slate-500 mb-2">
+            You are not currently enrolled in any research workspaces.
           </p>
-          <a
-            href="/admin/research_intelligence/workspace/add/"
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-slate-950 text-white rounded-xl text-xs font-bold hover:bg-slate-800 shadow-sm"
-          >
-            <Plus className="w-4 h-4" /> Create Workspace
-          </a>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -153,20 +138,15 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Bottom Actions */}
+              {/* Bottom Metadata */}
               <div className="flex items-center justify-between pt-4 border-t border-[#f1f5f9] text-xs">
-                <span className="text-slate-400 font-mono text-[11px]">
+                <span className="text-slate-400 font-mono text-[11px] flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
                   Created {new Date(ws.created_at).toLocaleDateString()}
                 </span>
-                <a
-                  href={`/admin/research_intelligence/workspace/${ws.id}/change/`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-1.5 text-slate-700 hover:text-slate-950 font-semibold"
-                >
-                  Configure in Admin
-                  <ExternalLink className="w-3 h-3 text-slate-400" />
-                </a>
+                <span className="text-teal-700 font-mono font-semibold text-[11px]">
+                  Active Workspace
+                </span>
               </div>
             </div>
           ))}
