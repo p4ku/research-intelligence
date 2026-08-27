@@ -12,6 +12,7 @@ applications:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/health
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/admin
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/static
+      - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/media
 
     env:
       DEBUG: "False"
