@@ -18,7 +18,7 @@ def normalize_text_for_matching(text: str) -> str:
 
 
 def extract_quotes_from_text(text: str) -> list[str]:
-    """Extracts explicit quote segments delimited by <quote>...</quote> or quotation marks."""
+    """Extracts explicit quote segments delimited by <quote>...</quote> or markdown blockquotes."""
     if not text:
         return []
     quotes = []
@@ -33,100 +33,113 @@ def extract_quotes_from_text(text: str) -> list[str]:
     return quotes
 
 
+class CitationFactChecker:
+    """
+    Deterministic fact-checker and hallucination guard.
+    Verifies that cited quotes and evidence statements exist verbatim or near-verbatim in the source text.
+    """
+
+    def verify(
+        self,
+        source_text: str,
+        visual_citations: list[dict],
+        answer_text: str = ""
+    ) -> tuple[list[dict], dict]:
+        """
+        Verifies citations and calculates grounding score.
+        Returns (verified_visual_citations, hallucination_guard_summary).
+        """
+        norm_source = normalize_text_for_matching(source_text)
+        if not norm_source:
+            return visual_citations, {
+                "verified": False,
+                "grounding_score": 0.0,
+                "verified_count": 0,
+                "total_count": len(visual_citations),
+                "status": "UNVERIFIED_EMPTY_SOURCE"
+            }
+
+        verified_citations = []
+        total_checked = 0
+        verified_count = 0
+
+        # 1. Verify structured visual_citations
+        for cit in (visual_citations or []):
+            cit_copy = dict(cit)
+            quote_str = cit_copy.get("quote") or cit_copy.get("text") or cit_copy.get("evidence") or ""
+            
+            if quote_str and len(quote_str.strip()) > 5:
+                total_checked += 1
+                norm_quote = normalize_text_for_matching(quote_str)
+                
+                # Exact substring match
+                if norm_quote in norm_source:
+                    cit_copy["verified_in_source"] = True
+                    cit_copy["match_confidence"] = 1.0
+                    verified_count += 1
+                else:
+                    # Fuzzy ratio matching for slight OCR or punctuation discrepancies
+                    match_ratio = difflib.SequenceMatcher(None, norm_quote, norm_source).quick_ratio()
+                    
+                    # Check for significant prefix phrase match
+                    words = norm_quote.split()
+                    sub_matched = False
+                    if len(words) >= 4:
+                        sub_phrase = " ".join(words[:min(6, len(words))])
+                        if sub_phrase in norm_source:
+                            sub_matched = True
+
+                    if sub_matched or match_ratio > 0.85:
+                        cit_copy["verified_in_source"] = True
+                        cit_copy["match_confidence"] = round(max(match_ratio, 0.9), 2)
+                        verified_count += 1
+                    else:
+                        cit_copy["verified_in_source"] = False
+                        cit_copy["match_confidence"] = round(match_ratio, 2)
+            else:
+                # Citation has no specific quote to check (e.g. only page reference)
+                cit_copy["verified_in_source"] = True
+                cit_copy["match_confidence"] = 1.0
+
+            verified_citations.append(cit_copy)
+
+        # 2. Also check inline extracted quotes in the answer
+        inline_quotes = extract_quotes_from_text(answer_text)
+        for q in inline_quotes:
+            total_checked += 1
+            norm_q = normalize_text_for_matching(q)
+            if norm_q in norm_source:
+                verified_count += 1
+            else:
+                words = norm_q.split()
+                if len(words) >= 4 and " ".join(words[:4]) in norm_source:
+                    verified_count += 1
+
+        # 3. Calculate final grounding score
+        if total_checked == 0:
+            grounding_score = 1.0
+            guard_status = "PASS_NO_EXPLICIT_CITATIONS"
+            is_verified = True
+        else:
+            grounding_score = round(verified_count / total_checked, 2)
+            is_verified = grounding_score >= 0.8
+            guard_status = "PASS" if is_verified else "WARNING_UNVERIFIED_CLAIMS"
+
+        guard_summary = {
+            "verified": is_verified,
+            "grounding_score": grounding_score,
+            "verified_count": verified_count,
+            "total_count": total_checked,
+            "status": guard_status
+        }
+
+        return verified_citations, guard_summary
+
+
 def verify_citations_against_source(
     source_text: str,
     visual_citations: list[dict],
     answer_text: str = ""
 ) -> tuple[list[dict], dict]:
-    """
-    Deterministic fact-checker and hallucination guard.
-    Verifies that cited quotes and evidence statements exist verbatim or near-verbatim in the source text.
-    
-    Returns (verified_visual_citations, hallucination_guard_summary).
-    """
-    norm_source = normalize_text_for_matching(source_text)
-    if not norm_source:
-        return visual_citations, {
-            "verified": False,
-            "grounding_score": 0.0,
-            "verified_count": 0,
-            "total_count": len(visual_citations),
-            "status": "UNVERIFIED_EMPTY_SOURCE"
-        }
-
-    verified_citations = []
-    total_checked = 0
-    verified_count = 0
-
-    # 1. Verify structured visual_citations
-    for cit in (visual_citations or []):
-        cit_copy = dict(cit)
-        quote_str = cit_copy.get("quote") or cit_copy.get("text") or cit_copy.get("evidence") or ""
-        
-        if quote_str and len(quote_str.strip()) > 5:
-            total_checked += 1
-            norm_quote = normalize_text_for_matching(quote_str)
-            
-            # Exact substring match
-            if norm_quote in norm_source:
-                cit_copy["verified_in_source"] = True
-                cit_copy["match_confidence"] = 1.0
-                verified_count += 1
-            else:
-                # Fuzzy ratio matching for slight OCR or punctuation discrepancies
-                # Split quote into chunks if long
-                match_ratio = difflib.SequenceMatcher(None, norm_quote, norm_source).quick_ratio()
-                
-                # Check for significant substring match
-                words = norm_quote.split()
-                sub_matched = False
-                if len(words) >= 4:
-                    sub_phrase = " ".join(words[:min(6, len(words))])
-                    if sub_phrase in norm_source:
-                        sub_matched = True
-
-                if sub_matched or match_ratio > 0.85:
-                    cit_copy["verified_in_source"] = True
-                    cit_copy["match_confidence"] = round(max(match_ratio, 0.9), 2)
-                    verified_count += 1
-                else:
-                    cit_copy["verified_in_source"] = False
-                    cit_copy["match_confidence"] = round(match_ratio, 2)
-        else:
-            # Citation has no specific quote to check (e.g. only page reference)
-            cit_copy["verified_in_source"] = True
-            cit_copy["match_confidence"] = 1.0
-
-        verified_citations.append(cit_copy)
-
-    # 2. Also check inline extracted quotes in the answer
-    inline_quotes = extract_quotes_from_text(answer_text)
-    for q in inline_quotes:
-        total_checked += 1
-        norm_q = normalize_text_for_matching(q)
-        if norm_q in norm_source:
-            verified_count += 1
-        else:
-            words = norm_q.split()
-            if len(words) >= 4 and " ".join(words[:4]) in norm_source:
-                verified_count += 1
-
-    # 3. Calculate final grounding score
-    if total_checked == 0:
-        grounding_score = 1.0
-        guard_status = "PASS_NO_EXPLICIT_CITATIONS"
-        is_verified = True
-    else:
-        grounding_score = round(verified_count / total_checked, 2)
-        is_verified = grounding_score >= 0.8
-        guard_status = "PASS" if is_verified else "WARNING_UNVERIFIED_CLAIMS"
-
-    guard_summary = {
-        "verified": is_verified,
-        "grounding_score": grounding_score,
-        "verified_count": verified_count,
-        "total_count": total_checked,
-        "status": guard_status
-    }
-
-    return verified_citations, guard_summary
+    """Convenience functional wrapper around CitationFactChecker."""
+    return CitationFactChecker().verify(source_text, visual_citations, answer_text)

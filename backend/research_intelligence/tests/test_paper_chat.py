@@ -452,3 +452,84 @@ class PaperChatTestCase(TestCase):
         self.assertGreater(len(session.summary), 0)
         self.assertIn("Scientific question turn", session.summary)
         self.assertEqual(session.messages.count(), 5)
+
+    @patch("research_intelligence.tasks.chat.engine.get_llm_provider")
+    def test_oop_paper_context_builder_and_engine(self, mock_get_llm_provider):
+        """Tests explicit object-oriented initialization and execution of PaperChatEngine."""
+        from research_intelligence.tasks.chat import (
+            PaperChatEngine,
+            PaperContextBuilder,
+            HierarchicalSessionSummarizer,
+            VisualCitationExtractor,
+            CitationFactChecker,
+        )
+
+        mock_provider = MagicMock()
+        mock_provider.generate.return_value = (
+            "OOP Engine answer: Gate fidelity confirmed [Page 1, Table 1, quote: \"99.4% gate fidelity\"].",
+            {"prompt_tokens": 800, "candidates_tokens": 40}
+        )
+        mock_get_llm_provider.return_value = mock_provider
+
+        builder = PaperContextBuilder()
+        summarizer = HierarchicalSessionSummarizer()
+        extractor = VisualCitationExtractor()
+        fact_checker = CitationFactChecker()
+
+        engine = PaperChatEngine(
+            context_builder=builder,
+            summarizer=summarizer,
+            citation_extractor=extractor,
+            fact_checker=fact_checker
+        )
+
+        session = PaperChatSession.objects.create(
+            workspace=self.workspace_a,
+            paper=self.paper_a,
+            user=self.user_a,
+            title="OOP Engine Test"
+        )
+        msg = PaperChatMessage.objects.create(
+            session=session,
+            sender='user',
+            status='pending',
+            question="What is the fidelity in Table 1?",
+            deep_thinking=True
+        )
+
+        result = engine.execute(msg)
+        self.assertEqual(result['status'], 'completed')
+        self.assertTrue(result['deep_thinking'])
+        self.assertEqual(len(result['visual_citations']), 1)
+        self.assertEqual(result['visual_citations'][0]['label'], 'Table 1')
+        self.assertTrue(result['visual_citations'][0]['verified_in_source'])
+        self.assertTrue(result['hallucination_guard']['verified'])
+
+    def test_visual_citation_extractor_structured_json(self):
+        """Tests parsing structured ```json:citations blocks with bounding boxes."""
+        from research_intelligence.tasks.chat import VisualCitationExtractor
+
+        raw_llm_response = """
+Here is the analysis of the quantum architecture.
+
+```json:citations
+[
+  {
+    "page": 7,
+    "label": "Figure 4b: Energy Density vs Cycles",
+    "box_2d": [320, 150, 680, 890],
+    "quote": "Energy density reaches 520 Wh/kg"
+  }
+]
+```
+"""
+        extractor = VisualCitationExtractor()
+        cleaned_text, citations = extractor.extract(raw_llm_response)
+
+        self.assertIn("Here is the analysis of the quantum architecture.", cleaned_text)
+        self.assertNotIn("```json:citations", cleaned_text)
+        self.assertEqual(len(citations), 1)
+        self.assertEqual(citations[0]['page'], 7)
+        self.assertEqual(citations[0]['label'], "Figure 4b: Energy Density vs Cycles")
+        self.assertEqual(citations[0]['box_2d'], [320, 150, 680, 890])
+        self.assertEqual(citations[0]['quote'], "Energy density reaches 520 Wh/kg")
