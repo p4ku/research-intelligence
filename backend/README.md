@@ -1,6 +1,6 @@
 # 🐍 Schwarz Research Intelligence - Backend & FastMCP Infrastructure
 
-> **Enterprise-Grade AI Architecture for Systematic Literature Review & Deep Tech Intelligence.**  
+> **Enterprise-Grade AI Architecture for Systematic Literature Review (SLR) & Deep Tech Intelligence.**  
 > Unified backend exposing both a **FastMCP SSE Interface (Port 8001)** for LLM Agent Clients and a **Django REST API (Port 8000)** for Web Interfaces.
 
 ---
@@ -11,101 +11,101 @@ The backend uses a shared Django foundation for persistent data management, Fast
 
 ```
 backend/
-├── Dockerfile               # Unified build configuration for Django, Celery & FastMCP
-├── requirements.txt         # Core Python dependencies
-├── django_project/          # Django settings & WSGI/ASGI configuration
-│   ├── settings.py          # Environment settings (Postgres prod / SQLite tests, Storage, Sentry)
-│   └── urls.py              # Root routing table
-├── api/                     # Django REST Framework (DRF) Web Layer (/api/)
-│   ├── serializers/         # DRF Serializers (workspaces, agents, extractions, papers)
-│   └── views/               # DRF ViewSets (workspaces, agents, extractions, pipeline-runs)
-└── research_intelligence/   # Core Platform Domain Logic
-    ├── models.py            # Workspace, ResearchAgentProcess, Extraction, Paper models
-    ├── mcp/                 # FastMCP SSE Server & Tool Modules
-    │   ├── server.py        # FastMCP Server (Port 8001) & Tool Wrapper Registrations
-    │   └── tools/           # Domain business logic modules (agent_processes, workspaces, extractions)
-    ├── llm_providers/       # Pluggable LLM Drivers (Google GenAI / Gemini 3.5 & 3.6, OpenRouter)
-    ├── tasks/               # Celery Tasks & Orchestrator State Engine
-    │   ├── orchestrator/    # ResearchAgentProcess State Machine Engine (agent_engine.py)
-    │   ├── step_1_search/   # Step 1: Multi-source search & deduplication (ArXiv, OpenAlex, Lens, PubMed)
-    │   ├── step_2_download/ # Step 2: Parallel document fetch & storage
-    │   ├── step_3_ocr/      # Step 3: PDF layout parsing (PyPDF / Mistral OCR)
-    │   ├── step_4_screening/# Step 4: Isolated 2-Stage Screening (abstract.py & full_text.py)
-    │   ├── step_5_extraction/# Step 5: Schema-validated parameter extraction (extract.py)
-    │   └── step_6_metrics/  # Step 6: TRL scoring & PageRank importance metrics
-    └── tests/               # Unit & integration test suites (54+ tests running on in-memory SQLite)
+├── Dockerfile                  # Unified build for Django, Celery & FastMCP
+├── requirements.txt            # Python dependencies
+├── manage.py                   # Django CLI & test runner
+├── django_project/             # Core project configuration
+│   ├── settings.py             # Environment settings (Postgres prod / SQLite tests, Storage, Sentry)
+│   ├── urls.py                 # Root URL routing table
+│   └── celery.py               # Celery app initialization
+├── api/                        # Django REST Framework (DRF) Web Layer (/api/)
+│   ├── auth_backend.py         # WorkspaceJWTAuthentication & APIKey scope validation
+│   ├── serializers/            # DRF Serializers (workspaces, auth, agents, extractions, papers)
+│   ├── views/                  # DRF Views (auth, workspaces, agents, extractions, diagnostics)
+│   └── urls.py                 # API routing (/api/auth/, /api/workspaces/, /api/health/)
+└── research_intelligence/      # Core Platform Domain Logic
+    ├── models.py               # Workspace, Member, Paper, Extraction, ResearchAgentProcess
+    ├── mcp/                    # FastMCP SSE Server & Tool Modules
+    │   ├── server.py           # FastMCP Server (Port 8001) & Tool Wrapper Registrations
+    │   └── tools/              # Domain tool logic (agent_processes, workspaces, extractions, etc.)
+    ├── llm_providers/          # LLM Drivers (Google Vertex AI / Gemini 3.7 Flash, OpenRouter)
+    ├── ocr_providers/          # Document OCR Parsers (PyPDF, Mistral OCR, Gemini)
+    ├── tasks/                  # Celery Tasks & Orchestrator State Engine
+    │   ├── orchestrator/       # ResearchAgentProcess State Machine & DAG Runner
+    │   ├── step_1_search/      # Multi-source querying & deduplication (ArXiv, OpenAlex, Lens, PubMed)
+    │   ├── step_2_download/    # Parallel document fetch & SHA-256 PDF caching
+    │   ├── step_3_ocr/         # PDF layout parsing (skipped by default for multimodal)
+    │   ├── step_4_screening/   # 2-Stage Abstract & Multimodal Full-Text Screening
+    │   ├── step_5_extraction/  # Schema-validated JSON parameter extraction
+    │   ├── step_6_signal_score/# AST-sandboxed mathematical composite scoring
+    │   └── auxiliary/          # Email digest notifications & health monitoring
+    ├── utils/                  # Mailgun HTTP transactional emailer & sandbox
+    └── tests/                  # Complete test suite (300+ tests running on in-memory SQLite)
 ```
 
 ---
 
-## ⚙️ 2. The 5-Step Pipeline & Autonomous State Engine
+## ⚙️ 2. The 6-Step Processing Pipeline
 
-### Autonomous Research Agent State Machine (`ResearchAgentProcess`)
-
-The engine in `tasks/orchestrator/agent_engine.py` manages execution state transitions:
+The autonomous engine in `tasks/orchestrator/agent_engine.py` orchestrates the complete literature review lifecycle:
 
 ```mermaid
 graph TD
     Start([User / FastMCP Client / REST API Triggers Agent]) --> Initialized[State: initialized<br/>Creates ResearchAgentProcess & PipelineRun]
     
-    Initialized --> SearchStep[Step 1: Search & Ingestion<br/>State: search<br/>Queries scrapers & deduplicates metadata]
+    Initialized --> SearchStep[Step 1: Search & Ingestion<br/>State: search<br/>Queries ArXiv, OpenAlex, Lens, PubMed with deduplication]
     
-    SearchStep --> DownloadStep[Step 2: PDF Download<br/>State: download<br/>Fetches PDFs to unified storage]
+    SearchStep --> DownloadStep[Step 2: Parallel PDF Download<br/>State: download<br/>Fetches PDFs with global document deduplication]
     
     DownloadStep --> OCRCheck{ocr_provider configured?}
     
     OCRCheck -->|Yes: pypdf / mistral| OCRStep[Step 3: OCR Conversion<br/>State: ocr<br/>Parses layout to structured Markdown]
-    OCRCheck -->|No: ocr_provider is None| SkipOCR[Auto-Skip OCR Step<br/>Direct pass-through]
+    OCRCheck -->|No: ocr_provider is None| SkipOCR[Auto-Skip OCR Step<br/>Direct pass-through for multimodal screening]
     
     OCRStep --> AbstractScreening[Step 4A: Abstract Screening<br/>State: screening<br/>Evaluates abstract_* criteria]
     SkipOCR --> AbstractScreening
     
-    AbstractScreening --> FullTextScreening[Step 4B: Full-Text Screening<br/>State: screening<br/>Evaluates full_text_* criteria]
+    AbstractScreening --> FullTextScreening[Step 4B: Full-Text Screening<br/>State: screening<br/>Multimodal analysis of raw PDF via Gemini 3.7 Flash]
     
-    FullTextScreening --> ExtractionStep[Step 5: Parameter Extraction<br/>State: extraction<br/>Extracts Pydantic JSON & evidence quotes]
+    FullTextScreening --> ExtractionStep[Step 5: Dynamic Extraction<br/>State: extraction<br/>Schema-validated JSON parameter extraction]
     
-    ExtractionStep --> Completed([State: completed<br/>Sends summary emails to workspace members])
+    ExtractionStep --> SignalScoreStep[Step 6: Composite Signal Scoring<br/>State: scoring<br/>AST-sandboxed Python scoring formula evaluation]
     
-    subgraph Controls ["Agent Process Lifecycle Controls"]
-        PauseCommand[pause_research_agent] -.->|State: paused| AgentPaused[Process Paused]
-        AgentPaused -.-> ResumeCommand[resume_research_agent]
-        ResumeCommand -.->|Resumes active step| SearchStep
-        AbortCommand[abort_research_agent] -.->|State: aborted| AgentAborted[Process Aborted & Celery Tasks Terminated]
-    end
+    SignalScoreStep --> Completed([State: completed<br/>Transactional briefing emails via Mailgun])
 ```
 
-- **Step 1: Search & Ingestion**: Queries arXiv, OpenAlex, Lens, and PubMed concurrently. Deduplicates papers by normalized Title, DOI, and arXiv ID.
-- **Step 2: PDF Download**: Multi-threaded document download to unified storage (`papers/{hash}/paper.pdf`).
-- **Step 3: Layout OCR**: Converts PDFs into Markdown via `pypdf` local baseline or `mistral` OCR API. Automatically skipped if `workspace.ocr_provider` is unconfigured (`None`).
-- **Step 4: Structured 2-Stage Screening**:
-  - **Abstract Screening**: Evaluates title and abstract against `abstract_acceptance_criteria` and `abstract_rejection_criteria`.
-  - **Full-Text Screening**: Deep evaluation of OCR Markdown or Multimodal PDF against `full_text_acceptance_criteria` and `full_text_rejection_criteria`.
-- **Step 5: Dynamic Parameter Extraction**: Extracts parameters into `Extraction` objects with schema validation, confidence scores, evidence quotes, and validation statuses (`pass`, `warn`, `fail`).
+* **Step 1: Search & Ingestion**: Multi-source querying with title, DOI, and arXiv ID deduplication.
+* **Step 2: Parallel Download**: Multi-threaded document fetching with SHA-256 caching.
+* **Step 3: Layout OCR**: Layout Markdown parsing (skipped by default for multimodal Gemini).
+* **Step 4: Dual-Stage Screening**:
+  * **Abstract Screening**: Title & abstract against `abstract_acceptance_criteria`.
+  * **Full-Text Screening**: Multimodal deep PDF analysis against `full_text_acceptance_criteria`.
+* **Step 5: Parameter Extraction**: Schema-validated parameter extraction with evidence quotes and confidence scores.
+* **Step 6: Composite Signal Scoring**: Sandboxed mathematical formula execution (`workspace.signal_score_code`).
 
 ---
 
-## 🔌 3. FastMCP SSE Interface & REST API
+## 🔐 3. Authentication & Security Layer
 
-### FastMCP SSE Server (Port 8001)
-- Exposes workspace creation, scraper configuration, state machine controls (`start_research_agent`, `get_research_agent_status`, `pause_research_agent`, `abort_research_agent`, `delete_research_agent`), and extractions to LLM clients (Claude, Gemini, Cursor, Antigravity) via `@mcp.tool()` and `@mcp.prompt()`.
-
-### Django REST API (Port 8000)
-- Endpoints under `/api/`:
-  - `GET/POST /api/workspaces/`
-  - `GET/POST /api/agents/` (Supports `/pause/`, `/resume/`, `/abort/`)
-  - `GET/POST /api/extractions/`
-  - `GET/POST /api/pipeline-runs/`
+* **JWT Web Authentication**:
+  * `POST /api/auth/login/`: Username/email + password login generating SimpleJWT tokens.
+  * `POST /api/auth/refresh/`: Silent renewal of expired access tokens.
+  * `GET /api/auth/me/`: Returns user profile and workspace count.
+* **FastMCP Agent Authentication**:
+  * Authenticates via `APIKey` (`key_id:secret`) with granular scopes (`workspaces:read`, `workspaces:write`, `runs:read`, `runs:write`, `prompts:read`, `prompts:write`).
+* **Multi-Role Workspace Authorization**:
+  * Each workspace member has a role (`admin`, `manager`, `researcher`) enforced on REST endpoints and FastMCP tools.
 
 ---
 
-## 🧪 4. Testing & Validation Protocol
-
-All unit tests execute instantly on an in-memory SQLite database:
+## 🧪 4. Testing & Verification
 
 ```bash
-# Run all 54+ tests
-.venv/bin/python backend/manage.py test research_intelligence.tests
+# Run the complete test suite (~300+ tests in parallel)
+./run_tests.sh
 
-# Run specific task test module
-.venv/bin/python backend/manage.py test research_intelligence.tests.tasks.test_4_screening
+# Run specific test modules
+./run_tests.sh research_intelligence.tests.test_jwt_auth
+./run_tests.sh research_intelligence.tests.test_mcp_server
+./run_tests.sh research_intelligence.tests.test_multimodal_pdf_screening
 ```
