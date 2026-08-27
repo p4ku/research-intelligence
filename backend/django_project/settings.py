@@ -125,6 +125,11 @@ if not is_testing:
 
 db_host = os.environ.get('DB_HOST')
 if db_host and not is_testing:
+    db_sslmode = os.environ.get('DB_SSLMODE')
+    db_options = {}
+    if db_sslmode:
+        db_options['sslmode'] = db_sslmode
+
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.postgresql',
@@ -133,11 +138,13 @@ if db_host and not is_testing:
             'PASSWORD': os.environ.get('DB_PASSWORD', 'development_password'),
             'HOST': db_host,
             'PORT': os.environ.get('DB_PORT', '5432'),
+            'OPTIONS': db_options,
             'TEST': {
                 'NAME': ':memory:',
             }
         }
     }
+
 else:
     DATABASES = {
         'default': {
