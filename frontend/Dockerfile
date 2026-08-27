@@ -1,18 +1,26 @@
 # Use official Node.js base image
-FROM node:18-alpine
+FROM node:20-alpine
 
 # Set working directory
 WORKDIR /app
 
-# Install dependencies first (leverage Docker caching)
-COPY package*.json ./
-RUN npm install
+# Set environment variables
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copy application files
+# Install dependencies (including devDependencies required for next build)
+COPY package*.json ./
+RUN npm install --include=dev
+
+# Copy application source code
 COPY . .
 
-# Expose Next.js default port
+# Build Next.js production bundle
+RUN npm run build
+
+# Expose default port
 EXPOSE 3000
 
-# Start application in development mode
-CMD ["npm", "run", "dev"]
+# Start application in production mode
+CMD ["npm", "run", "start"]
+
