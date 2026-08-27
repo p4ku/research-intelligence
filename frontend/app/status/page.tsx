@@ -12,6 +12,9 @@ import {
   HardDrive, 
   Zap, 
   Mail, 
+  Sparkles,
+  Bot,
+  Globe,
   CheckCircle2, 
   AlertTriangle, 
   XCircle 
@@ -57,6 +60,25 @@ interface DeepHealthData {
       status: 'configured' | 'unconfigured';
       sender_domain?: string;
       api_url?: string;
+    };
+    llm_providers?: {
+      google?: {
+        status: 'online' | 'offline';
+        provider_name?: string;
+        model?: string;
+        location?: string;
+        project_id?: string;
+        service_account_email?: string;
+        latency_ms?: number;
+        sample_response?: string;
+        error?: string;
+      };
+      openrouter?: {
+        status: 'configured' | 'not_configured';
+        provider_name?: string;
+        supported_models?: string[];
+        note?: string;
+      };
     };
   };
 }
@@ -293,7 +315,7 @@ export default function StatusPage() {
             Infrastructure Diagnostics
           </h1>
           <p style={{ color: '#94a3b8', marginTop: '0.5rem', fontSize: '1.1rem' }}>
-            Real-time live health probes across Database, Redis, Celery Workers, S3 Storage, FastMCP, and Mailgun
+            Real-time live health probes across Database, Redis, Celery Workers, S3 Storage, LLM Providers, FastMCP, and Mailgun
           </p>
         </div>
 
@@ -640,6 +662,139 @@ export default function StatusPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Notification Digest:</span>
                 <strong style={{ color: '#10b981' }}>Executive Reports Ready</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* AI & LLM Model Providers Panel */}
+        <div style={{ marginBottom: '3rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+            <Sparkles size={22} color="#38bdf8" />
+            <h2 style={{ fontSize: '1.4rem', fontWeight: '700', color: '#f1f5f9', margin: 0 }}>
+              AI & LLM Model Providers
+            </h2>
+          </div>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: '1.5rem',
+          }}>
+            {/* Google Vertex AI / GenAI Subpanel */}
+            <div style={{
+              backgroundColor: '#0f172a',
+              border: '1px solid #1e293b',
+              borderRadius: '12px',
+              padding: '1.75rem',
+              position: 'relative',
+              overflow: 'hidden',
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Bot size={20} color="#38bdf8" />
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: '700', margin: 0, color: '#f8fafc' }}>Google Vertex AI</h3>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Primary Multimodal Reasoning Engine</span>
+                  </div>
+                </div>
+
+                <span style={{
+                  fontSize: '0.75rem',
+                  fontWeight: '700',
+                  padding: '0.25rem 0.625rem',
+                  borderRadius: '9999px',
+                  backgroundColor: deepHealth?.services.llm_providers?.google?.status === 'online' ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                  color: deepHealth?.services.llm_providers?.google?.status === 'online' ? '#10b981' : '#ef4444',
+                  textTransform: 'uppercase',
+                }}>
+                  {deepHealth?.services.llm_providers?.google?.status || 'CHECKING'}
+                </span>
+              </div>
+
+              <div style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Active Target Model:</span>
+                  <strong style={{ color: '#38bdf8' }}>{deepHealth?.services.llm_providers?.google?.model || 'gemini-3.7-flash'}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Data Sovereignty Region:</span>
+                  <strong style={{ color: '#e2e8f0' }}>{deepHealth?.services.llm_providers?.google?.location?.toUpperCase() || 'EU'}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Inference Latency:</span>
+                  <strong style={{ color: '#e2e8f0' }}>{deepHealth?.services.llm_providers?.google?.latency_ms ?? '-'} ms</strong>
+                </div>
+                
+                {deepHealth?.services.llm_providers?.google?.service_account_email && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Service Account:</span>
+                    <strong style={{ color: '#cbd5e1', fontSize: '0.8rem', wordBreak: 'break-all' }}>
+                      {deepHealth.services.llm_providers.google.service_account_email}
+                    </strong>
+                  </div>
+                )}
+
+                {deepHealth?.services.llm_providers?.google?.sample_response && (
+                  <div style={{ marginTop: '0.5rem', padding: '0.75rem', backgroundColor: '#030712', border: '1px solid #1f2937', borderRadius: '6px' }}>
+                    <span style={{ display: 'block', color: '#475569', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: '600', marginBottom: '0.25rem' }}>Live Verification Probe Response</span>
+                    <code style={{ color: '#34d399', fontSize: '0.8rem' }}>"{deepHealth.services.llm_providers.google.sample_response}"</code>
+                  </div>
+                )}
+
+                {deepHealth?.services.llm_providers?.google?.error && (
+                  <div style={{ marginTop: '0.5rem', padding: '0.75rem', backgroundColor: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '6px', color: '#f87171', fontSize: '0.8rem' }}>
+                    <ShieldAlert size={14} style={{ display: 'inline', marginRight: '0.375rem' }} />
+                    {deepHealth.services.llm_providers.google.error}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* OpenRouter Subpanel (Future Gateway) */}
+            <div style={{
+              backgroundColor: '#0f172a',
+              border: '1px solid #1e293b',
+              borderRadius: '12px',
+              padding: '1.75rem',
+              position: 'relative',
+              overflow: 'hidden',
+              opacity: 0.85,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Globe size={20} color="#a855f7" />
+                  <div>
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: '700', margin: 0, color: '#f8fafc' }}>OpenRouter Gateway</h3>
+                    <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>Multi-Model Fallback Gateway</span>
+                  </div>
+                </div>
+
+                <span style={{
+                  fontSize: '0.75rem',
+                  fontWeight: '700',
+                  padding: '0.25rem 0.625rem',
+                  borderRadius: '9999px',
+                  backgroundColor: deepHealth?.services.llm_providers?.openrouter?.status === 'configured' ? 'rgba(16,185,129,0.1)' : 'rgba(100,116,139,0.15)',
+                  color: deepHealth?.services.llm_providers?.openrouter?.status === 'configured' ? '#10b981' : '#94a3b8',
+                  textTransform: 'uppercase',
+                }}>
+                  {deepHealth?.services.llm_providers?.openrouter?.status === 'configured' ? 'CONFIGURED' : 'STANDBY'}
+                </span>
+              </div>
+
+              <div style={{ fontSize: '0.85rem', color: '#94a3b8', display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Supported Targets:</span>
+                  <strong style={{ color: '#cbd5e1' }}>Claude 3.5 Sonnet, DeepSeek R1</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Integration Status:</span>
+                  <strong style={{ color: '#94a3b8' }}>Secondary Provider (Planned)</strong>
+                </div>
+                <p style={{ margin: '0.5rem 0 0 0', fontSize: '0.8rem', color: '#64748b', lineHeight: '1.4' }}>
+                  OpenRouter will provide redundant multi-cloud routing across Anthropic and open-weights models once enabled.
+                </p>
               </div>
             </div>
           </div>

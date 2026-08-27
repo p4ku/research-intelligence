@@ -252,6 +252,61 @@ class HealthCheckView(APIView):
             "api_url": getattr(settings, "MAILGUN_API_URL", "https://api.eu.mailgun.net/v3"),
         }
 
+        # 6. LLM Providers Diagnostics
+        llm_providers = {}
+        google_start = time.perf_counter()
+        sa_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
+        sa_email = None
+        sa_project = None
+        if sa_json:
+            try:
+                import json
+                parsed_sa = json.loads(sa_json)
+                sa_email = parsed_sa.get("client_email")
+                sa_project = parsed_sa.get("project_id")
+            except Exception:
+                pass
+
+        try:
+            from research_intelligence.llm_providers.google import GoogleAgentAPIProvider
+            provider = GoogleAgentAPIProvider(location="eu")
+            # Quick validation prompt
+            test_resp = provider.generate("Reply with 'OK' only.", model="gemini-3.7-flash")
+            google_latency = round((time.perf_counter() - google_start) * 1000, 2)
+            llm_providers["google"] = {
+                "status": "online",
+                "provider_name": "Google Vertex AI / GenAI",
+                "model": "gemini-3.7-flash",
+                "location": getattr(provider, "location", "eu"),
+                "project_id": getattr(provider, "project_id", sa_project),
+                "service_account_email": sa_email,
+                "latency_ms": google_latency,
+                "sample_response": str(test_resp).strip()[:100],
+            }
+        except Exception as e:
+            google_latency = round((time.perf_counter() - google_start) * 1000, 2)
+            llm_providers["google"] = {
+                "status": "offline",
+                "provider_name": "Google Vertex AI / GenAI",
+                "model": "gemini-3.7-flash",
+                "location": "eu",
+                "project_id": sa_project,
+                "service_account_email": sa_email,
+                "latency_ms": google_latency,
+                "error": str(e),
+            }
+
+        # OpenRouter (Multi-model Gateway - planned)
+        openrouter_key = os.environ.get("OPENROUTER_API_KEY") or getattr(settings, "OPENROUTER_API_KEY", None)
+        llm_providers["openrouter"] = {
+            "status": "configured" if bool(openrouter_key and openrouter_key != "mock-openrouter-key") else "not_configured",
+            "provider_name": "OpenRouter Gateway",
+            "supported_models": ["anthropic/claude-3.5-sonnet", "deepseek/deepseek-r1", "openai/o3-mini"],
+            "note": "Multi-provider LLM gateway fallback",
+        }
+
+        services["llm_providers"] = llm_providers
+
         http_status = status.HTTP_200_OK if overall_status == "online" else status.HTTP_207_MULTI_STATUS
 
         return Response(
@@ -262,4 +317,5 @@ class HealthCheckView(APIView):
             },
             status=http_status
         )
+
 
