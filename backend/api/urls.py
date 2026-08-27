@@ -11,7 +11,7 @@ from .views.scrapers import ScraperViewSet
 from .views.papers import PaperViewSet
 from .views.extractions import ExtractionViewSet
 from .views.hitl import HITLViewSet
-from .views.chat import ChatViewSet
+from .views.chat import ChatSubmitView, ChatMessageDetailView, PaperChatSessionViewSet
 from .views.reports import ReportViewSet
 from .views.agents import ResearchAgentViewSet
 from .views.pipeline_runs import PipelineRunViewSet, ComponentRunViewSet
@@ -28,7 +28,7 @@ router.register(r'scrapers', ScraperViewSet, basename='scraper')
 router.register(r'papers', PaperViewSet, basename='paper')
 router.register(r'extractions', ExtractionViewSet, basename='extraction')
 router.register(r'hitl', HITLViewSet, basename='hitl')
-router.register(r'chat', ChatViewSet, basename='chat')
+router.register(r'chat/sessions', PaperChatSessionViewSet, basename='chat-session')
 router.register(r'reports', ReportViewSet, basename='report')
 router.register(r'activity-logs', UserActivityLogViewSet, basename='activity-log')
 
@@ -47,6 +47,10 @@ urlpatterns = [
     path('auth/change-password/', ChangePasswordView.as_view(), name='user-change-password'),
     path('health/', HealthCheckView.as_view(), name='health-check'),
     path('health/diagnostics/', DeepDiagnosticsView.as_view(), name='deep-diagnostics'),
+
+    # Interactive Paper Chat & Knowledge Explorer
+    path('chat/', ChatSubmitView.as_view(), name='chat-submit'),
+    path('chat/messages/<uuid:message_id>/', ChatMessageDetailView.as_view(), name='chat-message-detail'),
 
     # REST ViewSets
     path('', include(router.urls)),

@@ -54,8 +54,10 @@ from .document_registry import get_document_registry_stats_logic
 from .llm_test import test_google_llm_logic
 from .activity_logs import list_user_activity_logs_logic
 from .email_reports import send_pipeline_run_digest_email_logic
+from .chat import ask_paper_logic
 
 __all__ = [
+    "ask_paper_logic",
     "get_document_registry_stats_logic",
     "list_workspaces_logic",
     "get_workspace_logic",

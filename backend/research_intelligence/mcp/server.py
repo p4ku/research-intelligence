@@ -93,6 +93,7 @@ from research_intelligence.mcp.tools import (
     test_google_llm_logic,
     list_user_activity_logs_logic,
     send_pipeline_run_digest_email_logic,
+    ask_paper_logic,
 )
 
 
@@ -1500,6 +1501,41 @@ def send_pipeline_run_digest_email(
     except Exception as e:
         return str(e)
     return send_pipeline_run_digest_email_logic(user, workspace_id, pipeline_run_id, recipient_override, async_dispatch)
+
+
+# --- Interactive Knowledge Explorer & Paper Chat Tools ---
+
+@mcp.tool()
+@with_db_connection
+def ask_paper(
+    workspace_id: str,
+    paper_id: str,
+    question: str,
+    session_id: str | None = None
+) -> str:
+    """
+    [INTERACTIVE Q&A - KNOWLEDGE EXPLORER]
+    Interrogates an ingested academic paper with multi-turn scientific reasoning using the workspace LLM (Gemini 3.7 Flash).
+    
+    CONTEXT AUTOMATICALLY INJECTED:
+    - Full document content (Layout OCR Markdown or multimodal PDF binary).
+    - SLR screening evaluation (decision category, acceptance/rejection reasoning).
+    - Dynamic research extractions (extracted claims, parameters, confidence scores, HITL validation).
+    - Mathematical signal scoring details & workspace formula.
+    - Preceding conversation turns (if session_id provided).
+    
+    PARAMETERS:
+    - workspace_id: Target workspace UUID.
+    - paper_id: Target Paper UUID.
+    - question: Research question or instruction.
+    - session_id: Optional UUID of an existing conversation session to continue.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:read")
+    except Exception as e:
+        return str(e)
+    return ask_paper_logic(user, workspace_id, paper_id, question, session_id)
 
 
 def create_app():
