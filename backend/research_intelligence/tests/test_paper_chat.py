@@ -127,17 +127,75 @@ class PaperChatTestCase(TestCase):
         if self.paper_a.converted_md_path and default_storage.exists(self.paper_a.converted_md_path):
             default_storage.delete(self.paper_a.converted_md_path)
 
-    def test_build_paper_context(self):
-        """Verifies that full OCR markdown, screening rationale, extractions, and signal score are gathered."""
+    def test_build_paper_context_full_data(self):
+        """Verifies that full OCR markdown, screening rationale, extractions, and signal score are gathered when all data is present."""
         context_text, pdf_bytes, mime_type = build_paper_context(self.paper_a)
         
         self.assertIn("Scalable Quantum Circuit Compilation", context_text)
+        self.assertIn("Authors: A. Lovelace, C. Babbage", context_text)
+        self.assertIn("DOI: 10.1038/s41586-024-0001-x", context_text)
+        self.assertIn("arXiv ID: 2405.00001", context_text)
         self.assertIn("99.4% gate fidelity", context_text)
         self.assertIn("128-qubit", context_text)
         self.assertIn("Demonstrates empirical 128-qubit compilation", context_text)
         self.assertIn("Qubit Benchmark Metrics", context_text)
         self.assertIn("Composite Signal Score: 8.5", context_text)
         self.assertIn("score = 0.5 * trl_level", context_text)
+        self.assertIsNone(pdf_bytes)
+
+    def test_build_paper_context_minimal_missing_data(self):
+        """Verifies that when data is missing (no OCR, no PDF, no extractions, no metrics, no criteria), empty sections are completely omitted."""
+        ws_empty = Workspace.objects.create(name="Bare Workspace")
+        paper_minimal = Paper.objects.create(
+            workspace=ws_empty,
+            pipeline_run=self.run_a,
+            hash_id="sha256_minimal_002",
+            title="Minimalist Research Paper",
+            abstract="Short abstract about minimalist theory."
+        )
+
+        context_text, pdf_bytes, mime_type = build_paper_context(paper_minimal)
+
+        self.assertIn("Title: Minimalist Research Paper", context_text)
+        self.assertIn("Short abstract about minimalist theory.", context_text)
+        self.assertIsNone(pdf_bytes)
+        self.assertIsNone(mime_type)
+
+        # Confirm omitted sections (no noise or empty placeholder headers)
+        self.assertNotIn("Authors:", context_text)
+        self.assertNotIn("DOI:", context_text)
+        self.assertNotIn("arXiv ID:", context_text)
+        self.assertNotIn("Full Document Text", context_text)
+        self.assertNotIn("SLR Screening Evaluation", context_text)
+        self.assertNotIn("Extracted Research Parameters", context_text)
+        self.assertNotIn("Computed Quality & Signal Metrics", context_text)
+        self.assertNotIn("None recorded", context_text)
+        self.assertNotIn("N/A", context_text)
+
+    def test_build_paper_context_multimodal_pdf(self):
+        """Verifies multimodal PDF binary loading when layout markdown is not available."""
+        pdf_storage_path = f"workspaces/{self.workspace_a.id}/runs/{self.run_a.id}/documents/raw_pdf_003/original.pdf"
+        dummy_pdf_content = b"%PDF-1.4 Mock binary content for multimodal Gemini testing"
+        default_storage.save(pdf_storage_path, ContentFile(dummy_pdf_content))
+
+        paper_pdf = Paper.objects.create(
+            workspace=self.workspace_a,
+            pipeline_run=self.run_a,
+            hash_id="sha256_raw_pdf_003",
+            title="Multimodal PDF Paper",
+            abstract="Testing multimodal fallback.",
+            original_pdf_path=pdf_storage_path
+        )
+
+        try:
+            context_text, pdf_bytes, mime_type = build_paper_context(paper_pdf)
+            self.assertIn("Multimodal PDF Paper", context_text)
+            self.assertIn("Full Document Binary: Attached as native multimodal PDF.", context_text)
+            self.assertEqual(pdf_bytes, dummy_pdf_content)
+            self.assertEqual(mime_type, "application/pdf")
+        finally:
+            if default_storage.exists(pdf_storage_path):
+                default_storage.delete(pdf_storage_path)
 
     @patch("research_intelligence.tasks.chat.engine.get_llm_provider")
     def test_async_chat_and_polling_flow(self, mock_get_llm_provider):

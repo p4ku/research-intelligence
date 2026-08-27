@@ -20,27 +20,31 @@ logger = logging.getLogger(__name__)
 
 def build_paper_context(paper: Paper) -> tuple[str, bytes | None, str | None]:
     """
-    Builds structured paper context for LLM prompt:
-    1. Full document text (OCR Markdown if available, or raw PDF bytes for multimodal Gemini, or abstract).
-    2. Screening decision & reasoning.
-    3. All extracted parameters & evidence quotes.
-    4. Paper metrics & signal scoring details.
+    Builds structured, concise paper context for LLM prompt:
+    1. Metadata: Only present, non-empty attributes.
+    2. Full document text: OCR Markdown if available, or raw PDF bytes for multimodal Gemini, or abstract.
+    3. Screening evaluation: Only if evaluated or criteria defined.
+    4. Extracted parameters: Only included if extractions exist (omits empty placeholder headers).
+    5. Quality metrics & signal scores: Only included if metrics or score exist (omits empty placeholder headers).
     
     Returns (context_text, pdf_bytes, mime_type).
     """
     workspace = paper.workspace
     context_sections = []
 
-    # 1. Basic Metadata
-    meta_block = f"""### Paper Metadata
-- Title: {paper.title}
-- Authors: {paper.authors or 'N/A'}
-- DOI: {paper.doi or 'N/A'}
-- arXiv ID: {paper.arxiv_id or 'N/A'}
-- Source: {paper.source_database or 'N/A'}
-- Ingestion Run: {paper.pipeline_run_id}
-"""
-    context_sections.append(meta_block)
+    # 1. Basic Metadata (Only non-empty fields)
+    meta_lines = ["### Paper Metadata", f"- Title: {paper.title}"]
+    if paper.authors and paper.authors.strip():
+        meta_lines.append(f"- Authors: {paper.authors.strip()}")
+    if paper.doi and paper.doi.strip():
+        meta_lines.append(f"- DOI: {paper.doi.strip()}")
+    if paper.arxiv_id and paper.arxiv_id.strip():
+        meta_lines.append(f"- arXiv ID: {paper.arxiv_id.strip()}")
+    if paper.source_database and paper.source_database.strip():
+        meta_lines.append(f"- Source: {paper.source_database.strip()}")
+    if paper.pipeline_run_id:
+        meta_lines.append(f"- Ingestion Run: {paper.pipeline_run_id}")
+    context_sections.append("\n".join(meta_lines))
 
     # 2. Document Content (OCR Markdown vs Multimodal PDF vs Abstract)
     pdf_bytes = None
@@ -53,8 +57,8 @@ def build_paper_context(paper: Paper) -> tuple[str, bytes | None, str | None]:
                 md_text = f.read()
                 if isinstance(md_text, bytes):
                     md_text = md_text.decode('utf-8', errors='replace')
-                if md_text and len(md_text.strip()) > 100:
-                    context_sections.append(f"### Full Document Text (Layout OCR Markdown):\n{md_text}")
+                if md_text and len(md_text.strip()) > 50:
+                    context_sections.append(f"### Full Document Text (Layout OCR Markdown):\n{md_text.strip()}")
                     has_md = True
         except Exception as e:
             logger.warning(f"Could not read OCR Markdown at '{paper.converted_md_path}': {e}")
@@ -68,19 +72,28 @@ def build_paper_context(paper: Paper) -> tuple[str, bytes | None, str | None]:
         except Exception as e:
             logger.warning(f"Could not read PDF binary at '{paper.original_pdf_path}': {e}")
 
-    if not has_md and not pdf_bytes:
-        context_sections.append(f"### Abstract:\n{paper.abstract}")
+    if not has_md and not pdf_bytes and paper.abstract and paper.abstract.strip():
+        context_sections.append(f"### Abstract:\n{paper.abstract.strip()}")
 
-    # 3. SLR Screening Pipeline Results
-    screening_block = f"""### SLR Screening Evaluation
-- Status: {paper.screening_status}
-- Reasoning: {paper.screening_reasoning or 'N/A'}
-- Workspace Acceptance Criteria: {workspace.get_full_text_acceptance_criteria() or workspace.get_abstract_acceptance_criteria() or 'N/A'}
-- Workspace Rejection Criteria: {workspace.get_full_text_rejection_criteria() or workspace.get_abstract_rejection_criteria() or 'N/A'}
-"""
-    context_sections.append(screening_block)
+    # 3. SLR Screening Pipeline Results (Only if evaluated or criteria present)
+    screening_lines = []
+    if paper.screening_status and paper.screening_status != 'pending':
+        screening_lines.append(f"- Status: {paper.screening_status}")
+    if paper.screening_reasoning and paper.screening_reasoning.strip():
+        screening_lines.append(f"- Reasoning: {paper.screening_reasoning.strip()}")
 
-    # 4. Extracted Parameters & Claims Matrix
+    crit_acc = workspace.get_full_text_acceptance_criteria() or workspace.get_abstract_acceptance_criteria()
+    if crit_acc and crit_acc.strip():
+        screening_lines.append(f"- Workspace Acceptance Criteria: {crit_acc.strip()}")
+
+    crit_rej = workspace.get_full_text_rejection_criteria() or workspace.get_abstract_rejection_criteria()
+    if crit_rej and crit_rej.strip():
+        screening_lines.append(f"- Workspace Rejection Criteria: {crit_rej.strip()}")
+
+    if screening_lines:
+        context_sections.append("### SLR Screening Evaluation\n" + "\n".join(screening_lines))
+
+    # 4. Extracted Parameters & Claims Matrix (Only if extractions exist)
     extractions = Extraction.objects.filter(paper=paper).select_related('extraction_definition')
     if extractions.exists():
         ext_lines = ["### Extracted Research Parameters & Evidence:"]
@@ -88,24 +101,28 @@ def build_paper_context(paper: Paper) -> tuple[str, bytes | None, str | None]:
             def_name = ext.extraction_definition.name if ext.extraction_definition else ext.category
             ext_lines.append(f"#### Definition: {def_name}")
             ext_lines.append(f"- Fields Data: {json.dumps(ext.fields_data, indent=2)}")
-            ext_lines.append(f"- Validation Status: {ext.validation_status} (HITL Validated: {ext.is_hitl_validated})")
+            if ext.validation_status and ext.validation_status != 'pending':
+                ext_lines.append(f"- Validation Status: {ext.validation_status} (HITL Validated: {ext.is_hitl_validated})")
         context_sections.append("\n".join(ext_lines))
-    else:
-        context_sections.append("### Extracted Parameters: None recorded for this paper yet.")
 
-    # 5. Composite Metrics & Signal Score
+    # 5. Composite Metrics & Signal Score (Only if score, details, or metrics exist)
     metrics = PaperMetric.objects.filter(paper=paper)
-    metrics_lines = ["### Computed Quality & Signal Metrics:"]
+    metrics_lines = []
     if paper.signal_score is not None:
         metrics_lines.append(f"- Composite Signal Score: {paper.signal_score}")
     if paper.signal_score_details:
         metrics_lines.append(f"- Signal Score Calculation Details: {json.dumps(paper.signal_score_details, indent=2)}")
-    if workspace.signal_score_code:
+    if workspace.signal_score_code and (paper.signal_score is not None or metrics.exists()):
         metrics_lines.append(f"- Workspace Signal Score Formula:\n```python\n{workspace.signal_score_code}\n```")
     for m in metrics:
         if m.metrics_data:
             metrics_lines.append(f"- Run Metrics: {json.dumps(m.metrics_data, indent=2)}")
-    context_sections.append("\n".join(metrics_lines))
+
+    if metrics_lines:
+        context_sections.append("### Computed Quality & Signal Metrics:\n" + "\n".join(metrics_lines))
+
+    full_context_text = "\n\n".join(context_sections)
+    return full_context_text, pdf_bytes, mime_type
 
     full_context_text = "\n\n".join(context_sections)
     return full_context_text, pdf_bytes, mime_type
