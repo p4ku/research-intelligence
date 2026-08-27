@@ -16,7 +16,7 @@ from .views.reports import ReportViewSet
 from .views.agents import ResearchAgentViewSet
 from .views.pipeline_runs import PipelineRunViewSet, ComponentRunViewSet
 from .views.activity_logs import UserActivityLogViewSet
-from .views.auth import LoginView, TokenRefreshView, UserProfileView
+from .views.auth import LoginView, TokenRefreshView, UserProfileView, ChangePasswordView
 from .views.diagnostics import HealthCheckView, DeepDiagnosticsView
 
 router = DefaultRouter()
@@ -39,10 +39,12 @@ urlpatterns = [
     path('swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-alias'),
     path('redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
 
-    # Authentication & Diagnostics
+    # Authentication & User Profile Self-Management
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='refresh-token'),
     path('auth/me/', UserProfileView.as_view(), name='user-profile'),
+    path('auth/me/password/', ChangePasswordView.as_view(), name='user-change-password-alias'),
+    path('auth/change-password/', ChangePasswordView.as_view(), name='user-change-password'),
     path('health/', HealthCheckView.as_view(), name='health-check'),
     path('health/diagnostics/', DeepDiagnosticsView.as_view(), name='deep-diagnostics'),
 

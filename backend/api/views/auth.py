@@ -9,7 +9,12 @@ from rest_framework_simplejwt.exceptions import InvalidToken
 
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
-from ..serializers.auth import LoginSerializer, UserProfileSerializer
+from ..serializers.auth import (
+    LoginSerializer,
+    UserProfileSerializer,
+    UpdateProfileSerializer,
+    ChangePasswordSerializer,
+)
 from research_intelligence.models import APIKey, WorkspaceMember
 
 
@@ -130,7 +135,8 @@ class LoginView(APIView):
 
 class UserProfileView(APIView):
     """
-    Returns the authenticated user's profile and workspace membership summary.
+    Retrieves or updates the authenticated user's profile metadata (username, email, first_name, last_name).
+    Users can only view and edit their own account profile.
     """
     permission_classes = [permissions.IsAuthenticated]
 
@@ -149,6 +155,87 @@ class UserProfileView(APIView):
         memberships = WorkspaceMember.objects.filter(user=user).select_related('workspace')
         profile_data['workspaces_count'] = memberships.count() if not user.is_superuser else None
         return Response(profile_data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        request=UpdateProfileSerializer,
+        responses={
+            200: UserProfileSerializer,
+            400: OpenApiResponse(description="Validation error (e.g. username/email already taken)"),
+            401: OpenApiResponse(description="Unauthorized"),
+        },
+        tags=['Authentication']
+    )
+    def patch(self, request, *args, **kwargs):
+        serializer = UpdateProfileSerializer(data=request.data, partial=True, context={'request': request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        validated = serializer.validated_data
+
+        if 'username' in validated:
+            user.username = validated['username']
+        if 'email' in validated:
+            user.email = validated['email']
+        if 'first_name' in validated:
+            user.first_name = validated['first_name']
+        if 'last_name' in validated:
+            user.last_name = validated['last_name']
+
+        user.save()
+        return Response(UserProfileSerializer(user).data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        request=UpdateProfileSerializer,
+        responses={
+            200: UserProfileSerializer,
+            400: OpenApiResponse(description="Validation error"),
+            401: OpenApiResponse(description="Unauthorized"),
+        },
+        tags=['Authentication']
+    )
+    def put(self, request, *args, **kwargs):
+        return self.patch(request, *args, **kwargs)
+
+
+class ChangePasswordView(APIView):
+    """
+    Allows the authenticated user to change their account password.
+    Requires providing and verifying the current old password.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        request=ChangePasswordSerializer,
+        responses={
+            200: OpenApiResponse(description="Password changed successfully"),
+            400: OpenApiResponse(description="Invalid old password or mismatched confirmation"),
+            401: OpenApiResponse(description="Unauthorized"),
+        },
+        tags=['Authentication']
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        old_password = serializer.validated_data['old_password']
+        new_password = serializer.validated_data['new_password']
+
+        if not user.check_password(old_password):
+            return Response(
+                {"old_password": ["Current password is incorrect."]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user.set_password(new_password)
+        user.save()
+
+        return Response(
+            {"message": "Password changed successfully."},
+            status=status.HTTP_200_OK
+        )
 
 
 class WorkspaceTokenRefreshSerializer(serializers.Serializer):
