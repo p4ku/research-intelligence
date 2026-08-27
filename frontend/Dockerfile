@@ -15,7 +15,11 @@ RUN npm install --include=dev
 # Copy application source code
 COPY . .
 
-# Build Next.js production bundle
+# Accept dynamic build ID from CI/CD to bust Docker build cache and asset hashes
+ARG BUILD_ID=local
+ENV NEXT_PUBLIC_BUILD_ID=$BUILD_ID
+
+# Build Next.js production bundle with unique build ID
 RUN npm run build
 
 # Expose default port
@@ -23,4 +27,3 @@ EXPOSE 3000
 
 # Start application in production mode
 CMD ["npm", "run", "start"]
-

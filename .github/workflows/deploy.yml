@@ -52,6 +52,8 @@ jobs:
         with:
           context: ./frontend
           push: true
+          build-args: |
+            BUILD_ID=${{ github.sha }}
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
             ${{ env.FRONTEND_IMAGE }}:latest
