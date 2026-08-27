@@ -63,6 +63,8 @@ INSTALLED_APPS = [
     
     # Third-party Applications
     'rest_framework',
+    'drf_spectacular',
+    'drf_spectacular_sidecar',
     
     # Internal Modular Applications
     'api',
@@ -212,6 +214,23 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Schwarz Research Intelligence REST API',
+    'DESCRIPTION': 'Enterprise Systematic Literature Review (SLR), Deep-Tech Scouting, and Multimodal Extraction Platform API.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'SWAGGER_UI_DIST': 'SIDECAR',
+    'SWAGGER_UI_FAVICON_HREF': 'SIDECAR',
+    'REDOC_DIST': 'SIDECAR',
+    'SWAGGER_UI_SETTINGS': {
+        'deepLinking': True,
+        'persistAuthorization': True,
+        'displayOperationId': True,
+        'filter': True,
+    },
 }
 
 from datetime import timedelta

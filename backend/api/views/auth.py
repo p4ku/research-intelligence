@@ -7,6 +7,8 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import InvalidToken
 
+from drf_spectacular.utils import extend_schema, OpenApiResponse
+
 from ..serializers.auth import LoginSerializer, UserProfileSerializer
 from research_intelligence.models import APIKey, WorkspaceMember
 
@@ -21,6 +23,15 @@ class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
 
+    @extend_schema(
+        request=LoginSerializer,
+        responses={
+            200: OpenApiResponse(description="Successful authentication returning access & refresh tokens"),
+            400: OpenApiResponse(description="Invalid request payload"),
+            401: OpenApiResponse(description="Invalid credentials or inactive user account"),
+        },
+        tags=['Authentication']
+    )
     def post(self, request, *args, **kwargs):
         serializer = LoginSerializer(data=request.data)
         if not serializer.is_valid():
@@ -123,6 +134,13 @@ class UserProfileView(APIView):
     """
     permission_classes = [permissions.IsAuthenticated]
 
+    @extend_schema(
+        responses={
+            200: UserProfileSerializer,
+            401: OpenApiResponse(description="Unauthorized - Token missing or expired"),
+        },
+        tags=['Authentication']
+    )
     def get(self, request, *args, **kwargs):
         user = request.user
         profile_data = UserProfileSerializer(user).data
@@ -134,8 +152,8 @@ class UserProfileView(APIView):
 
 
 class WorkspaceTokenRefreshSerializer(serializers.Serializer):
-    refresh = serializers.CharField(required=True)
-    access = serializers.CharField(read_only=True)
+    refresh = serializers.CharField(required=True, help_text="Valid SimpleJWT refresh token")
+    access = serializers.CharField(read_only=True, help_text="New access JWT token")
 
     def validate(self, attrs):
         try:
@@ -153,6 +171,14 @@ class TokenRefreshView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
 
+    @extend_schema(
+        request=WorkspaceTokenRefreshSerializer,
+        responses={
+            200: WorkspaceTokenRefreshSerializer,
+            401: OpenApiResponse(description="Invalid or expired refresh token"),
+        },
+        tags=['Authentication']
+    )
     def post(self, request, *args, **kwargs):
         serializer = WorkspaceTokenRefreshSerializer(data=request.data)
         if serializer.is_valid():

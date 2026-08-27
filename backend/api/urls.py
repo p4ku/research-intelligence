@@ -1,5 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
+
 from .views.workspaces import WorkspaceViewSet
 from .views.scrapers import ScraperViewSet
 from .views.papers import PaperViewSet
@@ -24,12 +30,19 @@ router.register(r'agents', ResearchAgentViewSet, basename='agent')
 router.register(r'activity-logs', UserActivityLogViewSet, basename='activity-log')
 
 urlpatterns = [
+    # OpenAPI 3.0 & Swagger UI
+    path('schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
+    path('swagger/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-alias'),
+    path('redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
+
+    # Authentication & Diagnostics
     path('auth/login/', LoginView.as_view(), name='login'),
     path('auth/refresh/', TokenRefreshView.as_view(), name='refresh-token'),
     path('auth/me/', UserProfileView.as_view(), name='user-profile'),
     path('health/', HealthCheckView.as_view(), name='health-check'),
     path('health/diagnostics/', DeepDiagnosticsView.as_view(), name='deep-diagnostics'),
+
+    # REST ViewSets
     path('', include(router.urls)),
 ]
-
-

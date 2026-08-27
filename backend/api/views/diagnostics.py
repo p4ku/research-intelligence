@@ -199,6 +199,9 @@ def probe_llm_providers() -> dict:
     return llm_providers
 
 
+from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
+
+
 PROBE_FUNCTIONS = {
     "database": probe_database,
     "redis": probe_redis,
@@ -217,6 +220,12 @@ class HealthCheckView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="API service is live and responsive"),
+        },
+        tags=['Health & Diagnostics']
+    )
     def get(self, request, *args, **kwargs):
         return Response(
             {
@@ -238,6 +247,22 @@ class DeepDiagnosticsView(APIView):
     permission_classes = [AllowAny]
     authentication_classes = []
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name='service',
+                type=str,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Target specific subsystem probe (database, redis, celery, storage, mailgun, llm_providers)"
+            )
+        ],
+        responses={
+            200: OpenApiResponse(description="Infrastructure health diagnostics result"),
+            503: OpenApiResponse(description="One or more critical subsystems are offline"),
+        },
+        tags=['Health & Diagnostics']
+    )
     def get(self, request, *args, **kwargs):
         service_filter = request.query_params.get("service")
         

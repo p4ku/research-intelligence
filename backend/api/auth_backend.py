@@ -1,6 +1,7 @@
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework.exceptions import AuthenticationFailed
 from django.contrib.auth.models import User
+from drf_spectacular.extensions import OpenApiAuthenticationExtension
 
 
 class WorkspaceJWTAuthentication(JWTAuthentication):
@@ -30,3 +31,18 @@ class WorkspaceJWTAuthentication(JWTAuthentication):
         user._workspace_id = workspace_id
         return user
 
+
+class WorkspaceJWTAuthenticationScheme(OpenApiAuthenticationExtension):
+    """
+    OpenAPI authentication schema extension for WorkspaceJWTAuthentication.
+    """
+    target_class = 'api.auth_backend.WorkspaceJWTAuthentication'
+    name = 'jwtAuth'
+
+    def get_security_definition(self, auto_schema):
+        return {
+            'type': 'http',
+            'scheme': 'bearer',
+            'bearerFormat': 'JWT',
+            'description': 'Enter JWT Bearer token obtained from /api/auth/login/',
+        }
