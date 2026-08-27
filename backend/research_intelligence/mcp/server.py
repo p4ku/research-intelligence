@@ -1514,21 +1514,34 @@ def ask_paper(
     session_id: str | None = None
 ) -> str:
     """
-    [INTERACTIVE Q&A - KNOWLEDGE EXPLORER]
-    Interrogates an ingested academic paper with multi-turn scientific reasoning using the workspace LLM (Gemini 3.7 Flash).
+    [INTERACTIVE Q&A - KNOWLEDGE EXPLORER / ASK PAPER]
+    Interrogates an ingested academic paper with deep scientific reasoning using the workspace LLM (Google Gemini 3.7 Flash).
     
-    CONTEXT AUTOMATICALLY INJECTED:
-    - Full document content (Layout OCR Markdown or multimodal PDF binary).
-    - SLR screening evaluation (decision category, acceptance/rejection reasoning).
-    - Dynamic research extractions (extracted claims, parameters, confidence scores, HITL validation).
-    - Mathematical signal scoring details & workspace formula.
-    - Preceding conversation turns (if session_id provided).
+    WHEN TO USE:
+    - Use when the researcher or agent needs to examine a specific paper, verify experimental methodology, analyze claims,
+      clarify why the SLR pipeline accepted or rejected it, or deep-dive into computed composite signal scores and extracted parameters.
+    
+    WORKFLOW & USAGE PATTERN FOR AI CLIENTS:
+    1. Locate the target paper's UUID via `list_papers(workspace_id)`.
+    2. Turn 1 (Start session): Call `ask_paper(workspace_id, paper_id, question)`.
+       The JSON response returns a unique `session_id`.
+    3. Turn 2+ (Continue dialogue): Pass the returned `session_id` in subsequent calls to maintain conversational memory and multi-turn context.
+    
+    AUTOMATICALLY INJECTED SCIENTIFIC CONTEXT:
+    - Full Document Content: Layout OCR Markdown or native multimodal PDF binary from storage.
+    - SLR Screening Decision: Status (`screening_status`), decision rationale (`screening_reasoning`), and workspace acceptance/rejection criteria.
+    - Parameter Extraction Matrix: All extracted parameter definitions, JSON values, evidence quotes, and HITL validation flags.
+    - Composite Signal Score: Calculated score (`paper.signal_score`), audit details (`signal_score_details`), and the sandboxed Python formula (`workspace.signal_score_code`).
+    - Multi-Turn History: All preceding questions and answers within the conversation thread.
     
     PARAMETERS:
     - workspace_id: Target workspace UUID.
-    - paper_id: Target Paper UUID.
-    - question: Research question or instruction.
-    - session_id: Optional UUID of an existing conversation session to continue.
+    - paper_id: Target Paper UUID to interrogate.
+    - question: Detailed research question or instruction.
+    - session_id: (Optional) UUID of an existing conversation session to continue. Omit to start a new session.
+    
+    OUTPUT:
+    JSON string containing `{ "status": "completed", "session_id": "...", "message_id": "...", "paper_id": "...", "paper_title": "...", "answer": "...", "citations": [...], "tokens_in": int, "tokens_out": int, "usd_cost": float }`.
     """
     try:
         user, workspace, api_key = get_auth_context()

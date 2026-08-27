@@ -194,7 +194,12 @@ It orchestrates a 6-step processing pipeline:
 | `get_paper_extractions_matrix` | `workspaces:read` | **Primary Tool for Results & Scorecards**: Aggregates all accepted papers with their extracted parameters, exit metrics, and justifications in a single call. |
 | `get_extraction` | `workspaces:read` | Returns single extraction record with evidence quotes and confidence score. |
 
-#### 6. Diagnostics & Audit (`tools/llm_test.py`, `tools/activity_logs.py`, `tools/document_registry.py`)
+#### 6. Interactive Knowledge Explorer & Paper Chat (`tools/chat.py`)
+| Tool Name | Scope | Description |
+| :--- | :--- | :--- |
+| `ask_paper` | `workspaces:read` | **Interactive Paper Q&A**: Interrogates an ingested paper with multi-turn scientific reasoning using the workspace LLM. Injects full PDF/OCR text, screening decisions, extraction parameters, and signal scoring formulas. Supports persistent `session_id`. |
+
+#### 7. Diagnostics & Audit (`tools/llm_test.py`, `tools/activity_logs.py`, `tools/document_registry.py`)
 | Tool Name | Scope | Description |
 | :--- | :--- | :--- |
 | `get_document_registry_stats` | `workspaces:read` | Returns global cache efficiency, bandwidth saved, total cached documents, and top reused papers. |
@@ -204,11 +209,15 @@ It orchestrates a 6-step processing pipeline:
 ---
 
 ### REST API Endpoints (`/api/`)
+- `POST /api/chat/` (Asynchronous Paper Q&A with 202 Accepted & Celery background worker, or `?sync=true`)
+- `GET /api/chat/messages/{id}/` (Polling status, answer, and citations for a chat turn)
+- `GET /api/chat/sessions/`, `GET /api/chat/sessions/{id}/`, `DELETE /api/chat/sessions/{id}/` (Multi-turn session management)
 - `GET /api/workspaces/`, `POST /api/workspaces/`
 - `GET /api/agents/`, `POST /api/agents/` (Supports `/pause/`, `/resume/`, `/abort/`)
 - `GET /api/extractions/`, `POST /api/extractions/`
 - `GET /api/pipeline-runs/`, `POST /api/pipeline-runs/`
 - `GET /admin/storage-browser/` (Admin Django Storage Browser with timestamps & sizes)
+- `GET /api/docs/` (Swagger UI with OpenAPI 3.0 Interactive Test Explorer)
 
 ---
 
