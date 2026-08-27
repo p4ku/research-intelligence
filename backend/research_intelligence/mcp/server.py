@@ -1509,24 +1509,24 @@ def send_pipeline_run_digest_email(
 @with_db_connection
 def ask_paper(
     workspace_id: str,
-    paper_id: str,
     question: str,
+    paper_id: str | None = None,
     session_id: str | None = None,
     deep_thinking: bool = False
 ) -> str:
     """
     [INTERACTIVE Q&A - KNOWLEDGE EXPLORER / ASK PAPER]
-    Interrogates an ingested academic paper with deep scientific reasoning using the workspace LLM (Google Gemini 3.7 Flash).
+    Interrogates an ingested academic paper or whole workspace with deep scientific reasoning using the workspace LLM (Google Gemini 3.7 Flash).
     
     WHEN TO USE:
     - Use when the researcher or agent needs to examine a specific paper, verify experimental methodology, analyze claims,
       clarify why the SLR pipeline accepted or rejected it, or deep-dive into computed composite signal scores and extracted parameters.
     
     WORKFLOW & USAGE PATTERN FOR AI CLIENTS:
-    1. Locate the target paper's UUID via `list_papers(workspace_id)`.
-    2. Turn 1 (Start session): Call `ask_paper(workspace_id, paper_id, question, deep_thinking=True/False)`.
+    1. Locate the target paper's UUID via `list_papers(workspace_id)` (or omit `paper_id` for workspace-level synthesis).
+    2. Turn 1 (Start session): Call `ask_paper(workspace_id=..., question=..., paper_id=..., deep_thinking=True/False)`.
        The JSON response returns a unique `session_id`.
-    3. Turn 2+ (Continue dialogue): Pass the returned `session_id` in subsequent calls to maintain conversational memory and multi-turn context.
+    3. Turn 2+ (Continue dialogue): Pass the returned `session_id` in subsequent calls to maintain conversational memory and multi-turn context with Gemini Context Caching.
     
     AUTOMATICALLY INJECTED SCIENTIFIC CONTEXT:
     - Full Document Content: Layout OCR Markdown or native multimodal PDF binary from storage.
@@ -1536,23 +1536,24 @@ def ask_paper(
     - Multi-Turn History: All preceding questions and answers within the conversation thread.
     - Visual Grounding: Automatically parses and verifies figure/table/page citations with bounding boxes.
     - Hallucination Guard: Validates quoted claims against the source document.
+    - Gemini Context Cache: Automatically reuses server-side cached tokens for repeated turns.
     
     PARAMETERS:
     - workspace_id: Target workspace UUID.
-    - paper_id: Target Paper UUID to interrogate.
     - question: Detailed research question or instruction.
+    - paper_id: (Optional) Target Paper UUID to interrogate. Omit to query workspace overview.
     - session_id: (Optional) UUID of an existing conversation session to continue. Omit to start a new session.
     - deep_thinking: (Optional) Set to True to enable deep mathematical/thermodynamic derivation scratchpad reasoning.
     
     OUTPUT:
-    JSON string containing `{ "status": "completed", "session_id": "...", "message_id": "...", "paper_id": "...", "paper_title": "...", "answer": "...", "citations": [...], "visual_citations": [...], "hallucination_guard": {...}, "deep_thinking": bool, "tokens_in": int, "tokens_out": int, "usd_cost": float }`.
+    JSON string containing `{ "status": "completed", "session_id": "...", "message_id": "...", "paper_id": "...", "paper_title": "...", "answer": "...", "citations": [...], "visual_citations": [...], "hallucination_guard": {...}, "deep_thinking": bool, "tokens_in": int, "tokens_out": int, "usd_cost": float, "cached_content": str }`.
     """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:read")
     except Exception as e:
         return str(e)
-    return ask_paper_logic(user, workspace_id, paper_id, question, session_id, deep_thinking=deep_thinking)
+    return ask_paper_logic(user, workspace_id, question, paper_id=paper_id, session_id=session_id, deep_thinking=deep_thinking)
 
 
 def create_app():
