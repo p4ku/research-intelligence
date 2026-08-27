@@ -16,18 +16,17 @@ from research_intelligence.models import (
     ExtractionDefinition,
     Extraction,
     PaperMetric,
-    PaperChatSession,
-    PaperChatMessage,
     APIKey,
 )
-from research_intelligence.tasks.chat import (
+from chat.models import PaperChatSession, PaperChatMessage
+from chat.engine import (
     PaperChatEngine,
     PaperContextBuilder,
     CitationFactChecker,
     HierarchicalSessionSummarizer,
     VisualCitationExtractor,
 )
-from research_intelligence.tasks.chat.tasks import execute_paper_chat_task
+from chat.tasks import execute_paper_chat_task
 from research_intelligence.mcp.tools.chat import ask_paper_logic
 
 
