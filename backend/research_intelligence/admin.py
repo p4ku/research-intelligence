@@ -24,8 +24,6 @@ from research_intelligence.models import (
     HITLCorrection,
     UserActivityLog,
     ResearchAgentProcess,
-    PaperChatSession,
-    PaperChatMessage,
 )
 
 
@@ -2070,84 +2068,6 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
         return render_badge(f"⚡ {obj.access_count} hits", color)
     access_count_badge.short_description = "Reused"
     access_count_badge.admin_order_field = "access_count"
-
-
-class PaperChatMessageInline(admin.TabularInline):
-    model = PaperChatMessage
-    extra = 0
-    readonly_fields = ('sender', 'status', 'question_snippet', 'message_snippet', 'tokens_in', 'tokens_out', 'usd_cost', 'created_at')
-    fields = ('sender', 'status', 'question_snippet', 'message_snippet', 'tokens_in', 'tokens_out', 'usd_cost', 'created_at')
-    can_delete = True
-    show_change_link = True
-
-    def question_snippet(self, obj):
-        return obj.question[:50] + "..." if len(obj.question) > 50 else obj.question
-    question_snippet.short_description = "Question"
-
-    def message_snippet(self, obj):
-        return obj.message[:50] + "..." if len(obj.message) > 50 else obj.message
-    message_snippet.short_description = "Answer"
-
-
-@admin.register(PaperChatSession)
-class PaperChatSessionAdmin(admin.ModelAdmin):
-    list_display = ('title', 'paper_link', 'workspace', 'user', 'messages_count', 'session_tokens_display', 'session_cost_display', 'updated_at', 'created_at')
-    list_filter = ('workspace', 'created_at')
-    search_fields = ('title', 'paper__title', 'paper__doi', 'user__username', 'user__email')
-    readonly_fields = ('id', 'total_tokens_in', 'total_tokens_out', 'total_tokens', 'total_usd_cost', 'created_at', 'updated_at')
-    inlines = [PaperChatMessageInline]
-
-    def paper_link(self, obj):
-        url = reverse("admin:research_intelligence_paper_change", args=[obj.paper.id])
-        return format_html('<a href="{}">{}</a>', url, obj.paper.title[:50] + ("..." if len(obj.paper.title) > 50 else ""))
-    paper_link.short_description = "Paper"
-
-    def messages_count(self, obj):
-        return obj.messages.count()
-    messages_count.short_description = "Messages"
-
-    def session_tokens_display(self, obj):
-        return format_html('<span style="font-weight: 600;">{}</span> tokens', obj.total_tokens)
-    session_tokens_display.short_description = "Total Tokens"
-
-    def session_cost_display(self, obj):
-        return format_html('<span style="color: #198754; font-weight: 600;">${:.5f}</span>', float(obj.total_usd_cost))
-    session_cost_display.short_description = "Total Cost"
-
-
-@admin.register(PaperChatMessage)
-class PaperChatMessageAdmin(admin.ModelAdmin):
-    list_display = ('id_snippet', 'session_link', 'sender', 'status_badge', 'llm_model', 'tokens_total', 'usd_cost_display', 'created_at')
-    list_filter = ('status', 'sender', 'llm_model', 'created_at')
-    search_fields = ('question', 'message', 'session__title', 'session__paper__title')
-    readonly_fields = ('id', 'session', 'celery_task_id', 'tokens_in', 'tokens_out', 'total_tokens', 'usd_cost', 'llm_model', 'created_at', 'completed_at')
-
-    def id_snippet(self, obj):
-        return str(obj.id)[:8] + "..."
-    id_snippet.short_description = "Message ID"
-
-    def session_link(self, obj):
-        url = reverse("admin:research_intelligence_paperchatsession_change", args=[obj.session.id])
-        return format_html('<a href="{}">{}</a>', url, obj.session.title[:40])
-    session_link.short_description = "Session"
-
-    def status_badge(self, obj):
-        colors = {
-            'completed': '#198754',
-            'processing': '#0d6efd',
-            'pending': '#ffc107',
-            'failed': '#dc3545'
-        }
-        return render_badge(obj.status.upper(), colors.get(obj.status, '#6c757d'))
-    status_badge.short_description = "Status"
-
-    def tokens_total(self, obj):
-        return f"In: {obj.tokens_in} / Out: {obj.tokens_out} (Tot: {obj.total_tokens})"
-    tokens_total.short_description = "Tokens"
-
-    def usd_cost_display(self, obj):
-        return f"${float(obj.usd_cost):.5f}"
-    usd_cost_display.short_description = "Est. Cost"
 
 
 # Customize Admin Portal Branding Header & Titles

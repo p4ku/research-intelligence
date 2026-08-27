@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     # Internal Modular Applications
     'api',
     'research_intelligence',
+    'chat',
 ]
 
 MIDDLEWARE = [

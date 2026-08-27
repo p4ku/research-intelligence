@@ -203,7 +203,7 @@ class PaperChatTestCase(TestCase):
             if default_storage.exists(pdf_storage_path):
                 default_storage.delete(pdf_storage_path)
 
-    @patch("research_intelligence.tasks.chat.engine.get_llm_provider")
+    @patch("chat.engine.orchestrator.get_llm_provider")
     def test_async_chat_and_polling_flow(self, mock_get_llm_provider):
         """Test full async Celery submission (202 Accepted) and message polling (200 OK)."""
         mock_provider = MagicMock()
@@ -261,7 +261,7 @@ class PaperChatTestCase(TestCase):
         self.assertEqual(session_obj.total_tokens, 1265)
         self.assertGreater(float(session_obj.total_usd_cost), 0.0)
 
-    @patch("research_intelligence.tasks.chat.engine.get_llm_provider")
+    @patch("chat.engine.orchestrator.get_llm_provider")
     def test_sync_chat_submission(self, mock_get_llm_provider):
         """Test synchronous chat execution with sync=True returning 200 OK immediately."""
         mock_provider = MagicMock()
@@ -292,7 +292,7 @@ class PaperChatTestCase(TestCase):
         self.assertEqual(res.data['total_tokens'], 890)
         self.assertGreater(float(res.data['usd_cost']), 0.0)
 
-    @patch("research_intelligence.tasks.chat.engine.get_llm_provider")
+    @patch("chat.engine.orchestrator.get_llm_provider")
     def test_multi_turn_session_continuation(self, mock_get_llm_provider):
         """Verify that conversation history is preserved across consecutive turns and session cumulative costs accumulate."""
         mock_provider = MagicMock()
@@ -357,7 +357,7 @@ class PaperChatTestCase(TestCase):
         self.assertEqual(sessions_res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(sessions_res.data), 0)
 
-    @patch("research_intelligence.tasks.chat.engine.get_llm_provider")
+    @patch("chat.engine.orchestrator.get_llm_provider")
     def test_fastmcp_ask_paper_tool(self, mock_get_llm_provider):
         """Test FastMCP ask_paper tool integration."""
         mock_provider = MagicMock()
@@ -409,7 +409,7 @@ class PaperChatTestCase(TestCase):
         self.assertFalse(guard_h["verified"])
         self.assertEqual(guard_h["status"], "WARNING_UNVERIFIED_CLAIMS")
 
-    @patch("research_intelligence.tasks.chat.engine.get_llm_provider")
+    @patch("chat.engine.orchestrator.get_llm_provider")
     def test_visual_citations_and_deep_thinking_in_chat(self, mock_get_llm_provider):
         """Tests that deep_thinking flag is accepted and visual citations [Page X, Fig Y] are parsed and verified."""
         mock_provider = MagicMock()
@@ -445,7 +445,7 @@ class PaperChatTestCase(TestCase):
         self.assertTrue(res.data['hallucination_guard']['verified'])
         self.assertEqual(res.data['hallucination_guard']['status'], 'PASS')
 
-    @patch("research_intelligence.tasks.chat.engine.get_llm_provider")
+    @patch("chat.engine.orchestrator.get_llm_provider")
     def test_hierarchical_session_summarization(self, mock_get_llm_provider):
         """Tests that long multi-turn sessions compress older turns into session.summary."""
         mock_provider = MagicMock()
@@ -483,7 +483,7 @@ class PaperChatTestCase(TestCase):
         self.assertIn("Scientific question turn", session.summary)
         self.assertEqual(session.messages.count(), 5)
 
-    @patch("research_intelligence.tasks.chat.engine.get_llm_provider")
+    @patch("chat.engine.orchestrator.get_llm_provider")
     def test_oop_paper_context_builder_and_engine(self, mock_get_llm_provider):
         """Tests explicit object-oriented initialization and execution of PaperChatEngine."""
         from research_intelligence.tasks.chat import (

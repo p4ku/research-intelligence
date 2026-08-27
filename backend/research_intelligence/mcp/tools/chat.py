@@ -1,14 +1,9 @@
 import json
 import uuid
 import logging
-from research_intelligence.models import (
-    Workspace,
-    Paper,
-    PaperChatSession,
-    PaperChatMessage,
-    WorkspaceMember,
-)
-from research_intelligence.tasks.chat import PaperChatEngine
+from research_intelligence.models import Workspace, Paper, WorkspaceMember
+from chat.models import PaperChatSession, PaperChatMessage
+from chat.engine import PaperChatEngine
 from .workspaces import _check_workspace_access
 
 logger = logging.getLogger(__name__)

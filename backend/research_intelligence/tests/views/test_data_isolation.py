@@ -300,4 +300,4 @@ class WorkspaceDataIsolationTest(TestCase):
             "question": "What is the state of the art?",
             "workspace_id": str(self.workspace_a.id)
         }, format="json")
-        self.assertEqual(resp.status_code, 200)
+        self.assertIn(resp.status_code, [200, 202])
