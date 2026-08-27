@@ -88,25 +88,31 @@ class PaperChatEngine:
                 answer_text=cleaned_answer
             )
 
-            # 7. Record token usage and update message in DB
+            # 7. Record token usage and cost accounting on Workspace & Session
+            model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash') or 'google/gemini-3.7-flash'
+            total_tokens = (tokens_in or 0) + (tokens_out or 0)
             cost = workspace.record_token_usage(
                 tokens_in,
                 tokens_out,
-                model_name=getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash')
+                model_name=model_name
             )
+
+            session.record_message_cost(tokens_in, tokens_out, cost)
 
             message.message = cleaned_answer
             message.tokens_in = tokens_in
             message.tokens_out = tokens_out
+            message.total_tokens = total_tokens
             message.usd_cost = cost
+            message.llm_model = model_name
             message.status = 'completed'
             message.completed_at = timezone.now()
             message.citations = citations_list
             message.visual_citations = verified_visual_cits
             message.hallucination_guard = guard_summary
             message.save(update_fields=[
-                'message', 'tokens_in', 'tokens_out', 'usd_cost', 'status',
-                'completed_at', 'citations', 'visual_citations', 'hallucination_guard'
+                'message', 'tokens_in', 'tokens_out', 'total_tokens', 'usd_cost',
+                'llm_model', 'status', 'completed_at', 'citations', 'visual_citations', 'hallucination_guard'
             ])
 
             # 8. Update session title if first turn
@@ -125,9 +131,15 @@ class PaperChatEngine:
                 "visual_citations": verified_visual_cits,
                 "hallucination_guard": guard_summary,
                 "deep_thinking": deep_thinking_active,
+                "llm_model": model_name,
                 "tokens_in": tokens_in,
                 "tokens_out": tokens_out,
+                "total_tokens": total_tokens,
                 "usd_cost": float(cost),
+                "session_total_tokens": session.total_tokens,
+                "session_total_usd_cost": float(session.total_usd_cost),
+                "workspace_monthly_tokens": workspace.tokens_consumed_this_month,
+                "workspace_monthly_usd": float(workspace.usd_spent_this_month),
             }
 
         except Exception as ex:

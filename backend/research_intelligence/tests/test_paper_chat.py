@@ -243,10 +243,23 @@ class PaperChatTestCase(TestCase):
         self.assertEqual(poll_resp.data['status'], 'completed')
         self.assertIn("99.4% two-qubit gate fidelity", poll_resp.data['message'])
         self.assertEqual(poll_resp.data['tokens_in'], 1200)
+        self.assertEqual(poll_resp.data['tokens_out'], 65)
+        self.assertEqual(poll_resp.data['total_tokens'], 1265)
+        self.assertGreater(float(poll_resp.data['usd_cost']), 0.0)
+        self.assertEqual(poll_resp.data['llm_model'], 'google/gemini-3.7-flash')
 
-        # 4. Verify Workspace Token Accounting was updated
+        # 4. Verify Workspace & Session Token Accounting was updated
         self.workspace_a.refresh_from_db()
-        self.assertGreater(self.workspace_a.tokens_consumed_this_month, 0)
+        self.assertEqual(self.workspace_a.tokens_in_consumed_this_month, 1200)
+        self.assertEqual(self.workspace_a.tokens_out_consumed_this_month, 65)
+        self.assertEqual(self.workspace_a.tokens_consumed_this_month, 1265)
+        self.assertGreater(float(self.workspace_a.usd_spent_this_month), 0.0)
+
+        session_obj = PaperChatSession.objects.get(id=session_id)
+        self.assertEqual(session_obj.total_tokens_in, 1200)
+        self.assertEqual(session_obj.total_tokens_out, 65)
+        self.assertEqual(session_obj.total_tokens, 1265)
+        self.assertGreater(float(session_obj.total_usd_cost), 0.0)
 
     @patch("research_intelligence.tasks.chat.engine.get_llm_provider")
     def test_sync_chat_submission(self, mock_get_llm_provider):
@@ -274,10 +287,14 @@ class PaperChatTestCase(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertEqual(res.data['status'], 'completed')
         self.assertIn("signal score of 8.5", res.data['message'])
+        self.assertEqual(res.data['tokens_in'], 850)
+        self.assertEqual(res.data['tokens_out'], 40)
+        self.assertEqual(res.data['total_tokens'], 890)
+        self.assertGreater(float(res.data['usd_cost']), 0.0)
 
     @patch("research_intelligence.tasks.chat.engine.get_llm_provider")
     def test_multi_turn_session_continuation(self, mock_get_llm_provider):
-        """Verify that conversation history is preserved across consecutive turns."""
+        """Verify that conversation history is preserved across consecutive turns and session cumulative costs accumulate."""
         mock_provider = MagicMock()
         mock_provider.generate.side_effect = [
             ("Turn 1: Yes, it compiles for 128 qubits.", {"prompt_tokens": 500, "candidates_tokens": 20}),
@@ -310,10 +327,14 @@ class PaperChatTestCase(TestCase):
         self.assertEqual(res2.status_code, status.HTTP_200_OK)
         self.assertEqual(str(res2.data['session']), session_id)
 
-        # Retrieve session message list
+        # Retrieve session message list and verify cumulative session totals
         sess_resp = self.client.get(f'/api/chat/sessions/{session_id}/')
         self.assertEqual(sess_resp.status_code, status.HTTP_200_OK)
         self.assertEqual(len(sess_resp.data['messages']), 2)
+        self.assertEqual(sess_resp.data['total_tokens_in'], 1100) # 500 + 600
+        self.assertEqual(sess_resp.data['total_tokens_out'], 45)   # 20 + 25
+        self.assertEqual(sess_resp.data['total_tokens'], 1145)
+        self.assertGreater(float(sess_resp.data['total_usd_cost']), 0.0)
 
     def test_chat_tenant_isolation(self):
         """User B cannot access or chat with papers belonging to Workspace A."""
@@ -358,6 +379,11 @@ class PaperChatTestCase(TestCase):
         self.assertEqual(parsed['paper_title'], self.paper_a.title)
         self.assertIn('visual_citations', parsed)
         self.assertIn('hallucination_guard', parsed)
+        self.assertEqual(parsed['tokens_in'], 900)
+        self.assertEqual(parsed['tokens_out'], 30)
+        self.assertEqual(parsed['total_tokens'], 930)
+        self.assertGreater(float(parsed['usd_cost']), 0.0)
+        self.assertGreater(parsed['workspace_monthly_tokens'], 0)
 
     def test_fact_checking_verifier_deterministic(self):
         """Tests that the hallucination guard verifies authentic quotes and flags ungrounded claims."""
