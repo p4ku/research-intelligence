@@ -23,13 +23,13 @@ def ask_paper_logic(
     Maintains multi-turn conversation session history if session_id is provided.
     """
     if not workspace_id or not question:
-        return "Error: Must provide 'workspace_id' and 'question'."
+        return json.dumps({"status": "error", "error": "Must provide 'workspace_id' and 'question'."}, indent=2)
 
     workspace, membership, error = check_workspace_access(
         user, workspace_id, required_roles=['admin', 'manager', 'researcher']
     )
     if error:
-        return error
+        return json.dumps({"status": "error", "error": error}, indent=2)
 
     paper = None
     if paper_id:
@@ -37,7 +37,7 @@ def ask_paper_logic(
             p_uuid = uuid.UUID(paper_id)
             paper = Paper.objects.select_related('workspace').get(id=p_uuid, workspace=workspace)
         except (ValueError, Paper.DoesNotExist):
-            return f"Error: Paper '{paper_id}' not found in workspace '{workspace.name}'."
+            return json.dumps({"status": "error", "error": f"Paper '{paper_id}' not found in workspace '{workspace.name}'."}, indent=2)
 
     from chat.models import PaperChatSession, PaperChatMessage
     from chat.engine import PaperChatEngine
@@ -48,7 +48,7 @@ def ask_paper_logic(
             s_uuid = uuid.UUID(session_id)
             session = PaperChatSession.objects.get(id=s_uuid, workspace=workspace)
         except (ValueError, PaperChatSession.DoesNotExist):
-            return f"Error: Chat session '{session_id}' not found."
+            return json.dumps({"status": "error", "error": f"Chat session '{session_id}' not found in workspace '{workspace.name}'."}, indent=2)
 
     if not session:
         session = PaperChatSession.objects.create(

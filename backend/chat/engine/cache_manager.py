@@ -52,6 +52,12 @@ class GeminiContextCacheManager:
             contents = []
             if context_text:
                 contents.append(f"## ACADEMIC PAPER CONTEXT\n{context_text}")
+            if pdf_bytes and mime_type:
+                try:
+                    from google.genai import types
+                    contents.append(types.Part.from_bytes(data=pdf_bytes, mime_type=mime_type))
+                except Exception as part_err:
+                    logger.debug(f"Could not wrap PDF bytes into GenAI Part: {part_err}")
 
             cache_name = provider.create_context_cache(
                 model=model_name,
