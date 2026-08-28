@@ -48,22 +48,30 @@ class ReportingNode(BaseWorkflowNode):
         return super().generate_stage_summary(comp_run, status=status)
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
+        from django.utils import timezone
         from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
         from research_intelligence.tasks.step_7_reporting.narrative import generate_executive_narrative_report
         
+        metrics = dict(comp_run.metrics or {})
+        comp_run.started_at = comp_run.started_at or timezone.now()
         try:
             res = generate_executive_narrative_report(pipeline_run)
-            comp_run.metrics["report_generated"] = res.get("success", True)
-            comp_run.metrics["report_id"] = res.get("report_id")
-            comp_run.metrics["storage_path"] = res.get("storage_path")
+            metrics["report_generated"] = res.get("success", True)
+            metrics["report_id"] = res.get("report_id")
+            metrics["storage_path"] = res.get("storage_path")
+            comp_run.metrics = metrics
             comp_run.output_data = res
             comp_run.status = "completed"
+            comp_run.completed_at = timezone.now()
         except Exception as e:
             logger.warning(f"Error generating narrative report for run {pipeline_run.id}: {e}")
+            metrics["report_generated"] = False
+            comp_run.metrics = metrics
             comp_run.status = "completed"
+            comp_run.completed_at = timezone.now()
             comp_run.error_message = str(e)
 
-        comp_run.save(update_fields=['metrics', 'output_data', 'status', 'error_message'])
+        comp_run.save(update_fields=['metrics', 'output_data', 'status', 'started_at', 'completed_at', 'error_message'])
         
         from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
         safe_dispatch_on_commit(lambda: notify_pipeline_orchestrator_tick(pipeline_run))

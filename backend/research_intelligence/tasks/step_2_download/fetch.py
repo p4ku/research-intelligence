@@ -80,6 +80,8 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
             provider = get_scraper_provider(paper.source_database or "arxiv")
             file_bytes = provider.download_file(pdf_source_url)
             if file_bytes and len(file_bytes) > 0:
+                if default_storage.exists(target_path):
+                    default_storage.delete(target_path)
                 saved_path = default_storage.save(target_path, ContentFile(file_bytes))
                 paper.original_pdf_path = saved_path
                 paper.save(update_fields=['original_pdf_path'])

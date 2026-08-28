@@ -62,6 +62,8 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
                 with default_storage.open(doc_reg.canonical_ocr_md_path, 'rb') as ocr_file:
                     cached_md_bytes = ocr_file.read()
                 if cached_md_bytes and len(cached_md_bytes) > 0:
+                    if default_storage.exists(target_path):
+                        default_storage.delete(target_path)
                     saved_path = default_storage.save(target_path, ContentFile(cached_md_bytes))
                     paper.converted_md_path = saved_path
                     paper.save(update_fields=['converted_md_path'])
@@ -114,6 +116,8 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
             return {"success": False, "error": "Empty OCR output"}
 
         # 3. Save converted output to storage
+        if default_storage.exists(target_path):
+            default_storage.delete(target_path)
         saved_path = default_storage.save(target_path, ContentFile(converted_content.encode("utf-8")))
 
         # 4. Update Paper model & DocumentRegistry OCR Cache

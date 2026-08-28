@@ -337,6 +337,8 @@ class WorkflowDAG:
             ready_nodes = self.get_ready_nodes(pipeline_run, workspace, config=cfg)
             dispatched = []
 
+            # First pass: mark all skippable ready nodes as skipped
+            skipped_nodes = []
             for node in ready_nodes:
                 if node.is_skippable(pipeline_run, workspace, cfg):
                     logger.info(f"DAG Node '{node.name}' is skippable for workspace '{workspace.name}'. Marking skipped.")
@@ -350,12 +352,16 @@ class WorkflowDAG:
                         metrics={"status": "skipped"},
                         input_params=node.get_input_params(pipeline_run, workspace, cfg, limit=limit)
                     )
-                    # Re-evaluate recursively to dispatch downstream nodes immediately
-                    res = self.evaluate_and_dispatch(pipeline_run, agent_process=agent_process, config=cfg, limit=limit)
-                    if node.name == 'ocr' and res.get("success"):
-                        res["message"] = f"OCR skipped (workspace.ocr_provider is None). {res.get('message', '')}"
-                    return res
+                    skipped_nodes.append(node.name)
 
+            if skipped_nodes:
+                # Re-evaluate recursively to dispatch downstream nodes immediately
+                res = self.evaluate_and_dispatch(pipeline_run, agent_process=agent_process, config=cfg, limit=limit)
+                if 'ocr' in skipped_nodes and res.get("success"):
+                    res["message"] = f"OCR skipped (workspace.ocr_provider is None). {res.get('message', '')}"
+                return res
+
+            for node in ready_nodes:
                 # Create ComponentRun and dispatch
                 input_params = node.get_input_params(pipeline_run, workspace, cfg, limit=limit)
                 comp_name = node.component_name
