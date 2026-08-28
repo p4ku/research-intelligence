@@ -226,6 +226,10 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
             except Exception as te:
                 logger.debug(f"ThinkingConfig initialization note: {te}")
 
+        # Explicitly disable automatic function calling (AFC) to silence SDK warning for direct generation
+        if hasattr(types, "AutomaticFunctionCallingConfig"):
+            config_args["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(disable=True)
+
         config = types.GenerateContentConfig(**config_args)
 
         # 5. Call API with Exponential Backoff Retry Strategy for 429 / RESOURCE_EXHAUSTED
@@ -381,6 +385,10 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                     config_args["thinking_config"] = types.ThinkingConfig(**thinking_kwargs)
             except Exception as te:
                 logger.debug(f"ThinkingConfig stream init note: {te}")
+
+        # Explicitly disable automatic function calling (AFC) to silence SDK warning for direct generation
+        if hasattr(types, "AutomaticFunctionCallingConfig"):
+            config_args["automatic_function_calling"] = types.AutomaticFunctionCallingConfig(disable=True)
 
         config = types.GenerateContentConfig(**config_args)
 
