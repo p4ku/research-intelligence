@@ -2,12 +2,12 @@ import json
 import uuid
 from django.core.serializers.json import DjangoJSONEncoder
 from research_intelligence.models import ExtractionDefinition
-from ..workspaces import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 
 def list_extraction_definitions_logic(user, workspace_id: str) -> str:
     """List extraction definitions configured for a workspace."""
-    workspace, membership, error = _check_workspace_access(user, workspace_id)
+    workspace, membership, error = check_workspace_access(user, workspace_id)
     if error:
         return error
 
@@ -48,7 +48,7 @@ def get_extraction_definition_logic(user, definition_id: str) -> str:
         return f"Error: Extraction definition with ID '{definition_id}' does not exist."
 
     # Verify workspace access
-    workspace, membership, error = _check_workspace_access(user, str(definition.workspace.id))
+    workspace, membership, error = check_workspace_access(user, str(definition.workspace.id))
     if error:
         return error
 
@@ -85,7 +85,7 @@ def create_extraction_definition_logic(
     is_active: bool = True
 ) -> str:
     """Create a new dynamic extraction definition target for a workspace."""
-    workspace, membership, error = _check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
     if error:
         return error
 
@@ -151,7 +151,7 @@ def update_extraction_definition_logic(
         return f"Error: Extraction definition with ID '{definition_id}' does not exist."
 
     # Verify workspace edit permissions
-    workspace, membership, error = _check_workspace_access(user, str(definition.workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(definition.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return error
 
@@ -218,7 +218,7 @@ def delete_extraction_definition_logic(user, definition_id: str) -> str:
         return f"Error: Extraction definition with ID '{definition_id}' does not exist."
 
     # Verify workspace delete permissions
-    workspace, membership, error = _check_workspace_access(user, str(definition.workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(definition.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return error
 

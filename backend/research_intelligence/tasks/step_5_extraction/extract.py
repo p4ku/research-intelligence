@@ -26,10 +26,12 @@ def _run_single_extraction_worker(paper, definition, workspace):
     close_old_connections()
     t0 = time.time()
 
-    # 1. Retrieve layout markdown text or PDF or abstract fallback
+    # 1. Retrieve layout markdown text or PDF binary or abstract fallback
     paper_text = None
+    pdf_bytes = None
     input_source = "abstract_fallback"
 
+    # Priority 1: Converted Markdown from OCR
     if paper.converted_md_path and default_storage.exists(paper.converted_md_path):
         try:
             with default_storage.open(paper.converted_md_path, 'rb') as f:
@@ -39,6 +41,17 @@ def _run_single_extraction_worker(paper, definition, workspace):
         except Exception as e:
             logger.warning(f"Error reading MD for paper {paper.id}: {e}")
 
+    # Priority 2: Original PDF binary for direct Multimodal Gemini extraction
+    if not paper_text and paper.original_pdf_path and default_storage.exists(paper.original_pdf_path):
+        try:
+            with default_storage.open(paper.original_pdf_path, 'rb') as f:
+                pdf_bytes = f.read()
+            input_source = "multimodal_pdf"
+            paper_text = "Please analyze the attached full-text PDF document for dynamic parameter extraction."
+        except Exception as e:
+            logger.warning(f"Error reading PDF binary for paper {paper.id}: {e}")
+
+    # Priority 3: Abstract fallback
     if not paper_text:
         paper_text = paper.abstract or paper.title
 
@@ -59,7 +72,7 @@ def _run_single_extraction_worker(paper, definition, workspace):
     system_prompt = (
         f"{definition.system_prompt}\n\n"
         "CRITICAL INSTRUCTIONS:\n"
-        "- Extract all target parameters accurately from the provided paper text.\n"
+        "- Extract all target parameters accurately from the provided paper text or attached PDF document.\n"
         "- Return a schema-validated JSON object containing the exact fields requested in the response schema."
     )
 
@@ -71,18 +84,23 @@ def _run_single_extraction_worker(paper, definition, workspace):
         }
     }
 
+    gen_kwargs = {
+        "prompt": user_prompt,
+        "system_instruction": system_prompt,
+        "response_schema": schema_to_use,
+        "model": definition.llm_model,
+        "return_usage": True,
+    }
+    if pdf_bytes:
+        gen_kwargs["pdf_bytes"] = pdf_bytes
+        gen_kwargs["mime_type"] = "application/pdf"
+
     max_attempts = 3
     last_error = None
 
     for attempt in range(1, max_attempts + 1):
         try:
-            gen_res = llm_provider.generate(
-                prompt=user_prompt,
-                system_instruction=system_prompt,
-                response_schema=schema_to_use,
-                model=definition.llm_model,
-                return_usage=True
-            )
+            gen_res = llm_provider.generate(**gen_kwargs)
 
             if isinstance(gen_res, tuple) and len(gen_res) == 2:
                 response_data, raw_usage = gen_res

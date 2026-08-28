@@ -2,7 +2,7 @@ import json
 import uuid
 from django.core.serializers.json import DjangoJSONEncoder
 from research_intelligence.models import Scraper, Paper
-from mcp_server.tools.workspaces import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 
 def preview_search_query_logic(user, provider: str, search_query: str, limit: int = 10) -> str:
@@ -31,7 +31,7 @@ def preview_search_query_logic(user, provider: str, search_query: str, limit: in
 
 def list_papers_logic(user, workspace_id: str, pipeline_run_id: str = None, limit: int = 50) -> str:
     """List fetched paper records for a workspace (optionally filtered by pipeline_run_id) without downloading PDFs."""
-    workspace, membership, error = _check_workspace_access(user, workspace_id)
+    workspace, membership, error = check_workspace_access(user, workspace_id)
     if error:
         return error
 

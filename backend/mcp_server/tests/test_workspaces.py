@@ -113,3 +113,50 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
 
         get_res = get_workspace_logic(self.outsider, workspace_id=ws_id)
         self.assertIn("Error: Access denied", get_res)
+
+    def test_workspace_advanced_prompts_and_quotas_persistence(self):
+        res = self.parse_res(create_workspace_logic(
+            self.admin,
+            name="Advanced Prompts WS",
+            abstract_screening_system_prompt="Custom System Prompt for Abstract",
+            abstract_screening_user_prompt_template="Custom Template: {title}",
+            abstract_screening_response_schema={"type": "object", "properties": {"score": {"type": "number"}}},
+            abstract_screening_exit_metric="score",
+            full_text_screening_system_prompt="Custom FT System Prompt",
+            full_text_screening_user_prompt_template="Custom FT Template: {full_text}",
+            full_text_screening_response_schema={"type": "object", "properties": {"ft_score": {"type": "number"}}},
+            full_text_screening_exit_metric="ft_score",
+            digest_schedule="0 10 * * 1",
+            monthly_token_limit=5000000,
+            monthly_usd_limit=250.00
+        ))
+        self.assertEqual(res["status"], "success")
+        ws_id = res["workspace_id"]
+
+        ws = Workspace.objects.get(id=ws_id)
+        self.assertEqual(ws.abstract_screening_system_prompt, "Custom System Prompt for Abstract")
+        self.assertEqual(ws.abstract_screening_user_prompt_template, "Custom Template: {title}")
+        self.assertEqual(ws.abstract_screening_response_schema, {"type": "object", "properties": {"score": {"type": "number"}}})
+        self.assertEqual(ws.abstract_screening_exit_metric, "score")
+        self.assertEqual(ws.full_text_screening_system_prompt, "Custom FT System Prompt")
+        self.assertEqual(ws.full_text_screening_user_prompt_template, "Custom FT Template: {full_text}")
+        self.assertEqual(ws.full_text_screening_response_schema, {"type": "object", "properties": {"ft_score": {"type": "number"}}})
+        self.assertEqual(ws.full_text_screening_exit_metric, "ft_score")
+        self.assertEqual(ws.digest_schedule, "0 10 * * 1")
+        self.assertEqual(ws.monthly_token_limit, 5000000)
+        self.assertEqual(float(ws.monthly_usd_limit), 250.00)
+
+        up_res = self.parse_res(update_workspace_logic(
+            self.admin,
+            workspace_id=ws_id,
+            abstract_screening_exit_metric="relevance_score",
+            monthly_token_limit=8000000,
+            cost_limit_usd=500.00
+        ))
+        self.assertEqual(up_res["status"], "success")
+
+        ws.refresh_from_db()
+        self.assertEqual(ws.abstract_screening_exit_metric, "relevance_score")
+        self.assertEqual(ws.monthly_token_limit, 8000000)
+        self.assertEqual(float(ws.monthly_usd_limit), 500.00)
+

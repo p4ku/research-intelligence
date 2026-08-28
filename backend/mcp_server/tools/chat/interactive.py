@@ -3,7 +3,7 @@ import uuid
 import logging
 from typing import Optional, Dict, Any
 from research_intelligence.models import Workspace, Paper
-from mcp_server.tools.workspaces.crud import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 logger = logging.getLogger(__name__)
 
@@ -25,7 +25,7 @@ def ask_paper_logic(
     if not workspace_id or not question:
         return "Error: Must provide 'workspace_id' and 'question'."
 
-    workspace, membership, error = _check_workspace_access(
+    workspace, membership, error = check_workspace_access(
         user, workspace_id, required_roles=['admin', 'manager', 'researcher']
     )
     if error:

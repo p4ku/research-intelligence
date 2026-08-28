@@ -288,6 +288,9 @@ def execute_sandboxed_snippet(
     # 7. Run function with context
     try:
         result = calc_fn(extractions=context_vars, **valid_vars)
+    except ZeroDivisionError:
+        logger.warning("ZeroDivisionError encountered during signal score evaluation; defaulting score to 0.0.")
+        return 0.0
     except SandboxExecutionError:
         raise
     except SandboxSecurityError:

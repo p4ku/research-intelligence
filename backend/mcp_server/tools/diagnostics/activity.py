@@ -1,6 +1,6 @@
 import json
 from research_intelligence.models import UserActivityLog
-from ..workspaces import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 
 def list_user_activity_logs_logic(
@@ -16,7 +16,7 @@ def list_user_activity_logs_logic(
     queryset = UserActivityLog.objects.all()
 
     if workspace_id:
-        workspace, membership, error = _check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
+        workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
         if error:
             return json.dumps({"status": "error", "error": error}, indent=2)
         queryset = queryset.filter(workspace=workspace)

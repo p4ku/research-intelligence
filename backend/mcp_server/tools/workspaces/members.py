@@ -2,7 +2,7 @@ import json
 from django.db.models import Q
 from django.contrib.auth import get_user_model
 from research_intelligence.models import WorkspaceMember
-from .crud import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 User = get_user_model()
 
@@ -15,7 +15,7 @@ def add_workspace_member_logic(
     role: str = "researcher"
 ) -> str:
     """Add or update a user's membership and role in a workspace. Requires admin role."""
-    workspace, _, error = _check_workspace_access(user, workspace_id, required_roles=['admin'])
+    workspace, _, error = check_workspace_access(user, workspace_id, required_roles=['admin'])
     if error:
         return error
 

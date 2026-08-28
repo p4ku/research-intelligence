@@ -7,36 +7,7 @@ from research_intelligence.models import Workspace, WorkspaceMember
 User = get_user_model()
 
 
-def _check_workspace_access(user, workspace_id: str, required_roles=None):
-    """
-    Helper function to verify that a user has access to a workspace.
-    Returns (workspace, membership, None) on success or (None, None, error_message) on failure.
-    """
-    try:
-        ws_uuid = uuid.UUID(workspace_id)
-    except ValueError:
-        return None, None, f"Error: '{workspace_id}' is not a valid UUID."
-
-    try:
-        workspace = Workspace.objects.get(id=ws_uuid)
-    except Workspace.DoesNotExist:
-        return None, None, f"Error: Workspace with ID '{workspace_id}' does not exist."
-
-    if getattr(user, 'is_superuser', False):
-        return workspace, None, None
-
-    try:
-        membership = WorkspaceMember.objects.get(workspace=workspace, user=user)
-    except WorkspaceMember.DoesNotExist:
-        return None, None, f"Error: Access denied. User '{user}' is not a member of workspace '{workspace.name}'."
-
-    if required_roles and membership.role not in required_roles:
-        return None, None, (
-            f"Error: Insufficient workspace permissions. Role '{membership.role}' required to be one of "
-            f"{required_roles} for this operation."
-        )
-
-    return workspace, membership, None
+from research_intelligence.services import check_workspace_access
 
 
 def list_workspaces_logic(user) -> str:
@@ -71,7 +42,7 @@ def list_workspaces_logic(user) -> str:
 
 def get_workspace_logic(user, workspace_id: str) -> str:
     """Get full details of a specific workspace, including criteria, scrapers, and extraction definitions."""
-    workspace, membership, error = _check_workspace_access(user, workspace_id)
+    workspace, membership, error = check_workspace_access(user, workspace_id)
     if error:
         return error
 
@@ -139,19 +110,33 @@ def create_workspace_logic(
     abstract_rejection_criteria: list[str] | str = None,
     full_text_acceptance_criteria: list[str] | str = None,
     full_text_rejection_criteria: list[str] | str = None,
+    abstract_screening_system_prompt: str = None,
+    abstract_screening_user_prompt_template: str = None,
+    abstract_screening_response_schema: dict = None,
+    abstract_screening_exit_metric: str = None,
+    full_text_screening_system_prompt: str = None,
+    full_text_screening_user_prompt_template: str = None,
+    full_text_screening_response_schema: dict = None,
+    full_text_screening_exit_metric: str = None,
     ocr_provider: str = None,
-    llm_provider: str = 'google',
     screening_llm_model: str = 'google/gemini-3.7-flash',
+    llm_provider: str = 'google',
+    digest_schedule: str = '0 9 * * 5',
+    monthly_token_limit: int = 10000000,
+    monthly_usd_limit: float = 100.00,
+    cost_limit_usd: float = None,
     signal_score_code: str = None
 ) -> str:
     """Create a new workspace and automatically assign the creator as the 'admin' member."""
     if not name or not name.strip():
-        return "Error: Workspace name cannot be empty."
+        return json.dumps({"status": "error", "error": "Workspace name cannot be empty."}, indent=2)
 
     def _format_crit(c):
         if isinstance(c, list):
             return "\n".join(c)
         return c or ""
+
+    usd_limit = cost_limit_usd if cost_limit_usd is not None else monthly_usd_limit
 
     ws = Workspace.objects.create(
         name=name.strip(),
@@ -159,9 +144,20 @@ def create_workspace_logic(
         abstract_rejection_criteria=_format_crit(abstract_rejection_criteria),
         full_text_acceptance_criteria=_format_crit(full_text_acceptance_criteria),
         full_text_rejection_criteria=_format_crit(full_text_rejection_criteria),
+        abstract_screening_system_prompt=abstract_screening_system_prompt,
+        abstract_screening_user_prompt_template=abstract_screening_user_prompt_template,
+        abstract_screening_response_schema=abstract_screening_response_schema,
+        abstract_screening_exit_metric=abstract_screening_exit_metric,
+        full_text_screening_system_prompt=full_text_screening_system_prompt,
+        full_text_screening_user_prompt_template=full_text_screening_user_prompt_template,
+        full_text_screening_response_schema=full_text_screening_response_schema,
+        full_text_screening_exit_metric=full_text_screening_exit_metric,
         ocr_provider=ocr_provider if ocr_provider and ocr_provider.lower() != 'none' else None,
-        llm_provider=llm_provider,
-        screening_llm_model=screening_llm_model,
+        screening_llm_model=screening_llm_model or 'google/gemini-3.7-flash',
+        llm_provider=llm_provider or 'google',
+        digest_schedule=digest_schedule or '0 9 * * 5',
+        monthly_token_limit=monthly_token_limit if monthly_token_limit is not None else 10000000,
+        monthly_usd_limit=usd_limit if usd_limit is not None else 100.00,
         signal_score_code=signal_score_code
     )
     if user and not getattr(user, 'is_anonymous', False) and getattr(user, 'pk', None):
@@ -183,15 +179,27 @@ def update_workspace_logic(
     abstract_rejection_criteria: list[str] | str = None,
     full_text_acceptance_criteria: list[str] | str = None,
     full_text_rejection_criteria: list[str] | str = None,
+    abstract_screening_system_prompt: str = None,
+    abstract_screening_user_prompt_template: str = None,
+    abstract_screening_response_schema: dict = None,
+    abstract_screening_exit_metric: str = None,
+    full_text_screening_system_prompt: str = None,
+    full_text_screening_user_prompt_template: str = None,
+    full_text_screening_response_schema: dict = None,
+    full_text_screening_exit_metric: str = None,
     ocr_provider: str = None,
-    llm_provider: str = None,
     screening_llm_model: str = None,
+    llm_provider: str = None,
+    digest_schedule: str = None,
+    monthly_token_limit: int = None,
+    cost_limit_usd: float = None,
+    monthly_usd_limit: float = None,
     signal_score_code: str = None
 ) -> str:
-    """Update criteria, OCR provider, or LLM configuration for a workspace. Requires admin or manager role."""
-    workspace, _, error = _check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
+    """Update criteria, OCR provider, screening prompts/schemas, or LLM configuration for a workspace. Requires admin or manager role."""
+    workspace, _, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
     if error:
-        return error
+        return json.dumps({"status": "error", "error": error}, indent=2)
 
     def _format_crit(c):
         if isinstance(c, list):
@@ -214,15 +222,51 @@ def update_workspace_logic(
     if full_text_rejection_criteria is not None:
         workspace.full_text_rejection_criteria = _format_crit(full_text_rejection_criteria)
         fields_to_update.append('full_text_rejection_criteria')
+    if abstract_screening_system_prompt is not None:
+        workspace.abstract_screening_system_prompt = abstract_screening_system_prompt
+        fields_to_update.append('abstract_screening_system_prompt')
+    if abstract_screening_user_prompt_template is not None:
+        workspace.abstract_screening_user_prompt_template = abstract_screening_user_prompt_template
+        fields_to_update.append('abstract_screening_user_prompt_template')
+    if abstract_screening_response_schema is not None:
+        workspace.abstract_screening_response_schema = abstract_screening_response_schema
+        fields_to_update.append('abstract_screening_response_schema')
+    if abstract_screening_exit_metric is not None:
+        workspace.abstract_screening_exit_metric = abstract_screening_exit_metric
+        fields_to_update.append('abstract_screening_exit_metric')
+    if full_text_screening_system_prompt is not None:
+        workspace.full_text_screening_system_prompt = full_text_screening_system_prompt
+        fields_to_update.append('full_text_screening_system_prompt')
+    if full_text_screening_user_prompt_template is not None:
+        workspace.full_text_screening_user_prompt_template = full_text_screening_user_prompt_template
+        fields_to_update.append('full_text_screening_user_prompt_template')
+    if full_text_screening_response_schema is not None:
+        workspace.full_text_screening_response_schema = full_text_screening_response_schema
+        fields_to_update.append('full_text_screening_response_schema')
+    if full_text_screening_exit_metric is not None:
+        workspace.full_text_screening_exit_metric = full_text_screening_exit_metric
+        fields_to_update.append('full_text_screening_exit_metric')
     if ocr_provider is not None:
         workspace.ocr_provider = ocr_provider if ocr_provider.lower() != 'none' else None
         fields_to_update.append('ocr_provider')
-    if llm_provider is not None:
-        workspace.llm_provider = llm_provider
-        fields_to_update.append('llm_provider')
     if screening_llm_model is not None:
         workspace.screening_llm_model = screening_llm_model
         fields_to_update.append('screening_llm_model')
+    if llm_provider is not None:
+        workspace.llm_provider = llm_provider
+        fields_to_update.append('llm_provider')
+    if digest_schedule is not None:
+        workspace.digest_schedule = digest_schedule
+        fields_to_update.append('digest_schedule')
+    if monthly_token_limit is not None:
+        workspace.monthly_token_limit = monthly_token_limit
+        fields_to_update.append('monthly_token_limit')
+    
+    usd_val = cost_limit_usd if cost_limit_usd is not None else monthly_usd_limit
+    if usd_val is not None:
+        workspace.monthly_usd_limit = usd_val
+        fields_to_update.append('monthly_usd_limit')
+
     if signal_score_code is not None:
         workspace.signal_score_code = signal_score_code
         fields_to_update.append('signal_score_code')

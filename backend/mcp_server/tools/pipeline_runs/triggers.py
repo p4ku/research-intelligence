@@ -14,9 +14,10 @@ from research_intelligence.tasks.step_1_search.search import execute_scraper_run
 from research_intelligence.tasks.step_2_download.fetch import execute_pdf_download_job
 from research_intelligence.tasks.step_3_ocr.convert import execute_ocr_job
 from research_intelligence.tasks.step_4_screening.abstract import execute_screening_job
+from research_intelligence.tasks.step_4_screening.full_text import execute_full_text_screening_job
 from research_intelligence.tasks.step_5_extraction.extract import execute_extraction_job
 from research_intelligence.tasks.step_6_signal_score.scorer import execute_signal_score_job
-from mcp_server.tools.workspaces import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 logger = logging.getLogger(__name__)
 
@@ -26,16 +27,18 @@ def trigger_search_job_logic(
     workspace_id: str,
     scraper_id: str = None,
     limit: int = 50,
-    reprocess_existing: bool = False
+    reprocess_existing: bool = False,
+    date_range_days: int = None,
+    query_prefix: str = None
 ) -> str:
     """
     Trigger a Celery background scraping job for a workspace within a PipelineRun.
     Creates ComponentRun records to track execution lifecycle, raw storage, and metrics.
     Set reprocess_existing=True to re-screen and re-extract existing workspace papers.
     """
-    workspace, membership, error = _check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
     if error:
-        return error
+        return json.dumps({"status": "error", "error": error}, indent=2)
 
     # Resolve active scrapers
     if scraper_id:
@@ -43,13 +46,13 @@ def trigger_search_job_logic(
             s_uuid = uuid.UUID(scraper_id)
             scrapers = Scraper.objects.filter(workspace=workspace, id=s_uuid, is_active=True)
             if not scrapers.exists():
-                return f"Error: Active scraper with ID '{scraper_id}' not found in workspace '{workspace.name}'."
+                return json.dumps({"status": "error", "error": f"Active scraper with ID '{scraper_id}' not found in workspace '{workspace.name}'."}, indent=2)
         except ValueError:
-            return f"Error: '{scraper_id}' is not a valid UUID format."
+            return json.dumps({"status": "error", "error": f"'{scraper_id}' is not a valid UUID format."}, indent=2)
     else:
         scrapers = Scraper.objects.filter(workspace=workspace, is_active=True)
         if not scrapers.exists():
-            return f"Error: No active scrapers configured for workspace '{workspace.name}'. Please create a scraper first."
+            return json.dumps({"status": "error", "error": f"No active scrapers configured for workspace '{workspace.name}'. Please create a scraper first."}, indent=2)
 
     # Create new PipelineRun
     pipeline_run = PipelineRun.objects.create(
@@ -62,13 +65,24 @@ def trigger_search_job_logic(
 
     created_runs = []
     for scraper in scrapers:
+        query_text = scraper.search_query
+        if query_prefix and query_prefix.strip():
+            query_text = f"{query_prefix.strip()} {query_text}"
+
+        input_params = {
+            "limit": limit,
+            "search_query": query_text,
+            "date_range_days": date_range_days,
+            "query_prefix": query_prefix
+        }
+
         comp_run = ComponentRun.objects.create(
             pipeline_run=pipeline_run,
             step_type='search',
             component_name=f"{scraper.provider}_scraper",
             scraper=scraper,
             status='pending',
-            input_params={"limit": limit, "search_query": scraper.search_query}
+            input_params=input_params
         )
 
         celery_task_id = None
@@ -138,7 +152,7 @@ def trigger_pdf_download_job_logic(
         except (ValueError, Workspace.DoesNotExist):
             return f"Error: Workspace '{workspace_id}' not found."
 
-    workspace, membership, error = _check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager', 'researcher'])
     if error:
         return error
 
@@ -217,7 +231,7 @@ def trigger_ocr_job_logic(
         except (ValueError, Workspace.DoesNotExist):
             return f"Error: Workspace '{workspace_id}' not found."
 
-    workspace, membership, error = _check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager', 'researcher'])
     if error:
         return error
 
@@ -270,11 +284,13 @@ def trigger_screening_job_logic(
     user,
     pipeline_run_id: str = None,
     workspace_id: str = None,
-    limit: int = 50
+    limit: int = 50,
+    stage: str = "abstract"
 ) -> str:
     """
-    Trigger Step 4 of the processing pipeline (Abstract Screening) for papers in a PipelineRun or Workspace.
-    Screens paper abstracts against acceptance and rejection criteria using the workspace LLM.
+    Trigger Step 4 of the processing pipeline (Abstract or Full-Text Screening) for papers in a PipelineRun or Workspace.
+    Screens paper abstracts or full-text PDFs against workspace acceptance and rejection criteria using the workspace LLM.
+    Supports stage='abstract' (default) or stage='full_text'.
     """
     if not pipeline_run_id and not workspace_id:
         return "Error: Must specify either pipeline_run_id or workspace_id to run screening."
@@ -297,13 +313,18 @@ def trigger_screening_job_logic(
         except (ValueError, Workspace.DoesNotExist):
             return f"Error: Workspace '{workspace_id}' not found."
 
-    workspace, membership, error = _check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager', 'researcher'])
     if error:
         return error
 
     papers_count = Paper.objects.filter(pipeline_run=pipeline_run).count()
     if papers_count == 0:
         return f"Error: No papers found in PipelineRun '{pipeline_run.id}'. Please run Step 1 (trigger_search_job) first."
+
+    is_full_text = (str(stage).lower() in ["full_text", "fulltext", "full-text", "stage_b"])
+    comp_name = "full_text_screening" if is_full_text else "abstract_screening"
+    exec_func = execute_full_text_screening_job if is_full_text else execute_screening_job
+    stage_display = "Full-Text Screening" if is_full_text else "Abstract Screening"
 
     pipeline_run.status = 'running'
     pipeline_run.current_stage = 'screening'
@@ -312,30 +333,31 @@ def trigger_screening_job_logic(
     comp_run = ComponentRun.objects.create(
         pipeline_run=pipeline_run,
         step_type='screening',
-        component_name="abstract_screening",
+        component_name=comp_name,
         status='pending',
-        input_params={"limit": limit, "pipeline_run_id": str(pipeline_run.id)}
+        input_params={"limit": limit, "pipeline_run_id": str(pipeline_run.id), "stage": "full_text" if is_full_text else "abstract"}
     )
 
     celery_task_id = None
     try:
         comp_run.status = 'running'
         comp_run.save(update_fields=['status'])
-        async_res = execute_screening_job.delay(str(comp_run.id), limit=limit)
+        async_res = exec_func.delay(str(comp_run.id), limit=limit)
         celery_task_id = str(async_res.id) if async_res and getattr(async_res, 'id', None) else "async_task"
         comp_run.celery_task_id = celery_task_id
         comp_run.save(update_fields=['celery_task_id'])
         comp_run.refresh_from_db()
     except Exception:
-        execute_screening_job(str(comp_run.id), limit=limit)
+        exec_func(str(comp_run.id), limit=limit)
         comp_run.refresh_from_db()
         celery_task_id = comp_run.celery_task_id or "sync_execution"
 
     return json.dumps({
         "success": True,
-        "message": f"Successfully launched Abstract Screening job for PipelineRun '{pipeline_run.id}'. Processing up to {limit} papers.",
+        "message": f"Successfully launched {stage_display} job for PipelineRun '{pipeline_run.id}'. Processing up to {limit} papers.",
         "pipeline_run_id": str(pipeline_run.id),
         "component_run_id": str(comp_run.id),
+        "stage": "full_text" if is_full_text else "abstract",
         "status": comp_run.status,
         "celery_task_id": celery_task_id,
         "total_papers_queued": min(papers_count, limit)
@@ -373,7 +395,7 @@ def trigger_extraction_job_logic(
         except (ValueError, Workspace.DoesNotExist):
             return f"Error: Workspace '{workspace_id}' not found."
 
-    workspace, membership, error = _check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager', 'researcher'])
     if error:
         return error
 
@@ -438,7 +460,7 @@ def trigger_signal_score_job_logic(
     except (ValueError, PipelineRun.DoesNotExist):
         return f"Error: PipelineRun '{pipeline_run_id}' not found."
 
-    workspace, membership, error = _check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager', 'researcher'])
     if error:
         return error
 
@@ -481,3 +503,74 @@ def trigger_signal_score_job_logic(
         "celery_task_id": celery_task_id,
         "total_papers_queued": min(papers_count, limit) if limit else papers_count
     }, indent=2)
+
+
+def trigger_reporting_job_logic(
+    user,
+    pipeline_run_id: str,
+    recipient_override: list[str] = None
+) -> str:
+    """
+    Trigger Step 7 (Executive Narrative Reporting & Notification Dispatch) for a PipelineRun.
+    Compiles executive SLR briefing, creates NarrativeReport records, and notifies workspace subscribers.
+    """
+    try:
+        pr_uuid = uuid.UUID(pipeline_run_id)
+        pipeline_run = PipelineRun.objects.select_related('workspace').get(id=pr_uuid)
+    except (ValueError, PipelineRun.DoesNotExist):
+        return json.dumps({"status": "error", "error": f"PipelineRun '{pipeline_run_id}' not found."}, indent=2)
+
+    workspace, membership, error = check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager', 'researcher'])
+    if error:
+        return json.dumps({"status": "error", "error": error}, indent=2)
+
+    from research_intelligence.tasks.auxiliary.email_digest import dispatch_pipeline_subscriber_digest
+
+    pipeline_run.status = 'running'
+    pipeline_run.current_stage = 'reporting'
+    pipeline_run.save(update_fields=['status', 'current_stage'])
+
+    comp_run = ComponentRun.objects.create(
+        pipeline_run=pipeline_run,
+        step_type='reporting',
+        component_name="executive_narrative",
+        status='running',
+        input_params={"pipeline_run_id": str(pipeline_run.id), "recipient_override": recipient_override}
+    )
+
+    try:
+        digest_res = dispatch_pipeline_subscriber_digest(
+            workspace_id=str(pipeline_run.workspace.id),
+            pipeline_run_id=str(pipeline_run.id),
+            recipient_override=recipient_override
+        )
+        comp_run.status = 'completed'
+        comp_run.metrics = {
+            "report_generated": True,
+            "emails_sent": digest_res.get("emails_sent", 0),
+            "subscribers_count": digest_res.get("subscribers_count", 0)
+        }
+        comp_run.save(update_fields=['status', 'metrics'])
+        pipeline_run.status = 'completed'
+        pipeline_run.save(update_fields=['status'])
+    except Exception as e:
+        logger.exception(f"Error executing reporting job: {e}")
+        comp_run.status = 'failed'
+        comp_run.error_message = str(e)
+        comp_run.save(update_fields=['status', 'error_message'])
+        return json.dumps({
+            "status": "error",
+            "error": f"Failed executing reporting job: {e}",
+            "pipeline_run_id": str(pipeline_run.id),
+            "component_run_id": str(comp_run.id)
+        }, indent=2)
+
+    return json.dumps({
+        "success": True,
+        "message": f"Successfully executed Step 7 Executive Narrative Reporting for PipelineRun '{pipeline_run.id}'.",
+        "pipeline_run_id": str(pipeline_run.id),
+        "component_run_id": str(comp_run.id),
+        "status": comp_run.status,
+        "digest_result": digest_res
+    }, indent=2)
+

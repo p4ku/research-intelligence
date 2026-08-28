@@ -4,7 +4,6 @@ from django.db.models import Sum, Count
 from django.core.files.storage import default_storage
 
 from research_intelligence.models import DocumentRegistry
-from ..workspaces import _check_workspace_access
 
 logger = logging.getLogger(__name__)
 

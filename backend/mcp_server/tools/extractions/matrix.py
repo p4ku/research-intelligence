@@ -103,7 +103,7 @@ def get_paper_extractions_matrix_logic(
     if screening_status and screening_status != 'all':
         if screening_status == 'all_screened':
             papers_qs = papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'accepted', 'rejected'])
-        elif screening_status in ['all_passed', 'accepted']:
+        elif screening_status in ['all_passed', 'accepted', 'passed', 'full_text_passed']:
             papers_qs = papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'accepted'])
         else:
             papers_qs = papers_qs.filter(screening_status=screening_status)

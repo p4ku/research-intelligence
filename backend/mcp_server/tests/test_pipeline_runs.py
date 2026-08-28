@@ -12,6 +12,7 @@ from mcp_server.tools import (
     delete_pipeline_run_logic,
 )
 from .base import BaseMCPTestCase
+from unittest.mock import patch, MagicMock
 
 
 class MCPPipelineRunsTestCase(BaseMCPTestCase):
@@ -40,3 +41,70 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
         self.assertEqual(del_res["status"], "success")
         self.assertFalse(PipelineRun.objects.filter(id=pr.id).exists())
         self.assertFalse(Paper.objects.filter(id=p.id).exists())
+
+    @patch("mcp_server.tools.pipeline_runs.triggers.execute_screening_job.delay")
+    @patch("mcp_server.tools.pipeline_runs.triggers.execute_full_text_screening_job.delay")
+    def test_trigger_screening_job_stages(self, mock_full_text, mock_abstract):
+        mock_abstract.return_value = MagicMock(id="celery_task_abs_01")
+        mock_full_text.return_value = MagicMock(id="celery_task_ft_01")
+
+        pr = PipelineRun.objects.create(workspace=self.workspace)
+        Paper.objects.create(workspace=self.workspace, pipeline_run=pr, hash_id="hash_scr_01", title="Screening Paper 1")
+
+        # 1. Abstract Stage (default)
+        abs_res = self.parse_res(trigger_screening_job_logic(self.admin, pipeline_run_id=str(pr.id), stage="abstract"))
+        self.assertTrue(abs_res["success"])
+        self.assertEqual(abs_res["stage"], "abstract")
+        self.assertEqual(abs_res["celery_task_id"], "celery_task_abs_01")
+        mock_abstract.assert_called_once()
+
+        # 2. Full-Text Stage
+        ft_res = self.parse_res(trigger_screening_job_logic(self.admin, pipeline_run_id=str(pr.id), stage="full_text"))
+        self.assertTrue(ft_res["success"])
+        self.assertEqual(ft_res["stage"], "full_text")
+        self.assertEqual(ft_res["celery_task_id"], "celery_task_ft_01")
+        mock_full_text.assert_called_once()
+
+    def test_list_pipeline_runs_with_limit(self):
+        pr1 = PipelineRun.objects.create(workspace=self.workspace)
+        pr2 = PipelineRun.objects.create(workspace=self.workspace)
+        pr3 = PipelineRun.objects.create(workspace=self.workspace)
+
+        list_res = self.parse_res(list_pipeline_runs_logic(self.admin, workspace_id=str(self.workspace.id), limit=2))
+        self.assertEqual(len(list_res), 2)
+
+    @patch("mcp_server.tools.pipeline_runs.triggers.execute_scraper_run_job.delay")
+    def test_trigger_search_job_with_date_range_and_prefix(self, mock_scrape_task):
+        mock_scrape_task.return_value = MagicMock(id="celery_scrape_01")
+        from research_intelligence.models import Scraper
+        scraper = Scraper.objects.create(workspace=self.workspace, provider="arxiv", search_query="transformer attention", is_active=True)
+
+        res = self.parse_res(trigger_search_job_logic(
+            self.admin,
+            workspace_id=str(self.workspace.id),
+            scraper_id=str(scraper.id),
+            limit=25,
+            date_range_days=30,
+            query_prefix="quantum"
+        ))
+        self.assertTrue(res["success"])
+        pr_id = res["pipeline_run_id"]
+        pr = PipelineRun.objects.get(id=pr_id)
+        comp_run = pr.component_runs.first()
+        self.assertEqual(comp_run.input_params["query_prefix"], "quantum")
+        self.assertEqual(comp_run.input_params["date_range_days"], 30)
+        self.assertEqual(comp_run.input_params["search_query"], "quantum transformer attention")
+
+    @patch("research_intelligence.tasks.auxiliary.email_digest.dispatch_pipeline_subscriber_digest")
+    def test_trigger_reporting_job(self, mock_digest):
+        mock_digest.return_value = {"status": "success", "emails_sent": 3, "subscribers_count": 3}
+        from mcp_server.tools.pipeline_runs.triggers import trigger_reporting_job_logic
+
+        pr = PipelineRun.objects.create(workspace=self.workspace, status="running")
+        res = self.parse_res(trigger_reporting_job_logic(self.admin, pipeline_run_id=str(pr.id)))
+        self.assertTrue(res["success"])
+        mock_digest.assert_called_once()
+        pr.refresh_from_db()
+        self.assertEqual(pr.status, "completed")
+
+

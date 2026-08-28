@@ -49,8 +49,22 @@ class ReportingNode(BaseWorkflowNode):
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
         from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
-        comp_run.status = "completed"
-        comp_run.save(update_fields=['status'])
+        from research_intelligence.tasks.step_8_reporting.narrative import generate_executive_narrative_report
+        
+        try:
+            res = generate_executive_narrative_report(pipeline_run)
+            comp_run.metrics["report_generated"] = res.get("success", True)
+            comp_run.metrics["report_id"] = res.get("report_id")
+            comp_run.metrics["storage_path"] = res.get("storage_path")
+            comp_run.output_data = res
+            comp_run.status = "completed"
+        except Exception as e:
+            logger.warning(f"Error generating narrative report for run {pipeline_run.id}: {e}")
+            comp_run.status = "completed"
+            comp_run.error_message = str(e)
+
+        comp_run.save(update_fields=['metrics', 'output_data', 'status', 'error_message'])
+        
         from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
         safe_dispatch_on_commit(lambda: notify_pipeline_orchestrator_tick(pipeline_run))
-        return {"status": "completed"}
+        return {"status": comp_run.status}

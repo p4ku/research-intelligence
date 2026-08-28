@@ -14,7 +14,7 @@ from research_intelligence.models import (
     Extraction,
     PaperMetric,
 )
-from mcp_server.tools.workspaces import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 logger = logging.getLogger(__name__)
 
@@ -77,7 +77,7 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
     except PipelineRun.DoesNotExist:
         return f"Error: PipelineRun with ID '{pipeline_run_id}' does not exist."
 
-    workspace, membership, error = _check_workspace_access(user, str(pipeline_run.workspace.id))
+    workspace, membership, error = check_workspace_access(user, str(pipeline_run.workspace.id))
     if error:
         return error
 
@@ -245,7 +245,7 @@ def get_component_run_status_logic(user, component_run_id: str) -> str:
     except ComponentRun.DoesNotExist:
         return f"Error: ComponentRun with ID '{component_run_id}' does not exist."
 
-    workspace, membership, error = _check_workspace_access(user, str(cr.pipeline_run.workspace.id))
+    workspace, membership, error = check_workspace_access(user, str(cr.pipeline_run.workspace.id))
     if error:
         return error
 
@@ -274,17 +274,18 @@ def get_component_run_status_logic(user, component_run_id: str) -> str:
     return json.dumps(details, indent=2, cls=DjangoJSONEncoder)
 
 
-def list_pipeline_runs_logic(user, workspace_id: str = None) -> str:
+def list_pipeline_runs_logic(user, workspace_id: str = None, limit: int = 20) -> str:
     """List pipeline runs and their component run status tree (filtered by workspace)."""
     if workspace_id:
-        workspace, membership, error = _check_workspace_access(user, workspace_id)
+        workspace, membership, error = check_workspace_access(user, workspace_id)
         if error:
-            return error
-        runs = PipelineRun.objects.filter(workspace=workspace).select_related('workspace', 'triggered_by').prefetch_related('component_runs', 'agent_processes').order_by('-started_at')
+            return json.dumps({"status": "error", "error": error}, indent=2)
+        runs_qs = PipelineRun.objects.filter(workspace=workspace).select_related('workspace', 'triggered_by').prefetch_related('component_runs', 'agent_processes').order_by('-started_at')
     else:
         accessible_ws = Workspace.objects.filter(memberships__user=user)
-        runs = PipelineRun.objects.filter(workspace__in=accessible_ws).select_related('workspace', 'triggered_by').prefetch_related('component_runs', 'agent_processes').order_by('-started_at')
+        runs_qs = PipelineRun.objects.filter(workspace__in=accessible_ws).select_related('workspace', 'triggered_by').prefetch_related('component_runs', 'agent_processes').order_by('-started_at')
 
+    runs = list(runs_qs[:limit]) if limit else list(runs_qs)
     result = []
     for r in runs:
         comp_runs_tree = []

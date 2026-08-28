@@ -154,7 +154,10 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
                     existing_p = Paper.objects.filter(conds & match_q).first()
                     if existing_p:
                         existing_p.pipeline_run = pipeline_run
-                        existing_p.save(update_fields=['pipeline_run'])
+                        if existing_p.screening_status != 'withdrawn':
+                            existing_p.screening_status = 'pending'
+                            existing_p.screening_reasoning = None
+                        existing_p.save(update_fields=['pipeline_run', 'screening_status', 'screening_reasoning'])
                         created_count += 1
                         created_paper_ids.append(str(existing_p.id))
                         continue
@@ -261,8 +264,16 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
         component_run.completed_at = timezone.now()
         component_run.save(update_fields=['status', 'error_message', 'completed_at'])
 
-        pipeline_run.status = 'failed'
-        pipeline_run.save(update_fields=['status'])
+        pipeline_run.refresh_from_db()
+        sibling_runs = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, step_type='search')
+        has_pending = sibling_runs.filter(status__in=['pending', 'running']).exists()
+        has_succeeded = sibling_runs.filter(status='completed').exists()
+        total_ingested = Paper.objects.filter(pipeline_run_id=pipeline_run.id).count()
+
+        # Only mark entire pipeline_run as failed if all sibling scrapers finished without ingesting any papers
+        if not has_pending and not has_succeeded and total_ingested == 0:
+            pipeline_run.status = 'failed'
+            pipeline_run.save(update_fields=['status'])
 
         from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
         notify_pipeline_orchestrator_tick(pipeline_run)

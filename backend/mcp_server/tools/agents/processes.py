@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.core.serializers.json import DjangoJSONEncoder
 from research_intelligence.models import Workspace, ResearchAgentProcess
 from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
-from ..workspaces import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ def start_research_agent_logic(
     Supports parallel runs, dynamic query modifiers, date windowing, and notification settings.
     Set reprocess_existing=True to re-evaluate and screen existing workspace papers even if no new papers were found.
     """
-    workspace, membership, error = _check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -84,7 +84,7 @@ def list_research_agents_logic(user, workspace_id: str = None, limit: int = 20) 
     List active or recent ResearchAgentProcesses for a workspace or across accessible workspaces.
     """
     if workspace_id:
-        workspace, membership, error = _check_workspace_access(user, workspace_id)
+        workspace, membership, error = check_workspace_access(user, workspace_id)
         if error:
             return error
         processes = ResearchAgentProcess.objects.filter(workspace=workspace).select_related('workspace', 'pipeline_run', 'triggered_by').order_by('-started_at')[:limit]
@@ -385,7 +385,7 @@ def check_run_status_logic(
             "error": f"No ResearchAgentProcess or PipelineRun found matching ID '{target_id}'."
         }, indent=2)
 
-    workspace, membership, error = _check_workspace_access(user, str(process.workspace.id))
+    workspace, membership, error = check_workspace_access(user, str(process.workspace.id))
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -556,7 +556,7 @@ def pause_research_agent_logic(user, process_id: str) -> str:
     except (ValueError, ResearchAgentProcess.DoesNotExist):
         return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
-    workspace, membership, error = _check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -592,7 +592,7 @@ def resume_research_agent_logic(user, process_id: str) -> str:
     except (ValueError, ResearchAgentProcess.DoesNotExist):
         return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
-    workspace, membership, error = _check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -633,7 +633,7 @@ def abort_research_agent_logic(user, process_id: str) -> str:
     except (ValueError, ResearchAgentProcess.DoesNotExist):
         return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
-    workspace, membership, error = _check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -672,7 +672,7 @@ def delete_research_agent_logic(user, process_id: str) -> str:
     except (ValueError, ResearchAgentProcess.DoesNotExist):
         return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
-    workspace, membership, error = _check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -701,7 +701,7 @@ def get_workflow_dag_schema_logic(user, workspace_id: str = None) -> str:
     """
     workspace = None
     if workspace_id:
-        workspace, membership, error = _check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
+        workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
         if error:
             return json.dumps({"status": "error", "error": error}, indent=2)
 

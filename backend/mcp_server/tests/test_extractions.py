@@ -73,3 +73,44 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
         get_res = self.parse_res(get_extraction_logic(self.admin, extraction_id=str(ext.id)))
         self.assertEqual(get_res["extraction_id"], str(ext.id))
         self.assertEqual(get_res["fields_data"]["novelty"], 9.5)
+
+    def test_matrix_filtering_resilience(self):
+        run = PipelineRun.objects.create(workspace=self.workspace)
+        p1 = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="sha256_p1_abs",
+            title="Abstract Passed Paper",
+            screening_status="abstract_passed"
+        )
+        p2 = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="sha256_p2_ft",
+            title="Full-Text Passed Paper",
+            screening_status="full_text_passed"
+        )
+        p3 = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="sha256_p3_acc",
+            title="Accepted Paper",
+            screening_status="accepted"
+        )
+        p4 = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="sha256_p4_rej",
+            title="Rejected Paper",
+            screening_status="rejected"
+        )
+
+        # Default filter ("full_text_passed") includes abstract_passed, full_text_passed, accepted (3 papers)
+        matrix_res = self.parse_res(get_paper_extractions_matrix_logic(self.admin, workspace_id=str(self.workspace.id)))
+        self.assertEqual(matrix_res["total_papers"], 3)
+        paper_ids = [p["paper_id"] for p in matrix_res["papers"]]
+        self.assertIn(str(p1.id), paper_ids)
+        self.assertIn(str(p2.id), paper_ids)
+        self.assertIn(str(p3.id), paper_ids)
+        self.assertNotIn(str(p4.id), paper_ids)
+

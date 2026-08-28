@@ -110,9 +110,19 @@ class TriggerStepSerializer(serializers.Serializer):
             ('screening', 'Abstract & Full-Text Screening'),
             ('extraction', 'Dynamic Parameter Extraction'),
             ('signal_score', 'Signal Score Evaluation'),
+            ('reporting', 'Executive Narrative & Notification Dispatch'),
         ],
         required=True,
         help_text="Target pipeline component step to trigger"
+    )
+    stage = serializers.ChoiceField(
+        choices=[
+            ('abstract', 'Abstract Screening'),
+            ('full_text', 'Multimodal Full-Text Screening'),
+        ],
+        required=False,
+        default='abstract',
+        help_text="Screening stage: 'abstract' or 'full_text'"
     )
     limit = serializers.IntegerField(
         required=False,
@@ -124,7 +134,7 @@ class TriggerStepSerializer(serializers.Serializer):
     skip_abstract_screening = serializers.BooleanField(
         required=False,
         default=False,
-        help_text="If True during screening step, skips abstract evaluation and screens full-text directly"
+        help_text="If True during screening step, screens full-text directly"
     )
     date_range_days = serializers.IntegerField(
         required=False,

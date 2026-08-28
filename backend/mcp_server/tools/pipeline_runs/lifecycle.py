@@ -14,7 +14,12 @@ from research_intelligence.models import (
     PaperMetric,
     NarrativeReport,
 )
-from ..workspaces import _check_workspace_access
+from research_intelligence.services import (
+    check_workspace_access,
+    recursive_delete_run_storage as _recursive_delete_run_storage,
+    abort_job as service_abort_job,
+    delete_pipeline_run as service_delete_pipeline_run,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +33,7 @@ def abort_job_logic(user, component_run_id: str = None, pipeline_run_id: str = N
         except (ValueError, ComponentRun.DoesNotExist):
             return f"Error: ComponentRun '{component_run_id}' not found."
 
-        workspace, membership, error = _check_workspace_access(user, str(cr.pipeline_run.workspace.id), required_roles=['admin', 'manager'])
+        workspace, membership, error = check_workspace_access(user, str(cr.pipeline_run.workspace.id), required_roles=['admin', 'manager'])
         if error:
             return error
 
@@ -70,7 +75,7 @@ def abort_job_logic(user, component_run_id: str = None, pipeline_run_id: str = N
         except (ValueError, PipelineRun.DoesNotExist):
             return f"Error: PipelineRun '{pipeline_run_id}' not found."
 
-        workspace, membership, error = _check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager'])
+        workspace, membership, error = check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager'])
         if error:
             return error
 
@@ -173,7 +178,7 @@ def delete_pipeline_run_logic(user, pipeline_run_id: str) -> str:
         return f"Error: PipelineRun '{pipeline_run_id}' not found."
 
     workspace = pipeline_run.workspace
-    workspace, membership, error = _check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(workspace.id), required_roles=['admin', 'manager'])
     if error:
         return error
 
