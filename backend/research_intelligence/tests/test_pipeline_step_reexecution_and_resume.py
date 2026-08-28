@@ -244,6 +244,7 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
 
         def _finish_comp_run(cid, **kw):
             ComponentRun.objects.filter(id=cid).update(status="completed")
+            Paper.objects.filter(pipeline_run=pipeline_run).update(screening_status="abstract_passed")
             res = MagicMock()
             res.id = "task-mock-id"
             return res

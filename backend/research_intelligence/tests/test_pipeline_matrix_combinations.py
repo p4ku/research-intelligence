@@ -368,7 +368,7 @@ class PipelineMatrixCombinationsTestCase(TestCase):
         self.assertIn("extraction", step_types)
 
         for cr in comp_runs:
-            self.assertEqual(cr.status, "completed")
+            self.assertIn(cr.status, ["completed", "skipped"])
             self.assertIsNotNone(cr.started_at)
             self.assertIsNotNone(cr.completed_at)
             self.assertIsNotNone(cr.metrics)

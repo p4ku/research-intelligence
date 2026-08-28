@@ -112,3 +112,18 @@ class ExtractionTaskTestCase(TestCase):
         self.component_run.metrics = {"extracted_count": 8, "papers_processed": 4}
         summary = node.generate_stage_summary(self.component_run, status="completed")
         self.assertIn("8 parameters extracted", summary)
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    def test_execute_extraction_job_no_active_definitions(self, mock_notify):
+        """Test extraction job completes cleanly and notifies orchestrator when no active definitions exist."""
+        self.definition.is_active = False
+        self.definition.save()
+
+        result = execute_extraction_job(str(self.component_run.id))
+        self.assertTrue(result)
+
+        self.component_run.refresh_from_db()
+        self.assertEqual(self.component_run.status, "completed")
+        self.assertEqual(self.component_run.metrics.get("total_definitions"), 0)
+        mock_notify.assert_called_once_with(self.pipeline_run)
+

@@ -249,6 +249,9 @@ def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_wor
             component_run.status = 'completed'
             component_run.completed_at = timezone.now()
             component_run.save(update_fields=['metrics', 'output_data', 'status', 'completed_at'])
+
+            from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+            notify_pipeline_orchestrator_tick(pipeline_run)
             return True
 
         # Target paper selection: strictly evaluate based on screening jobs in pipeline history

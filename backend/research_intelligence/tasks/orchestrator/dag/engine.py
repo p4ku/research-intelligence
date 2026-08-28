@@ -151,8 +151,6 @@ class WorkflowDAG:
                     status_map[node_name] = "completed"
             elif matching_runs.filter(status='skipped').exists():
                 status_map[node_name] = "skipped"
-            elif node.name == 'reporting' and node.is_skippable(pipeline_run, pipeline_run.workspace, cfg):
-                status_map[node_name] = "skipped"
             else:
                 # If no matching runs for this node, but any downstream node has started or completed,
                 # mark this prerequisite node as completed (implicit completion from downstream presence)
@@ -342,14 +340,16 @@ class WorkflowDAG:
             for node in ready_nodes:
                 if node.is_skippable(pipeline_run, workspace, cfg):
                     logger.info(f"DAG Node '{node.name}' is skippable for workspace '{workspace.name}'. Marking skipped.")
-                    if node.name != 'reporting':
-                        ComponentRun.objects.create(
-                            pipeline_run=pipeline_run,
-                            step_type=node.step_type,
-                            component_name=node.component_name,
-                            status='skipped',
-                            input_params=node.get_input_params(pipeline_run, workspace, cfg, limit=limit)
-                        )
+                    ComponentRun.objects.create(
+                        pipeline_run=pipeline_run,
+                        step_type=node.step_type,
+                        component_name=node.component_name,
+                        status='skipped',
+                        started_at=timezone.now(),
+                        completed_at=timezone.now(),
+                        metrics={"status": "skipped"},
+                        input_params=node.get_input_params(pipeline_run, workspace, cfg, limit=limit)
+                    )
                     # Re-evaluate recursively to dispatch downstream nodes immediately
                     res = self.evaluate_and_dispatch(pipeline_run, agent_process=agent_process, config=cfg, limit=limit)
                     if node.name == 'ocr' and res.get("success"):

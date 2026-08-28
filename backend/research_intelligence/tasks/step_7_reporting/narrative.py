@@ -118,6 +118,8 @@ def generate_executive_narrative_report(pipeline_run: PipelineRun) -> Dict[str, 
 
     # 3. Save Markdown to storage: workspaces/{ws_id}/runs/{run_id}/narrative_report.md
     target_storage_path = f"workspaces/{workspace.id}/runs/{pipeline_run.id}/narrative_report.md"
+    if default_storage.exists(target_storage_path):
+        default_storage.delete(target_storage_path)
     default_storage.save(target_storage_path, ContentFile(report_markdown.encode('utf-8')))
 
     # 4. Save NarrativeReport record

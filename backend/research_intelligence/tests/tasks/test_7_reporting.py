@@ -76,3 +76,21 @@ class ReportingTaskTestCase(TestCase):
         self.component_run.metrics = {"report_generated": True, "emails_sent": 1}
         summary = node.generate_stage_summary(self.component_run, status="completed")
         self.assertIn("Reporting", summary)
+
+    def test_generate_executive_narrative_report_overwrites_existing_storage(self):
+        """Test generating executive narrative report cleans existing storage without creating duplicate suffix files."""
+        from django.core.files.storage import default_storage
+        from research_intelligence.tasks.step_7_reporting.narrative import generate_executive_narrative_report
+        from research_intelligence.models import NarrativeReport
+
+        res = generate_executive_narrative_report(self.pipeline_run)
+        self.assertTrue(res["success"])
+        path = res["storage_path"]
+        self.assertTrue(default_storage.exists(path))
+
+        # Re-run report generation to test overwrite
+        res2 = generate_executive_narrative_report(self.pipeline_run)
+        self.assertTrue(res2["success"])
+        self.assertEqual(res2["storage_path"], path)
+        self.assertEqual(NarrativeReport.objects.filter(pipeline_run=self.pipeline_run).count(), 1)
+

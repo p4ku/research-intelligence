@@ -77,6 +77,7 @@ class Paper(models.Model):
             ('pending', 'Pending'),
             ('abstract_passed', 'Abstract Passed'),
             ('full_text_passed', 'Full Text Passed'),
+            ('accepted', 'Accepted'),
             ('borderline', 'Borderline (Human Review)'),
             ('rejected', 'Rejected'),
             ('withdrawn', 'Withdrawn by Authors')

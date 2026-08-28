@@ -118,7 +118,7 @@ return round(min(base, 10.0), 2)
         ocr_node = dag.nodes["ocr"]
         self.assertTrue(ocr_node.is_skippable(self.pipeline_run, self.workspace, {}))
 
-    @patch("research_intelligence.tasks.step_6_signal_score.scorer.calculate_paper_signal_score")
+    @patch("research_intelligence.tasks.step_6_signal_score.scorer.compute_paper_signal_score")
     @patch("research_intelligence.tasks.step_5_extraction.extract.get_llm_provider")
     @patch("research_intelligence.tasks.step_4_screening.full_text.get_llm_provider")
     @patch("research_intelligence.tasks.step_4_screening.abstract.get_llm_provider")
@@ -277,7 +277,7 @@ return round(min(base, 10.0), 2)
             component_name="signal_scorer",
             status="pending"
         )
-        mock_calc_signal_score.return_value = 8.75
+        mock_calc_signal_score.return_value = (8.75, {"score": 8.75})
 
         signal_res = execute_signal_score_job(str(signal_comp_run.id))
         self.assertTrue(signal_res["success"])

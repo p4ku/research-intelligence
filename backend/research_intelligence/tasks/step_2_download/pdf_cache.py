@@ -100,6 +100,8 @@ def try_reuse_cached_pdf(paper: Paper, target_path: str, title_snippet: str = ""
                 file_bytes = src_file.read()
 
             if file_bytes and len(file_bytes) > 0:
+                if default_storage.exists(target_path):
+                    default_storage.delete(target_path)
                 saved_path = default_storage.save(target_path, ContentFile(file_bytes))
                 paper.original_pdf_path = saved_path
                 paper.document_registry = doc_reg
@@ -160,6 +162,8 @@ def try_reuse_cached_pdf(paper: Paper, target_path: str, title_snippet: str = ""
             file_bytes = src_file.read()
 
         if file_bytes and len(file_bytes) > 0:
+            if default_storage.exists(target_path):
+                default_storage.delete(target_path)
             saved_path = default_storage.save(target_path, ContentFile(file_bytes))
             paper.original_pdf_path = saved_path
             paper.save(update_fields=['original_pdf_path'])
