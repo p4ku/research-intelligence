@@ -23,11 +23,13 @@ backend/
 │   ├── serializers/            # DRF Serializers (workspaces, auth, agents, extractions, papers)
 │   ├── views/                  # DRF Views (auth, workspaces, agents, extractions, diagnostics)
 │   └── urls.py                 # API routing (/api/auth/, /api/workspaces/, /api/health/)
+├── chat/                       # Interactive Paper Q&A & Knowledge Explorer (/api/chat/)
+├── mcp_server/                 # FastMCP SSE Server (Port 8001) & Tool Modules (/mcp/)
+│   ├── server/                 # FastMCP Server Instance & Tool Registrations
+│   ├── tools/                  # Domain tool logic (agent_processes, workspaces, extractions, etc.)
+│   ├── views.py                # MCP Discovery & Capabilities endpoints
+│   └── management/commands/    # Django management command (python manage.py run_mcp)
 └── research_intelligence/      # Core Platform Domain Logic
-    ├── models.py               # Workspace, Member, Paper, Extraction, ResearchAgentProcess
-    ├── mcp/                    # FastMCP SSE Server & Tool Modules
-    │   ├── server.py           # FastMCP Server (Port 8001) & Tool Wrapper Registrations
-    │   └── tools/              # Domain tool logic (agent_processes, workspaces, extractions, etc.)
     ├── llm_providers/          # LLM Drivers (Google Vertex AI / Gemini 3.7 Flash, OpenRouter)
     ├── ocr_providers/          # Document OCR Parsers (PyPDF, Mistral OCR, Gemini)
     ├── tasks/                  # Celery Tasks & Orchestrator State Engine

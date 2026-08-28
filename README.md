@@ -123,16 +123,16 @@ The data layer is structured into 5 cohesive domains:
 ## 🏗️ 4. Repository Structure
 
 ```
-schwarz_research_intelligence/
 ├── backend/                     # Django API + Celery Async Task Workers + FastMCP
 │   ├── Dockerfile               # Production container definition
 │   ├── django_project/          # Settings & WSGI configuration
 │   ├── api/                     # DRF REST API viewsets & serializers (/api/)
+│   ├── chat/                    # Interactive Knowledge Explorer & Paper Chat (/api/chat/)
+│   ├── mcp_server/              # FastMCP Server (Port 8001) & Tool Registry (/mcp/)
 │   └── research_intelligence/   # Core intelligence platform
-│       ├── mcp/                 # FastMCP SSE Server & Tool Registry
-│       ├── tasks/               # 5-Step Pipeline & Orchestrator State Engine
+│       ├── tasks/               # 6-Step Pipeline & Orchestrator State Engine
 │       ├── models.py            # Workspace, DocumentRegistry, Paper, Extraction models
-│       └── tests/               # Automated unit & integration test suite (164+ tests)
+│       └── tests/               # Automated unit & integration test suite (333+ tests)
 ├── frontend/                    # Next.js User Interface
 ├── docs/                        # Architecture documentation, diagrams & image generators
 │   ├── generate_db_schema.py    # Automated DB schema diagram builder (Mermaid/PNG/SVG)
