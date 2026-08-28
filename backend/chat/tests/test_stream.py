@@ -11,6 +11,7 @@ class ChatStreamTestCase(BaseChatTestCase):
     def test_sse_streaming_post_endpoint(self, mock_get_llm_provider):
         mock_provider = MagicMock()
         mock_provider.generate_stream.return_value = iter([
+            ("", {"thought": "First, analyze the power dissipation metrics..."}),
             ("Real-time optical inference ", None),
             ("achieves 100 TOPS/W efficiency [Page 1, Fig 1].", {"prompt_tokens": 600, "candidates_tokens": 25, "total_tokens": 625})
         ])
@@ -28,6 +29,8 @@ class ChatStreamTestCase(BaseChatTestCase):
         # Read streamed content
         raw_events = b"".join(response.streaming_content).decode('utf-8')
         self.assertIn("event: metadata", raw_events)
+        self.assertIn("event: thought", raw_events)
+        self.assertIn("First, analyze the power dissipation metrics", raw_events)
         self.assertIn("event: delta", raw_events)
         self.assertIn("event: fact_check", raw_events)
         self.assertIn("event: usage", raw_events)
@@ -41,6 +44,7 @@ class ChatStreamTestCase(BaseChatTestCase):
         self.assertEqual(msg.tokens_out, 25)
         self.assertEqual(msg.total_tokens, 625)
         self.assertIn("Real-time optical inference", msg.message)
+        self.assertIn("First, analyze the power dissipation metrics", msg.thinking_process)
 
     def test_stream_unauthorized_access(self):
         other_client = APIClient()

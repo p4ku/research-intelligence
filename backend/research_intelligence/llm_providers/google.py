@@ -203,6 +203,29 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         if cached_content:
             config_args["cached_content"] = cached_content
 
+        # Native Gemini Thinking Configuration
+        deep_thinking = kwargs.get("deep_thinking", False)
+        thinking_budget = kwargs.get("thinking_budget")
+        thinking_level = kwargs.get("thinking_level")
+        include_thoughts = kwargs.get("include_thoughts", False)
+
+        if deep_thinking or thinking_budget is not None or thinking_level is not None or include_thoughts:
+            try:
+                thinking_kwargs = {}
+                if include_thoughts or deep_thinking:
+                    thinking_kwargs["include_thoughts"] = True
+                if thinking_budget is not None:
+                    thinking_kwargs["thinking_budget"] = thinking_budget
+                elif thinking_level is not None:
+                    thinking_kwargs["thinking_level"] = thinking_level
+                elif deep_thinking:
+                    thinking_kwargs["thinking_budget"] = 2048
+
+                if thinking_kwargs and hasattr(types, 'ThinkingConfig'):
+                    config_args["thinking_config"] = types.ThinkingConfig(**thinking_kwargs)
+            except Exception as te:
+                logger.debug(f"ThinkingConfig initialization note: {te}")
+
         config = types.GenerateContentConfig(**config_args)
 
         # 5. Call API with Exponential Backoff Retry Strategy for 429 / RESOURCE_EXHAUSTED
@@ -236,7 +259,21 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                     raise
 
         # 6. Parse response if schema was requested
-        parsed_result = response.text if hasattr(response, 'text') else str(response)
+        thought_parts = []
+        answer_parts = []
+        if hasattr(response, 'candidates') and response.candidates:
+            cand = response.candidates[0]
+            if hasattr(cand, 'content') and cand.content and hasattr(cand.content, 'parts'):
+                for part in cand.content.parts:
+                    p_text = getattr(part, 'text', '') or ''
+                    if getattr(part, 'thought', False):
+                        thought_parts.append(p_text)
+                    elif p_text:
+                        answer_parts.append(p_text)
+
+        thought_text = "".join(thought_parts)
+        parsed_result = "".join(answer_parts) if answer_parts else (response.text if hasattr(response, 'text') else str(response))
+
         if response_schema:
             try:
                 result = getattr(response, 'parsed', None)
@@ -245,8 +282,8 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                         parsed_result = result.model_dump()
                     else:
                         parsed_result = result
-                elif getattr(response, 'text', None):
-                    raw_json = response.text
+                elif parsed_result and isinstance(parsed_result, str):
+                    raw_json = parsed_result
                     if "```json" in raw_json:
                         raw_json = raw_json.split("```json")[1].split("```")[0].strip()
                     elif "```" in raw_json:
@@ -255,11 +292,12 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
             except Exception as pe:
                 logger.warning(f"Failed to parse JSON response: {str(pe)}. Returning raw response text.")
 
-        # Extract token usage metadata
+        # Extract token usage metadata & thoughts
         usage = {
             "prompt_tokens": 0,
             "candidates_tokens": 0,
-            "total_tokens": 0
+            "total_tokens": 0,
+            "thought_process": thought_text
         }
         if hasattr(response, "usage_metadata") and response.usage_metadata:
             meta = response.usage_metadata
@@ -269,7 +307,8 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
             usage = {
                 "prompt_tokens": p_tok,
                 "candidates_tokens": c_tok,
-                "total_tokens": t_tok
+                "total_tokens": t_tok,
+                "thought_process": thought_text
             }
 
         if kwargs.get("return_usage"):
@@ -292,7 +331,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
     ):
         """
         Streams response chunks from Gemini generate_content_stream.
-        Yields (chunk_text, is_final, usage_dict).
+        Yields (chunk_text, usage_dict).
         """
         model_name = model or "gemini-3.7-flash"
         if model_name.startswith("google/"):
@@ -321,6 +360,28 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         if cached_content:
             config_args["cached_content"] = cached_content
 
+        deep_thinking = kwargs.get("deep_thinking", False)
+        thinking_budget = kwargs.get("thinking_budget")
+        thinking_level = kwargs.get("thinking_level")
+        include_thoughts = kwargs.get("include_thoughts", False)
+
+        if deep_thinking or thinking_budget is not None or thinking_level is not None or include_thoughts:
+            try:
+                thinking_kwargs = {}
+                if include_thoughts or deep_thinking:
+                    thinking_kwargs["include_thoughts"] = True
+                if thinking_budget is not None:
+                    thinking_kwargs["thinking_budget"] = thinking_budget
+                elif thinking_level is not None:
+                    thinking_kwargs["thinking_level"] = thinking_level
+                elif deep_thinking:
+                    thinking_kwargs["thinking_budget"] = 2048
+
+                if thinking_kwargs and hasattr(types, 'ThinkingConfig'):
+                    config_args["thinking_config"] = types.ThinkingConfig(**thinking_kwargs)
+            except Exception as te:
+                logger.debug(f"ThinkingConfig stream init note: {te}")
+
         config = types.GenerateContentConfig(**config_args)
 
         try:
@@ -330,7 +391,19 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                 config=config,
             )
             for chunk in response_stream:
-                chunk_text = getattr(chunk, 'text', '') or ''
+                chunk_thought = ""
+                chunk_answer = ""
+                if hasattr(chunk, 'candidates') and chunk.candidates:
+                    cand = chunk.candidates[0]
+                    if hasattr(cand, 'content') and cand.content and hasattr(cand.content, 'parts'):
+                        for part in cand.content.parts:
+                            p_text = getattr(part, 'text', '') or ''
+                            if getattr(part, 'thought', False):
+                                chunk_thought += p_text
+                            elif p_text:
+                                chunk_answer += p_text
+
+                chunk_text = chunk_answer if chunk_answer else (getattr(chunk, 'text', '') or '')
                 usage = None
                 if hasattr(chunk, 'usage_metadata') and chunk.usage_metadata:
                     meta = chunk.usage_metadata
@@ -338,7 +411,13 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                     c_tok = getattr(meta, "candidates_token_count", 0) or 0
                     t_tok = getattr(meta, "total_token_count", 0) or (p_tok + c_tok)
                     usage = {"prompt_tokens": p_tok, "candidates_tokens": c_tok, "total_tokens": t_tok}
-                yield chunk_text, usage
+
+                if chunk_thought:
+                    usage_with_thought = (usage or {}).copy()
+                    usage_with_thought["thought"] = chunk_thought
+                    yield "", usage_with_thought
+                if chunk_text:
+                    yield chunk_text, usage
         except Exception as e:
             logger.exception(f"Error during streaming generate_content_stream: {e}")
             raise

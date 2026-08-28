@@ -102,7 +102,7 @@ class PaperChatEngine:
             prompt = self._assemble_prompt(prompt_context, history_text, message.question, deep_thinking_active)
 
             # 5. Generate LLM Response
-            answer_raw, citations_list, tokens_in, tokens_out = self._call_llm(
+            answer_raw, citations_list, tokens_in, tokens_out, thought_process = self._call_llm(
                 workspace=workspace,
                 prompt=prompt,
                 pdf_bytes=prompt_pdf,
@@ -134,6 +134,7 @@ class PaperChatEngine:
             session.record_message_cost(tokens_in, tokens_out, cost)
 
             message.message = cleaned_answer
+            message.thinking_process = thought_process or ""
             message.tokens_in = tokens_in
             message.tokens_out = tokens_out
             message.total_tokens = total_tokens
@@ -145,7 +146,7 @@ class PaperChatEngine:
             message.visual_citations = verified_visual_cits
             message.hallucination_guard = guard_summary
             message.save(update_fields=[
-                'message', 'tokens_in', 'tokens_out', 'total_tokens', 'usd_cost',
+                'message', 'thinking_process', 'tokens_in', 'tokens_out', 'total_tokens', 'usd_cost',
                 'llm_model', 'status', 'completed_at', 'citations', 'visual_citations', 'hallucination_guard'
             ])
 
@@ -161,6 +162,7 @@ class PaperChatEngine:
                 "paper_id": str(paper.id) if paper else None,
                 "paper_title": paper.title if paper else None,
                 "answer": cleaned_answer,
+                "thinking_process": thought_process or "",
                 "citations": citations_list,
                 "visual_citations": verified_visual_cits,
                 "hallucination_guard": guard_summary,
@@ -248,6 +250,7 @@ class PaperChatEngine:
             prompt = self._assemble_prompt(prompt_context, history_text, message.question, deep_thinking_active)
 
             accumulated_text = []
+            accumulated_thoughts = []
             final_usage = {"prompt_tokens": 0, "candidates_tokens": 0, "total_tokens": 0}
 
             if hasattr(provider, 'generate_stream'):
@@ -259,8 +262,14 @@ class PaperChatEngine:
                     system_instruction=system_instruction if not cached_content_name else None,
                     temperature=0.1 if deep_thinking_active else 0.2,
                     max_tokens=8192 if deep_thinking_active else 4096,
-                    cached_content=cached_content_name
+                    cached_content=cached_content_name,
+                    deep_thinking=deep_thinking_active,
+                    include_thoughts=deep_thinking_active
                 ):
+                    if usage and isinstance(usage, dict) and usage.get("thought"):
+                        thought_chunk = usage["thought"]
+                        accumulated_thoughts.append(thought_chunk)
+                        yield f"event: thought\ndata: {json.dumps({'thought': thought_chunk})}\n\n"
                     if chunk_text:
                         accumulated_text.append(chunk_text)
                         yield f"event: delta\ndata: {json.dumps({'delta': chunk_text})}\n\n"
@@ -273,12 +282,15 @@ class PaperChatEngine:
                     model=model_name,
                     file_bytes=prompt_pdf,
                     mime_type=prompt_mime,
-                    system_instruction=system_instruction if not cached_content_name else None
+                    system_instruction=system_instruction if not cached_content_name else None,
+                    deep_thinking=deep_thinking_active,
+                    include_thoughts=deep_thinking_active
                 )
                 accumulated_text.append(str(resp_raw))
                 yield f"event: delta\ndata: {json.dumps({'delta': str(resp_raw)})}\n\n"
 
             full_answer = "".join(accumulated_text)
+            full_thoughts = "".join(accumulated_thoughts)
             cleaned_answer, parsed_visual_citations = self.citation_extractor.extract(full_answer)
 
             if parsed_visual_citations:
@@ -303,6 +315,7 @@ class PaperChatEngine:
 
             # Persist message
             message.message = cleaned_answer
+            message.thinking_process = full_thoughts
             message.tokens_in = tokens_in
             message.tokens_out = tokens_out
             message.total_tokens = total_tokens
@@ -313,7 +326,7 @@ class PaperChatEngine:
             message.visual_citations = verified_visual_cits
             message.hallucination_guard = guard_summary
             message.save(update_fields=[
-                'message', 'tokens_in', 'tokens_out', 'total_tokens', 'usd_cost',
+                'message', 'thinking_process', 'tokens_in', 'tokens_out', 'total_tokens', 'usd_cost',
                 'llm_model', 'status', 'completed_at', 'visual_citations', 'hallucination_guard'
             ])
 
@@ -355,7 +368,7 @@ class PaperChatEngine:
         system_instruction: str | None,
         deep_thinking_active: bool,
         cached_content: str | None = None
-    ) -> tuple[str, list, int, int]:
+    ) -> tuple[str, list, int, int, str]:
         provider_name = getattr(workspace, 'llm_provider', 'google') or 'google'
         model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash') or 'google/gemini-3.7-flash'
 
@@ -369,13 +382,17 @@ class PaperChatEngine:
             temperature=0.1 if deep_thinking_active else 0.2,
             max_tokens=8192 if deep_thinking_active else 4096,
             cached_content=cached_content,
+            deep_thinking=deep_thinking_active,
+            include_thoughts=deep_thinking_active,
             return_usage=True,
         )
 
+        thought_text = ""
         if isinstance(llm_response, tuple) and len(llm_response) == 2:
             answer_raw, usage = llm_response
             tokens_in = usage.get("prompt_tokens", 0) or 0
             tokens_out = usage.get("candidates_tokens", 0) or 0
+            thought_text = usage.get("thought_process", "") or ""
         else:
             answer_raw = str(llm_response) if llm_response else ""
             tokens_in = 0
@@ -385,4 +402,4 @@ class PaperChatEngine:
             answer_raw = json.dumps(answer_raw, indent=2) if answer_raw else ""
 
         citations_list = getattr(llm_response, 'citations', []) or []
-        return answer_raw, citations_list, tokens_in, tokens_out
+        return answer_raw, citations_list, tokens_in, tokens_out, thought_text

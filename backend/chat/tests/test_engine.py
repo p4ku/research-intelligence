@@ -157,7 +157,7 @@ class ChatEngineTestCase(TestCase):
         mock_provider = MagicMock()
         mock_provider.generate.return_value = (
             "The optical core operates at 100 GHz [Page 4, Figure 3a, quote: \"100 GHz modulated optical clock frequency\"].",
-            {"prompt_tokens": 1500, "candidates_tokens": 80}
+            {"prompt_tokens": 1500, "candidates_tokens": 80, "thought_process": "Internal derivation of tensor clock rate..."}
         )
         mock_get_llm_provider.return_value = mock_provider
 
@@ -174,6 +174,7 @@ class ChatEngineTestCase(TestCase):
         self.assertEqual(res["tokens_in"], 1500)
         self.assertEqual(res["tokens_out"], 80)
         self.assertEqual(res["total_tokens"], 1580)
+        self.assertEqual(res["thinking_process"], "Internal derivation of tensor clock rate...")
         self.assertGreater(res["usd_cost"], 0.0)
         self.assertTrue(res["deep_thinking"])
         self.assertEqual(res["llm_model"], "google/gemini-3.7-flash")
@@ -182,6 +183,7 @@ class ChatEngineTestCase(TestCase):
         message.refresh_from_db()
         self.assertEqual(message.status, "completed")
         self.assertEqual(message.total_tokens, 1580)
+        self.assertEqual(message.thinking_process, "Internal derivation of tensor clock rate...")
         self.assertGreater(float(message.usd_cost), 0.0)
         self.assertEqual(message.llm_model, "google/gemini-3.7-flash")
 
