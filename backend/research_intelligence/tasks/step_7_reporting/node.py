@@ -40,7 +40,8 @@ class ReportingNode(BaseWorkflowNode):
     }
 
     def is_skippable(self, pipeline_run, workspace, config: Dict[str, Any]) -> bool:
-        return not config.get("generate_narrative_report", False)
+        # Generates executive narrative report by default; only skippable if explicitly set to False
+        return config.get("generate_narrative_report") is False
 
     def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
         if status == 'completed':
