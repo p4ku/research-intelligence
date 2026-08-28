@@ -1,32 +1,27 @@
 from unittest.mock import patch, MagicMock
-from django.test import TestCase
-from django.contrib.auth.models import User
-
-from research_intelligence.models import Workspace, Paper, PipelineRun
-from chat.models import PaperChatSession, PaperChatMessage
+from research_intelligence.models import Paper
+from chat.models import PaperChatMessage
 from chat.engine.cache_manager import GeminiContextCacheManager
 from chat.engine import PaperChatEngine
+from .base import BaseChatTestCase
 
 
-class ContextCachingTestCase(TestCase):
+class ContextCachingTestCase(BaseChatTestCase):
     def setUp(self):
-        self.user = User.objects.create_user(username="cache_user", email="cache@schwarz.com", password="password")
-        self.workspace = Workspace.objects.create(
-            name="Context Cache Lab",
-            llm_provider="google",
-            screening_llm_model="google/gemini-3.7-flash"
-        )
-        self.run = PipelineRun.objects.create(workspace=self.workspace)
-        self.paper = Paper.objects.create(
+        super().setUp()
+        self.workspace.llm_provider = "google"
+        self.workspace.screening_llm_model = "google/gemini-3.7-flash"
+        self.workspace.save()
+
+        self.large_paper = self.create_paper(
             workspace=self.workspace,
             pipeline_run=self.run,
             hash_id="sha256_large_cached_paper_01",
             title="Massive Optical Computing Review",
             abstract="Very long context paper " * 300 # ~6KB
         )
-        self.session = PaperChatSession.objects.create(
-            workspace=self.workspace,
-            paper=self.paper,
+        self.cached_session = self.create_session(
+            paper=self.large_paper,
             user=self.user,
             title="Cache Verification Session"
         )
@@ -42,7 +37,7 @@ class ContextCachingTestCase(TestCase):
         mock_get_llm_provider.return_value = mock_provider
 
         msg1 = PaperChatMessage.objects.create(
-            session=self.session,
+            session=self.cached_session,
             question="Summarize the core findings."
         )
 
@@ -53,14 +48,14 @@ class ContextCachingTestCase(TestCase):
         self.assertEqual(res1["cached_content"], "cachedContents/schwarz_cache_998877")
 
         # Verify session saved the cache key
-        self.session.refresh_from_db()
-        self.assertEqual(self.session.cached_content_name, "cachedContents/schwarz_cache_998877")
+        self.cached_session.refresh_from_db()
+        self.assertEqual(self.cached_session.cached_content_name, "cachedContents/schwarz_cache_998877")
 
         # Second turn reuses the cached content without calling create_context_cache again
         mock_provider.create_context_cache.reset_mock()
 
         msg2 = PaperChatMessage.objects.create(
-            session=self.session,
+            session=self.cached_session,
             question="What is the energy density?"
         )
         res2 = engine.execute(msg2)
@@ -77,12 +72,7 @@ class ContextCachingTestCase(TestCase):
             title="Tiny Note",
             abstract="Short."
         )
-        small_session = PaperChatSession.objects.create(
-            workspace=self.workspace,
-            paper=small_paper,
-            user=self.user,
-            title="Small Session"
-        )
+        small_session = self.create_session(paper=small_paper, user=self.user, title="Small Session")
         cache_mgr = GeminiContextCacheManager()
         cache_name = cache_mgr.get_or_create_cache(
             session=small_session,

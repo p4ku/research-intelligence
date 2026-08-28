@@ -1,43 +1,12 @@
-import json
 from unittest.mock import patch, MagicMock
-from django.test import TestCase
-from django.contrib.auth.models import User
-from rest_framework.test import APIClient
 from rest_framework import status
+from rest_framework.test import APIClient
 
-from research_intelligence.models import Workspace, WorkspaceMember, Paper, PipelineRun
-from chat.models import PaperChatSession, PaperChatMessage
-from chat.engine import PaperChatEngine
+from chat.models import PaperChatMessage
+from .base import BaseChatTestCase
 
 
-class ChatStreamTestCase(TestCase):
-    def setUp(self):
-        self.client = APIClient()
-        self.password = "SecurePassStream123!"
-
-        self.user = User.objects.create_user(
-            username="stream_tester",
-            email="stream@schwarz.com",
-            password=self.password
-        )
-        self.workspace = Workspace.objects.create(name="Streaming AI Lab")
-        WorkspaceMember.objects.create(workspace=self.workspace, user=self.user, role="researcher")
-        self.run = PipelineRun.objects.create(workspace=self.workspace)
-
-        self.paper = Paper.objects.create(
-            workspace=self.workspace,
-            pipeline_run=self.run,
-            hash_id="sha256_stream_paper_01",
-            title="Real-Time Optical Computing",
-            abstract="Streaming inference on photonic integrated circuits."
-        )
-
-        login_res = self.client.post('/api/auth/login/', {
-            'username': 'stream_tester',
-            'password': self.password
-        }, format='json')
-        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {login_res.data["access"]}')
-
+class ChatStreamTestCase(BaseChatTestCase):
     @patch("chat.engine.orchestrator.get_llm_provider")
     def test_sse_streaming_post_endpoint(self, mock_get_llm_provider):
         mock_provider = MagicMock()
@@ -74,10 +43,8 @@ class ChatStreamTestCase(TestCase):
         self.assertIn("Real-time optical inference", msg.message)
 
     def test_stream_unauthorized_access(self):
-        other_user = User.objects.create_user(username="outsider", password="pass")
         other_client = APIClient()
-        login_res = other_client.post('/api/auth/login/', {'username': 'outsider', 'password': 'pass'}, format='json')
-        other_client.credentials(HTTP_AUTHORIZATION=f'Bearer {login_res.data["access"]}')
+        self.authenticate_as(self.outsider, client=other_client)
 
         res = other_client.post('/api/chat/stream/', {
             'paper_id': str(self.paper.id),

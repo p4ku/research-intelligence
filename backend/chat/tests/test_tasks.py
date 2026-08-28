@@ -1,30 +1,11 @@
 import uuid
 from unittest.mock import patch, MagicMock
-from django.test import TestCase
-from django.contrib.auth.models import User
-
-from research_intelligence.models import Workspace, Paper, PipelineRun
-from chat.models import PaperChatSession, PaperChatMessage
+from chat.models import PaperChatMessage
 from chat.tasks import execute_paper_chat_task
+from .base import BaseChatTestCase
 
 
-class ChatTasksTestCase(TestCase):
-    def setUp(self):
-        self.user = User.objects.create_user(username="celery_tester", email="celery@schwarz.com", password="pass")
-        self.workspace = Workspace.objects.create(name="Celery Workspace")
-        self.run = PipelineRun.objects.create(workspace=self.workspace)
-        self.paper = Paper.objects.create(
-            workspace=self.workspace,
-            pipeline_run=self.run,
-            hash_id="sha256_celery_paper_01",
-            title="Asynchronous Execution Benchmark"
-        )
-        self.session = PaperChatSession.objects.create(
-            workspace=self.workspace,
-            paper=self.paper,
-            user=self.user
-        )
-
+class ChatTasksTestCase(BaseChatTestCase):
     @patch("chat.engine.orchestrator.get_llm_provider")
     def test_execute_paper_chat_task_success(self, mock_get_llm_provider):
         mock_provider = MagicMock()
