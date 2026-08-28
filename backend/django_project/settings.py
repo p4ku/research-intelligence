@@ -22,6 +22,9 @@ import json
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# Ensure local 'mcp' Django app directory is linked into 'mcp' namespace package
+from . import mcp_namespace
+
 # Load environment variables from .env if present (checking both workspace root and backend root)
 try:
     import dotenv

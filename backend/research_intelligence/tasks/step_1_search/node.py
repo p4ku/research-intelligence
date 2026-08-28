@@ -54,8 +54,8 @@ class SearchNode(BaseWorkflowNode):
         if papers_count == 0:
             last_run = search_runs.filter(status='completed').last()
             metrics = last_run.metrics if (last_run and last_run.metrics) else {}
-            duplicates = metrics.get("duplicates_skipped", 0)
-            total_found = metrics.get("total_found", 0)
+            duplicates = metrics.get("duplicates_skipped", metrics.get("total_duplicates_skipped", 0))
+            total_found = metrics.get("total_found", metrics.get("total_fetched", 0))
             if duplicates > 0 or total_found > 0:
                 msg = (
                     f"Step 1 (Search): 0 papers were found matching criteria (0 new papers ingested - "
@@ -73,9 +73,9 @@ class SearchNode(BaseWorkflowNode):
     def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
         if status == 'completed' and comp_run:
             metrics = comp_run.metrics or {}
-            total = metrics.get('total_found', 0)
-            ingested = metrics.get('ingested_new', 0)
-            dups = metrics.get('duplicates_skipped', 0)
+            total = metrics.get('total_found', metrics.get('total_fetched', 0))
+            ingested = metrics.get('ingested_new', metrics.get('total_created', 0))
+            dups = metrics.get('duplicates_skipped', metrics.get('total_duplicates_skipped', 0))
             if total == 0 and ingested == 0:
                 return "Search: 0 papers returned by queries."
             elif ingested == 0 and dups > 0:

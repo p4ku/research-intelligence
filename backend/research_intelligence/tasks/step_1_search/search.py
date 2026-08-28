@@ -101,6 +101,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
         
         # 1. Update component run metrics
         component_run.metrics['total_fetched'] = len(results)
+        component_run.metrics['total_found'] = len(results)
         component_run.save(update_fields=['metrics'])
 
         # 2. Prepare in-memory deduplication index
@@ -211,7 +212,9 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
         # Update component run lifecycle metrics & output_data
         duration_sec = round(time.time() - start_time, 2)
         component_run.metrics['total_created'] = created_count
+        component_run.metrics['ingested_new'] = created_count
         component_run.metrics['total_duplicates_skipped'] = skipped_count
+        component_run.metrics['duplicates_skipped'] = skipped_count
         component_run.metrics['total_duration_seconds'] = duration_sec
         component_run.output_data = {
             "total_results": len(results),

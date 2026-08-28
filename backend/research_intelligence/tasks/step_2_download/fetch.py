@@ -163,6 +163,7 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = 50, max_w
         start_time = time.time()
         papers = list(Paper.objects.filter(pipeline_run=pipeline_run)[:limit])
         downloaded_count = 0
+        cached_count = 0
         skipped_count = 0
         withdrawn_count = 0
         failed_count = 0
@@ -171,10 +172,12 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = 50, max_w
         logger.info(f"🚀 [PARALLEL PDF DOWNLOAD START] Processing {len(papers)} papers using {worker_concurrency} parallel threads...")
 
         def _record_result(res):
-            nonlocal downloaded_count, skipped_count, withdrawn_count, failed_count
+            nonlocal downloaded_count, cached_count, skipped_count, withdrawn_count, failed_count
             st = res.get("status")
             if st == "downloaded":
                 downloaded_count += 1
+                if res.get("from_cache"):
+                    cached_count += 1
                 downloaded_papers_summary.append(res)
             elif st in ["already_stored", "already_exists"]:
                 skipped_count += 1
@@ -209,6 +212,8 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = 50, max_w
         component_run.metrics = {
             "total_processed": len(papers),
             "downloaded": downloaded_count,
+            "cached": cached_count,
+            "from_cache": cached_count,
             "skipped": skipped_count,
             "withdrawn": withdrawn_count,
             "failed": failed_count,

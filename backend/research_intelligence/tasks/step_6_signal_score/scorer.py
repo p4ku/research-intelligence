@@ -113,6 +113,21 @@ def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -
                     if sanitized_f_k not in context:
                         context[sanitized_f_k] = _parse_numeric_value(f_v)
 
+    # 4. Fallback: check exit metrics stored during Abstract or Full-Text Screening in PaperMetric
+    if pipeline_run:
+        from research_intelligence.models import PaperMetric
+        pm = PaperMetric.objects.filter(paper=paper, pipeline_run=pipeline_run).first()
+        if pm and pm.metrics_data and isinstance(pm.metrics_data, dict):
+            for stage_k in ['abstract_screening', 'full_text_screening']:
+                stage_dict = pm.metrics_data.get(stage_k, {})
+                if isinstance(stage_dict, dict):
+                    em_k = stage_dict.get("exit_metric_key")
+                    em_v = stage_dict.get("exit_metric_value")
+                    if em_k:
+                        sanitized_em_k = _sanitize_identifier(em_k)
+                        if sanitized_em_k not in context:
+                            context[sanitized_em_k] = _parse_numeric_value(em_v)
+
     return context
 
 
@@ -263,8 +278,10 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
     metrics = {
         "total_papers": total_papers,
         "scored_count": scored_count,
+        "papers_scored": scored_count,
         "avg_signal_score": avg_score,
         "max_signal_score": max_score,
+        "top_score": max_score,
         "min_signal_score": min_score,
         "errors_count": len(errors_list),
         "errors": errors_list[:10],

@@ -60,20 +60,31 @@ class ScreeningNode(BaseWorkflowNode):
         return params
 
     def should_halt_pipeline(self, pipeline_run, workspace, config: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
-        from research_intelligence.models import Paper
-        accepted_count = Paper.objects.filter(workspace=workspace, screening_status__in=['accepted', 'full_text_passed']).count()
-        if accepted_count > 0 or config.get("reprocess_existing", False):
+        from research_intelligence.models import Paper, ComponentRun
+        reprocess = config.get("reprocess_existing", getattr(pipeline_run, 'reprocess_existing', False))
+        if reprocess:
+            accepted_qs = Paper.objects.filter(workspace=workspace, screening_status__in=['accepted', 'full_text_passed'])
+            total_papers = Paper.objects.filter(workspace=workspace).count()
+        else:
+            accepted_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=['accepted', 'full_text_passed'])
+            total_papers = Paper.objects.filter(pipeline_run=pipeline_run).count()
+
+        if accepted_qs.exists():
             return False, None
 
-        from research_intelligence.models import ComponentRun
         comp_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run, step_type='screening')
         has_full_text = comp_runs.filter(component_name='full_text_screening', status='completed').exists()
-        has_abstract_only = comp_runs.filter(component_name='abstract_screening', status='completed').exists() and config.get("skip_full_text_screening", False)
+        abstract_run = comp_runs.filter(component_name='abstract_screening', status='completed').first()
+        abstract_passed_zero = bool(abstract_run and abstract_run.metrics and abstract_run.metrics.get("passed", 1) == 0)
+        skip_full = config.get("skip_full_text_screening", False)
 
-        if has_full_text or has_abstract_only:
-            rejected_count = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='rejected').count()
-            total_papers = Paper.objects.filter(pipeline_run=pipeline_run).count()
-            if rejected_count > 0 and rejected_count == total_papers:
+        if has_full_text or (abstract_run and (abstract_passed_zero or skip_full)):
+            rejected_count = Paper.objects.filter(
+                workspace=workspace if reprocess else pipeline_run.workspace,
+                pipeline_run=pipeline_run,
+                screening_status='rejected'
+            ).count()
+            if total_papers > 0 and rejected_count == total_papers:
                 stage_name = "Full-Text Screening" if has_full_text else "Abstract Screening"
                 return True, f"Step 4 ({stage_name}): 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
         return False, None
