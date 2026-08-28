@@ -3,6 +3,9 @@ from typing import Optional
 from research_intelligence.models import Extraction, Workspace, Paper, PipelineRun, ResearchAgentProcess
 
 
+from research_intelligence.services import check_workspace_access
+
+
 def list_extractions_logic(
     user,
     workspace_id: Optional[str] = None,
@@ -21,7 +24,10 @@ def list_extractions_logic(
 
     if process_id:
         try:
-            proc = ResearchAgentProcess.objects.select_related('pipeline_run').get(id=process_id)
+            proc = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').get(id=process_id)
+            workspace, _, error = check_workspace_access(user, str(proc.workspace.id))
+            if error:
+                return json.dumps({"error": error})
             if proc.pipeline_run:
                 qs = qs.filter(paper__pipeline_run=proc.pipeline_run)
             else:
@@ -29,11 +35,22 @@ def list_extractions_logic(
         except (ValueError, ResearchAgentProcess.DoesNotExist):
             return json.dumps({"error": f"ResearchAgentProcess '{process_id}' not found."})
     elif pipeline_run_id:
-        qs = qs.filter(paper__pipeline_run_id=pipeline_run_id)
+        try:
+            pipeline_run = PipelineRun.objects.select_related('workspace').get(id=pipeline_run_id)
+            workspace, _, error = check_workspace_access(user, str(pipeline_run.workspace.id))
+            if error:
+                return json.dumps({"error": error})
+            qs = qs.filter(paper__pipeline_run=pipeline_run)
+        except (ValueError, PipelineRun.DoesNotExist):
+            return json.dumps({"error": f"PipelineRun '{pipeline_run_id}' not found."})
     elif workspace_id:
-        qs = qs.filter(workspace__id=workspace_id)
-    elif user and not user.is_superuser:
-        user_ws_ids = Workspace.objects.filter(memberships__user=user).values_list('id', flat=True)
+        workspace, _, error = check_workspace_access(user, workspace_id)
+        if error:
+            return json.dumps({"error": error})
+        qs = qs.filter(workspace=workspace)
+    elif user and not getattr(user, 'is_superuser', False):
+        from research_intelligence.models import WorkspaceMember
+        user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
         qs = qs.filter(workspace__id__in=user_ws_ids)
 
     if paper_id:
@@ -99,12 +116,16 @@ def get_extraction_logic(user, extraction_id: str) -> str:
     """
     try:
         ext = Extraction.objects.select_related('workspace', 'paper', 'extraction_definition').get(pk=extraction_id)
-    except Extraction.DoesNotExist:
+    except (Extraction.DoesNotExist, ValueError):
         from research_intelligence.models import ExtractionDefinition
         if ExtractionDefinition.objects.filter(id=extraction_id).exists():
             from .definitions import get_extraction_definition_logic
             return get_extraction_definition_logic(user, extraction_id)
         return json.dumps({"error": f"Extraction '{extraction_id}' not found."})
+
+    workspace, _, error = check_workspace_access(user, str(ext.workspace.id))
+    if error:
+        return json.dumps({"error": error})
 
     payload = {
         "id": str(ext.id),

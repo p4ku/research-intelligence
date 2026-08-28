@@ -160,3 +160,32 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
         self.assertEqual(ws.monthly_token_limit, 8000000)
         self.assertEqual(float(ws.monthly_usd_limit), 500.00)
 
+    def test_create_workspace_validation_errors(self):
+        # Empty name
+        res_empty = self.parse_res(create_workspace_logic(self.admin, name="   "))
+        self.assertEqual(res_empty["status"], "error")
+        self.assertIn("name cannot be empty", res_empty["error"].lower())
+
+        # Invalid OCR provider
+        res_ocr = self.parse_res(create_workspace_logic(self.admin, name="Valid Name", ocr_provider="invalid_engine"))
+        self.assertEqual(res_ocr["status"], "error")
+        self.assertIn("invalid ocr_provider", res_ocr["error"].lower())
+
+        # Invalid LLM provider
+        res_llm = self.parse_res(create_workspace_logic(self.admin, name="Valid Name 2", llm_provider="unsupported_llm"))
+        self.assertEqual(res_llm["status"], "error")
+        self.assertIn("invalid llm_provider", res_llm["error"].lower())
+
+    def test_create_workspace_string_criteria(self):
+        res = self.parse_res(create_workspace_logic(
+            self.admin,
+            name="String Criteria WS",
+            abstract_acceptance_criteria="Single line criteria text\nSecond line",
+            abstract_rejection_criteria="Rejection criteria text"
+        ))
+        self.assertEqual(res["status"], "success")
+        ws = Workspace.objects.get(id=res["workspace_id"])
+        self.assertEqual(ws.get_abstract_acceptance_criteria(), "Single line criteria text\nSecond line")
+        self.assertEqual(ws.get_abstract_rejection_criteria(), "Rejection criteria text")
+
+

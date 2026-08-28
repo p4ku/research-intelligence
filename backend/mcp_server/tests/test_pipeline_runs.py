@@ -107,4 +107,49 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
         pr.refresh_from_db()
         self.assertEqual(pr.status, "completed")
 
+    def test_status_sync_preserves_running_when_agent_process_active(self):
+        """get_pipeline_run_status must not mark a run as completed when an active agent process is driving it."""
+        from research_intelligence.models import ResearchAgentProcess
+        pr = PipelineRun.objects.create(workspace=self.workspace, status="running")
+        ComponentRun.objects.create(pipeline_run=pr, step_type="search", status="completed")
+        agent_proc = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            pipeline_run=pr,
+            status="running",
+            current_step="download"
+        )
+
+        status_res = self.parse_res(get_pipeline_run_status_logic(self.admin, pipeline_run_id=str(pr.id)))
+        pr.refresh_from_db()
+        self.assertEqual(pr.status, "running")
+        self.assertEqual(status_res["status"], "running")
+
+    def test_delete_pipeline_run_with_storage_and_cascade(self):
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+        from research_intelligence.models import Extraction, PaperMetric, NarrativeReport
+
+        pr = PipelineRun.objects.create(workspace=self.workspace, status="completed")
+        p = Paper.objects.create(workspace=self.workspace, pipeline_run=pr, hash_id="hash_del_test", title="Delete Target Paper")
+        file_path = f"workspaces/{self.workspace.id}/runs/{pr.id}/test_doc.pdf"
+        default_storage.save(file_path, ContentFile(b"%PDF-1.4 test binary"))
+        self.assertTrue(default_storage.exists(file_path))
+
+        cr = ComponentRun.objects.create(pipeline_run=pr, step_type="search", status="completed")
+        ext = Extraction.objects.create(workspace=self.workspace, paper=p, category="test", fields_data={"val": 1})
+        pm = PaperMetric.objects.create(workspace=self.workspace, paper=p, pipeline_run=pr, signal_score=9.5)
+        nr = NarrativeReport.objects.create(workspace=self.workspace, pipeline_run=pr, title="Report", content_markdown="Summary")
+
+        del_res = self.parse_res(delete_pipeline_run_logic(self.admin, pipeline_run_id=str(pr.id)))
+        self.assertTrue(del_res["success"])
+        self.assertEqual(del_res["status"], "success")
+        self.assertFalse(PipelineRun.objects.filter(id=pr.id).exists())
+        self.assertFalse(Paper.objects.filter(id=p.id).exists())
+        self.assertFalse(ComponentRun.objects.filter(id=cr.id).exists())
+        self.assertFalse(Extraction.objects.filter(id=ext.id).exists())
+        self.assertFalse(PaperMetric.objects.filter(id=pm.id).exists())
+        self.assertFalse(NarrativeReport.objects.filter(id=nr.id).exists())
+        self.assertFalse(default_storage.exists(file_path))
+
+
 

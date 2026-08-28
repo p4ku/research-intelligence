@@ -114,3 +114,30 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
         self.assertIn(str(p3.id), paper_ids)
         self.assertNotIn(str(p4.id), paper_ids)
 
+    def test_extraction_tenant_isolation_unauthorized_access(self):
+        from django.contrib.auth import get_user_model
+        from research_intelligence.models import Workspace, WorkspaceMember
+        User = get_user_model()
+
+        other_user = User.objects.create_user(username="stranger_user", password="password123")
+        other_ws = Workspace.objects.create(name="Foreign Workspace")
+        WorkspaceMember.objects.create(workspace=other_ws, user=other_user, role="admin")
+
+        foreign_run = PipelineRun.objects.create(workspace=other_ws)
+        foreign_p = Paper.objects.create(workspace=other_ws, pipeline_run=foreign_run, hash_id="foreign_p_01", title="Foreign Paper")
+        foreign_ext = Extraction.objects.create(
+            workspace=other_ws,
+            paper=foreign_p,
+            category="confidential",
+            fields_data={"classified": True}
+        )
+
+        # 1. User cannot access foreign extraction directly
+        res_ext = self.parse_res(get_extraction_logic(self.researcher, extraction_id=str(foreign_ext.id)))
+        self.assertIn("error", res_ext)
+
+        # 2. User querying list_extractions with foreign workspace_id gets error
+        res_list = self.parse_res(list_extractions_logic(self.researcher, workspace_id=str(other_ws.id)))
+        self.assertIn("error", res_list)
+
+
