@@ -1,0 +1,130 @@
+/**
+ * OUR papers contract: `ScoredPaper` — a paper with its composite signal
+ * score and every dimension resolved against the workspace's extraction
+ * definitions. This is the shape the UI renders *and* the shape we ask
+ * Django to serve from a workspace-scoped, paginated scorecard endpoint.
+ * Until then the BFF composes it (see ./compose.ts, port reference
+ * src/lib/papers/map.ts). Pure.
+ */
+import * as z from 'zod'
+import { listQuery, pageSchema } from '../core/pagination'
+
+export const screeningStatus = z
+  .enum([
+    'pending',
+    'abstract_passed',
+    'full_text_passed',
+    'accepted',
+    'borderline',
+    'rejected',
+    'withdrawn',
+  ])
+  .meta({ id: 'ScreeningStatus' })
+export type ScreeningStatus = z.infer<typeof screeningStatus>
+
+export const SCREENING_STATUSES: ScreeningStatus[] = [...screeningStatus.options]
+
+/** Statuses that count as "through screening". */
+export const PASSED_STATUSES: ScreeningStatus[] = [
+  'abstract_passed',
+  'full_text_passed',
+  'accepted',
+]
+
+export const dimension = z
+  .object({
+    /** Sanitized definition name; also the key in signal-score variables. */
+    key: z.string(),
+    /** null when the definition was deleted (name comes from the extraction's category). */
+    definition_id: z.uuid().nullable(),
+    /** Rendered verbatim — never translated. */
+    name: z.string(),
+    /** Parsed numeric value; null when there is no extraction or it isn't numeric. */
+    value: z.number().nullable(),
+    /** Display string as the backend would show it ('—' when no extraction). */
+    raw: z.string(),
+    /** Scale for bars/radar; null → show the number only. */
+    max: z.number().nullable(),
+    is_trl: z.boolean(),
+    rationale: z.string().optional(),
+    evidence: z.array(z.string()).optional(),
+    confidence: z.number().nullable().optional(),
+    validation_status: z.string().optional(),
+    review_required: z.boolean().optional(),
+    extraction_id: z.uuid().optional(),
+  })
+  .meta({ id: 'Dimension' })
+export type Dimension = z.infer<typeof dimension>
+
+export const signalScoreDetails = z
+  .object({
+    /** Dimension key → the value the formula saw. */
+    variables: z.record(z.string(), z.union([z.number(), z.string()])),
+    /** The workspace's scoring snippet as evaluated for this paper. */
+    code_snippet: z.string().nullable(),
+    calculated_at: z.string().nullable(),
+    /** Set when the formula failed for this paper. */
+    error: z.string().nullable(),
+  })
+  .meta({ id: 'SignalScoreDetails' })
+export type SignalScoreDetails = z.infer<typeof signalScoreDetails>
+
+export const scoredPaper = z
+  .object({
+    id: z.uuid(),
+    workspace_id: z.uuid(),
+    pipeline_run_id: z.uuid(),
+    title: z.string(),
+    authors: z.array(z.string()),
+    authors_raw: z.string(),
+    abstract: z.string(),
+    doi: z.string().nullable(),
+    arxiv_id: z.string().nullable(),
+    /** 'arxiv' | 'openalex' | 'lens' | … */
+    source: z.string(),
+    screening_status: screeningStatus,
+    screening_reasoning: z.string().nullable(),
+    signal_score: z.number().nullable(),
+    signal_score_details: signalScoreDetails.nullable(),
+    /** Workspace definition order; definition-less extractions appended. */
+    dimensions: z.array(dimension),
+    /** Storage keys — there is no file endpoint yet. */
+    pdf_key: z.string().nullable(),
+    markdown_key: z.string().nullable(),
+    /** External link (arXiv / DOI) when the ids allow one. */
+    pdf_url: z.string().nullable(),
+    is_benchmark: z.boolean(),
+    evaluation_label: z.enum(['passed', 'rejected']).nullable(),
+    /** Ingest time (ISO 8601). The backend stores no publication date. */
+    created_at: z.iso.datetime({ offset: true }),
+  })
+  .meta({ id: 'ScoredPaper' })
+export type ScoredPaper = z.infer<typeof scoredPaper>
+
+export const papersQuery = listQuery.extend({
+  workspace_id: z.uuid(),
+  /** 'passed' = the three passed statuses; 'all' = everything. */
+  screening: z
+    .enum([
+      'passed',
+      'all',
+      'pending',
+      'abstract_passed',
+      'full_text_passed',
+      'accepted',
+      'borderline',
+      'rejected',
+      'withdrawn',
+    ])
+    .default('all'),
+  /** `signal_score` | `created_at` | `dim:<key>`, `-` prefix for descending. */
+  ordering: z
+    .string()
+    .regex(/^-?(signal_score|created_at|dim:[a-z0-9_]+)$/)
+    .default('-signal_score'),
+  /** Case-insensitive match over title, abstract, authors, arxiv id, doi. */
+  search: z.string().optional(),
+})
+export type PapersQuery = z.infer<typeof papersQuery>
+
+export const paperPage = pageSchema(scoredPaper).meta({ id: 'ScoredPaperPage' })

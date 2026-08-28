@@ -1,0 +1,32 @@
+/**
+ * zod transcription of `PipelineRunSerializer` as it exists today. `.loose()`:
+ * extra fields pass; missing/mistyped fields fail as 502 `upstream-shape`.
+ * Pure — the conformance script imports this.
+ */
+import * as z from 'zod'
+
+export const pipelineRunDTO = z.looseObject({
+  id: z.string(),
+  workspace: z.string(),
+  workspace_name: z.string(),
+  /** YYYY-MM-DD (the trigger date). */
+  run_date: z.string(),
+  status: z.string(),
+  current_stage: z.string().nullable(),
+  total_papers_fetched: z.number(),
+  total_papers_passed_screening: z.number(),
+  tokens_in: z.number(),
+  tokens_out: z.number(),
+  tokens_consumed: z.number(),
+  /** DRF Decimal → string. */
+  usd_cost: z.string(),
+  triggered_by: z.number().nullable(),
+  triggered_by_username: z.string().nullable(),
+  reprocess_existing: z.boolean(),
+  status_message: z.string().nullable(),
+  started_at: z.string().nullable(),
+  completed_at: z.string().nullable(),
+  duration_seconds: z.number().nullable(),
+  /** Pre-formatted with an emoji; prefer duration_seconds. */
+  execution_time_display: z.string(),
+})
