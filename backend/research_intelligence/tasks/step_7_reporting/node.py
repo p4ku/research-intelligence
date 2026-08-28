@@ -49,7 +49,7 @@ class ReportingNode(BaseWorkflowNode):
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
         from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
-        from research_intelligence.tasks.step_8_reporting.narrative import generate_executive_narrative_report
+        from research_intelligence.tasks.step_7_reporting.narrative import generate_executive_narrative_report
         
         try:
             res = generate_executive_narrative_report(pipeline_run)

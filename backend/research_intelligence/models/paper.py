@@ -59,8 +59,8 @@ class Paper(models.Model):
         help_text="Reference to global canonical document registry entry"
     )
     
-    # Deduplication Keys
-    hash_id = models.CharField(max_length=64, unique=True, help_text="SHA-256 hash of PDF or fallback unique hash to prevent duplicates")
+    # Deduplication Keys (scoped per workspace)
+    hash_id = models.CharField(max_length=64, db_index=True, help_text="SHA-256 hash of PDF or fallback unique hash to prevent duplicates within a workspace")
     doi = models.CharField(max_length=255, blank=True, null=True, db_index=True, help_text="Digital Object Identifier (DOI)")
     arxiv_id = models.CharField(max_length=100, blank=True, null=True, db_index=True, help_text="arXiv repository ID")
     
@@ -114,11 +114,13 @@ class Paper(models.Model):
     class Meta:
         app_label = 'research_intelligence'
         ordering = ['-created_at', '-id']
+        unique_together = ('workspace', 'hash_id')
         indexes = [
             models.Index(fields=['workspace', 'screening_status']),
             models.Index(fields=['pipeline_run', 'screening_status']),
             models.Index(fields=['workspace', '-created_at']),
             models.Index(fields=['pipeline_run', '-created_at']),
+            models.Index(fields=['workspace', 'hash_id']),
             models.Index(fields=['doi']),
             models.Index(fields=['arxiv_id']),
             models.Index(fields=['hash_id']),

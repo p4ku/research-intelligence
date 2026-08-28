@@ -9,7 +9,7 @@ from research_intelligence.models import (
     Subscriber,
 )
 from research_intelligence.reports import reporter_registry, ResultReportReporter
-from research_intelligence.tasks.step_8_reporting.node import ReportingNode
+from research_intelligence.tasks.step_7_reporting.node import ReportingNode
 
 
 class ReportingTaskTestCase(TestCase):

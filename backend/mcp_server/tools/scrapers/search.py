@@ -2,7 +2,11 @@ import json
 import uuid
 from django.core.serializers.json import DjangoJSONEncoder
 from research_intelligence.models import Scraper, Paper
-from research_intelligence.services import check_workspace_access
+from research_intelligence.services import (
+    check_workspace_access,
+    preview_search_query,
+    list_workspace_papers,
+)
 
 
 def preview_search_query_logic(user, provider: str, search_query: str, limit: int = 10) -> str:
@@ -15,16 +19,8 @@ def preview_search_query_logic(user, provider: str, search_query: str, limit: in
         return "Error: search_query is required."
 
     try:
-        from research_intelligence.scrapers.factory import get_scraper_provider
-        scraper_inst = get_scraper_provider(provider)
-        results = scraper_inst.search(search_query.strip(), max_results=min(limit, 50))
-        return json.dumps({
-            "success": True,
-            "provider": provider,
-            "search_query": search_query,
-            "total_results": len(results),
-            "papers": results
-        }, indent=2, cls=DjangoJSONEncoder)
+        payload = preview_search_query(provider=provider, search_query=search_query, limit=limit)
+        return json.dumps(payload, indent=2, cls=DjangoJSONEncoder)
     except Exception as e:
         return f"Error previewing scraper query: {e}"
 
@@ -35,31 +31,20 @@ def list_papers_logic(user, workspace_id: str, pipeline_run_id: str = None, limi
     if error:
         return error
 
-    qs = Paper.objects.filter(workspace=workspace)
     if pipeline_run_id:
         try:
-            pr_uuid = uuid.UUID(pipeline_run_id)
-            qs = qs.filter(pipeline_run_id=pr_uuid)
+            uuid.UUID(pipeline_run_id)
         except ValueError:
             return f"Error: '{pipeline_run_id}' is not a valid UUID format."
 
-    papers = list(qs.order_by('-created_at')[:limit])
-    if not papers:
+    results = list_workspace_papers(
+        user=user,
+        workspace_id=str(workspace.id),
+        pipeline_run_id=pipeline_run_id,
+        limit=limit
+    )
+    if not results:
         return json.dumps({"message": f"No papers found for workspace '{workspace.name}'."}, indent=2)
 
-    results = []
-    for p in papers:
-        results.append({
-            "paper_id": str(p.id),
-            "title": p.title,
-            "authors": p.authors,
-            "abstract": p.abstract,
-            "source_database": p.source_database,
-            "pdf_url": p.original_pdf_path,
-            "doi": p.doi,
-            "arxiv_id": p.arxiv_id,
-            "screening_status": p.screening_status,
-            "screening_reasoning": p.screening_reasoning,
-            "created_at": p.created_at.isoformat()
-        })
     return json.dumps(results, indent=2, cls=DjangoJSONEncoder)
+

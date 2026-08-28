@@ -4,7 +4,7 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from celery import shared_task, group
-from django.db import connection, close_old_connections
+from django.db import connection, close_old_connections, transaction
 from django.utils import timezone
 from django.core.files.storage import default_storage
 from ...models import Workspace, Paper, Extraction, ExtractionDefinition, ComponentRun, PipelineRun
@@ -146,21 +146,22 @@ def _run_single_extraction_worker(paper, definition, workspace):
                 "provider": workspace.llm_provider
             }
 
-            # Save or update Extraction model
-            extraction, created = Extraction.objects.update_or_create(
-                paper=paper,
-                extraction_definition=definition,
-                defaults={
-                    "workspace": workspace,
-                    "category": definition.name,
-                    "fields_data": fields_dict if isinstance(fields_dict, dict) else {},
-                    "version_info": version_info,
-                    "validation_status": validation_status,
-                    "review_required": review_required,
-                    "confidence_score": avg_confidence,
-                    "confidence_method": "single_pass"
-                }
-            )
+            # Save or update Extraction model atomically
+            with transaction.atomic():
+                extraction, created = Extraction.objects.update_or_create(
+                    paper=paper,
+                    extraction_definition=definition,
+                    defaults={
+                        "workspace": workspace,
+                        "category": definition.name,
+                        "fields_data": fields_dict if isinstance(fields_dict, dict) else {},
+                        "version_info": version_info,
+                        "validation_status": validation_status,
+                        "review_required": review_required,
+                        "confidence_score": avg_confidence,
+                        "confidence_method": "single_pass"
+                    }
+                )
 
             duration_sec = round(time.time() - t0, 3)
 

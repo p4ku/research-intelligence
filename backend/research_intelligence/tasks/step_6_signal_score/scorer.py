@@ -3,7 +3,7 @@ import logging
 from typing import Dict, Any, Tuple, Optional, Union
 from celery import shared_task
 from django.utils import timezone
-from django.db import close_old_connections
+from django.db import close_old_connections, transaction
 
 from research_intelligence.models import Paper, PaperMetric, ComponentRun, Extraction
 from research_intelligence.utils.sandbox import execute_sandboxed_snippet, SandboxSecurityError, SandboxExecutionError
@@ -173,23 +173,23 @@ def compute_paper_signal_score(
         "error": error_msg
     }
 
-    # Persist on Paper model
-    paper.signal_score = score
-    paper.signal_score_details = details
-    paper.save(update_fields=['signal_score', 'signal_score_details'])
+    # Persist on Paper and PaperMetric atomically per pipeline run
+    with transaction.atomic():
+        paper.signal_score = score
+        paper.signal_score_details = details
+        paper.save(update_fields=['signal_score', 'signal_score_details'])
 
-    # Persist on PaperMetric model per pipeline run
-    metric, _ = PaperMetric.objects.get_or_create(
-        paper=paper,
-        pipeline_run=pipeline_run,
-        workspace=workspace,
-        defaults={"signal_score": score, "signal_score_details": details, "metrics_data": context_vars}
-    )
-    if metric.signal_score != score or metric.signal_score_details != details or metric.metrics_data != context_vars:
-        metric.signal_score = score
-        metric.signal_score_details = details
-        metric.metrics_data = context_vars
-        metric.save(update_fields=['signal_score', 'signal_score_details', 'metrics_data'])
+        metric, _ = PaperMetric.objects.get_or_create(
+            paper=paper,
+            pipeline_run=pipeline_run,
+            workspace=workspace,
+            defaults={"signal_score": score, "signal_score_details": details, "metrics_data": context_vars}
+        )
+        if metric.signal_score != score or metric.signal_score_details != details or metric.metrics_data != context_vars:
+            metric.signal_score = score
+            metric.signal_score_details = details
+            metric.metrics_data = context_vars
+            metric.save(update_fields=['signal_score', 'signal_score_details', 'metrics_data'])
 
     return score, details
 
