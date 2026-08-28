@@ -1,48 +1,37 @@
-import json
 from unittest.mock import patch, MagicMock
-from django.test import TestCase
-from django.contrib.auth import get_user_model
-from research_intelligence.models import Workspace, WorkspaceMember, Scraper, Paper, PipelineRun
+from research_intelligence.models import Scraper, Paper, PipelineRun
 from mcp.tools import (
     create_scraper_logic,
     list_scrapers_logic,
-    get_scraper_logic,
     update_scraper_logic,
     delete_scraper_logic,
     preview_search_query_logic,
     list_papers_logic,
 )
+from .base import BaseMCPTestCase
 
-User = get_user_model()
 
-
-class MCPScrapersTestCase(TestCase):
-    def setUp(self):
-        self.admin_user = User.objects.create_superuser(username="scraper_admin", email="admin@schwarz.de", password="password")
-        self.workspace = Workspace.objects.create(name="Scraper Test WS")
-        WorkspaceMember.objects.create(workspace=self.workspace, user=self.admin_user, role="admin")
-
+class MCPScrapersTestCase(BaseMCPTestCase):
     def test_scraper_crud(self):
-        res_str = create_scraper_logic(
-            self.admin_user,
+        res = self.parse_res(create_scraper_logic(
+            self.admin,
             workspace_id=str(self.workspace.id),
             provider="arxiv",
             search_query="cat:cs.AI AND quantum",
             limit=25
-        )
-        res = json.loads(res_str)
+        ))
         self.assertTrue(res["success"])
         s_id = res["scraper_id"]
 
-        scrapers_res = json.loads(list_scrapers_logic(self.admin_user, workspace_id=str(self.workspace.id)))
+        scrapers_res = self.parse_res(list_scrapers_logic(self.admin, workspace_id=str(self.workspace.id)))
         self.assertEqual(len(scrapers_res), 1)
         self.assertEqual(scrapers_res[0]["search_query"], "cat:cs.AI AND quantum")
 
-        up_res = json.loads(update_scraper_logic(self.admin_user, scraper_id=s_id, limit=50))
+        up_res = self.parse_res(update_scraper_logic(self.admin, scraper_id=s_id, limit=50))
         self.assertTrue(up_res["success"])
         self.assertEqual(up_res["limit"], 50)
 
-        del_res = json.loads(delete_scraper_logic(self.admin_user, scraper_id=s_id))
+        del_res = self.parse_res(delete_scraper_logic(self.admin, scraper_id=s_id))
         self.assertTrue(del_res["success"])
         self.assertEqual(Scraper.objects.filter(workspace=self.workspace).count(), 0)
 
@@ -54,8 +43,7 @@ class MCPScrapersTestCase(TestCase):
         ]
         mock_get_scraper.return_value = mock_instance
 
-        res_str = preview_search_query_logic(self.admin_user, provider="arxiv", search_query="all:quantum", limit=5)
-        res = json.loads(res_str)
+        res = self.parse_res(preview_search_query_logic(self.admin, provider="arxiv", search_query="all:quantum", limit=5))
         self.assertTrue(res["success"])
         self.assertEqual(res["total_results"], 1)
 
@@ -78,5 +66,5 @@ class MCPScrapersTestCase(TestCase):
             screening_status="rejected"
         )
 
-        res = json.loads(list_papers_logic(self.admin_user, workspace_id=str(self.workspace.id)))
+        res = self.parse_res(list_papers_logic(self.admin, workspace_id=str(self.workspace.id)))
         self.assertEqual(len(res), 2)
