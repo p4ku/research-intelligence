@@ -1,0 +1,114 @@
+import json
+from unittest.mock import patch, MagicMock
+from django.test import TestCase
+
+from research_intelligence.models import (
+    Workspace,
+    PipelineRun,
+    Paper,
+    ComponentRun,
+    ExtractionDefinition,
+    Extraction,
+)
+from research_intelligence.tasks.step_5_extraction.extract import execute_extraction_job
+from research_intelligence.tasks.step_5_extraction.node import ExtractionNode
+
+
+class ExtractionTaskTestCase(TestCase):
+    def setUp(self):
+        self.workspace = Workspace.objects.create(
+            name="Extraction Test Project",
+            abstract_acceptance_criteria="Active learning",
+            abstract_rejection_criteria="Heuristics"
+        )
+        self.pipeline_run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="running"
+        )
+        self.definition = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="TRL Level",
+            system_prompt="Extract TRL level with exact quote.",
+            user_prompt_template="Analyze this text: {paper_text}",
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "trl_level": {"type": "integer", "minimum": 1, "maximum": 9},
+                    "reasoning": {"type": "string"},
+                    "evidence_quote": {"type": "string"}
+                },
+                "required": ["trl_level", "reasoning", "evidence_quote"]
+            },
+            is_active=True
+        )
+        self.paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="paper_accepted_101",
+            title="Field Testing Autonomous Rovers in Antarctic Conditions",
+            authors="Dr. Scott",
+            abstract="We deployed autonomous rovers in Antarctica for 30 days.",
+            screening_status="full_text_passed"
+        )
+        self.component_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="extraction",
+            component_name="parameter_extractor",
+            status="pending"
+        )
+
+    @patch("research_intelligence.tasks.step_5_extraction.extract.get_llm_provider")
+    def test_execute_extraction_job_success(self, mock_get_provider):
+        mock_llm = MagicMock()
+        mock_llm.generate.return_value = (
+            {
+                "trl_level": 7,
+                "reasoning": "Demonstrated prototype in operational environment (Antarctica).",
+                "evidence_quote": "We deployed autonomous rovers in Antarctica for 30 days with full telemetry.",
+                "confidence_score": 0.95
+            },
+            {"prompt_tokens": 1200, "candidates_tokens": 250, "total_tokens": 1450}
+        )
+        mock_get_provider.return_value = mock_llm
+
+        result = execute_extraction_job(str(self.component_run.id))
+        self.assertTrue(result)
+
+        extractions = Extraction.objects.filter(paper=self.paper, extraction_definition=self.definition)
+        self.assertEqual(extractions.count(), 1)
+        ext = extractions.first()
+        self.assertEqual(ext.fields_data.get("trl_level"), 7)
+        self.assertEqual(ext.validation_status, "pass")
+        self.assertAlmostEqual(ext.confidence_score, 0.95)
+
+    @patch("research_intelligence.tasks.step_5_extraction.extract.get_llm_provider")
+    def test_execute_extraction_job_warn_on_schema_fallback(self, mock_get_provider):
+        mock_llm = MagicMock()
+        mock_llm.generate.return_value = (
+            {
+                "trl_level": 4,
+                "reasoning": "Lab validation only.",
+                "confidence_score": 0.50
+            },
+            {"prompt_tokens": 500, "candidates_tokens": 100, "total_tokens": 600}
+        )
+        mock_get_provider.return_value = mock_llm
+
+        result = execute_extraction_job(str(self.component_run.id))
+        self.assertTrue(result)
+
+        ext = Extraction.objects.filter(paper=self.paper, extraction_definition=self.definition).first()
+        self.assertIsNotNone(ext)
+        self.assertEqual(ext.fields_data.get("trl_level"), 4)
+        self.assertEqual(ext.validation_status, "warn")
+
+    def test_extraction_node_contracts_and_dependencies(self):
+        node = ExtractionNode()
+        self.assertEqual(node.name, "extraction")
+        self.assertEqual(node.dependencies, ["screening"])
+        self.assertIn("extraction_definitions", node.input_contract)
+        self.assertIn("extractions", node.output_contract)
+
+        self.component_run.metrics = {"extracted_count": 8, "papers_processed": 4}
+        summary = node.generate_stage_summary(self.component_run, status="completed")
+        self.assertIn("8 parameters extracted", summary)

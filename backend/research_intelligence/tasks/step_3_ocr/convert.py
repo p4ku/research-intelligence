@@ -167,6 +167,25 @@ def execute_ocr_job(self, component_run_id: str, limit: int = 50, max_workers: i
     pipeline_run = component_run.pipeline_run
     workspace = pipeline_run.workspace
 
+    if not workspace.ocr_provider or str(workspace.ocr_provider).strip().lower() in ("none", ""):
+        logger.info(f"⏩ [OCR SKIPPED] Workspace '{workspace.name}' has no OCR provider configured. Skipping Step 3 (Direct Multimodal PDF mode).")
+        component_run.status = 'skipped'
+        component_run.completed_at = timezone.now()
+        component_run.metrics = {
+            "ocr_provider": None,
+            "converted": 0,
+            "skipped": 0,
+            "failed": 0,
+            "skipped_reason": "Direct multimodal PDF mode active (ocr_provider is None)"
+        }
+        component_run.output_data = {
+            "summary": "OCR conversion skipped: direct multimodal PDF ingestion active."
+        }
+        component_run.save(update_fields=['status', 'completed_at', 'metrics', 'output_data'])
+        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+        notify_pipeline_orchestrator_tick(pipeline_run)
+        return True
+
     component_run.status = 'running'
     component_run.celery_task_id = getattr(self.request, 'id', None)
     component_run.started_at = timezone.now()

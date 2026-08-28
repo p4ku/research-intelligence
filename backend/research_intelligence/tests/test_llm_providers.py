@@ -12,7 +12,7 @@ class GoogleLLMProviderTestCase(TestCase):
     @patch("research_intelligence.llm_providers.google.Path.exists")
     @patch("research_intelligence.llm_providers.google.service_account.Credentials.from_service_account_info")
     @patch("research_intelligence.llm_providers.google.genai.Client")
-    @patch.dict("os.environ", {"GOOGLE_SERVICE_ACCOUNT_JSON": '{"type": "service_account", "project_id": "test-project"}', "GOOGLE_CLOUD_PROJECT": ""})
+    @patch.dict("os.environ", {"GOOGLE_SERVICE_ACCOUNT_JSON": '{"type": "service_account", "project_id": "test-project"}', "GOOGLE_CLOUD_PROJECT": "", "GOOGLE_CLOUD_LOCATION": "", "LOCATION": ""})
     def test_client_initialization_with_env_credentials(self, mock_client_cls, mock_from_service_account_info, mock_exists):
         mock_exists.return_value = False
         mock_creds = MagicMock()

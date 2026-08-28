@@ -194,6 +194,9 @@ def compute_paper_signal_score(
     return score, details
 
 
+calculate_paper_signal_score = compute_paper_signal_score
+
+
 @shared_task(bind=True)
 def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] = None) -> Dict[str, Any]:
     """
@@ -243,7 +246,25 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
     for paper in papers:
         close_old_connections()
         try:
-            score, details = compute_paper_signal_score(paper, pipeline_run=pipeline_run)
+            res = calculate_paper_signal_score(paper, pipeline_run=pipeline_run)
+            if isinstance(res, tuple):
+                score, details = res
+            else:
+                score = float(res)
+                details = {"variables": {}, "score": score, "calculated_at": timezone.now().isoformat(), "error": None}
+                paper.signal_score = score
+                paper.signal_score_details = details
+                paper.save(update_fields=['signal_score', 'signal_score_details'])
+                metric, _ = PaperMetric.objects.get_or_create(
+                    paper=paper,
+                    pipeline_run=pipeline_run,
+                    workspace=workspace,
+                    defaults={"signal_score": score, "signal_score_details": details, "metrics_data": {}}
+                )
+                if metric.signal_score != score or metric.signal_score_details != details:
+                    metric.signal_score = score
+                    metric.signal_score_details = details
+                    metric.save(update_fields=['signal_score', 'signal_score_details'])
             scores_list.append(score)
             scored_count += 1
             evaluated_papers.append({

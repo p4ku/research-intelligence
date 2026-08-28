@@ -42,8 +42,8 @@ class ExtractionNode(BaseWorkflowNode):
     def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
         if status == 'completed' and comp_run:
             metrics = comp_run.metrics or {}
-            extracted = metrics.get('extractions_count', metrics.get('succeeded', metrics.get('extractions_created', 0)))
-            papers = metrics.get('papers_processed', 0)
+            extracted = metrics.get('extractions_count', metrics.get('succeeded', metrics.get('extractions_created', metrics.get('extracted_count', 0))))
+            papers = metrics.get('papers_processed', metrics.get('total_papers', 0))
             return f"Extraction: {extracted} parameters extracted across {papers} accepted paper(s)."
         return super().generate_stage_summary(comp_run, status=status)
 
