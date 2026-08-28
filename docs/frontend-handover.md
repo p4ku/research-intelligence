@@ -6,8 +6,9 @@ frontend developed in the `research-scanner` repo (imported from its
 home** — future frontend work happens here.
 
 This document is the bridge for the backend team: what landed, where the
-contract documentation lives, and the small set of manual changes needed
-outside `frontend/` (this import deliberately touched nothing else).
+contract documentation lives, and the state of the deploy config outside
+`frontend/` (manifest and compose are updated on this branch; two doc
+suggestions remain).
 
 ---
 
@@ -83,67 +84,40 @@ it at `/bff/status`), and the standalone server honours Cloud Foundry's
 
 ---
 
-## 5. Required manual changes outside `frontend/`
+## 5. Changes outside `frontend/`
 
-This import only modified `frontend/` and `docs/`. The following need doing
-separately (copy-paste ready):
+The deploy config is updated **on this branch**; two documentation
+suggestions remain for the backend team.
 
-### 5.1 `manifest.yml` — required before the next deploy
+### 5.1 `manifest.yml` — done on this branch
 
-`sri-frontend` currently has **no `env:` block**, and 512M is tight for a
-Next standalone server. Update the entry to:
+`sri-frontend` now has 1G memory and an `env:` block (`NODE_ENV`,
+`BACKEND_INTERNAL_URL`, `SITE_URL`, and a commented `BFF_SOURCE_*` table —
+uncomment/flip these as contract endpoints land; defaults live in
+`frontend/src/lib/bff/core/source.ts`).
 
-```yaml
-  - name: sri-frontend
-    docker:
-      image: ((frontend_image))
-      username: ((registry_username))
-    instances: 1
-    memory: 1G
-    disk_quota: 2G
-    routes:
-      - route: sri-prod.apps.01.cf.eu01.onstackit.cloud
-    env:
-      NODE_ENV: production
-      BACKEND_INTERNAL_URL: https://sri-prod.apps.01.cf.eu01.onstackit.cloud
-      SITE_URL: https://sri-prod.apps.01.cf.eu01.onstackit.cloud
-      # BFF sources — override as endpoints land (defaults in
-      # frontend/src/lib/bff/core/source.ts):
-      # BFF_SOURCE_PAPERS: composed
-      # BFF_SOURCE_BRIEFINGS: composed
-      # BFF_SOURCE_SCORING: composed
-      # BFF_SOURCE_PREFERENCES: stub
-```
+Two notes:
 
-If `BACKEND_INTERNAL_URL` is pointed at a container-to-container internal
-route instead, that host must be in Django's `ALLOWED_HOSTS`.
+*   If `BACKEND_INTERNAL_URL` is ever repointed at a container-to-container
+    internal route, that host must be added to Django's `ALLOWED_HOSTS`.
+*   The currently *running* app also carries `NEXT_PUBLIC_API_URL` and
+    `NEXT_PUBLIC_MCP_URL`, set at some point with `cf set-env` (they are not
+    in the manifest). The new app ignores them; they are harmless, but
+    `cf unset-env sri-frontend NEXT_PUBLIC_API_URL` (and `..._MCP_URL`)
+    tidies them away.
 
-### 5.2 docker-compose `frontend` service — when compose dev is wanted
+### 5.2 docker-compose `frontend` service — done on this branch
 
-The current service assumes npm (`command: npm run dev`) and bind-mounts
-`./frontend:/app` with anonymous `/app/node_modules` + `/app/.next` volumes —
-none of which fit a Bun app. Simplest correct replacement (production image,
-no mounts):
+Both `docker-compose.yml` and `docker-compose-develop.yml` now run the
+production image (`bun install → next build → node server.js`) with the env
+the new app reads, instead of the old npm dev command with `./frontend:/app`
+bind mounts. Two operational notes:
 
-```yaml
-  frontend:
-    build:
-      context: ./frontend
-    container_name: sri_frontend
-    ports:
-      - "3000:3000"
-    environment:
-      - PORT=3000
-      - BACKEND_INTERNAL_URL=http://api:8000
-      - SITE_URL=http://localhost:3000
-      - COOKIE_SECURE=false
-    depends_on:
-      - api
-```
-
-For hot reload, run `bun run dev` on the host instead. First `docker compose
-up` after the swap: pass `--renew-anon-volumes` (or `down -v` first) so stale
-anonymous volumes from the old app don't shadow the new one.
+*   The container serves a production build — **no hot reload**. For hot
+    reload, run `bun run dev` inside `frontend/` on the host.
+*   First `docker compose up` after the swap on a machine that ran the old
+    app: pass `--renew-anon-volumes` (or `docker compose down -v` first) so
+    the old app's anonymous `node_modules`/`.next` volumes don't linger.
 
 ### 5.3 `AGENTS.md` — suggested addition
 

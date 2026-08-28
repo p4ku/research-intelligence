@@ -240,24 +240,21 @@ services:
       redis:
         condition: service_healthy
 
-  # Next.js Frontend Dashboard
+  # Next.js Frontend Dashboard (production image: bun install -> next build ->
+  # node server.js; for hot reload run `bun run dev` in frontend/ on the host)
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: sri_frontend
     restart: always
-    command: npm run dev
     ports:
       - "3000:3000"
     environment:
-      - NODE_ENV=development
-      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8000/api}
-      - NEXT_PUBLIC_MCP_URL=${NEXT_PUBLIC_MCP_URL:-http://localhost:8001/sse}
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-      - /app/.next
+      - PORT=3000
+      - BACKEND_INTERNAL_URL=http://api:8000
+      - SITE_URL=${SITE_URL:-http://localhost:3000}
+      - COOKIE_SECURE=false
     depends_on:
       - api
 
