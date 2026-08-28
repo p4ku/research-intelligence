@@ -188,4 +188,40 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
         self.assertEqual(ws.get_abstract_acceptance_criteria(), "Single line criteria text\nSecond line")
         self.assertEqual(ws.get_abstract_rejection_criteria(), "Rejection criteria text")
 
+    def test_get_workspace_with_scrapers_and_definitions(self):
+        from research_intelligence.models import Scraper, ExtractionDefinition
+        ws_res = self.parse_res(create_workspace_logic(self.admin, name="Scraper WS"))
+        ws_id = ws_res["workspace_id"]
+        ws = Workspace.objects.get(id=ws_id)
+
+        scraper = Scraper.objects.create(
+            workspace=ws,
+            provider='arxiv',
+            search_query='cat:cs.AI',
+            limit=30,
+            is_active=True
+        )
+
+        ext_def = ExtractionDefinition.objects.create(
+            workspace=ws,
+            name='Test Definition',
+            system_prompt='Extract metric',
+            response_schema={'type': 'object'},
+            llm_model='google/gemini-3.7-flash',
+            is_active=True
+        )
+
+        ws_details = self.parse_res(get_workspace_logic(self.admin, workspace_id=ws_id))
+        self.assertEqual(ws_details["name"], "Scraper WS")
+        self.assertEqual(len(ws_details["scrapers"]), 1)
+        self.assertEqual(ws_details["scrapers"][0]["scraper_id"], str(scraper.id))
+        self.assertEqual(ws_details["scrapers"][0]["provider"], "arxiv")
+        self.assertEqual(ws_details["scrapers"][0]["provider_name"], "arXiv")
+        self.assertEqual(ws_details["scrapers"][0]["search_query"], "cat:cs.AI")
+        self.assertEqual(ws_details["scrapers"][0]["limit"], 30)
+        self.assertTrue(ws_details["scrapers"][0]["is_active"])
+
+        self.assertEqual(len(ws_details["extraction_definitions"]), 1)
+        self.assertEqual(ws_details["extraction_definitions"][0]["name"], "Test Definition")
+
 

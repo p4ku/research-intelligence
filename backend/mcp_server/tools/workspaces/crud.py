@@ -80,8 +80,8 @@ def get_workspace_logic(user, workspace_id: str) -> str:
         "scrapers": [
             {
                 "scraper_id": str(s.id),
-                "name": s.name,
                 "provider": s.provider,
+                "provider_name": s.get_provider_display(),
                 "search_query": s.search_query,
                 "limit": s.limit,
                 "is_active": s.is_active
