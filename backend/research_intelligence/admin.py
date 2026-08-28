@@ -864,6 +864,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'triggered_by_display'
     )
     ordering = ('-started_at', '-id')
+    list_select_related = ('workspace', 'triggered_by')
     list_filter = ('status', 'current_stage', 'reprocess_existing', 'run_date', 'workspace', 'triggered_by')
     search_fields = ('id', 'workspace__name', 'status_message', 'triggered_by__username', 'triggered_by__email')
     readonly_fields = ('started_at', 'completed_at', 'execution_time')
@@ -1048,6 +1049,7 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         'triggered_by_display'
     )
     ordering = ('-started_at', '-id')
+    list_select_related = ('workspace', 'pipeline_run', 'triggered_by')
     list_filter = ('status', 'current_step', 'stopped_at_step', 'workspace', 'triggered_by')
     search_fields = ('name', 'id', 'workspace__name', 'stop_reason', 'error_message', 'triggered_by__username', 'triggered_by__email')
     readonly_fields = ('started_at', 'completed_at', 'execution_time', 'stage_results_preview', 'step_history_preview')
@@ -1441,6 +1443,7 @@ class ComponentRunAdmin(admin.ModelAdmin):
         'triggered_by_display'
     )
     ordering = ('-started_at', '-id')
+    list_select_related = ('pipeline_run', 'pipeline_run__workspace', 'pipeline_run__triggered_by')
     list_filter = (RecentPipelineRunFilter, ComponentRunWorkspaceFilter, 'pipeline_run__triggered_by', 'step_type', 'status', 'started_at')
     search_fields = ('id', 'component_name', 'celery_task_id', 'pipeline_run__id', 'pipeline_run__workspace__name', 'pipeline_run__triggered_by__username', 'pipeline_run__triggered_by__email')
     readonly_fields = ('started_at', 'completed_at', 'execution_time')
@@ -1579,6 +1582,7 @@ class PaperAdmin(admin.ModelAdmin):
         'created_at'
     )
     ordering = ('-created_at', '-id')
+    list_select_related = ('workspace', 'pipeline_run')
     list_filter = ('source_database', 'screening_status', 'is_evaluation_benchmark', 'workspace')
     search_fields = ('title', 'authors', 'doi', 'arxiv_id', 'hash_id')
 
@@ -1844,6 +1848,7 @@ class PaperMetricAdmin(admin.ModelAdmin):
     }
     list_display = ('paper', 'pipeline_run_link', 'workspace', 'signal_score_badge', 'metrics_preview', 'created_at')
     ordering = ('-created_at', '-id')
+    list_select_related = ('paper', 'pipeline_run', 'workspace')
     list_filter = ('workspace', 'pipeline_run')
     search_fields = ('paper__title', 'pipeline_run__id')
 

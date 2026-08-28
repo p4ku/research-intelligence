@@ -81,13 +81,17 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
     if error:
         return error
 
-    comp_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run).select_related('scraper')
+    comp_runs_list = list(ComponentRun.objects.filter(pipeline_run=pipeline_run).select_related('scraper'))
     
     # Dynamically sync pipeline_run status if all component runs are finished
-    if comp_runs.exists() and not comp_runs.filter(status__in=['pending', 'running']).exists():
-        if comp_runs.filter(status='failed').exists():
+    has_active = any(cr.status in ['pending', 'running'] for cr in comp_runs_list)
+    has_failed = any(cr.status == 'failed' for cr in comp_runs_list)
+    has_aborted = any(cr.status == 'aborted' for cr in comp_runs_list)
+
+    if comp_runs_list and not has_active:
+        if has_failed:
             pipeline_run.status = 'failed'
-        elif comp_runs.filter(status='aborted').exists():
+        elif has_aborted:
             pipeline_run.status = 'aborted'
         else:
             pipeline_run.status = 'completed'
@@ -95,25 +99,35 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
             pipeline_run.completed_at = timezone.now()
         pipeline_run.save(update_fields=['status', 'completed_at'])
 
-    papers_qs = Paper.objects.filter(pipeline_run=pipeline_run)
-    total_papers_fetched = pipeline_run.total_papers_fetched or papers_qs.count()
-    downloaded_papers_count = papers_qs.filter(original_pdf_path__isnull=False).exclude(original_pdf_path='').count()
-    ocr_converted_papers_count = papers_qs.filter(converted_md_path__isnull=False).exclude(converted_md_path='').count()
+    from django.db.models import Count, Q
+    paper_stats = Paper.objects.filter(pipeline_run=pipeline_run).aggregate(
+        total_fetched=Count('id'),
+        downloaded_count=Count('id', filter=Q(original_pdf_path__isnull=False) & ~Q(original_pdf_path='')),
+        ocr_count=Count('id', filter=Q(converted_md_path__isnull=False) & ~Q(converted_md_path='')),
+        abstract_passed=Count('id', filter=Q(screening_status__in=['abstract_passed', 'full_text_passed'])),
+        abstract_screened=Count('id', filter=Q(screening_status__in=['abstract_passed', 'full_text_passed', 'rejected'])),
+        full_text_passed=Count('id', filter=Q(screening_status='full_text_passed')),
+        rejected_count=Count('id', filter=Q(screening_status='rejected')),
+    )
+
+    total_papers_fetched = pipeline_run.total_papers_fetched or paper_stats['total_fetched']
+    downloaded_papers_count = paper_stats['downloaded_count']
+    ocr_converted_papers_count = paper_stats['ocr_count']
     
-    abstract_run = comp_runs.filter(step_type='screening', component_name__icontains='abstract').first()
-    full_text_run = comp_runs.filter(step_type='screening', component_name__icontains='full_text').first()
+    abstract_run = next((cr for cr in comp_runs_list if cr.step_type == 'screening' and 'abstract' in (cr.component_name or '').lower()), None)
+    full_text_run = next((cr for cr in comp_runs_list if cr.step_type == 'screening' and 'full_text' in (cr.component_name or '').lower()), None)
 
     abstract_metrics = abstract_run.metrics if (abstract_run and abstract_run.metrics) else {}
     full_text_metrics = full_text_run.metrics if (full_text_run and full_text_run.metrics) else {}
 
-    abstract_screened = abstract_metrics.get("total_screened", papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'rejected']).count()) if abstract_run else 0
-    abstract_passed = abstract_metrics.get("passed", papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed']).count()) if abstract_run else 0
-    abstract_rejected = abstract_metrics.get("rejected", papers_qs.filter(screening_status='rejected').count()) if abstract_run else 0
+    abstract_screened = abstract_metrics.get("total_screened", paper_stats['abstract_screened']) if abstract_run else 0
+    abstract_passed = abstract_metrics.get("passed", paper_stats['abstract_passed']) if abstract_run else 0
+    abstract_rejected = abstract_metrics.get("rejected", paper_stats['rejected_count']) if abstract_run else 0
 
-    full_text_screened = full_text_metrics.get("total_screened", papers_qs.filter(screening_status__in=['full_text_passed', 'rejected']).count()) if full_text_run else 0
-    full_text_passed = full_text_metrics.get("passed", papers_qs.filter(screening_status='full_text_passed').count()) if full_text_run else 0
-    full_text_rejected = full_text_metrics.get("rejected", papers_qs.filter(screening_status='rejected').count()) if full_text_run else 0
-    from django.db.models import Q
+    full_text_screened = full_text_metrics.get("total_screened", paper_stats['full_text_passed'] + paper_stats['rejected_count']) if full_text_run else 0
+    full_text_passed = full_text_metrics.get("passed", paper_stats['full_text_passed']) if full_text_run else 0
+    full_text_rejected = full_text_metrics.get("rejected", paper_stats['rejected_count']) if full_text_run else 0
+
     extractions_count = Extraction.objects.filter(paper__pipeline_run=pipeline_run).count()
     paper_metrics_count = PaperMetric.objects.filter(Q(pipeline_run=pipeline_run) | Q(paper__pipeline_run=pipeline_run)).distinct().count()
 
@@ -122,7 +136,7 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
     storage_stats = _get_run_storage_stats(run_storage_dir)
 
     runs_list = []
-    for cr in comp_runs:
+    for cr in comp_runs_list:
         runs_list.append({
             "component_run_id": str(cr.id),
             "step_type": cr.step_type,
@@ -142,6 +156,7 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
         })
 
     # Fetched papers previews
+    papers_qs = Paper.objects.filter(pipeline_run=pipeline_run)
     papers_preview = []
     for p in papers_qs[:20]:
         papers_preview.append({

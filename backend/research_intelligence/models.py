@@ -540,6 +540,11 @@ class ResearchAgentProcess(models.Model):
 
     class Meta:
         ordering = ['-started_at', '-id']
+        indexes = [
+            models.Index(fields=['workspace', 'status']),
+            models.Index(fields=['pipeline_run']),
+            models.Index(fields=['workspace', '-started_at']),
+        ]
 
     def __str__(self):
         return f"Agent '{self.name}' [{self.workspace.name}] ({self.status} - step: {self.current_step})"
@@ -640,6 +645,11 @@ class ComponentRun(models.Model):
 
     class Meta:
         ordering = ['-started_at', '-id']
+        indexes = [
+            models.Index(fields=['pipeline_run', 'step_type']),
+            models.Index(fields=['pipeline_run', 'status']),
+            models.Index(fields=['pipeline_run', '-started_at']),
+        ]
 
     def __str__(self):
         return f"{self.step_type}:{self.component_name} - Run {self.pipeline_run.id} ({self.status})"
@@ -700,8 +710,8 @@ class Paper(models.Model):
     
     # Deduplication Keys
     hash_id = models.CharField(max_length=64, unique=True, help_text="SHA-256 hash of PDF or fallback unique hash to prevent duplicates")
-    doi = models.CharField(max_length=255, blank=True, null=True, help_text="Digital Object Identifier (DOI)")
-    arxiv_id = models.CharField(max_length=100, blank=True, null=True, help_text="arXiv repository ID")
+    doi = models.CharField(max_length=255, blank=True, null=True, db_index=True, help_text="Digital Object Identifier (DOI)")
+    arxiv_id = models.CharField(max_length=100, blank=True, null=True, db_index=True, help_text="arXiv repository ID")
     
     title = models.CharField(max_length=512)
     authors = models.TextField()
@@ -720,7 +730,8 @@ class Paper(models.Model):
             ('rejected', 'Rejected'),
             ('withdrawn', 'Withdrawn by Authors')
         ],
-        default='pending'
+        default='pending',
+        db_index=True
     )
     screening_reasoning = models.TextField(blank=True, null=True, help_text="Agent justification for screening action")
     
@@ -751,6 +762,15 @@ class Paper(models.Model):
 
     class Meta:
         ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['workspace', 'screening_status']),
+            models.Index(fields=['pipeline_run', 'screening_status']),
+            models.Index(fields=['workspace', '-created_at']),
+            models.Index(fields=['pipeline_run', '-created_at']),
+            models.Index(fields=['doi']),
+            models.Index(fields=['arxiv_id']),
+            models.Index(fields=['hash_id']),
+        ]
 
     def __str__(self):
         return self.title
@@ -846,6 +866,12 @@ class Extraction(models.Model):
 
     class Meta:
         ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['paper', 'extraction_definition']),
+            models.Index(fields=['workspace', 'validation_status']),
+            models.Index(fields=['paper', 'validation_status']),
+            models.Index(fields=['workspace', '-created_at']),
+        ]
 
     def __str__(self):
         return f"{self.paper.title[:30]}... ({self.category}): {self.exit_metric}"
@@ -882,6 +908,11 @@ class PaperMetric(models.Model):
     class Meta:
         ordering = ['-created_at', '-id']
         unique_together = ('paper', 'pipeline_run')
+        indexes = [
+            models.Index(fields=['workspace', '-signal_score']),
+            models.Index(fields=['pipeline_run', '-signal_score']),
+            models.Index(fields=['paper', '-created_at']),
+        ]
 
     def __str__(self):
         score_str = f"{self.signal_score:.2f}" if self.signal_score is not None else "-"
@@ -1025,6 +1056,8 @@ class UserActivityLog(models.Model):
         ordering = ['-timestamp']
         indexes = [
             models.Index(fields=['-timestamp']),
+            models.Index(fields=['workspace', '-timestamp']),
+            models.Index(fields=['user', '-timestamp']),
             models.Index(fields=['interface', 'action_name']),
             models.Index(fields=['status']),
         ]

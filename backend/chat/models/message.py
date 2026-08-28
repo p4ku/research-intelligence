@@ -46,6 +46,11 @@ class PaperChatMessage(models.Model):
     class Meta:
         app_label = 'chat'
         ordering = ['created_at']
+        indexes = [
+            models.Index(fields=['session', 'created_at']),
+            models.Index(fields=['session', 'sender']),
+            models.Index(fields=['status']),
+        ]
 
     def __str__(self):
         return f"[{self.session_id}] {self.sender}: {self.message[:40]}... ({self.status})"

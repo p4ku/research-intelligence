@@ -44,6 +44,11 @@ class PaperChatSession(models.Model):
     class Meta:
         app_label = 'chat'
         ordering = ['-updated_at', '-created_at']
+        indexes = [
+            models.Index(fields=['workspace', '-updated_at']),
+            models.Index(fields=['paper', '-updated_at']),
+            models.Index(fields=['user', '-updated_at']),
+        ]
 
     def record_message_cost(self, tokens_in: int, tokens_out: int, cost):
         """Atomically increments session token and USD counters."""

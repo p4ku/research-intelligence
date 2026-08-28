@@ -403,10 +403,10 @@ def check_run_status_logic(
     if process.pipeline_run:
         from research_intelligence.models import Paper, Extraction, PaperMetric
         from mcp.tools.pipeline_runs.status import _get_run_storage_stats
-        from django.db.models import F
+        from django.db.models import F, Count, Q
 
-        comp_runs = process.pipeline_run.component_runs.all()
-        for cr in comp_runs:
+        comp_runs_list = list(process.pipeline_run.component_runs.all())
+        for cr in comp_runs_list:
             component_runs_summary.append({
                 "component_run_id": str(cr.id),
                 "step_type": cr.step_type,
@@ -420,27 +420,36 @@ def check_run_status_logic(
             })
 
         papers_qs = Paper.objects.filter(pipeline_run=process.pipeline_run)
-        abstract_run = comp_runs.filter(step_type='screening', component_name__icontains='abstract').first()
-        full_text_run = comp_runs.filter(step_type='screening', component_name__icontains='full_text').first()
+        paper_stats = papers_qs.aggregate(
+            total_fetched=Count('id'),
+            downloaded_count=Count('id', filter=Q(original_pdf_path__isnull=False) & ~Q(original_pdf_path='')),
+            ocr_count=Count('id', filter=Q(converted_md_path__isnull=False) & ~Q(converted_md_path='')),
+            abstract_passed=Count('id', filter=Q(screening_status__in=['abstract_passed', 'full_text_passed'])),
+            abstract_screened=Count('id', filter=Q(screening_status__in=['abstract_passed', 'full_text_passed', 'rejected'])),
+            full_text_passed=Count('id', filter=Q(screening_status='full_text_passed')),
+            rejected_count=Count('id', filter=Q(screening_status='rejected')),
+        )
+
+        abstract_run = next((cr for cr in comp_runs_list if cr.step_type == 'screening' and 'abstract' in (cr.component_name or '').lower()), None)
+        full_text_run = next((cr for cr in comp_runs_list if cr.step_type == 'screening' and 'full_text' in (cr.component_name or '').lower()), None)
 
         abstract_metrics = abstract_run.metrics if (abstract_run and abstract_run.metrics) else {}
         full_text_metrics = full_text_run.metrics if (full_text_run and full_text_run.metrics) else {}
 
-        abstract_screened = abstract_metrics.get("total_screened", papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'rejected']).count()) if abstract_run else 0
-        abstract_passed = abstract_metrics.get("passed", papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed']).count()) if abstract_run else 0
+        abstract_screened = abstract_metrics.get("total_screened", paper_stats['abstract_screened']) if abstract_run else 0
+        abstract_passed = abstract_metrics.get("passed", paper_stats['abstract_passed']) if abstract_run else 0
         abstract_rejected = abstract_metrics.get("rejected", max(0, abstract_screened - abstract_passed)) if abstract_run else 0
 
-        full_text_screened = full_text_metrics.get("total_screened", papers_qs.filter(screening_status='full_text_passed').count() + full_text_metrics.get("rejected", 0)) if full_text_run else 0
-        full_text_passed = full_text_metrics.get("passed", papers_qs.filter(screening_status='full_text_passed').count()) if full_text_run else 0
+        full_text_screened = full_text_metrics.get("total_screened", paper_stats['full_text_passed'] + full_text_metrics.get("rejected", 0)) if full_text_run else 0
+        full_text_passed = full_text_metrics.get("passed", paper_stats['full_text_passed']) if full_text_run else 0
         full_text_rejected = full_text_metrics.get("rejected", max(0, full_text_screened - full_text_passed)) if full_text_run else 0
 
-        from django.db.models import Q
         total_screened_papers = abstract_screened or full_text_screened or PaperMetric.objects.filter(Q(pipeline_run=process.pipeline_run) | Q(paper__pipeline_run=process.pipeline_run)).distinct().count()
 
         paper_metrics = {
-            "total_papers_fetched": process.pipeline_run.total_papers_fetched or papers_qs.count(),
-            "downloaded_documents_count": papers_qs.filter(original_pdf_path__isnull=False).exclude(original_pdf_path='').count(),
-            "ocr_converted_documents_count": papers_qs.filter(converted_md_path__isnull=False).exclude(converted_md_path='').count(),
+            "total_papers_fetched": process.pipeline_run.total_papers_fetched or paper_stats['total_fetched'],
+            "downloaded_documents_count": paper_stats['downloaded_count'],
+            "ocr_converted_documents_count": paper_stats['ocr_count'],
             "screened_documents_count": total_screened_papers,
             "abstract_screening": {
                 "screened": abstract_screened,

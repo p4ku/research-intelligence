@@ -15,7 +15,8 @@ class PaperViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        base_qs = Paper.objects.select_related('workspace', 'pipeline_run').prefetch_related('metrics')
         if getattr(user, 'is_superuser', False):
-            return Paper.objects.all()
+            return base_qs.all()
         user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-        return Paper.objects.filter(workspace_id__in=user_ws_ids)
+        return base_qs.filter(workspace_id__in=user_ws_ids)

@@ -20,7 +20,8 @@ class ExtractionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        base_qs = Extraction.objects.select_related('paper', 'extraction_definition', 'workspace')
         if getattr(user, 'is_superuser', False):
-            return Extraction.objects.all()
+            return base_qs.all()
         user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-        return Extraction.objects.filter(workspace_id__in=user_ws_ids)
+        return base_qs.filter(workspace_id__in=user_ws_ids)

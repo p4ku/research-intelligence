@@ -32,6 +32,8 @@ class PaperChatSessionSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.IntegerField)
     def get_messages_count(self, obj):
+        if hasattr(obj, 'annotated_messages_count'):
+            return obj.annotated_messages_count
         return obj.messages.count()
 
 

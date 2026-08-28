@@ -112,12 +112,13 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
         created_count = 0
         skipped_count = 0
         created_paper_ids = []
-        for item in results:
-            # Re-check abort status mid-loop
-            component_run.refresh_from_db(fields=['status'])
-            if component_run.status == 'aborted':
-                logger.warning(f"ComponentRun '{component_run_id}' was aborted during item processing.")
-                return False
+        for idx, item in enumerate(results):
+            # Periodically re-check abort status mid-loop
+            if idx % 10 == 0:
+                component_run.refresh_from_db(fields=['status'])
+                if component_run.status == 'aborted':
+                    logger.warning(f"ComponentRun '{component_run_id}' was aborted during item processing.")
+                    return False
 
             arxiv_id = item.get('arxiv_id') or (item.get('hash_id') if item.get('source_database') == 'arxiv' else None)
             doi = item.get('doi') or (item.get('other_url') if 'doi.org' in item.get('other_url', '') else None)

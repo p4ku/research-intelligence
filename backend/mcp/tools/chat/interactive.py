@@ -2,9 +2,7 @@ import json
 import uuid
 import logging
 from research_intelligence.models import Workspace, Paper
-from chat.models import PaperChatSession, PaperChatMessage
-from chat.engine import PaperChatEngine
-from mcp.tools.workspaces import _check_workspace_access
+from mcp.tools.workspaces.crud import _check_workspace_access
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +37,9 @@ def ask_paper_logic(
             paper = Paper.objects.select_related('workspace').get(id=p_uuid, workspace=workspace)
         except (ValueError, Paper.DoesNotExist):
             return f"Error: Paper '{paper_id}' not found in workspace '{workspace.name}'."
+
+    from chat.models import PaperChatSession, PaperChatMessage
+    from chat.engine import PaperChatEngine
 
     session = None
     if session_id:

@@ -32,7 +32,7 @@ from mcp.tools.pipeline_runs.lifecycle import (
     abort_job_logic,
     delete_pipeline_run_logic,
 )
-from mcp.tools.workspaces import _check_workspace_access
+from mcp.tools.workspaces.crud import _check_workspace_access
 
 
 @extend_schema(tags=['Pipeline Runs & Components'])
@@ -58,10 +58,10 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             return PipelineRun.objects.none()
 
         if getattr(user, 'is_superuser', False):
-            qs = PipelineRun.objects.select_related('workspace', 'triggered_by').all().order_by('-started_at')
+            qs = PipelineRun.objects.select_related('workspace', 'triggered_by').prefetch_related('component_runs').all().order_by('-started_at')
         else:
             user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-            qs = PipelineRun.objects.select_related('workspace', 'triggered_by').filter(
+            qs = PipelineRun.objects.select_related('workspace', 'triggered_by').prefetch_related('component_runs').filter(
                 workspace_id__in=user_ws_ids
             ).order_by('-started_at')
 

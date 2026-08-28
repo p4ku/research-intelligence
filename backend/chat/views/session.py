@@ -28,13 +28,19 @@ class PaperChatSessionViewSet(viewsets.ModelViewSet):
         if not user.is_authenticated:
             return PaperChatSession.objects.none()
 
+        from django.db.models import Count
+
+        base_qs = PaperChatSession.objects.select_related('workspace', 'paper', 'user').annotate(
+            annotated_messages_count=Count('messages')
+        )
+        if self.action == 'retrieve':
+            base_qs = base_qs.prefetch_related('messages')
+
         if user.is_staff or user.is_superuser:
-            qs = PaperChatSession.objects.select_related('workspace', 'paper', 'user').all()
+            qs = base_qs.all()
         else:
             accessible_ws = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-            qs = PaperChatSession.objects.select_related('workspace', 'paper', 'user').filter(
-                workspace_id__in=accessible_ws
-            )
+            qs = base_qs.filter(workspace_id__in=accessible_ws)
 
         paper_id = self.request.query_params.get('paper_id')
         if paper_id:

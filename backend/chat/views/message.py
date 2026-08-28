@@ -6,7 +6,7 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from chat.models import PaperChatMessage
 from chat.serializers import PaperChatMessageSerializer
-from mcp.tools.workspaces import _check_workspace_access
+from mcp.tools.workspaces.crud import _check_workspace_access
 
 logger = logging.getLogger(__name__)
 

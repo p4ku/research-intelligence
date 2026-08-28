@@ -43,8 +43,8 @@ def list_papers_logic(user, workspace_id: str, pipeline_run_id: str = None, limi
         except ValueError:
             return f"Error: '{pipeline_run_id}' is not a valid UUID format."
 
-    papers = qs.order_by('-created_at')[:limit]
-    if not papers.exists():
+    papers = list(qs.order_by('-created_at')[:limit])
+    if not papers:
         return json.dumps({"message": f"No papers found for workspace '{workspace.name}'."}, indent=2)
 
     results = []

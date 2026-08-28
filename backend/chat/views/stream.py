@@ -9,7 +9,7 @@ from chat.models import PaperChatSession, PaperChatMessage
 from research_intelligence.models import Paper, Workspace
 from chat.serializers import PaperChatSubmitSerializer
 from chat.engine import PaperChatEngine
-from mcp.tools.workspaces import _check_workspace_access
+from mcp.tools.workspaces.crud import _check_workspace_access
 
 logger = logging.getLogger(__name__)
 

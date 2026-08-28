@@ -35,7 +35,10 @@ share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
 
 # Virtual Environments
 .venv/
