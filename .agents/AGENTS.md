@@ -67,8 +67,9 @@ It orchestrates a 6-step processing pipeline:
 - **Default OCR Engine**: `None` (OCR is skipped by default so full PDF binaries are passed directly into multimodal Gemini 3.7 Flash during screening).
 
 ### Rule 3: FastMCP Tool Implementation Pattern
-- Define tool logic in `backend/research_intelligence/mcp/tools/<domain>.py`.
-- Register the tool in `backend/research_intelligence/mcp/server.py` using `@mcp.tool()` and `@with_db_connection`.
+- Define tool logic in `backend/mcp/tools/<domain>/`.
+- Register the tool in `backend/mcp/server/app.py` using `@mcp.tool()` and `@with_db_connection`.
+- Run the server via Django management command `python manage.py run_mcp` (or endpoint discovery at `/mcp/`).
 - Ensure exact scope checking via `check_scope(api_key, "workspaces:read" | "workspaces:write" | "runs:read" | "runs:write" | "prompts:read" | "prompts:write")`.
 - Maintain rich docstrings explaining every parameter and output payload so LLM clients (Claude, Gemini, OpenAI) understand tool intent.
 
@@ -231,5 +232,5 @@ It orchestrates a 6-step processing pipeline:
 ./run_tests.sh research_intelligence.tests.test_pdf_cache
 
 # Run FastMCP test suite
-./run_tests.sh research_intelligence.tests.test_mcp_server
+./run_tests.sh mcp
 ```

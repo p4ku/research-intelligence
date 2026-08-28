@@ -29,7 +29,7 @@ applications:
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/sse
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/messages
-    command: python research_intelligence/mcp/server.py
+    command: python manage.py run_mcp
 
   - name: sri-worker
     docker:

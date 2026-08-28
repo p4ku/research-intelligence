@@ -42,7 +42,7 @@ if [ -n "$COVERAGE_BIN" ]; then
     if [ $# -gt 0 ]; then
         "$COVERAGE_BIN" run backend/manage.py test "$@"
     else
-        "$COVERAGE_BIN" run backend/manage.py test --parallel auto research_intelligence.tests
+        "$COVERAGE_BIN" run backend/manage.py test --parallel auto research_intelligence.tests mcp chat
     fi
     
     echo ""
@@ -55,6 +55,6 @@ else
     if [ $# -gt 0 ]; then
         exec "$PYTHON_BIN" backend/manage.py test "$@"
     else
-        exec "$PYTHON_BIN" backend/manage.py test --parallel auto research_intelligence.tests
+        exec "$PYTHON_BIN" backend/manage.py test --parallel auto research_intelligence.tests mcp chat
     fi
 fi

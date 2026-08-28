@@ -125,7 +125,7 @@ services:
       dockerfile: Dockerfile
     container_name: sri_mcp
     restart: always
-    command: python research_intelligence/mcp/server.py
+    command: python manage.py run_mcp
     volumes:
       - ./backend:/app
     ports:
