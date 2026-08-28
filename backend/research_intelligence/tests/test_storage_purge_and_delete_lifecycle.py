@@ -16,8 +16,8 @@ from research_intelligence.models import (
     NarrativeReport,
     ResearchAgentProcess
 )
-from research_intelligence.mcp.tools.pipeline_runs import delete_pipeline_run_logic
-from research_intelligence.mcp.tools.agent_processes import delete_research_agent_logic
+from mcp.tools.pipeline_runs import delete_pipeline_run_logic
+from mcp.tools.agents import delete_research_agent_logic
 
 User = get_user_model()
 

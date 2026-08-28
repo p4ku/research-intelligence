@@ -2,7 +2,7 @@ import json
 import uuid
 from django.core.serializers.json import DjangoJSONEncoder
 from research_intelligence.models import Scraper, Paper
-from ..workspaces import _check_workspace_access
+from mcp.tools.workspaces import _check_workspace_access
 
 
 def preview_search_query_logic(user, provider: str, search_query: str, limit: int = 10) -> str:

@@ -4,7 +4,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from research_intelligence.models import ResearchAgentProcess, WorkspaceMember
 from ..serializers.agents import ResearchAgentProcessSerializer
-from research_intelligence.mcp.tools.agent_processes import (
+from mcp.tools.agents import (
     start_research_agent_logic,
     get_research_agent_status_logic,
     pause_research_agent_logic,
@@ -12,6 +12,7 @@ from research_intelligence.mcp.tools.agent_processes import (
     abort_research_agent_logic,
     delete_research_agent_logic
 )
+
 
 
 from drf_spectacular.utils import extend_schema, OpenApiResponse

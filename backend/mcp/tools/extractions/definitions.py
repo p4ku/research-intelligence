@@ -43,7 +43,7 @@ def get_extraction_definition_logic(user, definition_id: str) -> str:
     except ExtractionDefinition.DoesNotExist:
         from research_intelligence.models import Extraction
         if Extraction.objects.filter(id=d_uuid).exists():
-            from .extractions import get_extraction_logic
+            from .matrix import get_extraction_logic
             return get_extraction_logic(user, str(d_uuid))
         return f"Error: Extraction definition with ID '{definition_id}' does not exist."
 

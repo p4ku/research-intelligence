@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from research_intelligence.models import PipelineRun, ComponentRun, Paper, Extraction, PaperMetric
-from research_intelligence.mcp.tools.pipeline_runs.status import _get_run_storage_stats
+from mcp.tools.pipeline_runs.status import _get_run_storage_stats
 
 
 class ComponentRunSerializer(serializers.ModelSerializer):

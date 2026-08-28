@@ -14,11 +14,12 @@ from research_intelligence.models import (
     ComponentRun,
     ResearchAgentProcess
 )
-from research_intelligence.mcp.tools.agent_processes import (
+from mcp.tools.agents import (
+    start_research_agent_logic,
+    get_research_agent_status_logic,
     pause_research_agent_logic,
     resume_research_agent_logic,
     abort_research_agent_logic,
-    get_research_agent_status_logic
 )
 from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
 from research_intelligence.tasks.step_2_download.fetch import _download_paper_task

@@ -18,13 +18,13 @@ from research_intelligence.models import (
     Scraper,
 )
 from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
-from research_intelligence.mcp.tools.agent_processes import (
+from mcp.tools.agents import (
     start_research_agent_logic,
     check_run_status_logic,
     get_research_agent_status_logic,
 )
-from research_intelligence.mcp.tools.pipeline_runs import trigger_search_job_logic, get_pipeline_run_status_logic
-from research_intelligence.mcp.tools.extractions import get_paper_extractions_matrix_logic
+from mcp.tools.pipeline_runs import trigger_search_job_logic, get_pipeline_run_status_logic
+from mcp.tools.extractions import get_paper_extractions_matrix_logic
 
 User = get_user_model()
 

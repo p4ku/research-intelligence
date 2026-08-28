@@ -16,7 +16,7 @@ from research_intelligence.tasks.auxiliary.email_digest import (
     send_pipeline_subscriber_digest_task,
     build_pipeline_run_digest_payload,
 )
-from research_intelligence.mcp.tools.email_reports import send_pipeline_run_digest_email_logic
+from mcp.tools.diagnostics import send_pipeline_run_digest_email_logic
 
 User = get_user_model()
 

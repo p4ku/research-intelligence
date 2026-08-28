@@ -3,7 +3,7 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from research_intelligence.models import Workspace, WorkspaceMember, UserActivityLog
-from research_intelligence.mcp.tools.activity_logs import list_user_activity_logs_logic
+from mcp.tools.diagnostics import list_user_activity_logs_logic
 
 User = get_user_model()
 

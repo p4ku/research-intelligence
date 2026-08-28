@@ -13,7 +13,7 @@ from chat.serializers import (
 )
 from chat.tasks import execute_paper_chat_task
 from chat.engine import PaperChatEngine
-from research_intelligence.mcp.tools.workspaces import _check_workspace_access
+from mcp.tools.workspaces import _check_workspace_access
 
 logger = logging.getLogger(__name__)
 

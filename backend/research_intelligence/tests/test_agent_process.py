@@ -15,14 +15,14 @@ from research_intelligence.models import (
     Subscriber,
 )
 from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process, _send_agent_notification
-from research_intelligence.mcp.tools.agent_processes import (
+from mcp.tools.agents import (
     start_research_agent_logic,
     get_research_agent_status_logic,
     check_run_status_logic,
     pause_research_agent_logic,
     resume_research_agent_logic,
     abort_research_agent_logic,
-    delete_research_agent_logic
+    delete_research_agent_logic,
 )
 
 User = get_user_model()

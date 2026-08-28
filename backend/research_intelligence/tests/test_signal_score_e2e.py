@@ -24,8 +24,8 @@ from research_intelligence.tasks.auxiliary.email_digest import (
     build_pipeline_run_digest_payload,
     dispatch_pipeline_subscriber_digest,
 )
-from research_intelligence.mcp.tools.extractions import get_paper_extractions_matrix_logic
-from research_intelligence.mcp.tools.pipeline_runs import (
+from mcp.tools.extractions import get_paper_extractions_matrix_logic
+from mcp.tools.pipeline_runs import (
     get_pipeline_run_status_logic,
     trigger_signal_score_job_logic,
 )

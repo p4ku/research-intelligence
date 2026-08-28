@@ -16,7 +16,7 @@ from research_intelligence.tasks.step_3_ocr.convert import execute_ocr_job
 from research_intelligence.tasks.step_4_screening.abstract import execute_screening_job
 from research_intelligence.tasks.step_5_extraction.extract import execute_extraction_job
 from research_intelligence.tasks.step_6_signal_score.scorer import execute_signal_score_job
-from ..workspaces import _check_workspace_access
+from mcp.tools.workspaces import _check_workspace_access
 
 logger = logging.getLogger(__name__)
 

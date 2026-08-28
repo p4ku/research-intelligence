@@ -20,7 +20,7 @@ from ..serializers.pipeline_runs import (
     TriggerStepSerializer,
     CreatePipelineRunSerializer,
 )
-from research_intelligence.mcp.tools.pipeline_runs.triggers import (
+from mcp.tools.pipeline_runs.triggers import (
     trigger_search_job_logic,
     trigger_pdf_download_job_logic,
     trigger_ocr_job_logic,
@@ -28,11 +28,11 @@ from research_intelligence.mcp.tools.pipeline_runs.triggers import (
     trigger_extraction_job_logic,
 )
 from research_intelligence.tasks.step_6_signal_score.scorer import execute_signal_score_job
-from research_intelligence.mcp.tools.pipeline_runs.lifecycle import (
+from mcp.tools.pipeline_runs.lifecycle import (
     abort_job_logic,
     delete_pipeline_run_logic,
 )
-from research_intelligence.mcp.tools.workspaces import _check_workspace_access
+from mcp.tools.workspaces import _check_workspace_access
 
 
 @extend_schema(tags=['Pipeline Runs & Components'])

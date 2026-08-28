@@ -6,9 +6,9 @@ from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
 from research_intelligence.models import ComponentRun
-from research_intelligence.mcp.tools.extractions import get_paper_extractions_matrix_logic
-from research_intelligence.mcp.tools.agent_processes import get_research_agent_status_logic
-from research_intelligence.mcp.tools.pipeline_runs import get_pipeline_run_status_logic
+from mcp.tools.extractions import get_paper_extractions_matrix_logic
+from mcp.tools.agents import get_research_agent_status_logic
+from mcp.tools.pipeline_runs import get_pipeline_run_status_logic
 from research_intelligence.tests.pipeline_harness import PipelineTestHarness
 
 
@@ -539,7 +539,7 @@ class PipelineMatrixCombinationsTestCase(TestCase):
         4. Assert DocumentRegistry and Workspace B's data & storage remain 100% intact and functional.
         """
         from research_intelligence.models import DocumentRegistry, Paper
-        from research_intelligence.mcp.tools.agent_processes import delete_research_agent_logic
+        from mcp.tools.agents import delete_research_agent_logic
         from django.core.files.storage import default_storage
 
         # --- RUN 1: Workspace A executes full pipeline with pypdf OCR ---
