@@ -68,8 +68,12 @@ def ask_paper_logic(
     )
 
     # Execute synchronous generation for FastMCP client
-    res = PaperChatEngine().execute(message)
-    return json.dumps(res, indent=2)
+    try:
+        res = PaperChatEngine().execute(message)
+        return json.dumps(res, indent=2)
+    except Exception as e:
+        logger.exception(f"Error executing chat for paper: {e}")
+        return json.dumps({"status": "error", "error": str(e)}, indent=2)
 
 
 __all__ = [

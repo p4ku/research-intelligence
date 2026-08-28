@@ -243,12 +243,21 @@ def update_workspace_logic(
         workspace.full_text_screening_exit_metric = full_text_screening_exit_metric
         fields_to_update.append('full_text_screening_exit_metric')
     if ocr_provider is not None:
-        workspace.ocr_provider = ocr_provider if ocr_provider.lower() != 'none' else None
+        if isinstance(ocr_provider, str) and (ocr_provider.strip().lower() in ('none', '')):
+            workspace.ocr_provider = None
+        else:
+            valid_ocr = ["pypdf", "mistral", "gemini"]
+            if ocr_provider not in valid_ocr:
+                return json.dumps({"status": "error", "error": f"Error: Invalid ocr_provider '{ocr_provider}'. Choose from {valid_ocr + ['none']}."}, indent=2)
+            workspace.ocr_provider = ocr_provider
         fields_to_update.append('ocr_provider')
     if screening_llm_model is not None:
         workspace.screening_llm_model = screening_llm_model
         fields_to_update.append('screening_llm_model')
     if llm_provider is not None:
+        valid_llm = ["google", "openrouter"]
+        if llm_provider not in valid_llm:
+            return json.dumps({"status": "error", "error": f"Error: Invalid llm_provider '{llm_provider}'. Choose from {valid_llm}."}, indent=2)
         workspace.llm_provider = llm_provider
         fields_to_update.append('llm_provider')
     if digest_schedule is not None:
