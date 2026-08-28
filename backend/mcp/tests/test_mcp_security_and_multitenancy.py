@@ -3,17 +3,17 @@ from django.test import TransactionTestCase
 from django.contrib.auth import get_user_model
 
 from research_intelligence.models import Workspace, WorkspaceMember, APIKey
-from research_intelligence.mcp.server import check_scope
-from research_intelligence.mcp.tools.workspaces import (
+from mcp.server import check_scope
+from mcp.tools.workspaces import (
     get_workspace_logic,
     add_workspace_member_logic,
     list_workspaces_logic
 )
-from research_intelligence.mcp.tools.scrapers import (
+from mcp.tools.scrapers import (
     list_papers_logic,
     create_scraper_logic
 )
-from research_intelligence.mcp.tools.agent_processes import start_research_agent_logic
+from mcp.tools.agents import start_research_agent_logic
 
 User = get_user_model()
 
@@ -144,7 +144,7 @@ class MCPSecurityAndMultiTenancyTestCase(TransactionTestCase):
         """
         from unittest.mock import patch, MagicMock
         from research_intelligence.models import UserActivityLog
-        from research_intelligence.mcp.server import get_auth_context, list_workspaces, get_workspace
+        from mcp.server import get_auth_context, list_workspaces, get_workspace
 
         key_alice = APIKey(name="Alice Key", user=self.alice, scopes=["*"])
         key_alice.generate_key()
@@ -171,7 +171,7 @@ class MCPSecurityAndMultiTenancyTestCase(TransactionTestCase):
         mock_req_bob.headers = {}
         mock_req_bob.client = MagicMock(host="192.168.1.100")
 
-        with patch("research_intelligence.mcp.server.get_http_request", return_value=mock_req_bob):
+        with patch("mcp.server.app.get_http_request", return_value=mock_req_bob):
             user, ws, key = get_auth_context()
             self.assertEqual(user, self.bob)
             self.assertEqual(key, key_bob)
@@ -205,7 +205,7 @@ class MCPSecurityAndMultiTenancyTestCase(TransactionTestCase):
         """
         import asyncio
         from unittest.mock import MagicMock
-        from research_intelligence.mcp.server import QueryParamAuthMiddleware, SESSION_AUTH_CACHE
+        from mcp.server import QueryParamAuthMiddleware, SESSION_AUTH_CACHE
 
         key_alice = APIKey(name="Alice ASGI Key", user=self.alice, scopes=["*"])
         raw_secret = key_alice.generate_key()
@@ -283,7 +283,7 @@ class MCPSecurityAndMultiTenancyTestCase(TransactionTestCase):
         """
         from unittest.mock import patch, MagicMock
         from research_intelligence.models import UserActivityLog
-        from research_intelligence.mcp.server import (
+        from mcp.server import (
             list_workspaces,
             get_workspace,
             create_scraper,
@@ -338,7 +338,7 @@ class MCPSecurityAndMultiTenancyTestCase(TransactionTestCase):
         # PART A: POSITIVE TESTS - ADAM ON WS_ADAM
         # ==========================================
         mock_req_adam = make_mock_req(adam, ws_adam, key_adam, ip="10.0.0.1")
-        with patch("research_intelligence.mcp.server.get_http_request", return_value=mock_req_adam):
+        with patch("mcp.server.app.get_http_request", return_value=mock_req_adam):
             # A1. Adam lists workspaces -> Only Adam's workspace
             adam_ws_list = json.loads(list_workspaces())
             self.assertEqual(len(adam_ws_list), 1)
@@ -372,7 +372,7 @@ class MCPSecurityAndMultiTenancyTestCase(TransactionTestCase):
         # PART B: POSITIVE TESTS - JOSH ON WS_JOSH
         # ==========================================
         mock_req_josh = make_mock_req(josh, ws_josh, key_josh, ip="10.0.0.2")
-        with patch("research_intelligence.mcp.server.get_http_request", return_value=mock_req_josh):
+        with patch("mcp.server.app.get_http_request", return_value=mock_req_josh):
             # B1. Josh lists workspaces -> Only Josh's workspace
             josh_ws_list = json.loads(list_workspaces())
             self.assertEqual(len(josh_ws_list), 1)
@@ -405,7 +405,7 @@ class MCPSecurityAndMultiTenancyTestCase(TransactionTestCase):
         # ==========================================
         # PART C: NEGATIVE TESTS - ADAM TRIES JOSH'S WORKSPACE
         # ==========================================
-        with patch("research_intelligence.mcp.server.get_http_request", return_value=mock_req_adam):
+        with patch("mcp.server.app.get_http_request", return_value=mock_req_adam):
             # C1. Adam tries to get Josh's workspace -> Denied
             res_c1 = get_workspace(workspace_id=str(ws_josh.id))
             self.assertIn("Error: Access denied", res_c1)
@@ -435,7 +435,7 @@ class MCPSecurityAndMultiTenancyTestCase(TransactionTestCase):
         # ==========================================
         # PART D: NEGATIVE TESTS - JOSH TRIES ADAM'S WORKSPACE
         # ==========================================
-        with patch("research_intelligence.mcp.server.get_http_request", return_value=mock_req_josh):
+        with patch("mcp.server.app.get_http_request", return_value=mock_req_josh):
             # D1. Josh tries to get Adam's workspace -> Denied
             res_d1 = get_workspace(workspace_id=str(ws_adam.id))
             self.assertIn("Error: Access denied", res_d1)
@@ -466,7 +466,7 @@ class MCPSecurityAndMultiTenancyTestCase(TransactionTestCase):
         # PART E: NEGATIVE TESTS - UNASSIGNED USER MALLORY
         # ==========================================
         mock_req_mallory = make_mock_req(mallory, None, key_mallory, ip="192.168.99.99")
-        with patch("research_intelligence.mcp.server.get_http_request", return_value=mock_req_mallory):
+        with patch("mcp.server.app.get_http_request", return_value=mock_req_mallory):
             # E1. Mallory lists workspaces -> No workspaces / empty message
             mallory_ws_list = json.loads(list_workspaces())
             if isinstance(mallory_ws_list, dict):

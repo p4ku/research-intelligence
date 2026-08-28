@@ -70,7 +70,10 @@ INSTALLED_APPS = [
     'api',
     'research_intelligence',
     'chat',
+    'mcp',
 ]
+
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
