@@ -84,3 +84,30 @@ class ContextCachingTestCase(BaseChatTestCase):
             system_instruction="Instruction"
         )
         self.assertIsNone(cache_name)
+
+    def test_cache_with_multimodal_pdf_bytes(self):
+        mock_provider = MagicMock()
+        mock_provider.create_context_cache.return_value = "cachedContents/multimodal_pdf_cache_123"
+
+        pdf_session = self.create_session(paper=self.large_paper, user=self.user, title="PDF Cache Session")
+        cache_mgr = GeminiContextCacheManager()
+
+        pdf_binary = b"%PDF-1.4 " + (b"0123456789" * 500) # ~5KB
+        cache_name = cache_mgr.get_or_create_cache(
+            session=pdf_session,
+            paper=self.large_paper,
+            workspace=self.workspace,
+            context_text="Paper Title: Photonic Core",
+            pdf_bytes=pdf_binary,
+            mime_type="application/pdf",
+            system_instruction="Analyze the attached multimodal PDF document.",
+            provider=mock_provider
+        )
+
+        self.assertEqual(cache_name, "cachedContents/multimodal_pdf_cache_123")
+        mock_provider.create_context_cache.assert_called_once()
+        call_kwargs = mock_provider.create_context_cache.call_args[1]
+        self.assertEqual(call_kwargs["model"], "google/gemini-3.7-flash")
+        # Check that contents contains the text context and the Part
+        self.assertTrue(len(call_kwargs["contents"]) >= 2)
+
