@@ -54,6 +54,14 @@ __all__ = [
 ]
 
 _TOOL_DOMAIN_MAP = {
+    # Direct subpackage namespaces
+    "workspaces": "workspaces",
+    "scrapers": "scrapers",
+    "extractions": "extractions",
+    "pipeline_runs": "pipeline_runs",
+    "agents": "agents",
+    "diagnostics": "diagnostics",
+    "chat": "chat",
     # Workspaces
     "_check_workspace_access": "workspaces",
     "list_workspaces_logic": "workspaces",
@@ -114,9 +122,18 @@ def __getattr__(name: str):
     domain = _TOOL_DOMAIN_MAP.get(name)
     if domain:
         module = importlib.import_module(f".{domain}", package=__name__)
+        if name == domain:
+            globals()[name] = module
+            return module
         val = getattr(module, name)
         globals()[name] = val
         return val
+    try:
+        submod = importlib.import_module(f".{name}", package=__name__)
+        globals()[name] = submod
+        return submod
+    except ImportError:
+        pass
     raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 
