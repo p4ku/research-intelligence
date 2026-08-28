@@ -8,6 +8,11 @@ export function middleware(request: NextRequest) {
   const isBackendRoute =
     pathname.startsWith('/admin') ||
     pathname.startsWith('/api') ||
+    pathname.startsWith('/mcp') ||
+    pathname.startsWith('/docs') ||
+    pathname.startsWith('/swagger') ||
+    pathname.startsWith('/redoc') ||
+    pathname.startsWith('/schema') ||
     pathname.startsWith('/static') ||
     pathname.startsWith('/media') ||
     pathname.startsWith('/health') ||
@@ -35,6 +40,11 @@ export const config = {
   matcher: [
     '/admin/:path*',
     '/api/:path*',
+    '/mcp/:path*',
+    '/docs/:path*',
+    '/swagger/:path*',
+    '/redoc/:path*',
+    '/schema/:path*',
     '/static/:path*',
     '/media/:path*',
     '/health/:path*',
