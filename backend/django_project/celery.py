@@ -1,5 +1,4 @@
 import os
-from . import mcp_namespace
 from celery import Celery
 
 # Set the default Django settings module for the 'celery' program.

@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, status
 from drf_spectacular.utils import extend_schema, OpenApiResponse
-from mcp.server.app import mcp
+from mcp_server.server.app import mcp
 
 
 class MCPInfoView(APIView):

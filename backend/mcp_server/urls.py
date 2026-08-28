@@ -1,7 +1,7 @@
 from django.urls import path
 from .views import MCPInfoView, MCPHealthView
 
-app_name = 'mcp'
+app_name = 'mcp_server'
 
 urlpatterns = [
     path('', MCPInfoView.as_view(), name='info'),

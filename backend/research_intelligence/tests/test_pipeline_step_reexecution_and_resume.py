@@ -16,7 +16,7 @@ from research_intelligence.models import (
     PaperMetric,
     ResearchAgentProcess
 )
-from mcp.tools.pipeline_runs.triggers import (
+from mcp_server.tools.pipeline_runs.triggers import (
     trigger_search_job_logic,
     trigger_pdf_download_job_logic,
     trigger_ocr_job_logic,

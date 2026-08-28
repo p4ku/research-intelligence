@@ -1,8 +1,9 @@
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from research_intelligence.models import DocumentRegistry
-from mcp.tools import (
+from mcp_server.tools import (
     get_document_registry_stats_logic,
     test_google_llm_logic,
+    list_user_activity_logs_logic,
 )
 from .base import BaseMCPTestCase
 

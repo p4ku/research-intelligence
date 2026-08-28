@@ -15,7 +15,7 @@ from research_intelligence.models import (
     Subscriber,
 )
 from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process, _send_agent_notification
-from mcp.tools.agents import (
+from mcp_server.tools.agents import (
     start_research_agent_logic,
     get_research_agent_status_logic,
     check_run_status_logic,

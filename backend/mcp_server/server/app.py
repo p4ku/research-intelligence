@@ -52,7 +52,7 @@ from asgiref.sync import sync_to_async
 from django.db import close_old_connections
 
 from research_intelligence.models import APIKey, Workspace
-from mcp.tools import (
+from mcp_server.tools import (
     list_workspaces_logic,
     get_workspace_logic,
     create_workspace_logic,

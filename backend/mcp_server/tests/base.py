@@ -87,8 +87,8 @@ class BaseMCPTestCase(TestCase):
         api_key = api_key or self.api_key
         mock_req = self.create_mock_request(user=user, workspace=workspace, api_key=api_key, ip=ip)
 
-        with patch("mcp.server.app.get_auth_context", return_value=(user, workspace, api_key)), \
-             patch("mcp.server.app.get_http_request", return_value=mock_req):
+        with patch("mcp_server.server.app.get_auth_context", return_value=(user, workspace, api_key)), \
+             patch("mcp_server.server.app.get_http_request", return_value=mock_req):
             yield
 
     def parse_res(self, res_str):

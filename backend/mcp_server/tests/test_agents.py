@@ -1,6 +1,6 @@
 from research_intelligence.models import ResearchAgentProcess
-from mcp.tools import get_workflow_dag_schema_logic
-from mcp import server
+from mcp_server.tools import get_workflow_dag_schema_logic
+from mcp_server import server
 from .base import BaseMCPTestCase
 
 

@@ -1,7 +1,7 @@
 from django.apps import AppConfig
 
 
-class McpConfig(AppConfig):
+class McpServerConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'mcp'
+    name = 'mcp_server'
     verbose_name = 'Model Context Protocol (FastMCP Server)'

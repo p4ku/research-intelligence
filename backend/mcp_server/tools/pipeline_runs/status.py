@@ -14,7 +14,7 @@ from research_intelligence.models import (
     Extraction,
     PaperMetric,
 )
-from mcp.tools.workspaces import _check_workspace_access
+from mcp_server.tools.workspaces import _check_workspace_access
 
 logger = logging.getLogger(__name__)
 

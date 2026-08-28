@@ -27,7 +27,7 @@ from chat.engine import (
     VisualCitationExtractor,
 )
 from chat.tasks import execute_paper_chat_task
-from mcp.tools.chat import ask_paper_logic
+from mcp_server.tools.chat import ask_paper_logic
 
 
 class PaperChatTestCase(TestCase):

@@ -33,7 +33,7 @@ class Command(BaseCommand):
             self.style.SUCCESS(f"🚀 Starting Schwarz Research Intelligence FastMCP Server on {host}:{port}...")
         )
         uvicorn.run(
-            "mcp.server.app:app",
+            "mcp_server.server.app:app",
             host=host,
             port=port,
             reload=reload

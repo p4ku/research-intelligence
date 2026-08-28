@@ -1,8 +1,14 @@
 from research_intelligence.models import PipelineRun, ComponentRun, Paper
-from mcp.tools import (
-    get_pipeline_run_status_logic,
-    abort_job_logic,
+from mcp_server.tools import (
+    trigger_search_job_logic,
+    trigger_pdf_download_job_logic,
+    trigger_ocr_job_logic,
+    trigger_screening_job_logic,
+    trigger_extraction_job_logic,
     list_pipeline_runs_logic,
+    get_pipeline_run_status_logic,
+    get_component_run_status_logic,
+    abort_job_logic,
     delete_pipeline_run_logic,
 )
 from .base import BaseMCPTestCase

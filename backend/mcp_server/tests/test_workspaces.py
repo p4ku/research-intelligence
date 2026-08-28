@@ -1,5 +1,5 @@
 from research_intelligence.models import Workspace
-from mcp.tools import (
+from mcp_server.tools import (
     create_workspace_logic,
     get_workspace_logic,
     update_workspace_logic,

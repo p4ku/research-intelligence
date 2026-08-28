@@ -26,6 +26,6 @@ urlpatterns = [
     path('api/', include('api.urls')),
 
     # MCP Server Discovery & Capabilities (/mcp/...)
-    path('mcp/', include('mcp.urls')),
+    path('mcp/', include('mcp_server.urls')),
 ]
 

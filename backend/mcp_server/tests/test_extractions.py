@@ -1,6 +1,7 @@
 from research_intelligence.models import Paper, Extraction, ExtractionDefinition, PipelineRun
-from mcp.tools import (
+from mcp_server.tools import (
     create_extraction_definition_logic,
+    get_extraction_definition_logic,
     list_extraction_definitions_logic,
     update_extraction_definition_logic,
     delete_extraction_definition_logic,

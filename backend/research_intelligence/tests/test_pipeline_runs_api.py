@@ -150,7 +150,7 @@ class PipelineRunsAPITestCase(APITestCase):
         })
         self.assertEqual(res_foreign.status_code, status.HTTP_403_FORBIDDEN)
 
-    @patch('mcp.tools.pipeline_runs.triggers.execute_scraper_run_job')
+    @patch('mcp_server.tools.pipeline_runs.triggers.execute_scraper_run_job')
     def test_trigger_step_tenant_isolation(self, mock_scraper_job):
         """User A can trigger steps on Run A, but gets 404 when attempting on Run B."""
         Scraper.objects.create(workspace=self.workspace_a, provider='arxiv', search_query='quantum', is_active=True)

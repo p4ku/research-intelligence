@@ -8,7 +8,7 @@ from django.core.files.base import ContentFile
 from research_intelligence.models import Workspace, WorkspaceMember, PipelineRun, Paper, Extraction, ExtractionDefinition
 from research_intelligence.tasks.step_2_download.fetch import download_pdf_to_s3
 from research_intelligence.tasks.step_3_ocr.convert import run_ocr_conversion
-from mcp.tools.extractions import get_paper_extractions_matrix_logic
+from mcp_server.tools.extractions import get_paper_extractions_matrix_logic
 
 User = get_user_model()
 

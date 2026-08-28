@@ -1,8 +1,9 @@
 from unittest.mock import patch, MagicMock
 from research_intelligence.models import Scraper, Paper, PipelineRun
-from mcp.tools import (
+from mcp_server.tools import (
     create_scraper_logic,
     list_scrapers_logic,
+    get_scraper_logic,
     update_scraper_logic,
     delete_scraper_logic,
     preview_search_query_logic,

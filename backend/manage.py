@@ -7,13 +7,6 @@ import sys
 def main():
     """Run administrative tasks."""
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_project.settings')
-
-    # Ensure local 'mcp' Django app directory is linked into 'mcp' namespace package
-    try:
-        from django_project import mcp_namespace
-    except Exception:
-        pass
-
     try:
         from django.core.management import execute_from_command_line
     except ImportError as exc:

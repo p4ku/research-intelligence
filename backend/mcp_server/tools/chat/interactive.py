@@ -1,8 +1,9 @@
 import json
 import uuid
 import logging
+from typing import Optional, Dict, Any
 from research_intelligence.models import Workspace, Paper
-from mcp.tools.workspaces.crud import _check_workspace_access
+from mcp_server.tools.workspaces.crud import _check_workspace_access
 
 logger = logging.getLogger(__name__)
 

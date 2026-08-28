@@ -376,7 +376,7 @@ def check_run_status_logic(
             process = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run', 'triggered_by').filter(pipeline_run=pipeline_run).order_by('-started_at').first()
             if not process:
                 # Build status directly from PipelineRun
-                from mcp.tools.pipeline_runs.status import get_pipeline_run_status_logic
+                from mcp_server.tools.pipeline_runs.status import get_pipeline_run_status_logic
                 return get_pipeline_run_status_logic(user, str(pipeline_run.id))
 
     if not process:
@@ -402,7 +402,7 @@ def check_run_status_logic(
 
     if process.pipeline_run:
         from research_intelligence.models import Paper, Extraction, PaperMetric
-        from mcp.tools.pipeline_runs.status import _get_run_storage_stats
+        from mcp_server.tools.pipeline_runs.status import _get_run_storage_stats
         from django.db.models import F, Count, Q
 
         comp_runs_list = list(process.pipeline_run.component_runs.all())
@@ -639,7 +639,7 @@ def abort_research_agent_logic(user, process_id: str) -> str:
 
     # Abort attached pipeline run jobs if running
     if process.pipeline_run:
-        from mcp.tools.pipeline_runs import abort_job_logic
+        from mcp_server.tools.pipeline_runs import abort_job_logic
         abort_job_logic(user, pipeline_run_id=str(process.pipeline_run.id))
 
     process.status = 'aborted'
@@ -681,7 +681,7 @@ def delete_research_agent_logic(user, process_id: str) -> str:
 
     # Delete PipelineRun if present
     if process.pipeline_run:
-        from mcp.tools.pipeline_runs import delete_pipeline_run_logic
+        from mcp_server.tools.pipeline_runs import delete_pipeline_run_logic
         delete_pipeline_run_logic(user, pr_id)
 
     process.delete()

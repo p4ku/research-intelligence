@@ -14,7 +14,7 @@ from research_intelligence.models import (
     ComponentRun,
     ResearchAgentProcess
 )
-from mcp.tools.agents import (
+from mcp_server.tools.agents import (
     start_research_agent_logic,
     get_research_agent_status_logic,
     pause_research_agent_logic,
