@@ -83,13 +83,14 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
 
     comp_runs_list = list(ComponentRun.objects.filter(pipeline_run=pipeline_run).select_related('scraper'))
     
-    # Dynamically sync pipeline_run status if all component runs are finished
+    # Dynamically sync pipeline_run status if all component runs are finished and no active research agent is driving it
     has_active = any(cr.status in ['pending', 'running'] for cr in comp_runs_list)
     has_failed = any(cr.status == 'failed' for cr in comp_runs_list)
     has_aborted = any(cr.status == 'aborted' for cr in comp_runs_list)
+    has_active_agent = pipeline_run.agent_processes.filter(status__in=['running', 'paused']).exists()
 
-    if comp_runs_list and not has_active:
-        if has_failed:
+    if comp_runs_list and not has_active and not has_active_agent:
+        if has_failed and pipeline_run.status != 'aborted':
             pipeline_run.status = 'failed'
         elif has_aborted:
             pipeline_run.status = 'aborted'

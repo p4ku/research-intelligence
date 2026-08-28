@@ -128,22 +128,17 @@ def create_workspace_logic(
     signal_score_code: str = None
 ) -> str:
     """Create a new workspace and automatically assign the creator as the 'admin' member."""
-    if not name or not name.strip():
-        return json.dumps({"status": "error", "error": "Workspace name cannot be empty."}, indent=2)
-
-    def _format_crit(c):
-        if isinstance(c, list):
-            return "\n".join(c)
-        return c or ""
+    from research_intelligence.services import create_workspace_record
 
     usd_limit = cost_limit_usd if cost_limit_usd is not None else monthly_usd_limit
 
-    ws = Workspace.objects.create(
-        name=name.strip(),
-        abstract_acceptance_criteria=_format_crit(abstract_acceptance_criteria),
-        abstract_rejection_criteria=_format_crit(abstract_rejection_criteria),
-        full_text_acceptance_criteria=_format_crit(full_text_acceptance_criteria),
-        full_text_rejection_criteria=_format_crit(full_text_rejection_criteria),
+    ws, err = create_workspace_record(
+        user=user,
+        name=name,
+        abstract_acceptance_criteria=abstract_acceptance_criteria,
+        abstract_rejection_criteria=abstract_rejection_criteria,
+        full_text_acceptance_criteria=full_text_acceptance_criteria,
+        full_text_rejection_criteria=full_text_rejection_criteria,
         abstract_screening_system_prompt=abstract_screening_system_prompt,
         abstract_screening_user_prompt_template=abstract_screening_user_prompt_template,
         abstract_screening_response_schema=abstract_screening_response_schema,
@@ -152,16 +147,17 @@ def create_workspace_logic(
         full_text_screening_user_prompt_template=full_text_screening_user_prompt_template,
         full_text_screening_response_schema=full_text_screening_response_schema,
         full_text_screening_exit_metric=full_text_screening_exit_metric,
-        ocr_provider=ocr_provider if ocr_provider and ocr_provider.lower() != 'none' else None,
-        screening_llm_model=screening_llm_model or 'google/gemini-3.7-flash',
-        llm_provider=llm_provider or 'google',
-        digest_schedule=digest_schedule or '0 9 * * 5',
+        ocr_provider=ocr_provider,
+        screening_llm_model=screening_llm_model,
+        llm_provider=llm_provider,
+        digest_schedule=digest_schedule,
         monthly_token_limit=monthly_token_limit if monthly_token_limit is not None else 10000000,
         monthly_usd_limit=usd_limit if usd_limit is not None else 100.00,
         signal_score_code=signal_score_code
     )
-    if user and not getattr(user, 'is_anonymous', False) and getattr(user, 'pk', None):
-        WorkspaceMember.objects.create(workspace=ws, user=user, role='admin')
+
+    if err:
+        return json.dumps({"status": "error", "error": err}, indent=2)
 
     return json.dumps({
         "status": "success",

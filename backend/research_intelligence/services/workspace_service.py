@@ -85,18 +85,22 @@ def create_workspace_record(
     signal_score_code: Optional[str] = None,
     monthly_token_limit: int = 10000000,
     monthly_usd_limit: float = 100.0,
+    digest_schedule: str = "0 9 * * 5",
     skip_abstract_screening: bool = False,
     notification_email: Optional[str] = None
 ) -> Tuple[Optional[Workspace], Optional[str]]:
     """
     Creates a new Workspace domain record, formats screening criteria, and establishes admin membership.
     """
+    if not name or not name.strip():
+        return None, "Workspace name cannot be empty."
+
     def _format_criteria(crit):
         if crit is None:
             return ""
         if isinstance(crit, list):
-            return "\n".join(f"- {c.strip()}" for c in crit if c and c.strip())
-        return crit.strip()
+            return "\n".join(str(c).strip() for c in crit if c and str(c).strip())
+        return str(crit).strip()
 
     valid_ocr = ["pypdf", "mistral", "gemini", "none", None]
     if ocr_provider is not None and str(ocr_provider).lower() == "none":
@@ -109,7 +113,7 @@ def create_workspace_record(
         return None, f"Error: Invalid llm_provider '{llm_provider}'. Choose from {valid_llm}."
 
     workspace = Workspace.objects.create(
-        name=name,
+        name=name.strip(),
         abstract_acceptance_criteria=_format_criteria(abstract_acceptance_criteria),
         abstract_rejection_criteria=_format_criteria(abstract_rejection_criteria),
         full_text_acceptance_criteria=_format_criteria(full_text_acceptance_criteria),
@@ -126,16 +130,18 @@ def create_workspace_record(
         llm_provider=llm_provider,
         screening_llm_model=screening_llm_model,
         signal_score_code=signal_score_code,
+        digest_schedule=digest_schedule or "0 9 * * 5",
         monthly_token_limit=monthly_token_limit if monthly_token_limit is not None else 10000000,
         monthly_usd_limit=monthly_usd_limit if monthly_usd_limit is not None else 100.0,
         skip_abstract_screening=bool(skip_abstract_screening),
         notification_email=notification_email
     )
 
-    WorkspaceMember.objects.create(
-        workspace=workspace,
-        user=user,
-        role="admin"
-    )
+    if user and not getattr(user, "is_anonymous", False) and getattr(user, "pk", None):
+        WorkspaceMember.objects.create(
+            workspace=workspace,
+            user=user,
+            role="admin"
+        )
 
     return workspace, None

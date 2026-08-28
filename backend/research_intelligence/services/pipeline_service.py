@@ -117,6 +117,7 @@ def abort_job(
             pipeline_run.save(update_fields=['status', 'completed_at'])
 
         return True, {
+            "success": True,
             "status": "success",
             "message": f"ComponentRun '{component_run_id}' has been aborted.",
             "component_run_id": str(cr.id),
@@ -146,6 +147,7 @@ def abort_job(
         pipeline_run.save(update_fields=['status', 'completed_at'])
 
         return True, {
+            "success": True,
             "status": "success",
             "message": f"PipelineRun '{pipeline_run_id}' and {count} active component run(s) have been aborted.",
             "pipeline_run_id": str(pipeline_run.id)
@@ -172,27 +174,42 @@ def delete_pipeline_run(user, pipeline_run_id: Union[str, uuid.UUID]) -> Tuple[b
     if error:
         return False, {}, error
 
+    from django.db.models import Q
+    papers_qs = Paper.objects.filter(pipeline_run=pipeline_run)
+    papers_count = papers_qs.count()
+    comp_runs_count = pipeline_run.component_runs.count()
+    extractions_count = Extraction.objects.filter(paper__pipeline_run=pipeline_run).count()
+    metrics_count = PaperMetric.objects.filter(Q(pipeline_run=pipeline_run) | Q(paper__pipeline_run=pipeline_run)).distinct().count()
+    reports_count = NarrativeReport.objects.filter(pipeline_run=pipeline_run).count()
+
     run_storage_dir = f"workspaces/{ws_id_str}/runs/{str(pipeline_run.id)}"
     files_purged = recursive_delete_run_storage(run_storage_dir)
 
-    papers_deleted = Paper.objects.filter(pipeline_run=pipeline_run).count()
-    comp_runs_deleted = ComponentRun.objects.filter(pipeline_run=pipeline_run).count()
-    extractions_deleted = Extraction.objects.filter(paper__pipeline_run=pipeline_run).count()
-    metrics_deleted = PaperMetric.objects.filter(pipeline_run=pipeline_run).count()
-    reports_deleted = NarrativeReport.objects.filter(pipeline_run=pipeline_run).count()
+    for paper in papers_qs.iterator():
+        for path in (paper.original_pdf_path, paper.converted_md_path):
+            if path and path.startswith(run_storage_dir):
+                try:
+                    if default_storage.exists(path):
+                        default_storage.delete(path)
+                        files_purged += 1
+                except Exception as e:
+                    logger.warning(f"Failed deleting storage file '{path}': {e}")
 
+    pr_id_str = str(pipeline_run.id)
     pipeline_run.delete()
 
     return True, {
+        "success": True,
         "status": "success",
-        "message": f"PipelineRun '{pipeline_run_id}' and all associated data have been permanently deleted.",
-        "storage_dir_purged": run_storage_dir,
-        "files_purged_count": files_purged,
-        "records_deleted": {
-            "papers": papers_deleted,
-            "component_runs": comp_runs_deleted,
-            "extractions": extractions_deleted,
-            "metrics": metrics_deleted,
-            "reports": reports_deleted
+        "message": f"PipelineRun '{pr_id_str}' and all associated Papers, Extractions, ComponentRuns, and storage files were successfully deleted.",
+        "pipeline_run_id": pr_id_str,
+        "workspace_id": ws_id_str,
+        "deleted_counts": {
+            "papers": papers_count,
+            "extractions": extractions_count,
+            "paper_metrics": metrics_count,
+            "component_runs": comp_runs_count,
+            "narrative_reports": reports_count,
+            "storage_files": files_purged
         }
     }, None
