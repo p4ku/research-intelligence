@@ -12,6 +12,7 @@ from research_intelligence.models import (
     Paper,
     Extraction,
     PipelineRun,
+    ComponentRun,
     ResearchAgentProcess,
     PaperMetric
 )
@@ -20,7 +21,8 @@ from research_intelligence.admin import (
     APIKeyAdmin,
     ExtractionAdmin,
     ResearchAgentProcessAdmin,
-    PaperMetricAdmin
+    PaperMetricAdmin,
+    ComponentRunAdmin
 )
 from research_intelligence.admin_views.storage_browser import (
     _get_file_icon,
@@ -267,6 +269,77 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
         # 3. Pipeline run link
         pr_link = str(admin_obj.pipeline_run_link(metric))
         self.assertIn(str(self.pipeline_run.id)[:8], pr_link)
+
+    @patch("research_intelligence.tasks.orchestrator.dag.nodes.DownloadNode.execute")
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.tick_agent_process")
+    def test_component_run_rerun_from_step_forward(self, mock_tick, mock_download_exec):
+        # 1. Setup a completed pipeline with search, download, screening
+        Paper.objects.create(workspace=self.workspace, pipeline_run=self.pipeline_run, hash_id="p1", title="Paper 1")
+        comp_search = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="search",
+            component_name="arxiv_scraper",
+            status="completed"
+        )
+        comp_download = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="download",
+            component_name="pdf_fetcher",
+            status="completed"
+        )
+        comp_screening = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="screening",
+            component_name="abstract_screening",
+            status="completed"
+        )
+
+        admin_obj = ComponentRunAdmin(ComponentRun, self.site)
+        req = self._get_request_with_messages()
+
+        # 2. Select the download step and trigger 'Rerun Pipeline from Selected Step Forward'
+        admin_obj.rerun_from_this_component_step(req, ComponentRun.objects.filter(id=comp_download.id))
+
+        # 3. Assert downstream steps (screening) and download were reset, and a new running download run exists
+        self.pipeline_run.refresh_from_db()
+        self.assertEqual(self.pipeline_run.status, "running")
+
+        # An agent process must have been created/resumed
+        agent = ResearchAgentProcess.objects.filter(pipeline_run=self.pipeline_run).first()
+        self.assertIsNotNone(agent)
+        self.assertEqual(agent.status, "running")
+        self.assertEqual(agent.current_step, "download")
+
+        # Download node was dispatched into a fresh ComponentRun with status='running'
+        running_download_run = ComponentRun.objects.filter(pipeline_run=self.pipeline_run, step_type="download", status="running").first()
+        self.assertIsNotNone(running_download_run)
+
+        # DownloadNode.execute was called with the new ComponentRun
+        mock_download_exec.assert_called_once_with(self.pipeline_run, running_download_run, limit=None)
+
+        # tick_agent_process was invoked
+        mock_tick.assert_called_once_with(str(agent.id))
+
+    @patch("research_intelligence.tasks.orchestrator.dag.nodes.DownloadNode.execute")
+    def test_component_run_reexecute_single_task(self, mock_execute):
+        comp_download = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="download",
+            component_name="pdf_fetcher",
+            status="completed",
+            error_message="Old error"
+        )
+
+        admin_obj = ComponentRunAdmin(ComponentRun, self.site)
+        req = self._get_request_with_messages()
+
+        admin_obj.reexecute_single_component_run(req, ComponentRun.objects.filter(id=comp_download.id))
+
+        comp_download.refresh_from_db()
+        self.assertEqual(comp_download.status, "running")
+        self.assertEqual(comp_download.error_message, "")
+        self.assertIsNone(comp_download.completed_at)
+        mock_execute.assert_called_once_with(self.pipeline_run, comp_download)
 
 
 class APIKeyAdminTestCase(TestCase):
