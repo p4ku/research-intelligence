@@ -188,13 +188,19 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
 
         # Update component run lifecycle metrics & output_data
         duration_sec = round(time.time() - start_time, 2)
+        component_run.metrics['total_fetched'] = len(results)
         component_run.metrics['total_created'] = created_count
         component_run.metrics['ingested_new'] = created_count
+        component_run.metrics['total_duplicates'] = skipped_count
+        component_run.metrics['duplicates_count'] = skipped_count
+        component_run.metrics['duplicates'] = skipped_count
         component_run.metrics['total_duplicates_skipped'] = skipped_count
         component_run.metrics['duplicates_skipped'] = skipped_count
         component_run.metrics['total_duration_seconds'] = duration_sec
         component_run.output_data = {
             "total_results": len(results),
+            "total_created": created_count,
+            "total_duplicates": skipped_count,
             "created_paper_ids": created_paper_ids,
             "papers_preview": fetched_papers_sample,
             "total_duration_seconds": duration_sec
@@ -223,7 +229,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
         pipeline_run.total_papers_fetched = Paper.objects.filter(pipeline_run_id=pipeline_run.id).count()
         pipeline_run.save(update_fields=['total_papers_fetched'])
 
-        logger.info(f"Completed ComponentRun '{component_run_id}'. Fetched: {len(results)}, Created: {created_count}, Skipped: {skipped_count}.")
+        logger.info(f"Completed ComponentRun '{component_run_id}'. Fetched: {len(results)}, Created: {created_count}, Duplicates: {skipped_count}.")
 
         # Notify autonomous orchestrator to advance to next step
         from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick

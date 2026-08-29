@@ -316,22 +316,24 @@ def render_component_metrics_summary(obj):
             rejected,
         )
     elif obj.step_type == 'search':
-        fetched = m.get('total_fetched', m.get('total_created', 0))
-        skipped = m.get('total_duplicates_skipped', 0)
-        if skipped:
+        created = m.get('ingested_new', m.get('total_created', 0))
+        fetched = m.get('total_fetched', m.get('total_found', created))
+        dupes = m.get('duplicates_count', m.get('total_duplicates', m.get('total_duplicates_skipped', 0)))
+        if dupes:
             return format_html(
                 '<div style="line-height: 1.35; white-space: nowrap;">'
-                '<strong>{} papers</strong> fetched<br>'
-                '<span style="color: #6c757d; font-size: 11px;">({} dupes skipped)</span>'
+                '<strong>{} created (new)</strong> / {} fetched<br>'
+                '<span style="color: #6c757d; font-size: 11px;">({} duplicates)</span>'
                 '</div>',
+                created,
                 fetched,
-                skipped,
+                dupes,
             )
         return format_html(
             '<div style="line-height: 1.35; white-space: nowrap;">'
-            '<strong>{} papers</strong> fetched'
+            '<strong>{} papers</strong> created'
             '</div>',
-            fetched,
+            created,
         )
     elif obj.step_type == 'download':
         dl = m.get('downloaded', 0)

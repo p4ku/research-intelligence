@@ -247,9 +247,14 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
                 s_summary = "Waiting for preceding stage"
 
         # Enrich summary with live metrics if available
-        if slug == "search" and paper_metrics.get("total_papers_fetched", 0) > 0:
+        if slug == "search":
+            fetched = paper_metrics.get("total_papers_fetched", 0)
+            dupes = paper_metrics.get("duplicates_count", 0)
             if s_status in ["completed", "in_progress"]:
-                s_summary = f"{paper_metrics['total_papers_fetched']} papers ingested"
+                if dupes > 0:
+                    s_summary = f"{fetched} papers created ({dupes} duplicates detected)"
+                elif fetched > 0:
+                    s_summary = f"{fetched} papers created"
         elif slug == "download" and paper_metrics.get("downloaded_documents_count", 0) > 0:
             if s_status in ["completed", "in_progress"]:
                 s_summary = f"{paper_metrics['downloaded_documents_count']} PDFs downloaded"
@@ -323,7 +328,8 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
 {stages_table_md}
 
 ### 📊 Paper Pipeline Metrics
-- **Papers Ingested**: {paper_metrics.get('total_papers_fetched', 0)}
+- **Papers Ingested (New)**: {paper_metrics.get('total_papers_fetched', 0)}
+- **Duplicates (Skipped)**: {paper_metrics.get('duplicates_count', 0)}
 - **PDFs Downloaded**: {paper_metrics.get('downloaded_documents_count', 0)}
 - **Passed Screening**: {paper_metrics.get('total_papers_passed_screening', 0)}
 - **Parameters Extracted**: {paper_metrics.get('extractions_count', 0)}
@@ -446,8 +452,15 @@ def check_run_status_logic(
 
         total_screened_papers = abstract_screened or full_text_screened or PaperMetric.objects.filter(Q(pipeline_run=process.pipeline_run) | Q(paper__pipeline_run=process.pipeline_run)).distinct().count()
 
+        search_runs = [cr for cr in comp_runs_list if cr.step_type == 'search']
+        duplicates_count = sum(
+            int((cr.metrics or {}).get("duplicates_count", (cr.metrics or {}).get("total_duplicates", (cr.metrics or {}).get("duplicates_skipped", (cr.metrics or {}).get("total_duplicates_skipped", 0)))) or 0)
+            for cr in search_runs
+        )
+
         paper_metrics = {
             "total_papers_fetched": process.pipeline_run.total_papers_fetched or paper_stats['total_fetched'],
+            "duplicates_count": duplicates_count,
             "downloaded_documents_count": paper_stats['downloaded_count'],
             "ocr_converted_documents_count": paper_stats['ocr_count'],
             "screened_documents_count": total_screened_papers,

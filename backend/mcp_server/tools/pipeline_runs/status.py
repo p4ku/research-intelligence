@@ -136,6 +136,12 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
     run_storage_dir = f"workspaces/{pipeline_run.workspace.id}/runs/{pipeline_run.id}"
     storage_stats = _get_run_storage_stats(run_storage_dir)
 
+    search_runs = [cr for cr in comp_runs_list if cr.step_type == 'search']
+    duplicates_count = sum(
+        int((cr.metrics or {}).get("duplicates_count", (cr.metrics or {}).get("total_duplicates", (cr.metrics or {}).get("duplicates_skipped", (cr.metrics or {}).get("total_duplicates_skipped", 0)))) or 0)
+        for cr in search_runs
+    )
+
     runs_list = []
     for cr in comp_runs_list:
         runs_list.append({
@@ -186,6 +192,7 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
             "email": pipeline_run.triggered_by.email if pipeline_run.triggered_by else None
         },
         "total_papers_fetched": total_papers_fetched,
+        "duplicates_count": duplicates_count,
         "downloaded_documents_count": downloaded_papers_count,
         "ocr_converted_documents_count": ocr_converted_papers_count,
         "screening_metrics": {

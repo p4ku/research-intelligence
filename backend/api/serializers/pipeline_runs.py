@@ -75,6 +75,7 @@ class PipelineRunDetailSerializer(PipelineRunSerializer):
     component_runs = ComponentRunSerializer(many=True, read_only=True)
     storage_stats = serializers.SerializerMethodField()
     papers_count = serializers.SerializerMethodField()
+    duplicates_count = serializers.SerializerMethodField()
     extractions_count = serializers.SerializerMethodField()
 
     class Meta(PipelineRunSerializer.Meta):
@@ -82,6 +83,7 @@ class PipelineRunDetailSerializer(PipelineRunSerializer):
             'component_runs',
             'storage_stats',
             'papers_count',
+            'duplicates_count',
             'extractions_count',
         ]
 
@@ -96,6 +98,13 @@ class PipelineRunDetailSerializer(PipelineRunSerializer):
 
     def get_papers_count(self, obj):
         return Paper.objects.filter(pipeline_run=obj).count()
+
+    def get_duplicates_count(self, obj):
+        search_runs = obj.component_runs.filter(step_type='search')
+        return sum(
+            int((cr.metrics or {}).get("duplicates_count", (cr.metrics or {}).get("total_duplicates", (cr.metrics or {}).get("duplicates_skipped", (cr.metrics or {}).get("total_duplicates_skipped", 0)))) or 0)
+            for cr in search_runs
+        )
 
     def get_extractions_count(self, obj):
         return Extraction.objects.filter(paper__pipeline_run=obj).count()
