@@ -1542,30 +1542,77 @@ class ComponentRunAdmin(admin.ModelAdmin):
         return render_badge(obj.status.upper(), colors.get(obj.status, '#6c757d'))
     status_badge.short_description = "Status"
 
-    actions = ['rerun_from_this_component_step']
+    actions = ['rerun_from_this_component_step', 'reexecute_single_component_run']
 
     @admin.action(description="🔄 Rerun Pipeline from Selected Step Forward")
     def rerun_from_this_component_step(self, request, queryset):
         from research_intelligence.tasks.orchestrator.dag import build_default_slr_dag
         from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+        from research_intelligence.models import ResearchAgentProcess
+
         count = 0
         for comp in queryset:
-            dag = build_default_slr_dag(comp.pipeline_run.workspace)
+            pr = comp.pipeline_run
+            dag = build_default_slr_dag(pr.workspace)
             target_node = None
             for n_name, node in dag.nodes.items():
                 if node.step_type == comp.step_type:
                     target_node = n_name
                     break
+
             if target_node:
-                dag.rerun_from_node(comp.pipeline_run, target_node)
-                agent = comp.pipeline_run.agent_processes.filter(status__in=['running', 'pending', 'paused', 'failed', 'completed']).first()
-                if agent:
+                # 1. Reset DAG downstream from target node
+                dag.rerun_from_node(pr, target_node)
+
+                # 2. Find or create an active ResearchAgentProcess
+                agent = pr.agent_processes.filter(status__in=['running', 'pending', 'paused', 'failed', 'completed']).first()
+                if not agent:
+                    agent = ResearchAgentProcess.objects.create(
+                        workspace=pr.workspace,
+                        pipeline_run=pr,
+                        triggered_by=request.user if request.user.is_authenticated else pr.triggered_by,
+                        name=f"Rerun from {comp.get_step_type_display()} - {pr.workspace.name}",
+                        status='running',
+                        current_step=comp.step_type,
+                        configuration_override={"reprocess_existing": getattr(pr, 'reprocess_existing', False)}
+                    )
+                else:
                     agent.status = 'running'
                     agent.current_step = comp.step_type
-                    agent.save(update_fields=['status', 'current_step'])
-                    tick_agent_process(str(agent.id))
+                    agent.stopped_at_step = None
+                    agent.stop_reason = ""
+                    agent.completed_at = None
+                    agent.save(update_fields=['status', 'current_step', 'stopped_at_step', 'stop_reason', 'completed_at'])
+
+                # 3. Synchronously evaluate and dispatch the ready node(s) so a new ComponentRun is immediately created
+                dag.evaluate_and_dispatch(pr, agent_process=agent)
+
+                # 4. Trigger asynchronous orchestrator ticker for Celery tasks
+                tick_agent_process(str(agent.id))
                 count += 1
-        self.message_user(request, f"Triggered DAG rerun from step for {count} component run(s).")
+
+        self.message_user(request, f"Successfully triggered DAG rerun from selected step for {count} component run(s).")
+
+    @admin.action(description="⚡ Re-execute only this single Component Task (Celery)")
+    def reexecute_single_component_run(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.dag import build_default_slr_dag
+        from django.utils import timezone
+
+        count = 0
+        for comp in queryset:
+            dag = build_default_slr_dag(comp.pipeline_run.workspace)
+            for n_name, node in dag.nodes.items():
+                if node.step_type == comp.step_type:
+                    comp.status = 'running'
+                    comp.error_message = ''
+                    comp.completed_at = None
+                    comp.started_at = timezone.now()
+                    comp.save(update_fields=['status', 'error_message', 'completed_at', 'started_at'])
+                    node.execute(comp.pipeline_run, comp)
+                    count += 1
+                    break
+
+        self.message_user(request, f"Re-dispatched {count} single component task(s) on Celery.")
 
 
 @admin.register(Paper)
