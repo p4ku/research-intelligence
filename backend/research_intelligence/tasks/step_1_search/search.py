@@ -193,15 +193,18 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
             if (idx + 1) % 25 == 0 or (idx + 1) == total_items:
                 logger.info(f"💾 [INGESTION PROGRESS] Processed {idx + 1}/{total_items} papers ({created_count} new, {skipped_count} duplicates/skipped)...")
 
-        # Build preview of top fetched papers for output_data
+        # Build complete list of all fetched papers for output_data
         fetched_papers_sample = []
-        for r in results[:10]:
+        for r in results:
             fetched_papers_sample.append({
                 "title": r.get("title"),
                 "authors": r.get("authors"),
                 "source_database": r.get("source_database"),
                 "pdf_url": r.get("pdf_url"),
-                "abstract_preview": (r.get("abstract")[:150] + "...") if r.get("abstract") and len(r.get("abstract")) > 150 else r.get("abstract")
+                "doi": r.get("doi"),
+                "arxiv_id": r.get("arxiv_id") or r.get("hash_id"),
+                "published_date": r.get("published_date"),
+                "abstract_preview": (r.get("abstract")[:250] + "...") if r.get("abstract") and len(r.get("abstract")) > 250 else r.get("abstract")
             })
 
         # Update component run lifecycle metrics & output_data

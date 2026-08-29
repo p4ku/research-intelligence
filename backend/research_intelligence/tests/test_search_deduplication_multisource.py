@@ -146,3 +146,6 @@ class SearchDeduplicationMultiSourceTestCase(TestCase):
         self.assertEqual(comp_run_openalex.metrics["total_duplicates"], 1)
         self.assertEqual(comp_run_openalex.metrics["duplicates"], 1)
         self.assertEqual(comp_run_openalex.metrics["total_duplicates_skipped"], 1)
+
+        # papers_preview must contain all fetched papers (2 items)
+        self.assertEqual(len(comp_run_openalex.output_data.get("papers_preview", [])), 2)
