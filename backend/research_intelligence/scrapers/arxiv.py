@@ -77,8 +77,15 @@ class ArxivScraperProvider(BaseScraperProvider):
         sort_by_param = "submittedDate" if sort_by == "date" else "relevance"
         sort_order_param = "ascending" if sort_order == "asc" else "descending"
 
+        logger.info(
+            f"🔍 [ARXIV SEARCH START] Target limit: {total_limit} papers | "
+            f"Page size: {base_page_size} (complex_query={is_complex}) | "
+            f"Sorting: {sort_by_param} ({sort_order_param})"
+        )
+
         all_results = []
         start = 0
+        search_start_t = time.time()
 
         while len(all_results) < total_limit:
             chunk_size = min(base_page_size, total_limit - len(all_results))
@@ -91,18 +98,22 @@ class ArxivScraperProvider(BaseScraperProvider):
                 raw_query=clean_query
             )
             if not chunk_results:
+                logger.info(f"ℹ️ [ARXIV SEARCH] No more results returned for start={start}. Ending pagination loop.")
                 break
 
             all_results.extend(chunk_results)
             start += len(chunk_results)
+            logger.info(f"📊 [ARXIV PROGRESS] Fetched {len(all_results)}/{total_limit} papers so far (latest slice: {len(chunk_results)} papers).")
 
             if len(chunk_results) < chunk_size:
-                # Reached end of available results
+                logger.info(f"ℹ️ [ARXIV SEARCH] Reached end of available results on arXiv ({len(all_results)} papers total).")
                 break
 
             if len(all_results) < total_limit:
                 _throttle_request(min_interval=3.2)
 
+        total_elapsed = time.time() - search_start_t
+        logger.info(f"✅ [ARXIV SEARCH COMPLETE] Successfully fetched {len(all_results)}/{total_limit} papers from arXiv in {total_elapsed:.2f}s.")
         return all_results[:total_limit]
 
     def _fetch_arxiv_slice_with_retry(
@@ -126,6 +137,8 @@ class ArxivScraperProvider(BaseScraperProvider):
         for attempt in range(1, max_retries + 1):
             _throttle_request(min_interval=3.0)
             url = f"https://export.arxiv.org/api/query?search_query={encoded_query}&start={start}&max_results={current_chunk_size}&sortBy={sort_by_param}&sortOrder={sort_order_param}"
+            logger.info(f"📡 [ARXIV HTTP GET] Querying slice start={start}, max_results={current_chunk_size} (Attempt {attempt}/{max_retries})...")
+            req_start_t = time.time()
             try:
                 req = urllib.request.Request(
                     url,
@@ -135,8 +148,11 @@ class ArxivScraperProvider(BaseScraperProvider):
                 )
                 with urllib.request.urlopen(req, timeout=timeout_sec) as response:
                     xml_data = response.read()
+                req_elapsed = time.time() - req_start_t
+                logger.info(f"📥 [ARXIV HTTP 200] Received response ({len(xml_data)} bytes) in {req_elapsed:.2f}s for start={start}.")
                 break
             except Exception as e:
+                req_elapsed = time.time() - req_start_t
                 is_429 = isinstance(e, urllib.error.HTTPError) and e.code == 429
                 is_timeout = isinstance(e, (TimeoutError, urllib.error.URLError)) and "timed out" in str(e).lower()
 
@@ -153,19 +169,21 @@ class ArxivScraperProvider(BaseScraperProvider):
                 if is_timeout and current_chunk_size > 25:
                     prev_chunk = current_chunk_size
                     current_chunk_size = max(25, current_chunk_size // 2)
-                    logger.warning(f"⚠️ [ARXIV TIMEOUT] Query timed out on chunk size {prev_chunk}. Dynamically scaling down to {current_chunk_size}...")
+                    logger.warning(f"⚠️ [ARXIV TIMEOUT after {req_elapsed:.1f}s] Query timed out on chunk size {prev_chunk}. Dynamically scaling down to {current_chunk_size}...")
 
                 if attempt < max_retries:
-                    logger.warning(f"⚠️ [ARXIV RETRY {attempt}/{max_retries}] Error querying arXiv API: {e}. Retrying in {delay}s with chunk_size={current_chunk_size}...")
+                    logger.warning(f"⚠️ [ARXIV RETRY {attempt}/{max_retries}] Error querying arXiv API ({e}) after {req_elapsed:.1f}s. Retrying in {delay}s with chunk_size={current_chunk_size}...")
                     time.sleep(delay)
                 else:
-                    logger.warning(f"⚠️ [ARXIV RATE LIMITED / TIMEOUT] Failed after {max_retries} attempts: {e}. Activating OpenAlex arXiv fallback...")
+                    logger.warning(f"⚠️ [ARXIV RATE LIMITED / TIMEOUT] Failed after {max_retries} attempts ({e}). Activating OpenAlex arXiv fallback...")
                     return self._search_openalex_arxiv_fallback(raw_query, limit=chunk_size)
 
         if not xml_data:
             return []
 
-        return self._parse_arxiv_atom_xml(xml_data)
+        parsed = self._parse_arxiv_atom_xml(xml_data)
+        logger.info(f"📄 [ARXIV PARSER] Parsed {len(parsed)} paper entries from Atom XML.")
+        return parsed
 
     def _parse_arxiv_atom_xml(self, xml_data: bytes) -> list[dict]:
         """

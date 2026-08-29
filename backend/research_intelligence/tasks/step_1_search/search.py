@@ -69,7 +69,15 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
         final_limit = limit if limit is not None else getattr(scraper, 'limit', 50)
         sort_by = getattr(scraper, 'sort_by', 'relevance')
         sort_order = getattr(scraper, 'sort_order', 'desc')
+
+        logger.info(
+            f"🔎 [STEP 1 SEARCH START] Querying '{scraper.provider}' for workspace '{workspace.name}' | "
+            f"Limit: {final_limit} | Sort: {sort_by} ({sort_order}) | Query: {scraper.search_query[:120]}..."
+        )
+
         results = provider.search(scraper.search_query, limit=final_limit, sort_by=sort_by, sort_order=sort_order)
+        fetch_elapsed = round(time.time() - start_time, 2)
+        logger.info(f"📦 [STEP 1 SEARCH FETCHED] Provider '{scraper.provider}' returned {len(results)} candidate papers in {fetch_elapsed}s.")
         
         # 1. Update component run metrics
         component_run.metrics['total_fetched'] = len(results)
@@ -82,9 +90,13 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
         existing_normalized_arxiv_ids = {normalize_arxiv_id(p["arxiv_id"]) for p in existing_papers if p.get("arxiv_id")}
         existing_normalized_titles = {normalize_title(p["title"]) for p in existing_papers if p.get("title")}
 
+        logger.info(f"💾 [STEP 1 INGESTION] Starting deduplication against {len(existing_papers)} existing workspace papers...")
+
         created_count = 0
         skipped_count = 0
         created_paper_ids = []
+        total_items = len(results)
+
         for idx, item in enumerate(results):
             # Periodically re-check abort status mid-loop
             if idx % 10 == 0:
@@ -174,6 +186,9 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
                     existing_normalized_titles.add(norm_title)
             else:
                 skipped_count += 1
+
+            if (idx + 1) % 25 == 0 or (idx + 1) == total_items:
+                logger.info(f"💾 [INGESTION PROGRESS] Processed {idx + 1}/{total_items} papers ({created_count} new, {skipped_count} duplicates/skipped)...")
 
         # Build preview of top fetched papers for output_data
         fetched_papers_sample = []
