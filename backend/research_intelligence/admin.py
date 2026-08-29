@@ -1542,7 +1542,7 @@ class ComponentRunAdmin(admin.ModelAdmin):
         return render_badge(obj.status.upper(), colors.get(obj.status, '#6c757d'))
     status_badge.short_description = "Status"
 
-    actions = ['rerun_from_this_component_step', 'reexecute_single_component_run']
+    actions = ['rerun_from_this_component_step', 'reexecute_single_component_run', 'abort_selected_component_runs']
 
     @admin.action(description="🔄 Rerun Pipeline from Selected Step Forward")
     def rerun_from_this_component_step(self, request, queryset):
@@ -1613,6 +1613,56 @@ class ComponentRunAdmin(admin.ModelAdmin):
                     break
 
         self.message_user(request, f"Re-dispatched {count} single component task(s) on Celery.")
+
+    @admin.action(description="🛑 Stop / Abort Selected Component Task(s) (Celery Revoke)")
+    def abort_selected_component_runs(self, request, queryset):
+        from django.utils import timezone
+        import logging
+        logger = logging.getLogger(__name__)
+
+        count = 0
+        for comp in queryset:
+            # 1. Revoke Celery task if running/active
+            if comp.celery_task_id:
+                try:
+                    from django_project.celery import app as celery_app
+                    celery_app.control.revoke(comp.celery_task_id, terminate=True, signal='SIGKILL')
+                    logger.info(f"🛑 [CELERY REVOKE] Revoked task '{comp.celery_task_id}' for ComponentRun '{comp.id}' with SIGKILL.")
+                except Exception as e:
+                    logger.warning(f"Failed to revoke Celery task '{comp.celery_task_id}': {e}")
+
+            # 2. Mark ComponentRun as aborted
+            comp.status = 'aborted'
+            comp.error_message = "🛑 Aborted manually by administrator in Django Admin."
+            comp.completed_at = timezone.now()
+            comp.save(update_fields=['status', 'error_message', 'completed_at'])
+
+            # 3. Synchronize Agent Process and PipelineRun state
+            pr = comp.pipeline_run
+            if pr:
+                pr.status = 'aborted'
+                pr.status_message = f"Pipeline aborted at step '{comp.step_type}' by administrator."
+                pr.completed_at = timezone.now()
+                pr.save(update_fields=['status', 'status_message', 'completed_at'])
+
+                for agent in pr.agent_processes.filter(status__in=['running', 'pending', 'paused']):
+                    agent.status = 'aborted'
+                    agent.stopped_at_step = comp.step_type
+                    agent.stop_reason = f"Component task '{comp.step_type}' was aborted by admin."
+                    agent.completed_at = timezone.now()
+                    history = list(agent.step_history or [])
+                    history.append({
+                        "step": comp.step_type,
+                        "event": "aborted",
+                        "message": f"ComponentRun '{comp.id}' aborted by administrator",
+                        "timestamp": timezone.now().isoformat()
+                    })
+                    agent.step_history = history
+                    agent.save(update_fields=['status', 'stopped_at_step', 'stop_reason', 'completed_at', 'step_history'])
+
+            count += 1
+
+        self.message_user(request, f"Successfully stopped and aborted {count} component task(s).")
 
 
 @admin.register(Paper)

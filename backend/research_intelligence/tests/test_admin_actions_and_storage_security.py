@@ -341,6 +341,45 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
         self.assertIsNone(comp_download.completed_at)
         mock_execute.assert_called_once_with(self.pipeline_run, comp_download)
 
+    @patch("django_project.celery.app.control.revoke")
+    def test_component_run_abort_action(self, mock_revoke):
+        comp = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="search",
+            component_name="arxiv_scraper",
+            status="running",
+            celery_task_id="celery-task-12345"
+        )
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            name="Agent to abort",
+            status="running",
+            current_step="search"
+        )
+
+        admin_obj = ComponentRunAdmin(ComponentRun, self.site)
+        req = self._get_request_with_messages()
+
+        admin_obj.abort_selected_component_runs(req, ComponentRun.objects.filter(id=comp.id))
+
+        # 1. ComponentRun must be aborted with error message
+        comp.refresh_from_db()
+        self.assertEqual(comp.status, "aborted")
+        self.assertIn("Aborted manually by administrator", comp.error_message)
+        self.assertIsNotNone(comp.completed_at)
+
+        # 2. Celery task must have been revoked with SIGKILL
+        mock_revoke.assert_called_once_with("celery-task-12345", terminate=True, signal="SIGKILL")
+
+        # 3. PipelineRun and AgentProcess must be synchronized to aborted
+        self.pipeline_run.refresh_from_db()
+        self.assertEqual(self.pipeline_run.status, "aborted")
+
+        agent.refresh_from_db()
+        self.assertEqual(agent.status, "aborted")
+        self.assertEqual(agent.stopped_at_step, "search")
+
 
 class APIKeyAdminTestCase(TestCase):
     """
