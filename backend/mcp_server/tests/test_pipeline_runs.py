@@ -151,5 +151,42 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
         self.assertFalse(NarrativeReport.objects.filter(id=nr.id).exists())
         self.assertFalse(default_storage.exists(file_path))
 
+    def test_pipeline_run_status_and_agent_status_duplicates_reporting(self):
+        from research_intelligence.models import ResearchAgentProcess
+        from mcp_server.tools.agents.processes import check_run_status_logic
+        from api.serializers.pipeline_runs import PipelineRunDetailSerializer
+
+        pr = PipelineRun.objects.create(workspace=self.workspace, status="running", current_stage="download", total_papers_fetched=5)
+        ComponentRun.objects.create(
+            pipeline_run=pr,
+            step_type="search",
+            component_name="arxiv_scraper",
+            status="completed",
+            metrics={"total_fetched": 15, "total_created": 5, "duplicates_count": 10, "total_duplicates": 10}
+        )
+
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            pipeline_run=pr,
+            name="Duplicates Test Agent",
+            status="running",
+            current_step="download"
+        )
+
+        # 1. Test get_pipeline_run_status_logic
+        status_res = self.parse_res(get_pipeline_run_status_logic(self.admin, pipeline_run_id=str(pr.id)))
+        self.assertEqual(status_res["total_papers_fetched"], 5)
+        self.assertEqual(status_res["duplicates_count"], 10)
+
+        # 2. Test check_run_status_logic (MCP summary card & timeline)
+        agent_status_res = self.parse_res(check_run_status_logic(self.admin, process_id=str(agent.id)))
+        self.assertEqual(agent_status_res["paper_metrics"]["total_papers_fetched"], 5)
+        self.assertEqual(agent_status_res["paper_metrics"]["duplicates_count"], 10)
+        self.assertIn("Duplicates (Skipped)**: 10", agent_status_res["summary_markdown"])
+
+        # 3. Test DRF API Serializer
+        serializer = PipelineRunDetailSerializer(pr)
+        self.assertEqual(serializer.data["duplicates_count"], 10)
+
 
 
