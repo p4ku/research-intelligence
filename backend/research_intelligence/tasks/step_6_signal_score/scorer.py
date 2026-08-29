@@ -223,7 +223,9 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
 
     comp_run.status = 'running'
     comp_run.started_at = timezone.now()
-    comp_run.save(update_fields=['status', 'started_at'])
+    comp_run.completed_at = None
+    comp_run.error_message = ''
+    comp_run.save(update_fields=['status', 'started_at', 'completed_at', 'error_message'])
 
     # Query all papers that passed screening
     accepted_statuses = ['accepted', 'full_text_passed', 'abstract_passed']

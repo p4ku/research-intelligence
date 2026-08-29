@@ -380,6 +380,41 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
         self.assertEqual(agent.status, "aborted")
         self.assertEqual(agent.stopped_at_step, "search")
 
+    @patch("research_intelligence.tasks.orchestrator.dag.nodes.DownloadNode.execute")
+    def test_reexecute_resets_started_at_and_execution_time(self, mock_execute):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        old_start = timezone.now() - timedelta(minutes=45)
+        old_completed = timezone.now() - timedelta(minutes=40)
+
+        comp = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="download",
+            component_name="pdf_fetcher",
+            status="completed",
+            error_message="Old error"
+        )
+        # Manually backdate started_at and completed_at to simulate an old finished task
+        ComponentRun.objects.filter(id=comp.id).update(started_at=old_start, completed_at=old_completed)
+        comp.refresh_from_db()
+        self.assertAlmostEqual(comp.duration_seconds, 300.0, delta=5.0)
+
+        admin_obj = ComponentRunAdmin(ComponentRun, self.site)
+        req = self._get_request_with_messages()
+
+        # Re-execute the component
+        admin_obj.reexecute_single_component_run(req, ComponentRun.objects.filter(id=comp.id))
+
+        comp.refresh_from_db()
+        self.assertEqual(comp.status, "running")
+        self.assertEqual(comp.error_message, "")
+        self.assertIsNone(comp.completed_at)
+        # started_at must have been reset to now
+        self.assertAlmostEqual((timezone.now() - comp.started_at).total_seconds(), 0.0, delta=2.0)
+        self.assertLess(comp.duration_seconds, 3.0)
+        self.assertTrue(comp.execution_time_display.startswith("⏳"))
+
 
 class APIKeyAdminTestCase(TestCase):
     """

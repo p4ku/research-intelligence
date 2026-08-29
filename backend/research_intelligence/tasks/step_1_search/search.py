@@ -51,11 +51,14 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
 
     workspace = scraper.workspace
 
-    # Record Celery Task ID and update status to running
+    # Record Celery Task ID and update status to running, resetting started_at and completed_at
     task_id = self.request.id if getattr(self, 'request', None) and self.request.id else "local_execution"
     component_run.celery_task_id = task_id
     component_run.status = 'running'
-    component_run.save(update_fields=['celery_task_id', 'status'])
+    component_run.started_at = timezone.now()
+    component_run.completed_at = None
+    component_run.error_message = ''
+    component_run.save(update_fields=['celery_task_id', 'status', 'started_at', 'completed_at', 'error_message'])
 
     if pipeline_run.status != 'running':
         pipeline_run.status = 'running'

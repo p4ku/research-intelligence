@@ -153,7 +153,9 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = 50, max_w
     component_run.status = 'running'
     component_run.celery_task_id = getattr(self.request, 'id', None)
     component_run.started_at = timezone.now()
-    component_run.save(update_fields=['status', 'celery_task_id', 'started_at'])
+    component_run.completed_at = None
+    component_run.error_message = ''
+    component_run.save(update_fields=['status', 'celery_task_id', 'started_at', 'completed_at', 'error_message'])
 
     worker_concurrency = int(os.environ.get("DOWNLOAD_PARALLEL_WORKERS", max_workers))
 

@@ -278,7 +278,9 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = 50
     component_run.status = 'running'
     component_run.celery_task_id = getattr(self.request, 'id', None)
     component_run.started_at = timezone.now()
-    component_run.save(update_fields=['status', 'celery_task_id', 'started_at'])
+    component_run.completed_at = None
+    component_run.error_message = ''
+    component_run.save(update_fields=['status', 'celery_task_id', 'started_at', 'completed_at', 'error_message'])
 
     job_t0 = time.time()
     worker_concurrency = int(os.environ.get("SCREENING_PARALLEL_WORKERS", max_workers))
