@@ -49,9 +49,10 @@ class ScreeningTasksTestCase(TestCase):
         self.assertEqual(self.paper.screening_status, "abstract_passed")
         self.assertEqual(self.paper.screening_reasoning, "Contains agentic keywords.")
 
-        # Ensure correct model parameter was passed
+        # Ensure correct model and reasoning_effort parameters were passed
         mock_generate.assert_called_once()
         self.assertEqual(mock_generate.call_args.kwargs.get("model"), "google/gemini-3.7-flash")
+        self.assertEqual(mock_generate.call_args.kwargs.get("reasoning_effort"), "medium")
 
     @patch("django.core.files.storage.default_storage.open")
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
@@ -70,9 +71,19 @@ class ScreeningTasksTestCase(TestCase):
         self.assertEqual(self.paper.screening_status, "full_text_passed")
         self.assertEqual(self.paper.screening_reasoning, "Full text details reasoning workflows.")
 
-        # Ensure correct model parameter was passed
+        # Ensure correct model and reasoning_effort parameters were passed
         mock_generate.assert_called_once()
         self.assertEqual(mock_generate.call_args.kwargs.get("model"), "google/gemini-3.7-flash")
+        self.assertEqual(mock_generate.call_args.kwargs.get("reasoning_effort"), "medium")
+
+    @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
+    def test_screen_abstract_with_custom_reasoning_effort(self, mock_generate):
+        mock_generate.return_value = {"passed": True, "reasoning": "Deep reasoning applied."}
+        self.workspace.reasoning_effort = "high"
+        self.workspace.save()
+
+        screen_abstract(self.paper.id, self.workspace.id)
+        self.assertEqual(mock_generate.call_args.kwargs.get("reasoning_effort"), "high")
 
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
     def test_only_abstract_screening_pass_and_reject(self, mock_generate):

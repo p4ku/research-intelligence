@@ -81,6 +81,9 @@ class ExtractionTaskTestCase(TestCase):
         self.assertEqual(ext.validation_status, "pass")
         self.assertAlmostEqual(ext.confidence_score, 0.95)
 
+        # Assert reasoning_effort is passed to llm_provider.generate
+        self.assertEqual(mock_llm.generate.call_args.kwargs.get("reasoning_effort"), "medium")
+
     @patch("research_intelligence.tasks.step_5_extraction.extract.get_llm_provider")
     def test_execute_extraction_job_warn_on_schema_fallback(self, mock_get_provider):
         mock_llm = MagicMock()

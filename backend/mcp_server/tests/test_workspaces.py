@@ -224,4 +224,44 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
         self.assertEqual(len(ws_details["extraction_definitions"]), 1)
         self.assertEqual(ws_details["extraction_definitions"][0]["name"], "Test Definition")
 
+    def test_workspace_reasoning_effort_mcp_lifecycle(self):
+        # 1. Test default reasoning effort is 'medium'
+        res = self.parse_res(create_workspace_logic(self.admin, name="Default Reasoning WS"))
+        self.assertEqual(res["status"], "success")
+        ws = Workspace.objects.get(id=res["workspace_id"])
+        self.assertEqual(ws.reasoning_effort, "medium")
+
+        ws_details = self.parse_res(get_workspace_logic(self.admin, workspace_id=str(ws.id)))
+        self.assertEqual(ws_details["reasoning_effort"], "medium")
+
+        # 2. Test explicit creation with reasoning_effort='high'
+        res_high = self.parse_res(create_workspace_logic(
+            self.admin,
+            name="High Reasoning WS",
+            reasoning_effort="high"
+        ))
+        self.assertEqual(res_high["status"], "success")
+        ws_high = Workspace.objects.get(id=res_high["workspace_id"])
+        self.assertEqual(ws_high.reasoning_effort, "high")
+
+        # 3. Test update to reasoning_effort='off'
+        up_res = self.parse_res(update_workspace_logic(
+            self.admin,
+            workspace_id=str(ws_high.id),
+            reasoning_effort="off"
+        ))
+        self.assertEqual(up_res["status"], "success")
+        ws_high.refresh_from_db()
+        self.assertEqual(ws_high.reasoning_effort, "off")
+
+        # 4. Test validation error on invalid reasoning_effort
+        err_res = self.parse_res(update_workspace_logic(
+            self.admin,
+            workspace_id=str(ws_high.id),
+            reasoning_effort="ultra_turbo"
+        ))
+        self.assertEqual(err_res["status"], "error")
+        self.assertIn("invalid reasoning_effort", err_res["error"].lower())
+
+
 
