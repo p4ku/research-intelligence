@@ -4,70 +4,83 @@ State-of-the-art live API test suite and full pipeline simulator for **Schwarz R
 
 ---
 
-## 🏛️ Architecture & Structure
+## 🏛️ Architecture & Scenarios
+
+Every test scenario in `tests_e2e/scenarios/` is strictly **orthogonal, self-contained, and independently executable**:
 
 ```
 tests_e2e/
 ├── config.py                 # Target environment configs (Prod, Staging, Local), quotas & credentials
+├── run_e2e.sh                # Automated shell runner with auto-venv detection
+├── run_e2e.py                # Standalone CLI runner with rich ASCII scorecard & argument parsing
+├── test_full_pipeline_e2e.py # Pytest integration test suite
 ├── client/                   # Modular API Client & Domain Services
 │   ├── api_client.py         # HTTP Session with JWT Bearer auth, latency logging & retry handling
 │   ├── auth_service.py       # Login / JWT acquisition (/api/auth/login/)
 │   ├── workspace_service.py  # Workspaces, Scrapers, and Extraction Definitions CRUD
-│   ├── agent_service.py      # Research Agent process lifecycle & polling engine
+│   ├── agent_service.py      # Research Agent process lifecycle & live heartbeat polling engine
 │   ├── pipeline_service.py   # Pipeline runs, papers, extractions, and reports querying
 │   └── chat_service.py       # Paper Chat / Knowledge Explorer interrogation (/api/chat/)
-├── scenarios/                # Modular Reusable User Journeys
-│   └── full_slr_pipeline.py  # Complete 8-stage SLR review scenario
-├── test_full_pipeline_e2e.py # Pytest integration test class
-└── run_e2e.py                # Standalone CLI runner with rich formatting
+└── scenarios/                # 7 Orthogonal & Reusable User Journeys
+    ├── full_slr_pipeline.py  # 1. Full 8-stage SLR review + Chat + Token Economics
+    ├── chat_multiturn.py     # 2. Multi-turn conversational Q&A + Context Caching
+    ├── agent_lifecycle.py    # 3. Agent Pause & Resume state machine recovery
+    ├── pipeline_reprocessing.py # 4. Reprocessing existing papers (reprocess_existing=True)
+    ├── cross_source_dedup.py # 5. Cross-source scraping & deduplication (arXiv + OpenAlex)
+    ├── quota_guard.py        # 6. Monthly budget & token ceiling enforcement
+    ├── email_digest.py       # 7. Transactional Mailgun executive digest dispatch
+    └── mcp_protocol.py       # 8. FastMCP SSE tools & AI agent discovery
 ```
 
 ---
 
-## 🚀 Running E2E Tests
+## 🚀 Running E2E Scenarios via CLI
 
-### 1. Run Live against Production (Default):
+### 1. Run the Complete SLR Review & Chat (Default):
 ```bash
-python -m tests_e2e.run_e2e --target=prod
+./tests_e2e/run_e2e.sh
 ```
 
-### 2. Run Live against Staging:
+### 2. Run Specific Orthogonal Scenarios:
 ```bash
-python -m tests_e2e.run_e2e --target=staging
+# Agent Lifecycle (Pause & Resume):
+./tests_e2e/run_e2e.sh --scenario=lifecycle
+
+# Pipeline Reprocessing (reprocess_existing=True):
+./tests_e2e/run_e2e.sh --scenario=reprocess
+
+# Cross-Source Deduplication (arXiv + OpenAlex):
+./tests_e2e/run_e2e.sh --scenario=dedup
+
+# Quota Guard & Budget Limits:
+./tests_e2e/run_e2e.sh --scenario=quota
+
+# Transactional Email Digest:
+./tests_e2e/run_e2e.sh --scenario=digest
+
+# FastMCP SSE Protocol & AI Tools:
+./tests_e2e/run_e2e.sh --scenario=mcp
+
+# Run ALL Scenarios Sequentially:
+./tests_e2e/run_e2e.sh --scenario=all
 ```
 
-### 3. Run with Pytest:
+### 3. Run on Different Environments:
+```bash
+./tests_e2e/run_e2e.sh staging          # Run on Staging
+./tests_e2e/run_e2e.sh prod             # Run on Production
+./tests_e2e/run_e2e.sh local            # Run on Local development server
+```
+
+### 4. Run with Pytest:
 ```bash
 pytest tests_e2e/test_full_pipeline_e2e.py -s -v
 ```
 
-### 4. Custom Options:
-```bash
-python -m tests_e2e.run_e2e --target=prod --limit=10 --user=test_e2e --password='t4st_pa55w0rD!#' --cleanup
-```
-
 ---
 
-## 📋 What the E2E Pipeline Scenario Validates:
+## 🧹 Pre-Cleanup & Artifact Retention Policy
 
-1. **Authentication**: Authenticates with `test_e2e` credentials via `POST /api/auth/login/` and captures JWT Bearer token.
-2. **Workspace Creation**: Provisions a unique workspace (`test_e2e_<random>`) with:
-   - Abstract screening inclusion & exclusion criteria
-   - Multimodal Full-text screening criteria
-   - Sandboxed Python `signal_score_code` mathematical formula
-   - Gemini 3.7 Flash default model configuration
-3. **Scraper Configuration**: Sets up arXiv query (e.g. quantum optimization) with target paper limit.
-4. **Extraction Targets**: Creates schema-validated parameter extraction definitions (`Strategic Fit`, `TRL Assessment`, `Novelty Score`).
-5. **Autonomous Agent Execution**: Launches the autonomous research agent process via `POST /api/agents/`.
-6. **Real-Time Polling & State Audit**: Monitors state transitions across all SLR stages:
-   - `Search & Deduplication`
-   - `Abstract Screening`
-   - `Parallel PDF Download` (downloaded strictly for passed papers)
-   - `Layout OCR` (skipped for direct multimodal PDF)
-   - `Full-Text Screening` (deep Gemini 3.7 multimodal evaluation)
-   - `Parameter Extraction`
-   - `Composite Signal Score`
-   - `Executive Reporting`
-7. **Scorecard & Results Verification**: Queries `/api/papers/`, `/api/extractions/`, `/api/reports/` and confirms signal scores.
-8. **Interactive Paper Chat Interrogation**: Queries `/api/chat/?sync=true` against top-ranked paper and validates visual citations and fact-checking.
-9. **Automated Cleanup**: Optionally deletes the test workspace when `--cleanup` is enabled.
+* **Pre-Cleanup (`cleanup_before = True`)**: Before creating a new workspace, the suite automatically searches for and deletes all previous test workspaces and extraction definitions matching `test_e2e_*` to keep your environment spotless.
+* **Artifact Retention**: The created workspace and all its artifacts (downloaded PDFs, Markdown extractions, technology scorecards, and reports) are **retained after test completion** so you can inspect them in the Django Admin Portal (`/admin/`) and Storage Browser (`/admin/storage-browser/`).
+* **Immediate Deletion**: To delete the workspace immediately upon completion, pass `--cleanup-after`.

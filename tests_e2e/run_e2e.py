@@ -28,6 +28,10 @@ from tests_e2e.scenarios import (
     run_chat_multiturn_scenario,
     run_agent_lifecycle_scenario,
     run_pipeline_reprocessing_scenario,
+    run_cross_source_dedup_scenario,
+    run_quota_guard_scenario,
+    run_email_digest_scenario,
+    run_mcp_protocol_scenario,
 )
 
 # Configure rich colored terminal logging
@@ -51,9 +55,9 @@ def parse_args():
     )
     parser.add_argument(
         "--scenario",
-        choices=["slr", "lifecycle", "reprocess", "all"],
+        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "digest", "mcp", "all"],
         default="slr",
-        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, all: Run all)",
+        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Cross-Source Deduplication, quota: Quota Guard, digest: Email Digest, mcp: FastMCP SSE Tools, all: Run all)",
     )
     parser.add_argument(
         "--url",
@@ -205,6 +209,26 @@ def main():
             total_elapsed = time.time() - t0
             print(f"\n✅ PIPELINE REPROCESSING SCENARIO COMPLETED in {total_elapsed:.1f}s (Total Papers: {res.get('total_papers')})\n")
 
+        elif args.scenario == "dedup":
+            res = run_cross_source_dedup_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ CROSS-SOURCE DEDUPLICATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Total Papers: {res.get('total_papers')})\n")
+
+        elif args.scenario == "quota":
+            res = run_quota_guard_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ QUOTA GUARD SCENARIO COMPLETED in {total_elapsed:.1f}s (Tokens Consumed: {res.get('tokens_consumed', 0):,})\n")
+
+        elif args.scenario == "digest":
+            res = run_email_digest_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ EMAIL DIGEST SCENARIO COMPLETED in {total_elapsed:.1f}s (HTTP Status: {res.get('digest_status')})\n")
+
+        elif args.scenario == "mcp":
+            res = run_mcp_protocol_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ FASTMCP PROTOCOL SCENARIO COMPLETED in {total_elapsed:.1f}s (Papers Verified: {res.get('papers_count')})\n")
+
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")
             # 1. Full SLR
@@ -223,6 +247,14 @@ def main():
             run_agent_lifecycle_scenario(config)
             # 4. Pipeline Reprocessing
             run_pipeline_reprocessing_scenario(config)
+            # 5. Cross-Source Deduplication
+            run_cross_source_dedup_scenario(config)
+            # 6. Quota Guard
+            run_quota_guard_scenario(config)
+            # 7. Email Digest
+            run_email_digest_scenario(config)
+            # 8. FastMCP Protocol
+            run_mcp_protocol_scenario(config)
 
             total_elapsed = time.time() - t0
             print_summary_card(slr_results, total_elapsed)
