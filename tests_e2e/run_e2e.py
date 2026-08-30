@@ -32,6 +32,10 @@ from tests_e2e.scenarios import (
     run_quota_guard_scenario,
     run_email_digest_scenario,
     run_mcp_protocol_scenario,
+    run_rbac_data_isolation_scenario,
+    run_mid_step_rerun_scenario,
+    run_chat_hallucination_guard_scenario,
+    run_concurrent_agents_load_scenario,
 )
 
 # Configure rich colored terminal logging
@@ -55,9 +59,9 @@ def parse_args():
     )
     parser.add_argument(
         "--scenario",
-        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "digest", "mcp", "all"],
+        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "digest", "mcp", "isolation", "rerun", "guard", "concurrent", "all"],
         default="slr",
-        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Cross-Source Deduplication, quota: Quota Guard, digest: Email Digest, mcp: FastMCP SSE Tools, all: Run all)",
+        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Multi-Source Deduplication, quota: Quota Guard, digest: Email Digest, mcp: FastMCP SSE Tools, isolation: RBAC Multi-Tenancy, rerun: Mid-Step Rerun, guard: Hallucination Guard, concurrent: Parallel Agents Load, all: Run all)",
     )
     parser.add_argument(
         "--url",
@@ -267,9 +271,29 @@ def main():
         elif args.scenario == "mcp":
             res = run_mcp_protocol_scenario(config)
             total_elapsed = time.time() - t0
-            print(f"\n✅ FASTMCP PROTOCOL SCENARIO COMPLETED in {total_elapsed:.1f}s (Papers Verified: {res.get('papers_count')})")
+            print(f"\n✅ FASTMCP PROTOCOL SCENARIO COMPLETED in {total_elapsed:.1f}s (Papers Verified: {res.get('papers_count')})\n")
             if res.get("cost_metrics"):
                 print_llm_cost_summary(res["cost_metrics"], total_elapsed=total_elapsed, total_papers=res.get('papers_count', 0))
+
+        elif args.scenario == "isolation":
+            res = run_rbac_data_isolation_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ RBAC & MULTI-TENANCY DATA ISOLATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Security Checks: PASS)\n")
+
+        elif args.scenario == "rerun":
+            res = run_mid_step_rerun_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ MID-STEP PIPELINE RERUN SCENARIO COMPLETED in {total_elapsed:.1f}s (Component Runs: {res.get('component_runs_count')})\n")
+
+        elif args.scenario == "guard":
+            res = run_chat_hallucination_guard_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ CHAT HALLUCINATION GUARD SCENARIO COMPLETED in {total_elapsed:.1f}s (Guard Verified: {res.get('adversarial_guard_verified')})\n")
+
+        elif args.scenario == "concurrent":
+            res = run_concurrent_agents_load_scenario(config, num_agents=2)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ CONCURRENT AGENTS LOAD SCENARIO COMPLETED in {total_elapsed:.1f}s (Agents: {res.get('agents_count')})\n")
 
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")

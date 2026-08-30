@@ -21,7 +21,7 @@ tests_e2e/
 │   ├── agent_service.py      # Research Agent process lifecycle & live heartbeat polling engine
 │   ├── pipeline_service.py   # Pipeline runs, papers, extractions, and reports querying
 │   └── chat_service.py       # Paper Chat / Knowledge Explorer interrogation (/api/chat/)
-└── scenarios/                # 7 Orthogonal & Reusable User Journeys
+└── scenarios/                # 11 Orthogonal & Reusable User Journeys
     ├── full_slr_pipeline.py  # 1. Full 8-stage SLR review + Chat + Token Economics
     ├── chat_multiturn.py     # 2. Multi-turn conversational Q&A + Context Caching
     ├── agent_lifecycle.py    # 3. Agent Pause & Resume state machine recovery
@@ -29,7 +29,11 @@ tests_e2e/
     ├── cross_source_dedup.py # 5. Cross-source scraping & deduplication (arXiv + OpenAlex)
     ├── quota_guard.py        # 6. Monthly budget & token ceiling enforcement
     ├── email_digest.py       # 7. Transactional Mailgun executive digest dispatch
-    └── mcp_protocol.py       # 8. FastMCP SSE tools & AI agent discovery
+    ├── mcp_protocol.py       # 8. FastMCP SSE tools & AI agent discovery
+    ├── rbac_data_isolation.py# 9. Multi-tenancy & unauthenticated RBAC security isolation
+    ├── mid_step_rerun.py     # 10. Mid-step pipeline re-execution (rerun_from_node)
+    ├── chat_hallucination_guard.py # 11. Hallucination guard & adversarial grounding probe
+    └── concurrent_agents_load.py   # 12. Multi-agent concurrent load & row-locking test
 ```
 
 ---
@@ -43,22 +47,34 @@ tests_e2e/
 
 ### 2. Run Specific Orthogonal Scenarios:
 ```bash
-# Agent Lifecycle (Pause & Resume):
+# 1. Multi-Tenancy & RBAC Security Isolation:
+./tests_e2e/run_e2e.sh --scenario=isolation
+
+# 2. Mid-Step Pipeline Rerun (rerun_from_node):
+./tests_e2e/run_e2e.sh --scenario=rerun
+
+# 3. Chat Hallucination Guard & Grounding:
+./tests_e2e/run_e2e.sh --scenario=guard
+
+# 4. Concurrent Agents Load & Concurrency:
+./tests_e2e/run_e2e.sh --scenario=concurrent
+
+# 5. Agent Lifecycle (Pause & Resume):
 ./tests_e2e/run_e2e.sh --scenario=lifecycle
 
-# Pipeline Reprocessing (reprocess_existing=True):
+# 6. Pipeline Reprocessing (reprocess_existing=True):
 ./tests_e2e/run_e2e.sh --scenario=reprocess
 
-# Cross-Source Deduplication (arXiv + OpenAlex):
+# 7. Multi-Source Deduplication (arXiv + OpenAlex):
 ./tests_e2e/run_e2e.sh --scenario=dedup
 
-# Quota Guard & Budget Limits:
+# 8. Quota Guard & Budget Limits:
 ./tests_e2e/run_e2e.sh --scenario=quota
 
-# Transactional Email Digest:
+# 9. Transactional Email Digest:
 ./tests_e2e/run_e2e.sh --scenario=digest
 
-# FastMCP SSE Protocol & AI Tools:
+# 10. FastMCP SSE Protocol & AI Tools:
 ./tests_e2e/run_e2e.sh --scenario=mcp
 
 # Run ALL Scenarios Sequentially:

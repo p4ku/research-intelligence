@@ -17,6 +17,10 @@ from tests_e2e.scenarios import (
     run_quota_guard_scenario,
     run_email_digest_scenario,
     run_mcp_protocol_scenario,
+    run_rbac_data_isolation_scenario,
+    run_mid_step_rerun_scenario,
+    run_chat_hallucination_guard_scenario,
+    run_concurrent_agents_load_scenario,
 )
 
 
@@ -82,6 +86,33 @@ class TestFullPipelineE2E:
         results = run_mcp_protocol_scenario(config)
         assert results["status"] == "passed"
         assert results["papers_count"] > 0
+
+    @pytest.mark.e2e
+    def test_rbac_multi_tenancy_data_isolation(self):
+        config = E2EConfig.from_env()
+        results = run_rbac_data_isolation_scenario(config)
+        assert results["status"] == "passed"
+
+    @pytest.mark.e2e
+    def test_mid_step_pipeline_rerun(self):
+        config = E2EConfig.from_env()
+        results = run_mid_step_rerun_scenario(config)
+        assert results["status"] == "passed"
+        assert results["component_runs_count"] > 0
+
+    @pytest.mark.e2e
+    def test_chat_hallucination_guard(self):
+        config = E2EConfig.from_env()
+        results = run_chat_hallucination_guard_scenario(config)
+        assert results["status"] == "passed"
+        assert results["factual_answer_length"] > 0
+
+    @pytest.mark.e2e
+    def test_concurrent_agents_load(self):
+        config = E2EConfig.from_env()
+        results = run_concurrent_agents_load_scenario(config, num_agents=2)
+        assert results["status"] == "passed"
+        assert results["agents_count"] == 2
 
     @pytest.mark.e2e
     def test_chat_multiturn_conversational_grounding(self):

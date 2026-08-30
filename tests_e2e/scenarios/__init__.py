@@ -9,6 +9,10 @@ from .cross_source_dedup import run_cross_source_dedup_scenario
 from .quota_guard import run_quota_guard_scenario
 from .email_digest import run_email_digest_scenario
 from .mcp_protocol import run_mcp_protocol_scenario
+from .rbac_data_isolation import run_rbac_data_isolation_scenario
+from .mid_step_rerun import run_mid_step_rerun_scenario
+from .chat_hallucination_guard import run_chat_hallucination_guard_scenario
+from .concurrent_agents_load import run_concurrent_agents_load_scenario
 
 __all__ = [
     "run_full_slr_pipeline_scenario",
@@ -19,4 +23,8 @@ __all__ = [
     "run_quota_guard_scenario",
     "run_email_digest_scenario",
     "run_mcp_protocol_scenario",
+    "run_rbac_data_isolation_scenario",
+    "run_mid_step_rerun_scenario",
+    "run_chat_hallucination_guard_scenario",
+    "run_concurrent_agents_load_scenario",
 ]
