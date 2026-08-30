@@ -724,7 +724,8 @@ class WorkspaceAdmin(admin.ModelAdmin):
         if request.method == 'POST':
             raw_json = request.POST.get('raw_json', '').strip()
             uploaded_file = request.FILES.get('json_file')
-            update_existing = request.POST.get('update_existing') == 'on' or 'update_existing' in request.POST
+            overwrite_val = request.POST.get('overwrite_existing', 'yes').strip().lower()
+            update_existing = overwrite_val in ['yes', '1', 'true', 'on']
 
             payload_str = None
             if uploaded_file:
@@ -751,13 +752,14 @@ class WorkspaceAdmin(admin.ModelAdmin):
                     user=request.user,
                     update_existing=update_existing
                 )
+                mode_desc = "Overwrite / Fine-tune enabled" if update_existing else "Overwrite disabled (skipped existing items)"
                 messages.success(
                     request,
-                    f"✅ Workspace configuration imported successfully! "
-                    f"Workspaces: {stats['created_workspaces']} created, {stats['updated_workspaces']} updated | "
-                    f"Extraction Definitions: {stats['created_extractions']} created, {stats['updated_extractions']} updated | "
-                    f"Scrapers: {stats['created_scrapers']} created, {stats['updated_scrapers']} updated | "
-                    f"Subscribers: {stats['created_subscribers']} created, {stats['updated_subscribers']} updated."
+                    f"✅ Workspace configuration imported successfully ({mode_desc})! "
+                    f"Workspaces: {stats['created_workspaces']} created, {stats['updated_workspaces']} updated, {stats.get('skipped_workspaces', 0)} skipped | "
+                    f"Extraction Definitions: {stats['created_extractions']} created, {stats['updated_extractions']} updated, {stats.get('skipped_extractions', 0)} skipped | "
+                    f"Scrapers: {stats['created_scrapers']} created, {stats['updated_scrapers']} updated, {stats.get('skipped_scrapers', 0)} skipped | "
+                    f"Subscribers: {stats['created_subscribers']} created, {stats['updated_subscribers']} updated, {stats.get('skipped_subscribers', 0)} skipped."
                 )
                 return redirect('admin:research_intelligence_workspace_changelist')
             except Exception as e:

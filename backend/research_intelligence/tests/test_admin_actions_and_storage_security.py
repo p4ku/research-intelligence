@@ -125,7 +125,7 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
 
         post_req = self.factory.post("/", data={
             "raw_json": json.dumps(payload),
-            "update_existing": "on"
+            "overwrite_existing": "yes"
         })
         post_req.user = self.admin_user
         setattr(post_req, 'session', {})
@@ -145,7 +145,23 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
         scraper.refresh_from_db()
         self.assertEqual(scraper.limit, 100)
 
-        # 3. Test Import of brand new Workspace
+        # 3. Test Import with overwrite_existing="no" (Existing should NOT be overwritten)
+        payload['workspaces'][0]['abstract_acceptance_criteria'] = "Should not be applied"
+        post_req_no = self.factory.post("/", data={
+            "raw_json": json.dumps(payload),
+            "overwrite_existing": "no"
+        })
+        post_req_no.user = self.admin_user
+        setattr(post_req_no, 'session', {})
+        messages_no = FallbackStorage(post_req_no)
+        setattr(post_req_no, '_messages', messages_no)
+
+        import_resp_no = admin_obj.import_configuration_view(post_req_no)
+        self.assertEqual(import_resp_no.status_code, 302)
+        self.workspace.refresh_from_db()
+        self.assertEqual(self.workspace.abstract_acceptance_criteria, "Updated criteria from staging")
+
+        # 4. Test Import of brand new Workspace
         new_ws_payload = {
             "workspaces": [
                 {
@@ -171,7 +187,7 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
         }
         post_req_new = self.factory.post("/", data={
             "raw_json": json.dumps(new_ws_payload),
-            "update_existing": "on"
+            "overwrite_existing": "yes"
         })
         post_req_new.user = self.admin_user
         setattr(post_req_new, 'session', {})

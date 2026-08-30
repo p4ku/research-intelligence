@@ -242,12 +242,16 @@ def import_workspace_configuration_bundle(
     stats = {
         "created_workspaces": 0,
         "updated_workspaces": 0,
+        "skipped_workspaces": 0,
         "created_extractions": 0,
         "updated_extractions": 0,
+        "skipped_extractions": 0,
         "created_scrapers": 0,
         "updated_scrapers": 0,
+        "skipped_scrapers": 0,
         "created_subscribers": 0,
         "updated_subscribers": 0,
+        "skipped_subscribers": 0,
         "workspaces": [],
     }
 
@@ -288,6 +292,8 @@ def import_workspace_configuration_bundle(
                     setattr(existing_ws, k, v)
                 existing_ws.save()
                 stats["updated_workspaces"] += 1
+            else:
+                stats["skipped_workspaces"] += 1
             ws = existing_ws
         else:
             ws = Workspace.objects.create(name=name, **ws_fields)
@@ -325,6 +331,8 @@ def import_workspace_configuration_bundle(
                         setattr(existing_ed, k, v)
                     existing_ed.save()
                     stats["updated_extractions"] += 1
+                else:
+                    stats["skipped_extractions"] += 1
             else:
                 ExtractionDefinition.objects.create(workspace=ws, name=ed_name, **ed_fields)
                 stats["created_extractions"] += 1
@@ -348,6 +356,8 @@ def import_workspace_configuration_bundle(
                         setattr(existing_sc, k, v)
                     existing_sc.save()
                     stats["updated_scrapers"] += 1
+                else:
+                    stats["skipped_scrapers"] += 1
             else:
                 Scraper.objects.create(workspace=ws, provider=sc_provider, search_query=sc_query, **sc_fields)
                 stats["created_scrapers"] += 1
@@ -369,6 +379,8 @@ def import_workspace_configuration_bundle(
                         setattr(existing_sub, k, v)
                     existing_sub.save()
                     stats["updated_subscribers"] += 1
+                else:
+                    stats["skipped_subscribers"] += 1
             else:
                 Subscriber.objects.create(workspace=ws, email=sub_email, subscription_type=sub_type, **sub_fields)
                 stats["created_subscribers"] += 1

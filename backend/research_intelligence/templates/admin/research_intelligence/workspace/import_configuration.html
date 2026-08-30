@@ -65,6 +65,12 @@
       font-size: 13px;
       line-height: 1.5;
     }
+    .choice-card {
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 6px;
+      padding: 16px;
+    }
   </style>
 {% endblock %}
 
@@ -84,9 +90,9 @@
     <div class="badge-info">
       <strong>How it works:</strong>
       <ul style="margin: 6px 0 0 18px; padding: 0;">
-        <li>Upload a exported <code>.json</code> file or paste JSON directly below.</li>
-        <li>Imports complete configuration: dual-stage criteria, screening prompts & schemas, exit metrics, custom Python signal score formula, quotas, <strong>Extraction Definitions</strong>, <strong>Scrapers</strong>, and <strong>Subscribers</strong>.</li>
-        <li>If <em>"Update existing items if names match"</em> is enabled, existing workspace rules and definitions will be fine-tuned/updated in-place without losing run history.</li>
+        <li>Upload an exported <code>.json</code> file or paste JSON directly into the box below.</li>
+        <li>Imports complete workspace setup: dual-stage criteria, screening prompts & schemas, exit metrics, custom Python signal score formula, quotas, <strong>Extraction Definitions</strong>, <strong>Scrapers</strong>, and <strong>Subscribers</strong>.</li>
+        <li>Choose below whether you agree to overwrite/fine-tune existing workspaces or skip them.</li>
       </ul>
     </div>
 
@@ -105,11 +111,30 @@
         <div class="help-text">Directly paste exported JSON snippet from clipboard.</div>
       </div>
 
-      <div class="form-row">
-        <label style="font-weight: normal; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-          <input type="checkbox" name="update_existing" value="on" checked style="margin: 0;">
-          <span><strong>Update existing workspaces, definitions, scrapers, and subscribers if names match</strong> (Upsert mode)</span>
+      <div class="form-row choice-card">
+        <label style="font-size: 14px; font-weight: bold; margin-bottom: 12px; color: #212529;">
+          ⚠️ {% trans "Do you agree to overwrite / update existing configurations if names match?" %}
         </label>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <label style="font-weight: normal; cursor: pointer; display: flex; align-items: flex-start; gap: 10px; margin: 0;">
+            <input type="radio" name="overwrite_existing" value="yes" checked style="margin-top: 3px;">
+            <div>
+              <strong style="color: #198754; font-size: 13px;">✅ YES — Overwrite & Fine-Tune Existing Items</strong>
+              <div style="font-size: 12px; color: #555; margin-top: 2px;">
+                Updates criteria, screening prompts, schemas, extraction definitions, scrapers, and subscribers of matching workspaces in-place. Run history, documents, and paper data are safely preserved.
+              </div>
+            </div>
+          </label>
+          <label style="font-weight: normal; cursor: pointer; display: flex; align-items: flex-start; gap: 10px; margin: 0;">
+            <input type="radio" name="overwrite_existing" value="no" style="margin-top: 3px;">
+            <div>
+              <strong style="color: #dc3545; font-size: 13px;">❌ NO — Do Not Overwrite (Skip Existing Items)</strong>
+              <div style="font-size: 12px; color: #555; margin-top: 2px;">
+                Only creates brand new workspaces, definitions, scrapers, and subscribers that do not exist yet. Any matching items will be skipped and left untouched.
+              </div>
+            </div>
+          </label>
+        </div>
       </div>
 
       <div style="margin-top: 24px;">
