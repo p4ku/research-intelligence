@@ -10,7 +10,7 @@ import { byValueDesc, dimensionByKey, numericDefinitions, trlDimension } from '@
 import type { ScoredPaper, ScreeningStatus, WorkspaceSummary } from '@/lib/papers/types'
 import { ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 const PER_PAGE = 8
 
@@ -90,8 +90,10 @@ export function PapersBrowser({
   )
 
   const filtered = useMemo(() => {
-    const cutoff = new Date(newest || Date.now())
-    cutoff.setDate(cutoff.getDate() - withinDays)
+    // Anchor the ingest window to the newest paper (pure); with no papers
+    // there is nothing to window anyway.
+    const cutoff = newest ? new Date(newest) : null
+    cutoff?.setDate(cutoff.getDate() - withinDays)
     const q = search.toLowerCase()
     const result = papers.filter((p) => {
       if (!matchesScreening(p.screening_status, screening)) return false
@@ -99,7 +101,7 @@ export function PapersBrowser({
         const trl = trlDimension(p)?.value ?? null
         if (trl === null || trl < minTrl || trl > maxTrl) return false
       }
-      if (withinDays > 0 && new Date(p.created_at) < cutoff) return false
+      if (withinDays > 0 && cutoff && new Date(p.created_at) < cutoff) return false
       if (minScore > 0 && (p.signal_score === null || p.signal_score < minScore)) return false
       if (
         q &&
@@ -131,9 +133,13 @@ export function PapersBrowser({
   // Paginate the filtered corpus, eight at a time. Any filter or sort change
   // resets to the first page so the view never lands past the last result.
   const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  useEffect(() => {
+  const filterKey = [search, screening, sort, minTrl, maxTrl, withinDays, minScore].join('\u0000')
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
+  if (prevFilterKey !== filterKey) {
+    // Adjust-during-render (not an effect): filters moved, back to page one.
+    setPrevFilterKey(filterKey)
     setPage(1)
-  }, [search, screening, sort, minTrl, maxTrl, withinDays, minScore])
+  }
   const current = Math.min(page, pageCount)
   const paged = filtered.slice((current - 1) * PER_PAGE, current * PER_PAGE)
 

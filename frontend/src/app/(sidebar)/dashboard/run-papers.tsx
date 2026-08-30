@@ -7,7 +7,7 @@ import { byValueDesc, dimensionByKey, numericDefinitions } from '@/lib/papers/se
 import type { ScoredPaper, WorkspaceSummary } from '@/lib/papers/types'
 import { ChevronDownIcon, SignalIcon, SparklesIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 
 const PER_PAGE = 5
 
@@ -60,9 +60,12 @@ export function RunPapers({
   // Paginate, five at a time. Reset to the first page whenever the sort changes
   // so the view never lands past the end.
   const pageCount = Math.max(1, Math.ceil(sorted.length / PER_PAGE))
-  useEffect(() => {
+  const [prevSort, setPrevSort] = useState(sort)
+  if (prevSort !== sort) {
+    // Adjust-during-render (not an effect): new sort, back to page one.
+    setPrevSort(sort)
     setPage(1)
-  }, [sort])
+  }
   const current = Math.min(page, pageCount)
   const start = (current - 1) * PER_PAGE
   const paged = sorted.slice(start, start + PER_PAGE)
