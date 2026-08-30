@@ -138,7 +138,7 @@ def probe_llm_providers() -> dict:
 
     try:
         from research_intelligence.llm_providers.google import GoogleAgentAPIProvider
-        provider = GoogleAgentAPIProvider(location="eu")
+        provider = GoogleAgentAPIProvider()
         test_resp = provider.generate("Reply with 'OK' only.", model="gemini-3.7-flash")
         latency = round((time.perf_counter() - google_start) * 1000, 2)
         llm_providers["google"] = {
@@ -146,6 +146,7 @@ def probe_llm_providers() -> dict:
             "provider_name": "Google Vertex AI / GenAI",
             "model": "gemini-3.7-flash",
             "latency_ms": latency,
+            "response": str(test_resp)[:100],
         }
     except Exception as e:
         latency = round((time.perf_counter() - google_start) * 1000, 2)
@@ -154,7 +155,7 @@ def probe_llm_providers() -> dict:
             "provider_name": "Google Vertex AI / GenAI",
             "model": "gemini-3.7-flash",
             "latency_ms": latency,
-            "error": "LLM provider connectivity check failed",
+            "error": str(e),
         }
 
     openrouter_key = os.environ.get("OPENROUTER_API_KEY") or getattr(settings, "OPENROUTER_API_KEY", None)
