@@ -287,9 +287,10 @@ class ScreeningTasksTestCase(TestCase):
 
     def test_screening_node_should_halt_pipeline(self):
         """Test ScreeningNode halts cleanly when 0 papers are accepted (even with withdrawn/rejected mix)."""
-        from ...tasks.step_4_screening.node import ScreeningNode
+        from ...tasks.step_4_screening.node import AbstractScreeningNode, FullTextScreeningNode
         from ...models import ComponentRun
-        node = ScreeningNode()
+        abs_node = AbstractScreeningNode()
+        ft_node = FullTextScreeningNode()
 
         # Create paper 2 as withdrawn, paper 1 as rejected
         self.paper.screening_status = "rejected"
@@ -306,7 +307,7 @@ class ScreeningTasksTestCase(TestCase):
         )
 
         # Before screening component run completes
-        should_halt, msg = node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
+        should_halt, msg = abs_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
         self.assertFalse(should_halt)
 
         # Abstract screening completed with 0 passed
@@ -318,14 +319,28 @@ class ScreeningTasksTestCase(TestCase):
             metrics={"total_screened": 2, "passed": 0, "rejected": 1, "withdrawn": 1}
         )
 
-        should_halt, msg = node.should_halt_pipeline(self.pipeline_run, self.workspace, {"skip_full_text_screening": True})
+        should_halt, msg = abs_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
         self.assertTrue(should_halt)
         self.assertIn("0 papers accepted", msg)
+
+        # Full text screening completed with 0 passed
+        ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="screening",
+            component_name="full_text_screening",
+            status="completed",
+            metrics={"total_screened": 2, "passed": 0, "rejected": 2}
+        )
+        should_halt_ft, msg_ft = ft_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
+        self.assertTrue(should_halt_ft)
+        self.assertIn("0 papers accepted", msg_ft)
 
         # If one paper passes, it should not halt
         p2.screening_status = "accepted"
         p2.save()
-        should_halt, msg = node.should_halt_pipeline(self.pipeline_run, self.workspace, {"skip_full_text_screening": True})
+        should_halt, msg = abs_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
         self.assertFalse(should_halt)
+        should_halt_ft, msg_ft = ft_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
+        self.assertFalse(should_halt_ft)
 
 

@@ -174,6 +174,6 @@ class FullTextScreeningNode(BaseWorkflowNode):
         return self.dispatch_celery_task(execute_full_text_screening_job, comp_run, limit=limit)
 
 
-# Backward-compatible alias
-ScreeningNode = AbstractScreeningNode
+# Backward-compatible alias for the post-OCR full screening stage
+ScreeningNode = FullTextScreeningNode
 
