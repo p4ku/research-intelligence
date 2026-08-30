@@ -57,17 +57,25 @@ def _run_single_extraction_worker(paper, definition, workspace):
 
     llm_provider = get_llm_provider(workspace.llm_provider)
     
+    raw_tmpl = definition.user_prompt_template or ""
+    # Normalize double-curly {{var}} to {var} if present
+    import re
+    normalized_tmpl = re.sub(r'\{\{([a-zA-Z0-9_]+)\}\}', r'{\1}', raw_tmpl)
+
     format_data = SafeFormatterDict(
-        paper_text=paper_text[:120000],
+        paper_text=paper_text[:120000] if paper_text else "",
+        full_text=paper_text[:120000] if paper_text else "",
         title=paper.title or "",
+        paper_title=paper.title or "",
         abstract=paper.abstract or "",
+        paper_abstract=paper.abstract or "",
         authors=paper.authors or "",
         published_date=str(getattr(paper, "published_date", "")) if getattr(paper, "published_date", None) else "",
         source_database=paper.source_database or "",
         arxiv_id=paper.arxiv_id or "",
         doi=paper.doi or ""
     )
-    user_prompt = definition.user_prompt_template.format_map(format_data)
+    user_prompt = normalized_tmpl.format_map(format_data)
 
     system_prompt = (
         f"{definition.system_prompt}\n\n"
