@@ -15,6 +15,7 @@ import { cache } from 'react'
 import * as z from 'zod'
 import { django } from '../core/http'
 import { ProblemError } from '../core/problem'
+import { assertUuid } from '../core/validate'
 import { listWorkspacesRaw } from '../workspaces/service'
 import { extractionDTO, paperDTO } from './upstream'
 
@@ -22,7 +23,7 @@ export const listPapersRaw = cache(() => django('/api/papers/', z.array(paperDTO
 export const listExtractionsRaw = cache(() => django('/api/extractions/', z.array(extractionDTO)))
 export const getPaperRaw = cache(async (id: string) => {
   try {
-    return await django(`/api/papers/${id}/`, paperDTO)
+    return await django(`/api/papers/${assertUuid(id, 'paper id')}/`, paperDTO)
   } catch (error) {
     if (error instanceof ProblemError && error.problem.status === 404) return null
     throw error

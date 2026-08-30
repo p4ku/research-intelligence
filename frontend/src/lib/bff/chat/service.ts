@@ -11,6 +11,7 @@ import * as z from 'zod'
 import { django, djangoVoid } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { problem, ProblemError } from '../core/problem'
+import { assertUuid } from '../core/validate'
 import { sourceOf } from '../core/source'
 import { fixtureSessionDetails, fixtureSessions } from './fixtures'
 import type { ChatSession, ChatSessionDetail, ChatTurn, SessionsQuery } from './schema'
@@ -95,7 +96,7 @@ export const chat = {
   async getSession(id: string): Promise<ChatSessionDetail | null> {
     if (sourceOf('chat') === 'stub') return fixtureSessionDetails.find((s) => s.id === id) ?? null
     try {
-      const dto = await django(`/api/chat/sessions/${id}/`, chatSessionDetailDTO)
+      const dto = await django(`/api/chat/sessions/${assertUuid(id, 'session id')}/`, chatSessionDetailDTO)
       return { ...toSession(dto), turns: dto.messages.map(toTurn) }
     } catch (error) {
       if (error instanceof ProblemError && error.problem.status === 404) return null
@@ -105,7 +106,7 @@ export const chat = {
 
   async deleteSession(id: string): Promise<void> {
     if (sourceOf('chat') === 'stub') return
-    await djangoVoid(`/api/chat/sessions/${id}/`, { method: 'DELETE' })
+    await djangoVoid(`/api/chat/sessions/${assertUuid(id, 'session id')}/`, { method: 'DELETE' })
   },
 
   async renameSession(_id: string, _title: string): Promise<never> {

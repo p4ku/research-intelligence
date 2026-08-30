@@ -6,6 +6,7 @@
 import 'server-only'
 
 import { django } from '../core/http'
+import { assertUuid } from '../core/validate'
 import { sourceOf } from '../core/source'
 import { preferences, type PasswordChange, type Preferences, type Profile, type ProfileUpdate } from './schema'
 import { passwordChangeResponseDTO, userProfileDTO } from './upstream'
@@ -52,14 +53,14 @@ export const settings = {
 
   async getPreferences(workspaceId: string): Promise<Preferences> {
     if (sourceOf('preferences') === 'django') {
-      return django(`/api/workspaces/${workspaceId}/preferences/`, preferences)
+      return django(`/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/preferences/`, preferences)
     }
     return stubPreferences.get(workspaceId) ?? { digest_email: true }
   },
 
   async setPreferences(workspaceId: string, next: Preferences): Promise<Preferences> {
     if (sourceOf('preferences') === 'django') {
-      return django(`/api/workspaces/${workspaceId}/preferences/`, preferences, {
+      return django(`/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/preferences/`, preferences, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(next),
