@@ -301,22 +301,40 @@ def execute_screening_job(self, component_run_id: str, limit: int = None, max_wo
 
         if worker_concurrency <= 1:
             for paper in papers:
-                res = screen_abstract(paper.id, workspace.id, workspace_obj=workspace, paper_obj=paper)
+                try:
+                    res = screen_abstract(paper.id, workspace.id, workspace_obj=workspace, paper_obj=paper)
+                except Exception as pe:
+                    logger.error(f"Error screening paper '{paper.id}': {pe}")
+                    res = {"success": False, "error": str(pe), "duration_seconds": 0.0, "usage": {}}
                 _record_result(paper, res)
         else:
+            batch_timeout_sec = max(300.0, (len(papers) / max(1, worker_concurrency)) * 120.0)
+            completed_paper_ids = set()
             with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
                 future_to_paper = {
                     executor.submit(_screen_paper_task, paper, workspace): paper
                     for paper in papers
                 }
-                for future in as_completed(future_to_paper):
-                    paper = future_to_paper[future]
-                    try:
-                        _, res = future.result()
-                    except Exception as fe:
-                        logger.error(f"Thread execution error for paper '{paper.id}': {fe}")
-                        res = {"success": False, "error": str(fe), "duration_seconds": 0.0, "usage": {}}
-                    _record_result(paper, res)
+                try:
+                    for future in as_completed(future_to_paper, timeout=batch_timeout_sec):
+                        paper = future_to_paper[future]
+                        completed_paper_ids.add(paper.id)
+                        try:
+                            _, res = future.result(timeout=120.0)
+                        except Exception as fe:
+                            logger.error(f"Thread execution error for paper '{paper.id}': {fe}")
+                            res = {"success": False, "error": str(fe), "duration_seconds": 0.0, "usage": {}}
+                        _record_result(paper, res)
+                except Exception as batch_err:
+                    logger.warning(f"⚠️ [BATCH TIMEOUT / ERROR] Abstract screening batch interrupted: {batch_err}")
+
+                # Ensure any hanging futures are safely terminated and recorded as failed
+                for future, paper in future_to_paper.items():
+                    if paper.id not in completed_paper_ids:
+                        future.cancel()
+                        logger.warning(f"⚠️ [TIMEOUT RECOVERY] Paper '{paper.id}' ({paper.title[:40]}...) timed out during abstract screening. Recording as failed.")
+                        res = {"success": False, "error": "Operation timed out during abstract screening batch execution.", "duration_seconds": 0.0, "usage": {}}
+                        _record_result(paper, res)
 
         job_duration_sec = round(time.time() - job_t0, 3)
         avg_duration_sec = round(job_duration_sec / len(papers), 3) if papers else 0.0

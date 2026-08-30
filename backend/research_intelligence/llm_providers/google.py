@@ -120,6 +120,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                 logger.warning(f"Failed to load credentials from GOOGLE_SERVICE_ACCOUNT_JSON env var: {str(e)}")
 
         target_project_id = self.project_id or sa_project_id
+        http_options = types.HttpOptions(timeout=120.0) if hasattr(types, 'HttpOptions') else None
 
         try:
             if credentials is not None:
@@ -128,21 +129,29 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                     client_kwargs["project"] = target_project_id
                 if target_location:
                     client_kwargs["location"] = target_location
+                if http_options:
+                    client_kwargs["http_options"] = http_options
                 self._client = genai.Client(**client_kwargs)
             elif self.api_key and self.api_key != "mock-agent-key":
-                self._client = genai.Client(
-                    api_key=self.api_key
-                )
+                client_kwargs = {"api_key": self.api_key}
+                if http_options:
+                    client_kwargs["http_options"] = http_options
+                self._client = genai.Client(**client_kwargs)
             else:
                 client_kwargs = {"vertexai": True}
                 if target_project_id:
                     client_kwargs["project"] = target_project_id
                 if target_location:
                     client_kwargs["location"] = target_location
+                if http_options:
+                    client_kwargs["http_options"] = http_options
                 self._client = genai.Client(**client_kwargs)
         except Exception as e:
             logger.warning(f"Vertex AI initialization failed: {str(e)}. Falling back to standard Client.")
-            self._client = genai.Client()
+            try:
+                self._client = genai.Client(http_options=http_options) if http_options else genai.Client()
+            except Exception:
+                self._client = genai.Client()
 
         self._client_location = target_location
         return self._client

@@ -323,37 +323,74 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
                     },
                     "fields_extracted": res.get("extracted_fields_count", 0)
                 })
-                logger.info(f"✅ [EXTRACTION COMPLETED] Paper '{res.get('paper_title')[:40]}...' | Definition '{res.get('definition_name')}' | Time: {duration_sec}s | Tokens: {t_tok}")
+                p_title = res.get('paper_title') or 'Untitled'
+                logger.info(f"✅ [EXTRACTION COMPLETED] Paper '{p_title[:40]}...' | Definition '{res.get('definition_name')}' | Time: {duration_sec}s | Tokens: {t_tok}")
             else:
                 failed_count += 1
                 logger.warning(f"⚠️ [EXTRACTION FAILED] Paper ID {res.get('paper_id')} | Def '{res.get('definition_name')}': {res.get('error')}")
 
         if worker_concurrency <= 1:
             for paper, definition in work_items:
-                res = _run_single_extraction_worker(paper, definition, workspace)
+                try:
+                    res = _run_single_extraction_worker(paper, definition, workspace)
+                except Exception as pe:
+                    logger.error(f"Error extracting paper '{paper.id}' with def '{definition.name}': {pe}")
+                    res = {
+                        "success": False,
+                        "error": str(pe),
+                        "paper_id": str(paper.id),
+                        "definition_id": str(definition.id),
+                        "definition_name": definition.name,
+                        "duration_seconds": 0.0,
+                        "usage": {}
+                    }
                 _record_result(res)
         else:
+            batch_timeout_sec = max(300.0, (len(work_items) / max(1, worker_concurrency)) * 180.0)
+            completed_item_keys = set()
             with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
                 future_to_item = {
                     executor.submit(_run_single_extraction_worker, paper, definition, workspace): (paper, definition)
                     for paper, definition in work_items
                 }
-                for future in as_completed(future_to_item):
-                    paper, definition = future_to_item[future]
-                    try:
-                        res = future.result()
-                    except Exception as fe:
-                        logger.error(f"Thread execution error for paper '{paper.id}' with def '{definition.name}': {fe}")
+                try:
+                    for future in as_completed(future_to_item, timeout=batch_timeout_sec):
+                        paper, definition = future_to_item[future]
+                        item_key = (str(paper.id), str(definition.id))
+                        completed_item_keys.add(item_key)
+                        try:
+                            res = future.result(timeout=180.0)
+                        except Exception as fe:
+                            logger.error(f"Thread execution error for paper '{paper.id}' with def '{definition.name}': {fe}")
+                            res = {
+                                "success": False,
+                                "error": str(fe),
+                                "paper_id": str(paper.id),
+                                "definition_id": str(definition.id),
+                                "definition_name": definition.name,
+                                "duration_seconds": 0.0,
+                                "usage": {}
+                            }
+                        _record_result(res)
+                except Exception as batch_err:
+                    logger.warning(f"⚠️ [BATCH TIMEOUT / ERROR] Parameter extraction batch interrupted: {batch_err}")
+
+                # Ensure any hanging futures are safely terminated and recorded as failed
+                for future, (paper, definition) in future_to_item.items():
+                    item_key = (str(paper.id), str(definition.id))
+                    if item_key not in completed_item_keys:
+                        future.cancel()
+                        logger.warning(f"⚠️ [TIMEOUT RECOVERY] Paper '{paper.id}' def '{definition.name}' timed out during extraction. Recording as failed.")
                         res = {
                             "success": False,
-                            "error": str(fe),
+                            "error": "Operation timed out during parameter extraction batch execution.",
                             "paper_id": str(paper.id),
                             "definition_id": str(definition.id),
                             "definition_name": definition.name,
                             "duration_seconds": 0.0,
                             "usage": {}
                         }
-                    _record_result(res)
+                        _record_result(res)
 
         job_duration_sec = round(time.time() - job_t0, 3)
         avg_duration_sec = round(job_duration_sec / len(work_items), 3) if work_items else 0.0

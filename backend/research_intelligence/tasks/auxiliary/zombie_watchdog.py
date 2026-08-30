@@ -59,15 +59,33 @@ def reap_zombie_tasks(
     for comp in stale_comps_qs:
         with transaction.atomic():
             age_min = round((now - comp.started_at).total_seconds() / 60.0, 1) if comp.started_at else 0
-            reason = f"Zombie task reaped: No worker progress for {age_min} minutes (exceeded {max_component_age_minutes}m timeout)."
-            logger.warning(f"🧟 [ZOMBIE COMPONENT REAPED] ComponentRun '{comp.id}' ({comp.component_name}) | Age: {age_min}m | Task ID: {comp.celery_task_id}")
+            m = comp.metrics or {}
+            total_items = m.get("total_to_screen") or m.get("total_screened") or m.get("total_processed") or 0
+            done_items = (m.get("passed", 0) + m.get("rejected", 0) + m.get("withdrawn", 0) + m.get("failed", 0)) or m.get("total_screened", 0)
+            
+            # If all items were processed but status was left running due to a dropped callback
+            if total_items > 0 and done_items >= total_items:
+                comp.status = 'completed'
+                comp.completed_at = now
+                comp.save(update_fields=['status', 'completed_at'])
+                logger.info(f"✨ [ZOMBIE WATCHDOG RECOVERED] ComponentRun '{comp.id}' ({comp.component_name}) was fully processed ({done_items}/{total_items}). Marked completed.")
+                stats["details"].append(f"ComponentRun {comp.id} ({comp.component_name}) -> recovered completed")
+            else:
+                reason = f"Zombie task reaped: No worker progress for {age_min} minutes (exceeded {max_component_age_minutes}m timeout)."
+                logger.warning(f"🧟 [ZOMBIE COMPONENT REAPED] ComponentRun '{comp.id}' ({comp.component_name}) | Age: {age_min}m | Task ID: {comp.celery_task_id}")
+                comp.status = 'failed'
+                comp.error_message = reason
+                comp.completed_at = now
+                comp.save(update_fields=['status', 'error_message', 'completed_at'])
+                stats["reaped_components"] += 1
+                stats["details"].append(f"ComponentRun {comp.id} ({comp.component_name}) -> failed")
 
-            comp.status = 'failed'
-            comp.error_message = reason
-            comp.completed_at = now
-            comp.save(update_fields=['status', 'error_message', 'completed_at'])
-            stats["reaped_components"] += 1
-            stats["details"].append(f"ComponentRun {comp.id} ({comp.component_name}) -> failed")
+            if comp.status == 'completed' and comp.pipeline_run:
+                try:
+                    from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+                    notify_pipeline_orchestrator_tick(comp.pipeline_run)
+                except Exception as tick_err:
+                    logger.warning(f"Watchdog orchestrator tick notification failed: {tick_err}")
 
     # -------------------------------------------------------------------------
     # 2. Inspect & Reap Stale PipelineRuns

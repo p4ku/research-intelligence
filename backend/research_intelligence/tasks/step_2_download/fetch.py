@@ -213,19 +213,33 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
                 res = _download_paper_task(paper, workspace, pipeline_run)
                 _record_result(res)
         else:
+            batch_timeout_sec = max(300.0, (len(papers) / max(1, worker_concurrency)) * 60.0)
+            completed_paper_ids = set()
             with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
                 future_to_paper = {
                     executor.submit(_download_paper_task, paper, workspace, pipeline_run): paper
                     for paper in papers
                 }
-                for future in as_completed(future_to_paper):
-                    paper = future_to_paper[future]
-                    try:
-                        res = future.result()
-                    except Exception as fe:
-                        logger.error(f"Thread execution error downloading PDF for paper '{paper.id}': {fe}")
-                        res = {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": str(fe)}
-                    _record_result(res)
+                try:
+                    for future in as_completed(future_to_paper, timeout=batch_timeout_sec):
+                        paper = future_to_paper[future]
+                        completed_paper_ids.add(paper.id)
+                        try:
+                            res = future.result(timeout=60.0)
+                        except Exception as fe:
+                            logger.error(f"Thread execution error downloading PDF for paper '{paper.id}': {fe}")
+                            res = {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": str(fe)}
+                        _record_result(res)
+                except Exception as batch_err:
+                    logger.warning(f"⚠️ [BATCH TIMEOUT / ERROR] PDF download batch interrupted: {batch_err}")
+
+                # Ensure any hanging futures are safely terminated and recorded as failed
+                for future, paper in future_to_paper.items():
+                    if paper.id not in completed_paper_ids:
+                        future.cancel()
+                        logger.warning(f"⚠️ [TIMEOUT RECOVERY] Paper '{paper.id}' ({paper.title[:40]}...) timed out during PDF download. Recording as failed.")
+                        res = {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": "Download timed out."}
+                        _record_result(res)
 
         # Update component run lifecycle metrics & output_data
         duration_sec = round(time.time() - start_time, 2)
