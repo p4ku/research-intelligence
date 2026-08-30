@@ -1,17 +1,16 @@
 /**
  * Settings service. Profile + password ride today's Django endpoints
  * (always real). Preferences are `stub` until the backend adds a per-user
- * digest preference (see the folder README). Server-only.
+ * digest preference (see the folder README) — the stub does not persist,
+ * because there is no per-user store here to persist into. Server-only.
  */
 import 'server-only'
 
 import { django } from '../core/http'
+import { problem } from '../core/problem'
 import { sourceOf } from '../core/source'
 import { preferences, type PasswordChange, type Preferences, type Profile, type ProfileUpdate } from './schema'
 import { passwordChangeResponseDTO, userProfileDTO } from './upstream'
-
-/** Ephemeral per-process store for the stubbed preference (dev only). */
-const stubPreferences = new Map<string, Preferences>()
 
 function toProfile(dto: import('zod').infer<typeof userProfileDTO>): Profile {
   return {
@@ -54,7 +53,9 @@ export const settings = {
     if (sourceOf('preferences') === 'django') {
       return django(`/api/workspaces/${workspaceId}/preferences/`, preferences)
     }
-    return stubPreferences.get(workspaceId) ?? { digest_email: true }
+    // Nothing to read until the endpoint exists. The UI holds the toggle in
+    // browser state and says so, rather than us inventing shared server state.
+    return { digest_email: true }
   },
 
   async setPreferences(workspaceId: string, next: Preferences): Promise<Preferences> {
@@ -65,7 +66,8 @@ export const settings = {
         body: JSON.stringify(next),
       })
     }
-    stubPreferences.set(workspaceId, next)
-    return next
+    throw problem('not-implemented', {
+      detail: 'Digest preferences are not persisted until the backend endpoint exists.',
+    })
   },
 }
