@@ -45,9 +45,14 @@ def _run_single_extraction_worker(paper, definition, workspace):
     if not paper_text and paper.original_pdf_path and default_storage.exists(paper.original_pdf_path):
         try:
             with default_storage.open(paper.original_pdf_path, 'rb') as f:
-                pdf_bytes = f.read()
-            input_source = "multimodal_pdf"
-            paper_text = "Please analyze the attached full-text PDF document for dynamic parameter extraction."
+                raw_bytes = f.read()
+            from ..step_2_download.fetch import is_valid_pdf_binary
+            if is_valid_pdf_binary(raw_bytes):
+                pdf_bytes = raw_bytes
+                input_source = "multimodal_pdf"
+                paper_text = "Please analyze the attached full-text PDF document for dynamic parameter extraction."
+            else:
+                logger.warning(f"Stored file for paper {paper.id} at {paper.original_pdf_path} is not a valid PDF. Falling back to abstract.")
         except Exception as e:
             logger.warning(f"Error reading PDF binary for paper {paper.id}: {e}")
 

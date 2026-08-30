@@ -15,6 +15,17 @@ from .pdf_cache import try_reuse_cached_pdf, register_document_pdf
 logger = logging.getLogger(__name__)
 
 
+def is_valid_pdf_binary(file_bytes: bytes) -> bool:
+    """Validates that bytes constitute a valid PDF binary (starts with %PDF- and is not HTML/empty)."""
+    if not file_bytes or len(file_bytes) < 10:
+        return False
+    if not file_bytes.startswith(b'%PDF-'):
+        return False
+    if b'<html' in file_bytes[:100].lower() or b'<!doctype html' in file_bytes[:100].lower():
+        return False
+    return True
+
+
 def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
     close_old_connections()
     title_snippet = paper.title[:50] if paper.title else "Untitled"
@@ -80,6 +91,10 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
             provider = get_scraper_provider(paper.source_database or "arxiv")
             file_bytes = provider.download_file(pdf_source_url)
             if file_bytes and len(file_bytes) > 0:
+                if not is_valid_pdf_binary(file_bytes):
+                    logger.warning(f"⚠️ [NON-PDF CONTENT] Downloaded {len(file_bytes)} bytes from '{pdf_source_url}' for paper '{title_snippet}...' but content is not a valid PDF (HTML landing page or corrupted).")
+                    return {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": "Downloaded content is not a valid PDF (HTML/corrupt)"}
+
                 if default_storage.exists(target_path):
                     default_storage.delete(target_path)
                 saved_path = default_storage.save(target_path, ContentFile(file_bytes))

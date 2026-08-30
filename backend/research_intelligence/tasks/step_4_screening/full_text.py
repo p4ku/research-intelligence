@@ -65,8 +65,13 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
     if not md_text and paper.original_pdf_path and default_storage.exists(paper.original_pdf_path):
         try:
             with default_storage.open(paper.original_pdf_path, 'rb') as f:
-                pdf_bytes = f.read()
-            input_source = "multimodal_pdf"
+                raw_bytes = f.read()
+            from ..step_2_download.fetch import is_valid_pdf_binary
+            if is_valid_pdf_binary(raw_bytes):
+                pdf_bytes = raw_bytes
+                input_source = "multimodal_pdf"
+            else:
+                logger.warning(f"Stored file for paper {paper_id} at {paper.original_pdf_path} is not a valid PDF (e.g. 0 pages or HTML). Falling back to abstract.")
         except Exception as e:
             logger.warning(f"Failed reading PDF binary from {paper.original_pdf_path} for paper {paper_id}: {e}")
 
