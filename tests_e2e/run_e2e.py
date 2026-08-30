@@ -294,9 +294,10 @@ def main():
             # 2. Multi-turn chat
             top_papers = slr_results.get("top_papers", [])
             if top_papers:
-                from tests_e2e.client import APIClient, PipelineService
+                from tests_e2e.client import APIClient, AuthService, PipelineService
                 client = APIClient(config.base_url)
-                client.set_auth_token(config.password)
+                auth = AuthService(client)
+                auth.login(config.username, config.password)
                 pipeline_svc = PipelineService(client)
                 papers = pipeline_svc.list_papers(workspace_id=slr_results["workspace_id"])
                 if papers:
