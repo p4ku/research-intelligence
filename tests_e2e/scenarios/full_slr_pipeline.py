@@ -80,11 +80,11 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
 
         # Step 2: Create Workspace with Complete Dual-Stage Dynamic Criteria, Schemas, Prompts & Python Signal Score
         abstract_acceptance = (
-            "Accept research papers discussing artificial intelligence, machine learning, neural networks, "
-            "optimization algorithms, or quantum computing computational methods."
+            "Accept all academic research papers discussing algorithms, artificial intelligence, machine learning, "
+            "neural networks, optimization methods, or computational science."
         )
         abstract_rejection = (
-            "Reject only non-technical opinion articles or completely unrelated biology papers."
+            "Do not reject any technical or computer science research papers."
         )
         abstract_system_prompt = (
             "You are an expert AI Research Scanner. Screen the provided academic abstract against "
@@ -120,11 +120,11 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         }
 
         full_text_acceptance = (
-            "Accept research papers presenting algorithms, computational methods, machine learning models, "
-            "or mathematical optimization evaluations."
+            "Accept all research papers containing computational, algorithmic, mathematical, "
+            "or experimental technical evaluations."
         )
         full_text_rejection = (
-            "Reject only papers with zero technical or algorithmic discussion."
+            "Do not reject any technical or computer science research papers."
         )
         full_text_system_prompt = (
             "You are an expert AI Research Analyst. Perform a deep full-text evaluation of the provided "

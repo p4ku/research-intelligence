@@ -276,7 +276,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
 
         config = types.GenerateContentConfig(**config_args)
 
-        # 5. Call API with Exponential Backoff Retry Strategy for 429 / RESOURCE_EXHAUSTED
+        # 5. Call API with Exponential Backoff Retry Strategy for 429, 503, Timeouts, and Network Drop
         max_retries = kwargs.get("max_retries", 5)
         response = None
 
@@ -290,17 +290,24 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                 break
             except Exception as e:
                 err_str = str(e)
-                is_rate_limit = (
+                is_transient = (
                     "429" in err_str or
                     "RESOURCE_EXHAUSTED" in err_str or
                     "Resource exhausted" in err_str or
                     "Quota" in err_str or
-                    "rate limit" in err_str.lower()
+                    "rate limit" in err_str.lower() or
+                    "timed out" in err_str.lower() or
+                    "timeout" in err_str.lower() or
+                    "503" in err_str or
+                    "500" in err_str or
+                    "unavailable" in err_str.lower() or
+                    "connection" in err_str.lower() or
+                    "deadline" in err_str.lower()
                 )
 
-                if is_rate_limit and attempt < max_retries:
-                    delay = (2 ** attempt) + (0.2 * attempt)
-                    logger.warning(f"⚠️ [RESOURCE_EXHAUSTED / 429] Rate limit hit on attempt {attempt}/{max_retries} for model '{model_name}'. Retrying in {delay:.1f}s...")
+                if is_transient and attempt < max_retries:
+                    delay = (2 ** attempt) + (0.5 * attempt)
+                    logger.warning(f"⚠️ [TRANSIENT RETRY {attempt}/{max_retries}] Google LLM call failed for model '{model_name}': {err_str}. Retrying in {delay:.1f}s...")
                     time.sleep(delay)
                 else:
                     logger.exception(f"Error during Google LLM generation (attempt {attempt}/{max_retries}): {err_str}")
