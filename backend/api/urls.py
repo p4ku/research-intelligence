@@ -1,15 +1,10 @@
-from django.urls import path, re_path, include
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
     SpectacularSwaggerView,
 )
-
-
-def trigger_error(request):
-    division_by_zero = 1 / 0
-
 
 from .views.workspaces import WorkspaceViewSet
 from .views.scrapers import ScraperViewSet
@@ -38,8 +33,6 @@ router.register(r'reports', ReportViewSet, basename='report')
 router.register(r'activity-logs', UserActivityLogViewSet, basename='activity-log')
 
 urlpatterns = [
-    re_path(r'^sentry-debug/?$', trigger_error, name='api-sentry-debug-inner'),
-
     # OpenAPI 3.0 & Swagger UI
     path('schema/', SpectacularAPIView.as_view(), name='schema'),
     path('docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),

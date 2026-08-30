@@ -7,14 +7,7 @@ from drf_spectacular.views import (
 )
 from api.views.diagnostics import HealthCheckView, DeepDiagnosticsView
 
-
-def trigger_error(request):
-    division_by_zero = 1 / 0
-
-
 urlpatterns = [
-    re_path(r'^sentry-debug/?$', trigger_error, name='sentry-debug'),
-    re_path(r'^api/sentry-debug/?$', trigger_error, name='api-sentry-debug'),
     path('admin/', admin.site.urls),
 
     # OpenAPI 3.0 & Swagger UI routes
