@@ -25,4 +25,8 @@ export const dict: Record<string, string> = {
   'Designed for:': 'Konzipiert für:',
   'No workspace': 'Kein Arbeitsbereich',
   'Switch workspace': 'Arbeitsbereich wechseln',
+  // Route-group error boundary (src/app/(sidebar)/error.tsx). 'Retry' is shared
+  // with papers/error.tsx, which had no translation before.
+  'Something went wrong loading this page.': 'Beim Laden dieser Seite ist ein Fehler aufgetreten.',
+  Retry: 'Erneut versuchen',
 }
