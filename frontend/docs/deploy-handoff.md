@@ -24,7 +24,7 @@ repo's root is self-contained (`bun install` → `next build` standalone →
 
 ```yaml
   - name: sri-frontend
-    memory: 1G            # 512M is tight for a Next standalone server
+    memory: 512M          # deliberate: the CF org quota is tight; 1G when it allows
     env:
       NODE_ENV: production
       BACKEND_INTERNAL_URL: https://<the shared hostname>   # or the C2C internal route
