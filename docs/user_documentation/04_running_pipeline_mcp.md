@@ -54,9 +54,10 @@ This is the **primary recommended entrypoint** for running systematic reviews.
 
 #### Parameters:
 * `workspace_id` *(required)*: UUID of your target workspace.
-* `limit` *(optional, default 50)*: Maximum number of papers to harvest.
+* `limit` *(optional, default 50)*: Maximum number of candidate papers to harvest.
 * `date_range_days` *(optional)*: Filter papers published within the last N days (e.g., `30`, `90`, `365`).
 * `query_prefix` *(optional)*: Additional query keywords to prepend to all scraper queries.
+* `skip_abstract_screening` *(optional, boolean)*: Set to `true` to skip abstract screening and screen full text directly.
 * `reprocess_existing` *(optional, boolean)*: Set to `true` to re-screen and re-extract parameters from already downloaded workspace papers using modified criteria.
 * `notification_email` *(optional)*: Email address to notify upon run completion.
 
@@ -85,7 +86,7 @@ This is the **primary recommended entrypoint** for running systematic reviews.
 ---
 
 ### 2. Monitoring Real-Time Status (`check_run_status`)
-`check_run_status` is the **primary non-blocking status inspector**. It returns live metrics, percentage completion, and a rendered ASCII progress card.
+`check_run_status` is the **primary non-blocking status inspector**. It returns live metrics, percentage completion, fine-grained TQDM progress bars, and a rendered ASCII progress card.
 
 #### Tool Invocation Example:
 ```json
@@ -105,14 +106,14 @@ This is the **primary recommended entrypoint** for running systematic reviews.
 #### 📋 Execution Stages:
 | Stage | Status | Details |
 | :--- | :--- | :--- |
-| **1. Search & Ingestion** | ✅ Completed | 50 papers discovered (ArXiv: 25, OpenAlex: 25) |
-| **2. PDF Download** | ✅ Completed | 48 PDFs stored (2 paywalled) |
-| **3. Layout OCR** | ⏭️ Skipped | Multimodal direct ingestion active |
-| **4A. Abstract Screening** | ✅ Completed | 48 screened (22 passed, 26 rejected) |
-| **4B. Full-Text Screening**| 🔄 Running | 16/22 evaluated (8 accepted, 8 rejected) |
-| **5. Parameter Extraction**| ⏳ Pending | Awaiting full-text screening completion |
-| **6. Signal Scoring** | ⏳ Pending | Python scoring formula queued |
-| **7. Executive Briefing** | ⏳ Pending | Report compilation queued |
+| **1. Search & Ingestion** | ✅ Done (4.2s) | 50 papers discovered (ArXiv: 25, OpenAlex: 25) |
+| **2. Abstract Screening** | ✅ Done (18.1s)| 42 screened (18 passed, 24 rejected) |
+| **3. Parallel PDF Download**| ✅ Done (12.4s)| 18 PDFs stored (0 paywalled, SHA-256 cached) |
+| **4. Layout OCR Parsing** | ⏭️ Skipped | Direct multimodal Gemini 3.7 Flash active |
+| **5. Full-Text Screening** | 🔄 In Progress | [██████░░░░░░] (12/18 items • 66.7%) |
+| **6. Dynamic Extraction** | ⏳ Pending | Awaiting full-text screening completion |
+| **7. Signal Score Ranking**| ⏳ Pending | Python scoring formula queued |
+| **8. Executive Reporting** | ⏳ Pending | Report compilation & email digest queued |
 ```
 
 ---
@@ -126,6 +127,7 @@ This is the **primary recommended entrypoint** for running systematic reviews.
 | `abort_research_agent` | `process_id` | Cancels the active process and terminates background Celery workers. |
 | `list_research_agents` | `workspace_id` | Lists all historical and active processes with runtimes and completion states. |
 | `get_research_agent_status` | `process_id` | Returns low-level diagnostic logs, task IDs, and storage footprints. |
+| `get_pipeline_logs` | `process_id`, `limit` | Live terminal telemetry and worker logs inspector. |
 
 ---
 

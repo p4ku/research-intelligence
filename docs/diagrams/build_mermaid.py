@@ -13,22 +13,23 @@ os.makedirs(diagrams_dir, exist_ok=True)
 # 1. High-Level System Architecture Diagram in Mermaid with Blue Pod styling
 architecture_mermaid = """graph TB
     subgraph Users ["Users Pod"]
-        usr[Research Scientists]
+        usr[Research Scientists & MCP Clients]
     end
     style Users fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph Ingress ["Nginx Ingress Pod"]
-        nginx[Nginx Ingress Proxy]
+    subgraph Ingress ["Ingress & Gateway Pod"]
+        nginx[Reverse Proxy & Cloud Foundry Router]
     end
     style Ingress fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph Frontend ["Frontend Dashboard Pod"]
-        frontend[Next.js SPA / Dashboard]
+        frontend[Next.js Dashboard / SPA]
     end
     style Frontend fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph Backend ["Backend API Pod"]
-        api[Django REST API]
+    subgraph Backend ["Backend API & MCP Server Pods"]
+        api[Django REST API & Admin]
+        mcp[FastMCP SSE Server]
     end
     style Backend fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
@@ -38,104 +39,131 @@ architecture_mermaid = """graph TB
     style DataState fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph Workers ["Celery Pipeline Workers Pod"]
-        beat[Celery Beat <br> Cron]
-        w1[Celery Pipeline Workers]
+        beat[Celery Beat <br> Cron Schedules]
+        w1[Celery Pipeline Workers <br> Distributed Steps 1-8]
     end
     style Workers fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph Database ["Database Pod"]
-        db[(PostgreSQL <br> pgvector + App DB)]
+        db[(PostgreSQL + pgvector <br> Workspace & Document DB)]
     end
     style Database fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph Storage ["Object Storage Pod"]
-        minio[(MinIO <br> S3 Object Storage)]
+        minio[(S3 / MinIO Storage <br> PDFs & Layout Markdown)]
     end
     style Storage fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     usr ==>|HTTPS / WSS| nginx
     nginx --> frontend
     nginx --> api
-    frontend ==>|REST / RAG Query| api
+    nginx --> mcp
+    frontend ==>|REST Query| api
+    mcp ==>|Tool Execution| api
     api -.->|Task Push| broker
     beat -.->|Schedules| broker
     broker ==>|Task Pull| w1
-    w1 ==>|DB Write| db
-    api ==>|SQL / pgvector| db
+    w1 ==>|DB State & Locks| db
+    api ==>|SQL / Relational| db
     w1 -.->|Task Status| broker
     api -.->|Cache / Session| broker
-    api ==>|Manage / Link| minio
-    w1 ==>|Read / Write Docs| minio
+    api ==>|Manage Storage| minio
+    w1 ==>|Read / Write Documents| minio
 
     %% Link styles for custom colored arrows
     linkStyle 0 stroke:#0055ff,stroke-width:3px;
     linkStyle 1 stroke:#0055ff,stroke-width:2px;
     linkStyle 2 stroke:#0055ff,stroke-width:2px;
-    linkStyle 3 stroke:#0088cc,stroke-width:3px;
-    linkStyle 4 stroke:#8c1aff,stroke-width:2px;
-    linkStyle 5 stroke:#8c1aff,stroke-width:2px;
-    linkStyle 6 stroke:#8c1aff,stroke-width:3px;
-    linkStyle 7 stroke:#cc0000,stroke-width:3px;
-    linkStyle 8 stroke:#cc0000,stroke-width:3px;
-    linkStyle 9 stroke:#e65c00,stroke-width:2px;
-    linkStyle 10 stroke:#e65c00,stroke-width:2px;
-    linkStyle 11 stroke:#00aa55,stroke-width:3px;
-    linkStyle 12 stroke:#00aa55,stroke-width:3px;
+    linkStyle 3 stroke:#0055ff,stroke-width:2px;
+    linkStyle 4 stroke:#0088cc,stroke-width:3px;
+    linkStyle 5 stroke:#0088cc,stroke-width:3px;
+    linkStyle 6 stroke:#8c1aff,stroke-width:2px;
+    linkStyle 7 stroke:#8c1aff,stroke-width:2px;
+    linkStyle 8 stroke:#8c1aff,stroke-width:3px;
+    linkStyle 9 stroke:#cc0000,stroke-width:3px;
+    linkStyle 10 stroke:#cc0000,stroke-width:3px;
+    linkStyle 11 stroke:#e65c00,stroke-width:2px;
+    linkStyle 12 stroke:#e65c00,stroke-width:2px;
+    linkStyle 13 stroke:#00aa55,stroke-width:3px;
+    linkStyle 14 stroke:#00aa55,stroke-width:3px;
 """
 
 # 2. Ingestion Pipeline Stages Diagram in Mermaid with Pod styling
 pipeline_mermaid = """graph TB
-    subgraph P1 ["Ingestion Node"]
-        scrapers[1. Scrapers / Search <br> arXiv, OpenAlex, Lens.org]
+    subgraph P1 ["Stage 1: Ingestion Node"]
+        search[1. Search & Deduplication <br> arXiv, OpenAlex, Lens.org]
     end
     style P1 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph P2 ["Converter Node"]
-        ocr[2. OCR / PDF-to-MD <br> Docling / Mistral OCR]
+    subgraph P2 ["Stage 2: AI Triage Node"]
+        abstract_screen[2. Abstract Screening <br> Fast Title & Abstract Evaluation via Gemini 3.7 Flash]
     end
     style P2 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph P3 ["Evaluation Node"]
-        screening[3. Screening <br> Two-Stage Abstract & Full]
+    subgraph P3 ["Stage 3: Fetch Node"]
+        download[3. Parallel PDF Download <br> Content-Addressable DocumentRegistry SHA-256 Cache]
     end
     style P3 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph P4 ["Data Extraction Node"]
-        extraction[4. Extraction <br> Claims, Parameters & TRL]
+    subgraph P4 ["Stage 4: Converter Node (Optional)"]
+        ocr[4. Layout OCR Parsing <br> PyPDF / Mistral OCR / Gemini Vision - Skipped if None]
     end
     style P4 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph P5 ["Intelligence Node"]
-        research_intel[5. Research Intelligence <br> Hypothesis & Insights]
+    subgraph P5 ["Stage 5: Deep Evaluation Node"]
+        full_text_screen[5. Full-Text Screening <br> Deep Multimodal Native PDF Analysis via Gemini 3.7 Flash]
     end
     style P5 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph KB ["Knowledge Base Pod"]
-        kb[(PostgreSQL pgvector <br> RAG + Graph)]
+    subgraph P6 ["Stage 6: Parameter Extraction Node"]
+        extraction[6. Parameter & Claim Extraction <br> Dynamic JSON Schemas, Evidence Quotes & Confidence]
+    end
+    style P6 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph P7 ["Stage 7: Ranking Node"]
+        signal_score[7. Composite Signal Score <br> AST-Secured Sandboxed Custom Python Math Formula]
+    end
+    style P7 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph P8 ["Stage 8: Reporting Node"]
+        reporting[8. Executive Narrative & Alerts <br> Briefing Synthesis & Transactional Mailgun Alerts]
+    end
+    style P8 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph KB ["Persistent Storage"]
+        kb[(PostgreSQL + Storage <br> Workspace DB & Document Registry)]
     end
     style KB fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph UI ["User Interface"]
-        user[Research Insights Dashboard]
+        user[Research Insights & Technology Scorecard]
     end
     style UI fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    scrapers ==>|PDF File| ocr
-    ocr ==>|Markdown Text| screening
-    screening ==>|Passed Papers| extraction
-    extraction ==>|Structured JSON| research_intel
+    search ==>|Candidate Papers| abstract_screen
+    abstract_screen ==>|Abstract Passed| download
+    download ==>|PDF Files| ocr
+    ocr ==>|Binary PDF / OCR Text| full_text_screen
+    full_text_screen ==>|Accepted Papers| extraction
+    extraction ==>|Extracted Parameters| signal_score
+    signal_score ==>|Ranked Scorecards| reporting
 
-    extraction -.->|Save Claims| kb
-    research_intel ==>|Read / Write Graph| kb
-    kb ==>|Serve UI| user
+    extraction -.->|Save Extractions| kb
+    signal_score -.->|Save Signal Scores| kb
+    reporting ==>|Deliver Scorecard| user
+    kb ==>|Serve Queries| user
 
     linkStyle 0 stroke:#0055ff,stroke-width:3px;
     linkStyle 1 stroke:#0055ff,stroke-width:3px;
     linkStyle 2 stroke:#0055ff,stroke-width:3px;
     linkStyle 3 stroke:#0055ff,stroke-width:3px;
-    linkStyle 4 stroke:#cc0000,stroke-width:2px;
-    linkStyle 5 stroke:#cc0000,stroke-width:3px;
-    linkStyle 6 stroke:#0088cc,stroke-width:3px;
+    linkStyle 4 stroke:#0055ff,stroke-width:3px;
+    linkStyle 5 stroke:#0055ff,stroke-width:3px;
+    linkStyle 6 stroke:#0055ff,stroke-width:3px;
+    linkStyle 7 stroke:#cc0000,stroke-width:2px;
+    linkStyle 8 stroke:#cc0000,stroke-width:2px;
+    linkStyle 9 stroke:#00aa55,stroke-width:3px;
+    linkStyle 10 stroke:#0088cc,stroke-width:3px;
 """
 
 # 3. LLM Providers Diagram in Mermaid with Blue Pod styling
@@ -154,14 +182,12 @@ llm_providers_mermaid = """graph LR
     subgraph Drivers ["Concrete Drivers"]
         google[GoogleLLMProvider <br> google.py]
         openrouter[OpenRouterLLMProvider <br> openrouter.py]
-        openai[OpenAILLMProvider <br> openai.py - Future]
     end
     style Drivers fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph SaaS ["External API Endpoints"]
-        gemini[(Google Gemini API)]
-        or_api[(OpenRouter API)]
-        oa_api[(OpenAI API)]
+        gemini[(Google Vertex AI / Gemini 3.7 Flash)]
+        or_api[(OpenRouter API Gateway)]
     end
     style SaaS fill:#f2f2f2,stroke:#777777,stroke-width:2px
 
@@ -169,26 +195,22 @@ llm_providers_mermaid = """graph LR
     factory -.->|Implements| interface
     interface ==> google
     interface ==> openrouter
-    interface -.->|Future| openai
 
-    google ==>|HTTPS| gemini
+    google ==>|HTTPS / Vertex| gemini
     openrouter ==>|HTTPS| or_api
-    openai -.->|HTTPS| oa_api
 
     linkStyle 0 stroke:#0055ff,stroke-width:3px;
     linkStyle 1 stroke:#0066cc,stroke-width:2px;
     linkStyle 2 stroke:#0066cc,stroke-width:3px;
     linkStyle 3 stroke:#0066cc,stroke-width:3px;
-    linkStyle 4 stroke:#0066cc,stroke-width:2px,stroke-dasharray: 5 5;
-    linkStyle 5 stroke:#33cc33,stroke-width:3px;
-    linkStyle 6 stroke:#ff9900,stroke-width:3px;
-    linkStyle 7 stroke:#9933ff,stroke-width:2px,stroke-dasharray: 5 5;
+    linkStyle 4 stroke:#33cc33,stroke-width:3px;
+    linkStyle 5 stroke:#ff9900,stroke-width:3px;
 """
 
 # 4. OCR Providers Diagram in Mermaid with Blue Pod styling
 ocr_providers_mermaid = """graph LR
     subgraph Caller ["App Layer"]
-        caller[Celery Task <br> run_ocr_conversion]
+        caller[Celery Step 4 Task <br> execute_ocr_job]
     end
     style Caller fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
@@ -199,28 +221,28 @@ ocr_providers_mermaid = """graph LR
     style Interface fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph Drivers ["Concrete Drivers"]
-        docling[DoclingOCRProvider <br> docling_provider.py]
+        gemini_ocr[GeminiOCRProvider <br> gemini_provider.py]
         mistral[MistralOCRProvider <br> mistral_provider.py]
         pypdf[PyPDFOCRProvider <br> pypdf_provider.py]
     end
     style Drivers fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph Backend ["Processing Backends"]
-        docling_svc[Docling Service <br> Local Docker / CPU]
-        mistral_api[(Mistral OCR API <br> Cloud Fallback)]
-        pypdf_eng[PyPDF Engine <br> In-Process]
+        gemini_api[(Google Gemini Vision <br> Multimodal API)]
+        mistral_api[(Mistral OCR API <br> Cloud Engine)]
+        pypdf_eng[PyPDF Engine <br> In-Process Baseline]
     end
     style Backend fill:#f2f2f2,stroke:#777777,stroke-width:2px
 
     caller ==>|Get Provider| factory
     factory -.->|Implements| interface
-    interface ==> docling
+    interface ==> gemini_ocr
     interface ==> mistral
     interface ==> pypdf
 
-    docling ==>|gRPC / HTTP| docling_svc
+    gemini_ocr ==>|HTTPS / Vertex| gemini_api
     mistral ==>|HTTPS| mistral_api
-    pypdf ==>|Direct Call| pypdf_eng
+    pypdf ==>|In-Process Call| pypdf_eng
 
     linkStyle 0 stroke:#0055ff,stroke-width:3px;
     linkStyle 1 stroke:#0066cc,stroke-width:2px;

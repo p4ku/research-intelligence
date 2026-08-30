@@ -11,11 +11,11 @@ This guide explains how to trigger, monitor, and manage end-to-end autonomous re
 
 ## 🔄 Autonomous Execution Architecture
 
-When you trigger a run, the SRI Autonomous State Engine coordinates a sequential 7-stage pipeline across Celery background workers:
+When you trigger a run, the SRI Autonomous State Engine coordinates an 8-stage Directed Acyclic Graph (DAG) pipeline across Celery background workers:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                 THE 7-STAGE SLR PIPELINE EXECUTION LIFECYCLE                           │
+│                                 THE 8-STAGE SLR PIPELINE EXECUTION LIFECYCLE                           │
 └────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
  ┌───────────────────────────────────┐
@@ -23,27 +23,31 @@ When you trigger a run, the SRI Autonomous State Engine coordinates a sequential
  └─────────────────┬─────────────────┘
                    ▼
  ┌───────────────────────────────────┐
- │ 2. Parallel PDF Download          │ ──► Fetches full-text PDFs to unified storage with SHA256 caching
+ │ 2. Abstract Screening             │ ──► Fast title & abstract evaluation (Gemini 3.7 Flash)
  └─────────────────┬─────────────────┘
                    ▼
  ┌───────────────────────────────────┐
- │ 3. Layout OCR Conversion          │ ──► Markdown extraction (Auto-skipped if OCR=None for raw multimodal)
+ │ 3. Parallel PDF Download          │ ──► Fetches PDFs ONLY for abstract-passed papers (SHA256 cache)
  └─────────────────┬─────────────────┘
                    ▼
  ┌───────────────────────────────────┐
- │ 4. Dual-Stage Screening           │ ──► Abstract fast screening (4A) + Multimodal full-text PDF review (4B)
+ │ 4. Layout OCR Conversion          │ ──► Markdown extraction (Auto-skipped if OCR=None for raw multimodal)
  └─────────────────┬─────────────────┘
                    ▼
  ┌───────────────────────────────────┐
- │ 5. Parameter Extraction           │ ──► Schema-constrained Pydantic/JSON extraction with evidence quotes
+ │ 5. Full-Text Screening            │ ──► Deep multimodal PDF evaluation against inclusion/exclusion criteria
  └─────────────────┬─────────────────┘
                    ▼
  ┌───────────────────────────────────┐
- │ 6. Composite Signal Score         │ ──► Evaluates custom Python AST formula to rank accepted papers
+ │ 6. Parameter Extraction           │ ──► Schema-constrained Pydantic/JSON extraction with evidence quotes
  └─────────────────┬─────────────────┘
                    ▼
  ┌───────────────────────────────────┐
- │ 7. Executive Reporting & Digest   │ ──► Generates executive narrative and dispatches Mailgun email digests
+ │ 7. Composite Signal Score         │ ──► Evaluates custom Python AST formula to rank accepted papers
+ └─────────────────┬─────────────────┘
+                   ▼
+ ┌───────────────────────────────────┐
+ │ 8. Executive Reporting & Digest   │ ──► Generates executive narrative and dispatches Mailgun email digests
  └───────────────────────────────────┘
 ```
 
@@ -79,7 +83,7 @@ You can monitor your research agent's progress directly from the Admin panel:
 
 ### 1. Research Agent Process Detail View
 Navigate to your active process to inspect:
-* **Current State**: `initialized` ➡️ `search` ➡️ `download` ➡️ `screening` ➡️ `extraction` ➡️ `signal_score` ➡️ `completed`.
+* **Current State**: `initialized` ➡️ `search` ➡️ `abstract_screening` ➡️ `download` ➡️ `ocr` ➡️ `full_text_screening` ➡️ `extraction` ➡️ `signal_score` ➡️ `reporting` ➡️ `completed`.
 * **Progress Bar & Timeline**: Dynamic percentage completion.
 * **Cost & Token Tracker**: Real-time USD budget spend and token usage counters.
 
@@ -94,32 +98,28 @@ Navigate to your active process to inspect:
 | Component Step | Status | Key Metrics Displayed |
 | :--- | :--- | :--- |
 | **Step 1: Search & Ingestion** | `completed` | 50 papers discovered, 42 unique (8 duplicates pruned) |
-| **Step 2: PDF Download** | `completed` | 40 PDFs successfully downloaded (2 open-access missing) |
-| **Step 3: OCR Conversion** | `skipped` | OCR skipped (`ocr_provider=None`) for native multimodal ingest |
-| **Step 4A: Abstract Screening** | `completed` | 40 screened: 18 passed criteria, 22 excluded |
-| **Step 4B: Full-Text Screening** | `completed` | 18 evaluated: 9 accepted, 9 rejected with AI reasoning |
-| **Step 5: Parameter Extraction** | `completed` | 18 extractions generated across 2 schemas with evidence quotes |
-| **Step 6: Signal Score** | `completed` | 9 papers scored (Top Score: 9.4 / 10.0) |
-| **Step 7: Executive Reporting** | `completed` | Briefing compiled and email digest dispatched |
-
-### 3. Viewing Live Error Logs and Traces
-If an individual step experiences a transient network or API failure:
-1. Click on the specific **Component Run** item.
-2. Inspect the **Logs** and **Error Traceback** text fields.
-3. SRI features automatic retry policies for rate-limited upstream academic APIs.
+| **Step 2: Abstract Screening** | `completed` | 42 screened: 18 passed criteria, 24 excluded |
+| **Step 3: PDF Download** | `completed` | 18 PDFs successfully downloaded for passed papers (SHA256 cached) |
+| **Step 4: Layout OCR Conversion** | `skipped` | OCR skipped (`ocr_provider=None`) for native multimodal ingest |
+| **Step 5: Full-Text Screening** | `completed` | 18 evaluated: 9 accepted, 9 rejected with AI reasoning |
+| **Step 6: Parameter Extraction** | `completed` | 27 parameters extracted across 9 accepted papers |
+| **Step 7: Composite Signal Score**| `completed` | 9 papers scored (Top: 94.2/100, Avg: 81.5/100) |
+| **Step 8: Executive Reporting** | `completed` | Executive briefing compiled and email digest dispatched |
 
 ---
 
-## ⏸️ Managing Active Processes (Pause / Resume / Abort)
+## 🔄 Rerunning Pipeline from a Specific Step Forward
 
-From the Research Agent Process page in Django Admin:
-* **Pause Run**: Change `state` to `paused` and click **Save**. The state machine safely freezes execution after the currently running paper finishes.
-* **Resume Run**: Change `state` to `running` and click **Save**. The engine automatically picks up from the last uncompleted step without re-doing completed work.
-* **Abort Run**: Change `state` to `aborted`. Background Celery workers are signaled to terminate immediately.
+If you updated full-text criteria or adjusted an extraction schema, you don't need to re-scrape or re-download papers!
+
+1. In the Admin sidebar, navigate to **Component Runs**.
+2. Select the component run where you want execution to restart from (e.g. `Full-Text Screening` or `Extraction`).
+3. Under the **Action** dropdown, select **🔄 Rerun Pipeline from Selected Step Forward**.
+4. Click **Go**.
+5. The DAG engine resets the downstream nodes, dispatches fresh Celery tasks, and continues execution automatically.
 
 ---
 
 ## 🎯 Next Steps
-Once your run is complete (`state == 'completed'`), inspect your results:
-* Explore the full results matrix and paper scorecard: **[Guide 05: Viewing Results via Admin](./05_viewing_results_admin.md)**
-* Deep-dive into specific papers with AI chat: **[Guide 07: Chatting with Papers via MCP](./07_chatting_with_papers_mcp.md)**
+* Learn how to view technology scorecards and extracted parameter tables: **[Guide 05: Viewing Results via Admin](./05_viewing_results_admin.md)**.
+* Learn how to monitor runs with Claude Code: **[Guide 04: Running Pipelines via MCP](./04_running_pipeline_mcp.md)**.

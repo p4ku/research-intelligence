@@ -1,6 +1,6 @@
 graph LR
     subgraph Caller ["App Layer"]
-        caller[Celery Task <br> run_ocr_conversion]
+        caller[Celery Step 4 Task <br> execute_ocr_job]
     end
     style Caller fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
@@ -11,28 +11,28 @@ graph LR
     style Interface fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph Drivers ["Concrete Drivers"]
-        docling[DoclingOCRProvider <br> docling_provider.py]
+        gemini_ocr[GeminiOCRProvider <br> gemini_provider.py]
         mistral[MistralOCRProvider <br> mistral_provider.py]
         pypdf[PyPDFOCRProvider <br> pypdf_provider.py]
     end
     style Drivers fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph Backend ["Processing Backends"]
-        docling_svc[Docling Service <br> Local Docker / CPU]
-        mistral_api[(Mistral OCR API <br> Cloud Fallback)]
-        pypdf_eng[PyPDF Engine <br> In-Process]
+        gemini_api[(Google Gemini Vision <br> Multimodal API)]
+        mistral_api[(Mistral OCR API <br> Cloud Engine)]
+        pypdf_eng[PyPDF Engine <br> In-Process Baseline]
     end
     style Backend fill:#f2f2f2,stroke:#777777,stroke-width:2px
 
     caller ==>|Get Provider| factory
     factory -.->|Implements| interface
-    interface ==> docling
+    interface ==> gemini_ocr
     interface ==> mistral
     interface ==> pypdf
 
-    docling ==>|gRPC / HTTP| docling_svc
+    gemini_ocr ==>|HTTPS / Vertex| gemini_api
     mistral ==>|HTTPS| mistral_api
-    pypdf ==>|Direct Call| pypdf_eng
+    pypdf ==>|In-Process Call| pypdf_eng
 
     linkStyle 0 stroke:#0055ff,stroke-width:3px;
     linkStyle 1 stroke:#0066cc,stroke-width:2px;

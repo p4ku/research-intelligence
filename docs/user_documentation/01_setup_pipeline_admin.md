@@ -16,11 +16,11 @@ This guide provides a comprehensive walkthrough for researchers, project leads, 
 
 ## 🗺️ Setup Workflow Overview
 
-Setting up a complete intelligence pipeline involves 5 straightforward steps:
+Setting up a complete intelligence pipeline involves 6 straightforward steps:
 
 ```
 ┌───────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│                                 5-STEP PIPELINE CONFIGURATION IN ADMIN                                │
+│                                 6-STEP PIPELINE CONFIGURATION IN ADMIN                                │
 └───────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
  ┌─────────────────────┐       ┌─────────────────────┐       ┌─────────────────────┐
@@ -30,12 +30,16 @@ Setting up a complete intelligence pipeline involves 5 straightforward steps:
  └─────────────────────┘       └─────────────────────┘       └─────────────────────┘
                                                                         │
                                                                         ▼
- ┌─────────────────────┐                                     ┌─────────────────────┐
- │  Ready for Launch!  │ ◄────────────────────────────────── │  4. Define Targets  │
- │  • Launch Agent     │       ┌─────────────────────┐       │  • Custom JSON Spec │
- │  • Realtime Tracker │ ◄──── │  5. Scoring Formula │ ◄──── │  • Exit Metrics     │
- └─────────────────────┘       │  • Python AST Math  │       └─────────────────────┘
-                               └─────────────────────┘
+ ┌─────────────────────┐       ┌─────────────────────┐       ┌─────────────────────┐
+ │  Ready for Launch!  │ ◄──── │  6. Export / Import │ ◄──── │  4. Define Targets  │
+ │  • Launch Agent     │       │  • Sync Staging->Prd│       │  • Custom JSON Spec │
+ │  • Realtime Tracker │ ◄──── │  • Overwrite Choice │ ◄──── │  • Exit Metrics     │
+ └─────────────────────┘       └─────────────────────┘       └─────────────────────┘
+                                          ▲                             ▲
+                                          │     ┌─────────────────────┐ │
+                                          └──── │  5. Scoring Formula │ ┘
+                                                │  • Python AST Math  │
+                                                └─────────────────────┘
 ```
 
 ![SRI Admin Dashboard](./images/02_admin_dashboard.png)
@@ -54,7 +58,7 @@ A **Workspace** is an isolated research initiative with dedicated inclusion/excl
 2. Under the **Research Intelligence** section, click **Workspaces** ➡️ **+ Add Workspace** (or edit an existing one).
 3. Fill in the core project metadata:
    * **Name**: `Quantum Computing in Logistics & Supply Chain 2026`
-   * **Description**: Comprehensive review of fault-tolerant quantum algorithms applied to vehicle routing and warehouse optimization.
+   * **Reasoning Effort**: `medium` *(Chain of Thought thinking token budget for Gemini 3.7 Flash)*.
 
 ![Workspace Detail & Criteria Configuration](./images/04_workspace_detail.png)
 *Figure 4: Workspace configuration page with dual-stage screening criteria and Python signal score formula.*
@@ -63,7 +67,7 @@ A **Workspace** is an isolated research initiative with dedicated inclusion/excl
 SRI uses a two-stage screening funnel to save time and compute costs.
 
 #### A. Stage 1: Abstract Screening Criteria (Fast Filter)
-Evaluated strictly against paper titles and abstracts.
+Evaluated strictly against paper titles and abstracts before downloading PDFs.
 * **Abstract Acceptance Criteria**:
   ```text
   Accept papers presenting quantum algorithms (VQE, QAOA, quantum annealing, or fault-tolerant gate-based approaches) applied to combinatorial optimization in supply chain, logistics, vehicle routing, or inventory management.
@@ -74,7 +78,7 @@ Evaluated strictly against paper titles and abstracts.
   ```
 
 #### B. Stage 2: Full-Text Screening Criteria (Deep Multimodal Verification)
-Evaluated directly against the raw full-length PDF document using multimodal Gemini 3.7.
+Evaluated directly against the raw full-length PDF document using multimodal Gemini 3.7 Flash.
 * **Full-Text Acceptance Criteria**:
   ```text
   Accept only if the full paper provides explicit mathematical formulations of the problem, reports concrete quantum circuit depths or simulation benchmark results, and compares performance against classical state-of-the-art baselines.
@@ -108,7 +112,11 @@ Collaborate securely with team members and ensure automated briefing delivery up
 
 ### Adding Notification Subscribers
 Keep executive stakeholders informed automatically:
-* In the **Workspace Subscribers** inline table, add the email addresses of stakeholders who should receive the automated executive HTML email report and parameter matrix when an SLR run finishes.
+* In the **Workspace Subscribers** inline table, add the email addresses of stakeholders and choose their **Subscription Type**:
+  * `Result Report (Scorecard & Findings)`: Receives parameter scorecards and top papers.
+  * `Pipeline Errors (Failure Alerts)`: Receives alerts if an issue occurs.
+  * `Pipeline Status (Execution Digest)`: Receives step progress reports.
+  * `All Notifications (Full Broadcast)`: Full broadcast of all run events.
 
 ---
 
@@ -126,7 +134,6 @@ Scrapers define what academic databases to search and what query strings to exec
      * `arxiv` — ArXiv e-Prints (Physics, CS, Math, Quant-Bio).
      * `openalex` — Global bibliographic catalog across 250M+ scientific works.
      * `lens` — Scholarly literature and global patent databases.
-     * `pubmed` — Biomedical and life sciences literature.
    * **Search Query**:
      * *For ArXiv*: `cat:quant-ph AND (all:"supply chain" OR all:"vehicle routing" OR all:"logistics")`
      * *For OpenAlex*: `quantum computing logistics vehicle routing optimization`
@@ -220,6 +227,32 @@ return round(min(10.0, score), 2)
 ```
 
 3. Click **Save**.
+
+---
+
+## 📦 Step 6: Export & Import Configurations (Staging ➔ Production Sync)
+
+When you design, test, and fine-tune a workspace on **Staging**, you can seamlessly export and import the entire configuration to **Production**:
+
+### Exporting from Staging
+1. On Staging Admin, go to **Workspaces**.
+2. Check the box next to your workspace(s).
+3. Under the **Action** dropdown, select **📦 Export Workspace Configuration (JSON)** and click **Go**.
+4. A complete `.json` configuration file is downloaded to your computer containing:
+   * Dual-stage screening criteria & dynamic prompts
+   * All Extraction Definitions and JSON schemas
+   * Scrapers and search queries
+   * Subscribers and email alerts
+   * Custom Python Signal Score AST formulas
+
+### Importing to Production
+1. On Production Admin, go to **Workspaces**.
+2. Click the green **📥 Import Configuration** button in the top right.
+3. Upload the `.json` file (or paste JSON content directly).
+4. Choose the overwrite mode:
+   * **YES — Overwrite & Fine-Tune Existing Items** *(Recommended)*: Updates existing workspace rules, criteria, and extraction definitions in-place without losing paper history or run data.
+   * **NO — Do Not Overwrite (Skip Existing Items)**: Only creates new workspaces and items.
+5. Click **📥 Import / Apply Configuration**.
 
 ---
 
