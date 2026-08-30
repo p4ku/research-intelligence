@@ -116,7 +116,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
                     "description": "High level category describing why the paper passed or failed"
                 }
             },
-            "required": ["passed", "reasoning", "evidence_quotes", "decision_category"]
+            "required": ["passed", "reasoning"]
         }
 
         full_text_acceptance = (
@@ -163,7 +163,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
                     "description": "High level category describing why the paper passed or failed full-text evaluation"
                 }
             },
-            "required": ["passed", "reasoning", "evidence_quotes", "fit_score", "decision_category"]
+            "required": ["passed", "reasoning"]
         }
 
         signal_score_code = (

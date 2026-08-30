@@ -394,7 +394,9 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         if "mock" in model_name:
             model_name = "gemini-3.7-flash"
 
-        client = self._get_client(location=kwargs.get("location") or self.location or "eu")
+        raw_loc = kwargs.get("location") or self.location or os.environ.get("GOOGLE_CLOUD_LOCATION") or os.environ.get("LOCATION")
+        client_location = "europe-west1" if (raw_loc in ("eu", "europe") or not raw_loc) else raw_loc
+        client = self._get_client(location=client_location)
 
         contents = []
         f_bytes = file_bytes or pdf_bytes
@@ -483,7 +485,9 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         if "mock" in model_name:
             model_name = "gemini-3.7-flash"
 
-        client = self._get_client(location=kwargs.get("location") or self.location or "eu")
+        raw_loc = kwargs.get("location") or self.location or os.environ.get("GOOGLE_CLOUD_LOCATION") or os.environ.get("LOCATION")
+        client_location = "europe-west1" if (raw_loc in ("eu", "europe") or not raw_loc) else raw_loc
+        client = self._get_client(location=client_location)
         try:
             cache_config = types.CreateCachedContentConfig(
                 contents=contents if isinstance(contents, list) else [contents],
