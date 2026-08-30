@@ -129,7 +129,7 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
 
 
 @shared_task(bind=True)
-def execute_pdf_download_job(self, component_run_id: str, limit: int = 50, max_workers: int = 8):
+def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max_workers: int = 8):
     """
     Celery worker task executing Step 2 (PDF Binary Download) for papers in a ComponentRun job.
     Downloads PDF binaries concurrently using a ThreadPoolExecutor.
@@ -165,7 +165,8 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = 50, max_w
 
     try:
         start_time = time.time()
-        papers = list(Paper.objects.filter(pipeline_run=pipeline_run)[:limit])
+        papers_qs = Paper.objects.filter(pipeline_run=pipeline_run)
+        papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
         downloaded_count = 0
         cached_count = 0
         skipped_count = 0

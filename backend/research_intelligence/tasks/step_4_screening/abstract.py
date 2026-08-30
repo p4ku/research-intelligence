@@ -171,7 +171,7 @@ def _screen_paper_task(paper, workspace_obj):
 
 
 @shared_task(bind=True)
-def execute_screening_job(self, component_run_id: str, limit: int = 50, max_workers: int = 8):
+def execute_screening_job(self, component_run_id: str, limit: int = None, max_workers: int = 8):
     """
     Celery worker task executing Step 4 (Abstract Screening) for papers in a ComponentRun job.
     Executes paper screening concurrently using a ThreadPoolExecutor.
@@ -214,7 +214,8 @@ def execute_screening_job(self, component_run_id: str, limit: int = 50, max_work
         worker_concurrency = 1
 
     try:
-        papers = list(Paper.objects.filter(pipeline_run=pipeline_run)[:limit])
+        papers_qs = Paper.objects.filter(pipeline_run=pipeline_run)
+        papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
         passed_count = 0
         rejected_count = 0
         withdrawn_count = 0

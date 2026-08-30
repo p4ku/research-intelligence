@@ -15,7 +15,7 @@ def start_research_agent_logic(
     user,
     workspace_id: str,
     name: str = None,
-    limit: int = 50,
+    limit: int = None,
     date_range_days: int = None,
     query_prefix: str = None,
     skip_abstract_screening: bool = None,

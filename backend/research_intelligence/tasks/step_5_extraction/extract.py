@@ -200,7 +200,7 @@ def _run_single_extraction_worker(paper, definition, workspace):
 
 
 @shared_task(bind=True)
-def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_workers: int = 8):
+def execute_extraction_job(self, component_run_id: str, limit: int = None, max_workers: int = 8):
     """
     Celery worker task executing Step 5 (Parameter & Claim Extraction) for papers in a ComponentRun job.
     Executes extractions for all active ExtractionDefinitions in parallel using a ThreadPoolExecutor.
@@ -279,7 +279,7 @@ def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_wor
             papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).exclude(screening_status__in=['rejected', 'withdrawn'])
             logger.info(f"🔍 [EXTRACTION FILTER] No prior Screening jobs found. Targeting {papers_qs.count()} papers.")
 
-        papers = list(papers_qs[:limit])
+        papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
 
         # Prepare (paper, definition) work items
         work_items = [(paper, definition) for paper in papers for definition in active_definitions]

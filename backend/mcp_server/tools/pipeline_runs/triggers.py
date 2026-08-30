@@ -26,7 +26,7 @@ def trigger_search_job_logic(
     user,
     workspace_id: str,
     scraper_id: str = None,
-    limit: int = 50,
+    limit: int = None,
     reprocess_existing: bool = False,
     date_range_days: int = None,
     query_prefix: str = None
@@ -125,7 +125,7 @@ def trigger_pdf_download_job_logic(
     user,
     pipeline_run_id: str = None,
     workspace_id: str = None,
-    limit: int = 50
+    limit: int = None
 ) -> str:
     """
     Trigger Step 2 of the processing pipeline (PDF Binary Download) for papers in a PipelineRun or Workspace.
@@ -191,12 +191,12 @@ def trigger_pdf_download_job_logic(
 
     return json.dumps({
         "success": True,
-        "message": f"Successfully launched PDF Download job for PipelineRun '{pipeline_run.id}'. Processing up to {limit} papers.",
+        "message": f"Successfully launched PDF Download job for PipelineRun '{pipeline_run.id}'. Processing {'all ' + str(papers_count) if not limit else 'up to ' + str(limit)} papers.",
         "pipeline_run_id": str(pipeline_run.id),
         "component_run_id": str(comp_run.id),
         "status": comp_run.status,
         "celery_task_id": celery_task_id,
-        "total_papers_queued": min(papers_count, limit)
+        "total_papers_queued": min(papers_count, limit) if limit else papers_count
     }, indent=2)
 
 
@@ -204,7 +204,7 @@ def trigger_ocr_job_logic(
     user,
     pipeline_run_id: str = None,
     workspace_id: str = None,
-    limit: int = 50
+    limit: int = None
 ) -> str:
     """
     Trigger Step 3 of the processing pipeline (Layout OCR Extraction) for papers in a PipelineRun or Workspace.
@@ -270,13 +270,13 @@ def trigger_ocr_job_logic(
 
     return json.dumps({
         "success": True,
-        "message": f"Successfully launched OCR Conversion job for PipelineRun '{pipeline_run.id}' using provider '{workspace.ocr_provider}'. Processing up to {limit} papers.",
+        "message": f"Successfully launched OCR Conversion job for PipelineRun '{pipeline_run.id}' using provider '{workspace.ocr_provider}'. Processing {'all ' + str(papers_count) if not limit else 'up to ' + str(limit)} papers.",
         "pipeline_run_id": str(pipeline_run.id),
         "component_run_id": str(comp_run.id),
         "status": comp_run.status,
         "celery_task_id": celery_task_id,
         "ocr_provider": workspace.ocr_provider,
-        "total_papers_queued": min(papers_count, limit)
+        "total_papers_queued": min(papers_count, limit) if limit else papers_count
     }, indent=2)
 
 
@@ -284,7 +284,7 @@ def trigger_screening_job_logic(
     user,
     pipeline_run_id: str = None,
     workspace_id: str = None,
-    limit: int = 50,
+    limit: int = None,
     stage: str = "abstract"
 ) -> str:
     """
@@ -354,13 +354,13 @@ def trigger_screening_job_logic(
 
     return json.dumps({
         "success": True,
-        "message": f"Successfully launched {stage_display} job for PipelineRun '{pipeline_run.id}'. Processing up to {limit} papers.",
+        "message": f"Successfully launched {stage_display} job for PipelineRun '{pipeline_run.id}'. Processing {'all ' + str(papers_count) if not limit else 'up to ' + str(limit)} papers.",
         "pipeline_run_id": str(pipeline_run.id),
         "component_run_id": str(comp_run.id),
         "stage": "full_text" if is_full_text else "abstract",
         "status": comp_run.status,
         "celery_task_id": celery_task_id,
-        "total_papers_queued": min(papers_count, limit)
+        "total_papers_queued": min(papers_count, limit) if limit else papers_count
     }, indent=2)
 
 
@@ -368,7 +368,7 @@ def trigger_extraction_job_logic(
     user,
     pipeline_run_id: str = None,
     workspace_id: str = None,
-    limit: int = 50
+    limit: int = None
 ) -> str:
     """
     Trigger Step 5 of the processing pipeline (Parameter & Claim Extraction) for papers in a PipelineRun or Workspace.
@@ -435,20 +435,20 @@ def trigger_extraction_job_logic(
 
     return json.dumps({
         "success": True,
-        "message": f"Successfully launched Parameter Extraction job for PipelineRun '{pipeline_run.id}'. Running {active_definitions_count} definitions across up to {limit} papers.",
+        "message": f"Successfully launched Parameter Extraction job for PipelineRun '{pipeline_run.id}'. Running {active_definitions_count} definitions across {'all ' + str(papers_count) if not limit else 'up to ' + str(limit)} papers.",
         "pipeline_run_id": str(pipeline_run.id),
         "component_run_id": str(comp_run.id),
         "status": comp_run.status,
         "celery_task_id": celery_task_id,
         "active_definitions_count": active_definitions_count,
-        "total_papers_queued": min(papers_count, limit)
+        "total_papers_queued": min(papers_count, limit) if limit else papers_count
     }, indent=2)
 
 
 def trigger_signal_score_job_logic(
     user,
     pipeline_run_id: str,
-    limit: int = 50
+    limit: int = None
 ) -> str:
     """
     Trigger Step 6 (Composite Signal Score Evaluation) for a PipelineRun.

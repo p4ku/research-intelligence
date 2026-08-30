@@ -3,6 +3,7 @@ import logging
 import hashlib
 import re
 import time
+from typing import Optional, Dict, Any, List
 from celery import shared_task
 from django.utils import timezone
 from django.db import connection, close_old_connections, transaction
@@ -19,7 +20,7 @@ from .dedup import normalize_doi, normalize_arxiv_id, normalize_title
 
 
 @shared_task(bind=True)
-def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
+def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = None):
     """
     Celery worker task executing an individual scraping ComponentRun job.
     Stores raw scraped payload in Django default_storage, updates ComponentRun lifecycle

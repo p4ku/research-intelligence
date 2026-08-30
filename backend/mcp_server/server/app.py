@@ -949,12 +949,12 @@ def delete_extraction_definition(definition_id: str) -> str:
 def trigger_search_job(
     workspace_id: str,
     scraper_id: str | None = None,
-    limit: int = 50,
+    limit: int = None,
     reprocess_existing: bool = False,
     date_range_days: int | None = None,
     query_prefix: str | None = None
 ) -> str:
-    """[MANUAL COMPONENT ONLY] Trigger only Step 1 (Search & Metadata Ingestion). Set reprocess_existing=True to re-screen existing workspace papers. Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
+    """[MANUAL COMPONENT ONLY] Trigger only Step 1 (Search & Metadata Ingestion). Set limit to integer (e.g. 50) or None (all results from scraper). Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "runs:write")
@@ -965,8 +965,8 @@ def trigger_search_job(
 
 @mcp.tool()
 @with_db_connection
-def trigger_pdf_download_job(pipeline_run_id: str = None, workspace_id: str = None, limit: int = 50) -> str:
-    """[MANUAL COMPONENT ONLY] Trigger only Step 2 (PDF Binary Download). Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
+def trigger_pdf_download_job(pipeline_run_id: str = None, workspace_id: str = None, limit: int = None) -> str:
+    """[MANUAL COMPONENT ONLY] Trigger only Step 2 (PDF Binary Download). If limit is None, downloads all papers in the run. Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "runs:write")
@@ -977,8 +977,8 @@ def trigger_pdf_download_job(pipeline_run_id: str = None, workspace_id: str = No
 
 @mcp.tool()
 @with_db_connection
-def trigger_ocr_job(pipeline_run_id: str = None, workspace_id: str = None, limit: int = 50) -> str:
-    """[MANUAL COMPONENT ONLY] Trigger only Step 3 (Layout OCR Extraction). Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
+def trigger_ocr_job(pipeline_run_id: str = None, workspace_id: str = None, limit: int = None) -> str:
+    """[MANUAL COMPONENT ONLY] Trigger only Step 3 (Layout OCR Extraction). If limit is None, converts all downloaded PDFs in the run. Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "runs:write")
@@ -989,8 +989,8 @@ def trigger_ocr_job(pipeline_run_id: str = None, workspace_id: str = None, limit
 
 @mcp.tool()
 @with_db_connection
-def trigger_screening_job(pipeline_run_id: str = None, workspace_id: str = None, limit: int = 50, stage: str = "abstract") -> str:
-    """[MANUAL COMPONENT ONLY] Trigger only Step 4 (Abstract or Full-Text Screening). Supports stage='abstract' or stage='full_text'. Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
+def trigger_screening_job(pipeline_run_id: str = None, workspace_id: str = None, limit: int = None, stage: str = "abstract") -> str:
+    """[MANUAL COMPONENT ONLY] Trigger only Step 4 (Abstract or Full-Text Screening). If limit is None, screens all candidate papers. Supports stage='abstract' or stage='full_text'. Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "runs:write")
@@ -1001,8 +1001,8 @@ def trigger_screening_job(pipeline_run_id: str = None, workspace_id: str = None,
 
 @mcp.tool()
 @with_db_connection
-def trigger_extraction_job(pipeline_run_id: str = None, workspace_id: str = None, limit: int = 50) -> str:
-    """[MANUAL COMPONENT ONLY] Trigger only Step 5 (Parameter & Claim Extraction). Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
+def trigger_extraction_job(pipeline_run_id: str = None, workspace_id: str = None, limit: int = None) -> str:
+    """[MANUAL COMPONENT ONLY] Trigger only Step 5 (Parameter & Claim Extraction). If limit is None, extracts parameters from all accepted papers. Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "runs:write")
@@ -1013,8 +1013,8 @@ def trigger_extraction_job(pipeline_run_id: str = None, workspace_id: str = None
 
 @mcp.tool()
 @with_db_connection
-def trigger_signal_score_job(pipeline_run_id: str, limit: int = 50) -> str:
-    """[MANUAL COMPONENT ONLY] Trigger only Step 6 (Composite Signal Score Evaluation). Evaluates the sandboxed Python signal score logic for all screened and accepted papers."""
+def trigger_signal_score_job(pipeline_run_id: str, limit: int = None) -> str:
+    """[MANUAL COMPONENT ONLY] Trigger only Step 6 (Composite Signal Score Evaluation). If limit is None, evaluates signal score for all screened and accepted papers."""
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "runs:write")
@@ -1181,7 +1181,7 @@ def delete_pipeline_run(pipeline_run_id: str) -> str:
 def start_research_agent(
     workspace_id: str,
     name: str = None,
-    limit: int = 50,
+    limit: int = None,
     date_range_days: int = None,
     query_prefix: str = None,
     skip_abstract_screening: bool = None,
@@ -1198,7 +1198,7 @@ def start_research_agent(
     
     KEY PARAMETERS:
     - workspace_id: The target workspace UUID.
-    - limit: Maximum number of papers to ingest (default: 50).
+    - limit: Optional maximum number of papers to ingest and process across all steps (default: None = all papers found by scrapers).
     - date_range_days: Optional date window filter (e.g. 30, 90, 180, 365).
     - query_prefix: Optional query modifier prepended to workspace scrapers.
     - reprocess_existing: Set to True to re-screen and re-extract parameters from already-ingested workspace papers.
