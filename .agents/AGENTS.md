@@ -9,7 +9,7 @@
 
 **Schwarz Research Intelligence** is an enterprise-grade platform designed for automated, AI-driven academic literature review, deep-tech scouting, and parameter extraction.
 
-It orchestrates a 6-step processing pipeline:
+It orchestrates an 8-stage processing pipeline:
 1. **Search & Ingestion**: Multi-source querying (ArXiv, OpenAlex, Lens, PubMed) with title/DOI/arXiv ID deduplication.
 2. **Abstract Screening**: Evaluates paper title & abstract against `abstract_acceptance_criteria` and `abstract_rejection_criteria` using `google/gemini-3.7-flash` (auto-skipped if `skip_abstract_screening=True`). Halts early if 0 papers pass.
 3. **Parallel PDF Download**: Multi-threaded document fetching to unified storage (`workspaces/{ws_id}/runs/{run_id}/documents/{hash}/original.pdf`) targeting **only papers that passed abstract screening** (or all papers if abstract screening was skipped).

@@ -15,13 +15,13 @@ class Workspace(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     name = models.CharField(max_length=255)
-    # Specific criteria for Step 4 Abstract Screening and Full-Text Screening
-    abstract_acceptance_criteria = models.TextField(default="", blank=True, help_text="Specific inclusion criteria for Step 4 Abstract Screening")
-    abstract_rejection_criteria = models.TextField(default="", blank=True, help_text="Specific exclusion criteria for Step 4 Abstract Screening")
-    full_text_acceptance_criteria = models.TextField(default="", blank=True, help_text="Specific inclusion criteria for Step 4 Full-Text Screening")
-    full_text_rejection_criteria = models.TextField(default="", blank=True, help_text="Specific exclusion criteria for Step 4 Full-Text Screening")
+    # Specific criteria for Abstract Screening and Full-Text Screening
+    abstract_acceptance_criteria = models.TextField(default="", blank=True, help_text="Specific inclusion criteria for Abstract Screening")
+    abstract_rejection_criteria = models.TextField(default="", blank=True, help_text="Specific exclusion criteria for Abstract Screening")
+    full_text_acceptance_criteria = models.TextField(default="", blank=True, help_text="Specific inclusion criteria for Full-Text Screening")
+    full_text_rejection_criteria = models.TextField(default="", blank=True, help_text="Specific exclusion criteria for Full-Text Screening")
 
-    # Dynamic Prompts & JSON Response Schemas for Step 4 Screening
+    # Dynamic Prompts & JSON Response Schemas for Screening
     abstract_screening_system_prompt = models.TextField(
         blank=True,
         null=True,
@@ -185,7 +185,7 @@ class Workspace(models.Model):
             ("gemini", "Gemini OCR (Google Gemini Flash Baseline)"),
             ("none", "None (Skip OCR Step)")
         ],
-        help_text="OCR provider used for PDF layout extraction. Set to None or 'none' to skip Step 3 OCR."
+        help_text="OCR provider used for PDF layout extraction. Set to None or 'none' to skip OCR."
     )
     screening_llm_model = models.CharField(max_length=100, default="google/gemini-3.7-flash", help_text="LLM model used for screening papers")
     llm_provider = models.CharField(
@@ -215,12 +215,12 @@ class Workspace(models.Model):
     usd_spent_this_month = models.DecimalField(max_digits=10, decimal_places=4, default=0.0000)
     
     # Agent & Pipeline Configuration
-    skip_abstract_screening = models.BooleanField(default=False, help_text="If True, skips Step 4 Abstract Screening and performs direct Full-Text Screening")
+    skip_abstract_screening = models.BooleanField(default=False, help_text="If True, skips Abstract Screening and performs direct Full-Text Screening")
     notification_email = models.EmailField(blank=True, null=True, help_text="Email address notified upon agent completion or failure")
     signal_score_code = models.TextField(
         blank=True, 
         null=True, 
-        help_text="Custom Python snippet / function to compute paper signal score from extracted parameters in Step 6"
+        help_text="Custom Python snippet / function to compute paper signal score from extracted parameters"
     )
 
     created_at = models.DateTimeField(auto_now_add=True)

@@ -15,17 +15,17 @@ class PipelineRun(models.Model):
     workspace = models.ForeignKey('Workspace', on_delete=models.CASCADE, related_name="runs")
     run_date = models.DateField(auto_now_add=True, help_text="Date when this ingestion run was triggered")
     STAGE_CHOICES = [
-        ('search', '1. Search & Metadata Ingestion'),
-        ('abstract_screening', '2. Abstract Screening'),
-        ('download', '3. PDF Binary Download'),
-        ('ocr', '4. Layout OCR Extraction'),
-        ('full_text_screening', '5. Full-Text Screening'),
-        ('screening', 'Dual-Stage Screening (Legacy)'),
-        ('extraction', '6. Parameter & Claim Extraction'),
-        ('signal_score', '7. Composite Signal Score'),
+        ('search', 'Search & Metadata Ingestion'),
+        ('abstract_screening', 'Abstract Screening'),
+        ('download', 'PDF Binary Download'),
+        ('ocr', 'Layout OCR Extraction'),
+        ('full_text_screening', 'Full-Text Screening'),
+        ('screening', 'Dual-Stage Screening'),
+        ('extraction', 'Parameter & Claim Extraction'),
+        ('signal_score', 'Composite Signal Score'),
         ('metrics', 'TRL & Importance Metrics'),
         ('deep_research', 'Deep Research Iteration'),
-        ('reporting', '8. Narrative Report Generation'),
+        ('reporting', 'Narrative Report Generation'),
         ('completed', 'Completed'),
     ]
 
@@ -130,15 +130,15 @@ class ResearchAgentProcess(models.Model):
 
     STEP_CHOICES = [
         ('initialized', 'Initialized'),
-        ('search', '1. Search & Ingestion'),
-        ('abstract_screening', '2. Abstract Screening'),
-        ('download', '3. PDF Download'),
-        ('ocr', '4. OCR Conversion'),
-        ('full_text_screening', '5. Full-Text Screening'),
-        ('screening', 'Dual-Stage Screening (Legacy)'),
-        ('extraction', '6. Parameter & Claim Extraction'),
-        ('signal_score', '7. Signal Score Evaluation'),
-        ('reporting', '8. Narrative Reporting'),
+        ('search', 'Search & Ingestion'),
+        ('abstract_screening', 'Abstract Screening'),
+        ('download', 'PDF Download'),
+        ('ocr', 'OCR Conversion'),
+        ('full_text_screening', 'Full-Text Screening'),
+        ('screening', 'Dual-Stage Screening'),
+        ('extraction', 'Parameter & Claim Extraction'),
+        ('signal_score', 'Signal Score Evaluation'),
+        ('reporting', 'Narrative Reporting'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
         ('aborted', 'Aborted')

@@ -138,14 +138,14 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
     formatted GitHub-flavored markdown summary card ready for direct presentation to users.
     """
     canonical_stages = [
-        ("search", "1. Search & Ingestion", "🔍"),
-        ("abstract_screening", "2. Abstract Screening", "🎯"),
-        ("download", "3. Parallel PDF Download", "📥"),
-        ("ocr", "4. Layout OCR Parsing", "📄"),
-        ("full_text_screening", "5. Full-Text Screening", "🔬"),
-        ("extraction", "6. Dynamic Parameter Extraction", "📊"),
-        ("signal_score", "7. Signal Score Ranking", "🧮"),
-        ("reporting", "8. Executive Reporting", "📑"),
+        ("search", "Search & Ingestion", "🔍"),
+        ("abstract_screening", "Abstract Screening", "🎯"),
+        ("download", "Parallel PDF Download", "📥"),
+        ("ocr", "Layout OCR Parsing", "📄"),
+        ("full_text_screening", "Full-Text Screening", "🔬"),
+        ("extraction", "Dynamic Parameter Extraction", "📊"),
+        ("signal_score", "Signal Score Ranking", "🧮"),
+        ("reporting", "Executive Reporting", "📑"),
     ]
 
     step_order = ["initialized", "search", "abstract_screening", "download", "ocr", "full_text_screening", "screening", "extraction", "signal_score", "reporting", "completed"]

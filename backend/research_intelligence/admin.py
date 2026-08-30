@@ -643,7 +643,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
         ('Engine & Provider Configuration', {
             'fields': ('ocr_provider', 'screening_llm_model', 'llm_provider', 'reasoning_effort')
         }),
-        ('🎯 Step 2: Abstract Screening Engine & Dynamic Prompting', {
+        ('🎯 Abstract Screening Engine & Dynamic Prompting', {
             'fields': (
                 'abstract_acceptance_criteria',
                 'abstract_rejection_criteria',
@@ -654,7 +654,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
             ),
             'description': 'Configure criteria, system prompt, user prompt template (placeholders: <code>{title}</code>, <code>{abstract}</code>, <code>{acceptance_criteria}</code>, <code>{rejection_criteria}</code>), custom JSON schema, and exit metric for Abstract Screening. If left blank, standard defaults are used.'
         }),
-        ('📄 Step 5: Full-Text Screening Engine & Dynamic Prompting', {
+        ('📄 Full-Text Screening Engine & Dynamic Prompting', {
             'fields': (
                 'full_text_acceptance_criteria',
                 'full_text_rejection_criteria',
@@ -665,9 +665,9 @@ class WorkspaceAdmin(admin.ModelAdmin):
             ),
             'description': 'Configure criteria, system prompt, user prompt template (placeholders: <code>{title}</code>, <code>{abstract}</code>, <code>{full_text}</code>, <code>{acceptance_criteria}</code>, <code>{rejection_criteria}</code>), custom JSON schema, and exit metric for Full-Text Screening. If left blank, standard defaults are used.'
         }),
-        ('⚙️ Step 7: Signal Score Configuration', {
+        ('⚙️ Signal Score Configuration', {
             'fields': ('signal_score_code',),
-            'description': 'Custom Python snippet evaluated in Step 7 on paper extracted parameters (e.g. <code>k = fit_score + 2*novelty_score; return 5 if k > 10 else 99</code>). Executed securely in an isolated sandbox.'
+            'description': 'Custom Python snippet evaluated on paper extracted parameters (e.g. <code>k = fit_score + 2*novelty_score; return 5 if k > 10 else 99</code>). Executed securely in an isolated sandbox.'
         }),
         ('Monthly Quotas & Budgets', {
             'fields': (
@@ -1312,7 +1312,7 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
             if step and step not in ('completed', 'reporting'):
                 step_name = dict(ResearchAgentProcess.STEP_CHOICES).get(step, step.title())
                 return render_badge(f"⚠️ HALTED AT {step_name.upper()}", "#fd7e14", "#ffffff")
-            return render_badge("✅ ALL 8 STEPS DONE", "#198754", "#ffffff")
+            return render_badge("✅ COMPLETED", "#198754", "#ffffff")
         elif obj.status == 'paused':
             return render_badge("⏸️ PAUSED", "#ffc107", "#000000")
         elif obj.status == 'aborted':
