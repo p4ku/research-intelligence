@@ -48,12 +48,30 @@ function toJson(schema: z.ZodType): Json {
   return js
 }
 
-function pathParameters(path: string): Json[] {
-  return [...path.matchAll(/\{([a-z_]+)\}/g)].map((m) => ({
+/** `date` params are calendar dates; everything else templated is a UUID id. */
+function paramSchema(name: string): Json {
+  return name === 'date' ? { type: 'string', format: 'date' } : { type: 'string', format: 'uuid' }
+}
+
+/** `{param}` placeholders in the path template proper (no query string). */
+function pathParameters(purePath: string): Json[] {
+  return [...purePath.matchAll(/\{([a-z_]+)\}/g)].map((m) => ({
     name: m[1],
     in: 'path',
     required: true,
-    schema: { type: 'string', format: 'uuid' },
+    schema: paramSchema(m[1]),
+  }))
+}
+
+/** `key={param}` pairs in the path's query-string half become query params. */
+function queryTemplateParameters(path: string): Json[] {
+  const [, queryTemplate] = path.split('?')
+  if (!queryTemplate) return []
+  return [...queryTemplate.matchAll(/([a-z_]+)=\{([a-z_]+)\}/g)].map((m) => ({
+    name: m[1],
+    in: 'query',
+    required: true,
+    schema: paramSchema(m[2]),
   }))
 }
 
@@ -89,11 +107,16 @@ function operationObject(op: Operation): Json {
     },
   }
   const [purePath] = op.path.split('?')
+  // zod-declared query params win; template-only ones fill the gaps.
+  const query = [...queryParameters(op.query)]
+  for (const param of queryTemplateParameters(op.path)) {
+    if (!query.some((q) => q.name === param.name)) query.push(param)
+  }
   const object: Json = {
     operationId: op.id,
     summary: op.summary,
     tags: [op.resource],
-    parameters: [...pathParameters(op.path), ...queryParameters(op.query)],
+    parameters: [...pathParameters(purePath), ...query],
     responses,
   }
   if (op.body) {
@@ -102,7 +125,6 @@ function operationObject(op: Operation): Json {
       content: { 'application/json': { schema: toJson(op.body) } },
     }
   }
-  void purePath
   return object
 }
 
