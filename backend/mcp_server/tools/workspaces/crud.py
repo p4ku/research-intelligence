@@ -33,6 +33,8 @@ def list_workspaces_logic(user) -> str:
             "llm_provider": ws.llm_provider,
             "screening_llm_model": ws.screening_llm_model,
             "reasoning_effort": getattr(ws, 'reasoning_effort', 'medium'),
+            "skip_abstract_screening": getattr(ws, 'skip_abstract_screening', False),
+            "notification_email": ws.notification_email,
             "signal_score_code": ws.signal_score_code,
             "tokens_consumed_this_month": getattr(ws, 'tokens_consumed_this_month', 0),
             "usd_spent_this_month": float(getattr(ws, 'usd_spent_this_month', 0.0)),
@@ -59,6 +61,8 @@ def get_workspace_logic(user, workspace_id: str) -> str:
         "llm_provider": workspace.llm_provider,
         "screening_llm_model": workspace.screening_llm_model,
         "reasoning_effort": getattr(workspace, 'reasoning_effort', 'medium'),
+        "skip_abstract_screening": getattr(workspace, 'skip_abstract_screening', False),
+        "notification_email": workspace.notification_email,
         "signal_score_code": workspace.signal_score_code,
         "quota_tokens_monthly": getattr(workspace, 'quota_tokens_monthly', getattr(workspace, 'monthly_token_limit', None)),
         "quota_usd_monthly": float(workspace.quota_usd_monthly) if getattr(workspace, 'quota_usd_monthly', None) else None,
@@ -128,7 +132,9 @@ def create_workspace_logic(
     monthly_token_limit: int = 10000000,
     monthly_usd_limit: float = 100.00,
     cost_limit_usd: float = None,
-    signal_score_code: str = None
+    signal_score_code: str = None,
+    skip_abstract_screening: bool = False,
+    notification_email: str = None
 ) -> str:
     """Create a new workspace and automatically assign the creator as the 'admin' member."""
     from research_intelligence.services import create_workspace_record
@@ -157,7 +163,9 @@ def create_workspace_logic(
         digest_schedule=digest_schedule,
         monthly_token_limit=monthly_token_limit if monthly_token_limit is not None else 10000000,
         monthly_usd_limit=usd_limit if usd_limit is not None else 100.00,
-        signal_score_code=signal_score_code
+        signal_score_code=signal_score_code,
+        skip_abstract_screening=bool(skip_abstract_screening),
+        notification_email=notification_email
     )
 
     if err:
@@ -195,7 +203,9 @@ def update_workspace_logic(
     monthly_token_limit: int = None,
     cost_limit_usd: float = None,
     monthly_usd_limit: float = None,
-    signal_score_code: str = None
+    signal_score_code: str = None,
+    skip_abstract_screening: bool = None,
+    notification_email: str = None
 ) -> str:
     """Update criteria, OCR provider, screening prompts/schemas, or LLM configuration for a workspace. Requires admin or manager role."""
     workspace, _, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
@@ -247,6 +257,12 @@ def update_workspace_logic(
     if full_text_screening_exit_metric is not None:
         workspace.full_text_screening_exit_metric = full_text_screening_exit_metric
         fields_to_update.append('full_text_screening_exit_metric')
+    if skip_abstract_screening is not None:
+        workspace.skip_abstract_screening = bool(skip_abstract_screening)
+        fields_to_update.append('skip_abstract_screening')
+    if notification_email is not None:
+        workspace.notification_email = notification_email.strip() if notification_email else None
+        fields_to_update.append('notification_email')
     if ocr_provider is not None:
         if isinstance(ocr_provider, str) and (ocr_provider.strip().lower() in ('none', '')):
             workspace.ocr_provider = None

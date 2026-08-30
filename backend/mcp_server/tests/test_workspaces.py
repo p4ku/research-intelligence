@@ -263,5 +263,32 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
         self.assertEqual(err_res["status"], "error")
         self.assertIn("invalid reasoning_effort", err_res["error"].lower())
 
+    def test_workspace_skip_abstract_screening_and_notification_email_mcp_lifecycle(self):
+        res = self.parse_res(create_workspace_logic(
+            self.admin,
+            name="Skip Screening WS",
+            skip_abstract_screening=True,
+            notification_email="notify@example.com"
+        ))
+        self.assertEqual(res["status"], "success")
+        ws = Workspace.objects.get(id=res["workspace_id"])
+        self.assertTrue(ws.skip_abstract_screening)
+        self.assertEqual(ws.notification_email, "notify@example.com")
+
+        ws_details = self.parse_res(get_workspace_logic(self.admin, workspace_id=str(ws.id)))
+        self.assertTrue(ws_details["skip_abstract_screening"])
+        self.assertEqual(ws_details["notification_email"], "notify@example.com")
+
+        up_res = self.parse_res(update_workspace_logic(
+            self.admin,
+            workspace_id=str(ws.id),
+            skip_abstract_screening=False,
+            notification_email="updated@example.com"
+        ))
+        self.assertEqual(up_res["status"], "success")
+        ws.refresh_from_db()
+        self.assertFalse(ws.skip_abstract_screening)
+        self.assertEqual(ws.notification_email, "updated@example.com")
+
 
 
