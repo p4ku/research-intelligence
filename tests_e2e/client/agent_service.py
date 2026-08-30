@@ -139,7 +139,14 @@ class AgentService:
                         running_cr = next((cr for cr in comp_runs if cr.get("status") == "running"), None)
                         if running_cr:
                             m = running_cr.get("metrics") or {}
-                            if m.get("latest_processed"):
+                            if m.get("total_work_items") and m.get("completed_extractions") is not None:
+                                c_ext = m.get("completed_extractions", 0)
+                                f_ext = m.get("failed_extractions", 0)
+                                t_ext = m.get("total_work_items", 0)
+                                pct_ext = m.get("percent_complete", 0)
+                                latest_str = f" | {m.get('latest_processed')}" if m.get('latest_processed') else ""
+                                live_detail = f"\n     👉 Extraction: {c_ext + f_ext}/{t_ext} ({pct_ext}%){latest_str}"
+                            elif m.get("latest_processed"):
                                 live_detail = f"\n     👉 Active: {m.get('latest_processed')}"
                             elif m.get("total_screened") is not None and m.get("total_to_screen"):
                                 live_detail = f"\n     👉 Progress: {m.get('total_screened')}/{m.get('total_to_screen')} screened ({m.get('passed', 0)} passed, {m.get('rejected', 0)} rejected)"

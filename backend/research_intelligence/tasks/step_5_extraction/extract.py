@@ -329,6 +329,29 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
                 failed_count += 1
                 logger.warning(f"⚠️ [EXTRACTION FAILED] Paper ID {res.get('paper_id')} | Def '{res.get('definition_name')}': {res.get('error')}")
 
+            # Flush live progress metrics to DB for real-time monitoring by MCP, Admin, and E2E polling
+            processed_so_far = succeeded_count + failed_count
+            total_items = len(work_items)
+            pct = round((processed_so_far / total_items * 100.0), 1) if total_items > 0 else 100.0
+            p_title = res.get('paper_title') or 'Untitled'
+            def_name = res.get('definition_name') or 'Target'
+            badge = "PASSED" if res.get("success") else "FAILED"
+            try:
+                component_run.metrics = {
+                    "total_work_items": total_items,
+                    "completed_extractions": succeeded_count,
+                    "failed_extractions": failed_count,
+                    "total_processed": processed_so_far,
+                    "total_papers": len(papers),
+                    "total_definitions": len(active_definitions),
+                    "percent_complete": pct,
+                    "latest_processed": f"[{badge}] {def_name}: {p_title[:35]}...",
+                    "elapsed_seconds": round(time.time() - job_t0, 1),
+                }
+                component_run.save(update_fields=['metrics'])
+            except Exception as me:
+                logger.debug(f"Extraction metrics live flush note: {me}")
+
         if worker_concurrency <= 1:
             for paper, definition in work_items:
                 try:

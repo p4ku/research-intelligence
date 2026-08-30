@@ -404,9 +404,23 @@ def render_component_metrics_summary(obj):
             max_score_str,
         )
     elif obj.step_type == 'extraction':
-        created = m.get('extractions_created', 0)
+        created = m.get('extractions_created', m.get('completed_extractions', 0))
+        total_items = m.get('total_work_items', 0)
         papers = m.get('total_papers', 0)
         defs = m.get('total_definitions', 0)
+        pct = m.get('percent_complete')
+        latest = m.get('latest_processed')
+        if obj.status == 'running' and total_items > 0:
+            return format_html(
+                '<div style="line-height: 1.35; white-space: nowrap;">'
+                '<strong>{}/{} extractions</strong> (<span style="color: #0d6efd; font-weight: 600;">{}%</span>)<br>'
+                '<span style="color: #6c757d; font-size: 11px;">{}</span>'
+                '</div>',
+                created,
+                total_items,
+                pct or 0,
+                latest or f"{papers} papers, {defs} defs"
+            )
         return format_html(
             '<div style="line-height: 1.35; white-space: nowrap;">'
             '<strong>{} extractions</strong><br>'

@@ -208,6 +208,28 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
             else:
                 failed_count += 1
 
+            # Flush live progress metrics to DB
+            processed_so_far = downloaded_count + skipped_count + withdrawn_count + failed_count
+            total_papers = len(papers)
+            pct = round((processed_so_far / total_papers * 100.0), 1) if total_papers > 0 else 100.0
+            p_title = res.get('title') or 'Untitled'
+            badge = "DOWNLOADED" if st == "downloaded" else ("CACHED" if res.get("from_cache") else st.upper())
+            try:
+                component_run.metrics = {
+                    "total_processed": processed_so_far,
+                    "total_to_process": total_papers,
+                    "downloaded": downloaded_count,
+                    "cached": cached_count,
+                    "skipped": skipped_count,
+                    "failed": failed_count,
+                    "percent_complete": pct,
+                    "latest_processed": f"[{badge}] {p_title[:40]}...",
+                    "elapsed_seconds": round(time.time() - start_time, 1),
+                }
+                component_run.save(update_fields=['metrics'])
+            except Exception as me:
+                logger.debug(f"Download metrics live flush note: {me}")
+
         if worker_concurrency <= 1:
             for paper in papers:
                 res = _download_paper_task(paper, workspace, pipeline_run)
