@@ -8,9 +8,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install dependencies (including devDependencies required for next build)
+# Install dependencies with persistent npm cache
 COPY package*.json ./
-RUN npm install --include=dev
+RUN --mount=type=cache,target=/root/.npm \
+    npm install --include=dev
 
 # Copy application source code
 COPY . .
@@ -19,8 +20,9 @@ COPY . .
 ARG BUILD_ID=local
 ENV NEXT_PUBLIC_BUILD_ID=$BUILD_ID
 
-# Build Next.js production bundle with unique build ID
-RUN npm run build
+# Build Next.js production bundle with persistent Next.js build cache
+RUN --mount=type=cache,target=/app/.next/cache \
+    npm run build
 
 # Expose default port
 EXPOSE 3000
