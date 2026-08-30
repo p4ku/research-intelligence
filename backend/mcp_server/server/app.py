@@ -141,6 +141,11 @@ def with_db_connection(func):
         except Exception as e:
             status = "failed"
             error_msg = str(e)
+            try:
+                import sentry_sdk
+                sentry_sdk.capture_exception(e)
+            except Exception:
+                pass
             raise
         finally:
             dt_ms = round((time.time() - t0) * 1000, 2)
@@ -1541,13 +1546,23 @@ class QueryParamAuthMiddleware:
             scope["state"]["api_key"] = api_key_obj
 
         except Exception as e:
+            try:
+                import sentry_sdk
+                sentry_sdk.capture_exception(e)
+            except Exception:
+                pass
             return await send_error(500, f"Authentication internal error: {str(e)}")
 
         try:
             return await self.app(scope, receive, wrapped_send)
         except (asyncio.CancelledError, ClientDisconnect):
             return
-        except Exception:
+        except Exception as exc:
+            try:
+                import sentry_sdk
+                sentry_sdk.capture_exception(exc)
+            except Exception:
+                pass
             if response_started:
                 return
             raise
