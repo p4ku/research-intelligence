@@ -249,6 +249,17 @@ class Workspace(models.Model):
         ])
         return cost
 
+    def is_quota_exceeded(self):
+        """
+        Checks whether this workspace has exceeded its monthly USD budget or token ceiling.
+        Returns (is_exceeded, reason_message).
+        """
+        if self.monthly_usd_limit and float(self.usd_spent_this_month or 0.0) >= float(self.monthly_usd_limit):
+            return True, f"Monthly budget limit exceeded: spent ${float(self.usd_spent_this_month):.4f} USD of ${float(self.monthly_usd_limit):.2f} USD limit for workspace '{self.name}'."
+        if self.monthly_token_limit and int(self.tokens_consumed_this_month or 0) >= int(self.monthly_token_limit):
+            return True, f"Monthly token limit exceeded: consumed {int(self.tokens_consumed_this_month):,} tokens of {int(self.monthly_token_limit):,} limit for workspace '{self.name}'."
+        return False, None
+
     class Meta:
         app_label = 'research_intelligence'
 

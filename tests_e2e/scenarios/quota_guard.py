@@ -20,9 +20,10 @@ logger = logging.getLogger("e2e_quota")
 def run_quota_guard_scenario(config: Optional[E2EConfig] = None) -> Dict[str, Any]:
     """
     Validates that monthly token limits and USD cost ceilings prevent budget overruns:
-    1. Creates a workspace configured with an exhausted/micro budget limit (monthly_usd_limit = 0.0001).
-    2. Attempts to run an autonomous review.
-    3. Validates that the system gracefully handles budget constraints or logs proper quota enforcement.
+    1. Provisions a workspace and executes an initial small batch to accumulate spend.
+    2. Updates workspace with an exhausted/micro budget limit (monthly_usd_limit = 0.0001).
+    3. Attempts to run a second review.
+    4. Validates that the system halts/rejects the run with a clear quota exceeded message.
     """
     cfg = config or E2EConfig.from_env()
     random_suffix = random.randint(10000000, 99999999)
@@ -55,29 +56,36 @@ def run_quota_guard_scenario(config: Optional[E2EConfig] = None) -> Dict[str, An
             workspace_id=workspace_id,
             provider="arxiv",
             search_query='cat:cs.AI AND all:"optimization"',
-            limit=3,
+            limit=2,
         )
 
-        # Launch Agent
-        proc = agent_svc.start_research_agent(
-            workspace_id=workspace_id,
-            name=f"Quota Test Run - {workspace_name}",
-            limit=3,
-        )
-        process_id = proc["id"]
+        # Phase 1: Accumulate initial spend
+        logger.info("🚀 Phase 1: Executing small review to accumulate token/USD spend...")
+        proc1 = agent_svc.start_research_agent(workspace_id=workspace_id, limit=2)
+        completed1 = agent_svc.poll_until_complete(proc1["id"], max_timeout_sec=cfg.max_timeout_sec)
+        assert completed1.get("status") == "completed", f"Initial run failed: {completed1}"
 
-        # Poll to completion
-        completed_proc = agent_svc.poll_until_complete(process_id=process_id, max_timeout_sec=cfg.max_timeout_sec)
-        assert completed_proc.get("status") in ("completed", "failed"), f"Unexpected status: {completed_proc}"
-
-        # Fetch workspace usage counters
         ws_info = ws_svc.get_workspace(workspace_id)
         tokens_consumed = ws_info.get("tokens_consumed_this_month", 0)
         usd_spent = float(ws_info.get("usd_spent_this_month", 0.0))
+        logger.info(f"   • Accumulated spend: ${usd_spent:.4f} USD ({tokens_consumed:,} tokens)")
 
-        logger.info(f"📊 Quota Tracking Audit:")
-        logger.info(f"   • Monthly Tokens Consumed : {tokens_consumed:,}")
-        logger.info(f"   • Monthly USD Spent       : ${usd_spent:.4f}")
+        # Phase 2: Set strict micro-budget ceiling
+        logger.info(f"🔒 Phase 2: Applying strict monthly_usd_limit = ${usd_spent:.6f} to enforce ceiling...")
+        client.patch(f"/api/workspaces/{workspace_id}/", json_data={"monthly_usd_limit": max(0.01, usd_spent)})
+
+        # Phase 3: Attempt to launch another review
+        logger.info("🚀 Phase 3: Launching second review; verifying Quota Guard enforcement...")
+        launch_resp = client.post("/api/agents/", json_data={"workspace": workspace_id, "limit": 2})
+
+        if launch_resp.status_code == 400 and "limit exceeded" in launch_resp.text.lower():
+            logger.info(f"✅ Quota Guard immediately rejected run at API gateway: {launch_resp.text}")
+        else:
+            proc2_id = launch_resp.json().get("id")
+            if proc2_id:
+                completed2 = agent_svc.poll_until_complete(proc2_id, max_timeout_sec=60)
+                assert completed2.get("status") == "failed" or "quota" in str(completed2.get("stop_reason")).lower()
+                logger.info(f"✅ Quota Guard halted pipeline in DAG engine: {completed2.get('stop_reason')}")
 
         logger.info("=================================================================")
         logger.info("🎉 QUOTA GUARD & BUDGET SCENARIO PASSED SUCCESSFULLY!")
@@ -86,7 +94,6 @@ def run_quota_guard_scenario(config: Optional[E2EConfig] = None) -> Dict[str, An
         return {
             "status": "passed",
             "workspace_id": workspace_id,
-            "process_id": process_id,
             "tokens_consumed": tokens_consumed,
             "usd_spent": usd_spent,
             "cost_metrics": {

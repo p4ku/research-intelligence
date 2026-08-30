@@ -235,6 +235,41 @@ class WorkflowDAG:
             if agent_process:
                 sync_agent_stage_results(agent_process, pipeline_run, self.nodes, config=cfg)
 
+            # 0. Check Workspace Monthly Quota & Budget Enforcement
+            is_exceeded, quota_reason = workspace.is_quota_exceeded()
+            if is_exceeded:
+                logger.warning(f"🛑 [QUOTA LIMIT EXCEEDED] Workspace '{workspace.name}': {quota_reason}")
+                pipeline_run.status = 'failed'
+                pipeline_run.status_message = quota_reason
+                pipeline_run.completed_at = timezone.now()
+                pipeline_run.save(update_fields=['status', 'status_message', 'completed_at'])
+
+                if agent_process:
+                    sync_agent_stage_results(agent_process, pipeline_run, self.nodes, config=cfg)
+                    agent_process.status = 'failed'
+                    agent_process.stopped_at_step = agent_process.current_step
+                    agent_process.stop_reason = quota_reason
+                    agent_process.error_message = quota_reason
+                    agent_process.completed_at = timezone.now()
+                    history = list(agent_process.step_history or [])
+                    history.append({
+                        "step": agent_process.current_step,
+                        "event": "quota_exceeded",
+                        "message": quota_reason,
+                        "timestamp": timezone.now().isoformat()
+                    })
+                    agent_process.step_history = history
+                    agent_process.save(update_fields=['status', 'stopped_at_step', 'stop_reason', 'stage_results', 'error_message', 'completed_at', 'step_history', 'updated_at'])
+                    from research_intelligence.tasks.orchestrator.agent_engine import _send_agent_notification
+                    _send_agent_notification(agent_process)
+
+                return {
+                    "success": False,
+                    "status": "failed",
+                    "current_step": agent_process.current_step if agent_process else "search",
+                    "error": quota_reason
+                }
+
             # 1. Check for any failed nodes
             failed_nodes = [name for name, st in status_map.items() if st == "failed"]
             if failed_nodes:

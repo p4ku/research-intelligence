@@ -31,6 +31,10 @@ def start_research_agent_logic(
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
+    is_exceeded, quota_reason = workspace.is_quota_exceeded()
+    if is_exceeded:
+        return json.dumps({"status": "error", "error": quota_reason}, indent=2)
+
     agent_name = name or f"Autonomous Research Agent - {timezone.now().strftime('%Y-%m-%d %H:%M')}"
 
     config_override = {
