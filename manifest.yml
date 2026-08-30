@@ -4,7 +4,7 @@ applications:
     docker:
       image: ((backend_image))
       username: ((registry_username))
-    instances: 1
+    instances: 2
     memory: 2G
     disk_quota: 3G
     routes:
@@ -40,7 +40,7 @@ applications:
     docker:
       image: ((backend_image))
       username: ((registry_username))
-    instances: 1
+    instances: 2
     memory: 2G
     disk_quota: 3G
     no-route: true
