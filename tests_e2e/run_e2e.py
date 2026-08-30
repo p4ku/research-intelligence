@@ -23,7 +23,12 @@ import sys
 import time
 
 from tests_e2e.config import E2EConfig, ENV_TARGETS
-from tests_e2e.scenarios.full_slr_pipeline import run_full_slr_pipeline_scenario
+from tests_e2e.scenarios import (
+    run_full_slr_pipeline_scenario,
+    run_chat_multiturn_scenario,
+    run_agent_lifecycle_scenario,
+    run_pipeline_reprocessing_scenario,
+)
 
 # Configure rich colored terminal logging
 logging.basicConfig(
@@ -43,6 +48,12 @@ def parse_args():
         choices=["prod", "production", "staging", "local"],
         default="prod",
         help="Target environment (default: prod)",
+    )
+    parser.add_argument(
+        "--scenario",
+        choices=["slr", "lifecycle", "reprocess", "all"],
+        default="slr",
+        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, all: Run all)",
     )
     parser.add_argument(
         "--url",
@@ -179,9 +190,43 @@ def main():
 
     t0 = time.time()
     try:
-        results = run_full_slr_pipeline_scenario(config)
-        total_elapsed = time.time() - t0
-        print_summary_card(results, total_elapsed)
+        if args.scenario == "slr":
+            results = run_full_slr_pipeline_scenario(config)
+            total_elapsed = time.time() - t0
+            print_summary_card(results, total_elapsed)
+
+        elif args.scenario == "lifecycle":
+            res = run_agent_lifecycle_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ AGENT LIFECYCLE SCENARIO COMPLETED in {total_elapsed:.1f}s (Final Status: {res.get('final_status')})\n")
+
+        elif args.scenario == "reprocess":
+            res = run_pipeline_reprocessing_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ PIPELINE REPROCESSING SCENARIO COMPLETED in {total_elapsed:.1f}s (Total Papers: {res.get('total_papers')})\n")
+
+        elif args.scenario == "all":
+            logger.info("🧪 Running ALL E2E test scenarios sequentially...")
+            # 1. Full SLR
+            slr_results = run_full_slr_pipeline_scenario(config)
+            # 2. Multi-turn chat
+            top_papers = slr_results.get("top_papers", [])
+            if top_papers:
+                from tests_e2e.client import APIClient, PipelineService
+                client = APIClient(config.base_url)
+                client.set_auth_token(config.password)
+                pipeline_svc = PipelineService(client)
+                papers = pipeline_svc.list_papers(workspace_id=slr_results["workspace_id"])
+                if papers:
+                    run_chat_multiturn_scenario(slr_results["workspace_id"], papers[0]["id"], config)
+            # 3. Agent Lifecycle (Pause/Resume)
+            run_agent_lifecycle_scenario(config)
+            # 4. Pipeline Reprocessing
+            run_pipeline_reprocessing_scenario(config)
+
+            total_elapsed = time.time() - t0
+            print_summary_card(slr_results, total_elapsed)
+
         sys.exit(0)
     except Exception as exc:
         total_elapsed = time.time() - t0
