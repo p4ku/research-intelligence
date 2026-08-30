@@ -13,6 +13,59 @@ from .base import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
 
+def _resolve_thinking_config(kwargs: dict, model_name: str):
+    """
+    Resolves ThinkingConfig for Gemini models supporting Chain of Thought reasoning.
+    Supports reasoning_effort ('off', 'low', 'medium', 'high'), thinking_budget (int),
+    thinking_level (str), and deep_thinking (bool).
+    Defaults to 'medium' (thinking_budget=2048) for reasoning-capable models (e.g. gemini-3.7, gemini-2.5).
+    """
+    reasoning_effort = kwargs.get("reasoning_effort")
+    deep_thinking = kwargs.get("deep_thinking", False)
+    thinking_budget = kwargs.get("thinking_budget")
+    thinking_level = kwargs.get("thinking_level")
+    include_thoughts = kwargs.get("include_thoughts", False)
+
+    # Default to 'medium' if no reasoning/thinking parameter is explicitly specified
+    if reasoning_effort is None and not deep_thinking and thinking_budget is None and thinking_level is None:
+        if "3.7" in model_name or "2.5" in model_name or "thinking" in model_name or "flash" in model_name or "pro" in model_name:
+            reasoning_effort = "medium"
+
+    if reasoning_effort is not None:
+        effort_str = str(reasoning_effort).strip().lower()
+        if effort_str in ("off", "none", "0", "false"):
+            thinking_budget = 0
+            thinking_level = None
+        elif effort_str == "low":
+            thinking_budget = 1024
+            thinking_level = "low"
+        elif effort_str == "high":
+            thinking_budget = 8192
+            thinking_level = "high"
+        elif effort_str in ("medium", "true", "default"):
+            thinking_budget = 2048
+            thinking_level = "medium"
+
+    if deep_thinking and thinking_budget is None:
+        thinking_budget = 2048
+
+    if thinking_budget is not None or thinking_level is not None or include_thoughts:
+        try:
+            thinking_kwargs = {}
+            if include_thoughts or deep_thinking:
+                thinking_kwargs["include_thoughts"] = True
+            if thinking_budget is not None:
+                thinking_kwargs["thinking_budget"] = thinking_budget
+            elif thinking_level is not None:
+                thinking_kwargs["thinking_level"] = thinking_level
+
+            if thinking_kwargs and hasattr(types, 'ThinkingConfig'):
+                return types.ThinkingConfig(**thinking_kwargs)
+        except Exception as te:
+            logger.debug(f"ThinkingConfig resolution note: {te}")
+    return None
+
+
 class GoogleAgentAPIProvider(BaseLLMProvider):
     """
     Client driver for Google GenAI / Vertex AI using the google-genai SDK.
@@ -203,28 +256,10 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         if cached_content:
             config_args["cached_content"] = cached_content
 
-        # Native Gemini Thinking Configuration
-        deep_thinking = kwargs.get("deep_thinking", False)
-        thinking_budget = kwargs.get("thinking_budget")
-        thinking_level = kwargs.get("thinking_level")
-        include_thoughts = kwargs.get("include_thoughts", False)
-
-        if deep_thinking or thinking_budget is not None or thinking_level is not None or include_thoughts:
-            try:
-                thinking_kwargs = {}
-                if include_thoughts or deep_thinking:
-                    thinking_kwargs["include_thoughts"] = True
-                if thinking_budget is not None:
-                    thinking_kwargs["thinking_budget"] = thinking_budget
-                elif thinking_level is not None:
-                    thinking_kwargs["thinking_level"] = thinking_level
-                elif deep_thinking:
-                    thinking_kwargs["thinking_budget"] = 2048
-
-                if thinking_kwargs and hasattr(types, 'ThinkingConfig'):
-                    config_args["thinking_config"] = types.ThinkingConfig(**thinking_kwargs)
-            except Exception as te:
-                logger.debug(f"ThinkingConfig initialization note: {te}")
+        # Native Gemini Thinking / Reasoning Configuration
+        thinking_cfg = _resolve_thinking_config(kwargs, model_name)
+        if thinking_cfg:
+            config_args["thinking_config"] = thinking_cfg
 
         # Explicitly disable automatic function calling (AFC) to silence SDK warning for direct generation
         if hasattr(types, "AutomaticFunctionCallingConfig"):
@@ -364,27 +399,10 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         if cached_content:
             config_args["cached_content"] = cached_content
 
-        deep_thinking = kwargs.get("deep_thinking", False)
-        thinking_budget = kwargs.get("thinking_budget")
-        thinking_level = kwargs.get("thinking_level")
-        include_thoughts = kwargs.get("include_thoughts", False)
-
-        if deep_thinking or thinking_budget is not None or thinking_level is not None or include_thoughts:
-            try:
-                thinking_kwargs = {}
-                if include_thoughts or deep_thinking:
-                    thinking_kwargs["include_thoughts"] = True
-                if thinking_budget is not None:
-                    thinking_kwargs["thinking_budget"] = thinking_budget
-                elif thinking_level is not None:
-                    thinking_kwargs["thinking_level"] = thinking_level
-                elif deep_thinking:
-                    thinking_kwargs["thinking_budget"] = 2048
-
-                if thinking_kwargs and hasattr(types, 'ThinkingConfig'):
-                    config_args["thinking_config"] = types.ThinkingConfig(**thinking_kwargs)
-            except Exception as te:
-                logger.debug(f"ThinkingConfig stream init note: {te}")
+        # Native Gemini Thinking / Reasoning Configuration
+        thinking_cfg = _resolve_thinking_config(kwargs, model_name)
+        if thinking_cfg:
+            config_args["thinking_config"] = thinking_cfg
 
         # Explicitly disable automatic function calling (AFC) to silence SDK warning for direct generation
         if hasattr(types, "AutomaticFunctionCallingConfig"):

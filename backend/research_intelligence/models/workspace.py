@@ -194,6 +194,17 @@ class Workspace(models.Model):
         choices=[("google", "Google Agent API"), ("openrouter", "OpenRouter")],
         help_text="LLM provider used for pipeline execution steps"
     )
+    reasoning_effort = models.CharField(
+        max_length=20,
+        default="medium",
+        choices=[
+            ("off", "Off (No Reasoning / Thinking)"),
+            ("low", "Low (~1024 Tokens)"),
+            ("medium", "Medium (~2048 Tokens - Recommended)"),
+            ("high", "High (~8192 Tokens)"),
+        ],
+        help_text="Reasoning / thinking effort level for LLMs supporting Chain of Thought (e.g. Gemini 3.7 Flash, Gemini 2.5, OpenAI o1/o3)."
+    )
 
     # Token & Budget quotas defined directly on the project/workspace level
     monthly_token_limit = models.BigIntegerField(default=10000000)

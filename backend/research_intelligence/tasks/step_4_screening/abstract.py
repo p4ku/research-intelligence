@@ -75,6 +75,7 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
                 system_instruction=system_prompt,
                 response_schema=response_schema,
                 model=workspace.screening_llm_model,
+                reasoning_effort=getattr(workspace, 'reasoning_effort', 'medium'),
                 return_usage=True
             )
             

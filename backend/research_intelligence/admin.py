@@ -575,6 +575,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
         'name',
         'ocr_provider',
         'screening_llm_model',
+        'reasoning_effort',
         'tokens_consumed_display',
         'usd_spent_display',
         'created_at'
@@ -586,7 +587,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
         'full_text_acceptance_criteria',
         'full_text_rejection_criteria'
     )
-    list_filter = ('ocr_provider', 'llm_provider', 'created_at')
+    list_filter = ('ocr_provider', 'llm_provider', 'reasoning_effort', 'created_at')
     inlines = [WorkspaceMemberInline, ScraperInline, SubscriberInline]
 
     def get_queryset(self, request):
@@ -626,7 +627,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
             'fields': ('name', 'digest_schedule', 'skip_abstract_screening', 'notification_email')
         }),
         ('Engine & Provider Configuration', {
-            'fields': ('ocr_provider', 'screening_llm_model', 'llm_provider')
+            'fields': ('ocr_provider', 'screening_llm_model', 'llm_provider', 'reasoning_effort')
         }),
         ('🎯 Step 4: Abstract Screening Engine & Dynamic Prompting', {
             'fields': (

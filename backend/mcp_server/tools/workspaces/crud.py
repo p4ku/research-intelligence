@@ -32,6 +32,7 @@ def list_workspaces_logic(user) -> str:
             "ocr_provider": ws.ocr_provider,
             "llm_provider": ws.llm_provider,
             "screening_llm_model": ws.screening_llm_model,
+            "reasoning_effort": getattr(ws, 'reasoning_effort', 'medium'),
             "signal_score_code": ws.signal_score_code,
             "tokens_consumed_this_month": getattr(ws, 'tokens_consumed_this_month', 0),
             "usd_spent_this_month": float(getattr(ws, 'usd_spent_this_month', 0.0)),
@@ -57,6 +58,7 @@ def get_workspace_logic(user, workspace_id: str) -> str:
         "ocr_provider": workspace.ocr_provider,
         "llm_provider": workspace.llm_provider,
         "screening_llm_model": workspace.screening_llm_model,
+        "reasoning_effort": getattr(workspace, 'reasoning_effort', 'medium'),
         "signal_score_code": workspace.signal_score_code,
         "quota_tokens_monthly": getattr(workspace, 'quota_tokens_monthly', getattr(workspace, 'monthly_token_limit', None)),
         "quota_usd_monthly": float(workspace.quota_usd_monthly) if getattr(workspace, 'quota_usd_monthly', None) else None,
@@ -121,6 +123,7 @@ def create_workspace_logic(
     ocr_provider: str = None,
     screening_llm_model: str = 'google/gemini-3.7-flash',
     llm_provider: str = 'google',
+    reasoning_effort: str = 'medium',
     digest_schedule: str = '0 9 * * 5',
     monthly_token_limit: int = 10000000,
     monthly_usd_limit: float = 100.00,
@@ -150,6 +153,7 @@ def create_workspace_logic(
         ocr_provider=ocr_provider,
         screening_llm_model=screening_llm_model,
         llm_provider=llm_provider,
+        reasoning_effort=reasoning_effort or 'medium',
         digest_schedule=digest_schedule,
         monthly_token_limit=monthly_token_limit if monthly_token_limit is not None else 10000000,
         monthly_usd_limit=usd_limit if usd_limit is not None else 100.00,
@@ -186,6 +190,7 @@ def update_workspace_logic(
     ocr_provider: str = None,
     screening_llm_model: str = None,
     llm_provider: str = None,
+    reasoning_effort: str = None,
     digest_schedule: str = None,
     monthly_token_limit: int = None,
     cost_limit_usd: float = None,
@@ -260,6 +265,12 @@ def update_workspace_logic(
             return json.dumps({"status": "error", "error": f"Error: Invalid llm_provider '{llm_provider}'. Choose from {valid_llm}."}, indent=2)
         workspace.llm_provider = llm_provider
         fields_to_update.append('llm_provider')
+    if reasoning_effort is not None:
+        valid_efforts = ["off", "low", "medium", "high"]
+        if reasoning_effort not in valid_efforts:
+            return json.dumps({"status": "error", "error": f"Error: Invalid reasoning_effort '{reasoning_effort}'. Choose from {valid_efforts}."}, indent=2)
+        workspace.reasoning_effort = reasoning_effort
+        fields_to_update.append('reasoning_effort')
     if digest_schedule is not None:
         workspace.digest_schedule = digest_schedule
         fields_to_update.append('digest_schedule')

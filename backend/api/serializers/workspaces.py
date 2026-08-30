@@ -37,7 +37,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             'full_text_screening_response_schema', 'full_text_screening_exit_metric',
             'signal_score_code', 'skip_abstract_screening', 'notification_email',
             'extraction_definitions', 'ocr_provider',
-            'screening_llm_model', 'llm_provider', 'digest_schedule',
+            'screening_llm_model', 'llm_provider', 'reasoning_effort', 'digest_schedule',
             'monthly_token_limit',
             'tokens_in_consumed_this_month', 'tokens_out_consumed_this_month', 'tokens_consumed_this_month',
             'monthly_usd_limit', 'usd_spent_this_month', 'subscribers',

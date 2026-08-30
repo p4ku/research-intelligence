@@ -89,6 +89,7 @@ def _run_single_extraction_worker(paper, definition, workspace):
         "system_instruction": system_prompt,
         "response_schema": schema_to_use,
         "model": definition.llm_model,
+        "reasoning_effort": getattr(workspace, 'reasoning_effort', 'medium'),
         "return_usage": True,
     }
     if pdf_bytes:
