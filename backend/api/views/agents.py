@@ -60,6 +60,7 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
         query_prefix = request.data.get("query_prefix")
         skip_abstract = request.data.get("skip_abstract_screening")
         notification_email = request.data.get("notification_email")
+        reprocess_existing = bool(request.data.get("reprocess_existing", False))
 
         res_json = start_research_agent_logic(
             user=request.user,
@@ -69,7 +70,8 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
             date_range_days=date_range_days,
             query_prefix=query_prefix,
             skip_abstract_screening=skip_abstract,
-            notification_email=notification_email
+            notification_email=notification_email,
+            reprocess_existing=reprocess_existing
         )
         try:
             res_data = json.loads(res_json)

@@ -16,5 +16,6 @@ class PaperSerializer(serializers.ModelSerializer):
             'title', 'authors', 'abstract', 'source_database',
             'original_pdf_path', 'converted_md_path', 'screening_status',
             'screening_reasoning', 'is_evaluation_benchmark',
-            'evaluation_label', 'metrics', 'created_at'
+            'evaluation_label', 'signal_score', 'signal_score_details',
+            'metrics', 'created_at'
         ]

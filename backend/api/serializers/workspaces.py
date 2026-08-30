@@ -4,7 +4,7 @@ from research_intelligence.models import Workspace, Subscriber, ExtractionDefini
 class SubscriberSerializer(serializers.ModelSerializer):
     class Meta:
         model = Subscriber
-        fields = ['id', 'email', 'name', 'is_active', 'created_at']
+        fields = ['id', 'email', 'name', 'subscription_type', 'is_active', 'created_at']
 
 class ScraperSerializer(serializers.ModelSerializer):
     class Meta:
@@ -16,7 +16,8 @@ class ExtractionDefinitionSerializer(serializers.ModelSerializer):
         model = ExtractionDefinition
         fields = [
             'id', 'name', 'system_prompt', 'user_prompt_template',
-            'response_schema', 'llm_model', 'is_active', 'created_at'
+            'response_schema', 'exit_metric', 'llm_model', 'version',
+            'requires_consensus', 'is_active', 'created_at'
         ]
 
 class WorkspaceSerializer(serializers.ModelSerializer):
