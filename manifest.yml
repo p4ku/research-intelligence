@@ -16,6 +16,7 @@ applications:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/swagger
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/redoc
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/schema
+      - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/sentry-debug
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/static
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/media
 
