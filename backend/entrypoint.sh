@@ -63,7 +63,7 @@ else
     python manage.py collectstatic --noinput || true
 
     echo "🔥 [ENTRYPOINT] Starting Production WSGI Server (Gunicorn on port ${PORT:-8000})..."
-    exec gunicorn django_project.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers ${GUNICORN_WORKERS:-2} --threads ${GUNICORN_THREADS:-2} --timeout 120 --access-logfile -
+    exec gunicorn django_project.wsgi:application --bind 0.0.0.0:${PORT:-8000} --workers ${GUNICORN_WORKERS:-2} --threads ${GUNICORN_THREADS:-2} --timeout 300 --access-logfile -
 fi
 
 

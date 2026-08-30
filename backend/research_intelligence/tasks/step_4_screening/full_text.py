@@ -413,7 +413,7 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
                     res = {"success": False, "error": str(pe), "input_source": "error", "duration_seconds": 0.0, "usage": {}}
                 _record_result(paper, res)
         else:
-            batch_timeout_sec = max(300.0, (len(papers) / max(1, worker_concurrency)) * 180.0)
+            batch_timeout_sec = max(600.0, (len(papers) / max(1, worker_concurrency)) * 300.0)
             completed_paper_ids = set()
             with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
                 future_to_paper = {
@@ -425,7 +425,7 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
                         paper = future_to_paper[future]
                         completed_paper_ids.add(paper.id)
                         try:
-                            _, res = future.result(timeout=180.0)
+                            _, res = future.result(timeout=300.0)
                         except Exception as fe:
                             logger.error(f"Thread execution error for paper '{paper.id}': {fe}")
                             res = {"success": False, "error": str(fe), "input_source": "unknown", "duration_seconds": 0.0, "usage": {}}

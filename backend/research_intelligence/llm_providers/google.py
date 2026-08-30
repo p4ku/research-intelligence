@@ -395,8 +395,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         if "mock" in model_name:
             model_name = "gemini-3.7-flash"
 
-        raw_loc = kwargs.get("location") or self.location or os.environ.get("GOOGLE_CLOUD_LOCATION") or os.environ.get("LOCATION")
-        client_location = "europe-west1" if (raw_loc in ("eu", "europe") or not raw_loc) else raw_loc
+        client_location = kwargs.get("location") or self.location or "eu"
         client = self._get_client(location=client_location)
 
         contents = []
@@ -486,8 +485,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         if "mock" in model_name:
             model_name = "gemini-3.7-flash"
 
-        raw_loc = kwargs.get("location") or self.location or os.environ.get("GOOGLE_CLOUD_LOCATION") or os.environ.get("LOCATION")
-        client_location = "europe-west1" if (raw_loc in ("eu", "europe") or not raw_loc) else raw_loc
+        client_location = kwargs.get("location") or self.location or "eu"
         client = self._get_client(location=client_location)
         try:
             cache_config = types.CreateCachedContentConfig(

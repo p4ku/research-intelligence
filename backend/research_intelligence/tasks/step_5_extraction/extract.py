@@ -346,7 +346,7 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
                     }
                 _record_result(res)
         else:
-            batch_timeout_sec = max(300.0, (len(work_items) / max(1, worker_concurrency)) * 180.0)
+            batch_timeout_sec = max(600.0, (len(work_items) / max(1, worker_concurrency)) * 300.0)
             completed_item_keys = set()
             with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
                 future_to_item = {
@@ -359,7 +359,7 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
                         item_key = (str(paper.id), str(definition.id))
                         completed_item_keys.add(item_key)
                         try:
-                            res = future.result(timeout=180.0)
+                            res = future.result(timeout=300.0)
                         except Exception as fe:
                             logger.error(f"Thread execution error for paper '{paper.id}' with def '{definition.name}': {fe}")
                             res = {
