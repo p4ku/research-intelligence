@@ -171,7 +171,7 @@ def _screen_paper_task(paper, workspace_obj):
 
 
 @shared_task(bind=True)
-def execute_screening_job(self, component_run_id: str, limit: int = None, max_workers: int = 8):
+def execute_screening_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing Step 4 (Abstract Screening) for papers in a ComponentRun job.
     Executes paper screening concurrently using a ThreadPoolExecutor.

@@ -450,15 +450,26 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         logger.info(f"   • Reports Generated     : {len(reports)}")
 
         # Step 9: Verify Signal Scores and Top Papers
+        def _get_paper_score(p):
+            if p.get("signal_score") is not None:
+                return float(p.get("signal_score"))
+            metrics = p.get("metrics", [])
+            if metrics and isinstance(metrics, list) and len(metrics) > 0:
+                m = metrics[0]
+                if isinstance(m, dict) and m.get("signal_score") is not None:
+                    return float(m.get("signal_score"))
+            return None
+
         sorted_papers = sorted(
             accepted_papers,
-            key=lambda p: float(p.get("signal_score") or 0.0),
+            key=lambda p: float(_get_paper_score(p) or 0.0),
             reverse=True,
         )
         scenario_results["top_papers"] = [
             {
+                "id": p.get("id"),
                 "title": p.get("title"),
-                "signal_score": p.get("signal_score"),
+                "signal_score": _get_paper_score(p),
                 "doi": p.get("doi"),
                 "arxiv_id": p.get("arxiv_id"),
             }
