@@ -321,8 +321,11 @@ function dimensionFor(
     ctx.def.name,
     extraction.category,
   )
+  // metrics_data is pre-filled with 0.0 for every definition, so a bare 0
+  // there is indistinguishable from "never scored" — only a non-zero metric
+  // outranks the parsed extraction value ("null not 0", like parseNumeric).
   const fromMetric = metric?.metrics_data?.[ctx.key]
-  let value = typeof fromMetric === 'number' ? fromMetric : parseNumeric(raw)
+  let value = typeof fromMetric === 'number' && fromMetric !== 0 ? fromMetric : parseNumeric(raw)
   if (ctx.is_trl && value !== null) value = Math.min(9, Math.max(1, Math.round(value)))
 
   const details = detailsFor(fieldsOf(extraction.fields_data), matchedKey)

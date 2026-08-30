@@ -297,6 +297,72 @@ describe('toScoredPaper', () => {
     expect(p.signal_score_details).toBeNull()
   })
 
+  test('pre-filled 0.0 metric never overrides a non-numeric extraction (null, not 0)', () => {
+    const highOnly: ExtractionDTO[] = [
+      extraction({
+        id: 'e9',
+        paper: 'p3',
+        extraction_definition: 'def-nov',
+        category: 'Novelty Score',
+        fields_data: { novelty_score: 'High' },
+      }),
+    ]
+    const p = toScoredPaper(
+      paper({
+        id: 'p3',
+        metrics: [
+          {
+            id: 'm3',
+            paper: 'p3',
+            pipeline_run: 'run-1',
+            workspace: 'ws-1',
+            signal_score: 40,
+            signal_score_details: {},
+            metrics_data: { fit_score: 0.0, novelty_score: 0.0, trl_level: 0.0 },
+            created_at: '2026-08-02T00:00:00Z',
+          },
+        ],
+      }),
+      highOnly,
+      contexts,
+    )
+    const nov = p.dimensions.find((d) => d.key === 'novelty_score')!
+    expect(nov.value).toBeNull()
+    expect(nov.raw).toBe('High')
+  })
+
+  test('a computed non-zero metric still outranks a non-numeric raw', () => {
+    const highOnly: ExtractionDTO[] = [
+      extraction({
+        id: 'e10',
+        paper: 'p4',
+        extraction_definition: 'def-nov',
+        category: 'Novelty Score',
+        fields_data: { novelty_score: 'High' },
+      }),
+    ]
+    const p = toScoredPaper(
+      paper({
+        id: 'p4',
+        metrics: [
+          {
+            id: 'm4',
+            paper: 'p4',
+            pipeline_run: 'run-1',
+            workspace: 'ws-1',
+            signal_score: 40,
+            signal_score_details: {},
+            metrics_data: { novelty_score: 8 },
+            created_at: '2026-08-02T00:00:00Z',
+          },
+        ],
+      }),
+      highOnly,
+      contexts,
+    )
+    expect(p.dimensions.find((d) => d.key === 'novelty_score')!.value).toBe(8)
+  })
+
   test('unscored paper', () => {
     const p = toScoredPaper(paper({ id: 'p3', screening_status: 'weird' }), [], contexts)
     expect(p.signal_score).toBeNull()
