@@ -178,4 +178,4 @@ Comprehensive test suites are located in `backend/chat/tests/` and `backend/mcp_
 ./run_tests.sh
 ```
 
-All 361+ test cases execute in-memory (`:memory:` SQLite) in ~8 seconds with 100% PASS rate.
+All 378+ test cases execute in-memory (`:memory:` SQLite) in ~8 seconds with 100% PASS rate.

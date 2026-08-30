@@ -32,7 +32,7 @@ backend/
 └── research_intelligence/      # Core Platform Domain Logic
     ├── llm_providers/          # LLM Drivers (Google Vertex AI / Gemini 3.7 Flash, OpenRouter)
     ├── ocr_providers/          # Document OCR Parsers (PyPDF, Mistral OCR, Gemini)
-    ├── tasks/                  # Celery Tasks & Orchestrator State Engine
+    ├── tasks/                  # Celery Tasks & Orchestrator DAG State Engine
     │   ├── orchestrator/       # ResearchAgentProcess State Machine & DAG Runner
     │   ├── step_1_search/      # Multi-source querying & deduplication (ArXiv, OpenAlex, Lens, PubMed)
     │   ├── step_2_download/    # Parallel document fetch & SHA-256 PDF caching
@@ -40,16 +40,17 @@ backend/
     │   ├── step_4_screening/   # 2-Stage Abstract & Multimodal Full-Text Screening
     │   ├── step_5_extraction/  # Schema-validated JSON parameter extraction
     │   ├── step_6_signal_score/# AST-sandboxed mathematical composite scoring
+    │   ├── step_7_reporting/   # Executive narrative report synthesis & notification dispatch
     │   └── auxiliary/          # Email digest notifications & health monitoring
     ├── utils/                  # Mailgun HTTP transactional emailer & sandbox
-    └── tests/                  # Complete test suite (300+ tests running on in-memory SQLite)
+    └── tests/                  # Complete test suite (378+ tests running on in-memory SQLite)
 ```
 
 ---
 
-## ⚙️ 2. The 6-Step Processing Pipeline
+## ⚙️ 2. The 8-Stage Processing Pipeline
 
-The autonomous engine in `tasks/orchestrator/agent_engine.py` orchestrates the complete literature review lifecycle:
+The autonomous DAG engine orchestrates the complete literature review lifecycle:
 
 ```mermaid
 graph TD
@@ -57,33 +58,35 @@ graph TD
     
     Initialized --> SearchStep[Step 1: Search & Ingestion<br/>State: search<br/>Queries ArXiv, OpenAlex, Lens, PubMed with deduplication]
     
-    SearchStep --> DownloadStep[Step 2: Parallel PDF Download<br/>State: download<br/>Fetches PDFs with global document deduplication]
+    SearchStep --> AbstractScreening[Step 2: Abstract Screening<br/>State: abstract_screening<br/>Fast triage against abstract_* criteria]
+    
+    AbstractScreening --> DownloadStep[Step 3: Parallel PDF Download<br/>State: download<br/>Fetches PDFs ONLY for abstract-passed papers]
     
     DownloadStep --> OCRCheck{ocr_provider configured?}
     
-    OCRCheck -->|Yes: pypdf / mistral| OCRStep[Step 3: OCR Conversion<br/>State: ocr<br/>Parses layout to structured Markdown]
+    OCRCheck -->|Yes: pypdf / mistral / gemini| OCRStep[Step 4: OCR Conversion<br/>State: ocr<br/>Parses layout to structured Markdown]
     OCRCheck -->|No: ocr_provider is None| SkipOCR[Auto-Skip OCR Step<br/>Direct pass-through for multimodal screening]
     
-    OCRStep --> AbstractScreening[Step 4A: Abstract Screening<br/>State: screening<br/>Evaluates abstract_* criteria]
-    SkipOCR --> AbstractScreening
+    OCRStep --> FullTextScreening[Step 5: Full-Text Screening<br/>State: full_text_screening<br/>Multimodal analysis of raw PDF via Gemini 3.7 Flash]
+    SkipOCR --> FullTextScreening
     
-    AbstractScreening --> FullTextScreening[Step 4B: Full-Text Screening<br/>State: screening<br/>Multimodal analysis of raw PDF via Gemini 3.7 Flash]
+    FullTextScreening --> ExtractionStep[Step 6: Dynamic Extraction<br/>State: extraction<br/>Schema-validated JSON parameter extraction]
     
-    FullTextScreening --> ExtractionStep[Step 5: Dynamic Extraction<br/>State: extraction<br/>Schema-validated JSON parameter extraction]
+    ExtractionStep --> SignalScoreStep[Step 7: Composite Signal Scoring<br/>State: signal_score<br/>AST-sandboxed Python scoring formula evaluation]
     
-    ExtractionStep --> SignalScoreStep[Step 6: Composite Signal Scoring<br/>State: scoring<br/>AST-sandboxed Python scoring formula evaluation]
+    SignalScoreStep --> ReportingStep[Step 8: Executive Reporting<br/>State: reporting<br/>Synthesizes briefing & dispatches Mailgun digests]
     
-    SignalScoreStep --> Completed([State: completed<br/>Transactional briefing emails via Mailgun])
+    ReportingStep --> Completed([State: completed<br/>Transactional briefing emails via Mailgun])
 ```
 
 * **Step 1: Search & Ingestion**: Multi-source querying with title, DOI, and arXiv ID deduplication.
-* **Step 2: Parallel Download**: Multi-threaded document fetching with SHA-256 caching.
-* **Step 3: Layout OCR**: Layout Markdown parsing (skipped by default for multimodal Gemini).
-* **Step 4: Dual-Stage Screening**:
-  * **Abstract Screening**: Title & abstract against `abstract_acceptance_criteria`.
-  * **Full-Text Screening**: Multimodal deep PDF analysis against `full_text_acceptance_criteria`.
-* **Step 5: Parameter Extraction**: Schema-validated parameter extraction with evidence quotes and confidence scores.
-* **Step 6: Composite Signal Scoring**: Sandboxed mathematical formula execution (`workspace.signal_score_code`).
+* **Step 2: Abstract Screening**: Fast AI triage evaluating title & abstract against `abstract_acceptance_criteria`.
+* **Step 3: Parallel Download**: Multi-threaded document fetching for passed papers with SHA-256 caching.
+* **Step 4: Layout OCR**: Layout Markdown parsing (skipped by default for multimodal Gemini).
+* **Step 5: Full-Text Screening**: Multimodal deep PDF analysis against `full_text_acceptance_criteria`.
+* **Step 6: Dynamic Parameter Extraction**: Schema-validated parameter extraction with evidence quotes and confidence scores.
+* **Step 7: Composite Signal Scoring**: Sandboxed mathematical formula execution (`workspace.signal_score_code`).
+* **Step 8: Executive Reporting & Notification Dispatch**: Narrative synthesis and email delivery via Mailgun.
 
 ---
 
@@ -103,11 +106,11 @@ graph TD
 ## 🧪 4. Testing & Verification
 
 ```bash
-# Run the complete test suite (~300+ tests in parallel)
+# Run the complete test suite (~378+ tests in parallel)
 ./run_tests.sh
 
 # Run specific test modules
 ./run_tests.sh research_intelligence.tests.test_jwt_auth
-./run_tests.sh research_intelligence.tests.test_mcp_server
+./run_tests.sh research_intelligence.tests.test_mcp_security_and_multitenancy
 ./run_tests.sh research_intelligence.tests.test_multimodal_pdf_screening
 ```
