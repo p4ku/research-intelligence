@@ -163,7 +163,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         system_instruction: str = None,
         response_schema: dict = None,
         temperature: float = 0.0,
-        max_tokens: int = 2048,
+        max_tokens: int = 8192,
         model: str = None,
         pdf_path: str = None,
         pdf_bytes: bytes = None,
