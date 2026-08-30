@@ -293,6 +293,13 @@ class SubscriberInline(admin.TabularInline):
     readonly_fields = ('created_at',)
 
 
+class ExtractionDefinitionInline(admin.TabularInline):
+    model = ExtractionDefinition
+    extra = 0
+    fields = ('name', 'llm_model', 'is_active', 'created_at')
+    readonly_fields = ('created_at',)
+    show_change_link = True
+
 
 # Helper function to render formatted component metrics summary
 def render_component_metrics_summary(obj):
@@ -303,17 +310,23 @@ def render_component_metrics_summary(obj):
         total = m.get('total_screened', 0)
         passed = m.get('passed', 0)
         rejected = m.get('rejected', 0)
+        withdrawn = m.get('withdrawn', 0)
         rej_color = '#6c757d' if rejected == 0 else '#dc3545'
+        extras = []
+        if withdrawn > 0:
+            extras.append(f'<span style="color: #6c757d; font-size: 11px;">({withdrawn} withdrawn)</span>')
+        extra_html = f"<br>{''.join(extras)}" if extras else ""
         return format_html(
             '<div style="line-height: 1.35; white-space: nowrap;">'
             '<strong>{} screened:</strong><br>'
             '<span style="color: #198754; font-weight: 600;">{} passed</span>,<br>'
-            '<span style="color: {}; font-weight: 600;">{} rejected</span>'
+            '<span style="color: {}; font-weight: 600;">{} rejected</span>{}'
             '</div>',
             total,
             passed,
             rej_color,
             rejected,
+            format_html(extra_html) if extra_html else mark_safe(""),
         )
     elif obj.step_type == 'search':
         created = m.get('ingested_new', m.get('total_created', 0))
@@ -338,7 +351,7 @@ def render_component_metrics_summary(obj):
     elif obj.step_type == 'download':
         dl = m.get('downloaded', 0)
         failed = m.get('failed', 0)
-        cached = m.get('cached_hits', 0)
+        cached = m.get('cached', m.get('from_cache', m.get('cached_hits', 0)))
         extras = []
         if cached:
             extras.append(f"{cached} cached")
@@ -576,6 +589,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
         'ocr_provider',
         'screening_llm_model',
         'reasoning_effort',
+        'skip_abstract_screening',
         'tokens_consumed_display',
         'usd_spent_display',
         'created_at'
@@ -587,8 +601,8 @@ class WorkspaceAdmin(admin.ModelAdmin):
         'full_text_acceptance_criteria',
         'full_text_rejection_criteria'
     )
-    list_filter = ('ocr_provider', 'llm_provider', 'reasoning_effort', 'created_at')
-    inlines = [WorkspaceMemberInline, ScraperInline, SubscriberInline]
+    list_filter = ('ocr_provider', 'llm_provider', 'reasoning_effort', 'skip_abstract_screening', 'created_at')
+    inlines = [WorkspaceMemberInline, ScraperInline, ExtractionDefinitionInline, SubscriberInline]
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -629,7 +643,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
         ('Engine & Provider Configuration', {
             'fields': ('ocr_provider', 'screening_llm_model', 'llm_provider', 'reasoning_effort')
         }),
-        ('🎯 Step 4: Abstract Screening Engine & Dynamic Prompting', {
+        ('🎯 Step 2: Abstract Screening Engine & Dynamic Prompting', {
             'fields': (
                 'abstract_acceptance_criteria',
                 'abstract_rejection_criteria',
@@ -640,7 +654,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
             ),
             'description': 'Configure criteria, system prompt, user prompt template (placeholders: <code>{title}</code>, <code>{abstract}</code>, <code>{acceptance_criteria}</code>, <code>{rejection_criteria}</code>), custom JSON schema, and exit metric for Abstract Screening. If left blank, standard defaults are used.'
         }),
-        ('📄 Step 4: Full-Text Screening Engine & Dynamic Prompting', {
+        ('📄 Step 5: Full-Text Screening Engine & Dynamic Prompting', {
             'fields': (
                 'full_text_acceptance_criteria',
                 'full_text_rejection_criteria',
@@ -651,9 +665,9 @@ class WorkspaceAdmin(admin.ModelAdmin):
             ),
             'description': 'Configure criteria, system prompt, user prompt template (placeholders: <code>{title}</code>, <code>{abstract}</code>, <code>{full_text}</code>, <code>{acceptance_criteria}</code>, <code>{rejection_criteria}</code>), custom JSON schema, and exit metric for Full-Text Screening. If left blank, standard defaults are used.'
         }),
-        ('Step 6: Signal Score Configuration', {
+        ('⚙️ Step 7: Signal Score Configuration', {
             'fields': ('signal_score_code',),
-            'description': 'Custom Python snippet evaluated in Step 6 on paper extracted parameters (e.g. <code>k = fit_score + 2*novelty_score; return 5 if k > 10 else 99</code>). Executed securely in an isolated sandbox.'
+            'description': 'Custom Python snippet evaluated in Step 7 on paper extracted parameters (e.g. <code>k = fit_score + 2*novelty_score; return 5 if k > 10 else 99</code>). Executed securely in an isolated sandbox.'
         }),
         ('Monthly Quotas & Budgets', {
             'fields': (
@@ -949,6 +963,7 @@ class ScraperAdmin(admin.ModelAdmin):
             'arxiv': '#fd7e14',
             'openalex': '#0d6efd',
             'lens': '#6f42c1',
+            'pubmed': '#20c997',
         }
         return render_badge(obj.get_provider_display(), colors.get(obj.provider, '#6c757d'))
     provider_badge.short_description = "Provider"
@@ -1090,8 +1105,10 @@ class PipelineRunAdmin(admin.ModelAdmin):
     def current_stage_badge(self, obj):
         colors = {
             'search': '#0d6efd',
+            'abstract_screening': '#0dcaf0',
             'download': '#0dcaf0',
             'ocr': '#6f42c1',
+            'full_text_screening': '#ffc107',
             'screening': '#ffc107',
             'extraction': '#198754',
             'signal_score': '#fd7e14',
@@ -1295,7 +1312,7 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
             if step and step not in ('completed', 'reporting'):
                 step_name = dict(ResearchAgentProcess.STEP_CHOICES).get(step, step.title())
                 return render_badge(f"⚠️ HALTED AT {step_name.upper()}", "#fd7e14", "#ffffff")
-            return render_badge("✅ ALL 7 STEPS DONE", "#198754", "#ffffff")
+            return render_badge("✅ ALL 8 STEPS DONE", "#198754", "#ffffff")
         elif obj.status == 'paused':
             return render_badge("⏸️ PAUSED", "#ffc107", "#000000")
         elif obj.status == 'aborted':
@@ -1628,18 +1645,26 @@ class ComponentRunAdmin(admin.ModelAdmin):
     def step_type_badge(self, obj):
         colors = {
             'search': '#0d6efd',
+            'abstract_screening': '#0dcaf0',
             'download': '#0dcaf0',
             'ocr': '#6f42c1',
             'screening': '#ffc107',
+            'full_text_screening': '#ffc107',
             'extraction': '#198754',
             'signal_score': '#fd7e14',
             'metrics': '#fd7e14',
             'deep_research': '#d63384',
             'reporting': '#20c997',
         }
-        bg = colors.get(obj.step_type, '#6c757d')
+        label = obj.get_step_type_display()
+        if obj.step_type == 'screening' and obj.component_name:
+            if obj.component_name == 'abstract_screening':
+                label = 'Abstract Screening'
+            elif obj.component_name == 'full_text_screening':
+                label = 'Full-Text Screening'
+        bg = colors.get(obj.component_name, colors.get(obj.step_type, '#6c757d'))
         text_color = '#000000' if bg in ('#ffc107', '#0dcaf0') else '#ffffff'
-        return render_badge(obj.get_step_type_display(), bg, text_color)
+        return render_badge(label, bg, text_color)
     step_type_badge.short_description = "Step Type"
 
     def status_badge(self, obj):
@@ -1647,6 +1672,7 @@ class ComponentRunAdmin(admin.ModelAdmin):
             'pending': '#6c757d',
             'running': '#0d6efd',
             'completed': '#198754',
+            'skipped': '#6c757d',
             'failed': '#dc3545',
             'aborted': '#495057',
         }
@@ -1828,8 +1854,10 @@ class PaperAdmin(admin.ModelAdmin):
             'pending': '#6c757d',
             'abstract_passed': '#0dcaf0',
             'full_text_passed': '#198754',
+            'accepted': '#198754',
             'borderline': '#ffc107',
             'rejected': '#dc3545',
+            'withdrawn': '#6c757d',
         }
         bg = colors.get(obj.screening_status, '#6c757d')
         text_color = '#000000' if bg in ['#ffc107', '#0dcaf0'] else '#ffffff'

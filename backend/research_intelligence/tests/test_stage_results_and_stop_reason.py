@@ -244,7 +244,7 @@ class StageResultsAndStopReasonTestCase(TestCase):
 
         # Admin display
         stage_badge = self.agent_admin.stopped_stage_badge(agent)
-        self.assertIn("ALL 7 STEPS DONE", str(stage_badge))
+        self.assertIn("ALL 8 STEPS DONE", str(stage_badge))
         preview = self.agent_admin.stage_results_preview(agent)
         self.assertIn("Extraction", str(preview))
         self.assertIn("Reporting", str(preview))
