@@ -13,8 +13,8 @@ def trigger_error(request):
 
 
 urlpatterns = [
-    path('sentry-debug/', trigger_error, name='sentry-debug'),
-    path('api/sentry-debug/', trigger_error, name='api-sentry-debug'),
+    re_path(r'^sentry-debug/?$', trigger_error, name='sentry-debug'),
+    re_path(r'^api/sentry-debug/?$', trigger_error, name='api-sentry-debug'),
     path('admin/', admin.site.urls),
 
     # OpenAPI 3.0 & Swagger UI routes
