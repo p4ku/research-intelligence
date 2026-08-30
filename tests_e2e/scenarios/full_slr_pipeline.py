@@ -330,11 +330,17 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         workspace_id = ws_data["id"]
         scenario_results["workspace_id"] = workspace_id
 
-        # Step 3: Configure Academic Scraper (arXiv Machine Learning & AI Optimization)
+        # Step 3: Configure Academic Scraper (arXiv or OpenAlex)
+        provider = cfg.provider or "arxiv"
+        if provider == "openalex":
+            query = "machine learning neural networks optimization algorithms"
+        else:
+            query = 'cat:cs.AI AND (all:"machine learning" OR all:"neural network" OR all:"optimization")'
+
         scraper_data = ws_svc.create_scraper(
             workspace_id=workspace_id,
-            provider="arxiv",
-            search_query='cat:cs.AI AND (all:"machine learning" OR all:"neural network" OR all:"optimization")',
+            provider=provider,
+            search_query=query,
             limit=cfg.paper_limit,
             sort_by="relevance",
             sort_order="desc",

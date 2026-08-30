@@ -63,6 +63,12 @@ def parse_args():
         help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Multi-Source Deduplication, quota: Quota Guard, mcp: FastMCP SSE Tools, isolation: RBAC Multi-Tenancy, rerun: Mid-Step Rerun, guard: Hallucination Guard, concurrent: Parallel Agents Load, all: Run all)",
     )
     parser.add_argument(
+        "--provider",
+        choices=["arxiv", "openalex"],
+        default="arxiv",
+        help="Academic data source provider for scraping (arxiv or openalex, default: arxiv)",
+    )
+    parser.add_argument(
         "--url",
         type=str,
         default=None,
@@ -222,6 +228,7 @@ def main():
         base_url=base_url,
         username=args.user,
         password=args.password,
+        provider=args.provider,
         paper_limit=args.limit,
         poll_interval_sec=args.poll_interval,
         max_timeout_sec=args.timeout,
