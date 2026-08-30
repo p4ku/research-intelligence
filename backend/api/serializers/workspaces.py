@@ -15,7 +15,7 @@ class ExtractionDefinitionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExtractionDefinition
         fields = [
-            'id', 'name', 'system_prompt', 'user_prompt_template',
+            'id', 'workspace', 'name', 'system_prompt', 'user_prompt_template',
             'response_schema', 'exit_metric', 'llm_model', 'version',
             'requires_consensus', 'is_active', 'created_at'
         ]

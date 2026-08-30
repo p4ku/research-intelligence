@@ -102,5 +102,4 @@ celerybeat-schedule.db
 /backend/workspaces/
 /cache/
 /backend/cache/
-tests_e2e/
 
