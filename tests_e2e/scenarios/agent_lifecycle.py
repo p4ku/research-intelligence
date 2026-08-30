@@ -92,6 +92,20 @@ def run_agent_lifecycle_scenario(config: Optional[E2EConfig] = None) -> Dict[str
         completed_proc = agent_svc.poll_until_complete(process_id=process_id, max_timeout_sec=cfg.max_timeout_sec)
         assert completed_proc.get("status") == "completed", f"Agent failed to complete: {completed_proc}"
 
+        pipeline_run_id = completed_proc.get("pipeline_run")
+        from ..client import PipelineService
+        pipeline_svc = PipelineService(client)
+        pr_info = pipeline_svc.get_pipeline_run(pipeline_run_id) if pipeline_run_id else {}
+
+        cost_metrics = {
+            "pipeline_tokens_in": pr_info.get("tokens_in", 0),
+            "pipeline_tokens_out": pr_info.get("tokens_out", 0),
+            "pipeline_total_tokens": pr_info.get("tokens_consumed", 0),
+            "pipeline_usd_cost": float(pr_info.get("usd_cost") or 0.0),
+            "total_tokens_consumed": pr_info.get("tokens_consumed", 0),
+            "total_usd_spent": float(pr_info.get("usd_cost") or 0.0),
+        }
+
         logger.info("=================================================================")
         logger.info("🎉 AGENT LIFECYCLE (PAUSE / RESUME) SCENARIO PASSED SUCCESSFULLY!")
         logger.info("=================================================================")
@@ -101,6 +115,7 @@ def run_agent_lifecycle_scenario(config: Optional[E2EConfig] = None) -> Dict[str
             "workspace_id": workspace_id,
             "process_id": process_id,
             "final_status": completed_proc.get("status"),
+            "cost_metrics": cost_metrics,
         }
 
     finally:

@@ -96,6 +96,23 @@ def run_pipeline_reprocessing_scenario(config: Optional[E2EConfig] = None) -> Di
         papers_after_run2 = pipeline_svc.list_papers(workspace_id=workspace_id)
         logger.info(f"✅ Phase 2 Finished: {len(papers_after_run2)} papers re-evaluated across workspace.")
 
+        pr1 = pipeline_svc.get_pipeline_run(completed1.get("pipeline_run")) if completed1.get("pipeline_run") else {}
+        pr2 = pipeline_svc.get_pipeline_run(completed2.get("pipeline_run")) if completed2.get("pipeline_run") else {}
+
+        tok1 = pr1.get("tokens_consumed", 0) or 0
+        tok2 = pr2.get("tokens_consumed", 0) or 0
+        usd1 = float(pr1.get("usd_cost") or 0.0)
+        usd2 = float(pr2.get("usd_cost") or 0.0)
+
+        cost_metrics = {
+            "pipeline_tokens_in": (pr1.get("tokens_in", 0) or 0) + (pr2.get("tokens_in", 0) or 0),
+            "pipeline_tokens_out": (pr1.get("tokens_out", 0) or 0) + (pr2.get("tokens_out", 0) or 0),
+            "pipeline_total_tokens": tok1 + tok2,
+            "pipeline_usd_cost": usd1 + usd2,
+            "total_tokens_consumed": tok1 + tok2,
+            "total_usd_spent": usd1 + usd2,
+        }
+
         logger.info("=================================================================")
         logger.info("🎉 PIPELINE REPROCESSING SCENARIO PASSED SUCCESSFULLY!")
         logger.info("=================================================================")
@@ -106,6 +123,7 @@ def run_pipeline_reprocessing_scenario(config: Optional[E2EConfig] = None) -> Di
             "run1_process_id": run1_proc["id"],
             "run2_process_id": run2_proc["id"],
             "total_papers": len(papers_after_run2),
+            "cost_metrics": cost_metrics,
         }
 
     finally:

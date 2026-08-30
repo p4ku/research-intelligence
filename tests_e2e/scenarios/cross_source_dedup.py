@@ -85,6 +85,15 @@ def run_cross_source_dedup_scenario(config: Optional[E2EConfig] = None) -> Dict[
         pr_detail = pipeline_svc.get_pipeline_run(pipeline_run_id) if pipeline_run_id else {}
         papers = pipeline_svc.list_papers(workspace_id=workspace_id)
 
+        cost_metrics = {
+            "pipeline_tokens_in": pr_detail.get("tokens_in", 0),
+            "pipeline_tokens_out": pr_detail.get("tokens_out", 0),
+            "pipeline_total_tokens": pr_detail.get("tokens_consumed", 0),
+            "pipeline_usd_cost": float(pr_detail.get("usd_cost") or 0.0),
+            "total_tokens_consumed": pr_detail.get("tokens_consumed", 0),
+            "total_usd_spent": float(pr_detail.get("usd_cost") or 0.0),
+        }
+
         logger.info(f"📊 Deduplication Results:")
         logger.info(f"   • Total Unique Papers Ingested : {len(papers)}")
         logger.info(f"   • Total Scraper Sources Tested : arXiv + OpenAlex")
@@ -98,6 +107,7 @@ def run_cross_source_dedup_scenario(config: Optional[E2EConfig] = None) -> Dict[
             "workspace_id": workspace_id,
             "process_id": process_id,
             "total_papers": len(papers),
+            "cost_metrics": cost_metrics,
         }
 
     finally:

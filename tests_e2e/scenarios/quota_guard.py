@@ -89,6 +89,10 @@ def run_quota_guard_scenario(config: Optional[E2EConfig] = None) -> Dict[str, An
             "process_id": process_id,
             "tokens_consumed": tokens_consumed,
             "usd_spent": usd_spent,
+            "cost_metrics": {
+                "total_tokens_consumed": tokens_consumed,
+                "total_usd_spent": usd_spent,
+            },
         }
 
     finally:

@@ -122,6 +122,41 @@ def print_banner():
     )
 
 
+def print_llm_cost_summary(c: dict, total_elapsed: float, total_papers: int = 0):
+    p_in = c.get("pipeline_tokens_in", 0) or 0
+    p_out = c.get("pipeline_tokens_out", 0) or 0
+    p_tok = c.get("pipeline_total_tokens", 0) or (p_in + p_out)
+    p_usd = float(c.get("pipeline_usd_cost", 0.0) or 0.0)
+
+    c_in = c.get("chat_tokens_in", 0) or 0
+    c_out = c.get("chat_tokens_out", 0) or 0
+    c_tok = c.get("chat_total_tokens", 0) or (c_in + c_out)
+    c_usd = float(c.get("chat_usd_cost", 0.0) or 0.0)
+
+    tot_in = p_in + c_in
+    tot_out = p_out + c_out
+    tot_tok = c.get("total_tokens_consumed") or (tot_in + tot_out)
+    tot_usd = float(c.get("total_usd_spent", 0.0) or (p_usd + c_usd))
+    tot_eur = tot_usd * 0.92
+
+    print("\n" + "=" * 70)
+    print("💎  LLM TOKENS & FINANCIAL COST SUMMARY (GOOGLE GEMINI 3.7 FLASH)")
+    print("=" * 70)
+    print(f"  🤖 Inference Engine     : Google Vertex AI / GenAI (gemini-3.7-flash)")
+    print(f"  ⏱️  Total Run Time       : {total_elapsed:.1f}s")
+    if total_papers > 0:
+        print(f"  📄 Ingested Papers      : {total_papers} papers")
+        print(f"  ⚡ Unit Economics       : ${tot_usd / total_papers:.4f} USD / paper (~{int(tot_tok / total_papers):,} tokens/paper)")
+    print("  --------------------------------------------------------------------")
+    print(f"  📥 Prompt (Input) Tokens: {tot_in:,} tokens")
+    print(f"  📤 Thought/Output Tokens: {tot_out:,} tokens")
+    print(f"  📊 Total Tokens Consumed: {tot_tok:,} tokens")
+    print("  --------------------------------------------------------------------")
+    print(f"  💵 Total Cost (USD)     : ${tot_usd:.4f} USD")
+    print(f"  💶 Total Cost (EUR est.): ~€{tot_eur:.4f} EUR")
+    print("=" * 70 + "\n")
+
+
 def print_summary_card(results: dict, total_elapsed: float):
     print("\n" + "=" * 70)
     print("📋  E2E PIPELINE EXECUTION SCORECARD & AUDIT REPORT")
@@ -156,23 +191,18 @@ def print_summary_card(results: dict, total_elapsed: float):
         print(f"     • Answer    : {ans}")
         print(f"     • Citations : {chat.get('citations_count', 0)} visual & textual citations grounded")
 
-    if results.get("cost_metrics"):
-        c = results["cost_metrics"]
-        print("\n  💰 FINANCIAL & TOKEN ECONOMICS AUDIT:")
-        print(f"     • Pipeline Prompt Tokens     : {c.get('pipeline_tokens_in', 0):,}")
-        print(f"     • Pipeline Completion Tokens : {c.get('pipeline_tokens_out', 0):,}")
-        print(f"     • Pipeline Total Tokens      : {c.get('pipeline_total_tokens', 0):,}")
-        print(f"     • Pipeline USD Cost          : ${c.get('pipeline_usd_cost', 0.0):.4f} USD")
-        if c.get("chat_total_tokens", 0) > 0:
-            print(f"     • Chat Turn Tokens           : {c.get('chat_total_tokens', 0):,} (USD: ${c.get('chat_usd_cost', 0.0):.4f})")
-        print(f"     • TOTAL RUN TOKENS CONSUMED  : {c.get('total_tokens_consumed', 0):,}")
-        print(f"     • TOTAL RUN SPEND            : ${c.get('total_usd_spent', 0.0):.4f} USD")
-
     if results.get("cleaned_up"):
         print("\n  🧹 CLEANUP & ARTIFACTS PURGE : ✅ Test workspace, DB records & storage files deleted cleanly.")
 
     print("=" * 70)
     print("🎉 ALL CHECKS PASSED - PRODUCTION / STAGING INTEGRITY VERIFIED!\n")
+
+    if results.get("cost_metrics"):
+        print_llm_cost_summary(
+            results["cost_metrics"],
+            total_elapsed=total_elapsed,
+            total_papers=results.get("total_papers_fetched", 0)
+        )
 
 
 def main():
@@ -202,32 +232,44 @@ def main():
         elif args.scenario == "lifecycle":
             res = run_agent_lifecycle_scenario(config)
             total_elapsed = time.time() - t0
-            print(f"\n✅ AGENT LIFECYCLE SCENARIO COMPLETED in {total_elapsed:.1f}s (Final Status: {res.get('final_status')})\n")
+            print(f"\n✅ AGENT LIFECYCLE SCENARIO COMPLETED in {total_elapsed:.1f}s (Final Status: {res.get('final_status')})")
+            if res.get("cost_metrics"):
+                print_llm_cost_summary(res["cost_metrics"], total_elapsed=total_elapsed)
 
         elif args.scenario == "reprocess":
             res = run_pipeline_reprocessing_scenario(config)
             total_elapsed = time.time() - t0
-            print(f"\n✅ PIPELINE REPROCESSING SCENARIO COMPLETED in {total_elapsed:.1f}s (Total Papers: {res.get('total_papers')})\n")
+            print(f"\n✅ PIPELINE REPROCESSING SCENARIO COMPLETED in {total_elapsed:.1f}s (Total Papers: {res.get('total_papers')})")
+            if res.get("cost_metrics"):
+                print_llm_cost_summary(res["cost_metrics"], total_elapsed=total_elapsed, total_papers=res.get('total_papers', 0))
 
         elif args.scenario == "dedup":
             res = run_cross_source_dedup_scenario(config)
             total_elapsed = time.time() - t0
-            print(f"\n✅ CROSS-SOURCE DEDUPLICATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Total Papers: {res.get('total_papers')})\n")
+            print(f"\n✅ CROSS-SOURCE DEDUPLICATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Total Papers: {res.get('total_papers')})")
+            if res.get("cost_metrics"):
+                print_llm_cost_summary(res["cost_metrics"], total_elapsed=total_elapsed, total_papers=res.get('total_papers', 0))
 
         elif args.scenario == "quota":
             res = run_quota_guard_scenario(config)
             total_elapsed = time.time() - t0
-            print(f"\n✅ QUOTA GUARD SCENARIO COMPLETED in {total_elapsed:.1f}s (Tokens Consumed: {res.get('tokens_consumed', 0):,})\n")
+            print(f"\n✅ QUOTA GUARD SCENARIO COMPLETED in {total_elapsed:.1f}s")
+            if res.get("cost_metrics"):
+                print_llm_cost_summary(res["cost_metrics"], total_elapsed=total_elapsed)
 
         elif args.scenario == "digest":
             res = run_email_digest_scenario(config)
             total_elapsed = time.time() - t0
-            print(f"\n✅ EMAIL DIGEST SCENARIO COMPLETED in {total_elapsed:.1f}s (HTTP Status: {res.get('digest_status')})\n")
+            print(f"\n✅ EMAIL DIGEST SCENARIO COMPLETED in {total_elapsed:.1f}s (HTTP Status: {res.get('digest_status')})")
+            if res.get("cost_metrics"):
+                print_llm_cost_summary(res["cost_metrics"], total_elapsed=total_elapsed)
 
         elif args.scenario == "mcp":
             res = run_mcp_protocol_scenario(config)
             total_elapsed = time.time() - t0
-            print(f"\n✅ FASTMCP PROTOCOL SCENARIO COMPLETED in {total_elapsed:.1f}s (Papers Verified: {res.get('papers_count')})\n")
+            print(f"\n✅ FASTMCP PROTOCOL SCENARIO COMPLETED in {total_elapsed:.1f}s (Papers Verified: {res.get('papers_count')})")
+            if res.get("cost_metrics"):
+                print_llm_cost_summary(res["cost_metrics"], total_elapsed=total_elapsed, total_papers=res.get('papers_count', 0))
 
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")
