@@ -151,12 +151,16 @@ def print_llm_cost_summary(c: dict, total_elapsed: float, total_papers: int = 0)
         print(f"  📄 Ingested Papers      : {total_papers} papers")
         print(f"  ⚡ Unit Economics       : ${tot_usd / total_papers:.4f} USD / paper (~{int(tot_tok / total_papers):,} tokens/paper)")
     print("  --------------------------------------------------------------------")
+    print(f"  🔄 Pipeline Review Cost : ${p_usd:.4f} USD ({p_tok:,} tokens)")
+    print(f"  💬 Paper Chat Q&A Cost  : ${c_usd:.4f} USD ({c_tok:,} tokens)")
+    print("  --------------------------------------------------------------------")
     print(f"  📥 Prompt (Input) Tokens: {tot_in:,} tokens")
     print(f"  📤 Thought/Output Tokens: {tot_out:,} tokens")
     print(f"  📊 Total Tokens Consumed: {tot_tok:,} tokens")
     print("  --------------------------------------------------------------------")
-    print(f"  💵 Total Cost (USD)     : ${tot_usd:.4f} USD")
-    print(f"  💶 Total Cost (EUR est.): ~€{tot_eur:.4f} EUR")
+    print(f"  💵 Total Run Cost (USD) : ${tot_usd:.4f} USD (~€{tot_eur:.4f} EUR)")
+    if c.get("workspace_monthly_usd") is not None:
+        print(f"  🏢 Workspace Total Spend: ${c.get('workspace_monthly_usd', 0.0):.4f} USD ({c.get('workspace_monthly_tokens', 0):,} monthly tokens)")
     print("=" * 70 + "\n")
 
 

@@ -531,10 +531,11 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             }
 
             logger.info("💰 TOKEN & COST ECONOMICS FOR THIS RUN:")
-            logger.info(f"   • Prompt / Input Tokens      : {p_tokens_in + c_tokens_in:,}")
-            logger.info(f"   • Completion / Output Tokens : {p_tokens_out + c_tokens_out:,}")
-            logger.info(f"   • Total Tokens Consumed      : {total_run_tokens:,}")
-            logger.info(f"   • Total Cost (USD)           : ${total_run_usd:.4f} USD")
+            logger.info(f"   • Pipeline Review Cost       : ${p_usd:.4f} USD ({p_total_tokens:,} tokens)")
+            logger.info(f"   • Paper Chat Q&A Cost        : ${c_usd:.4f} USD ({c_total_tokens:,} tokens)")
+            logger.info(f"   • Total Run Tokens Consumed  : {total_run_tokens:,} tokens (In: {p_tokens_in + c_tokens_in:,}, Out: {p_tokens_out + c_tokens_out:,})")
+            logger.info(f"   • Total Run Cost (USD)       : ${total_run_usd:.4f} USD")
+            logger.info(f"   • Workspace Total Recorded   : ${float(ws_info.get('usd_spent_this_month') or total_run_usd):.4f} USD ({int(ws_info.get('tokens_consumed_this_month') or total_run_tokens):,} monthly tokens)")
         except Exception as cost_err:
             logger.warning(f"Could not aggregate token metrics: {cost_err}")
 

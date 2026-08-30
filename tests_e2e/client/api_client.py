@@ -42,29 +42,54 @@ class APIClient:
         if self.access_token:
             headers["Authorization"] = f"Bearer {self.access_token}"
 
-        t0 = time.time()
-        try:
-            resp = self.session.request(
-                method=method,
-                url=url,
-                params=params,
-                json=json_data,
-                headers=headers,
-                timeout=timeout,
-            )
-            elapsed = round((time.time() - t0) * 1000, 1)
-            logger.debug(f"{method} {url} -> {resp.status_code} ({elapsed}ms)")
+        max_attempts = 4
+        last_resp = None
+        for attempt in range(1, max_attempts + 1):
+            t0 = time.time()
+            try:
+                resp = self.session.request(
+                    method=method,
+                    url=url,
+                    params=params,
+                    json=json_data,
+                    headers=headers,
+                    timeout=timeout,
+                )
+                elapsed = round((time.time() - t0) * 1000, 1)
+                logger.debug(f"{method} {url} -> {resp.status_code} ({elapsed}ms)")
+                last_resp = resp
 
-            if expected_status and resp.status_code != expected_status:
-                raise AssertionError(
-                    f"Expected status {expected_status} but got {resp.status_code} for {method} {url}. Response: {resp.text}"
+                # If server is momentarily cycling (502/503/504 or Next.js proxy fallback during rolling deploy), retry
+                is_transient_proxy_error = (
+                    resp.status_code in (502, 503, 504) or
+                    (resp.status_code == 404 and "<!doctype html" in resp.text.lower() and attempt < max_attempts)
                 )
 
-            return resp
-        except requests.RequestException as e:
-            elapsed = round((time.time() - t0) * 1000, 1)
-            logger.error(f"Network error on {method} {url} after {elapsed}ms: {e}")
-            raise
+                if is_transient_proxy_error and attempt < max_attempts:
+                    logger.warning(f"⚠️ [TRANSIENT {resp.status_code}] {method} {url} returned transient gateway response. Retrying in {attempt * 1.5}s...")
+                    time.sleep(attempt * 1.5)
+                    continue
+
+                if expected_status and resp.status_code != expected_status:
+                    raise AssertionError(
+                        f"Expected status {expected_status} but got {resp.status_code} for {method} {url}. Response: {resp.text}"
+                    )
+
+                return resp
+            except requests.RequestException as e:
+                elapsed = round((time.time() - t0) * 1000, 1)
+                if attempt < max_attempts:
+                    logger.warning(f"⚠️ [NETWORK RETRY {attempt}/{max_attempts}] {method} {url} failed: {e}. Retrying in {attempt * 1.5}s...")
+                    time.sleep(attempt * 1.5)
+                else:
+                    logger.error(f"Network error on {method} {url} after {elapsed}ms: {e}")
+                    raise
+
+        if expected_status and last_resp and last_resp.status_code != expected_status:
+            raise AssertionError(
+                f"Expected status {expected_status} but got {last_resp.status_code} for {method} {url}. Response: {last_resp.text}"
+            )
+        return last_resp
 
     def get(self, endpoint: str, params: Optional[Dict[str, Any]] = None, expected_status: Optional[int] = None) -> requests.Response:
         return self._request("GET", endpoint, params=params, expected_status=expected_status)
