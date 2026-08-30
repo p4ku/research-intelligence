@@ -120,8 +120,8 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                 logger.warning(f"Failed to load credentials from GOOGLE_SERVICE_ACCOUNT_JSON env var: {str(e)}")
 
         target_project_id = self.project_id or sa_project_id
-        # Note: google-genai SDK types.HttpOptions expects timeout in milliseconds (120,000 ms = 120 seconds).
-        http_options = types.HttpOptions(timeout=120000) if hasattr(types, 'HttpOptions') else None
+        # Note: google-genai SDK types.HttpOptions expects timeout in milliseconds (300,000 ms = 5 minutes).
+        http_options = types.HttpOptions(timeout=300000) if hasattr(types, 'HttpOptions') else None
 
         try:
             if credentials is not None:

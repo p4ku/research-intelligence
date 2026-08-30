@@ -25,7 +25,7 @@ class GoogleLLMProviderTestCase(TestCase):
             {"type": "service_account", "project_id": "test-project"},
             scopes=["https://www.googleapis.com/auth/cloud-platform"]
         )
-        http_opt = types.HttpOptions(timeout=120000) if hasattr(types, 'HttpOptions') else None
+        http_opt = types.HttpOptions(timeout=300000) if hasattr(types, 'HttpOptions') else None
         expected_kwargs = {
             "credentials": mock_creds,
             "vertexai": True,
@@ -46,7 +46,7 @@ class GoogleLLMProviderTestCase(TestCase):
         provider = GoogleAgentAPIProvider(api_key="real-api-key")
         client = provider._get_client()
         
-        http_opt = types.HttpOptions(timeout=120000) if hasattr(types, 'HttpOptions') else None
+        http_opt = types.HttpOptions(timeout=300000) if hasattr(types, 'HttpOptions') else None
         expected_kwargs = {"api_key": "real-api-key"}
         if http_opt:
             expected_kwargs["http_options"] = http_opt
@@ -107,7 +107,7 @@ class GoogleLLMProviderTestCase(TestCase):
         self.assertEqual(res, "Assessment result.")
         
         # Verify client recreation with "eu" location for PDFs
-        http_opt = types.HttpOptions(timeout=120000) if hasattr(types, 'HttpOptions') else None
+        http_opt = types.HttpOptions(timeout=300000) if hasattr(types, 'HttpOptions') else None
         expected_kwargs = {
             "vertexai": True,
             "location": "eu"
