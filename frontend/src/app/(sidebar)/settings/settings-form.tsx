@@ -220,7 +220,7 @@ export function PasswordForm() {
   )
 }
 
-/** The digest toggle, persisted through /bff/settings/preferences. */
+/** The digest toggle. Persisted through /bff/settings/preferences unless stubbed. */
 export function NotificationSettings({
   workspaceId,
   initial,
@@ -237,6 +237,10 @@ export function NotificationSettings({
   async function toggle() {
     const next = !on
     setOn(next)
+    // Stubbed: the backend has nowhere to persist this yet, so it lives in this
+    // browser session only — exactly what the note under the label promises.
+    // Writing it server-side would share one setting across every user.
+    if (stubbed) return
     setBusy(true)
     try {
       await bffFetch(`/bff/settings/preferences?workspace_id=${workspaceId}`, {
