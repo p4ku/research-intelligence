@@ -712,6 +712,11 @@ class WorkspaceAdmin(admin.ModelAdmin):
                 self.admin_site.admin_view(self.import_configuration_view),
                 name='workspace-import-configuration'
             ),
+            path(
+                'import-configuration/',
+                self.admin_site.admin_view(self.import_configuration_view),
+                name='research_intelligence_workspace_import_configuration'
+            ),
         ]
         return custom_urls + urls
 

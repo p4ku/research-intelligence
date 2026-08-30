@@ -25,6 +25,8 @@ if not apps.ready and not apps.loading:
 import logging
 import json
 import time
+import asyncio
+from starlette.requests import ClientDisconnect
 
 logger = logging.getLogger(__name__)
 
@@ -1430,9 +1432,24 @@ class QueryParamAuthMiddleware:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
 
+        response_started = False
+
+        async def wrapped_send(message):
+            nonlocal response_started
+            if message.get("type") == "http.response.start":
+                response_started = True
+            await send(message)
+
         path = scope.get("path", "")
         if path in ["/", "/health", "/docs", "/openapi.json"]:
-            return await self.app(scope, receive, send)
+            try:
+                return await self.app(scope, receive, wrapped_send)
+            except (asyncio.CancelledError, ClientDisconnect):
+                return
+            except Exception:
+                if response_started:
+                    return
+                raise
 
         headers = dict(scope.get("headers", []))
         query_string = scope.get("query_string", b"").decode("utf-8")
@@ -1461,11 +1478,20 @@ class QueryParamAuthMiddleware:
             scope["state"]["user"] = user
             scope["state"]["workspace"] = workspace
             scope["state"]["api_key"] = api_key
-            return await self.app(scope, receive, send)
+            try:
+                return await self.app(scope, receive, wrapped_send)
+            except (asyncio.CancelledError, ClientDisconnect):
+                return
+            except Exception:
+                if response_started:
+                    return
+                raise
 
         async def send_error(status_code: int, error_message: str):
+            if response_started:
+                return
             body = f'{{"error": "{error_message}"}}'.encode('utf-8')
-            await send({
+            await wrapped_send({
                 "type": "http.response.start",
                 "status": status_code,
                 "headers": [
@@ -1473,7 +1499,7 @@ class QueryParamAuthMiddleware:
                     (b"content-length", str(len(body)).encode('utf-8'))
                 ]
             })
-            await send({
+            await wrapped_send({
                 "type": "http.response.body",
                 "body": body
             })
@@ -1517,7 +1543,14 @@ class QueryParamAuthMiddleware:
         except Exception as e:
             return await send_error(500, f"Authentication internal error: {str(e)}")
 
-        return await self.app(scope, receive, send)
+        try:
+            return await self.app(scope, receive, wrapped_send)
+        except (asyncio.CancelledError, ClientDisconnect):
+            return
+        except Exception:
+            if response_started:
+                return
+            raise
 
 
 @mcp.tool()
