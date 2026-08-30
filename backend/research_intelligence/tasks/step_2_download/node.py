@@ -22,8 +22,8 @@ class DownloadNode(BaseWorkflowNode):
     name = "download"
     step_type = "download"
     component_name = "document_download"
-    description = "Downloads original full-text PDF documents in parallel with global SHA-256 deduplication."
-    dependencies = ["search"]
+    description = "Step 3: Downloads original full-text PDF documents in parallel with global SHA-256 deduplication."
+    dependencies = ["abstract_screening"]
 
     input_contract = {
         "papers": "QuerySet[Paper] (papers attached to pipeline_run with pdf_url)",

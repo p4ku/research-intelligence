@@ -9,6 +9,7 @@
 import 'server-only'
 
 import { django } from '../core/http'
+import { assertUuid } from '../core/validate'
 import { problem } from '../core/problem'
 import { sourceOf } from '../core/source'
 import { papers } from '../papers/service'
@@ -67,7 +68,7 @@ export const scoring = {
       case 'stub':
         return { ...fixtureScoring, workspace_id: workspaceId }
       case 'django':
-        return django(`/api/workspaces/${workspaceId}/scoring/`, workspaceScoring)
+        return django(`/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/scoring/`, workspaceScoring)
       default:
         return compose(workspaceId)
     }

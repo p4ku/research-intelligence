@@ -178,3 +178,33 @@ class GoogleLLMProviderTestCase(TestCase):
         self.assertEqual(contents[0].inline_data.data, image_data)
         self.assertEqual(contents[0].inline_data.mime_type, "image/png")
         self.assertEqual(contents[1], "Analyze this image.")
+
+    @patch("research_intelligence.llm_providers.google.Path.exists")
+    @patch("research_intelligence.llm_providers.google.genai.Client")
+    def test_generate_with_reasoning_effort_configurations(self, mock_client_cls, mock_exists):
+        mock_exists.return_value = False
+        mock_client = mock_client_cls.return_value
+        mock_response = MagicMock()
+        mock_response.text = "Reasoned answer"
+        mock_client.models.generate_content.return_value = mock_response
+
+        provider = GoogleAgentAPIProvider(api_key="mock-agent-key")
+
+        # 1. Default (no reasoning_effort provided, gemini-3.7-flash -> default medium with budget 2048)
+        provider.generate(prompt="Explain quantum teleportation", model="google/gemini-3.7-flash")
+        config = mock_client.models.generate_content.call_args.kwargs["config"]
+        self.assertIsNotNone(config.thinking_config)
+        self.assertEqual(config.thinking_config.thinking_budget, 2048)
+
+        # 2. Explicit 'high' reasoning effort (budget 8192)
+        provider.generate(prompt="Prove quantum complexity", model="google/gemini-3.7-flash", reasoning_effort="high")
+        config_high = mock_client.models.generate_content.call_args.kwargs["config"]
+        self.assertIsNotNone(config_high.thinking_config)
+        self.assertEqual(config_high.thinking_config.thinking_budget, 8192)
+
+        # 3. Explicit 'off' reasoning effort (budget 0)
+        provider.generate(prompt="Quick summary", model="google/gemini-3.7-flash", reasoning_effort="off")
+        config_off = mock_client.models.generate_content.call_args.kwargs["config"]
+        self.assertIsNotNone(config_off.thinking_config)
+        self.assertEqual(config_off.thinking_config.thinking_budget, 0)
+

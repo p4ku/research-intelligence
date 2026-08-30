@@ -8,6 +8,7 @@ import 'server-only'
 
 import { django } from '../core/http'
 import { problem } from '../core/problem'
+import { assertUuid } from '../core/validate'
 import { sourceOf } from '../core/source'
 import { preferences, type PasswordChange, type Preferences, type Profile, type ProfileUpdate } from './schema'
 import { passwordChangeResponseDTO, userProfileDTO } from './upstream'
@@ -51,7 +52,7 @@ export const settings = {
 
   async getPreferences(workspaceId: string): Promise<Preferences> {
     if (sourceOf('preferences') === 'django') {
-      return django(`/api/workspaces/${workspaceId}/preferences/`, preferences)
+      return django(`/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/preferences/`, preferences)
     }
     // Nothing to read until the endpoint exists. The UI holds the toggle in
     // browser state and says so, rather than us inventing shared server state.
@@ -60,7 +61,7 @@ export const settings = {
 
   async setPreferences(workspaceId: string, next: Preferences): Promise<Preferences> {
     if (sourceOf('preferences') === 'django') {
-      return django(`/api/workspaces/${workspaceId}/preferences/`, preferences, {
+      return django(`/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/preferences/`, preferences, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(next),

@@ -5,7 +5,7 @@ from ..serializers.papers import PaperSerializer
 
 
 @extend_schema(tags=['Literature & Papers'])
-class PaperViewSet(viewsets.ModelViewSet):
+class PaperViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Explore papers ingested in weekly batch runs.
     Scoped to workspaces the authenticated user is a member of.

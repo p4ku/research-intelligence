@@ -9,15 +9,15 @@
 
 **Schwarz Research Intelligence** is an enterprise-grade platform designed for automated, AI-driven academic literature review, deep-tech scouting, and parameter extraction.
 
-It orchestrates a 6-step processing pipeline:
+It orchestrates an 8-stage processing pipeline:
 1. **Search & Ingestion**: Multi-source querying (ArXiv, OpenAlex, Lens, PubMed) with title/DOI/arXiv ID deduplication.
-2. **Parallel PDF Download**: Multi-threaded document fetching to unified storage (`workspaces/{ws_id}/runs/{run_id}/documents/{hash}/original.pdf`).
-3. **Layout OCR Conversion**: Conversion to structured Markdown text via local `pypdf`, `Mistral OCR API`, or `gemini` (automatically skipped if `ocr_provider` is `None` to enable direct multimodal PDF analysis in subsequent steps).
-4. **Structured 2-Stage Screening**:
-   - **Abstract Screening**: Evaluates paper title & abstract against `abstract_acceptance_criteria` and `abstract_rejection_criteria`.
-   - **Full-Text Screening**: Performs deep multimodal analysis of raw PDF binaries (or OCR Markdown if generated) against `full_text_acceptance_criteria` and `full_text_rejection_criteria` using `google/gemini-3.7-flash`.
-5. **Dynamic Parameter Extraction**: Schema-validated Pydantic/JSON parameter extraction into `Extraction` objects with evidence quotes, confidence scores, and validation flags (`pass`, `warn`, `fail`).
-6. **Composite Signal Score Evaluation**: Sandboxed, AST-secured execution of custom Python mathematical formulas defined on `workspace.signal_score_code` to calculate aggregated composite ranking scores (`paper.signal_score`, `PaperMetric.signal_score`).
+2. **Abstract Screening**: Evaluates paper title & abstract against `abstract_acceptance_criteria` and `abstract_rejection_criteria` using `google/gemini-3.7-flash` (auto-skipped if `skip_abstract_screening=True`). Halts early if 0 papers pass.
+3. **Parallel PDF Download**: Multi-threaded document fetching to unified storage (`workspaces/{ws_id}/runs/{run_id}/documents/{hash}/original.pdf`) targeting **only papers that passed abstract screening** (or all papers if abstract screening was skipped).
+4. **Layout OCR Conversion**: Conversion to structured Markdown text via local `pypdf`, `Mistral OCR API`, or `gemini` (automatically skipped if `ocr_provider` is `None` to enable direct multimodal PDF analysis in subsequent steps).
+5. **Full-Text Screening**: Performs deep multimodal analysis of raw PDF binaries (or OCR Markdown if generated) against `full_text_acceptance_criteria` and `full_text_rejection_criteria` using `google/gemini-3.7-flash`.
+6. **Dynamic Parameter Extraction**: Schema-validated Pydantic/JSON parameter extraction into `Extraction` objects with evidence quotes, confidence scores, and validation flags (`pass`, `warn`, `fail`).
+7. **Composite Signal Score Evaluation**: Sandboxed, AST-secured execution of custom Python mathematical formulas defined on `workspace.signal_score_code` to calculate aggregated composite ranking scores (`paper.signal_score`, `PaperMetric.signal_score`).
+8. **Narrative Reporting & Digests**: Executive narrative report synthesis and transactional Mailgun notifications.
 
 ---
 
@@ -35,13 +35,14 @@ It orchestrates a 6-step processing pipeline:
  ┌─────────────────▼────────────────────────────────────────▼──────────────────┐
  │                     AUTONOMOUS STATE ENGINE & TASKS                         │
  │  ResearchAgentProcess State Machine (tasks/orchestrator/agent_engine.py)   │
- │   ├── Step 1: execute_workspace_search (tasks/step_1_search/search.py)      │
- │   ├── Step 2: execute_pdf_download_job (tasks/step_2_download/fetch.py)    │
- │   ├── Step 3: execute_ocr_job         (tasks/step_3_ocr/convert.py)        │
- │   ├── Step 4: execute_screening_job   (tasks/step_4_screening/abstract.py)  │
- │   │           execute_full_text_screening (step_4_screening/full_text.py)  │
- │   ├── Step 5: execute_extraction_job  (tasks/step_5_extraction/extract.py)  │
- │   └── Step 6: execute_signal_score_job (tasks/step_6_signal_score/scorer.py)│
+ │   ├── Step 1: execute_workspace_search   (tasks/step_1_search/search.py)   │
+ │   ├── Step 2: execute_screening_job      (tasks/step_4_screening/abstract.py)│
+ │   ├── Step 3: execute_pdf_download_job   (tasks/step_2_download/fetch.py)  │
+ │   ├── Step 4: execute_ocr_job            (tasks/step_3_ocr/convert.py)     │
+ │   ├── Step 5: execute_full_text_screening(step_4_screening/full_text.py)   │
+ │   ├── Step 6: execute_extraction_job     (tasks/step_5_extraction/extract.py)│
+ │   ├── Step 7: execute_signal_score_job   (tasks/step_6_signal_score/scorer.py)│
+ │   └── Step 8: execute_reporting_job      (tasks/step_7_reporting/narrative.py)│
  └─────────────────────────────────┬───────────────────────────────────────────┘
                                    │
  ┌─────────────────────────────────▼───────────────────────────────────────────┐

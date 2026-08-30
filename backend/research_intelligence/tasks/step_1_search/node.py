@@ -73,14 +73,14 @@ class SearchNode(BaseWorkflowNode):
     def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
         if status == 'completed' and comp_run:
             metrics = comp_run.metrics or {}
-            total = metrics.get('total_found', metrics.get('total_fetched', 0))
-            ingested = metrics.get('ingested_new', metrics.get('total_created', 0))
-            dups = metrics.get('duplicates_skipped', metrics.get('total_duplicates_skipped', 0))
+            total = metrics.get('total_fetched', metrics.get('total_found', 0))
+            ingested = metrics.get('total_created', metrics.get('ingested_new', 0))
+            dups = metrics.get('duplicates_count', metrics.get('total_duplicates', metrics.get('duplicates_skipped', metrics.get('total_duplicates_skipped', 0))))
             if total == 0 and ingested == 0:
                 return "Search: 0 papers returned by queries."
             elif ingested == 0 and dups > 0:
-                return f"Search: 0 new papers ({total} discovered, all {dups} were duplicates/previously ingested)."
-            return f"Search: {total} found, {ingested} newly ingested ({dups} duplicates skipped)."
+                return f"Search: 0 new papers ({total} fetched, all {dups} were duplicates/already in workspace)."
+            return f"Search: {total} fetched, {ingested} created (new), {dups} duplicates."
         return super().generate_stage_summary(comp_run, status=status)
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:

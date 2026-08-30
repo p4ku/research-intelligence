@@ -49,9 +49,10 @@ class ScreeningTasksTestCase(TestCase):
         self.assertEqual(self.paper.screening_status, "abstract_passed")
         self.assertEqual(self.paper.screening_reasoning, "Contains agentic keywords.")
 
-        # Ensure correct model parameter was passed
+        # Ensure correct model and reasoning_effort parameters were passed
         mock_generate.assert_called_once()
         self.assertEqual(mock_generate.call_args.kwargs.get("model"), "google/gemini-3.7-flash")
+        self.assertEqual(mock_generate.call_args.kwargs.get("reasoning_effort"), "medium")
 
     @patch("django.core.files.storage.default_storage.open")
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
@@ -70,9 +71,19 @@ class ScreeningTasksTestCase(TestCase):
         self.assertEqual(self.paper.screening_status, "full_text_passed")
         self.assertEqual(self.paper.screening_reasoning, "Full text details reasoning workflows.")
 
-        # Ensure correct model parameter was passed
+        # Ensure correct model and reasoning_effort parameters were passed
         mock_generate.assert_called_once()
         self.assertEqual(mock_generate.call_args.kwargs.get("model"), "google/gemini-3.7-flash")
+        self.assertEqual(mock_generate.call_args.kwargs.get("reasoning_effort"), "medium")
+
+    @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
+    def test_screen_abstract_with_custom_reasoning_effort(self, mock_generate):
+        mock_generate.return_value = {"passed": True, "reasoning": "Deep reasoning applied."}
+        self.workspace.reasoning_effort = "high"
+        self.workspace.save()
+
+        screen_abstract(self.paper.id, self.workspace.id)
+        self.assertEqual(mock_generate.call_args.kwargs.get("reasoning_effort"), "high")
 
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
     def test_only_abstract_screening_pass_and_reject(self, mock_generate):
@@ -273,4 +284,63 @@ class ScreeningTasksTestCase(TestCase):
         pm = PaperMetric.objects.get(paper=self.paper, pipeline_run=self.pipeline_run)
         self.assertIn("full_text_screening", pm.metrics_data)
         self.assertEqual(pm.metrics_data["full_text_screening"]["exit_metric_value"], 8.8)
+
+    def test_screening_node_should_halt_pipeline(self):
+        """Test ScreeningNode halts cleanly when 0 papers are accepted (even with withdrawn/rejected mix)."""
+        from ...tasks.step_4_screening.node import AbstractScreeningNode, FullTextScreeningNode
+        from ...models import ComponentRun
+        abs_node = AbstractScreeningNode()
+        ft_node = FullTextScreeningNode()
+
+        # Create paper 2 as withdrawn, paper 1 as rejected
+        self.paper.screening_status = "rejected"
+        self.paper.save()
+
+        p2 = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="paper_withdrawn",
+            title="Withdrawn Study",
+            authors="Bob",
+            abstract="Withdrawn",
+            screening_status="withdrawn"
+        )
+
+        # Before screening component run completes
+        should_halt, msg = abs_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
+        self.assertFalse(should_halt)
+
+        # Abstract screening completed with 0 passed
+        ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="screening",
+            component_name="abstract_screening",
+            status="completed",
+            metrics={"total_screened": 2, "passed": 0, "rejected": 1, "withdrawn": 1}
+        )
+
+        should_halt, msg = abs_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
+        self.assertTrue(should_halt)
+        self.assertIn("0 papers accepted", msg)
+
+        # Full text screening completed with 0 passed
+        ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="screening",
+            component_name="full_text_screening",
+            status="completed",
+            metrics={"total_screened": 2, "passed": 0, "rejected": 2}
+        )
+        should_halt_ft, msg_ft = ft_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
+        self.assertTrue(should_halt_ft)
+        self.assertIn("0 papers accepted", msg_ft)
+
+        # If one paper passes, it should not halt
+        p2.screening_status = "accepted"
+        p2.save()
+        should_halt, msg = abs_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
+        self.assertFalse(should_halt)
+        should_halt_ft, msg_ft = ft_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
+        self.assertFalse(should_halt_ft)
+
 

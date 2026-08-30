@@ -113,3 +113,182 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
 
         get_res = get_workspace_logic(self.outsider, workspace_id=ws_id)
         self.assertIn("Error: Access denied", get_res)
+
+    def test_workspace_advanced_prompts_and_quotas_persistence(self):
+        res = self.parse_res(create_workspace_logic(
+            self.admin,
+            name="Advanced Prompts WS",
+            abstract_screening_system_prompt="Custom System Prompt for Abstract",
+            abstract_screening_user_prompt_template="Custom Template: {title}",
+            abstract_screening_response_schema={"type": "object", "properties": {"score": {"type": "number"}}},
+            abstract_screening_exit_metric="score",
+            full_text_screening_system_prompt="Custom FT System Prompt",
+            full_text_screening_user_prompt_template="Custom FT Template: {full_text}",
+            full_text_screening_response_schema={"type": "object", "properties": {"ft_score": {"type": "number"}}},
+            full_text_screening_exit_metric="ft_score",
+            digest_schedule="0 10 * * 1",
+            monthly_token_limit=5000000,
+            monthly_usd_limit=250.00
+        ))
+        self.assertEqual(res["status"], "success")
+        ws_id = res["workspace_id"]
+
+        ws = Workspace.objects.get(id=ws_id)
+        self.assertEqual(ws.abstract_screening_system_prompt, "Custom System Prompt for Abstract")
+        self.assertEqual(ws.abstract_screening_user_prompt_template, "Custom Template: {title}")
+        self.assertEqual(ws.abstract_screening_response_schema, {"type": "object", "properties": {"score": {"type": "number"}}})
+        self.assertEqual(ws.abstract_screening_exit_metric, "score")
+        self.assertEqual(ws.full_text_screening_system_prompt, "Custom FT System Prompt")
+        self.assertEqual(ws.full_text_screening_user_prompt_template, "Custom FT Template: {full_text}")
+        self.assertEqual(ws.full_text_screening_response_schema, {"type": "object", "properties": {"ft_score": {"type": "number"}}})
+        self.assertEqual(ws.full_text_screening_exit_metric, "ft_score")
+        self.assertEqual(ws.digest_schedule, "0 10 * * 1")
+        self.assertEqual(ws.monthly_token_limit, 5000000)
+        self.assertEqual(float(ws.monthly_usd_limit), 250.00)
+
+        up_res = self.parse_res(update_workspace_logic(
+            self.admin,
+            workspace_id=ws_id,
+            abstract_screening_exit_metric="relevance_score",
+            monthly_token_limit=8000000,
+            cost_limit_usd=500.00
+        ))
+        self.assertEqual(up_res["status"], "success")
+
+        ws.refresh_from_db()
+        self.assertEqual(ws.abstract_screening_exit_metric, "relevance_score")
+        self.assertEqual(ws.monthly_token_limit, 8000000)
+        self.assertEqual(float(ws.monthly_usd_limit), 500.00)
+
+    def test_create_workspace_validation_errors(self):
+        # Empty name
+        res_empty = self.parse_res(create_workspace_logic(self.admin, name="   "))
+        self.assertEqual(res_empty["status"], "error")
+        self.assertIn("name cannot be empty", res_empty["error"].lower())
+
+        # Invalid OCR provider
+        res_ocr = self.parse_res(create_workspace_logic(self.admin, name="Valid Name", ocr_provider="invalid_engine"))
+        self.assertEqual(res_ocr["status"], "error")
+        self.assertIn("invalid ocr_provider", res_ocr["error"].lower())
+
+        # Invalid LLM provider
+        res_llm = self.parse_res(create_workspace_logic(self.admin, name="Valid Name 2", llm_provider="unsupported_llm"))
+        self.assertEqual(res_llm["status"], "error")
+        self.assertIn("invalid llm_provider", res_llm["error"].lower())
+
+    def test_create_workspace_string_criteria(self):
+        res = self.parse_res(create_workspace_logic(
+            self.admin,
+            name="String Criteria WS",
+            abstract_acceptance_criteria="Single line criteria text\nSecond line",
+            abstract_rejection_criteria="Rejection criteria text"
+        ))
+        self.assertEqual(res["status"], "success")
+        ws = Workspace.objects.get(id=res["workspace_id"])
+        self.assertEqual(ws.get_abstract_acceptance_criteria(), "Single line criteria text\nSecond line")
+        self.assertEqual(ws.get_abstract_rejection_criteria(), "Rejection criteria text")
+
+    def test_get_workspace_with_scrapers_and_definitions(self):
+        from research_intelligence.models import Scraper, ExtractionDefinition
+        ws_res = self.parse_res(create_workspace_logic(self.admin, name="Scraper WS"))
+        ws_id = ws_res["workspace_id"]
+        ws = Workspace.objects.get(id=ws_id)
+
+        scraper = Scraper.objects.create(
+            workspace=ws,
+            provider='arxiv',
+            search_query='cat:cs.AI',
+            limit=30,
+            is_active=True
+        )
+
+        ext_def = ExtractionDefinition.objects.create(
+            workspace=ws,
+            name='Test Definition',
+            system_prompt='Extract metric',
+            response_schema={'type': 'object'},
+            llm_model='google/gemini-3.7-flash',
+            is_active=True
+        )
+
+        ws_details = self.parse_res(get_workspace_logic(self.admin, workspace_id=ws_id))
+        self.assertEqual(ws_details["name"], "Scraper WS")
+        self.assertEqual(len(ws_details["scrapers"]), 1)
+        self.assertEqual(ws_details["scrapers"][0]["scraper_id"], str(scraper.id))
+        self.assertEqual(ws_details["scrapers"][0]["provider"], "arxiv")
+        self.assertEqual(ws_details["scrapers"][0]["provider_name"], "arXiv")
+        self.assertEqual(ws_details["scrapers"][0]["search_query"], "cat:cs.AI")
+        self.assertEqual(ws_details["scrapers"][0]["limit"], 30)
+        self.assertTrue(ws_details["scrapers"][0]["is_active"])
+
+        self.assertEqual(len(ws_details["extraction_definitions"]), 1)
+        self.assertEqual(ws_details["extraction_definitions"][0]["name"], "Test Definition")
+
+    def test_workspace_reasoning_effort_mcp_lifecycle(self):
+        # 1. Test default reasoning effort is 'medium'
+        res = self.parse_res(create_workspace_logic(self.admin, name="Default Reasoning WS"))
+        self.assertEqual(res["status"], "success")
+        ws = Workspace.objects.get(id=res["workspace_id"])
+        self.assertEqual(ws.reasoning_effort, "medium")
+
+        ws_details = self.parse_res(get_workspace_logic(self.admin, workspace_id=str(ws.id)))
+        self.assertEqual(ws_details["reasoning_effort"], "medium")
+
+        # 2. Test explicit creation with reasoning_effort='high'
+        res_high = self.parse_res(create_workspace_logic(
+            self.admin,
+            name="High Reasoning WS",
+            reasoning_effort="high"
+        ))
+        self.assertEqual(res_high["status"], "success")
+        ws_high = Workspace.objects.get(id=res_high["workspace_id"])
+        self.assertEqual(ws_high.reasoning_effort, "high")
+
+        # 3. Test update to reasoning_effort='off'
+        up_res = self.parse_res(update_workspace_logic(
+            self.admin,
+            workspace_id=str(ws_high.id),
+            reasoning_effort="off"
+        ))
+        self.assertEqual(up_res["status"], "success")
+        ws_high.refresh_from_db()
+        self.assertEqual(ws_high.reasoning_effort, "off")
+
+        # 4. Test validation error on invalid reasoning_effort
+        err_res = self.parse_res(update_workspace_logic(
+            self.admin,
+            workspace_id=str(ws_high.id),
+            reasoning_effort="ultra_turbo"
+        ))
+        self.assertEqual(err_res["status"], "error")
+        self.assertIn("invalid reasoning_effort", err_res["error"].lower())
+
+    def test_workspace_skip_abstract_screening_and_notification_email_mcp_lifecycle(self):
+        res = self.parse_res(create_workspace_logic(
+            self.admin,
+            name="Skip Screening WS",
+            skip_abstract_screening=True,
+            notification_email="notify@example.com"
+        ))
+        self.assertEqual(res["status"], "success")
+        ws = Workspace.objects.get(id=res["workspace_id"])
+        self.assertTrue(ws.skip_abstract_screening)
+        self.assertEqual(ws.notification_email, "notify@example.com")
+
+        ws_details = self.parse_res(get_workspace_logic(self.admin, workspace_id=str(ws.id)))
+        self.assertTrue(ws_details["skip_abstract_screening"])
+        self.assertEqual(ws_details["notification_email"], "notify@example.com")
+
+        up_res = self.parse_res(update_workspace_logic(
+            self.admin,
+            workspace_id=str(ws.id),
+            skip_abstract_screening=False,
+            notification_email="updated@example.com"
+        ))
+        self.assertEqual(up_res["status"], "success")
+        ws.refresh_from_db()
+        self.assertFalse(ws.skip_abstract_screening)
+        self.assertEqual(ws.notification_email, "updated@example.com")
+
+
+

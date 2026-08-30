@@ -75,6 +75,7 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
                 system_instruction=system_prompt,
                 response_schema=response_schema,
                 model=workspace.screening_llm_model,
+                reasoning_effort=getattr(workspace, 'reasoning_effort', 'medium'),
                 return_usage=True
             )
             
@@ -170,7 +171,7 @@ def _screen_paper_task(paper, workspace_obj):
 
 
 @shared_task(bind=True)
-def execute_screening_job(self, component_run_id: str, limit: int = 50, max_workers: int = 8):
+def execute_screening_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing Step 4 (Abstract Screening) for papers in a ComponentRun job.
     Executes paper screening concurrently using a ThreadPoolExecutor.
@@ -201,7 +202,9 @@ def execute_screening_job(self, component_run_id: str, limit: int = 50, max_work
     component_run.status = 'running'
     component_run.celery_task_id = getattr(self.request, 'id', None)
     component_run.started_at = timezone.now()
-    component_run.save(update_fields=['status', 'celery_task_id', 'started_at'])
+    component_run.completed_at = None
+    component_run.error_message = ''
+    component_run.save(update_fields=['status', 'celery_task_id', 'started_at', 'completed_at', 'error_message'])
 
     job_t0 = time.time()
     worker_concurrency = int(os.environ.get("SCREENING_PARALLEL_WORKERS", max_workers))
@@ -211,7 +214,8 @@ def execute_screening_job(self, component_run_id: str, limit: int = 50, max_work
         worker_concurrency = 1
 
     try:
-        papers = list(Paper.objects.filter(pipeline_run=pipeline_run)[:limit])
+        papers_qs = Paper.objects.filter(pipeline_run=pipeline_run)
+        papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
         passed_count = 0
         rejected_count = 0
         withdrawn_count = 0
@@ -271,6 +275,29 @@ def execute_screening_job(self, component_run_id: str, limit: int = 50, max_work
                 duration_sec = res.get("duration_seconds", 0.0)
                 logger.warning(f"⚠️ [SCREENING FAILED] Error processing paper '{title_snippet}...' ({duration_sec}s): {res.get('error')}")
                 failed_count += 1
+
+            # Flush live progress metrics to DB for real-time monitoring by MCP and Admin
+            processed_so_far = passed_count + rejected_count + withdrawn_count + failed_count
+            total_papers = len(papers)
+            pct = round((processed_so_far / total_papers * 100.0), 1) if total_papers > 0 else 100.0
+            try:
+                latest_badge = "PASSED" if res.get("screening_status") == "abstract_passed" else ("FAILED" if not res.get("success") else "REJECTED")
+                component_run.metrics = {
+                    "model_used": workspace.screening_llm_model,
+                    "parallel_workers": worker_concurrency,
+                    "total_screened": processed_so_far,
+                    "total_to_screen": total_papers,
+                    "passed": passed_count,
+                    "rejected": rejected_count,
+                    "withdrawn": withdrawn_count,
+                    "failed": failed_count,
+                    "percent_complete": pct,
+                    "latest_processed": f"[{latest_badge}] {title_snippet}",
+                    "elapsed_seconds": round(time.time() - job_t0, 1),
+                }
+                component_run.save(update_fields=['metrics'])
+            except Exception as me:
+                logger.debug(f"Metrics live flush note: {me}")
 
         if worker_concurrency <= 1:
             for paper in papers:

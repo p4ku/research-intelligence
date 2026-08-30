@@ -2,12 +2,12 @@ import json
 import uuid
 from django.core.serializers.json import DjangoJSONEncoder
 from research_intelligence.models import Scraper
-from ..workspaces import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 
 def list_scrapers_logic(user, workspace_id: str) -> str:
     """List data scraper configurations (arXiv, OpenAlex, Lens.org) for a workspace."""
-    workspace, membership, error = _check_workspace_access(user, workspace_id)
+    workspace, membership, error = check_workspace_access(user, workspace_id)
     if error:
         return error
 
@@ -44,7 +44,7 @@ def get_scraper_logic(user, scraper_id: str) -> str:
         return f"Error: Scraper with ID '{scraper_id}' does not exist."
 
     # Check permission for the associated workspace
-    workspace, membership, error = _check_workspace_access(user, str(scraper.workspace.id))
+    workspace, membership, error = check_workspace_access(user, str(scraper.workspace.id))
     if error:
         return error
 
@@ -75,7 +75,7 @@ def create_scraper_logic(
     is_active: bool = True
 ) -> str:
     """Create a new data scraper configuration (arXiv, OpenAlex, or Lens.org) for a workspace."""
-    workspace, membership, error = _check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
     if error:
         return error
 
@@ -132,7 +132,7 @@ def update_scraper_logic(
     except Scraper.DoesNotExist:
         return f"Error: Scraper with ID '{scraper_id}' does not exist."
 
-    workspace, membership, error = _check_workspace_access(user, str(scraper.workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(scraper.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return error
 
@@ -186,7 +186,7 @@ def delete_scraper_logic(user, scraper_id: str) -> str:
     except Scraper.DoesNotExist:
         return f"Error: Scraper with ID '{scraper_id}' does not exist."
 
-    workspace, membership, error = _check_workspace_access(user, str(scraper.workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(scraper.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return error
 

@@ -3,6 +3,9 @@ import nextTs from 'eslint-config-next/typescript'
 import { defineConfig } from 'eslint/config'
 
 const eslintConfig = defineConfig([
+  // Agent-local build dirs (see the multi-agent build workflow); eslint-config-next
+  // only knows to ignore `.next/`.
+  { ignores: ['.next-agent*/**', '.next-build/**'] },
   ...nextVitals,
   ...nextTs,
   {

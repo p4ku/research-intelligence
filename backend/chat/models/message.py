@@ -25,6 +25,7 @@ class PaperChatMessage(models.Model):
     sender = models.CharField(max_length=20, choices=SENDER_CHOICES, default='user')
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     deep_thinking = models.BooleanField(default=False, help_text="Whether deep thinking scratchpad reasoning was enabled")
+    thinking_process = models.TextField(blank=True, default="", help_text="Internal model reasoning trace / thoughts when deep_thinking is enabled")
     llm_model = models.CharField(max_length=100, blank=True, default="", help_text="LLM model used for generating this turn")
     
     question = models.TextField(blank=True, default="", help_text="Original prompt submitted by the user")

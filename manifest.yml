@@ -5,7 +5,7 @@ applications:
       image: ((backend_image))
       username: ((registry_username))
     instances: 1
-    memory: 2G
+    memory: 1G
     disk_quota: 3G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/api
@@ -41,11 +41,11 @@ applications:
       image: ((backend_image))
       username: ((registry_username))
     instances: 1
-    memory: 2G
+    memory: 1536M
     disk_quota: 3G
     no-route: true
     health-check-type: process
-    command: celery -A django_project worker --loglevel=info -Q celery,tenant-default,tenant-bulk-scraping --concurrency=2 --max-tasks-per-child=100
+    command: celery -A django_project worker --loglevel=info -Q celery,tenant-default,tenant-bulk-scraping --concurrency=4 --max-tasks-per-child=100
 
 
   - name: sri-beat
@@ -53,7 +53,7 @@ applications:
       image: ((backend_image))
       username: ((registry_username))
     instances: 1
-    memory: 512M
+    memory: 256M
     disk_quota: 3G
     no-route: true
     health-check-type: process
@@ -64,7 +64,9 @@ applications:
       image: ((frontend_image))
       username: ((registry_username))
     instances: 1
-    memory: 1G
+    # 512M is tight for a Next standalone server but the CF org quota is
+    # tighter still (see main's memory trims); raise to 1G when quota allows.
+    memory: 512M
     disk_quota: 2G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud

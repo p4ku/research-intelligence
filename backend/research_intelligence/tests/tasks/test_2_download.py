@@ -70,7 +70,7 @@ class DownloadTaskTestCase(TestCase):
     def test_download_node_contract_and_summary(self):
         node = DownloadNode()
         self.assertEqual(node.name, "download")
-        self.assertEqual(node.dependencies, ["search"])
+        self.assertEqual(node.dependencies, ["abstract_screening"])
         self.assertIn("storage_artifacts", node.output_contract)
 
         self.component_run.metrics = {"downloaded": 5, "cached": 3, "failed": 1}

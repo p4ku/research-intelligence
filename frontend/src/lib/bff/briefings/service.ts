@@ -12,6 +12,7 @@ import type { ScoredPaper } from '@/lib/papers/types'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { problem, ProblemError } from '../core/problem'
+import { assertUuid } from '../core/validate'
 import { sourceOf } from '../core/source'
 import { papers } from '../papers/service'
 import { runs } from '../pipeline-runs/service'
@@ -120,7 +121,7 @@ export const briefings = {
   async getByDate(workspaceId: string, date: string): Promise<Edition | null> {
     if (sourceOf('briefings') === 'django') {
       try {
-        return await django(`/api/workspaces/${workspaceId}/editions/${date}/`, edition)
+        return await django(`/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/editions/${date}/`, edition)
       } catch (error) {
         if (error instanceof ProblemError && error.problem.status === 404) return null
         throw error

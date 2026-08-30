@@ -11,11 +11,12 @@
  */
 import 'server-only'
 
-import { byValueDesc, dimensionByKey } from '@/lib/papers/select'
+import { byValueAsc, byValueDesc, dimensionByKey } from '@/lib/papers/select'
 import * as z from 'zod'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { problem, ProblemError } from '../core/problem'
+import { assertUuid } from '../core/validate'
 import { sourceOf } from '../core/source'
 import { workspace, type WorkspaceSummary } from '../workspaces/schema'
 import { composeGet, composeListAll } from './compose'
@@ -30,6 +31,7 @@ export interface WorkspacePapers {
 const detailResponse = z.object({ workspace, paper: scoredPaper })
 
 async function djangoListAll(workspaceId: string): Promise<WorkspacePapers | null> {
+  assertUuid(workspaceId, 'workspace_id')
   // The requested endpoint, drained page by page (the UI's composed path
   // holds the whole corpus in memory anyway; server-side filtering starts
   // once this endpoint exists).
@@ -76,9 +78,7 @@ function order(papers: ScoredPaper[], ordering: string): ScoredPaper[] {
   }
   const value = (p: ScoredPaper): number | null =>
     key === 'signal_score' ? p.signal_score : (dimensionByKey(p, key.slice(4))?.value ?? null)
-  // byValueDesc sorts descending with nulls last; ascending flips the pairs
-  // but keeps nulls last.
-  sorted.sort((a, b) => (desc ? byValueDesc(value(a), value(b)) : byValueDesc(value(b), value(a))))
+  sorted.sort((a, b) => (desc ? byValueDesc(value(a), value(b)) : byValueAsc(value(a), value(b))))
   return sorted
 }
 
@@ -127,7 +127,7 @@ export const papers = {
       }
       case 'django':
         try {
-          return await django(`/api/papers/${id}/scorecard/`, detailResponse)
+          return await django(`/api/papers/${assertUuid(id, 'paper id')}/scorecard/`, detailResponse)
         } catch (error) {
           if (error instanceof ProblemError && error.problem.status === 404) return null
           throw error

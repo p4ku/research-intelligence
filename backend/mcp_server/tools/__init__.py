@@ -3,7 +3,7 @@ FastMCP Tool Implementations by Logical Domain.
 Directly exposes tool functions and submodules for seamless Python package resolution.
 """
 from .workspaces import (
-    _check_workspace_access,
+    check_workspace_access,
     list_workspaces_logic,
     get_workspace_logic,
     create_workspace_logic,
@@ -36,6 +36,7 @@ from .pipeline_runs import (
     trigger_screening_job_logic,
     trigger_extraction_job_logic,
     trigger_signal_score_job_logic,
+    trigger_reporting_job_logic,
     get_pipeline_run_status_logic,
     get_component_run_status_logic,
     abort_job_logic,
@@ -52,6 +53,7 @@ from .agents import (
     abort_research_agent_logic,
     delete_research_agent_logic,
     get_workflow_dag_schema_logic,
+    get_pipeline_logs_logic,
 )
 from .diagnostics import (
     get_document_registry_stats_logic,
@@ -82,7 +84,7 @@ __all__ = [
     "diagnostics",
     "chat",
     # Functions
-    "_check_workspace_access",
+    "check_workspace_access",
     "ask_paper_logic",
     "get_document_registry_stats_logic",
     "list_workspaces_logic",
@@ -111,8 +113,10 @@ __all__ = [
     "trigger_screening_job_logic",
     "trigger_extraction_job_logic",
     "trigger_signal_score_job_logic",
+    "trigger_reporting_job_logic",
     "get_pipeline_run_status_logic",
     "get_component_run_status_logic",
+    "get_pipeline_logs_logic",
     "abort_job_logic",
     "list_pipeline_runs_logic",
     "delete_pipeline_run_logic",

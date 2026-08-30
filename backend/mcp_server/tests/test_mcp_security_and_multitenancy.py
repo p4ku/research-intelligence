@@ -120,6 +120,13 @@ class MCPSecurityAndMultiTenancyTestCase(TransactionTestCase):
         check_scope(read_only_key, "workspaces:read")
         check_scope(read_only_key, "scrapers:read")
 
+        runs_read_key = APIKey(
+            name="Runs Read Key",
+            user=self.alice,
+            scopes=["runs:read"]
+        )
+        check_scope(runs_read_key, "runs:read")
+
         # 2. Denied scope on read-only key raises PermissionError
         with self.assertRaises(PermissionError) as ctx:
             check_scope(read_only_key, "workspaces:write")
@@ -129,10 +136,15 @@ class MCPSecurityAndMultiTenancyTestCase(TransactionTestCase):
             check_scope(read_only_key, "runs:write")
         self.assertIn("Insufficient permissions", str(ctx.exception))
 
+        with self.assertRaises(PermissionError) as ctx:
+            check_scope(runs_read_key, "runs:write")
+        self.assertIn("Insufficient permissions", str(ctx.exception))
+
         # 3. Wildcard key allows any requested scope
         check_scope(full_access_key, "workspaces:read")
         check_scope(full_access_key, "workspaces:write")
         check_scope(full_access_key, "prompts:write")
+        check_scope(full_access_key, "runs:read")
         check_scope(full_access_key, "runs:write")
 
     def test_mcp_auth_context_user_resolution_and_activity_logging(self):

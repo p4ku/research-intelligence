@@ -293,6 +293,13 @@ class SubscriberInline(admin.TabularInline):
     readonly_fields = ('created_at',)
 
 
+class ExtractionDefinitionInline(admin.TabularInline):
+    model = ExtractionDefinition
+    extra = 0
+    fields = ('name', 'llm_model', 'is_active', 'created_at')
+    readonly_fields = ('created_at',)
+    show_change_link = True
+
 
 # Helper function to render formatted component metrics summary
 def render_component_metrics_summary(obj):
@@ -303,40 +310,48 @@ def render_component_metrics_summary(obj):
         total = m.get('total_screened', 0)
         passed = m.get('passed', 0)
         rejected = m.get('rejected', 0)
+        withdrawn = m.get('withdrawn', 0)
         rej_color = '#6c757d' if rejected == 0 else '#dc3545'
+        extras = []
+        if withdrawn > 0:
+            extras.append(f'<span style="color: #6c757d; font-size: 11px;">({withdrawn} withdrawn)</span>')
+        extra_html = f"<br>{''.join(extras)}" if extras else ""
         return format_html(
             '<div style="line-height: 1.35; white-space: nowrap;">'
             '<strong>{} screened:</strong><br>'
             '<span style="color: #198754; font-weight: 600;">{} passed</span>,<br>'
-            '<span style="color: {}; font-weight: 600;">{} rejected</span>'
+            '<span style="color: {}; font-weight: 600;">{} rejected</span>{}'
             '</div>',
             total,
             passed,
             rej_color,
             rejected,
+            format_html(extra_html) if extra_html else mark_safe(""),
         )
     elif obj.step_type == 'search':
-        fetched = m.get('total_fetched', m.get('total_created', 0))
-        skipped = m.get('total_duplicates_skipped', 0)
-        if skipped:
+        created = m.get('ingested_new', m.get('total_created', 0))
+        fetched = m.get('total_fetched', m.get('total_found', created))
+        dupes = m.get('duplicates_count', m.get('total_duplicates', m.get('total_duplicates_skipped', 0)))
+        if dupes:
             return format_html(
                 '<div style="line-height: 1.35; white-space: nowrap;">'
-                '<strong>{} papers</strong> fetched<br>'
-                '<span style="color: #6c757d; font-size: 11px;">({} dupes skipped)</span>'
+                '<strong>{} created (new)</strong> / {} fetched<br>'
+                '<span style="color: #6c757d; font-size: 11px;">({} duplicates)</span>'
                 '</div>',
+                created,
                 fetched,
-                skipped,
+                dupes,
             )
         return format_html(
             '<div style="line-height: 1.35; white-space: nowrap;">'
-            '<strong>{} papers</strong> fetched'
+            '<strong>{} papers</strong> created'
             '</div>',
-            fetched,
+            created,
         )
     elif obj.step_type == 'download':
         dl = m.get('downloaded', 0)
         failed = m.get('failed', 0)
-        cached = m.get('cached_hits', 0)
+        cached = m.get('cached', m.get('from_cache', m.get('cached_hits', 0)))
         extras = []
         if cached:
             extras.append(f"{cached} cached")
@@ -573,6 +588,8 @@ class WorkspaceAdmin(admin.ModelAdmin):
         'name',
         'ocr_provider',
         'screening_llm_model',
+        'reasoning_effort',
+        'skip_abstract_screening',
         'tokens_consumed_display',
         'usd_spent_display',
         'created_at'
@@ -584,8 +601,8 @@ class WorkspaceAdmin(admin.ModelAdmin):
         'full_text_acceptance_criteria',
         'full_text_rejection_criteria'
     )
-    list_filter = ('ocr_provider', 'llm_provider', 'created_at')
-    inlines = [WorkspaceMemberInline, ScraperInline, SubscriberInline]
+    list_filter = ('ocr_provider', 'llm_provider', 'reasoning_effort', 'skip_abstract_screening', 'created_at')
+    inlines = [WorkspaceMemberInline, ScraperInline, ExtractionDefinitionInline, SubscriberInline]
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -624,9 +641,9 @@ class WorkspaceAdmin(admin.ModelAdmin):
             'fields': ('name', 'digest_schedule', 'skip_abstract_screening', 'notification_email')
         }),
         ('Engine & Provider Configuration', {
-            'fields': ('ocr_provider', 'screening_llm_model', 'llm_provider')
+            'fields': ('ocr_provider', 'screening_llm_model', 'llm_provider', 'reasoning_effort')
         }),
-        ('🎯 Step 4: Abstract Screening Engine & Dynamic Prompting', {
+        ('🎯 Abstract Screening Engine & Dynamic Prompting', {
             'fields': (
                 'abstract_acceptance_criteria',
                 'abstract_rejection_criteria',
@@ -637,7 +654,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
             ),
             'description': 'Configure criteria, system prompt, user prompt template (placeholders: <code>{title}</code>, <code>{abstract}</code>, <code>{acceptance_criteria}</code>, <code>{rejection_criteria}</code>), custom JSON schema, and exit metric for Abstract Screening. If left blank, standard defaults are used.'
         }),
-        ('📄 Step 4: Full-Text Screening Engine & Dynamic Prompting', {
+        ('📄 Full-Text Screening Engine & Dynamic Prompting', {
             'fields': (
                 'full_text_acceptance_criteria',
                 'full_text_rejection_criteria',
@@ -648,9 +665,9 @@ class WorkspaceAdmin(admin.ModelAdmin):
             ),
             'description': 'Configure criteria, system prompt, user prompt template (placeholders: <code>{title}</code>, <code>{abstract}</code>, <code>{full_text}</code>, <code>{acceptance_criteria}</code>, <code>{rejection_criteria}</code>), custom JSON schema, and exit metric for Full-Text Screening. If left blank, standard defaults are used.'
         }),
-        ('Step 6: Signal Score Configuration', {
+        ('⚙️ Signal Score Configuration', {
             'fields': ('signal_score_code',),
-            'description': 'Custom Python snippet evaluated in Step 6 on paper extracted parameters (e.g. <code>k = fit_score + 2*novelty_score; return 5 if k > 10 else 99</code>). Executed securely in an isolated sandbox.'
+            'description': 'Custom Python snippet evaluated on paper extracted parameters (e.g. <code>k = fit_score + 2*novelty_score; return 5 if k > 10 else 99</code>). Executed securely in an isolated sandbox.'
         }),
         ('Monthly Quotas & Budgets', {
             'fields': (
@@ -663,7 +680,117 @@ class WorkspaceAdmin(admin.ModelAdmin):
         }),
     )
 
-    actions = ['launch_agent_standard', 'launch_agent_reprocess']
+    change_list_template = 'admin/research_intelligence/workspace/change_list.html'
+    actions = ['launch_agent_standard', 'launch_agent_reprocess', 'export_configuration', 'import_configuration_action']
+
+    @admin.action(description="📦 Export Workspace Configuration (JSON)")
+    def export_configuration(self, request, queryset):
+        import json
+        from django.http import HttpResponse
+        from django.utils.timezone import now
+        from django.utils.text import slugify
+        from research_intelligence.services.workspace_service import serialize_workspace_configuration
+
+        workspaces_data = [serialize_workspace_configuration(ws) for ws in queryset]
+        export_payload = {
+            "version": "1.0",
+            "exported_at": now().isoformat(),
+            "workspaces_count": len(workspaces_data),
+            "workspaces": workspaces_data,
+        }
+
+        if len(workspaces_data) == 1:
+            filename = f"workspace_{slugify(workspaces_data[0]['name'])}_{now().strftime('%Y%m%d_%H%M%S')}.json"
+        else:
+            filename = f"workspaces_export_{len(workspaces_data)}_items_{now().strftime('%Y%m%d_%H%M%S')}.json"
+
+        response = HttpResponse(
+            json.dumps(export_payload, indent=2, ensure_ascii=False),
+            content_type="application/json; charset=utf-8"
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    @admin.action(description="📥 Import Configuration (JSON File / Paste)")
+    def import_configuration_action(self, request, queryset):
+        from django.http import HttpResponseRedirect
+        from django.urls import reverse
+        return HttpResponseRedirect(reverse('admin:workspace-import-configuration'))
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                'import-configuration/',
+                self.admin_site.admin_view(self.import_configuration_view),
+                name='workspace-import-configuration'
+            ),
+            path(
+                'import-configuration/',
+                self.admin_site.admin_view(self.import_configuration_view),
+                name='research_intelligence_workspace_import_configuration'
+            ),
+        ]
+        return custom_urls + urls
+
+    def import_configuration_view(self, request):
+        import json
+        from django.shortcuts import render, redirect
+        from django.contrib import messages
+        from research_intelligence.services.workspace_service import import_workspace_configuration_bundle
+
+        if request.method == 'POST':
+            raw_json = request.POST.get('raw_json', '').strip()
+            uploaded_file = request.FILES.get('json_file')
+            overwrite_val = request.POST.get('overwrite_existing', 'yes').strip().lower()
+            update_existing = overwrite_val in ['yes', '1', 'true', 'on']
+
+            payload_str = None
+            if uploaded_file:
+                try:
+                    payload_str = uploaded_file.read().decode('utf-8')
+                except Exception as e:
+                    messages.error(request, f"Failed to read uploaded file: {str(e)}")
+            elif raw_json:
+                payload_str = raw_json
+
+            if not payload_str:
+                messages.error(request, "Please provide a JSON file or paste JSON content.")
+                return redirect('admin:workspace-import-configuration')
+
+            try:
+                parsed_data = json.loads(payload_str)
+            except Exception as e:
+                messages.error(request, f"Invalid JSON syntax: {str(e)}")
+                return redirect('admin:workspace-import-configuration')
+
+            try:
+                stats = import_workspace_configuration_bundle(
+                    data=parsed_data,
+                    user=request.user,
+                    update_existing=update_existing
+                )
+                mode_desc = "Overwrite / Fine-tune enabled" if update_existing else "Overwrite disabled (skipped existing items)"
+                messages.success(
+                    request,
+                    f"✅ Workspace configuration imported successfully ({mode_desc})! "
+                    f"Workspaces: {stats['created_workspaces']} created, {stats['updated_workspaces']} updated, {stats.get('skipped_workspaces', 0)} skipped | "
+                    f"Extraction Definitions: {stats['created_extractions']} created, {stats['updated_extractions']} updated, {stats.get('skipped_extractions', 0)} skipped | "
+                    f"Scrapers: {stats['created_scrapers']} created, {stats['updated_scrapers']} updated, {stats.get('skipped_scrapers', 0)} skipped | "
+                    f"Subscribers: {stats['created_subscribers']} created, {stats['updated_subscribers']} updated, {stats.get('skipped_subscribers', 0)} skipped."
+                )
+                return redirect('admin:research_intelligence_workspace_changelist')
+            except Exception as e:
+                messages.error(request, f"Import error: {str(e)}")
+                return redirect('admin:workspace-import-configuration')
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': 'Import Workspace Configuration',
+            'opts': self.model._meta,
+        }
+        return render(request, 'admin/research_intelligence/workspace/import_configuration.html', context)
 
     @admin.action(description="🚀 Launch Autonomous Agent (Standard - Skip Duplicates)")
     def launch_agent_standard(self, request, queryset):
@@ -836,6 +963,7 @@ class ScraperAdmin(admin.ModelAdmin):
             'arxiv': '#fd7e14',
             'openalex': '#0d6efd',
             'lens': '#6f42c1',
+            'pubmed': '#20c997',
         }
         return render_badge(obj.get_provider_display(), colors.get(obj.provider, '#6c757d'))
     provider_badge.short_description = "Provider"
@@ -977,8 +1105,10 @@ class PipelineRunAdmin(admin.ModelAdmin):
     def current_stage_badge(self, obj):
         colors = {
             'search': '#0d6efd',
+            'abstract_screening': '#0dcaf0',
             'download': '#0dcaf0',
             'ocr': '#6f42c1',
+            'full_text_screening': '#ffc107',
             'screening': '#ffc107',
             'extraction': '#198754',
             'signal_score': '#fd7e14',
@@ -1182,7 +1312,7 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
             if step and step not in ('completed', 'reporting'):
                 step_name = dict(ResearchAgentProcess.STEP_CHOICES).get(step, step.title())
                 return render_badge(f"⚠️ HALTED AT {step_name.upper()}", "#fd7e14", "#ffffff")
-            return render_badge("✅ ALL 7 STEPS DONE", "#198754", "#ffffff")
+            return render_badge("✅ COMPLETED", "#198754", "#ffffff")
         elif obj.status == 'paused':
             return render_badge("⏸️ PAUSED", "#ffc107", "#000000")
         elif obj.status == 'aborted':
@@ -1515,18 +1645,26 @@ class ComponentRunAdmin(admin.ModelAdmin):
     def step_type_badge(self, obj):
         colors = {
             'search': '#0d6efd',
+            'abstract_screening': '#0dcaf0',
             'download': '#0dcaf0',
             'ocr': '#6f42c1',
             'screening': '#ffc107',
+            'full_text_screening': '#ffc107',
             'extraction': '#198754',
             'signal_score': '#fd7e14',
             'metrics': '#fd7e14',
             'deep_research': '#d63384',
             'reporting': '#20c997',
         }
-        bg = colors.get(obj.step_type, '#6c757d')
+        label = obj.get_step_type_display()
+        if obj.step_type == 'screening' and obj.component_name:
+            if obj.component_name == 'abstract_screening':
+                label = 'Abstract Screening'
+            elif obj.component_name == 'full_text_screening':
+                label = 'Full-Text Screening'
+        bg = colors.get(obj.component_name, colors.get(obj.step_type, '#6c757d'))
         text_color = '#000000' if bg in ('#ffc107', '#0dcaf0') else '#ffffff'
-        return render_badge(obj.get_step_type_display(), bg, text_color)
+        return render_badge(label, bg, text_color)
     step_type_badge.short_description = "Step Type"
 
     def status_badge(self, obj):
@@ -1534,36 +1672,137 @@ class ComponentRunAdmin(admin.ModelAdmin):
             'pending': '#6c757d',
             'running': '#0d6efd',
             'completed': '#198754',
+            'skipped': '#6c757d',
             'failed': '#dc3545',
             'aborted': '#495057',
         }
         return render_badge(obj.status.upper(), colors.get(obj.status, '#6c757d'))
     status_badge.short_description = "Status"
 
-    actions = ['rerun_from_this_component_step']
+    actions = ['rerun_from_this_component_step', 'reexecute_single_component_run', 'abort_selected_component_runs']
 
     @admin.action(description="🔄 Rerun Pipeline from Selected Step Forward")
     def rerun_from_this_component_step(self, request, queryset):
         from research_intelligence.tasks.orchestrator.dag import build_default_slr_dag
         from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+        from research_intelligence.models import ResearchAgentProcess
+
+        count = 0
+        for comp in queryset:
+            pr = comp.pipeline_run
+            dag = build_default_slr_dag(pr.workspace)
+            target_node = None
+            if comp.component_name in dag.nodes:
+                target_node = comp.component_name
+            else:
+                for n_name, node in dag.nodes.items():
+                    if node.step_type == comp.step_type:
+                        target_node = n_name
+                        break
+
+            if target_node:
+                # 1. Reset DAG downstream from target node
+                dag.rerun_from_node(pr, target_node)
+
+                # 2. Find or create an active ResearchAgentProcess
+                agent = pr.agent_processes.filter(status__in=['running', 'pending', 'paused', 'failed', 'completed']).first()
+                if not agent:
+                    agent = ResearchAgentProcess.objects.create(
+                        workspace=pr.workspace,
+                        pipeline_run=pr,
+                        triggered_by=request.user if request.user.is_authenticated else pr.triggered_by,
+                        name=f"Rerun from {comp.get_step_type_display()} - {pr.workspace.name}",
+                        status='running',
+                        current_step=comp.step_type,
+                        configuration_override={"reprocess_existing": getattr(pr, 'reprocess_existing', False)}
+                    )
+                else:
+                    agent.status = 'running'
+                    agent.current_step = comp.step_type
+                    agent.stopped_at_step = None
+                    agent.stop_reason = ""
+                    agent.completed_at = None
+                    agent.save(update_fields=['status', 'current_step', 'stopped_at_step', 'stop_reason', 'completed_at'])
+
+                # 3. Synchronously evaluate and dispatch the ready node(s) so a new ComponentRun is immediately created
+                dag.evaluate_and_dispatch(pr, agent_process=agent)
+
+                # 4. Trigger asynchronous orchestrator ticker for Celery tasks
+                tick_agent_process(str(agent.id))
+                count += 1
+
+        self.message_user(request, f"Successfully triggered DAG rerun from selected step for {count} component run(s).")
+
+    @admin.action(description="⚡ Re-execute only this single Component Task (Celery)")
+    def reexecute_single_component_run(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.dag import build_default_slr_dag
+        from django.utils import timezone
+
         count = 0
         for comp in queryset:
             dag = build_default_slr_dag(comp.pipeline_run.workspace)
-            target_node = None
             for n_name, node in dag.nodes.items():
                 if node.step_type == comp.step_type:
-                    target_node = n_name
+                    comp.status = 'running'
+                    comp.error_message = ''
+                    comp.completed_at = None
+                    comp.started_at = timezone.now()
+                    comp.save(update_fields=['status', 'error_message', 'completed_at', 'started_at'])
+                    node.execute(comp.pipeline_run, comp)
+                    count += 1
                     break
-            if target_node:
-                dag.rerun_from_node(comp.pipeline_run, target_node)
-                agent = comp.pipeline_run.agent_processes.filter(status__in=['running', 'pending', 'paused', 'failed', 'completed']).first()
-                if agent:
-                    agent.status = 'running'
-                    agent.current_step = comp.step_type
-                    agent.save(update_fields=['status', 'current_step'])
-                    tick_agent_process(str(agent.id))
-                count += 1
-        self.message_user(request, f"Triggered DAG rerun from step for {count} component run(s).")
+
+        self.message_user(request, f"Re-dispatched {count} single component task(s) on Celery.")
+
+    @admin.action(description="🛑 Stop / Abort Selected Component Task(s) (Celery Revoke)")
+    def abort_selected_component_runs(self, request, queryset):
+        from django.utils import timezone
+        import logging
+        logger = logging.getLogger(__name__)
+
+        count = 0
+        for comp in queryset:
+            # 1. Revoke Celery task if running/active
+            if comp.celery_task_id:
+                try:
+                    from django_project.celery import app as celery_app
+                    celery_app.control.revoke(comp.celery_task_id, terminate=True, signal='SIGKILL')
+                    logger.info(f"🛑 [CELERY REVOKE] Revoked task '{comp.celery_task_id}' for ComponentRun '{comp.id}' with SIGKILL.")
+                except Exception as e:
+                    logger.warning(f"Failed to revoke Celery task '{comp.celery_task_id}': {e}")
+
+            # 2. Mark ComponentRun as aborted
+            comp.status = 'aborted'
+            comp.error_message = "🛑 Aborted manually by administrator in Django Admin."
+            comp.completed_at = timezone.now()
+            comp.save(update_fields=['status', 'error_message', 'completed_at'])
+
+            # 3. Synchronize Agent Process and PipelineRun state
+            pr = comp.pipeline_run
+            if pr:
+                pr.status = 'aborted'
+                pr.status_message = f"Pipeline aborted at step '{comp.step_type}' by administrator."
+                pr.completed_at = timezone.now()
+                pr.save(update_fields=['status', 'status_message', 'completed_at'])
+
+                for agent in pr.agent_processes.filter(status__in=['running', 'pending', 'paused']):
+                    agent.status = 'aborted'
+                    agent.stopped_at_step = comp.step_type
+                    agent.stop_reason = f"Component task '{comp.step_type}' was aborted by admin."
+                    agent.completed_at = timezone.now()
+                    history = list(agent.step_history or [])
+                    history.append({
+                        "step": comp.step_type,
+                        "event": "aborted",
+                        "message": f"ComponentRun '{comp.id}' aborted by administrator",
+                        "timestamp": timezone.now().isoformat()
+                    })
+                    agent.step_history = history
+                    agent.save(update_fields=['status', 'stopped_at_step', 'stop_reason', 'completed_at', 'step_history'])
+
+            count += 1
+
+        self.message_user(request, f"Successfully stopped and aborted {count} component task(s).")
 
 
 @admin.register(Paper)
@@ -1615,8 +1854,10 @@ class PaperAdmin(admin.ModelAdmin):
             'pending': '#6c757d',
             'abstract_passed': '#0dcaf0',
             'full_text_passed': '#198754',
+            'accepted': '#198754',
             'borderline': '#ffc107',
             'rejected': '#dc3545',
+            'withdrawn': '#6c757d',
         }
         bg = colors.get(obj.screening_status, '#6c757d')
         text_color = '#000000' if bg in ['#ffc107', '#0dcaf0'] else '#ffffff'

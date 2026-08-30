@@ -81,6 +81,9 @@ class ExtractionTaskTestCase(TestCase):
         self.assertEqual(ext.validation_status, "pass")
         self.assertAlmostEqual(ext.confidence_score, 0.95)
 
+        # Assert reasoning_effort is passed to llm_provider.generate
+        self.assertEqual(mock_llm.generate.call_args.kwargs.get("reasoning_effort"), "medium")
+
     @patch("research_intelligence.tasks.step_5_extraction.extract.get_llm_provider")
     def test_execute_extraction_job_warn_on_schema_fallback(self, mock_get_provider):
         mock_llm = MagicMock()
@@ -105,10 +108,25 @@ class ExtractionTaskTestCase(TestCase):
     def test_extraction_node_contracts_and_dependencies(self):
         node = ExtractionNode()
         self.assertEqual(node.name, "extraction")
-        self.assertEqual(node.dependencies, ["screening"])
+        self.assertEqual(node.dependencies, ["full_text_screening"])
         self.assertIn("extraction_definitions", node.input_contract)
         self.assertIn("extractions", node.output_contract)
 
         self.component_run.metrics = {"extracted_count": 8, "papers_processed": 4}
         summary = node.generate_stage_summary(self.component_run, status="completed")
         self.assertIn("8 parameters extracted", summary)
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    def test_execute_extraction_job_no_active_definitions(self, mock_notify):
+        """Test extraction job completes cleanly and notifies orchestrator when no active definitions exist."""
+        self.definition.is_active = False
+        self.definition.save()
+
+        result = execute_extraction_job(str(self.component_run.id))
+        self.assertTrue(result)
+
+        self.component_run.refresh_from_db()
+        self.assertEqual(self.component_run.status, "completed")
+        self.assertEqual(self.component_run.metrics.get("total_definitions"), 0)
+        mock_notify.assert_called_once_with(self.pipeline_run)
+

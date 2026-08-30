@@ -10,7 +10,7 @@ class ExtractionSerializer(serializers.ModelSerializer):
 
 
 @extend_schema(tags=['Dynamic Extractions'])
-class ExtractionViewSet(viewsets.ModelViewSet):
+class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Lists extracted claims and parameters matching schema settings.
     Scoped to workspaces the authenticated user is a member of.

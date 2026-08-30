@@ -39,7 +39,8 @@ class ArxivScraperProvider(BaseScraperProvider):
     - Seamless OpenAlex arXiv fallback if arXiv IP-blocks or throttles requests.
     """
 
-    MAX_PAGE_SIZE = 1000
+    DEFAULT_PAGE_SIZE = 100
+    COMPLEX_QUERY_PAGE_SIZE = 50
     MAX_TOTAL_RESULTS = 30000
 
     def search(self, query: str, limit: int = 10, sort_by: str = "relevance", sort_order: str = "desc") -> list[dict]:
@@ -64,44 +65,80 @@ class ArxivScraperProvider(BaseScraperProvider):
             raw = clean_query.replace('"', '').replace("'", "")
             formatted_query = f'all:"{raw}"' if " " in raw else f'all:{raw}'
 
+        is_complex = (
+            len(clean_query) > 100
+            or clean_query.count(" OR ") > 2
+            or clean_query.count(" AND ") > 2
+            or clean_query.count("all:") > 3
+        )
+        base_page_size = self.COMPLEX_QUERY_PAGE_SIZE if is_complex else self.DEFAULT_PAGE_SIZE
+
         encoded_query = urllib.parse.quote(formatted_query)
         sort_by_param = "submittedDate" if sort_by == "date" else "relevance"
         sort_order_param = "ascending" if sort_order == "asc" else "descending"
 
+        logger.info(
+            f"🔍 [ARXIV SEARCH START] Target limit: {total_limit} papers | "
+            f"Page size: {base_page_size} (complex_query={is_complex}) | "
+            f"Sorting: {sort_by_param} ({sort_order_param})"
+        )
+
         all_results = []
         start = 0
+        search_start_t = time.time()
 
         while len(all_results) < total_limit:
-            chunk_size = min(self.MAX_PAGE_SIZE, total_limit - len(all_results))
-            url = f"https://export.arxiv.org/api/query?search_query={encoded_query}&start={start}&max_results={chunk_size}&sortBy={sort_by_param}&sortOrder={sort_order_param}"
-
-            chunk_results = self._fetch_arxiv_slice_with_retry(url, chunk_size, raw_query=clean_query)
+            chunk_size = min(base_page_size, total_limit - len(all_results))
+            chunk_results = self._fetch_arxiv_slice_with_retry(
+                encoded_query=encoded_query,
+                start=start,
+                chunk_size=chunk_size,
+                sort_by_param=sort_by_param,
+                sort_order_param=sort_order_param,
+                raw_query=clean_query
+            )
             if not chunk_results:
+                logger.info(f"ℹ️ [ARXIV SEARCH] No more results returned for start={start}. Ending pagination loop.")
                 break
 
             all_results.extend(chunk_results)
             start += len(chunk_results)
+            logger.info(f"📊 [ARXIV PROGRESS] Fetched {len(all_results)}/{total_limit} papers so far (latest slice: {len(chunk_results)} papers).")
 
             if len(chunk_results) < chunk_size:
-                # Reached end of available results
+                logger.info(f"ℹ️ [ARXIV SEARCH] Reached end of available results on arXiv ({len(all_results)} papers total).")
                 break
 
             if len(all_results) < total_limit:
                 _throttle_request(min_interval=3.2)
 
+        total_elapsed = time.time() - search_start_t
+        logger.info(f"✅ [ARXIV SEARCH COMPLETE] Successfully fetched {len(all_results)}/{total_limit} papers from arXiv in {total_elapsed:.2f}s.")
         return all_results[:total_limit]
 
-    def _fetch_arxiv_slice_with_retry(self, url: str, chunk_size: int, raw_query: str = "") -> list[dict]:
+    def _fetch_arxiv_slice_with_retry(
+        self,
+        encoded_query: str,
+        start: int,
+        chunk_size: int,
+        sort_by_param: str,
+        sort_order_param: str,
+        raw_query: str = ""
+    ) -> list[dict]:
         """
-        Fetches a single slice from export.arxiv.org with exponential backoff and 429 fallback.
+        Fetches a single slice from export.arxiv.org with adaptive chunk sizing,
+        exponential backoff, and seamless OpenAlex fallback.
         """
         max_retries = 4
-        timeout_sec = 30
+        timeout_sec = 45
+        current_chunk_size = chunk_size
         xml_data = None
-        last_exc = None
 
         for attempt in range(1, max_retries + 1):
             _throttle_request(min_interval=3.0)
+            url = f"https://export.arxiv.org/api/query?search_query={encoded_query}&start={start}&max_results={current_chunk_size}&sortBy={sort_by_param}&sortOrder={sort_order_param}"
+            logger.info(f"📡 [ARXIV HTTP GET] Querying slice start={start}, max_results={current_chunk_size} (Attempt {attempt}/{max_retries})...")
+            req_start_t = time.time()
             try:
                 req = urllib.request.Request(
                     url,
@@ -111,10 +148,14 @@ class ArxivScraperProvider(BaseScraperProvider):
                 )
                 with urllib.request.urlopen(req, timeout=timeout_sec) as response:
                     xml_data = response.read()
+                req_elapsed = time.time() - req_start_t
+                logger.info(f"📥 [ARXIV HTTP 200] Received response ({len(xml_data)} bytes) in {req_elapsed:.2f}s for start={start}.")
                 break
             except Exception as e:
-                last_exc = e
+                req_elapsed = time.time() - req_start_t
                 is_429 = isinstance(e, urllib.error.HTTPError) and e.code == 429
+                is_timeout = isinstance(e, (TimeoutError, urllib.error.URLError)) and "timed out" in str(e).lower()
+
                 if is_429:
                     retry_after = e.headers.get("Retry-After") if hasattr(e, "headers") and e.headers else None
                     try:
@@ -124,17 +165,25 @@ class ArxivScraperProvider(BaseScraperProvider):
                 else:
                     delay = max(3, 3 * attempt)
 
+                # Adaptive backdown: on timeout, reduce chunk size for next retry
+                if is_timeout and current_chunk_size > 25:
+                    prev_chunk = current_chunk_size
+                    current_chunk_size = max(25, current_chunk_size // 2)
+                    logger.warning(f"⚠️ [ARXIV TIMEOUT after {req_elapsed:.1f}s] Query timed out on chunk size {prev_chunk}. Dynamically scaling down to {current_chunk_size}...")
+
                 if attempt < max_retries:
-                    logger.warning(f"⚠️ [ARXIV RETRY {attempt}/{max_retries}] Error querying arXiv API: {e}. Retrying in {delay}s...")
+                    logger.warning(f"⚠️ [ARXIV RETRY {attempt}/{max_retries}] Error querying arXiv API ({e}) after {req_elapsed:.1f}s. Retrying in {delay}s with chunk_size={current_chunk_size}...")
                     time.sleep(delay)
                 else:
-                    logger.warning(f"⚠️ [ARXIV RATE LIMITED / UNAVAILABLE] Failed after {max_retries} attempts: {e}. Activating OpenAlex arXiv fallback...")
+                    logger.warning(f"⚠️ [ARXIV RATE LIMITED / TIMEOUT] Failed after {max_retries} attempts ({e}). Activating OpenAlex arXiv fallback...")
                     return self._search_openalex_arxiv_fallback(raw_query, limit=chunk_size)
 
         if not xml_data:
             return []
 
-        return self._parse_arxiv_atom_xml(xml_data)
+        parsed = self._parse_arxiv_atom_xml(xml_data)
+        logger.info(f"📄 [ARXIV PARSER] Parsed {len(parsed)} paper entries from Atom XML.")
+        return parsed
 
     def _parse_arxiv_atom_xml(self, xml_data: bytes) -> list[dict]:
         """
@@ -215,18 +264,28 @@ class ArxivScraperProvider(BaseScraperProvider):
         Seamless fallback harvesting arXiv papers via OpenAlex's indexed repository source.
         Used when export.arxiv.org rate limits or blocks requests.
         """
-        clean = re.sub(r'^(cat|ti|au|all|abs):', '', query.strip())
-        clean = re.sub(r'submittedDate:\[.*?\]', '', clean)
-        clean = clean.replace('(', '').replace(')', '').replace('"', '').strip()
-        encoded = urllib.parse.quote(clean or query)
+        # OpenAlex per_page is strictly capped at 200
+        openalex_limit = max(1, min(limit, 200))
 
-        url = f"https://api.openalex.org/works?filter=locations.source.id:s4306400194&search={encoded}&per_page={limit}"
+        # Extract search keywords or phrases from complex arXiv queries
+        phrases = re.findall(r'\"([^\"]+)\"', query)
+        if phrases:
+            clean_search = " OR ".join(phrases[:6])
+        else:
+            clean = re.sub(r'\b(cat|ti|au|all|abs|jr):[^\s\)]+', '', query)
+            clean = re.sub(r'submittedDate:\[.*?\]', '', clean)
+            clean = re.sub(r'[^a-zA-Z0-9\s]', ' ', clean)
+            clean_search = " ".join(clean.split()[:8])
+
+        encoded = urllib.parse.quote(clean_search or "quantum")
+
+        url = f"https://api.openalex.org/works?filter=locations.source.id:s4306400194&search={encoded}&per_page={openalex_limit}"
         try:
             req = urllib.request.Request(
                 url,
                 headers={'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7); mailto:research@soinventive.co.uk'}
             )
-            with urllib.request.urlopen(req, timeout=15) as resp:
+            with urllib.request.urlopen(req, timeout=20) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
 
             results = []
@@ -280,7 +339,7 @@ class ArxivScraperProvider(BaseScraperProvider):
             logger.info(f"✅ [ARXIV FALLBACK] Successfully retrieved {len(results)} arXiv papers via OpenAlex index.")
             return results
         except Exception as e:
-            logger.exception(f"OpenAlex fallback query failed: {e}")
+            logger.warning(f"⚠️ OpenAlex fallback query failed for '{clean_search}': {e}")
             return []
 
     def _search_oai_pmh(self, oai_params: str, limit: int = 10) -> list[dict]:

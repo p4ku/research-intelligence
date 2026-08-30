@@ -122,9 +122,23 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
 
     def test_state_engine_skips_ocr_when_ocr_provider_is_none(self):
         """
-        Ensures that when ocr_provider is None, tick_agent_process skips Step 3 (OCR)
-        and transitions directly from 'download' to 'screening'.
+        Ensures that when ocr_provider is None, tick_agent_process skips Step 4 (OCR)
+        and transitions directly from 'download' to 'full_text_screening'.
         """
+        # Complete prerequisites
+        ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="search",
+            component_name="workspace_search",
+            status="completed"
+        )
+        ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="screening",
+            component_name="abstract_screening",
+            status="completed"
+        )
+
         agent = ResearchAgentProcess.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
@@ -134,6 +148,19 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
             current_step="download"
         )
 
+        # Prerequisites completed
+        ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="search",
+            component_name="workspace_search",
+            status="completed"
+        )
+        ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="screening",
+            component_name="abstract_screening",
+            status="completed"
+        )
         # Download component run completed
         ComponentRun.objects.create(
             pipeline_run=self.pipeline_run,
@@ -141,31 +168,55 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
             component_name="pdf_downloader",
             status="completed"
         )
+        Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="direct_mm_p1",
+            title="Direct Multimodal Paper",
+            screening_status="abstract_passed"
+        )
 
-        with patch("research_intelligence.tasks.step_4_screening.abstract.execute_screening_job.delay") as mock_screening:
-            mock_screening.return_value.id = "mock_screen_task_123"
+        with patch("research_intelligence.tasks.step_4_screening.full_text.execute_full_text_screening_job") as mock_screening:
+            mock_res = MagicMock()
+            mock_res.id = "mock_screen_task_123"
+            mock_screening.delay.return_value = mock_res
+            mock_screening.return_value = mock_res
             tick_result = tick_agent_process(str(agent.id))
 
             self.assertTrue(tick_result["success"])
-            self.assertEqual(tick_result["current_step"], "screening")
+            self.assertEqual(tick_result["current_step"], "full_text_screening")
             self.assertIn("OCR skipped", tick_result["message"])
 
         agent.refresh_from_db()
-        self.assertEqual(agent.current_step, "screening")
+        self.assertEqual(agent.current_step, "full_text_screening")
 
     def test_state_engine_zero_pass_abstract_screening_graceful_completion(self):
         """
         Tests when 0 papers pass abstract screening:
-        State engine skips full-text screening, transitions to extraction,
-        safely extracts 0 papers, and marks agent completed.
+        State engine halts early gracefully with status completed.
         """
+        ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="search",
+            component_name="workspace_search",
+            status="completed"
+        )
+        Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="zero_pass_p1",
+            title="Irrelevant Paper",
+            abstract="Irrelevant abstract",
+            screening_status="rejected"
+        )
+
         agent = ResearchAgentProcess.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             triggered_by=self.user,
             name="Zero Pass Agent",
             status="running",
-            current_step="screening"
+            current_step="abstract_screening"
         )
 
         # Abstract screening completed with 0 passed
@@ -174,20 +225,18 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
             step_type="screening",
             component_name="abstract_screening",
             status="completed",
-            metrics={"total_screened": 5, "passed": 0, "rejected": 5}
+            metrics={"total_screened": 1, "passed": 0, "rejected": 1}
         )
 
-        with patch("research_intelligence.tasks.step_5_extraction.extract.execute_extraction_job.delay") as mock_extract:
-            mock_extract.return_value.id = "mock_extract_task_123"
-            tick_result = tick_agent_process(str(agent.id))
+        tick_result = tick_agent_process(str(agent.id))
 
-            self.assertTrue(tick_result["success"])
-            self.assertEqual(tick_result["current_step"], "extraction")
-            # Extraction job was launched for 0 papers
-            mock_extract.assert_called_once()
+        self.assertTrue(tick_result["success"])
+        self.assertEqual(tick_result["status"], "completed")
+        self.assertEqual(tick_result["stopped_at_step"], "abstract_screening")
 
         agent.refresh_from_db()
-        self.assertEqual(agent.current_step, "extraction")
+        self.assertEqual(agent.status, "completed")
+        self.assertEqual(agent.stopped_at_step, "abstract_screening")
 
     def test_dynamic_dual_stage_screening_transitions_and_metrics(self):
         """

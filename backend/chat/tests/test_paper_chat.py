@@ -485,7 +485,7 @@ class PaperChatTestCase(TestCase):
     @patch("chat.engine.orchestrator.get_llm_provider")
     def test_oop_paper_context_builder_and_engine(self, mock_get_llm_provider):
         """Tests explicit object-oriented initialization and execution of PaperChatEngine."""
-        from research_intelligence.tasks.chat import (
+        from chat.engine import (
             PaperChatEngine,
             PaperContextBuilder,
             HierarchicalSessionSummarizer,
@@ -536,7 +536,7 @@ class PaperChatTestCase(TestCase):
 
     def test_visual_citation_extractor_structured_json(self):
         """Tests parsing structured ```json:citations blocks with bounding boxes."""
-        from research_intelligence.tasks.chat import VisualCitationExtractor
+        from chat.engine import VisualCitationExtractor
 
         raw_llm_response = """
 Here is the analysis of the quantum architecture.

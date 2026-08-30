@@ -6,7 +6,7 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from chat.models import PaperChatMessage
 from chat.serializers import PaperChatMessageSerializer
-from mcp_server.tools.workspaces.crud import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class ChatMessageDetailView(APIView):
             )
 
         # RBAC Check
-        workspace, membership, error_msg = _check_workspace_access(
+        workspace, membership, error_msg = check_workspace_access(
             request.user,
             str(message.session.workspace_id),
             required_roles=['admin', 'manager', 'researcher']

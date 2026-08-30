@@ -40,7 +40,10 @@ export async function proxy(request: NextRequest) {
   }
   // With skipTrailingSlashRedirect on (for Django), keep our own URLs canonical.
   if (pathname.length > 1 && pathname.endsWith('/')) {
-    return NextResponse.redirect(absoluteUrl(request, pathname.replace(/\/+$/, '') + search), 308)
+    // Collapse leading slashes/backslashes too: absoluteUrl over a path like
+    // '//evil.com' would resolve protocol-relative and 308 off-origin.
+    const canonical = '/' + pathname.replace(/\/+$/, '').replace(/^[/\\]+/, '')
+    return NextResponse.redirect(absoluteUrl(request, canonical + search), 308)
   }
   if (PUBLIC_ROUTES.some((route) => route.test(pathname))) {
     return NextResponse.next()

@@ -39,6 +39,20 @@ export function parseQuery<T extends z.ZodType>(schema: T, url: URL): z.output<T
   return parsed.data
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * Guard for values interpolated into upstream URL paths. Route params arrive
+ * percent-decoded, so without this a crafted id ('../workspaces/<uuid>')
+ * would retarget the Bearer-authed request after fetch normalizes the path.
+ */
+export function assertUuid(value: string, label = 'id'): string {
+  if (!UUID_RE.test(value)) {
+    throw problem('validation', { detail: `${label} must be a UUID.` })
+  }
+  return value
+}
+
 /** Validate data from Django against a contract/upstream schema. */
 export function parseUpstream<T extends z.ZodType>(
   schema: T,

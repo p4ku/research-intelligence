@@ -95,16 +95,16 @@ class AgentIdempotencyAndResumeTestCase(TestCase):
         self.assertEqual(status_res["current_step"], "search")
 
         # 3. Resume paused agent
-        with patch("research_intelligence.tasks.step_2_download.fetch.execute_pdf_download_job.delay") as mock_step2:
-            mock_step2.return_value.id = "mock_task_id_123"
+        with patch("research_intelligence.tasks.step_4_screening.abstract.execute_screening_job.delay") as mock_screening:
+            mock_screening.return_value.id = "mock_task_id_123"
             resume_res = json.loads(resume_research_agent_logic(self.user, str(self.agent_process.id)))
             self.assertEqual(resume_res["status"], "success")
             self.assertEqual(resume_res["agent_status"], "running")
 
             self.agent_process.refresh_from_db()
             self.assertEqual(self.agent_process.status, "running")
-            # Resuming at completed search triggers transition to 'download' and launches download job
-            mock_step2.assert_called_once()
+            # Resuming at completed search triggers transition to 'abstract_screening' and launches screening job
+            mock_screening.assert_called_once()
 
         # 4. Abort agent process
         abort_res = json.loads(abort_research_agent_logic(self.user, str(self.agent_process.id)))

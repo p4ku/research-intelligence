@@ -12,15 +12,19 @@ from research_intelligence.models import (
     Paper,
     Extraction,
     PipelineRun,
+    ComponentRun,
     ResearchAgentProcess,
-    PaperMetric
+    PaperMetric,
+    Scraper,
+    Subscriber
 )
 from research_intelligence.admin import (
     WorkspaceAdmin,
     APIKeyAdmin,
     ExtractionAdmin,
     ResearchAgentProcessAdmin,
-    PaperMetricAdmin
+    PaperMetricAdmin,
+    ComponentRunAdmin
 )
 from research_intelligence.admin_views.storage_browser import (
     _get_file_icon,
@@ -66,6 +70,137 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
         admin_obj.launch_agent_reprocess(req, Workspace.objects.filter(id=self.workspace.id))
         self.assertTrue(ResearchAgentProcess.objects.filter(workspace=self.workspace, configuration_override__reprocess_existing=True).exists())
         self.assertEqual(mock_tick.call_count, 2)
+
+    def test_workspace_export_and_import_configuration(self):
+        import json
+        admin_obj = WorkspaceAdmin(Workspace, self.site)
+        req = self._get_request_with_messages()
+
+        # Set up full workspace details
+        self.workspace.abstract_acceptance_criteria = "Accept autonomous AI agents"
+        self.workspace.signal_score_code = "return 0.5 * fit_score"
+        self.workspace.save()
+
+        ed = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Strategic Fit",
+            system_prompt="Assess strategic fit",
+            user_prompt_template="Title: {title}",
+            response_schema={"type": "object", "properties": {"fit_score": {"type": "number"}}},
+            exit_metric="fit_score"
+        )
+        scraper = Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="cat:cs.AI AND agentic",
+            limit=25
+        )
+        subscriber = Subscriber.objects.create(
+            workspace=self.workspace,
+            email="techlead@schwarz.com",
+            subscription_type="result_report"
+        )
+
+        # 1. Test Export Action
+        response = admin_obj.export_configuration(req, Workspace.objects.filter(id=self.workspace.id))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], "application/json; charset=utf-8")
+        payload = json.loads(response.content.decode('utf-8'))
+        self.assertEqual(payload['version'], "1.0")
+        self.assertEqual(len(payload['workspaces']), 1)
+        ws_exported = payload['workspaces'][0]
+        self.assertEqual(ws_exported['name'], "Secure Storage Project")
+        self.assertEqual(ws_exported['abstract_acceptance_criteria'], "Accept autonomous AI agents")
+        self.assertEqual(len(ws_exported['extraction_definitions']), 1)
+        self.assertEqual(ws_exported['extraction_definitions'][0]['name'], "Strategic Fit")
+        self.assertEqual(len(ws_exported['scrapers']), 1)
+        self.assertEqual(ws_exported['scrapers'][0]['search_query'], "cat:cs.AI AND agentic")
+        self.assertEqual(len(ws_exported['subscribers']), 1)
+        self.assertEqual(ws_exported['subscribers'][0]['email'], "techlead@schwarz.com")
+
+        # 2. Test Import View (Fine-tuning / updating existing workspace)
+        ws_exported['abstract_acceptance_criteria'] = "Updated criteria from staging"
+        ws_exported['extraction_definitions'][0]['system_prompt'] = "Updated prompt for strategic fit"
+        ws_exported['scrapers'][0]['limit'] = 100
+
+        post_req = self.factory.post("/", data={
+            "raw_json": json.dumps(payload),
+            "overwrite_existing": "yes"
+        })
+        post_req.user = self.admin_user
+        setattr(post_req, 'session', {})
+        messages = FallbackStorage(post_req)
+        setattr(post_req, '_messages', messages)
+
+        import_resp = admin_obj.import_configuration_view(post_req)
+        self.assertEqual(import_resp.status_code, 302)
+
+        # Verify in DB that existing workspace and related objects were updated in place
+        self.workspace.refresh_from_db()
+        self.assertEqual(self.workspace.abstract_acceptance_criteria, "Updated criteria from staging")
+
+        ed.refresh_from_db()
+        self.assertEqual(ed.system_prompt, "Updated prompt for strategic fit")
+
+        scraper.refresh_from_db()
+        self.assertEqual(scraper.limit, 100)
+
+        # 3. Test Import with overwrite_existing="no" (Existing should NOT be overwritten)
+        payload['workspaces'][0]['abstract_acceptance_criteria'] = "Should not be applied"
+        post_req_no = self.factory.post("/", data={
+            "raw_json": json.dumps(payload),
+            "overwrite_existing": "no"
+        })
+        post_req_no.user = self.admin_user
+        setattr(post_req_no, 'session', {})
+        messages_no = FallbackStorage(post_req_no)
+        setattr(post_req_no, '_messages', messages_no)
+
+        import_resp_no = admin_obj.import_configuration_view(post_req_no)
+        self.assertEqual(import_resp_no.status_code, 302)
+        self.workspace.refresh_from_db()
+        self.assertEqual(self.workspace.abstract_acceptance_criteria, "Updated criteria from staging")
+
+        # 4. Test Import of brand new Workspace
+        new_ws_payload = {
+            "workspaces": [
+                {
+                    "name": "Brand New Production Review",
+                    "abstract_acceptance_criteria": "Brand new review criteria",
+                    "extraction_definitions": [
+                        {
+                            "name": "TRL Level",
+                            "system_prompt": "Extract TRL",
+                            "user_prompt_template": "{full_text}",
+                            "response_schema": {"type": "object"}
+                        }
+                    ],
+                    "scrapers": [
+                        {
+                            "provider": "openalex",
+                            "search_query": "solid state battery",
+                            "limit": 40
+                        }
+                    ]
+                }
+            ]
+        }
+        post_req_new = self.factory.post("/", data={
+            "raw_json": json.dumps(new_ws_payload),
+            "overwrite_existing": "yes"
+        })
+        post_req_new.user = self.admin_user
+        setattr(post_req_new, 'session', {})
+        messages_new = FallbackStorage(post_req_new)
+        setattr(post_req_new, '_messages', messages_new)
+
+        import_resp_new = admin_obj.import_configuration_view(post_req_new)
+        self.assertEqual(import_resp_new.status_code, 302)
+
+        created_ws = Workspace.objects.get(name="Brand New Production Review")
+        self.assertEqual(created_ws.abstract_acceptance_criteria, "Brand new review criteria")
+        self.assertTrue(created_ws.extraction_definitions.filter(name="TRL Level").exists())
+        self.assertTrue(created_ws.scrapers.filter(search_query="solid state battery").exists())
 
     def test_apikey_revoke_keys_action(self):
         key = APIKey.objects.create(
@@ -267,6 +402,150 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
         # 3. Pipeline run link
         pr_link = str(admin_obj.pipeline_run_link(metric))
         self.assertIn(str(self.pipeline_run.id)[:8], pr_link)
+
+    @patch("research_intelligence.tasks.orchestrator.dag.nodes.DownloadNode.execute")
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.tick_agent_process")
+    def test_component_run_rerun_from_step_forward(self, mock_tick, mock_download_exec):
+        Paper.objects.create(workspace=self.workspace, pipeline_run=self.pipeline_run, hash_id="p1", title="Paper 1", screening_status="abstract_passed")
+        comp_search = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="search",
+            component_name="arxiv_scraper",
+            status="completed"
+        )
+        comp_download = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="download",
+            component_name="pdf_fetcher",
+            status="completed"
+        )
+        comp_screening = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="screening",
+            component_name="abstract_screening",
+            status="completed"
+        )
+
+        admin_obj = ComponentRunAdmin(ComponentRun, self.site)
+        req = self._get_request_with_messages()
+
+        # 2. Select the download step and trigger 'Rerun Pipeline from Selected Step Forward'
+        admin_obj.rerun_from_this_component_step(req, ComponentRun.objects.filter(id=comp_download.id))
+
+        # 3. Assert downstream steps (screening) and download were reset, and a new running download run exists
+        self.pipeline_run.refresh_from_db()
+        self.assertEqual(self.pipeline_run.status, "running")
+
+        # An agent process must have been created/resumed
+        agent = ResearchAgentProcess.objects.filter(pipeline_run=self.pipeline_run).first()
+        self.assertIsNotNone(agent)
+        self.assertEqual(agent.status, "running")
+        self.assertEqual(agent.current_step, "download")
+
+        # Download node was dispatched into a fresh ComponentRun with status='running'
+        running_download_run = ComponentRun.objects.filter(pipeline_run=self.pipeline_run, step_type="download", status="running").first()
+        self.assertIsNotNone(running_download_run)
+
+        # DownloadNode.execute was called with the new ComponentRun
+        mock_download_exec.assert_called_once_with(self.pipeline_run, running_download_run, limit=None)
+
+        # tick_agent_process was invoked
+        mock_tick.assert_called_once_with(str(agent.id))
+
+    @patch("research_intelligence.tasks.orchestrator.dag.nodes.DownloadNode.execute")
+    def test_component_run_reexecute_single_task(self, mock_execute):
+        comp_download = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="download",
+            component_name="pdf_fetcher",
+            status="completed",
+            error_message="Old error"
+        )
+
+        admin_obj = ComponentRunAdmin(ComponentRun, self.site)
+        req = self._get_request_with_messages()
+
+        admin_obj.reexecute_single_component_run(req, ComponentRun.objects.filter(id=comp_download.id))
+
+        comp_download.refresh_from_db()
+        self.assertEqual(comp_download.status, "running")
+        self.assertEqual(comp_download.error_message, "")
+        self.assertIsNone(comp_download.completed_at)
+        mock_execute.assert_called_once_with(self.pipeline_run, comp_download)
+
+    @patch("django_project.celery.app.control.revoke")
+    def test_component_run_abort_action(self, mock_revoke):
+        comp = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="search",
+            component_name="arxiv_scraper",
+            status="running",
+            celery_task_id="celery-task-12345"
+        )
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            name="Agent to abort",
+            status="running",
+            current_step="search"
+        )
+
+        admin_obj = ComponentRunAdmin(ComponentRun, self.site)
+        req = self._get_request_with_messages()
+
+        admin_obj.abort_selected_component_runs(req, ComponentRun.objects.filter(id=comp.id))
+
+        # 1. ComponentRun must be aborted with error message
+        comp.refresh_from_db()
+        self.assertEqual(comp.status, "aborted")
+        self.assertIn("Aborted manually by administrator", comp.error_message)
+        self.assertIsNotNone(comp.completed_at)
+
+        # 2. Celery task must have been revoked with SIGKILL
+        mock_revoke.assert_called_once_with("celery-task-12345", terminate=True, signal="SIGKILL")
+
+        # 3. PipelineRun and AgentProcess must be synchronized to aborted
+        self.pipeline_run.refresh_from_db()
+        self.assertEqual(self.pipeline_run.status, "aborted")
+
+        agent.refresh_from_db()
+        self.assertEqual(agent.status, "aborted")
+        self.assertEqual(agent.stopped_at_step, "search")
+
+    @patch("research_intelligence.tasks.orchestrator.dag.nodes.DownloadNode.execute")
+    def test_reexecute_resets_started_at_and_execution_time(self, mock_execute):
+        from datetime import timedelta
+        from django.utils import timezone
+
+        old_start = timezone.now() - timedelta(minutes=45)
+        old_completed = timezone.now() - timedelta(minutes=40)
+
+        comp = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="download",
+            component_name="pdf_fetcher",
+            status="completed",
+            error_message="Old error"
+        )
+        # Manually backdate started_at and completed_at to simulate an old finished task
+        ComponentRun.objects.filter(id=comp.id).update(started_at=old_start, completed_at=old_completed)
+        comp.refresh_from_db()
+        self.assertAlmostEqual(comp.duration_seconds, 300.0, delta=5.0)
+
+        admin_obj = ComponentRunAdmin(ComponentRun, self.site)
+        req = self._get_request_with_messages()
+
+        # Re-execute the component
+        admin_obj.reexecute_single_component_run(req, ComponentRun.objects.filter(id=comp.id))
+
+        comp.refresh_from_db()
+        self.assertEqual(comp.status, "running")
+        self.assertEqual(comp.error_message, "")
+        self.assertIsNone(comp.completed_at)
+        # started_at must have been reset to now
+        self.assertAlmostEqual((timezone.now() - comp.started_at).total_seconds(), 0.0, delta=2.0)
+        self.assertLess(comp.duration_seconds, 3.0)
+        self.assertTrue(comp.execution_time_display.startswith("⏳"))
 
 
 class APIKeyAdminTestCase(TestCase):

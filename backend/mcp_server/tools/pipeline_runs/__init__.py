@@ -14,6 +14,7 @@ from .triggers import (
     trigger_screening_job_logic,
     trigger_extraction_job_logic,
     trigger_signal_score_job_logic,
+    trigger_reporting_job_logic,
 )
 from .status import (
     get_pipeline_run_status_logic,
@@ -34,6 +35,7 @@ __all__ = [
     "trigger_screening_job_logic",
     "trigger_extraction_job_logic",
     "trigger_signal_score_job_logic",
+    "trigger_reporting_job_logic",
     "get_pipeline_run_status_logic",
     "get_component_run_status_logic",
     "list_pipeline_runs_logic",

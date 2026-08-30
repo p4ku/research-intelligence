@@ -25,6 +25,12 @@ export function byValueDesc(a: number | null, b: number | null): number {
   return b - a
 }
 
+/** Sort comparator: ascending by value, nulls still last. */
+export function byValueAsc(a: number | null, b: number | null): number {
+  if (a === null || b === null) return byValueDesc(a, b)
+  return a - b
+}
+
 /** "95.5" → 96, "12.25" → 12.3; integers stay integers. */
 export function formatScore(n: number | null): string {
   if (n === null) return '—'

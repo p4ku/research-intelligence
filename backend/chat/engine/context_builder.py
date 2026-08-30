@@ -39,7 +39,10 @@ class PaperContextBuilder:
                 f"Workspace: {target_workspace.name}",
                 f"Description: {getattr(target_workspace, 'description', '') or 'Systematic Literature Review Workspace'}"
             ]
-            accepted_papers = Paper.objects.filter(workspace=target_workspace, screening_status='full_text_passed')[:10]
+            accepted_papers = Paper.objects.filter(
+                workspace=target_workspace,
+                screening_status__in=['full_text_passed', 'accepted']
+            ).order_by('-signal_score', '-created_at')[:10]
             if accepted_papers.exists():
                 ws_lines.append("\nTop Accepted Papers:")
                 for p in accepted_papers:
@@ -72,8 +75,9 @@ class PaperContextBuilder:
         # 2. Document Content (Layout Markdown vs Multimodal PDF)
         if paper.converted_md_path and default_storage.exists(paper.converted_md_path):
             try:
-                with default_storage.open(paper.converted_md_path, 'r') as f:
-                    md_text = f.read()
+                with default_storage.open(paper.converted_md_path, 'rb') as f:
+                    content = f.read()
+                    md_text = content.decode('utf-8', errors='replace') if isinstance(content, bytes) else str(content)
                 if md_text and md_text.strip():
                     context_parts.append("### Full Document Text (Layout OCR Markdown)\n" + md_text.strip())
             except Exception as e:

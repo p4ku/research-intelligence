@@ -6,7 +6,7 @@ from research_intelligence.tasks.auxiliary.email_digest import (
     dispatch_pipeline_subscriber_digest,
     send_pipeline_subscriber_digest_task,
 )
-from ..workspaces import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +22,7 @@ def send_pipeline_run_digest_email_logic(
     MCP logic handler to send a systematic literature review digest email to subscribers
     for a completed PipelineRun.
     """
-    workspace, membership, error = _check_workspace_access(
+    workspace, membership, error = check_workspace_access(
         user, workspace_id, required_roles=['admin', 'manager', 'researcher']
     )
     if error:

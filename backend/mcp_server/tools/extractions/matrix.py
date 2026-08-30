@@ -3,6 +3,9 @@ from typing import Optional
 from research_intelligence.models import Extraction, Workspace, Paper, PipelineRun, ResearchAgentProcess
 
 
+from research_intelligence.services import check_workspace_access
+
+
 def list_extractions_logic(
     user,
     workspace_id: Optional[str] = None,
@@ -21,7 +24,10 @@ def list_extractions_logic(
 
     if process_id:
         try:
-            proc = ResearchAgentProcess.objects.select_related('pipeline_run').get(id=process_id)
+            proc = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').get(id=process_id)
+            workspace, _, error = check_workspace_access(user, str(proc.workspace.id))
+            if error:
+                return json.dumps({"error": error})
             if proc.pipeline_run:
                 qs = qs.filter(paper__pipeline_run=proc.pipeline_run)
             else:
@@ -29,11 +35,22 @@ def list_extractions_logic(
         except (ValueError, ResearchAgentProcess.DoesNotExist):
             return json.dumps({"error": f"ResearchAgentProcess '{process_id}' not found."})
     elif pipeline_run_id:
-        qs = qs.filter(paper__pipeline_run_id=pipeline_run_id)
+        try:
+            pipeline_run = PipelineRun.objects.select_related('workspace').get(id=pipeline_run_id)
+            workspace, _, error = check_workspace_access(user, str(pipeline_run.workspace.id))
+            if error:
+                return json.dumps({"error": error})
+            qs = qs.filter(paper__pipeline_run=pipeline_run)
+        except (ValueError, PipelineRun.DoesNotExist):
+            return json.dumps({"error": f"PipelineRun '{pipeline_run_id}' not found."})
     elif workspace_id:
-        qs = qs.filter(workspace__id=workspace_id)
-    elif user and not user.is_superuser:
-        user_ws_ids = Workspace.objects.filter(memberships__user=user).values_list('id', flat=True)
+        workspace, _, error = check_workspace_access(user, workspace_id)
+        if error:
+            return json.dumps({"error": error})
+        qs = qs.filter(workspace=workspace)
+    elif user and not getattr(user, 'is_superuser', False):
+        from research_intelligence.models import WorkspaceMember
+        user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
         qs = qs.filter(workspace__id__in=user_ws_ids)
 
     if paper_id:
@@ -81,106 +98,15 @@ def get_paper_extractions_matrix_logic(
     exit metrics, justifications, and scores in a single structured response.
     Eliminates manual joining of papers and extractions.
     """
-    papers_qs = Paper.objects.select_related('workspace', 'pipeline_run').prefetch_related('extractions', 'extractions__extraction_definition').all()
-
-    if process_id:
-        try:
-            proc = ResearchAgentProcess.objects.select_related('pipeline_run', 'workspace').get(id=process_id)
-            if proc.pipeline_run:
-                papers_qs = papers_qs.filter(pipeline_run=proc.pipeline_run)
-            else:
-                papers_qs = papers_qs.filter(workspace=proc.workspace)
-        except (ValueError, ResearchAgentProcess.DoesNotExist):
-            return json.dumps({"error": f"ResearchAgentProcess '{process_id}' not found."})
-    elif pipeline_run_id:
-        papers_qs = papers_qs.filter(pipeline_run_id=pipeline_run_id)
-    elif workspace_id:
-        papers_qs = papers_qs.filter(workspace_id=workspace_id)
-    elif user and not user.is_superuser:
-        user_ws_ids = Workspace.objects.filter(memberships__user=user).values_list('id', flat=True)
-        papers_qs = papers_qs.filter(workspace__id__in=user_ws_ids)
-
-    if screening_status and screening_status != 'all':
-        if screening_status == 'all_screened':
-            papers_qs = papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'accepted', 'rejected'])
-        elif screening_status in ['all_passed', 'accepted']:
-            papers_qs = papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'accepted'])
-        else:
-            papers_qs = papers_qs.filter(screening_status=screening_status)
-
-    from django.db.models import F
-    papers = list(papers_qs.order_by(F('signal_score').desc(nulls_last=True), '-created_at')[:limit])
-    results = []
-
-    for idx, paper in enumerate(papers, 1):
-        extractions = list(paper.extractions.all())
-        extractions.sort(key=lambda x: (x.extraction_definition.name if x.extraction_definition else x.category))
-
-        metrics_summary = {}
-        extractions_list = []
-
-        for ext in extractions:
-            def_name = ext.extraction_definition.name if ext.extraction_definition else ext.category
-            metric_val = ext.exit_metric or ext.get_exit_metric()
-            if def_name:
-                metrics_summary[def_name] = metric_val
-
-            extractions_list.append({
-                "extraction_id": str(ext.id),
-                "definition_name": def_name,
-                "exit_metric": metric_val,
-                "validation_status": ext.validation_status,
-                "confidence_score": ext.confidence_score,
-                "fields_data": ext.fields_data
-            })
-
-        results.append({
-            "index": idx,
-            "paper_id": str(paper.id),
-            "title": paper.title,
-            "authors": paper.authors,
-            "doi": paper.doi,
-            "arxiv_id": paper.arxiv_id,
-            "screening_status": paper.screening_status,
-            "signal_score": paper.signal_score,
-            "signal_score_details": paper.signal_score_details,
-            "pdf_url": (f"https://arxiv.org/pdf/{paper.arxiv_id}.pdf" if paper.arxiv_id else None) or paper.original_pdf_path,
-            "original_pdf_path": paper.original_pdf_path,
-            "abstract": paper.abstract,
-            "metrics_summary": metrics_summary,
-            "extractions_count": len(extractions_list),
-            "extractions": extractions_list
-        })
-
-    scored_vals = [p["signal_score"] for p in results if p.get("signal_score") is not None]
-    avg_score = round(sum(scored_vals) / len(scored_vals), 2) if scored_vals else None
-    top_score = round(max(scored_vals), 2) if scored_vals else None
-
-    # Build ready-to-use markdown summary for LLM clients so they don't need external parsing scripts
-    md_lines = [
-        f"### Paper Extractions Matrix ({len(results)} papers, Avg Score: {avg_score or 'N/A'}, Top Score: {top_score or 'N/A'})\n"
-    ]
-    for p in results[:30]:
-        score_str = f"Score: {p['signal_score']}" if p.get('signal_score') is not None else "Unscored"
-        metrics_str = ", ".join(f"{k}: {v}" for k, v in p.get("metrics_summary", {}).items())
-        md_lines.append(f"{p['index']}. **{p['title']}** [{score_str}]")
-        if p.get('authors'):
-            md_lines.append(f"   *Authors:* {p['authors']}")
-        if p.get('pdf_url'):
-            md_lines.append(f"   *PDF:* {p['pdf_url']}")
-        if metrics_str:
-            md_lines.append(f"   *Extracted Metrics:* {metrics_str}")
-        md_lines.append("")
-    markdown_summary = "\n".join(md_lines)
-
-    payload = {
-        "total_papers": len(results),
-        "screening_status_filter": screening_status,
-        "avg_signal_score": avg_score,
-        "top_signal_score": top_score,
-        "markdown_summary": markdown_summary,
-        "papers": results
-    }
+    from research_intelligence.services import build_paper_extractions_matrix
+    payload = build_paper_extractions_matrix(
+        user=user,
+        workspace_id=workspace_id,
+        pipeline_run_id=pipeline_run_id,
+        process_id=process_id,
+        screening_status=screening_status,
+        limit=limit
+    )
     return json.dumps(payload, indent=2)
 
 
@@ -190,12 +116,16 @@ def get_extraction_logic(user, extraction_id: str) -> str:
     """
     try:
         ext = Extraction.objects.select_related('workspace', 'paper', 'extraction_definition').get(pk=extraction_id)
-    except Extraction.DoesNotExist:
+    except (Extraction.DoesNotExist, ValueError):
         from research_intelligence.models import ExtractionDefinition
         if ExtractionDefinition.objects.filter(id=extraction_id).exists():
             from .definitions import get_extraction_definition_logic
             return get_extraction_definition_logic(user, extraction_id)
         return json.dumps({"error": f"Extraction '{extraction_id}' not found."})
+
+    workspace, _, error = check_workspace_access(user, str(ext.workspace.id))
+    if error:
+        return json.dumps({"error": error})
 
     payload = {
         "id": str(ext.id),

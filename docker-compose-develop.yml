@@ -11,7 +11,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: development_password
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5444:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -69,7 +69,7 @@ services:
       - "8000:8000"
     environment:
       - DEBUG=${DEBUG:-True}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,sri.soinventive.co.uk}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,api,sri.soinventive.co.uk}
       - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://sri.soinventive.co.uk}
       - SECRET_KEY=${SECRET_KEY:-dev_secret_key_12345}
       - DB_HOST=db
@@ -132,7 +132,7 @@ services:
       - "8001:8001"
     environment:
       - DEBUG=${DEBUG:-True}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,sri.soinventive.co.uk}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,api,sri.soinventive.co.uk}
       - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://sri.soinventive.co.uk}
       - SECRET_KEY=${SECRET_KEY:-dev_secret_key_12345}
       - DB_HOST=db
@@ -191,7 +191,7 @@ services:
       - ./backend:/app
     environment:
       - DEBUG=${DEBUG:-True}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,sri.soinventive.co.uk}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,api,sri.soinventive.co.uk}
       - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://sri.soinventive.co.uk}
       - SECRET_KEY=${SECRET_KEY:-dev_secret_key_12345}
       - DB_HOST=db
@@ -239,7 +239,7 @@ services:
       - ./backend:/app
     environment:
       - DEBUG=${DEBUG:-True}
-      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,sri.soinventive.co.uk}
+      - ALLOWED_HOSTS=${ALLOWED_HOSTS:-localhost,127.0.0.1,api,sri.soinventive.co.uk}
       - CSRF_TRUSTED_ORIGINS=${CSRF_TRUSTED_ORIGINS:-https://sri.soinventive.co.uk}
       - SECRET_KEY=${SECRET_KEY:-dev_secret_key_12345}
       - DB_HOST=db

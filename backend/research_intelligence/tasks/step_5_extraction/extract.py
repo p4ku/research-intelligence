@@ -4,7 +4,7 @@ import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from celery import shared_task, group
-from django.db import connection, close_old_connections
+from django.db import connection, close_old_connections, transaction
 from django.utils import timezone
 from django.core.files.storage import default_storage
 from ...models import Workspace, Paper, Extraction, ExtractionDefinition, ComponentRun, PipelineRun
@@ -26,10 +26,12 @@ def _run_single_extraction_worker(paper, definition, workspace):
     close_old_connections()
     t0 = time.time()
 
-    # 1. Retrieve layout markdown text or PDF or abstract fallback
+    # 1. Retrieve layout markdown text or PDF binary or abstract fallback
     paper_text = None
+    pdf_bytes = None
     input_source = "abstract_fallback"
 
+    # Priority 1: Converted Markdown from OCR
     if paper.converted_md_path and default_storage.exists(paper.converted_md_path):
         try:
             with default_storage.open(paper.converted_md_path, 'rb') as f:
@@ -39,6 +41,17 @@ def _run_single_extraction_worker(paper, definition, workspace):
         except Exception as e:
             logger.warning(f"Error reading MD for paper {paper.id}: {e}")
 
+    # Priority 2: Original PDF binary for direct Multimodal Gemini extraction
+    if not paper_text and paper.original_pdf_path and default_storage.exists(paper.original_pdf_path):
+        try:
+            with default_storage.open(paper.original_pdf_path, 'rb') as f:
+                pdf_bytes = f.read()
+            input_source = "multimodal_pdf"
+            paper_text = "Please analyze the attached full-text PDF document for dynamic parameter extraction."
+        except Exception as e:
+            logger.warning(f"Error reading PDF binary for paper {paper.id}: {e}")
+
+    # Priority 3: Abstract fallback
     if not paper_text:
         paper_text = paper.abstract or paper.title
 
@@ -59,7 +72,7 @@ def _run_single_extraction_worker(paper, definition, workspace):
     system_prompt = (
         f"{definition.system_prompt}\n\n"
         "CRITICAL INSTRUCTIONS:\n"
-        "- Extract all target parameters accurately from the provided paper text.\n"
+        "- Extract all target parameters accurately from the provided paper text or attached PDF document.\n"
         "- Return a schema-validated JSON object containing the exact fields requested in the response schema."
     )
 
@@ -71,18 +84,24 @@ def _run_single_extraction_worker(paper, definition, workspace):
         }
     }
 
+    gen_kwargs = {
+        "prompt": user_prompt,
+        "system_instruction": system_prompt,
+        "response_schema": schema_to_use,
+        "model": definition.llm_model,
+        "reasoning_effort": getattr(workspace, 'reasoning_effort', 'medium'),
+        "return_usage": True,
+    }
+    if pdf_bytes:
+        gen_kwargs["pdf_bytes"] = pdf_bytes
+        gen_kwargs["mime_type"] = "application/pdf"
+
     max_attempts = 3
     last_error = None
 
     for attempt in range(1, max_attempts + 1):
         try:
-            gen_res = llm_provider.generate(
-                prompt=user_prompt,
-                system_instruction=system_prompt,
-                response_schema=schema_to_use,
-                model=definition.llm_model,
-                return_usage=True
-            )
+            gen_res = llm_provider.generate(**gen_kwargs)
 
             if isinstance(gen_res, tuple) and len(gen_res) == 2:
                 response_data, raw_usage = gen_res
@@ -128,21 +147,22 @@ def _run_single_extraction_worker(paper, definition, workspace):
                 "provider": workspace.llm_provider
             }
 
-            # Save or update Extraction model
-            extraction, created = Extraction.objects.update_or_create(
-                paper=paper,
-                extraction_definition=definition,
-                defaults={
-                    "workspace": workspace,
-                    "category": definition.name,
-                    "fields_data": fields_dict if isinstance(fields_dict, dict) else {},
-                    "version_info": version_info,
-                    "validation_status": validation_status,
-                    "review_required": review_required,
-                    "confidence_score": avg_confidence,
-                    "confidence_method": "single_pass"
-                }
-            )
+            # Save or update Extraction model atomically
+            with transaction.atomic():
+                extraction, created = Extraction.objects.update_or_create(
+                    paper=paper,
+                    extraction_definition=definition,
+                    defaults={
+                        "workspace": workspace,
+                        "category": definition.name,
+                        "fields_data": fields_dict if isinstance(fields_dict, dict) else {},
+                        "version_info": version_info,
+                        "validation_status": validation_status,
+                        "review_required": review_required,
+                        "confidence_score": avg_confidence,
+                        "confidence_method": "single_pass"
+                    }
+                )
 
             duration_sec = round(time.time() - t0, 3)
 
@@ -180,7 +200,7 @@ def _run_single_extraction_worker(paper, definition, workspace):
 
 
 @shared_task(bind=True)
-def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_workers: int = 8):
+def execute_extraction_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing Step 5 (Parameter & Claim Extraction) for papers in a ComponentRun job.
     Executes extractions for all active ExtractionDefinitions in parallel using a ThreadPoolExecutor.
@@ -204,7 +224,9 @@ def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_wor
     component_run.status = 'running'
     component_run.celery_task_id = getattr(self.request, 'id', None)
     component_run.started_at = timezone.now()
-    component_run.save(update_fields=['status', 'celery_task_id', 'started_at'])
+    component_run.completed_at = None
+    component_run.error_message = ''
+    component_run.save(update_fields=['status', 'celery_task_id', 'started_at', 'completed_at', 'error_message'])
 
     job_t0 = time.time()
     worker_concurrency = int(os.environ.get("EXTRACTION_PARALLEL_WORKERS", max_workers))
@@ -230,6 +252,9 @@ def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_wor
             component_run.status = 'completed'
             component_run.completed_at = timezone.now()
             component_run.save(update_fields=['metrics', 'output_data', 'status', 'completed_at'])
+
+            from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+            notify_pipeline_orchestrator_tick(pipeline_run)
             return True
 
         # Target paper selection: strictly evaluate based on screening jobs in pipeline history
@@ -254,7 +279,7 @@ def execute_extraction_job(self, component_run_id: str, limit: int = 50, max_wor
             papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).exclude(screening_status__in=['rejected', 'withdrawn'])
             logger.info(f"🔍 [EXTRACTION FILTER] No prior Screening jobs found. Targeting {papers_qs.count()} papers.")
 
-        papers = list(papers_qs[:limit])
+        papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
 
         # Prepare (paper, definition) work items
         work_items = [(paper, definition) for paper in papers for definition in active_definitions]

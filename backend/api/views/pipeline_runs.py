@@ -26,13 +26,15 @@ from mcp_server.tools.pipeline_runs.triggers import (
     trigger_ocr_job_logic,
     trigger_screening_job_logic,
     trigger_extraction_job_logic,
+    trigger_signal_score_job_logic,
+    trigger_reporting_job_logic,
 )
 from research_intelligence.tasks.step_6_signal_score.scorer import execute_signal_score_job
 from mcp_server.tools.pipeline_runs.lifecycle import (
     abort_job_logic,
     delete_pipeline_run_logic,
 )
-from mcp_server.tools.workspaces.crud import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 
 @extend_schema(tags=['Pipeline Runs & Components'])
@@ -91,7 +93,7 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
         workspace_id = str(serializer.validated_data['workspace_id'])
         reprocess_existing = serializer.validated_data.get('reprocess_existing', False)
 
-        workspace, membership, error = _check_workspace_access(
+        workspace, membership, error = check_workspace_access(
             request.user, workspace_id, required_roles=['admin', 'manager', 'researcher']
         )
         if error:
@@ -170,6 +172,9 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
         step_type = serializer.validated_data['step_type']
         limit = serializer.validated_data.get('limit', 50)
         skip_abstract = serializer.validated_data.get('skip_abstract_screening', False)
+        stage_param = serializer.validated_data.get('stage')
+        date_range_days = serializer.validated_data.get('date_range_days')
+        query_prefix = serializer.validated_data.get('query_prefix')
 
         user = request.user
         pr_id = str(pipeline_run.id)
@@ -181,6 +186,8 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
                 workspace_id=ws_id,
                 limit=limit,
                 reprocess_existing=pipeline_run.reprocess_existing,
+                date_range_days=date_range_days,
+                query_prefix=query_prefix,
             )
         elif step_type == 'download':
             res_json = trigger_pdf_download_job_logic(
@@ -194,12 +201,18 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
                 pipeline_run_id=pr_id,
                 limit=limit,
             )
-        elif step_type == 'screening':
+        elif step_type in ('screening', 'abstract_screening', 'full_text_screening'):
+            if step_type == 'abstract_screening':
+                stage = 'abstract'
+            elif step_type == 'full_text_screening':
+                stage = 'full_text'
+            else:
+                stage = stage_param or ('full_text' if skip_abstract else 'abstract')
             res_json = trigger_screening_job_logic(
                 user=user,
                 pipeline_run_id=pr_id,
                 limit=limit,
-                skip_abstract_screening=skip_abstract,
+                stage=stage,
             )
         elif step_type == 'extraction':
             res_json = trigger_extraction_job_logic(
@@ -208,27 +221,16 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
                 limit=limit,
             )
         elif step_type == 'signal_score':
-            comp_run = ComponentRun.objects.create(
-                pipeline_run=pipeline_run,
-                step_type='signal_score',
-                component_name="signal_scorer",
-                status='running',
-                input_params={"limit": limit, "pipeline_run_id": pr_id}
+            res_json = trigger_signal_score_job_logic(
+                user=user,
+                pipeline_run_id=pr_id,
+                limit=limit,
             )
-            try:
-                execute_signal_score_job(str(comp_run.id), limit=limit)
-                comp_run.refresh_from_db()
-                res_json = json.dumps({
-                    "success": True,
-                    "message": "Signal score evaluation complete.",
-                    "component_run_id": str(comp_run.id),
-                    "status": comp_run.status,
-                })
-            except Exception as ex:
-                comp_run.status = 'failed'
-                comp_run.error_message = str(ex)
-                comp_run.save(update_fields=['status', 'error_message'])
-                res_json = json.dumps({"success": False, "error": str(ex)})
+        elif step_type == 'reporting':
+            res_json = trigger_reporting_job_logic(
+                user=user,
+                pipeline_run_id=pr_id,
+            )
         else:
             return Response({"error": f"Unsupported step_type '{step_type}'."}, status=status.HTTP_400_BAD_REQUEST)
 
