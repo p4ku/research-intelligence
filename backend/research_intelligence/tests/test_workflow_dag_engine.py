@@ -15,9 +15,10 @@ from research_intelligence.models import (
 from research_intelligence.tasks.orchestrator.dag.base_node import BaseWorkflowNode
 from research_intelligence.tasks.orchestrator.dag.nodes import (
     SearchNode,
+    AbstractScreeningNode,
     DownloadNode,
     OCRNode,
-    ScreeningNode,
+    FullTextScreeningNode,
     ExtractionNode,
     SignalScoreNode,
     ReportingNode,

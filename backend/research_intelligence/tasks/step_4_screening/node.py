@@ -173,7 +173,3 @@ class FullTextScreeningNode(BaseWorkflowNode):
         from research_intelligence.tasks.step_4_screening.full_text import execute_full_text_screening_job
         return self.dispatch_celery_task(execute_full_text_screening_job, comp_run, limit=limit)
 
-
-# Backward-compatible alias for the post-OCR full screening stage
-ScreeningNode = FullTextScreeningNode
-

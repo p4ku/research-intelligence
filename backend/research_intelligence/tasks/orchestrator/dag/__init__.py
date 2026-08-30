@@ -8,9 +8,10 @@ from .engine import WorkflowDAG
 from .pipelines import build_default_slr_dag
 from .nodes import (
     SearchNode,
+    AbstractScreeningNode,
     DownloadNode,
     OCRNode,
-    ScreeningNode,
+    FullTextScreeningNode,
     ExtractionNode,
     SignalScoreNode,
     ReportingNode,
@@ -21,9 +22,10 @@ __all__ = [
     "WorkflowDAG",
     "build_default_slr_dag",
     "SearchNode",
+    "AbstractScreeningNode",
     "DownloadNode",
     "OCRNode",
-    "ScreeningNode",
+    "FullTextScreeningNode",
     "ExtractionNode",
     "SignalScoreNode",
     "ReportingNode",
