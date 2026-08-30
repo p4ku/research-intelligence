@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# ==============================================================================
+# 🚀 Schwarz Research Intelligence - Live E2E Pipeline Simulator & Test Runner
+# ==============================================================================
+# Usage:
+#   ./tests_e2e/run_e2e.sh                    # Runs against Production (Default)
+#   ./tests_e2e/run_e2e.sh staging            # Runs against Staging
+#   ./tests_e2e/run_e2e.sh local              # Runs against Local development server
+#   ./tests_e2e/run_e2e.sh --cleanup-after    # Runs on Prod and deletes workspace at end
+#   ./tests_e2e/run_e2e.sh prod --limit=20    # Custom paper limit
+# ==============================================================================
+
+set -e
+
+# Resolve project root directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${PROJECT_ROOT}"
+
+# Activate virtualenv if present
+if [ -f "${PROJECT_ROOT}/.venv/bin/activate" ]; then
+    source "${PROJECT_ROOT}/.venv/bin/activate"
+elif [ -f "${PROJECT_ROOT}/venv/bin/activate" ]; then
+    source "${PROJECT_ROOT}/venv/bin/activate"
+fi
+
+PYTHON_EXEC="python3"
+if [ -x "${PROJECT_ROOT}/.venv/bin/python" ]; then
+    PYTHON_EXEC="${PROJECT_ROOT}/.venv/bin/python"
+fi
+
+# Detect first argument target shortcut (prod, staging, local)
+TARGET="prod"
+EXTRA_ARGS=()
+
+for arg in "$@"; do
+    arg_lower=$(echo "$arg" | tr '[:upper:]' '[:lower:]')
+    case "${arg_lower}" in
+        prod|production)
+            TARGET="prod"
+            ;;
+        staging|stage|dev)
+            TARGET="staging"
+            ;;
+        local|localhost)
+            TARGET="local"
+            ;;
+        *)
+            EXTRA_ARGS+=("$arg")
+            ;;
+    esac
+done
+
+TARGET_UPPER=$(echo "$TARGET" | tr '[:lower:]' '[:upper:]')
+
+echo "=================================================================="
+echo "🧪 Running Schwarz Research Intelligence Live E2E Pipeline..."
+echo "📍 Target Environment : ${TARGET_UPPER}"
+echo "📍 Python Interpreter : ${PYTHON_EXEC}"
+echo "=================================================================="
+
+exec "${PYTHON_EXEC}" -m tests_e2e.run_e2e --target="${TARGET}" "${EXTRA_ARGS[@]}"
