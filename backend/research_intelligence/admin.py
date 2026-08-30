@@ -666,7 +666,110 @@ class WorkspaceAdmin(admin.ModelAdmin):
         }),
     )
 
-    actions = ['launch_agent_standard', 'launch_agent_reprocess']
+    change_list_template = 'admin/research_intelligence/workspace/change_list.html'
+    actions = ['launch_agent_standard', 'launch_agent_reprocess', 'export_configuration', 'import_configuration_action']
+
+    @admin.action(description="📦 Export Workspace Configuration (JSON)")
+    def export_configuration(self, request, queryset):
+        import json
+        from django.http import HttpResponse
+        from django.utils.timezone import now
+        from django.utils.text import slugify
+        from research_intelligence.services.workspace_service import serialize_workspace_configuration
+
+        workspaces_data = [serialize_workspace_configuration(ws) for ws in queryset]
+        export_payload = {
+            "version": "1.0",
+            "exported_at": now().isoformat(),
+            "workspaces_count": len(workspaces_data),
+            "workspaces": workspaces_data,
+        }
+
+        if len(workspaces_data) == 1:
+            filename = f"workspace_{slugify(workspaces_data[0]['name'])}_{now().strftime('%Y%m%d_%H%M%S')}.json"
+        else:
+            filename = f"workspaces_export_{len(workspaces_data)}_items_{now().strftime('%Y%m%d_%H%M%S')}.json"
+
+        response = HttpResponse(
+            json.dumps(export_payload, indent=2, ensure_ascii=False),
+            content_type="application/json; charset=utf-8"
+        )
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    @admin.action(description="📥 Import Configuration (JSON File / Paste)")
+    def import_configuration_action(self, request, queryset):
+        from django.http import HttpResponseRedirect
+        from django.urls import reverse
+        return HttpResponseRedirect(reverse('admin:workspace-import-configuration'))
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                'import-configuration/',
+                self.admin_site.admin_view(self.import_configuration_view),
+                name='workspace-import-configuration'
+            ),
+        ]
+        return custom_urls + urls
+
+    def import_configuration_view(self, request):
+        import json
+        from django.shortcuts import render, redirect
+        from django.contrib import messages
+        from research_intelligence.services.workspace_service import import_workspace_configuration_bundle
+
+        if request.method == 'POST':
+            raw_json = request.POST.get('raw_json', '').strip()
+            uploaded_file = request.FILES.get('json_file')
+            update_existing = request.POST.get('update_existing') == 'on' or 'update_existing' in request.POST
+
+            payload_str = None
+            if uploaded_file:
+                try:
+                    payload_str = uploaded_file.read().decode('utf-8')
+                except Exception as e:
+                    messages.error(request, f"Failed to read uploaded file: {str(e)}")
+            elif raw_json:
+                payload_str = raw_json
+
+            if not payload_str:
+                messages.error(request, "Please provide a JSON file or paste JSON content.")
+                return redirect('admin:workspace-import-configuration')
+
+            try:
+                parsed_data = json.loads(payload_str)
+            except Exception as e:
+                messages.error(request, f"Invalid JSON syntax: {str(e)}")
+                return redirect('admin:workspace-import-configuration')
+
+            try:
+                stats = import_workspace_configuration_bundle(
+                    data=parsed_data,
+                    user=request.user,
+                    update_existing=update_existing
+                )
+                messages.success(
+                    request,
+                    f"✅ Workspace configuration imported successfully! "
+                    f"Workspaces: {stats['created_workspaces']} created, {stats['updated_workspaces']} updated | "
+                    f"Extraction Definitions: {stats['created_extractions']} created, {stats['updated_extractions']} updated | "
+                    f"Scrapers: {stats['created_scrapers']} created, {stats['updated_scrapers']} updated | "
+                    f"Subscribers: {stats['created_subscribers']} created, {stats['updated_subscribers']} updated."
+                )
+                return redirect('admin:research_intelligence_workspace_changelist')
+            except Exception as e:
+                messages.error(request, f"Import error: {str(e)}")
+                return redirect('admin:workspace-import-configuration')
+
+        context = {
+            **self.admin_site.each_context(request),
+            'title': 'Import Workspace Configuration',
+            'opts': self.model._meta,
+        }
+        return render(request, 'admin/research_intelligence/workspace/import_configuration.html', context)
 
     @admin.action(description="🚀 Launch Autonomous Agent (Standard - Skip Duplicates)")
     def launch_agent_standard(self, request, queryset):

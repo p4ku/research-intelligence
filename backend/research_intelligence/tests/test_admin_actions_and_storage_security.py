@@ -14,7 +14,9 @@ from research_intelligence.models import (
     PipelineRun,
     ComponentRun,
     ResearchAgentProcess,
-    PaperMetric
+    PaperMetric,
+    Scraper,
+    Subscriber
 )
 from research_intelligence.admin import (
     WorkspaceAdmin,
@@ -68,6 +70,121 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
         admin_obj.launch_agent_reprocess(req, Workspace.objects.filter(id=self.workspace.id))
         self.assertTrue(ResearchAgentProcess.objects.filter(workspace=self.workspace, configuration_override__reprocess_existing=True).exists())
         self.assertEqual(mock_tick.call_count, 2)
+
+    def test_workspace_export_and_import_configuration(self):
+        import json
+        admin_obj = WorkspaceAdmin(Workspace, self.site)
+        req = self._get_request_with_messages()
+
+        # Set up full workspace details
+        self.workspace.abstract_acceptance_criteria = "Accept autonomous AI agents"
+        self.workspace.signal_score_code = "return 0.5 * fit_score"
+        self.workspace.save()
+
+        ed = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Strategic Fit",
+            system_prompt="Assess strategic fit",
+            user_prompt_template="Title: {title}",
+            response_schema={"type": "object", "properties": {"fit_score": {"type": "number"}}},
+            exit_metric="fit_score"
+        )
+        scraper = Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="cat:cs.AI AND agentic",
+            limit=25
+        )
+        subscriber = Subscriber.objects.create(
+            workspace=self.workspace,
+            email="techlead@schwarz.com",
+            subscription_type="result_report"
+        )
+
+        # 1. Test Export Action
+        response = admin_obj.export_configuration(req, Workspace.objects.filter(id=self.workspace.id))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], "application/json; charset=utf-8")
+        payload = json.loads(response.content.decode('utf-8'))
+        self.assertEqual(payload['version'], "1.0")
+        self.assertEqual(len(payload['workspaces']), 1)
+        ws_exported = payload['workspaces'][0]
+        self.assertEqual(ws_exported['name'], "Secure Storage Project")
+        self.assertEqual(ws_exported['abstract_acceptance_criteria'], "Accept autonomous AI agents")
+        self.assertEqual(len(ws_exported['extraction_definitions']), 1)
+        self.assertEqual(ws_exported['extraction_definitions'][0]['name'], "Strategic Fit")
+        self.assertEqual(len(ws_exported['scrapers']), 1)
+        self.assertEqual(ws_exported['scrapers'][0]['search_query'], "cat:cs.AI AND agentic")
+        self.assertEqual(len(ws_exported['subscribers']), 1)
+        self.assertEqual(ws_exported['subscribers'][0]['email'], "techlead@schwarz.com")
+
+        # 2. Test Import View (Fine-tuning / updating existing workspace)
+        ws_exported['abstract_acceptance_criteria'] = "Updated criteria from staging"
+        ws_exported['extraction_definitions'][0]['system_prompt'] = "Updated prompt for strategic fit"
+        ws_exported['scrapers'][0]['limit'] = 100
+
+        post_req = self.factory.post("/", data={
+            "raw_json": json.dumps(payload),
+            "update_existing": "on"
+        })
+        post_req.user = self.admin_user
+        setattr(post_req, 'session', {})
+        messages = FallbackStorage(post_req)
+        setattr(post_req, '_messages', messages)
+
+        import_resp = admin_obj.import_configuration_view(post_req)
+        self.assertEqual(import_resp.status_code, 302)
+
+        # Verify in DB that existing workspace and related objects were updated in place
+        self.workspace.refresh_from_db()
+        self.assertEqual(self.workspace.abstract_acceptance_criteria, "Updated criteria from staging")
+
+        ed.refresh_from_db()
+        self.assertEqual(ed.system_prompt, "Updated prompt for strategic fit")
+
+        scraper.refresh_from_db()
+        self.assertEqual(scraper.limit, 100)
+
+        # 3. Test Import of brand new Workspace
+        new_ws_payload = {
+            "workspaces": [
+                {
+                    "name": "Brand New Production Review",
+                    "abstract_acceptance_criteria": "Brand new review criteria",
+                    "extraction_definitions": [
+                        {
+                            "name": "TRL Level",
+                            "system_prompt": "Extract TRL",
+                            "user_prompt_template": "{full_text}",
+                            "response_schema": {"type": "object"}
+                        }
+                    ],
+                    "scrapers": [
+                        {
+                            "provider": "openalex",
+                            "search_query": "solid state battery",
+                            "limit": 40
+                        }
+                    ]
+                }
+            ]
+        }
+        post_req_new = self.factory.post("/", data={
+            "raw_json": json.dumps(new_ws_payload),
+            "update_existing": "on"
+        })
+        post_req_new.user = self.admin_user
+        setattr(post_req_new, 'session', {})
+        messages_new = FallbackStorage(post_req_new)
+        setattr(post_req_new, '_messages', messages_new)
+
+        import_resp_new = admin_obj.import_configuration_view(post_req_new)
+        self.assertEqual(import_resp_new.status_code, 302)
+
+        created_ws = Workspace.objects.get(name="Brand New Production Review")
+        self.assertEqual(created_ws.abstract_acceptance_criteria, "Brand new review criteria")
+        self.assertTrue(created_ws.extraction_definitions.filter(name="TRL Level").exists())
+        self.assertTrue(created_ws.scrapers.filter(search_query="solid state battery").exists())
 
     def test_apikey_revoke_keys_action(self):
         key = APIKey.objects.create(
