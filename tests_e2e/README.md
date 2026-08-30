@@ -28,12 +28,11 @@ tests_e2e/
     ├── pipeline_reprocessing.py # 4. Reprocessing existing papers (reprocess_existing=True)
     ├── cross_source_dedup.py # 5. Cross-source scraping & deduplication (arXiv + OpenAlex)
     ├── quota_guard.py        # 6. Monthly budget & token ceiling enforcement
-    ├── email_digest.py       # 7. Transactional Mailgun executive digest dispatch
-    ├── mcp_protocol.py       # 8. FastMCP SSE tools & AI agent discovery
-    ├── rbac_data_isolation.py# 9. Multi-tenancy & unauthenticated RBAC security isolation
-    ├── mid_step_rerun.py     # 10. Mid-step pipeline re-execution (rerun_from_node)
-    ├── chat_hallucination_guard.py # 11. Hallucination guard & adversarial grounding probe
-    └── concurrent_agents_load.py   # 12. Multi-agent concurrent load & row-locking test
+    ├── mcp_protocol.py       # 7. FastMCP SSE tools & AI agent discovery
+    ├── rbac_data_isolation.py# 8. Multi-tenancy & unauthenticated RBAC security isolation
+    ├── mid_step_rerun.py     # 9. Mid-step pipeline re-execution (rerun_from_node)
+    ├── chat_hallucination_guard.py # 10. Hallucination guard & adversarial grounding probe
+    └── concurrent_agents_load.py   # 11. Multi-agent concurrent load & row-locking test
 ```
 
 ---
@@ -71,10 +70,7 @@ tests_e2e/
 # 8. Quota Guard & Budget Limits:
 ./tests_e2e/run_e2e.sh --scenario=quota
 
-# 9. Transactional Email Digest:
-./tests_e2e/run_e2e.sh --scenario=digest
-
-# 10. FastMCP SSE Protocol & AI Tools:
+# 9. FastMCP SSE Protocol & AI Tools:
 ./tests_e2e/run_e2e.sh --scenario=mcp
 
 # Run ALL Scenarios Sequentially:

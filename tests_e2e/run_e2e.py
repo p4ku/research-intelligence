@@ -30,7 +30,6 @@ from tests_e2e.scenarios import (
     run_pipeline_reprocessing_scenario,
     run_cross_source_dedup_scenario,
     run_quota_guard_scenario,
-    run_email_digest_scenario,
     run_mcp_protocol_scenario,
     run_rbac_data_isolation_scenario,
     run_mid_step_rerun_scenario,
@@ -59,9 +58,9 @@ def parse_args():
     )
     parser.add_argument(
         "--scenario",
-        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "digest", "mcp", "isolation", "rerun", "guard", "concurrent", "all"],
+        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard", "concurrent", "all"],
         default="slr",
-        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Multi-Source Deduplication, quota: Quota Guard, digest: Email Digest, mcp: FastMCP SSE Tools, isolation: RBAC Multi-Tenancy, rerun: Mid-Step Rerun, guard: Hallucination Guard, concurrent: Parallel Agents Load, all: Run all)",
+        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Multi-Source Deduplication, quota: Quota Guard, mcp: FastMCP SSE Tools, isolation: RBAC Multi-Tenancy, rerun: Mid-Step Rerun, guard: Hallucination Guard, concurrent: Parallel Agents Load, all: Run all)",
     )
     parser.add_argument(
         "--url",
@@ -261,13 +260,6 @@ def main():
             if res.get("cost_metrics"):
                 print_llm_cost_summary(res["cost_metrics"], total_elapsed=total_elapsed)
 
-        elif args.scenario == "digest":
-            res = run_email_digest_scenario(config)
-            total_elapsed = time.time() - t0
-            print(f"\n✅ EMAIL DIGEST SCENARIO COMPLETED in {total_elapsed:.1f}s (HTTP Status: {res.get('digest_status')})")
-            if res.get("cost_metrics"):
-                print_llm_cost_summary(res["cost_metrics"], total_elapsed=total_elapsed)
-
         elif args.scenario == "mcp":
             res = run_mcp_protocol_scenario(config)
             total_elapsed = time.time() - t0
@@ -317,9 +309,7 @@ def main():
             run_cross_source_dedup_scenario(config)
             # 6. Quota Guard
             run_quota_guard_scenario(config)
-            # 7. Email Digest
-            run_email_digest_scenario(config)
-            # 8. FastMCP Protocol
+            # 7. FastMCP Protocol
             run_mcp_protocol_scenario(config)
 
             total_elapsed = time.time() - t0

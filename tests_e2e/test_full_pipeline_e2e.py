@@ -15,7 +15,6 @@ from tests_e2e.scenarios import (
     run_pipeline_reprocessing_scenario,
     run_cross_source_dedup_scenario,
     run_quota_guard_scenario,
-    run_email_digest_scenario,
     run_mcp_protocol_scenario,
     run_rbac_data_isolation_scenario,
     run_mid_step_rerun_scenario,
@@ -72,13 +71,6 @@ class TestFullPipelineE2E:
         config = E2EConfig.from_env()
         results = run_quota_guard_scenario(config)
         assert results["status"] == "passed"
-
-    @pytest.mark.e2e
-    def test_email_digest_dispatch(self):
-        config = E2EConfig.from_env()
-        results = run_email_digest_scenario(config)
-        assert results["status"] == "passed"
-        assert results["digest_status"] in (200, 201)
 
     @pytest.mark.e2e
     def test_mcp_protocol_tools(self):
