@@ -6,7 +6,7 @@ from django.utils import timezone
 from django.core.serializers.json import DjangoJSONEncoder
 from research_intelligence.models import Workspace, ResearchAgentProcess
 from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
-from ..workspaces import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +15,7 @@ def start_research_agent_logic(
     user,
     workspace_id: str,
     name: str = None,
-    limit: int = 50,
+    limit: int = None,
     date_range_days: int = None,
     query_prefix: str = None,
     skip_abstract_screening: bool = None,
@@ -27,9 +27,13 @@ def start_research_agent_logic(
     Supports parallel runs, dynamic query modifiers, date windowing, and notification settings.
     Set reprocess_existing=True to re-evaluate and screen existing workspace papers even if no new papers were found.
     """
-    workspace, membership, error = _check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
+    workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
+
+    is_exceeded, quota_reason = workspace.is_quota_exceeded()
+    if is_exceeded:
+        return json.dumps({"status": "error", "error": quota_reason}, indent=2)
 
     agent_name = name or f"Autonomous Research Agent - {timezone.now().strftime('%Y-%m-%d %H:%M')}"
 
@@ -84,7 +88,7 @@ def list_research_agents_logic(user, workspace_id: str = None, limit: int = 20) 
     List active or recent ResearchAgentProcesses for a workspace or across accessible workspaces.
     """
     if workspace_id:
-        workspace, membership, error = _check_workspace_access(user, workspace_id)
+        workspace, membership, error = check_workspace_access(user, workspace_id)
         if error:
             return error
         processes = ResearchAgentProcess.objects.filter(workspace=workspace).select_related('workspace', 'pipeline_run', 'triggered_by').order_by('-started_at')[:limit]
@@ -138,22 +142,25 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
     formatted GitHub-flavored markdown summary card ready for direct presentation to users.
     """
     canonical_stages = [
-        ("search", "1. Search & Ingestion", "🔍"),
-        ("download", "2. Parallel PDF Download", "📥"),
-        ("ocr", "3. Layout OCR Parsing", "📄"),
-        ("screening", "4. Dual-Stage Screening", "🎯"),
-        ("extraction", "5. Dynamic Parameter Extraction", "📊"),
-        ("signal_score", "6. Signal Score Ranking", "🧮"),
-        ("reporting", "7. Executive Reporting", "📑"),
+        ("search", "Search & Ingestion", "🔍"),
+        ("abstract_screening", "Abstract Screening", "🎯"),
+        ("download", "Parallel PDF Download", "📥"),
+        ("ocr", "Layout OCR Parsing", "📄"),
+        ("full_text_screening", "Full-Text Screening", "🔬"),
+        ("extraction", "Dynamic Parameter Extraction", "📊"),
+        ("signal_score", "Signal Score Ranking", "🧮"),
+        ("reporting", "Executive Reporting", "📑"),
     ]
 
-    step_order = ["initialized", "search", "download", "ocr", "screening", "extraction", "signal_score", "reporting", "completed"]
+    step_order = ["initialized", "search", "abstract_screening", "download", "ocr", "full_text_screening", "screening", "extraction", "signal_score", "reporting", "completed"]
     step_weights = {
         "initialized": 5,
-        "search": 15,
-        "download": 30,
-        "ocr": 45,
-        "screening": 65,
+        "search": 12,
+        "abstract_screening": 25,
+        "download": 40,
+        "ocr": 55,
+        "full_text_screening": 70,
+        "screening": 70,
         "extraction": 85,
         "signal_score": 92,
         "reporting": 98,
@@ -162,12 +169,45 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
         "aborted": 100,
     }
 
+    # Check for actively running component run to calculate fine-grained intra-stage progress
+    active_comp_run = next((cr for cr in component_runs_summary if cr.get("status") == "running"), None)
+    active_step_tqdm = ""
+    active_latest_log = ""
+    active_metrics_details = ""
+
     if process.status == "completed":
         progress_percent = 100
     elif process.status in ["failed", "aborted"]:
         progress_percent = step_weights.get(process.stopped_at_step or process.current_step, 50)
     else:
-        progress_percent = step_weights.get(process.current_step, 10)
+        base_progress = step_weights.get(process.current_step, 10)
+        progress_percent = base_progress
+        if active_comp_run:
+            m = active_comp_run.get("metrics") or {}
+            tot = m.get("total_to_screen") or m.get("total_to_download") or m.get("total_to_extract") or m.get("total_papers") or 0
+            done = m.get("total_screened") or m.get("downloaded_count") or m.get("extracted_count") or m.get("processed_count") or 0
+            if tot > 0:
+                sub_pct = min(100, int((done / tot) * 100))
+                active_step_tqdm = f"{_render_progress_bar(sub_pct, length=12)} ({done}/{tot} items • {sub_pct}%)"
+                step_spans = {
+                    "search": (5, 12),
+                    "abstract_screening": (12, 25),
+                    "download": (25, 40),
+                    "ocr": (40, 55),
+                    "full_text_screening": (55, 70),
+                    "screening": (55, 70),
+                    "extraction": (70, 85),
+                    "signal_score": (85, 92),
+                    "reporting": (92, 98),
+                }
+                if process.current_step in step_spans:
+                    w_start, w_end = step_spans[process.current_step]
+                    progress_percent = min(99, int(w_start + (w_end - w_start) * (done / tot)))
+            
+            if m.get("latest_processed"):
+                active_latest_log = str(m.get("latest_processed"))
+            if m.get("passed") is not None and m.get("rejected") is not None:
+                active_metrics_details = f"{m.get('passed', 0)} Passed, {m.get('rejected', 0)} Rejected"
 
     progress_bar = _render_progress_bar(progress_percent)
 
@@ -213,14 +253,18 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
             s_summary = res_info.get("message") or "Execution error in stage"
         else:
             # Infer from active agent state
-            if slug == "ocr" and not getattr(process.workspace, "ocr_provider", None):
+            if slug == "abstract_screening" and getattr(process.workspace, "skip_abstract_screening", False):
+                s_status = "skipped"
+                s_badge = "⏭️ Skipped"
+                s_summary = "Skipped by workspace configuration"
+            elif slug == "ocr" and not getattr(process.workspace, "ocr_provider", None):
                 s_status = "skipped"
                 s_badge = "⏭️ Skipped"
                 s_summary = "Direct multimodal PDF analysis with Gemini 3.7 Flash"
             elif process.status == "running" and process.current_step == slug:
                 s_status = "in_progress"
                 s_badge = "⏳ In Progress"
-                s_summary = "Actively executing stage in background..."
+                s_summary = active_step_tqdm or "Actively executing stage in background..."
             elif process.status == "completed":
                 s_status = "completed"
                 s_badge = "✅ Done"
@@ -240,26 +284,44 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
             elif current_step_idx == stage_idx:
                 s_status = "in_progress" if process.status == "running" else "pending"
                 s_badge = "⏳ In Progress" if process.status == "running" else "⏸️ Pending"
-                s_summary = "Current active step"
+                s_summary = active_step_tqdm or "Current active step"
             else:
                 s_status = "pending"
                 s_badge = "⏸️ Pending"
                 s_summary = "Waiting for preceding stage"
 
         # Enrich summary with live metrics if available
-        if slug == "search" and paper_metrics.get("total_papers_fetched", 0) > 0:
+        if slug == "search":
+            fetched = paper_metrics.get("total_papers_fetched", 0)
+            dupes = paper_metrics.get("duplicates_count", 0)
             if s_status in ["completed", "in_progress"]:
-                s_summary = f"{paper_metrics['total_papers_fetched']} papers ingested"
+                if dupes > 0:
+                    s_summary = f"{fetched} papers created ({dupes} duplicates detected)"
+                elif fetched > 0:
+                    s_summary = f"{fetched} papers created"
+        elif slug == "abstract_screening":
+            abs_s = paper_metrics.get("abstract_screening")
+            if abs_s and abs_s.get("screened", 0) > 0:
+                s_summary = f"{abs_s['passed']} passed, {abs_s['rejected']} rejected out of {abs_s['screened']}"
         elif slug == "download" and paper_metrics.get("downloaded_documents_count", 0) > 0:
             if s_status in ["completed", "in_progress"]:
                 s_summary = f"{paper_metrics['downloaded_documents_count']} PDFs downloaded"
-        elif slug == "screening" and paper_metrics.get("abstract_screening"):
-            abs_s = paper_metrics["abstract_screening"]
+        elif slug == "full_text_screening":
             ft_s = paper_metrics.get("full_text_screening")
-            parts = [f"Abstract: {abs_s['passed']} passed, {abs_s['rejected']} rejected"]
+            if ft_s and ft_s.get("screened", 0) > 0:
+                s_summary = f"{ft_s['passed']} accepted, {ft_s['rejected']} rejected out of {ft_s['screened']}"
+        elif slug == "screening":
+            abs_s = paper_metrics.get("abstract_screening")
+            ft_s = paper_metrics.get("full_text_screening")
+            parts = []
+            if abs_s and abs_s.get("screened", 0) > 0:
+                parts.append(f"Abstract: {abs_s['passed']} passed, {abs_s['rejected']} rejected")
             if ft_s and ft_s.get("screened", 0) > 0:
                 parts.append(f"Full-Text: {ft_s['passed']} passed, {ft_s['rejected']} rejected")
-            s_summary = " • ".join(parts)
+            if parts:
+                s_summary = " • ".join(parts)
+            elif active_step_tqdm and slug == process.current_step:
+                s_summary = f"Screening in progress: {active_step_tqdm}"
         elif slug == "extraction" and paper_metrics.get("extractions_count", 0) > 0:
             s_summary = f"{paper_metrics['extractions_count']} parameters extracted from accepted papers"
         elif slug == "signal_score" and paper_metrics.get("total_papers_passed_screening", 0) > 0:
@@ -300,6 +362,20 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
         table_lines.append(f"| {idx} | {st['icon']} {st['stage_name']} | {st['badge']} | {st['summary']} |")
     stages_table_md = "\n".join(table_lines)
 
+    # Active Task Live Telemetry Section (TQDM Style)
+    active_telemetry_md = ""
+    if process.status == "running" and active_comp_run:
+        c_name = active_comp_run.get('component_name', 'worker_task')
+        active_telemetry_md = f"""
+### ⚡ Live Task Telemetry & Worker Progress (TQDM)
+- **Active Step**: `{c_name}` (running for {active_comp_run.get('execution_time', '0s')})
+- **Item Progress**: `{active_step_tqdm or 'Processing in parallel workers...'}`
+"""
+        if active_metrics_details:
+            active_telemetry_md += f"- **Current Metrics**: {active_metrics_details}\n"
+        if active_latest_log:
+            active_telemetry_md += f"- **Latest Processed**: `{active_latest_log}`\n"
+
     # Build Top Papers Preview table if available
     top_papers_md = ""
     if matrix_preview:
@@ -318,12 +394,13 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
     # Full visual markdown card
     summary_markdown = f"""## 🔬 SLR Pipeline Status — {process.name}
 **Status**: {status_display} `{progress_bar}` | **Elapsed**: {process.execution_time_display} | **Workspace**: {process.workspace.name}
-
+{active_telemetry_md}
 ### 📋 Stage Execution Timeline
 {stages_table_md}
 
 ### 📊 Paper Pipeline Metrics
-- **Papers Ingested**: {paper_metrics.get('total_papers_fetched', 0)}
+- **Papers Ingested (New)**: {paper_metrics.get('total_papers_fetched', 0)}
+- **Duplicates (Skipped)**: {paper_metrics.get('duplicates_count', 0)}
 - **PDFs Downloaded**: {paper_metrics.get('downloaded_documents_count', 0)}
 - **Passed Screening**: {paper_metrics.get('total_papers_passed_screening', 0)}
 - **Parameters Extracted**: {paper_metrics.get('extractions_count', 0)}
@@ -332,6 +409,8 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
 
 💡 **Next Action**: {recommendation}
 """
+
+    return stages_breakdown, progress_percent, progress_bar, recommendation, summary_markdown
 
     return stages_breakdown, progress_percent, progress_bar, recommendation, summary_markdown
 
@@ -385,7 +464,7 @@ def check_run_status_logic(
             "error": f"No ResearchAgentProcess or PipelineRun found matching ID '{target_id}'."
         }, indent=2)
 
-    workspace, membership, error = _check_workspace_access(user, str(process.workspace.id))
+    workspace, membership, error = check_workspace_access(user, str(process.workspace.id))
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -446,8 +525,15 @@ def check_run_status_logic(
 
         total_screened_papers = abstract_screened or full_text_screened or PaperMetric.objects.filter(Q(pipeline_run=process.pipeline_run) | Q(paper__pipeline_run=process.pipeline_run)).distinct().count()
 
+        search_runs = [cr for cr in comp_runs_list if cr.step_type == 'search']
+        duplicates_count = sum(
+            int((cr.metrics or {}).get("duplicates_count", (cr.metrics or {}).get("total_duplicates", (cr.metrics or {}).get("duplicates_skipped", (cr.metrics or {}).get("total_duplicates_skipped", 0)))) or 0)
+            for cr in search_runs
+        )
+
         paper_metrics = {
             "total_papers_fetched": process.pipeline_run.total_papers_fetched or paper_stats['total_fetched'],
+            "duplicates_count": duplicates_count,
             "downloaded_documents_count": paper_stats['downloaded_count'],
             "ocr_converted_documents_count": paper_stats['ocr_count'],
             "screened_documents_count": total_screened_papers,
@@ -556,7 +642,7 @@ def pause_research_agent_logic(user, process_id: str) -> str:
     except (ValueError, ResearchAgentProcess.DoesNotExist):
         return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
-    workspace, membership, error = _check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -592,7 +678,7 @@ def resume_research_agent_logic(user, process_id: str) -> str:
     except (ValueError, ResearchAgentProcess.DoesNotExist):
         return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
-    workspace, membership, error = _check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -633,7 +719,7 @@ def abort_research_agent_logic(user, process_id: str) -> str:
     except (ValueError, ResearchAgentProcess.DoesNotExist):
         return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
-    workspace, membership, error = _check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -672,7 +758,7 @@ def delete_research_agent_logic(user, process_id: str) -> str:
     except (ValueError, ResearchAgentProcess.DoesNotExist):
         return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
-    workspace, membership, error = _check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
+    workspace, membership, error = check_workspace_access(user, str(process.workspace.id), required_roles=['admin', 'manager'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -701,7 +787,7 @@ def get_workflow_dag_schema_logic(user, workspace_id: str = None) -> str:
     """
     workspace = None
     if workspace_id:
-        workspace, membership, error = _check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
+        workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
         if error:
             return json.dumps({"status": "error", "error": error}, indent=2)
 
@@ -717,5 +803,116 @@ def get_workflow_dag_schema_logic(user, workspace_id: str = None) -> str:
         "execution_topology": [node["name"] for node in nodes_desc],
         "nodes": nodes_desc,
     }, indent=2, cls=DjangoJSONEncoder)
+
+
+def get_pipeline_logs_logic(
+    user,
+    process_id: str = None,
+    pipeline_run_id: str = None,
+    run_id: str = None,
+    limit: int = 50
+) -> str:
+    """
+    [LIVE TERMINAL & PROGRESS LOGS INSPECTOR]
+    Retrieves live execution logs, active Celery worker thread telemetry, and progress bar for a running SLR pipeline.
+    Provides immediate visibility into active tasks so LLM clients (OpenCode, Cursor, Claude) never get stuck in blind sleep loops.
+    """
+    target_id = (process_id or pipeline_run_id or run_id or "").strip()
+    if not target_id:
+        return json.dumps({
+            "status": "error",
+            "error": "Either process_id or pipeline_run_id must be provided to get_pipeline_logs."
+        }, indent=2)
+
+    try:
+        target_uuid = uuid.UUID(target_id)
+    except ValueError:
+        return json.dumps({
+            "status": "error",
+            "error": f"Invalid UUID format: '{target_id}'"
+        }, indent=2)
+
+    process = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').filter(id=target_uuid).first()
+    pipeline_run = None
+    if process:
+        pipeline_run = process.pipeline_run
+    else:
+        from research_intelligence.models import PipelineRun
+        pipeline_run = PipelineRun.objects.select_related('workspace').filter(id=target_uuid).first()
+        if pipeline_run:
+            process = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').filter(pipeline_run=pipeline_run).order_by('-started_at').first()
+
+    if not process and not pipeline_run:
+        return json.dumps({
+            "status": "error",
+            "error": f"No ResearchAgentProcess or PipelineRun found for ID '{target_id}'."
+        }, indent=2)
+
+    workspace = process.workspace if process else pipeline_run.workspace
+    workspace, membership, error = check_workspace_access(user, str(workspace.id))
+    if error:
+        return json.dumps({"status": "error", "error": error}, indent=2)
+
+    # Gather log entries and active status
+    from research_intelligence.models import ComponentRun
+    comp_runs = list(ComponentRun.objects.filter(pipeline_run=pipeline_run).order_by('started_at')) if pipeline_run else []
+
+    log_lines = []
+    active_worker_info = None
+
+    # Add audit step history
+    if process and process.step_history:
+        for entry in process.step_history:
+            ts = entry.get("timestamp", "")
+            step = entry.get("step", "")
+            event = entry.get("event", "")
+            msg = entry.get("message", "")
+            log_lines.append(f"[{ts}] [STATE-MACHINE] Step '{step}' -> Event '{event}': {msg}")
+
+    # Add ComponentRun logs and telemetry
+    for cr in comp_runs:
+        st = cr.status.upper()
+        dur = f"{cr.duration_seconds}s" if cr.duration_seconds else cr.execution_time_display
+        m = cr.metrics or {}
+        tot = m.get("total_to_screen") or m.get("total_to_download") or m.get("total_to_extract") or m.get("total_papers") or 0
+        done = m.get("total_screened") or m.get("downloaded_count") or m.get("extracted_count") or m.get("processed_count") or 0
+        latest = m.get("latest_processed") or ""
+        
+        comp_summary = f"[{cr.started_at.isoformat() if cr.started_at else '?'}] [COMPONENT] {cr.component_name} ({cr.step_type}) -> Status: {st} ({dur})"
+        if tot > 0:
+            comp_summary += f" | Progress: {done}/{tot} ({m.get('percent_complete', 0)}%)"
+        if latest:
+            comp_summary += f" | Latest: {latest}"
+        log_lines.append(comp_summary)
+
+        if cr.error_message:
+            log_lines.append(f"  ❌ ERROR: {cr.error_message}")
+
+        if cr.status == 'running':
+            active_worker_info = {
+                "component_run_id": str(cr.id),
+                "component_name": cr.component_name,
+                "step_type": cr.step_type,
+                "duration": cr.execution_time_display,
+                "total_items": tot,
+                "processed_items": done,
+                "latest_item": latest,
+                "metrics": m
+            }
+
+    recent_logs = log_lines[-limit:]
+    terminal_output = "\n".join(recent_logs)
+
+    return json.dumps({
+        "status": "success",
+        "process_id": str(process.id) if process else None,
+        "pipeline_run_id": str(pipeline_run.id) if pipeline_run else None,
+        "agent_status": process.status if process else pipeline_run.status,
+        "active_worker": active_worker_info,
+        "terminal_output": terminal_output,
+        "log_count": len(recent_logs),
+        "guidance": "Pipeline is running asynchronously in Celery. Check logs with get_pipeline_logs or poll check_run_status every 10-15 seconds."
+    }, indent=2, cls=DjangoJSONEncoder)
+
 
 

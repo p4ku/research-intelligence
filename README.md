@@ -1,7 +1,7 @@
 # 🧠 Schwarz Research Intelligence
 
 > **Enterprise-Grade AI Platform for Autonomous Scientific Literature Review, Deep Tech Scouting & Parameter Extraction.**  
-> Powered by **FastMCP (Model Context Protocol)**, **Django REST Framework**, and **Google GenAI / Gemini 3.7 Flash** (hosted on Schwarz Digits Cloud).
+> Powered by **FastMCP (Model Context Protocol)**, **Django REST Framework**, **Celery Distributed Workers**, and **Google GenAI / Gemini 3.7 Flash** (hosted on Schwarz Digits Cloud).
 
 ---
 
@@ -9,33 +9,35 @@
 
 **Schwarz Research Intelligence** is an enterprise-grade platform designed for automated, AI-driven academic literature review, competitive technology scouting, and parameter extraction.
 
-It orchestrates a 5-step processing pipeline driven by an autonomous **Research Agent Process** state machine:
+It orchestrates an 8-stage processing pipeline driven by an autonomous **Research Agent Process** Directed Acyclic Graph (DAG) state engine:
 
 ```mermaid
 graph TD
     UserQuery[User Request / Client Trigger] --> InterfaceLayer{Interface Layer}
     InterfaceLayer -->|FastMCP SSE Port 8001| FastMCP[FastMCP Server]
-    InterfaceLayer -->|REST API Port 8000| DRF[Django REST API]
+    InterfaceLayer -->|REST API Port 8000| DRF[Django REST API & Admin]
     
-    FastMCP --> AgentEngine[ResearchAgentProcess State Machine Engine]
+    FastMCP --> AgentEngine[ResearchAgentProcess DAG Engine]
     DRF --> AgentEngine
     
-    subgraph PipelineExecution ["5-Step Processing Pipeline"]
+    subgraph PipelineExecution ["8-Stage Systematic Literature Review (SLR) Pipeline"]
         AgentEngine --> Step1[Step 1: Search & Ingestion<br/>arXiv, OpenAlex, Lens, PubMed]
-        Step1 --> Step2[Step 2: Multi-Threaded Download<br/>papers/hash/paper.pdf]
-        Step2 --> Step3{Step 3: OCR Conversion}
-        Step3 -->|ocr_provider set| PyPDF_Mistral[PyPDF / Mistral OCR -> Markdown]
-        Step3 -->|ocr_provider is None| SkipOCR[Auto-Skip OCR Step]
-        PyPDF_Mistral --> Step4
-        SkipOCR --> Step4
-        Step4[Step 4: Two-Stage Screening] --> Stage4A[Abstract Screening<br/>abstract_* criteria]
-        Stage4A --> Stage4B[Full-Text Screening<br/>full_text_* criteria]
-        Stage4B --> Step5[Step 5: Dynamic Parameter Extraction<br/>Pydantic JSON & Evidence Quotes]
+        Step1 --> Step2[Step 2: Abstract Screening<br/>AI Triage via Gemini 3.7 Flash]
+        Step2 --> Step3[Step 3: Parallel PDF Download<br/>Only for Abstract-Passed Papers]
+        Step3 --> Step4{Step 4: Layout OCR Parsing}
+        Step4 -->|ocr_provider set| PyPDF_Mistral[PyPDF / Mistral OCR / Gemini -> Markdown]
+        Step4 -->|ocr_provider is None| SkipOCR[Auto-Skip OCR Step<br/>Direct Multimodal PDF Mode]
+        PyPDF_Mistral --> Step5
+        SkipOCR --> Step5
+        Step5[Step 5: Multimodal Full-Text Screening<br/>Deep PDF Verification via Gemini 3.7 Flash]
+        Step5 --> Step6[Step 6: Dynamic Parameter Extraction<br/>Schema-Constrained JSON & Evidence Quotes]
+        Step6 --> Step7[Step 7: Composite Signal Score<br/>AST-Sandboxed Custom Python Math Formula]
+        Step7 --> Step8[Step 8: Executive Reporting & Alerts<br/>Briefing Synthesis & Mailgun Email Digests]
     end
     
-    Step5 --> DB[(PostgreSQL Prod / SQLite Test)]
-    Step5 --> Storage[(Django Storage / S3 / MinIO)]
-    Step5 --> EmailNotifier[Completion Email Notifier]
+    Step8 --> DB[(PostgreSQL Prod / SQLite Test)]
+    Step8 --> Storage[(Django Storage / S3 / MinIO)]
+    Step8 --> EmailNotifier[Transactional Mailgun Dispatch]
 ```
 
 ---
@@ -44,7 +46,7 @@ graph TD
 
 ### 1. Autonomous Research Agent State Machine (`ResearchAgentProcess`)
 
-The state engine (`tasks/orchestrator/agent_engine.py`) coordinates transitions through state checkpoints, handling background celery job execution, lifecycle interruptions (Pause, Resume, Abort), and email summaries:
+The state engine (`tasks/orchestrator/agent_engine.py` & `runner.py`) coordinates transitions through state checkpoints, handling background Celery job execution, lifecycle interruptions (Pause, Resume, Abort), and email summaries:
 
 ```mermaid
 graph TD
@@ -52,21 +54,25 @@ graph TD
     
     Initialized --> SearchStep[Step 1: Search & Ingestion<br/>State: search<br/>Queries scrapers & deduplicates metadata]
     
-    SearchStep --> DownloadStep[Step 2: PDF Download<br/>State: download<br/>Fetches PDFs to unified storage]
+    SearchStep --> AbstractScreening[Step 2: Abstract Screening<br/>State: abstract_screening<br/>Fast triage against abstract_* criteria]
+    
+    AbstractScreening --> DownloadStep[Step 3: PDF Download<br/>State: download<br/>Fetches PDFs ONLY for abstract-passed papers]
     
     DownloadStep --> OCRCheck{ocr_provider configured?}
     
-    OCRCheck -->|Yes: pypdf / mistral| OCRStep[Step 3: OCR Conversion<br/>State: ocr<br/>Parses layout to structured Markdown]
-    OCRCheck -->|No: ocr_provider is None| SkipOCR[Auto-Skip OCR Step<br/>Direct pass-through]
+    OCRCheck -->|Yes: pypdf / mistral / gemini| OCRStep[Step 4: OCR Conversion<br/>State: ocr<br/>Parses layout to structured Markdown]
+    OCRCheck -->|No: ocr_provider is None| SkipOCR[Auto-Skip OCR Step<br/>Direct pass-through for multimodal screening]
     
-    OCRStep --> AbstractScreening[Step 4A: Abstract Screening<br/>State: screening<br/>Evaluates abstract_* criteria]
-    SkipOCR --> AbstractScreening
+    OCRStep --> FullTextScreening[Step 5: Full-Text Screening<br/>State: full_text_screening<br/>Multimodal analysis of raw PDF via Gemini 3.7 Flash]
+    SkipOCR --> FullTextScreening
     
-    AbstractScreening --> FullTextScreening[Step 4B: Full-Text Screening<br/>State: screening<br/>Evaluates full_text_* criteria]
+    FullTextScreening --> ExtractionStep[Step 6: Parameter Extraction<br/>State: extraction<br/>Extracts schema-validated JSON & evidence quotes]
     
-    FullTextScreening --> ExtractionStep[Step 5: Parameter Extraction<br/>State: extraction<br/>Extracts Pydantic JSON & evidence quotes]
+    ExtractionStep --> SignalScoreStep[Step 7: Composite Signal Scoring<br/>State: signal_score<br/>AST-sandboxed Python scoring formula evaluation]
     
-    ExtractionStep --> Completed([State: completed<br/>Sends summary emails to workspace members])
+    SignalScoreStep --> ReportingStep[Step 8: Executive Reporting<br/>State: reporting<br/>Synthesizes briefing & dispatches Mailgun digests]
+    
+    ReportingStep --> Completed([State: completed<br/>Pipeline finished successfully])
     
     subgraph Controls ["Agent Process Lifecycle Controls"]
         PauseCommand[pause_research_agent] -.->|State: paused| AgentPaused[Process Paused]
@@ -76,14 +82,14 @@ graph TD
     end
 ```
 
-- **State Machine Transitions**: Sequentially advances through `initialized` $\rightarrow$ `search` $\rightarrow$ `download` $\rightarrow$ `ocr` $\rightarrow$ `screening` $\rightarrow$ `extraction` $\rightarrow$ `completed`.
+- **State Machine Transitions**: Sequentially advances through `initialized` $\rightarrow$ `search` $\rightarrow$ `abstract_screening` $\rightarrow$ `download` $\rightarrow$ `ocr` $\rightarrow$ `full_text_screening` $\rightarrow$ `extraction` $\rightarrow$ `signal_score` $\rightarrow$ `reporting` $\rightarrow$ `completed`.
 - **Parallel Runs**: Executes multiple agents concurrently per workspace or across workspaces.
-- **On-Demand OCR Skipping**: Automatically skips Step 3 OCR if `workspace.ocr_provider` is unconfigured (`None`), passing PDF binaries or abstracts directly to screening and parameter extraction.
-- **Notification Engine**: Dispatches completion summary notifications to workspace member emails (`WorkspaceMember.user.email`), subscribers (`Subscriber.email`), and custom overrides.
+- **On-Demand OCR Skipping**: Automatically skips Step 4 OCR if `workspace.ocr_provider` is unconfigured (`None`), passing PDF binaries directly to multimodal Gemini 3.7 Flash.
+- **Notification Engine**: Dispatches completion summary notifications to workspace member emails (`WorkspaceMember.user.email`), subscribers (`Subscriber.email`), and custom overrides via Mailgun.
 
 ### 2. Isolated Dual-Stage Screening Criteria
 - **Abstract Screening Stage**: Evaluates paper title & abstract against `abstract_acceptance_criteria` and `abstract_rejection_criteria`.
-- **Full-Text Screening Stage**: Performs deep evaluation of OCR Markdown text or Multimodal PDF binaries against `full_text_acceptance_criteria` and `full_text_rejection_criteria`.
+- **Full-Text Screening Stage**: Performs deep multimodal evaluation of raw PDF binaries (or OCR Markdown text) against `full_text_acceptance_criteria` and `full_text_rejection_criteria`.
 
 ### 3. Global DocumentRegistry & Multi-Tier Caching
 - **Zero-Network PDF Fastpath**: Checks `DocumentRegistry` ($O(1)$ indexed by `sha256_hash`, `doi`, `arxiv_id`) before initiating HTTP requests, saving bandwidth and preventing rate-limits across runs and workspaces.
@@ -94,9 +100,16 @@ graph TD
 - **Schema-Validated Extraction**: Evaluates papers against `ExtractionDefinition` prompts and JSON schemas.
 - **Evidence & Confidence Scores**: Stores results in `Extraction` objects containing exact evidence quotes, normalized values, confidence scores, and validation statuses (`pass`, `warn`, `fail`).
 
-### 5. Dual Protocol Interface
+### 5. Custom Python AST Signal Scoring
+- Evaluates sandboxed mathematical ranking formulas (`workspace.signal_score_code`) securely using Python AST analysis.
+
+### 6. Workspace Configuration Export & Import (Staging ➔ Production Sync)
+- Export full workspace configurations as JSON bundles (criteria, prompts, schemas, scrapers, subscribers, formulas).
+- Import with explicit **Yes/No overwrite prompt** to fine-tune existing workspaces or import new ones.
+
+### 7. Dual Protocol Interface
 - **FastMCP SSE Interface (Port 8001)**: Exposes workspace tools, scrapers, state machine controls, parameter extraction, and document registry stats to LLM clients (Claude, Gemini, Cursor, Antigravity) via `@mcp.tool()` and `@mcp.prompt()`.
-- **Django REST API (Port 8000)**: Exposes `/api/workspaces/`, `/api/agents/`, `/api/extractions/`, and `/api/pipeline-runs/` endpoints for web frontends.
+- **Django REST API (Port 8000)**: Exposes `/api/workspaces/`, `/api/agents/`, `/api/extractions/`, `/api/pipeline-runs/`, and `/api/chat/` endpoints for web frontends.
 
 ---
 
@@ -130,14 +143,15 @@ The data layer is structured into 5 cohesive domains:
 │   ├── chat/                    # Interactive Knowledge Explorer & Paper Chat (/api/chat/)
 │   ├── mcp_server/              # FastMCP Server (Port 8001) & Tool Registry (/mcp/)
 │   └── research_intelligence/   # Core intelligence platform
-│       ├── tasks/               # 6-Step Pipeline & Orchestrator State Engine
-│       ├── models.py            # Workspace, DocumentRegistry, Paper, Extraction models
-│       └── tests/               # Automated unit & integration test suite (333+ tests)
+│       ├── tasks/               # 8-Stage Pipeline & Orchestrator DAG State Engine
+│       ├── models/              # Workspace, DocumentRegistry, Paper, Extraction models
+│       └── tests/               # Automated unit & integration test suite (378+ tests)
 ├── frontend/                    # Next.js User Interface
 ├── docs/                        # Architecture documentation, diagrams & image generators
 │   ├── generate_db_schema.py    # Automated DB schema diagram builder (Mermaid/PNG/SVG)
 │   ├── diagrams/                # Raw Mermaid diagram definitions (.mmd)
-│   └── images/                  # Compiled architecture & DB schema images (.png / .svg)
+│   ├── images/                  # Compiled architecture & DB schema images (.png / .svg)
+│   └── user_documentation/      # Complete user guides for Django Admin and FastMCP (Claude Code)
 ├── .github/                     # DevOps & CI/CD Pipelines
 │   └── workflows/
 │       └── ci.yml               # GitHub Actions workflow (SQLite tests + pip & Docker caching)
@@ -154,34 +168,35 @@ The data layer is structured into 5 cohesive domains:
 | :--- | :--- | :--- |
 | **Backend Framework** | Python 3.12+, Django 6.0, DRF | Core models, database management, and REST API. |
 | **MCP SSE Server** | FastMCP | Model Context Protocol SSE server on port 8001. |
-| **Task Queue** | Celery, Redis | Distributed async pipeline execution and background state engine polling. |
+| **Task Queue** | Celery, Redis | Distributed async pipeline execution and DAG state engine polling. |
 | **Database Layer** | PostgreSQL (Prod) / SQLite (Tests) | Persistent storage, audit logs, and in-memory test runner. |
 | **Storage Layer** | Django `default_storage` | Local filesystem / AWS S3 / MinIO storage abstraction. |
-| **LLM Engine** | Google GenAI / Gemini 3.7 Flash | Enterprise AI provider hosted on Schwarz Digits Cloud. |
-| **OCR Providers** | PyPDF / Mistral OCR API | Document layout parsing. |
+| **Telemetry & APM** | Sentry SDK | Error tracking, distributed performance tracing, and profiler. |
+| **LLM Engine** | Google GenAI / Gemini 3.7 Flash | Enterprise AI provider with reasoning effort support hosted on Schwarz Digits Cloud. |
+| **OCR Providers** | PyPDF / Mistral OCR / Gemini Vision | Document layout parsing. |
 | **Diagram Engine** | Mermaid CLI / Python Generator | Automated DB schema and architecture diagram generation. |
 | **CI/CD** | GitHub Actions | Automated build, test, and container layer caching. |
 
 ---
 
-## ⚡ 5. Quick Start for Developers
+## ⚡ 6. Quick Start for Developers
 
 ### Run Locally with Docker Compose
 ```bash
 # 1. Clone repository and set up environment variables
-cp .env.example .env
+cp .env_example .env
 
 # 2. Build and start containers
 docker compose up --build
 
 # 3. Access interfaces:
 # - Django REST API: http://localhost:8000/api/
-# - FastMCP SSE Endpoint: http://localhost:8001/mcp/tools/
+# - FastMCP SSE Endpoint: http://localhost:8001/mcp/
 # - Django Admin: http://localhost:8000/admin/
 ```
 
 ### Run Unit Tests Locally
 Tests automatically run on an in-memory SQLite database:
 ```bash
-.venv/bin/python backend/manage.py test research_intelligence.tests
+./run_tests.sh
 ```

@@ -3,9 +3,10 @@ import logging
 import hashlib
 import re
 import time
+from typing import Optional, Dict, Any, List
 from celery import shared_task
 from django.utils import timezone
-from django.db import connection, close_old_connections
+from django.db import connection, close_old_connections, transaction
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
@@ -15,39 +16,11 @@ from ...scrapers import get_scraper_provider
 logger = logging.getLogger(__name__)
 
 
-def normalize_doi(doi: str) -> str:
-    """Strips protocol prefix, doi.org base URL, spaces and converts to lowercase."""
-    if not doi:
-        return ""
-    doi = doi.lower().strip()
-    for prefix in ["https://doi.org/", "http://doi.org/", "doi.org/", "doi:"]:
-        if doi.startswith(prefix):
-            doi = doi[len(prefix):]
-    return doi
-
-
-def normalize_arxiv_id(arxiv_id: str) -> str:
-    """Strips 'arxiv:' prefix and version suffix (e.g., 'v1', 'v2') and lowercases."""
-    if not arxiv_id:
-        return ""
-    arxiv_id = arxiv_id.lower().strip()
-    if arxiv_id.startswith("arxiv:"):
-        arxiv_id = arxiv_id[6:]
-    arxiv_id = re.sub(r'v\d+$', '', arxiv_id)
-    return arxiv_id
-
-
-def normalize_title(title: str) -> str:
-    """Converts to lowercase and retains only alphanumeric characters."""
-    if not title:
-        return ""
-    title = title.lower()
-    title = re.sub(r'[^a-z0-9]', '', title)
-    return title
+from .dedup import normalize_doi, normalize_arxiv_id, normalize_title
 
 
 @shared_task(bind=True)
-def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
+def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = None):
     """
     Celery worker task executing an individual scraping ComponentRun job.
     Stores raw scraped payload in Django default_storage, updates ComponentRun lifecycle
@@ -79,11 +52,14 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
 
     workspace = scraper.workspace
 
-    # Record Celery Task ID and update status to running
+    # Record Celery Task ID and update status to running, resetting started_at and completed_at
     task_id = self.request.id if getattr(self, 'request', None) and self.request.id else "local_execution"
     component_run.celery_task_id = task_id
     component_run.status = 'running'
-    component_run.save(update_fields=['celery_task_id', 'status'])
+    component_run.started_at = timezone.now()
+    component_run.completed_at = None
+    component_run.error_message = ''
+    component_run.save(update_fields=['celery_task_id', 'status', 'started_at', 'completed_at', 'error_message'])
 
     if pipeline_run.status != 'running':
         pipeline_run.status = 'running'
@@ -97,7 +73,15 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
         final_limit = limit if limit is not None else getattr(scraper, 'limit', 50)
         sort_by = getattr(scraper, 'sort_by', 'relevance')
         sort_order = getattr(scraper, 'sort_order', 'desc')
+
+        logger.info(
+            f"🔎 [STEP 1 SEARCH START] Querying '{scraper.provider}' for workspace '{workspace.name}' | "
+            f"Limit: {final_limit} | Sort: {sort_by} ({sort_order}) | Query: {scraper.search_query[:120]}..."
+        )
+
         results = provider.search(scraper.search_query, limit=final_limit, sort_by=sort_by, sort_order=sort_order)
+        fetch_elapsed = round(time.time() - start_time, 2)
+        logger.info(f"📦 [STEP 1 SEARCH FETCHED] Provider '{scraper.provider}' returned {len(results)} candidate papers in {fetch_elapsed}s.")
         
         # 1. Update component run metrics
         component_run.metrics['total_fetched'] = len(results)
@@ -110,9 +94,13 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
         existing_normalized_arxiv_ids = {normalize_arxiv_id(p["arxiv_id"]) for p in existing_papers if p.get("arxiv_id")}
         existing_normalized_titles = {normalize_title(p["title"]) for p in existing_papers if p.get("title")}
 
+        logger.info(f"💾 [STEP 1 INGESTION] Starting deduplication against {len(existing_papers)} existing workspace papers...")
+
         created_count = 0
         skipped_count = 0
         created_paper_ids = []
+        total_items = len(results)
+
         for idx, item in enumerate(results):
             # Periodically re-check abort status mid-loop
             if idx % 10 == 0:
@@ -151,40 +139,45 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
                         match_q |= Q(arxiv_id__iexact=clean_arxiv)
                     if norm_title:
                         match_q |= Q(title__iexact=title)
-                    existing_p = Paper.objects.filter(conds & match_q).first()
-                    if existing_p:
-                        existing_p.pipeline_run = pipeline_run
-                        existing_p.save(update_fields=['pipeline_run'])
-                        created_count += 1
-                        created_paper_ids.append(str(existing_p.id))
-                        continue
+                    with transaction.atomic():
+                        existing_p = Paper.objects.filter(conds & match_q).first()
+                        if existing_p:
+                            existing_p.pipeline_run = pipeline_run
+                            if existing_p.screening_status != 'withdrawn':
+                                existing_p.screening_status = 'pending'
+                                existing_p.screening_reasoning = None
+                            existing_p.save(update_fields=['pipeline_run', 'screening_status', 'screening_reasoning'])
+                            created_count += 1
+                            created_paper_ids.append(str(existing_p.id))
+                            continue
                 skipped_count += 1
                 continue
 
             clean_doi = norm_doi if norm_doi else doi
             clean_arxiv = norm_arxiv if norm_arxiv else arxiv_id
-            unique_hash = hashlib.sha256(f"{item['source_database']}:{item['hash_id']}".encode()).hexdigest()
+            unique_hash = hashlib.sha256(f"{workspace.id}:{item['source_database']}:{item['hash_id']}".encode()).hexdigest()
 
             is_withdrawn = item.get('is_withdrawn', False)
             screening_status = 'withdrawn' if is_withdrawn else 'pending'
             screening_reasoning = item.get('withdrawn_reason', '') if is_withdrawn else None
 
-            paper, created = Paper.objects.get_or_create(
-                hash_id=unique_hash,
-                defaults={
-                    "workspace": workspace,
-                    "pipeline_run": pipeline_run,
-                    "arxiv_id": clean_arxiv,
-                    "doi": clean_doi,
-                    "title": title,
-                    "authors": item.get('authors', ''),
-                    "abstract": item.get('abstract', ''),
-                    "source_database": item.get('source_database', 'arxiv'),
-                    "original_pdf_path": item.get('pdf_url', '') or item.get('original_pdf_path', ''),
-                    "screening_status": screening_status,
-                    "screening_reasoning": screening_reasoning
-                }
-            )
+            with transaction.atomic():
+                paper, created = Paper.objects.get_or_create(
+                    workspace=workspace,
+                    hash_id=unique_hash,
+                    defaults={
+                        "pipeline_run": pipeline_run,
+                        "arxiv_id": clean_arxiv,
+                        "doi": clean_doi,
+                        "title": title,
+                        "authors": item.get('authors', ''),
+                        "abstract": item.get('abstract', ''),
+                        "source_database": item.get('source_database', 'arxiv'),
+                        "original_pdf_path": item.get('pdf_url', '') or item.get('original_pdf_path', ''),
+                        "screening_status": screening_status,
+                        "screening_reasoning": screening_reasoning
+                    }
+                )
 
             if created:
                 created_count += 1
@@ -198,26 +191,38 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
             else:
                 skipped_count += 1
 
-        # Build preview of top fetched papers for output_data
+            if (idx + 1) % 25 == 0 or (idx + 1) == total_items:
+                logger.info(f"💾 [INGESTION PROGRESS] Processed {idx + 1}/{total_items} papers ({created_count} new, {skipped_count} duplicates/skipped)...")
+
+        # Build complete list of all fetched papers for output_data
         fetched_papers_sample = []
-        for r in results[:10]:
+        for r in results:
             fetched_papers_sample.append({
                 "title": r.get("title"),
                 "authors": r.get("authors"),
                 "source_database": r.get("source_database"),
                 "pdf_url": r.get("pdf_url"),
-                "abstract_preview": (r.get("abstract")[:150] + "...") if r.get("abstract") and len(r.get("abstract")) > 150 else r.get("abstract")
+                "doi": r.get("doi"),
+                "arxiv_id": r.get("arxiv_id") or r.get("hash_id"),
+                "published_date": r.get("published_date"),
+                "abstract_preview": (r.get("abstract")[:250] + "...") if r.get("abstract") and len(r.get("abstract")) > 250 else r.get("abstract")
             })
 
         # Update component run lifecycle metrics & output_data
         duration_sec = round(time.time() - start_time, 2)
+        component_run.metrics['total_fetched'] = len(results)
         component_run.metrics['total_created'] = created_count
         component_run.metrics['ingested_new'] = created_count
+        component_run.metrics['total_duplicates'] = skipped_count
+        component_run.metrics['duplicates_count'] = skipped_count
+        component_run.metrics['duplicates'] = skipped_count
         component_run.metrics['total_duplicates_skipped'] = skipped_count
         component_run.metrics['duplicates_skipped'] = skipped_count
         component_run.metrics['total_duration_seconds'] = duration_sec
         component_run.output_data = {
             "total_results": len(results),
+            "total_created": created_count,
+            "total_duplicates": skipped_count,
             "created_paper_ids": created_paper_ids,
             "papers_preview": fetched_papers_sample,
             "total_duration_seconds": duration_sec
@@ -246,7 +251,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
         pipeline_run.total_papers_fetched = Paper.objects.filter(pipeline_run_id=pipeline_run.id).count()
         pipeline_run.save(update_fields=['total_papers_fetched'])
 
-        logger.info(f"Completed ComponentRun '{component_run_id}'. Fetched: {len(results)}, Created: {created_count}, Skipped: {skipped_count}.")
+        logger.info(f"Completed ComponentRun '{component_run_id}'. Fetched: {len(results)}, Created: {created_count}, Duplicates: {skipped_count}.")
 
         # Notify autonomous orchestrator to advance to next step
         from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
@@ -261,8 +266,16 @@ def execute_scraper_run_job(self, component_run_id: str, limit: int = 50):
         component_run.completed_at = timezone.now()
         component_run.save(update_fields=['status', 'error_message', 'completed_at'])
 
-        pipeline_run.status = 'failed'
-        pipeline_run.save(update_fields=['status'])
+        pipeline_run.refresh_from_db()
+        sibling_runs = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, step_type='search')
+        has_pending = sibling_runs.filter(status__in=['pending', 'running']).exists()
+        has_succeeded = sibling_runs.filter(status='completed').exists()
+        total_ingested = Paper.objects.filter(pipeline_run_id=pipeline_run.id).count()
+
+        # Only mark entire pipeline_run as failed if all sibling scrapers finished without ingesting any papers
+        if not has_pending and not has_succeeded and total_ingested == 0:
+            pipeline_run.status = 'failed'
+            pipeline_run.save(update_fields=['status'])
 
         from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
         notify_pipeline_orchestrator_tick(pipeline_run)

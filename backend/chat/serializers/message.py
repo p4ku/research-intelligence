@@ -11,6 +11,7 @@ class PaperChatMessageSerializer(serializers.ModelSerializer):
             'sender',
             'status',
             'deep_thinking',
+            'thinking_process',
             'llm_model',
             'question',
             'message',

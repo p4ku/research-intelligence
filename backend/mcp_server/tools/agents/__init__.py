@@ -8,6 +8,7 @@ from .processes import (
     abort_research_agent_logic,
     delete_research_agent_logic,
     get_workflow_dag_schema_logic,
+    get_pipeline_logs_logic,
 )
 
 __all__ = [
@@ -20,4 +21,6 @@ __all__ = [
     "abort_research_agent_logic",
     "delete_research_agent_logic",
     "get_workflow_dag_schema_logic",
+    "get_pipeline_logs_logic",
 ]
+

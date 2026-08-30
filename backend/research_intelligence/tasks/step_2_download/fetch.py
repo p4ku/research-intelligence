@@ -80,6 +80,8 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
             provider = get_scraper_provider(paper.source_database or "arxiv")
             file_bytes = provider.download_file(pdf_source_url)
             if file_bytes and len(file_bytes) > 0:
+                if default_storage.exists(target_path):
+                    default_storage.delete(target_path)
                 saved_path = default_storage.save(target_path, ContentFile(file_bytes))
                 paper.original_pdf_path = saved_path
                 paper.save(update_fields=['original_pdf_path'])
@@ -127,7 +129,7 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
 
 
 @shared_task(bind=True)
-def execute_pdf_download_job(self, component_run_id: str, limit: int = 50, max_workers: int = 8):
+def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing Step 2 (PDF Binary Download) for papers in a ComponentRun job.
     Downloads PDF binaries concurrently using a ThreadPoolExecutor.
@@ -151,7 +153,9 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = 50, max_w
     component_run.status = 'running'
     component_run.celery_task_id = getattr(self.request, 'id', None)
     component_run.started_at = timezone.now()
-    component_run.save(update_fields=['status', 'celery_task_id', 'started_at'])
+    component_run.completed_at = None
+    component_run.error_message = ''
+    component_run.save(update_fields=['status', 'celery_task_id', 'started_at', 'completed_at', 'error_message'])
 
     worker_concurrency = int(os.environ.get("DOWNLOAD_PARALLEL_WORKERS", max_workers))
 
@@ -161,7 +165,23 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = 50, max_w
 
     try:
         start_time = time.time()
-        papers = list(Paper.objects.filter(pipeline_run=pipeline_run)[:limit])
+        # Paper selection logic:
+        # 1. If Abstract Screening was completed in this run (and not skipped), download ONLY papers with screening_status='abstract_passed'.
+        # 2. If Abstract Screening was skipped or not executed, download all papers in pipeline_run (excluding withdrawn/rejected).
+        abstract_run = ComponentRun.objects.filter(
+            pipeline_run=pipeline_run,
+            component_name='abstract_screening',
+            status='completed'
+        ).first()
+
+        if abstract_run:
+            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='abstract_passed')
+            logger.info(f"🔍 [PDF DOWNLOAD FILTER] Prior Abstract Screening job completed. Targeting {papers_qs.count()} papers with status='abstract_passed'.")
+        else:
+            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).exclude(screening_status__in=['rejected', 'withdrawn'])
+            logger.info(f"🔍 [PDF DOWNLOAD FILTER] Abstract Screening was skipped or absent. Targeting {papers_qs.count()} total candidate papers.")
+
+        papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
         downloaded_count = 0
         cached_count = 0
         skipped_count = 0

@@ -13,14 +13,12 @@ graph LR
     subgraph Drivers ["Concrete Drivers"]
         google[GoogleLLMProvider <br> google.py]
         openrouter[OpenRouterLLMProvider <br> openrouter.py]
-        openai[OpenAILLMProvider <br> openai.py - Future]
     end
     style Drivers fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph SaaS ["External API Endpoints"]
-        gemini[(Google Gemini API)]
-        or_api[(OpenRouter API)]
-        oa_api[(OpenAI API)]
+        gemini[(Google Vertex AI / Gemini 3.7 Flash)]
+        or_api[(OpenRouter API Gateway)]
     end
     style SaaS fill:#f2f2f2,stroke:#777777,stroke-width:2px
 
@@ -28,17 +26,13 @@ graph LR
     factory -.->|Implements| interface
     interface ==> google
     interface ==> openrouter
-    interface -.->|Future| openai
 
-    google ==>|HTTPS| gemini
+    google ==>|HTTPS / Vertex| gemini
     openrouter ==>|HTTPS| or_api
-    openai -.->|HTTPS| oa_api
 
     linkStyle 0 stroke:#0055ff,stroke-width:3px;
     linkStyle 1 stroke:#0066cc,stroke-width:2px;
     linkStyle 2 stroke:#0066cc,stroke-width:3px;
     linkStyle 3 stroke:#0066cc,stroke-width:3px;
-    linkStyle 4 stroke:#0066cc,stroke-width:2px,stroke-dasharray: 5 5;
-    linkStyle 5 stroke:#33cc33,stroke-width:3px;
-    linkStyle 6 stroke:#ff9900,stroke-width:3px;
-    linkStyle 7 stroke:#9933ff,stroke-width:2px,stroke-dasharray: 5 5;
+    linkStyle 4 stroke:#33cc33,stroke-width:3px;
+    linkStyle 5 stroke:#ff9900,stroke-width:3px;

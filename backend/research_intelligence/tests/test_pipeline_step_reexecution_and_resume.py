@@ -209,6 +209,8 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
         self.assertEqual(paper.signal_score, 600.0)
 
     @patch("research_intelligence.tasks.step_4_screening.abstract.execute_screening_job")
+    @patch("research_intelligence.tasks.step_2_download.fetch.execute_pdf_download_job")
+    @patch("research_intelligence.tasks.step_3_ocr.convert.execute_ocr_job")
     @patch("research_intelligence.tasks.step_4_screening.full_text.execute_full_text_screening_job")
     @patch("research_intelligence.tasks.step_5_extraction.extract.execute_extraction_job")
     @patch("research_intelligence.tasks.step_6_signal_score.scorer.execute_signal_score_job")
@@ -217,13 +219,21 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
         mock_step6,
         mock_step5,
         mock_step4_ft,
+        mock_step3_ocr,
+        mock_step2_dl,
         mock_step4
     ):
         """
-        Simulate an autonomous agent that is reset / restarted from Step 4 (Screening)
-        and verify that the state engine chains screening -> extraction -> signal_score -> completed.
+        Simulate an autonomous agent that is reset / restarted from abstract screening
+        and verify that the state engine chains through download -> extraction -> signal_score -> completed.
         """
-        pipeline_run = PipelineRun.objects.create(workspace=self.workspace, status="running", current_stage="screening")
+        pipeline_run = PipelineRun.objects.create(workspace=self.workspace, status="running", current_stage="abstract_screening")
+        ComponentRun.objects.create(
+            pipeline_run=pipeline_run,
+            step_type="search",
+            component_name="workspace_search",
+            status="completed"
+        )
         Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=pipeline_run,
@@ -238,18 +248,23 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
             pipeline_run=pipeline_run,
             name="Restartable Agent",
             status="running",
-            current_step="screening",
+            current_step="abstract_screening",
             configuration_override={"skip_full_text_screening": True}
         )
 
         def _finish_comp_run(cid, **kw):
             ComponentRun.objects.filter(id=cid).update(status="completed")
+            Paper.objects.filter(pipeline_run=pipeline_run).update(screening_status="abstract_passed")
             res = MagicMock()
             res.id = "task-mock-id"
             return res
 
         mock_step4.side_effect = _finish_comp_run
         mock_step4.delay.side_effect = _finish_comp_run
+        mock_step2_dl.side_effect = _finish_comp_run
+        mock_step2_dl.delay.side_effect = _finish_comp_run
+        mock_step3_ocr.side_effect = _finish_comp_run
+        mock_step3_ocr.delay.side_effect = _finish_comp_run
         mock_step4_ft.side_effect = _finish_comp_run
         mock_step4_ft.delay.side_effect = _finish_comp_run
         mock_step5.side_effect = _finish_comp_run
@@ -257,22 +272,27 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
         mock_step6.side_effect = _finish_comp_run
         mock_step6.delay.side_effect = _finish_comp_run
 
-        # Tick 1: Run Screening
+        # Tick 1: Run Abstract Screening
         tick_agent_process(str(agent.id))
         agent.refresh_from_db()
-        self.assertEqual(agent.current_step, "screening")
+        self.assertEqual(agent.current_step, "abstract_screening")
 
-        # Tick 2: Screening -> Extraction
+        # Tick 2: Abstract Screening -> Download
+        tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "download")
+
+        # Tick 3: Download -> Extraction (since ocr skipped and skip_full_text_screening=True)
         tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.current_step, "extraction")
 
-        # Tick 3: Extraction -> Signal Score
+        # Tick 4: Extraction -> Signal Score
         tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.current_step, "signal_score")
 
-        # Tick 4: Signal Score -> Completed
+        # Tick 5: Signal Score -> Completed
         tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.status, "completed")

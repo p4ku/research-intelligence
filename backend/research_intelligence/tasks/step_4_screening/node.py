@@ -6,25 +6,18 @@ from research_intelligence.tasks.orchestrator.dag.base_node import BaseWorkflowN
 logger = logging.getLogger(__name__)
 
 
-class ScreeningNode(BaseWorkflowNode):
+class AbstractScreeningNode(BaseWorkflowNode):
     """
-    Step 4: Two-stage AI Screening (Abstract Screening + Full-Text Screening).
+    Step 2: Title & Abstract Screening (First-Stage AI Screening).
 
-    Inputs:
-        - Abstract Stage: Paper title & abstract against Workspace abstract acceptance/rejection criteria.
-        - Full-Text Stage: Raw PDF binary (or OCR Markdown) against Workspace full-text acceptance/rejection criteria.
-        - Target LLM model: 'google/gemini-3.7-flash'.
-    Outputs:
-        - Updated Paper records with screening_status ('accepted', 'rejected', 'pending'),
-          screening_reason (criteria check), and screening_history audit log.
-        - Halts pipeline gracefully if 0 papers pass screening.
-        - ComponentRun.metrics: total_screened, passed, rejected.
+    Evaluates paper titles and abstracts against Workspace abstract acceptance/rejection criteria
+    using Gemini 3.7 Flash before any PDF binary downloads occur.
     """
-    name = "screening"
+    name = "abstract_screening"
     step_type = "screening"
     component_name = "abstract_screening"
-    description = "Evaluates papers through dual-stage screening (Abstract -> Full-Text) using Gemini 3.7 Flash."
-    dependencies = ["ocr"]
+    description = "Step 2: Evaluates paper titles & abstracts against Workspace criteria using Gemini 3.7 Flash."
+    dependencies = ["search"]
 
     input_contract = {
         "abstract_stage": {
@@ -32,17 +25,12 @@ class ScreeningNode(BaseWorkflowNode):
             "rejection_criteria": "workspace.get_abstract_rejection_criteria()",
             "paper_fields": "Paper.title, Paper.abstract",
         },
-        "full_text_stage": {
-            "acceptance_criteria": "workspace.get_full_text_acceptance_criteria()",
-            "rejection_criteria": "workspace.get_full_text_rejection_criteria()",
-            "document_content": "Raw binary PDF (or OCR markdown text)",
-        },
         "llm_model": "google/gemini-3.7-flash",
     }
 
     output_contract = {
         "updated_models": {
-            "Paper.screening_status": "'accepted' | 'rejected' | 'pending'",
+            "Paper.screening_status": "'abstract_passed' | 'rejected' | 'pending'",
             "Paper.screening_reason": "Detailed markdown explanation with criteria evaluation",
             "Paper.screening_history": "JSON audit trail with timestamps and LLM confidence",
         },
@@ -53,60 +41,135 @@ class ScreeningNode(BaseWorkflowNode):
         },
     }
 
-    def get_input_params(self, pipeline_run, workspace, config: Dict[str, Any], limit: Optional[int] = None) -> Dict[str, Any]:
-        skip_abstract = config.get("skip_abstract_screening", getattr(workspace, 'skip_abstract_screening', False))
-        params = super().get_input_params(pipeline_run, workspace, config, limit=limit)
-        params["skip_abstract_screening"] = skip_abstract
-        return params
+    def is_skippable(self, pipeline_run, workspace, config: Dict[str, Any]) -> bool:
+        return bool(config.get("skip_abstract_screening", getattr(workspace, 'skip_abstract_screening', False)))
 
     def should_halt_pipeline(self, pipeline_run, workspace, config: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         from research_intelligence.models import Paper, ComponentRun
         reprocess = config.get("reprocess_existing", getattr(pipeline_run, 'reprocess_existing', False))
-        if reprocess:
-            accepted_qs = Paper.objects.filter(workspace=workspace, screening_status__in=['accepted', 'full_text_passed'])
-            total_papers = Paper.objects.filter(workspace=workspace).count()
-        else:
-            accepted_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=['accepted', 'full_text_passed'])
-            total_papers = Paper.objects.filter(pipeline_run=pipeline_run).count()
+        comp_run = ComponentRun.objects.filter(
+            pipeline_run=pipeline_run,
+            step_type='screening',
+            component_name='abstract_screening',
+            status='completed'
+        ).first()
 
-        if accepted_qs.exists():
+        if not comp_run:
             return False, None
 
-        comp_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run, step_type='screening')
-        has_full_text = comp_runs.filter(component_name='full_text_screening', status='completed').exists()
-        abstract_run = comp_runs.filter(component_name='abstract_screening', status='completed').first()
-        abstract_passed_zero = bool(abstract_run and abstract_run.metrics and abstract_run.metrics.get("passed", 1) == 0)
-        skip_full = config.get("skip_full_text_screening", False)
+        if reprocess:
+            passed_count = Paper.objects.filter(workspace=workspace, screening_status__in=['abstract_passed', 'accepted', 'full_text_passed']).count()
+            total_papers = Paper.objects.filter(workspace=workspace).count()
+        else:
+            passed_count = Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=['abstract_passed', 'accepted', 'full_text_passed']).count()
+            total_papers = Paper.objects.filter(pipeline_run=pipeline_run).count()
 
-        if has_full_text or (abstract_run and (abstract_passed_zero or skip_full)):
+        if total_papers > 0 and passed_count == 0:
             rejected_count = Paper.objects.filter(
                 workspace=workspace if reprocess else pipeline_run.workspace,
                 pipeline_run=pipeline_run,
                 screening_status='rejected'
             ).count()
-            if total_papers > 0 and rejected_count == total_papers:
-                stage_name = "Full-Text Screening" if has_full_text else "Abstract Screening"
-                return True, f"Step 4 ({stage_name}): 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
+            return True, f"Step 2 (Abstract Screening): 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
+
         return False, None
 
     def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
+        if status == 'skipped':
+            return "Abstract Screening: Skipped (Proceeding directly to download)."
         if status == 'completed' and comp_run:
             metrics = comp_run.metrics or {}
             passed = metrics.get('passed', 0)
             rejected = metrics.get('rejected', 0)
             total = metrics.get('total_screened', 0)
-            comp_name = comp_run.component_name or 'screening'
-            stage_label = "Full-Text Screening" if "full_text" in comp_name else "Abstract Screening"
-            return f"{stage_label}: {passed} accepted, {rejected} rejected out of {total} screened."
+            return f"Abstract Screening: {passed} passed, {rejected} rejected out of {total} screened."
         return super().generate_stage_summary(comp_run, status=status)
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
-        skip_abstract = comp_run.input_params.get("skip_abstract_screening", False)
-        if comp_run.component_name == "full_text_screening" or skip_abstract:
-            from research_intelligence.tasks.step_4_screening.full_text import execute_full_text_screening_job
-            func = execute_full_text_screening_job
-        else:
-            from research_intelligence.tasks.step_4_screening.abstract import execute_screening_job
-            func = execute_screening_job
+        from research_intelligence.tasks.step_4_screening.abstract import execute_screening_job
+        return self.dispatch_celery_task(execute_screening_job, comp_run, limit=limit)
 
-        return self.dispatch_celery_task(func, comp_run, limit=limit)
+
+class FullTextScreeningNode(BaseWorkflowNode):
+    """
+    Step 5: Full-Text Screening (Second-Stage Multimodal AI Screening).
+
+    Performs deep multimodal analysis of raw PDF binaries (or OCR Markdown) against
+    Workspace full_text acceptance/rejection criteria using Gemini 3.7 Flash.
+    """
+    name = "full_text_screening"
+    step_type = "screening"
+    component_name = "full_text_screening"
+    description = "Step 5: Evaluates full PDF binary (or OCR Markdown) against full-text criteria using Gemini 3.7 Flash."
+    dependencies = ["ocr"]
+
+    input_contract = {
+        "full_text_stage": {
+            "acceptance_criteria": "workspace.get_full_text_acceptance_criteria()",
+            "rejection_criteria": "workspace.get_full_text_rejection_criteria()",
+            "document_content": "Raw binary PDF (or OCR markdown text)",
+        },
+        "llm_model": "google/gemini-3.7-flash",
+    }
+
+    output_contract = {
+        "updated_models": {
+            "Paper.screening_status": "'full_text_passed' | 'accepted' | 'rejected' | 'pending'",
+            "Paper.screening_reason": "Detailed markdown explanation with criteria evaluation",
+            "Paper.screening_history": "JSON audit trail with timestamps and LLM confidence",
+        },
+        "component_run_metrics": {
+            "total_screened": "int",
+            "passed": "int",
+            "rejected": "int",
+        },
+    }
+
+    def is_skippable(self, pipeline_run, workspace, config: Dict[str, Any]) -> bool:
+        return bool(config.get("skip_full_text_screening", False))
+
+    def should_halt_pipeline(self, pipeline_run, workspace, config: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+        from research_intelligence.models import Paper, ComponentRun
+        reprocess = config.get("reprocess_existing", getattr(pipeline_run, 'reprocess_existing', False))
+        comp_run = ComponentRun.objects.filter(
+            pipeline_run=pipeline_run,
+            step_type='screening',
+            component_name='full_text_screening',
+            status='completed'
+        ).first()
+
+        if not comp_run:
+            return False, None
+
+        if reprocess:
+            passed_count = Paper.objects.filter(workspace=workspace, screening_status__in=['full_text_passed', 'accepted']).count()
+            total_papers = Paper.objects.filter(workspace=workspace).count()
+        else:
+            passed_count = Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=['full_text_passed', 'accepted']).count()
+            total_papers = Paper.objects.filter(pipeline_run=pipeline_run).count()
+
+        if total_papers > 0 and passed_count == 0:
+            rejected_count = Paper.objects.filter(
+                workspace=workspace if reprocess else pipeline_run.workspace,
+                pipeline_run=pipeline_run,
+                screening_status='rejected'
+            ).count()
+            return True, f"Step 5 (Full-Text Screening): 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
+
+        return False, None
+
+    def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
+        if status == 'skipped':
+            return "Full-Text Screening: Skipped."
+        if status == 'completed' and comp_run:
+            metrics = comp_run.metrics or {}
+            passed = metrics.get('passed', 0)
+            rejected = metrics.get('rejected', 0)
+            total = metrics.get('total_screened', 0)
+            return f"Full-Text Screening: {passed} accepted, {rejected} rejected out of {total} screened."
+        return super().generate_stage_summary(comp_run, status=status)
+
+    def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
+        from research_intelligence.tasks.step_4_screening.full_text import execute_full_text_screening_job
+        return self.dispatch_celery_task(execute_full_text_screening_job, comp_run, limit=limit)
+

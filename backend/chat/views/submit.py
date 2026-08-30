@@ -13,7 +13,7 @@ from chat.serializers import (
 )
 from chat.tasks import execute_paper_chat_task
 from chat.engine import PaperChatEngine
-from mcp_server.tools.workspaces.crud import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class ChatSubmitView(APIView):
             )
 
         # 2. RBAC Access Control Check
-        workspace, membership, error_msg = _check_workspace_access(
+        workspace, membership, error_msg = check_workspace_access(
             request.user,
             str(target_workspace.id),
             required_roles=['admin', 'manager', 'researcher']

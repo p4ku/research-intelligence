@@ -6,7 +6,7 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 
-from .views.workspaces import WorkspaceViewSet
+from .views.workspaces import WorkspaceViewSet, ExtractionDefinitionViewSet
 from .views.scrapers import ScraperViewSet
 from .views.papers import PaperViewSet
 from .views.extractions import ExtractionViewSet
@@ -21,6 +21,7 @@ from .views.diagnostics import HealthCheckView, DeepDiagnosticsView
 
 router = DefaultRouter()
 router.register(r'workspaces', WorkspaceViewSet, basename='workspace')
+router.register(r'extraction-definitions', ExtractionDefinitionViewSet, basename='extraction-definition')
 router.register(r'pipeline-runs', PipelineRunViewSet, basename='pipeline-run')
 router.register(r'component-runs', ComponentRunViewSet, basename='component-run')
 router.register(r'agents', ResearchAgentViewSet, basename='agent')

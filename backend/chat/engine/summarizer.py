@@ -27,11 +27,7 @@ class HierarchicalSessionSummarizer:
             new_summary_items.append(f"Q: {q_snippet}\nA: {a_snippet}")
 
         incremental_summary = "\n---\n".join(new_summary_items)
-        if session.summary:
-            session.summary = (session.summary.strip() + "\n\n---\n" + incremental_summary).strip()
-        else:
-            session.summary = incremental_summary.strip()
-
+        session.summary = incremental_summary.strip()
         session.save(update_fields=['summary', 'updated_at'])
         logger.info(f"Updated hierarchical summary for session '{session.id}' (Turn count: {count})")
 

@@ -3,7 +3,7 @@ import uuid
 import logging
 from typing import Optional, Dict, Any
 from research_intelligence.models import Workspace, Paper
-from mcp_server.tools.workspaces.crud import _check_workspace_access
+from research_intelligence.services import check_workspace_access
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +23,13 @@ def ask_paper_logic(
     Maintains multi-turn conversation session history if session_id is provided.
     """
     if not workspace_id or not question:
-        return "Error: Must provide 'workspace_id' and 'question'."
+        return json.dumps({"status": "error", "error": "Must provide 'workspace_id' and 'question'."}, indent=2)
 
-    workspace, membership, error = _check_workspace_access(
+    workspace, membership, error = check_workspace_access(
         user, workspace_id, required_roles=['admin', 'manager', 'researcher']
     )
     if error:
-        return error
+        return json.dumps({"status": "error", "error": error}, indent=2)
 
     paper = None
     if paper_id:
@@ -37,7 +37,7 @@ def ask_paper_logic(
             p_uuid = uuid.UUID(paper_id)
             paper = Paper.objects.select_related('workspace').get(id=p_uuid, workspace=workspace)
         except (ValueError, Paper.DoesNotExist):
-            return f"Error: Paper '{paper_id}' not found in workspace '{workspace.name}'."
+            return json.dumps({"status": "error", "error": f"Paper '{paper_id}' not found in workspace '{workspace.name}'."}, indent=2)
 
     from chat.models import PaperChatSession, PaperChatMessage
     from chat.engine import PaperChatEngine
@@ -48,7 +48,7 @@ def ask_paper_logic(
             s_uuid = uuid.UUID(session_id)
             session = PaperChatSession.objects.get(id=s_uuid, workspace=workspace)
         except (ValueError, PaperChatSession.DoesNotExist):
-            return f"Error: Chat session '{session_id}' not found."
+            return json.dumps({"status": "error", "error": f"Chat session '{session_id}' not found in workspace '{workspace.name}'."}, indent=2)
 
     if not session:
         session = PaperChatSession.objects.create(
@@ -68,8 +68,12 @@ def ask_paper_logic(
     )
 
     # Execute synchronous generation for FastMCP client
-    res = PaperChatEngine().execute(message)
-    return json.dumps(res, indent=2)
+    try:
+        res = PaperChatEngine().execute(message)
+        return json.dumps(res, indent=2)
+    except Exception as e:
+        logger.exception(f"Error executing chat for paper: {e}")
+        return json.dumps({"status": "error", "error": str(e)}, indent=2)
 
 
 __all__ = [

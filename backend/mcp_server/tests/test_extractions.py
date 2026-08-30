@@ -73,3 +73,71 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
         get_res = self.parse_res(get_extraction_logic(self.admin, extraction_id=str(ext.id)))
         self.assertEqual(get_res["extraction_id"], str(ext.id))
         self.assertEqual(get_res["fields_data"]["novelty"], 9.5)
+
+    def test_matrix_filtering_resilience(self):
+        run = PipelineRun.objects.create(workspace=self.workspace)
+        p1 = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="sha256_p1_abs",
+            title="Abstract Passed Paper",
+            screening_status="abstract_passed"
+        )
+        p2 = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="sha256_p2_ft",
+            title="Full-Text Passed Paper",
+            screening_status="full_text_passed"
+        )
+        p3 = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="sha256_p3_acc",
+            title="Accepted Paper",
+            screening_status="accepted"
+        )
+        p4 = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="sha256_p4_rej",
+            title="Rejected Paper",
+            screening_status="rejected"
+        )
+
+        # Default filter ("full_text_passed") includes abstract_passed, full_text_passed, accepted (3 papers)
+        matrix_res = self.parse_res(get_paper_extractions_matrix_logic(self.admin, workspace_id=str(self.workspace.id)))
+        self.assertEqual(matrix_res["total_papers"], 3)
+        paper_ids = [p["paper_id"] for p in matrix_res["papers"]]
+        self.assertIn(str(p1.id), paper_ids)
+        self.assertIn(str(p2.id), paper_ids)
+        self.assertIn(str(p3.id), paper_ids)
+        self.assertNotIn(str(p4.id), paper_ids)
+
+    def test_extraction_tenant_isolation_unauthorized_access(self):
+        from django.contrib.auth import get_user_model
+        from research_intelligence.models import Workspace, WorkspaceMember
+        User = get_user_model()
+
+        other_user = User.objects.create_user(username="stranger_user", password="password123")
+        other_ws = Workspace.objects.create(name="Foreign Workspace")
+        WorkspaceMember.objects.create(workspace=other_ws, user=other_user, role="admin")
+
+        foreign_run = PipelineRun.objects.create(workspace=other_ws)
+        foreign_p = Paper.objects.create(workspace=other_ws, pipeline_run=foreign_run, hash_id="foreign_p_01", title="Foreign Paper")
+        foreign_ext = Extraction.objects.create(
+            workspace=other_ws,
+            paper=foreign_p,
+            category="confidential",
+            fields_data={"classified": True}
+        )
+
+        # 1. User cannot access foreign extraction directly
+        res_ext = self.parse_res(get_extraction_logic(self.researcher, extraction_id=str(foreign_ext.id)))
+        self.assertIn("error", res_ext)
+
+        # 2. User querying list_extractions with foreign workspace_id gets error
+        res_list = self.parse_res(list_extractions_logic(self.researcher, workspace_id=str(other_ws.id)))
+        self.assertIn("error", res_list)
+
+

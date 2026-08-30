@@ -1,52 +1,75 @@
 graph TB
-    subgraph P1 ["Ingestion Node"]
-        scrapers[1. Scrapers / Search <br> arXiv, OpenAlex, Lens.org]
+    subgraph P1 ["Stage 1: Ingestion Node"]
+        search[1. Search & Deduplication <br> arXiv, OpenAlex, Lens.org]
     end
     style P1 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph P2 ["Converter Node"]
-        ocr[2. OCR / PDF-to-MD <br> Docling / Mistral OCR]
+    subgraph P2 ["Stage 2: AI Triage Node"]
+        abstract_screen[2. Abstract Screening <br> Fast Title & Abstract Evaluation via Gemini 3.7 Flash]
     end
     style P2 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph P3 ["Evaluation Node"]
-        screening[3. Screening <br> Two-Stage Abstract & Full]
+    subgraph P3 ["Stage 3: Fetch Node"]
+        download[3. Parallel PDF Download <br> Content-Addressable DocumentRegistry SHA-256 Cache]
     end
     style P3 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph P4 ["Data Extraction Node"]
-        extraction[4. Extraction <br> Claims, Parameters & TRL]
+    subgraph P4 ["Stage 4: Converter Node (Optional)"]
+        ocr[4. Layout OCR Parsing <br> PyPDF / Mistral OCR / Gemini Vision - Skipped if None]
     end
     style P4 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph P5 ["Intelligence Node"]
-        research_intel[5. Research Intelligence <br> Hypothesis & Insights]
+    subgraph P5 ["Stage 5: Deep Evaluation Node"]
+        full_text_screen[5. Full-Text Screening <br> Deep Multimodal Native PDF Analysis via Gemini 3.7 Flash]
     end
     style P5 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph KB ["Knowledge Base Pod"]
-        kb[(PostgreSQL pgvector <br> RAG + Graph)]
+    subgraph P6 ["Stage 6: Parameter Extraction Node"]
+        extraction[6. Parameter & Claim Extraction <br> Dynamic JSON Schemas, Evidence Quotes & Confidence]
+    end
+    style P6 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph P7 ["Stage 7: Ranking Node"]
+        signal_score[7. Composite Signal Score <br> AST-Secured Sandboxed Custom Python Math Formula]
+    end
+    style P7 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph P8 ["Stage 8: Reporting Node"]
+        reporting[8. Executive Narrative & Alerts <br> Briefing Synthesis & Transactional Mailgun Alerts]
+    end
+    style P8 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
+    subgraph KB ["Persistent Storage"]
+        kb[(PostgreSQL + Storage <br> Workspace DB & Document Registry)]
     end
     style KB fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph UI ["User Interface"]
-        user[Research Insights Dashboard]
+        user[Research Insights & Technology Scorecard]
     end
     style UI fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    scrapers ==>|PDF File| ocr
-    ocr ==>|Markdown Text| screening
-    screening ==>|Passed Papers| extraction
-    extraction ==>|Structured JSON| research_intel
+    search ==>|Candidate Papers| abstract_screen
+    abstract_screen ==>|Abstract Passed| download
+    download ==>|PDF Files| ocr
+    ocr ==>|Binary PDF / OCR Text| full_text_screen
+    full_text_screen ==>|Accepted Papers| extraction
+    extraction ==>|Extracted Parameters| signal_score
+    signal_score ==>|Ranked Scorecards| reporting
 
-    extraction -.->|Save Claims| kb
-    research_intel ==>|Read / Write Graph| kb
-    kb ==>|Serve UI| user
+    extraction -.->|Save Extractions| kb
+    signal_score -.->|Save Signal Scores| kb
+    reporting ==>|Deliver Scorecard| user
+    kb ==>|Serve Queries| user
 
     linkStyle 0 stroke:#0055ff,stroke-width:3px;
     linkStyle 1 stroke:#0055ff,stroke-width:3px;
     linkStyle 2 stroke:#0055ff,stroke-width:3px;
     linkStyle 3 stroke:#0055ff,stroke-width:3px;
-    linkStyle 4 stroke:#cc0000,stroke-width:2px;
-    linkStyle 5 stroke:#cc0000,stroke-width:3px;
-    linkStyle 6 stroke:#0088cc,stroke-width:3px;
+    linkStyle 4 stroke:#0055ff,stroke-width:3px;
+    linkStyle 5 stroke:#0055ff,stroke-width:3px;
+    linkStyle 6 stroke:#0055ff,stroke-width:3px;
+    linkStyle 7 stroke:#cc0000,stroke-width:2px;
+    linkStyle 8 stroke:#cc0000,stroke-width:2px;
+    linkStyle 9 stroke:#00aa55,stroke-width:3px;
+    linkStyle 10 stroke:#0088cc,stroke-width:3px;

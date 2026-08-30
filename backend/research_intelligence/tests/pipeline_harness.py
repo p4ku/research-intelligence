@@ -403,6 +403,24 @@ class PipelineTestHarness:
         self._tick()
         self.agent_process.refresh_from_db()
         self.pipeline_run.refresh_from_db()
+
+        if self.agent_process.current_step == 'reporting':
+            self.complete_step_7_reporting()
+
+        return self
+
+    def complete_step_7_reporting(self) -> "PipelineTestHarness":
+        """Simulates completing Step 7 (Executive Narrative Reporting)."""
+        rep_runs = ComponentRun.objects.filter(pipeline_run=self.pipeline_run, step_type='reporting')
+        for run in rep_runs:
+            run.status = 'completed'
+            run.completed_at = timezone.now()
+            run.metrics = {'report_generated': True, 'emails_sent': 0}
+            run.save()
+
+        self._tick()
+        self.agent_process.refresh_from_db()
+        self.pipeline_run.refresh_from_db()
         return self
 
     def inject_failure_at_current_step(self, error_message: str = "Simulated upstream failure") -> "PipelineTestHarness":

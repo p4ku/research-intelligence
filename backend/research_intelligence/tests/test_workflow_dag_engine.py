@@ -15,9 +15,10 @@ from research_intelligence.models import (
 from research_intelligence.tasks.orchestrator.dag.base_node import BaseWorkflowNode
 from research_intelligence.tasks.orchestrator.dag.nodes import (
     SearchNode,
+    AbstractScreeningNode,
     DownloadNode,
     OCRNode,
-    ScreeningNode,
+    FullTextScreeningNode,
     ExtractionNode,
     SignalScoreNode,
     ReportingNode,
@@ -44,9 +45,10 @@ class TestWorkflowDAGTopologyAndNodes(TestCase):
     def test_default_slr_dag_construction_and_validation(self):
         dag = build_default_slr_dag(self.workspace)
         self.assertIn("search", dag.nodes)
+        self.assertIn("abstract_screening", dag.nodes)
         self.assertIn("download", dag.nodes)
         self.assertIn("ocr", dag.nodes)
-        self.assertIn("screening", dag.nodes)
+        self.assertIn("full_text_screening", dag.nodes)
         self.assertIn("extraction", dag.nodes)
         self.assertIn("signal_score", dag.nodes)
         self.assertIn("reporting", dag.nodes)
@@ -57,7 +59,7 @@ class TestWorkflowDAGTopologyAndNodes(TestCase):
     def test_describe_pipeline_contracts(self):
         dag = build_default_slr_dag(self.workspace)
         desc = dag.describe_pipeline()
-        self.assertEqual(len(desc), 7)
+        self.assertEqual(len(desc), 8)
         for node_info in desc:
             self.assertTrue(node_info["name"])
             self.assertTrue(node_info["description"])
@@ -89,7 +91,7 @@ class TestWorkflowDAGTopologyAndNodes(TestCase):
         downstream_from_search = dag.get_downstream_nodes("search")
         self.assertEqual(
             downstream_from_search,
-            {"download", "ocr", "screening", "extraction", "signal_score", "reporting"}
+            {"abstract_screening", "download", "ocr", "full_text_screening", "extraction", "signal_score", "reporting"}
         )
 
         downstream_from_extract = dag.get_downstream_nodes("extraction")
@@ -143,9 +145,19 @@ class TestWorkflowDAGExecutionAndParallelBranches(TestCase):
             status='completed'
         )
         ready_nodes = dag.get_ready_nodes(self.pipeline_run, self.workspace, {})
+        self.assertEqual([n.name for n in ready_nodes], ["abstract_screening"])
+
+        # 2. Complete Abstract Screening
+        ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type='screening',
+            component_name='abstract_screening',
+            status='completed'
+        )
+        ready_nodes = dag.get_ready_nodes(self.pipeline_run, self.workspace, {})
         self.assertEqual([n.name for n in ready_nodes], ["download"])
 
-        # 2. Complete Download
+        # 3. Complete Download
         ComponentRun.objects.create(
             pipeline_run=self.pipeline_run,
             step_type='download',
@@ -156,7 +168,7 @@ class TestWorkflowDAGExecutionAndParallelBranches(TestCase):
         ready_nodes = dag.get_ready_nodes(self.pipeline_run, self.workspace, {})
         self.assertEqual([n.name for n in ready_nodes], ["ocr"])
 
-        # 3. Mark OCR as skipped
+        # 4. Mark OCR as skipped
         ComponentRun.objects.create(
             pipeline_run=self.pipeline_run,
             step_type='ocr',
@@ -164,9 +176,9 @@ class TestWorkflowDAGExecutionAndParallelBranches(TestCase):
             status='skipped'
         )
         ready_nodes = dag.get_ready_nodes(self.pipeline_run, self.workspace, {})
-        self.assertEqual([n.name for n in ready_nodes], ["screening"])
+        self.assertEqual([n.name for n in ready_nodes], ["full_text_screening"])
 
-        # 4. Strict sequential check: Signal score is NOT ready during screening or extraction
+        # 5. Strict sequential check: Signal score is NOT ready during full_text_screening or extraction
         self.assertNotIn("signal_score", [n.name for n in ready_nodes])
 
     def test_parallel_branch_dispatch(self):
@@ -211,31 +223,40 @@ class TestWorkflowDAGExecutionAndParallelBranches(TestCase):
         dag = build_default_slr_dag(self.workspace)
 
         # Create full run history
-        for step in ["search", "download", "ocr", "screening", "extraction", "signal_score"]:
+        for step, comp in [
+            ("search", "workspace_search"),
+            ("screening", "abstract_screening"),
+            ("download", "document_download"),
+            ("ocr", "layout_ocr"),
+            ("screening", "full_text_screening"),
+            ("extraction", "parameter_extraction"),
+            ("signal_score", "signal_score_eval"),
+        ]:
             ComponentRun.objects.create(
                 pipeline_run=self.pipeline_run,
                 step_type=step,
-                component_name=f"{step}_comp",
+                component_name=comp,
                 status='completed'
             )
 
-        self.assertEqual(ComponentRun.objects.filter(pipeline_run=self.pipeline_run).count(), 6)
+        self.assertEqual(ComponentRun.objects.filter(pipeline_run=self.pipeline_run).count(), 7)
 
         # Re-run from 'extraction'
         dag.rerun_from_node(self.pipeline_run, "extraction")
 
         remaining_steps = list(
-            ComponentRun.objects.filter(pipeline_run=self.pipeline_run).values_list('step_type', flat=True)
+            ComponentRun.objects.filter(pipeline_run=self.pipeline_run).values_list('component_name', flat=True)
         )
-        # Search, download, ocr, screening should remain untouched
-        self.assertIn("search", remaining_steps)
-        self.assertIn("download", remaining_steps)
-        self.assertIn("ocr", remaining_steps)
-        self.assertIn("screening", remaining_steps)
+        # Search, abstract_screening, download, ocr, full_text_screening should remain untouched
+        self.assertIn("workspace_search", remaining_steps)
+        self.assertIn("abstract_screening", remaining_steps)
+        self.assertIn("document_download", remaining_steps)
+        self.assertIn("layout_ocr", remaining_steps)
+        self.assertIn("full_text_screening", remaining_steps)
 
         # Extraction and signal_score must have been purged/reset
-        self.assertNotIn("extraction", remaining_steps)
-        self.assertNotIn("signal_score", remaining_steps)
+        self.assertNotIn("parameter_extraction", remaining_steps)
+        self.assertNotIn("signal_score_eval", remaining_steps)
 
 
 class TestMultiAgentParallelProgress(TestCase):

@@ -62,6 +62,8 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
                 with default_storage.open(doc_reg.canonical_ocr_md_path, 'rb') as ocr_file:
                     cached_md_bytes = ocr_file.read()
                 if cached_md_bytes and len(cached_md_bytes) > 0:
+                    if default_storage.exists(target_path):
+                        default_storage.delete(target_path)
                     saved_path = default_storage.save(target_path, ContentFile(cached_md_bytes))
                     paper.converted_md_path = saved_path
                     paper.save(update_fields=['converted_md_path'])
@@ -114,6 +116,8 @@ def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
             return {"success": False, "error": "Empty OCR output"}
 
         # 3. Save converted output to storage
+        if default_storage.exists(target_path):
+            default_storage.delete(target_path)
         saved_path = default_storage.save(target_path, ContentFile(converted_content.encode("utf-8")))
 
         # 4. Update Paper model & DocumentRegistry OCR Cache
@@ -146,7 +150,7 @@ def _ocr_paper_task(paper):
 
 
 @shared_task(bind=True)
-def execute_ocr_job(self, component_run_id: str, limit: int = 50, max_workers: int = 8):
+def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing Step 3 (Layout OCR Extraction) for papers in a ComponentRun job.
     Executes OCR conversion concurrently using a ThreadPoolExecutor.
@@ -189,7 +193,9 @@ def execute_ocr_job(self, component_run_id: str, limit: int = 50, max_workers: i
     component_run.status = 'running'
     component_run.celery_task_id = getattr(self.request, 'id', None)
     component_run.started_at = timezone.now()
-    component_run.save(update_fields=['status', 'celery_task_id', 'started_at'])
+    component_run.completed_at = None
+    component_run.error_message = ''
+    component_run.save(update_fields=['status', 'celery_task_id', 'started_at', 'completed_at', 'error_message'])
 
     job_t0 = time.time()
     worker_concurrency = int(os.environ.get("OCR_PARALLEL_WORKERS", max_workers))
@@ -203,7 +209,7 @@ def execute_ocr_job(self, component_run_id: str, limit: int = 50, max_workers: i
             original_pdf_path__isnull=False
         ).exclude(screening_status='withdrawn')
 
-        papers = list(papers_qs[:limit])
+        papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
         converted_count = 0
         skipped_count = 0
         failed_count = 0

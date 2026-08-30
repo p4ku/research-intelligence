@@ -3,7 +3,10 @@ from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from research_intelligence.models import ResearchAgentProcess, WorkspaceMember
-from ..serializers.agents import ResearchAgentProcessSerializer
+from ..serializers.agents import (
+    ResearchAgentProcessSerializer,
+    StartResearchAgentSerializer,
+)
 from mcp_server.tools.agents import (
     start_research_agent_logic,
     get_research_agent_status_logic,
@@ -12,9 +15,6 @@ from mcp_server.tools.agents import (
     abort_research_agent_logic,
     delete_research_agent_logic
 )
-
-
-
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 
@@ -22,7 +22,8 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse
 class ResearchAgentViewSet(viewsets.ModelViewSet):
     """
     REST API ViewSet for autonomous Research Agent Processes.
-    Scoped to workspaces the authenticated user is a member of.
+    Orchestrates the SLR pipeline from Search & Screening to Parameter Extraction and Composite Signal Scoring.
+    Scoped strictly to workspaces the authenticated user belongs to.
     """
     serializer_class = ResearchAgentProcessSerializer
     permission_classes = [permissions.IsAuthenticated]
@@ -36,6 +37,16 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
             workspace_id__in=user_ws_ids
         ).order_by('-started_at')
 
+    @extend_schema(
+        request=StartResearchAgentSerializer,
+        responses={
+            201: ResearchAgentProcessSerializer,
+            400: OpenApiResponse(description="Bad request - missing workspace ID or invalid parameters"),
+            403: OpenApiResponse(description="Forbidden - Insufficient permissions in target workspace"),
+        },
+        summary="Launch autonomous research agent",
+        description="Initiates an end-to-end autonomous research state engine run."
+    )
     def create(self, request, *args, **kwargs):
         workspace_id = request.data.get("workspace") or request.data.get("workspace_id")
         if not workspace_id:
@@ -49,6 +60,7 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
         query_prefix = request.data.get("query_prefix")
         skip_abstract = request.data.get("skip_abstract_screening")
         notification_email = request.data.get("notification_email")
+        reprocess_existing = bool(request.data.get("reprocess_existing", False))
 
         res_json = start_research_agent_logic(
             user=request.user,
@@ -58,7 +70,8 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
             date_range_days=date_range_days,
             query_prefix=query_prefix,
             skip_abstract_screening=skip_abstract,
-            notification_email=notification_email
+            notification_email=notification_email,
+            reprocess_existing=reprocess_existing
         )
         try:
             res_data = json.loads(res_json)
@@ -82,21 +95,60 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
         except Exception:
             return {"message": str(res_json)}
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Research agent process successfully paused"),
+            400: OpenApiResponse(description="Bad request or invalid state transition"),
+            403: OpenApiResponse(description="Forbidden"),
+            404: OpenApiResponse(description="Agent process not found"),
+        },
+        summary="Pause running research agent",
+        description="Temporarily pauses execution after the active step completes."
+    )
     @action(detail=True, methods=['post'])
     def pause(self, request, pk=None):
         res_json = pause_research_agent_logic(request.user, str(pk))
         return Response(self._parse_mcp_response(res_json))
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Research agent process successfully resumed"),
+            400: OpenApiResponse(description="Bad request or process not in paused state"),
+            403: OpenApiResponse(description="Forbidden"),
+            404: OpenApiResponse(description="Agent process not found"),
+        },
+        summary="Resume paused research agent",
+        description="Resumes state machine execution from the current pending pipeline step."
+    )
     @action(detail=True, methods=['post'])
     def resume(self, request, pk=None):
         res_json = resume_research_agent_logic(request.user, str(pk))
         return Response(self._parse_mcp_response(res_json))
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Research agent process successfully aborted"),
+            400: OpenApiResponse(description="Bad request"),
+            403: OpenApiResponse(description="Forbidden"),
+            404: OpenApiResponse(description="Agent process not found"),
+        },
+        summary="Abort running research agent",
+        description="Aborts the agent process and terminates running background worker tasks."
+    )
     @action(detail=True, methods=['post'])
     def abort(self, request, pk=None):
         res_json = abort_research_agent_logic(request.user, str(pk))
         return Response(self._parse_mcp_response(res_json))
 
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Research agent process and storage purged successfully"),
+            403: OpenApiResponse(description="Forbidden - requires Admin role in workspace"),
+            404: OpenApiResponse(description="Agent process not found"),
+        },
+        summary="Purge research agent and files",
+        description="Permanently deletes the research agent process, pipeline run, DB records, and run storage directory."
+    )
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         res_json = delete_research_agent_logic(request.user, str(instance.id))

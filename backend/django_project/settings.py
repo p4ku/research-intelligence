@@ -328,5 +328,29 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', f'no-reply@{MAILGUN_SE
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 
+# Sentry Error Tracking & Performance Monitoring
+SENTRY_DSN = os.environ.get(
+    'SENTRY_DSN',
+    'https://155678a8610461ae7c7eecdfdd0583a4@o4511999152291840.ingest.de.sentry.io/4511999157010512'
+)
+
+if SENTRY_DSN and not is_testing:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        # Add data like request headers and IP for users
+        send_default_pii=True,
+        # Enable sending logs to Sentry
+        enable_logs=True,
+        # Set traces_sample_rate to 1.0 to capture 100% of transactions for tracing
+        traces_sample_rate=float(os.environ.get('SENTRY_TRACES_SAMPLE_RATE', '1.0')),
+        # Set profile_session_sample_rate to 1.0 to profile 100% of profile sessions
+        profile_session_sample_rate=float(os.environ.get('SENTRY_PROFILE_SESSION_SAMPLE_RATE', '1.0')),
+        # Set profile_lifecycle to "trace" to automatically run the profiler when there is an active transaction
+        profile_lifecycle=os.environ.get('SENTRY_PROFILE_LIFECYCLE', 'trace'),
+    )
+
+
+
 
 

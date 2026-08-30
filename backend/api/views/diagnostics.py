@@ -19,30 +19,24 @@ logger = logging.getLogger(__name__)
 
 
 def probe_database() -> dict:
-    """Probes PostgreSQL query execution and record counts."""
+    """Probes PostgreSQL query execution latency."""
     close_old_connections()
     start = time.perf_counter()
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT 1;")
-        papers_count = Paper.objects.count()
-        workspaces_count = Workspace.objects.count()
         latency = round((time.perf_counter() - start) * 1000, 2)
         return {
             "status": "online",
             "vendor": connection.vendor,
             "latency_ms": latency,
-            "counts": {
-                "papers": papers_count,
-                "workspaces": workspaces_count,
-            },
         }
     except Exception as e:
         return {
             "status": "offline",
             "vendor": getattr(connection, "vendor", "unknown"),
             "latency_ms": round((time.perf_counter() - start) * 1000, 2),
-            "error": str(e),
+            "error": "Database connection failed",
         }
     finally:
         close_old_connections()
@@ -65,13 +59,13 @@ def probe_redis() -> dict:
         return {
             "status": "online",
             "latency_ms": latency,
-            "scheme": "rediss (TLS)" if "rediss://" in broker_url else "redis",
+            "tls": "rediss://" in broker_url,
         }
     except Exception as e:
         return {
             "status": "offline",
             "latency_ms": round((time.perf_counter() - start) * 1000, 2),
-            "error": str(e),
+            "error": "Redis cache/broker ping failed",
         }
 
 
@@ -86,8 +80,6 @@ def probe_celery() -> dict:
                 "status": "online",
                 "mode": "eager_synchronous",
                 "latency_ms": latency,
-                "task_id": res.id,
-                "result": res.result,
             }
         else:
             async_res = health_ping_task.apply_async(args=["health_ping_payload"], queue="celery")
@@ -97,14 +89,12 @@ def probe_celery() -> dict:
                 "status": "online",
                 "mode": "distributed_worker",
                 "latency_ms": latency,
-                "task_id": async_res.id,
-                "result": task_res,
             }
     except Exception as e:
         return {
             "status": "offline",
             "latency_ms": round((time.perf_counter() - start) * 1000, 2),
-            "error": str(e),
+            "error": "Celery worker dispatch timeout/failed",
         }
 
 
@@ -122,7 +112,6 @@ def probe_storage() -> dict:
         return {
             "status": "online",
             "backend": getattr(settings, "STORAGE_BACKEND", "local"),
-            "bucket": getattr(settings, "AWS_STORAGE_BUCKET_NAME", "local_storage"),
             "latency_ms": latency,
             "verified": read_back == test_payload,
         }
@@ -130,35 +119,22 @@ def probe_storage() -> dict:
         return {
             "status": "offline",
             "backend": getattr(settings, "STORAGE_BACKEND", "local"),
-            "bucket": getattr(settings, "AWS_STORAGE_BUCKET_NAME", "local_storage"),
             "latency_ms": round((time.perf_counter() - start) * 1000, 2),
-            "error": str(e),
+            "error": "Storage read/write check failed",
         }
 
 
 def probe_mailgun() -> dict:
-    """Probes Mailgun configuration."""
+    """Probes Mailgun configuration status without exposing credentials or domain."""
     return {
         "status": "configured" if bool(getattr(settings, "MAILGUN_API_KEY", "")) else "unconfigured",
-        "sender_domain": getattr(settings, "MAILGUN_SENDER_DOMAIN", "soinventive.co.uk"),
-        "api_url": getattr(settings, "MAILGUN_API_URL", "https://api.eu.mailgun.net/v3"),
     }
 
 
 def probe_llm_providers() -> dict:
-    """Probes Google Vertex AI / GenAI and OpenRouter connectivity."""
+    """Probes Google Vertex AI / GenAI and OpenRouter connectivity without leaking internal project details."""
     llm_providers = {}
     google_start = time.perf_counter()
-    sa_json = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON")
-    sa_email = None
-    sa_project = None
-    if sa_json:
-        try:
-            parsed_sa = json.loads(sa_json)
-            sa_email = parsed_sa.get("client_email")
-            sa_project = parsed_sa.get("project_id")
-        except Exception:
-            pass
 
     try:
         from research_intelligence.llm_providers.google import GoogleAgentAPIProvider
@@ -169,11 +145,7 @@ def probe_llm_providers() -> dict:
             "status": "online",
             "provider_name": "Google Vertex AI / GenAI",
             "model": "gemini-3.7-flash",
-            "location": getattr(provider, "location", "eu"),
-            "project_id": getattr(provider, "project_id", sa_project),
-            "service_account_email": sa_email,
             "latency_ms": latency,
-            "sample_response": str(test_resp).strip()[:100],
         }
     except Exception as e:
         latency = round((time.perf_counter() - google_start) * 1000, 2)
@@ -181,19 +153,14 @@ def probe_llm_providers() -> dict:
             "status": "offline",
             "provider_name": "Google Vertex AI / GenAI",
             "model": "gemini-3.7-flash",
-            "location": "eu",
-            "project_id": sa_project,
-            "service_account_email": sa_email,
             "latency_ms": latency,
-            "error": str(e),
+            "error": "LLM provider connectivity check failed",
         }
 
     openrouter_key = os.environ.get("OPENROUTER_API_KEY") or getattr(settings, "OPENROUTER_API_KEY", None)
     llm_providers["openrouter"] = {
         "status": "configured" if bool(openrouter_key and openrouter_key != "mock-openrouter-key") else "not_configured",
         "provider_name": "OpenRouter Gateway",
-        "supported_models": ["anthropic/claude-3.5-sonnet", "deepseek/deepseek-r1", "openai/o3-mini"],
-        "note": "Multi-provider LLM gateway fallback",
     }
 
     return llm_providers

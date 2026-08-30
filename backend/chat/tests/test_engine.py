@@ -126,16 +126,38 @@ class ChatEngineTestCase(TestCase):
         self.assertIn("Question 0", session.summary)
         self.assertIn("Answer 0", session.summary)
 
+        # Call again on turn 6 - should not duplicate Question 0
+        new_msg = PaperChatMessage.objects.create(session=session, sender='user', question="Question 5", message="Answer 5", status='completed')
+        messages.append(new_msg)
+        summarizer.compress_and_update(session, messages, threshold=4)
+        session.refresh_from_db()
+        self.assertEqual(session.summary.count("Question 0"), 1)
+
         history_block = summarizer.build_history_block(session, messages)
         self.assertIn("Prior Conversation Context", history_block)
         self.assertIn("Recent Conversation Turns", history_block)
+
+    def test_context_builder_reads_bytes_and_utf8_decoded_storage(self):
+        from django.core.files.storage import default_storage
+        from django.core.files.base import ContentFile
+
+        md_path = f"workspaces/{self.workspace.id}/test_ocr.md"
+        default_storage.save(md_path, ContentFile(b"# Optical Modulators\nPerformance data: 120 GHz"))
+        self.paper.converted_md_path = md_path
+        self.paper.save()
+
+        context_text, pdf_bytes, mime_type = PaperContextBuilder().build(self.paper)
+        self.assertIn("Optical Modulators", context_text)
+        self.assertIn("120 GHz", context_text)
+        default_storage.delete(md_path)
+
 
     @patch("chat.engine.orchestrator.get_llm_provider")
     def test_engine_full_execution_flow(self, mock_get_llm_provider):
         mock_provider = MagicMock()
         mock_provider.generate.return_value = (
             "The optical core operates at 100 GHz [Page 4, Figure 3a, quote: \"100 GHz modulated optical clock frequency\"].",
-            {"prompt_tokens": 1500, "candidates_tokens": 80}
+            {"prompt_tokens": 1500, "candidates_tokens": 80, "thought_process": "Internal derivation of tensor clock rate..."}
         )
         mock_get_llm_provider.return_value = mock_provider
 
@@ -152,6 +174,7 @@ class ChatEngineTestCase(TestCase):
         self.assertEqual(res["tokens_in"], 1500)
         self.assertEqual(res["tokens_out"], 80)
         self.assertEqual(res["total_tokens"], 1580)
+        self.assertEqual(res["thinking_process"], "Internal derivation of tensor clock rate...")
         self.assertGreater(res["usd_cost"], 0.0)
         self.assertTrue(res["deep_thinking"])
         self.assertEqual(res["llm_model"], "google/gemini-3.7-flash")
@@ -160,6 +183,7 @@ class ChatEngineTestCase(TestCase):
         message.refresh_from_db()
         self.assertEqual(message.status, "completed")
         self.assertEqual(message.total_tokens, 1580)
+        self.assertEqual(message.thinking_process, "Internal derivation of tensor clock rate...")
         self.assertGreater(float(message.usd_cost), 0.0)
         self.assertEqual(message.llm_model, "google/gemini-3.7-flash")
 
