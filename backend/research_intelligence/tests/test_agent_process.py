@@ -606,6 +606,74 @@ class ResearchAgentProcessTest(TestCase):
             self.assertIsNotNone(agent.pipeline_run)
             self.assertEqual(agent.current_step, "search")
 
+    def test_rest_api_agent_create_and_trigger_step_endpoints(self):
+        """
+        Validates DRF API endpoints:
+        1. POST /api/agents/ with skip_abstract_screening and notification_email
+        2. POST /api/pipeline-runs/{id}/trigger-step/ with abstract_screening & full_text_screening
+        3. GET and PATCH /api/workspaces/{id}/
+        """
+        # 1. Test POST /api/agents/
+        res = self.client.post("/api/agents/", {
+            "workspace": str(self.workspace.id),
+            "name": "API Agent Review",
+            "limit": 25,
+            "skip_abstract_screening": True,
+            "notification_email": "agent_api@example.com"
+        }, format="json")
+        self.assertEqual(res.status_code, 201)
+        proc_id = res.data["id"]
+        agent = ResearchAgentProcess.objects.get(id=proc_id)
+        self.assertTrue(agent.configuration_override.get("skip_abstract_screening"))
+        self.assertEqual(agent.configuration_override.get("notification_email"), "agent_api@example.com")
+
+        # 2. Test trigger-step endpoints for abstract_screening and full_text_screening
+        pr = PipelineRun.objects.create(workspace=self.workspace, status="pending")
+        
+        with patch("api.views.pipeline_runs.trigger_screening_job_logic") as mock_trigger:
+            mock_trigger.return_value = '{"status": "success", "success": true}'
+            
+            # Abstract screening
+            res_abs = self.client.post(f"/api/pipeline-runs/{pr.id}/trigger-step/", {
+                "step_type": "abstract_screening",
+                "limit": 10
+            }, format="json")
+            self.assertEqual(res_abs.status_code, 200)
+            mock_trigger.assert_called_with(
+                user=self.user,
+                pipeline_run_id=str(pr.id),
+                limit=10,
+                stage="abstract"
+            )
+
+            # Full-text screening
+            res_ft = self.client.post(f"/api/pipeline-runs/{pr.id}/trigger-step/", {
+                "step_type": "full_text_screening",
+                "limit": 15
+            }, format="json")
+            self.assertEqual(res_ft.status_code, 200)
+            mock_trigger.assert_called_with(
+                user=self.user,
+                pipeline_run_id=str(pr.id),
+                limit=15,
+                stage="full_text"
+            )
+
+        # 3. Test GET and PATCH /api/workspaces/{id}/
+        res_ws = self.client.get(f"/api/workspaces/{self.workspace.id}/")
+        self.assertEqual(res_ws.status_code, 200)
+        self.assertIn("skip_abstract_screening", res_ws.data)
+        self.assertIn("notification_email", res_ws.data)
+
+        res_patch = self.client.patch(f"/api/workspaces/{self.workspace.id}/", {
+            "skip_abstract_screening": True,
+            "notification_email": "patched@example.com"
+        }, format="json")
+        self.assertEqual(res_patch.status_code, 200)
+        self.workspace.refresh_from_db()
+        self.assertTrue(self.workspace.skip_abstract_screening)
+        self.assertEqual(self.workspace.notification_email, "patched@example.com")
+
 
 
 

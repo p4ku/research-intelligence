@@ -201,8 +201,13 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
                 pipeline_run_id=pr_id,
                 limit=limit,
             )
-        elif step_type == 'screening':
-            stage = stage_param or ('full_text' if skip_abstract else 'abstract')
+        elif step_type in ('screening', 'abstract_screening', 'full_text_screening'):
+            if step_type == 'abstract_screening':
+                stage = 'abstract'
+            elif step_type == 'full_text_screening':
+                stage = 'full_text'
+            else:
+                stage = stage_param or ('full_text' if skip_abstract else 'abstract')
             res_json = trigger_screening_job_logic(
                 user=user,
                 pipeline_run_id=pr_id,

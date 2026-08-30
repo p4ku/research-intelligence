@@ -114,9 +114,11 @@ class TriggerStepSerializer(serializers.Serializer):
     step_type = serializers.ChoiceField(
         choices=[
             ('search', 'Search & Ingestion'),
+            ('abstract_screening', 'Abstract Screening'),
             ('download', 'PDF Binary Download'),
             ('ocr', 'Layout OCR Extraction'),
-            ('screening', 'Abstract & Full-Text Screening'),
+            ('full_text_screening', 'Full-Text Screening'),
+            ('screening', 'Abstract & Full-Text Screening (Legacy)'),
             ('extraction', 'Dynamic Parameter Extraction'),
             ('signal_score', 'Signal Score Evaluation'),
             ('reporting', 'Executive Narrative & Notification Dispatch'),

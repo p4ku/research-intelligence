@@ -22,7 +22,7 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse
 class ResearchAgentViewSet(viewsets.ModelViewSet):
     """
     REST API ViewSet for autonomous Research Agent Processes.
-    Orchestrates the 6-step SLR pipeline from Search & Download to AST Signal Scoring.
+    Orchestrates the SLR pipeline from Search & Screening to Parameter Extraction and Composite Signal Scoring.
     Scoped strictly to workspaces the authenticated user belongs to.
     """
     serializer_class = ResearchAgentProcessSerializer
@@ -45,7 +45,7 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
             403: OpenApiResponse(description="Forbidden - Insufficient permissions in target workspace"),
         },
         summary="Launch autonomous research agent",
-        description="Initiates an end-to-end 6-stage autonomous research state engine run."
+        description="Initiates an end-to-end autonomous research state engine run."
     )
     def create(self, request, *args, **kwargs):
         workspace_id = request.data.get("workspace") or request.data.get("workspace_id")
