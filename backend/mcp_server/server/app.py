@@ -94,6 +94,7 @@ from mcp_server.tools import (
     abort_research_agent_logic,
     delete_research_agent_logic,
     get_workflow_dag_schema_logic,
+    get_pipeline_logs_logic,
     get_document_registry_stats_logic,
     test_google_llm_logic,
     list_user_activity_logs_logic,
@@ -1265,6 +1266,31 @@ def check_run_status(process_id: str = None, pipeline_run_id: str = None, run_id
     except Exception as e:
         return str(e)
     return check_run_status_logic(user, process_id=process_id, pipeline_run_id=pipeline_run_id, run_id=run_id)
+
+
+@mcp.tool()
+@with_db_connection
+def get_pipeline_logs(process_id: str = None, pipeline_run_id: str = None, run_id: str = None, limit: int = 50) -> str:
+    """
+    [LIVE TERMINAL & WORKER LOGS INSPECTOR]
+    Retrieves live execution logs, active Celery worker thread status, and progress telemetry for a running pipeline.
+    
+    WHEN TO USE:
+    - Inspect real-time console/terminal output to see what papers are currently being processed or screened.
+    - Check if a background task is actively computing or if an error occurred.
+    - Avoid infinite sleep loops by checking immediate worker telemetry.
+    
+    PARAMETERS:
+    - process_id (str, optional): UUID of the ResearchAgentProcess.
+    - pipeline_run_id (str, optional): UUID of the PipelineRun.
+    - limit (int, optional): Number of recent log lines to return (default 50).
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:read")
+    except Exception as e:
+        return str(e)
+    return get_pipeline_logs_logic(user, process_id=process_id, pipeline_run_id=pipeline_run_id, run_id=run_id, limit=limit)
 
 
 @mcp.tool()

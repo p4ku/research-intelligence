@@ -53,6 +53,7 @@ from .agents import (
     abort_research_agent_logic,
     delete_research_agent_logic,
     get_workflow_dag_schema_logic,
+    get_pipeline_logs_logic,
 )
 from .diagnostics import (
     get_document_registry_stats_logic,
@@ -115,6 +116,7 @@ __all__ = [
     "trigger_reporting_job_logic",
     "get_pipeline_run_status_logic",
     "get_component_run_status_logic",
+    "get_pipeline_logs_logic",
     "abort_job_logic",
     "list_pipeline_runs_logic",
     "delete_pipeline_run_logic",

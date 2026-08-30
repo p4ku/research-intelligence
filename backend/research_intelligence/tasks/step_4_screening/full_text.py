@@ -381,6 +381,29 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = 50
                 logger.warning(f"⚠️ [FULL-TEXT SCREENING FAILED] Error processing paper '{title_snippet}...' ({duration_sec}s): {res.get('error')}")
                 failed_count += 1
 
+            # Flush live progress metrics to DB for real-time monitoring by MCP and Admin
+            processed_so_far = passed_count + rejected_count + withdrawn_count + failed_count
+            total_papers = len(papers)
+            pct = round((processed_so_far / total_papers * 100.0), 1) if total_papers > 0 else 100.0
+            try:
+                latest_badge = "PASSED" if res.get("screening_status") == "full_text_passed" else ("FAILED" if not res.get("success") else "REJECTED")
+                component_run.metrics = {
+                    "model_used": workspace.screening_llm_model,
+                    "parallel_workers": worker_concurrency,
+                    "total_screened": processed_so_far,
+                    "total_to_screen": total_papers,
+                    "passed": passed_count,
+                    "rejected": rejected_count,
+                    "withdrawn": withdrawn_count,
+                    "failed": failed_count,
+                    "percent_complete": pct,
+                    "latest_processed": f"[{latest_badge}] {title_snippet}",
+                    "elapsed_seconds": round(time.time() - job_t0, 1),
+                }
+                component_run.save(update_fields=['metrics'])
+            except Exception as me:
+                logger.debug(f"Metrics live flush note: {me}")
+
         if worker_concurrency <= 1:
             for paper in papers:
                 res = screen_full_text(paper.id, workspace.id, workspace_obj=workspace, paper_obj=paper)
