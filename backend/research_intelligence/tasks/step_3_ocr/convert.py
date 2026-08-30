@@ -150,7 +150,7 @@ def _ocr_paper_task(paper):
 
 
 @shared_task(bind=True)
-def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers: int = 32):
+def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing Step 3 (Layout OCR Extraction) for papers in a ComponentRun job.
     Executes OCR conversion concurrently using a ThreadPoolExecutor.

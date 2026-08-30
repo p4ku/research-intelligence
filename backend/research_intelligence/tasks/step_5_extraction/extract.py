@@ -208,7 +208,7 @@ def _run_single_extraction_worker(paper, definition, workspace):
 
 
 @shared_task(bind=True)
-def execute_extraction_job(self, component_run_id: str, limit: int = None, max_workers: int = 32):
+def execute_extraction_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing Step 5 (Parameter & Claim Extraction) for papers in a ComponentRun job.
     Executes extractions for all active ExtractionDefinitions in parallel using a ThreadPoolExecutor.

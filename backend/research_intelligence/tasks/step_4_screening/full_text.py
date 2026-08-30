@@ -255,7 +255,7 @@ def _screen_full_text_paper_task(paper, workspace_obj):
 
 
 @shared_task(bind=True)
-def execute_full_text_screening_job(self, component_run_id: str, limit: int = None, max_workers: int = 32):
+def execute_full_text_screening_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing Full-Text Screening for papers in a ComponentRun job.
     Executes paper evaluations concurrently using a ThreadPoolExecutor.
