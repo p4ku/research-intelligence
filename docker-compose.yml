@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Database with pgvector extension support for RAG
   db:

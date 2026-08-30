@@ -1,0 +1,50 @@
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Large local storage, document caches & test suites
+workspaces/
+cache/
+scratch/
+test_dir/
+tests_e2e/
+media/
+downloads/
+
+# Frontend builds
+node_modules/
+**/node_modules/
+frontend/.next/
+frontend/out/
+
+# Python cache & bytecode
+**/__pycache__/
+**/*.py[cod]
+**/*$py.class
+*.so
+.Python
+build/
+dist/
+
+# Database, state & logs
+*.sqlite3
+*.sqlite3-journal
+*.db
+celerybeat-schedule*
+*.log
+
+# Git & IDE metadata
+.git/
+.github/
+.vscode/
+.idea/
+.DS_Store
+.agents/
+.gemini/
+
+# Testing & Coverage
+.coverage
+.coverage.*
+htmlcov/
