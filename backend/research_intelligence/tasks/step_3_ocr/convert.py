@@ -242,7 +242,7 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
                 res = run_ocr_conversion(paper.id, paper_obj=paper)
                 _record_result(paper, res)
         else:
-            batch_timeout_sec = max(300.0, (len(papers) / max(1, worker_concurrency)) * 120.0)
+            batch_timeout_sec = max(600.0, (len(papers) / max(1, worker_concurrency)) * 300.0)
             completed_paper_ids = set()
             with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
                 future_to_paper = {
@@ -254,7 +254,7 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
                         paper = future_to_paper[future]
                         completed_paper_ids.add(paper.id)
                         try:
-                            _, res = future.result(timeout=120.0)
+                            _, res = future.result(timeout=300.0)
                         except Exception as fe:
                             logger.error(f"Thread execution error converting OCR for paper '{paper.id}': {fe}")
                             res = {"success": False, "error": str(fe)}

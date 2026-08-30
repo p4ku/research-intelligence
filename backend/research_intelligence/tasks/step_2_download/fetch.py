@@ -213,7 +213,7 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
                 res = _download_paper_task(paper, workspace, pipeline_run)
                 _record_result(res)
         else:
-            batch_timeout_sec = max(300.0, (len(papers) / max(1, worker_concurrency)) * 60.0)
+            batch_timeout_sec = max(600.0, (len(papers) / max(1, worker_concurrency)) * 180.0)
             completed_paper_ids = set()
             with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
                 future_to_paper = {
@@ -225,7 +225,7 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
                         paper = future_to_paper[future]
                         completed_paper_ids.add(paper.id)
                         try:
-                            res = future.result(timeout=60.0)
+                            res = future.result(timeout=180.0)
                         except Exception as fe:
                             logger.error(f"Thread execution error downloading PDF for paper '{paper.id}': {fe}")
                             res = {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": str(fe)}
