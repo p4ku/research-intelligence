@@ -81,9 +81,14 @@ def parse_args():
         help="Polling interval in seconds (default: 5.0s)",
     )
     parser.add_argument(
-        "--keep-workspace",
+        "--no-cleanup-before",
         action="store_true",
-        help="Keep the created test workspace instead of automatically deleting it and its storage files after test completion",
+        help="Skip cleaning up old 'test_e2e_*' workspaces at the start",
+    )
+    parser.add_argument(
+        "--cleanup-after",
+        action="store_true",
+        help="Delete the test workspace and storage artifacts immediately after test completion (default: keep for inspection)",
     )
     return parser.parse_args()
 
@@ -168,7 +173,8 @@ def main():
         paper_limit=args.limit,
         poll_interval_sec=args.poll_interval,
         max_timeout_sec=args.timeout,
-        delete_after=not args.keep_workspace,
+        cleanup_before=not args.no_cleanup_before,
+        delete_after=args.cleanup_after,
     )
 
     t0 = time.time()

@@ -22,7 +22,8 @@ class E2EConfig:
     paper_limit: int = int(os.getenv("E2E_PAPER_LIMIT", "10"))
     poll_interval_sec: float = float(os.getenv("E2E_POLL_INTERVAL", "5.0"))
     max_timeout_sec: int = int(os.getenv("E2E_TIMEOUT_SEC", "900"))  # 15 minutes max
-    delete_after: bool = os.getenv("E2E_CLEANUP", "true").lower() in ("true", "1", "yes")
+    cleanup_before: bool = os.getenv("E2E_CLEANUP_BEFORE", "true").lower() in ("true", "1", "yes")
+    delete_after: bool = os.getenv("E2E_CLEANUP_AFTER", "false").lower() in ("true", "1", "yes")
 
     @classmethod
     def from_env(cls, target: str = None) -> "E2EConfig":
@@ -36,5 +37,6 @@ class E2EConfig:
             paper_limit=int(os.getenv("E2E_PAPER_LIMIT", "10")),
             poll_interval_sec=float(os.getenv("E2E_POLL_INTERVAL", "5.0")),
             max_timeout_sec=int(os.getenv("E2E_TIMEOUT_SEC", "900")),
-            delete_after=os.getenv("E2E_CLEANUP", "true").lower() in ("true", "1", "yes"),
+            cleanup_before=os.getenv("E2E_CLEANUP_BEFORE", "true").lower() in ("true", "1", "yes"),
+            delete_after=os.getenv("E2E_CLEANUP_AFTER", "false").lower() in ("true", "1", "yes"),
         )

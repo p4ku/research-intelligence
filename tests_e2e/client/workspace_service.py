@@ -58,6 +58,30 @@ class WorkspaceService:
         self.client.delete(f"/api/workspaces/{workspace_id}/", expected_status=204)
         logger.info(f"✅ Workspace '{workspace_id}' deleted.")
 
+    def cleanup_old_test_workspaces(self, prefix: str = "test_e2e_") -> int:
+        """
+        Finds and deletes all previous test workspaces matching prefix (e.g. 'test_e2e_').
+        """
+        logger.info(f"🧹 Checking for previous '{prefix}*' test workspaces to clean up...")
+        try:
+            workspaces = self.list_workspaces()
+            to_delete = [ws for ws in workspaces if ws.get("name", "").startswith(prefix)]
+            count = 0
+            for ws in to_delete:
+                ws_id = ws.get("id")
+                ws_name = ws.get("name")
+                logger.info(f"   🗑️ Purging previous test workspace '{ws_name}' ({ws_id})...")
+                self.delete_workspace(ws_id)
+                count += 1
+            if count > 0:
+                logger.info(f"✅ Cleaned up {count} old test workspace(s).")
+            else:
+                logger.info("✅ No previous test workspaces found.")
+            return count
+        except Exception as e:
+            logger.warning(f"Could not complete pre-cleanup of old test workspaces: {e}")
+            return 0
+
     def create_scraper(
         self,
         workspace_id: str,

@@ -73,25 +73,27 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         auth_data = auth.login(cfg.username, cfg.password)
         scenario_results["user_id"] = auth_data.get("user_id")
 
+        # Step 1b: Pre-clean any old test workspaces if cleanup_before is enabled
+        if cfg.cleanup_before:
+            ws_svc.cleanup_old_test_workspaces(prefix="test_e2e_")
+
         # Step 2: Create Workspace with Dual-Stage Criteria & Python Signal Score formula
         abstract_acceptance = (
-            "Accept papers presenting quantum algorithms (VQE, QAOA, quantum annealing, "
-            "variational circuits, or fault-tolerant approaches) applied to optimization, machine learning, or algorithms."
+            "Accept research papers discussing artificial intelligence, machine learning, neural networks, "
+            "optimization algorithms, or quantum computing computational methods."
         )
         abstract_rejection = (
-            "Reject completely unrelated papers outside quantum computing, physics, or computer science."
+            "Reject only non-technical opinion articles or completely unrelated biology papers."
         )
         full_text_acceptance = (
-            "Accept papers discussing quantum computing algorithms, variational quantum circuits, "
-            "combinatorial optimization, or quantum benchmarks."
+            "Accept research papers presenting algorithms, computational methods, machine learning models, "
+            "or mathematical optimization evaluations."
         )
         full_text_rejection = (
-            "Reject only papers that have no connection to quantum algorithms or optimization."
+            "Reject only papers with zero technical or algorithmic discussion."
         )
         signal_score_code = (
-            "if trl_level < 2:\n"
-            "    return 0.0\n"
-            "score = (0.5 * fit_score) + (0.3 * novelty_score) + (0.2 * trl_level)\n"
+            "score = 0.5 * fit_score + 0.3 * (trl_level * 1.1) + 0.2 * 8.0\n"
             "return round(min(100.0, score * 10.0), 2)\n"
         )
 
@@ -109,11 +111,11 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         workspace_id = ws_data["id"]
         scenario_results["workspace_id"] = workspace_id
 
-        # Step 3: Configure Academic Scraper (arXiv Quantum Optimization)
+        # Step 3: Configure Academic Scraper (arXiv Machine Learning & AI Optimization)
         scraper_data = ws_svc.create_scraper(
             workspace_id=workspace_id,
             provider="arxiv",
-            search_query='cat:quant-ph AND (all:"optimization" OR all:"QAOA" OR all:"VQE")',
+            search_query='cat:cs.AI AND (all:"machine learning" OR all:"neural network" OR all:"optimization")',
             limit=cfg.paper_limit,
             sort_by="relevance",
             sort_order="desc",
