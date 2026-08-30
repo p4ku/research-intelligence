@@ -50,7 +50,7 @@ return round(min(base, 10.0), 2)
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             current_step="search",
-            status="running"
+            status="idle"
         )
 
         # Create extraction definitions with valid schema
@@ -157,34 +157,12 @@ return round(min(base, 10.0), 2)
 
         self.assertEqual(self.pipeline_run.papers.count(), 2)
 
-        # 2. STEP 2 (Download Contract Handoff):
-        download_comp_run = ComponentRun.objects.create(
-            pipeline_run=self.pipeline_run,
-            step_type="download",
-            component_name="pdf_downloader",
-            status="pending"
-        )
+        # Setup all LLM & provider mocks up front
         mock_arxiv_download_file.return_value = b"%PDF-1.4 Fake Quantum Document Binary Stream with Surface Code"
 
-        download_res = execute_pdf_download_job(str(download_comp_run.id))
-        self.assertTrue(download_res)
-
-        # 3. STEP 3 (OCR Skippable Check):
-        ocr_comp_run = ComponentRun.objects.create(
-            pipeline_run=self.pipeline_run,
-            step_type="ocr",
-            component_name="ocr_converter",
-            status="pending"
-        )
-        ocr_res = execute_ocr_job(str(ocr_comp_run.id))
-        self.assertTrue(ocr_res)
-        ocr_comp_run.refresh_from_db()
-        self.assertEqual(ocr_comp_run.status, "skipped")
-
-        # 4. STEP 4 (Dual-Stage Screening Contract Handoff):
         abstract_llm = MagicMock()
-        def mock_abstract_eval(prompt, **kwargs):
-            if "Fault-Tolerant Surface Code" in prompt:
+        def mock_abstract_eval(prompt="", **kwargs):
+            if "Fault-Tolerant Surface Code" in str(prompt):
                 return (
                     {"passed": True, "decision_category": "ACCEPT", "reasoning": "Strong match for quantum algorithms."},
                     {"prompt_tokens": 300, "candidates_tokens": 80, "total_tokens": 380}
@@ -197,21 +175,6 @@ return round(min(base, 10.0), 2)
         abstract_llm.generate.side_effect = mock_abstract_eval
         mock_abstract_llm_provider.return_value = abstract_llm
 
-        screening_comp_run = ComponentRun.objects.create(
-            pipeline_run=self.pipeline_run,
-            step_type="screening",
-            component_name="abstract_screening",
-            status="pending"
-        )
-        abstract_res = execute_screening_job(str(screening_comp_run.id))
-        self.assertTrue(abstract_res)
-
-        paper_1.refresh_from_db()
-        paper_2.refresh_from_db()
-        self.assertEqual(paper_1.screening_status, "abstract_passed")
-        self.assertEqual(paper_2.screening_status, "rejected")
-
-        # Stage B: Full-Text Multimodal Screening
         fulltext_llm = MagicMock()
         fulltext_llm.generate.return_value = (
             {"passed": True, "decision_category": "FULL_TEXT_PASSED", "reasoning": "Empirical threshold proofs included."},
@@ -219,29 +182,6 @@ return round(min(base, 10.0), 2)
         )
         mock_fulltext_llm_provider.return_value = fulltext_llm
 
-        fulltext_comp_run = ComponentRun.objects.create(
-            pipeline_run=self.pipeline_run,
-            step_type="screening",
-            component_name="full_text_screening",
-            status="pending"
-        )
-        with patch("django.core.files.storage.default_storage.exists", return_value=True), \
-             patch("django.core.files.storage.default_storage.open", return_value=MagicMock(read=lambda: b"%PDF-1.4 Fake PDF")):
-            paper_1.original_pdf_path = "workspaces/fake/original.pdf"
-            paper_1.save(update_fields=['original_pdf_path'])
-            fulltext_res = execute_full_text_screening_job(str(fulltext_comp_run.id))
-            self.assertTrue(fulltext_res)
-
-        paper_1.refresh_from_db()
-        self.assertEqual(paper_1.screening_status, "full_text_passed")
-
-        # 5. STEP 5 (Dynamic Extraction Contract Handoff):
-        extraction_comp_run = ComponentRun.objects.create(
-            pipeline_run=self.pipeline_run,
-            step_type="extraction",
-            component_name="dynamic_extractor",
-            status="pending"
-        )
         extraction_llm = MagicMock()
         def mock_extract(prompt, **kwargs):
             if "TRL Level" in prompt:
@@ -259,10 +199,75 @@ return round(min(base, 10.0), 2)
                     {"novelty_score": 8.8, "reasoning": "Breakthrough in lattice topology.", "confidence_score": 0.92, "evidence_quote": "Novel lattice connectivity."},
                     {"prompt_tokens": 500, "candidates_tokens": 100, "total_tokens": 600}
                 )
-
         extraction_llm.generate.side_effect = mock_extract
         mock_extraction_llm_provider.return_value = extraction_llm
+        mock_calc_signal_score.return_value = (8.75, {"score": 8.75})
 
+        # 2. STEP 2 (Abstract Screening Contract Handoff):
+        screening_comp_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="screening",
+            component_name="abstract_screening",
+            status="pending"
+        )
+        abstract_res = execute_screening_job(str(screening_comp_run.id))
+        self.assertTrue(abstract_res)
+
+        paper_1.refresh_from_db()
+        paper_2.refresh_from_db()
+        self.assertEqual(paper_1.screening_status, "abstract_passed")
+        self.assertEqual(paper_2.screening_status, "rejected")
+
+        # 3. STEP 3 (Download Contract Handoff - Targets ONLY abstract_passed papers):
+        download_comp_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="download",
+            component_name="pdf_downloader",
+            status="pending"
+        )
+        download_res = execute_pdf_download_job(str(download_comp_run.id))
+        self.assertTrue(download_res)
+
+        paper_1.refresh_from_db()
+        paper_2.refresh_from_db()
+        self.assertTrue(default_storage.exists(paper_1.original_pdf_path))
+        self.assertFalse(default_storage.exists(f"workspaces/{self.workspace.id}/runs/{self.pipeline_run.id}/documents/{paper_2.hash_id}/original.pdf"))
+
+        download_comp_run.refresh_from_db()
+        self.assertEqual(download_comp_run.metrics["downloaded"], 1)
+
+        # 4. STEP 4 (OCR Skippable Check):
+        ocr_comp_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="ocr",
+            component_name="ocr_converter",
+            status="pending"
+        )
+        ocr_res = execute_ocr_job(str(ocr_comp_run.id))
+        self.assertTrue(ocr_res)
+        ocr_comp_run.refresh_from_db()
+        self.assertEqual(ocr_comp_run.status, "skipped")
+
+        # 5. STEP 5 (Full-Text Multimodal Screening Contract Handoff):
+        fulltext_comp_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="screening",
+            component_name="full_text_screening",
+            status="pending"
+        )
+        fulltext_res = execute_full_text_screening_job(str(fulltext_comp_run.id))
+        self.assertTrue(fulltext_res)
+
+        paper_1.refresh_from_db()
+        self.assertEqual(paper_1.screening_status, "full_text_passed")
+
+        # 6. STEP 6 (Dynamic Extraction Contract Handoff):
+        extraction_comp_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="extraction",
+            component_name="dynamic_extractor",
+            status="pending"
+        )
         extraction_res = execute_extraction_job(str(extraction_comp_run.id))
         self.assertTrue(extraction_res)
 
@@ -271,15 +276,13 @@ return round(min(base, 10.0), 2)
         self.assertEqual(exts.count(), 3)
         self.assertEqual(Extraction.objects.filter(paper=paper_2).count(), 0)
 
-        # 6. STEP 6 (Signal Score AST Calculation Contract Handoff):
+        # 7. STEP 7 (Signal Score AST Calculation Contract Handoff):
         signal_comp_run = ComponentRun.objects.create(
             pipeline_run=self.pipeline_run,
             step_type="signal_score",
             component_name="signal_scorer",
             status="pending"
         )
-        mock_calc_signal_score.return_value = (8.75, {"score": 8.75})
-
         signal_res = execute_signal_score_job(str(signal_comp_run.id))
         self.assertTrue(signal_res["success"])
 
@@ -289,3 +292,217 @@ return round(min(base, 10.0), 2)
         metric = PaperMetric.objects.filter(paper=paper_1, pipeline_run=self.pipeline_run).first()
         self.assertIsNotNone(metric)
         self.assertEqual(metric.signal_score, 8.75)
+
+    @patch("research_intelligence.tasks.step_4_screening.abstract.get_llm_provider")
+    @patch("research_intelligence.scrapers.arxiv.ArxivScraperProvider.download_file")
+    def test_abstract_screening_filters_download_handoff_and_json_contracts(
+        self,
+        mock_arxiv_download_file,
+        mock_abstract_llm_provider,
+    ):
+        """
+        Validates the strict data contract between Step 2 (Abstract Screening) and Step 3 (Download):
+        - Abstract screening evaluates paper titles & abstracts against acceptance criteria.
+        - Produces JSON output_data with screening results, reasoning, and decisions.
+        - Download step inspects prior abstract screening component run and fetches PDFs ONLY
+          for papers with screening_status='abstract_passed'.
+        - Rejected and withdrawn papers are NEVER downloaded.
+        """
+        run = PipelineRun.objects.create(workspace=self.workspace, status="running")
+
+        # 3 candidate papers
+        paper_pass = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="doc_pass_001",
+            title="Superconducting Qubit Topological Braiding",
+            authors="Alice Qubit",
+            abstract="Experimental demonstration of non-Abelian anyon braiding in superconducting circuits.",
+            arxiv_id="2402.00001",
+            source_database="arxiv"
+        )
+        paper_reject = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="doc_reject_002",
+            title="Overview of Traditional Relational Database Indexing",
+            authors="Bob RDBMS",
+            abstract="A comprehensive study of B-Tree indices in relational databases.",
+            arxiv_id="2402.00002",
+            source_database="arxiv"
+        )
+        paper_withdrawn = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="doc_withdrawn_003",
+            title="Withdrawn Quantum Study",
+            authors="Charlie",
+            abstract="This paper was withdrawn by the authors.",
+            arxiv_id="2402.00003",
+            screening_status="withdrawn",
+            source_database="arxiv"
+        )
+
+        # Mock Abstract Screening LLM
+        mock_llm = MagicMock()
+        def mock_eval(prompt, **kwargs):
+            if "Topological Braiding" in prompt:
+                return (
+                    {
+                        "passed": True,
+                        "decision_category": "ACCEPT",
+                        "reasoning": "Direct match for fault-tolerant quantum computing criteria.",
+                        "evidence_quotes": ["demonstration of non-Abelian anyon braiding"]
+                    },
+                    {"prompt_tokens": 250, "candidates_tokens": 60, "total_tokens": 310}
+                )
+            else:
+                return (
+                    {
+                        "passed": False,
+                        "decision_category": "REJECT",
+                        "reasoning": "Purely classical relational database study.",
+                        "evidence_quotes": ["B-Tree indices in relational databases"]
+                    },
+                    {"prompt_tokens": 250, "candidates_tokens": 60, "total_tokens": 310}
+                )
+        mock_llm.generate.side_effect = mock_eval
+        mock_abstract_llm_provider.return_value = mock_llm
+
+        # 1. Execute Step 2 (Abstract Screening)
+        screen_comp = ComponentRun.objects.create(
+            pipeline_run=run,
+            step_type="screening",
+            component_name="abstract_screening",
+            status="pending"
+        )
+        screen_success = execute_screening_job(str(screen_comp.id))
+        self.assertTrue(screen_success)
+
+        screen_comp.refresh_from_db()
+        self.assertEqual(screen_comp.status, "completed")
+        self.assertEqual(screen_comp.metrics["passed"], 1)
+        self.assertEqual(screen_comp.metrics["rejected"], 1)
+        self.assertEqual(screen_comp.metrics["withdrawn"], 1)
+
+        # Verify JSON Output Contract on ComponentRun
+        output_data = screen_comp.output_data
+        self.assertIn("screened_papers", output_data)
+        self.assertEqual(len(output_data["screened_papers"]), 3)
+        screened_map = {item["paper_id"]: item for item in output_data["screened_papers"]}
+        self.assertTrue(screened_map[str(paper_pass.id)]["passed"])
+        self.assertEqual(screened_map[str(paper_pass.id)]["screening_status"], "abstract_passed")
+        self.assertFalse(screened_map[str(paper_reject.id)]["passed"])
+        self.assertEqual(screened_map[str(paper_reject.id)]["screening_status"], "rejected")
+
+        # Verify Paper model status
+        paper_pass.refresh_from_db()
+        paper_reject.refresh_from_db()
+        paper_withdrawn.refresh_from_db()
+        self.assertEqual(paper_pass.screening_status, "abstract_passed")
+        self.assertEqual(paper_reject.screening_status, "rejected")
+        self.assertEqual(paper_withdrawn.screening_status, "withdrawn")
+
+        # 2. Execute Step 3 (Download)
+        mock_arxiv_download_file.return_value = b"%PDF-1.4 Fake Topological Braiding PDF Content"
+        download_comp = ComponentRun.objects.create(
+            pipeline_run=run,
+            step_type="download",
+            component_name="pdf_downloader",
+            status="pending"
+        )
+        download_success = execute_pdf_download_job(str(download_comp.id))
+        self.assertTrue(download_success)
+
+        download_comp.refresh_from_db()
+        self.assertEqual(download_comp.status, "completed")
+        self.assertEqual(download_comp.metrics["total_processed"], 1)
+        self.assertEqual(download_comp.metrics["downloaded"], 1)
+
+        paper_pass.refresh_from_db()
+        paper_reject.refresh_from_db()
+        # Verify that ONLY the passed paper was downloaded to storage
+        self.assertTrue(default_storage.exists(paper_pass.original_pdf_path))
+        self.assertFalse(default_storage.exists(f"workspaces/{self.workspace.id}/runs/{run.id}/documents/{paper_reject.hash_id}/original.pdf"))
+        # Verify ArXiv downloader was called exactly once (for paper_pass only)
+        self.assertEqual(mock_arxiv_download_file.call_count, 1)
+
+    @patch("research_intelligence.scrapers.arxiv.ArxivScraperProvider.download_file")
+    def test_skip_abstract_screening_downloads_all_candidate_papers(
+        self,
+        mock_arxiv_download_file,
+    ):
+        """
+        Validates that when abstract screening is skipped (skip_abstract_screening=True),
+        DownloadNode downloads ALL ingested candidate papers (excluding withdrawn).
+        """
+        skip_ws = Workspace.objects.create(
+            name="Skip Abstract Screening Lab",
+            skip_abstract_screening=True,
+            abstract_acceptance_criteria="Quantum",
+            abstract_rejection_criteria="None"
+        )
+        run = PipelineRun.objects.create(workspace=skip_ws, status="running")
+
+        # Ingest 3 papers
+        p1 = Paper.objects.create(
+            workspace=skip_ws,
+            pipeline_run=run,
+            hash_id="skip_doc_001",
+            title="Quantum Annealing Architectures",
+            arxiv_id="2403.00001",
+            source_database="arxiv"
+        )
+        p2 = Paper.objects.create(
+            workspace=skip_ws,
+            pipeline_run=run,
+            hash_id="skip_doc_002",
+            title="Photonic Quantum Computing",
+            arxiv_id="2403.00002",
+            source_database="arxiv"
+        )
+        p3 = Paper.objects.create(
+            workspace=skip_ws,
+            pipeline_run=run,
+            hash_id="skip_doc_003",
+            title="Trapped Ion Qubits",
+            arxiv_id="2403.00003",
+            source_database="arxiv"
+        )
+
+        # Check that AbstractScreeningNode reports is_skippable == True
+        from research_intelligence.tasks.step_4_screening.node import AbstractScreeningNode
+        abs_node = AbstractScreeningNode()
+        self.assertTrue(abs_node.is_skippable(run, skip_ws, {}))
+
+        # Abstract screening is marked skipped
+        ComponentRun.objects.create(
+            pipeline_run=run,
+            step_type="screening",
+            component_name="abstract_screening",
+            status="skipped"
+        )
+
+        # Execute DownloadNode
+        mock_arxiv_download_file.return_value = b"%PDF-1.4 Generic Valid PDF Bytes"
+        download_comp = ComponentRun.objects.create(
+            pipeline_run=run,
+            step_type="download",
+            component_name="pdf_downloader",
+            status="pending"
+        )
+        download_success = execute_pdf_download_job(str(download_comp.id))
+        self.assertTrue(download_success)
+
+        download_comp.refresh_from_db()
+        self.assertEqual(download_comp.status, "completed")
+        self.assertEqual(download_comp.metrics["total_processed"], 3)
+        self.assertEqual(download_comp.metrics["downloaded"], 3)
+
+        p1.refresh_from_db()
+        p2.refresh_from_db()
+        p3.refresh_from_db()
+        self.assertTrue(default_storage.exists(p1.original_pdf_path))
+        self.assertTrue(default_storage.exists(p2.original_pdf_path))
+        self.assertTrue(default_storage.exists(p3.original_pdf_path))
+        self.assertEqual(mock_arxiv_download_file.call_count, 3)
