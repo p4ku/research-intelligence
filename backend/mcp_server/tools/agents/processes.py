@@ -184,8 +184,8 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
         progress_percent = base_progress
         if active_comp_run:
             m = active_comp_run.get("metrics") or {}
-            tot = m.get("total_to_screen") or m.get("total_to_download") or m.get("total_to_extract") or m.get("total_papers") or 0
-            done = m.get("total_screened") or m.get("downloaded_count") or m.get("extracted_count") or m.get("processed_count") or 0
+            tot = m.get("total_to_screen") or m.get("total_to_download") or m.get("total_work_items") or m.get("total_to_extract") or m.get("total_papers") or 0
+            done = m.get("total_screened") or m.get("completed_extractions") or m.get("total_processed") or m.get("downloaded_count") or m.get("extracted_count") or m.get("processed_count") or 0
             if tot > 0:
                 sub_pct = min(100, int((done / tot) * 100))
                 active_step_tqdm = f"{_render_progress_bar(sub_pct, length=12)} ({done}/{tot} items • {sub_pct}%)"
