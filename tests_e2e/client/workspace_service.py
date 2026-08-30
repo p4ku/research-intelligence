@@ -20,25 +20,51 @@ class WorkspaceService:
         abstract_rejection_criteria: str,
         full_text_acceptance_criteria: str,
         full_text_rejection_criteria: str,
+        abstract_screening_system_prompt: Optional[str] = None,
+        abstract_screening_user_prompt_template: Optional[str] = None,
+        abstract_screening_response_schema: Optional[Dict[str, Any]] = None,
+        abstract_screening_exit_metric: Optional[str] = None,
+        full_text_screening_system_prompt: Optional[str] = None,
+        full_text_screening_user_prompt_template: Optional[str] = None,
+        full_text_screening_response_schema: Optional[Dict[str, Any]] = None,
+        full_text_screening_exit_metric: Optional[str] = None,
         signal_score_code: Optional[str] = None,
         screening_llm_model: str = "google/gemini-3.7-flash",
         ocr_provider: Optional[str] = None,
         reasoning_effort: str = "medium",
         skip_abstract_screening: bool = False,
+        extraction_definitions: Optional[List[Dict[str, Any]]] = None,
+        scrapers: Optional[List[Dict[str, Any]]] = None,
+        subscribers: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         payload = {
             "name": name,
             "abstract_acceptance_criteria": abstract_acceptance_criteria,
             "abstract_rejection_criteria": abstract_rejection_criteria,
+            "abstract_screening_system_prompt": abstract_screening_system_prompt,
+            "abstract_screening_user_prompt_template": abstract_screening_user_prompt_template,
+            "abstract_screening_response_schema": abstract_screening_response_schema,
+            "abstract_screening_exit_metric": abstract_screening_exit_metric,
             "full_text_acceptance_criteria": full_text_acceptance_criteria,
             "full_text_rejection_criteria": full_text_rejection_criteria,
+            "full_text_screening_system_prompt": full_text_screening_system_prompt,
+            "full_text_screening_user_prompt_template": full_text_screening_user_prompt_template,
+            "full_text_screening_response_schema": full_text_screening_response_schema,
+            "full_text_screening_exit_metric": full_text_screening_exit_metric,
             "signal_score_code": signal_score_code,
             "screening_llm_model": screening_llm_model,
             "ocr_provider": ocr_provider,
             "reasoning_effort": reasoning_effort,
             "skip_abstract_screening": skip_abstract_screening,
         }
-        logger.info(f"🏗️ Creating Workspace '{name}'...")
+        if extraction_definitions:
+            payload["extraction_definitions"] = extraction_definitions
+        if scrapers:
+            payload["scrapers"] = scrapers
+        if subscribers:
+            payload["subscribers"] = subscribers
+
+        logger.info(f"🏗️ Creating Workspace '{name}' with full dual-stage criteria, dynamic schemas & extraction targets...")
         resp = self.client.post("/api/workspaces/", json_data=payload, expected_status=201)
         data = resp.json()
         logger.info(f"✅ Workspace created with ID: {data.get('id')}")
@@ -137,3 +163,41 @@ class WorkspaceService:
             return None
         else:
             raise AssertionError(f"Failed to create extraction definition: {resp.status_code} - {resp.text}")
+
+    def list_extraction_definitions(self, workspace_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        params = {}
+        if workspace_id:
+            params["workspace"] = workspace_id
+        resp = self.client.get("/api/extraction-definitions/", params=params)
+        if resp.status_code == 404:
+            return []
+        data = resp.json()
+        return data.get("results", data) if isinstance(data, dict) else data
+
+    def delete_extraction_definition(self, definition_id: str) -> bool:
+        resp = self.client.delete(f"/api/extraction-definitions/{definition_id}/")
+        return resp.status_code in (200, 204)
+
+    def cleanup_old_extraction_definitions(self, prefix: str = "test_e2e_") -> int:
+        """
+        Finds and deletes all previous extraction definitions matching prefix (e.g. 'test_e2e_').
+        """
+        logger.info(f"🧹 Checking for previous '{prefix}*' extraction definitions to clean up...")
+        try:
+            defs = self.list_extraction_definitions()
+            to_delete = [d for d in defs if d.get("name", "").startswith(prefix)]
+            count = 0
+            for d in to_delete:
+                def_id = d.get("id")
+                def_name = d.get("name")
+                logger.info(f"   🗑️ Purging previous extraction definition '{def_name}' ({def_id})...")
+                if self.delete_extraction_definition(def_id):
+                    count += 1
+            if count > 0:
+                logger.info(f"✅ Cleaned up {count} old extraction definition(s).")
+            else:
+                logger.info("✅ No previous extraction definitions found.")
+            return count
+        except Exception as e:
+            logger.warning(f"Could not complete pre-cleanup of old extraction definitions: {e}")
+            return 0

@@ -56,3 +56,13 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         member = WorkspaceMember.objects.filter(workspace=obj, user=request.user).first()
         return member.role if member else None
 
+    def get_user_role(self, obj):
+        request = self.context.get('request')
+        if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
+            return None
+        if getattr(request.user, 'is_superuser', False):
+            return 'admin'
+        from research_intelligence.models import WorkspaceMember
+        member = WorkspaceMember.objects.filter(workspace=obj, user=request.user).first()
+        return member.role if member else None
+

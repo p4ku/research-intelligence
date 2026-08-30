@@ -73,11 +73,12 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         auth_data = auth.login(cfg.username, cfg.password)
         scenario_results["user_id"] = auth_data.get("user_id")
 
-        # Step 1b: Pre-clean any old test workspaces if cleanup_before is enabled
+        # Step 1b: Pre-clean any old test workspaces and test extraction definitions
         if cfg.cleanup_before:
             ws_svc.cleanup_old_test_workspaces(prefix="test_e2e_")
+            ws_svc.cleanup_old_extraction_definitions(prefix="test_e2e_")
 
-        # Step 2: Create Workspace with Dual-Stage Criteria & Python Signal Score formula
+        # Step 2: Create Workspace with Complete Dual-Stage Dynamic Criteria, Schemas, Prompts & Python Signal Score
         abstract_acceptance = (
             "Accept research papers discussing artificial intelligence, machine learning, neural networks, "
             "optimization algorithms, or quantum computing computational methods."
@@ -85,6 +86,39 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         abstract_rejection = (
             "Reject only non-technical opinion articles or completely unrelated biology papers."
         )
+        abstract_system_prompt = (
+            "You are an expert AI Research Scanner. Screen the provided academic abstract against "
+            "the workspace Acceptance Criteria and Rejection Criteria.\n"
+            "Provide a strict structured evaluation including:\n"
+            "- 'passed': boolean (True if it satisfies Acceptance Criteria and avoids Rejection Criteria)\n"
+            "- 'reasoning': concise, high-impact justification for the decision\n"
+            "- 'evidence_quotes': list of exact quotes or key phrases from the abstract supporting your decision\n"
+            "- 'decision_category': string category such as 'ACCEPTED: Core scope match', 'REJECTED: Excluded domain', etc."
+        )
+        abstract_user_template = (
+            "Title: {title}\n"
+            "Abstract:\n{abstract}\n\n"
+            "Acceptance Criteria (must satisfy to pass):\n{acceptance_criteria}\n\n"
+            "Rejection Criteria (if matched, paper is rejected):\n{rejection_criteria}"
+        )
+        abstract_response_schema = {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean"},
+                "reasoning": {"type": "string"},
+                "evidence_quotes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Specific quotes or key phrases extracted from the abstract supporting the decision"
+                },
+                "decision_category": {
+                    "type": "string",
+                    "description": "High level category describing why the paper passed or failed"
+                }
+            },
+            "required": ["passed", "reasoning", "evidence_quotes", "decision_category"]
+        }
+
         full_text_acceptance = (
             "Accept research papers presenting algorithms, computational methods, machine learning models, "
             "or mathematical optimization evaluations."
@@ -92,21 +126,206 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         full_text_rejection = (
             "Reject only papers with zero technical or algorithmic discussion."
         )
-        signal_score_code = (
-            "score = 0.5 * fit_score + 0.3 * (trl_level * 1.1) + 0.2 * 8.0\n"
-            "return round(min(100.0, score * 10.0), 2)\n"
+        full_text_system_prompt = (
+            "You are an expert AI Research Analyst. Perform a deep full-text evaluation of the provided "
+            "academic paper against the workspace Acceptance Criteria and Rejection Criteria.\n"
+            "Provide a strict structured evaluation including:\n"
+            "- 'passed': boolean (True if the methodology satisfies Acceptance Criteria and avoids Rejection Criteria)\n"
+            "- 'reasoning': concise, high-impact justification citing key findings from the text/document\n"
+            "- 'evidence_quotes': list of exact quotes or key technical phrases from the paper supporting your decision\n"
+            "- 'fit_score': strategic technical fit score from 1.0 to 10.0\n"
+            "- 'decision_category': string category such as 'ACCEPTED: Full-text validation', 'REJECTED: Excluded methodology', etc."
         )
+        full_text_user_template = (
+            "Title: {title}\n\n"
+            "Full-Text Content:\n{full_text}\n\n"
+            "Acceptance Criteria (must satisfy to pass):\n{acceptance_criteria}\n\n"
+            "Rejection Criteria (if matched, paper is rejected):\n{rejection_criteria}"
+        )
+        full_text_response_schema = {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean"},
+                "reasoning": {"type": "string"},
+                "evidence_quotes": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Specific quotes or key technical phrases extracted from the paper supporting the decision"
+                },
+                "fit_score": {
+                    "type": "number",
+                    "minimum": 1.0,
+                    "maximum": 10.0,
+                    "description": "Strategic technical fit score from 1.0 to 10.0"
+                },
+                "decision_category": {
+                    "type": "string",
+                    "description": "High level category describing why the paper passed or failed full-text evaluation"
+                }
+            },
+            "required": ["passed", "reasoning", "evidence_quotes", "fit_score", "decision_category"]
+        }
+
+        signal_score_code = (
+            "# Jeśli TRL jest zbyt niski, odrzuć ze scoringu\n"
+            "if trl_level < 3.0:\n"
+            "    return 0.0\n"
+            "base = 0.6 * fit_score + 0.4 * novelty_score\n"
+            "multiplier = 1.25 if trl_level >= 7.0 else 1.0\n"
+            "return round(base * multiplier, 2)\n"
+        )
+
+        extraction_definitions_payload = [
+            {
+                "name": f"test_e2e_novelty_{random_suffix}",
+                "exit_metric": "novelty_score",
+                "llm_model": "google/gemini-3.7-flash",
+                "system_prompt": (
+                    "You are an expert peer reviewer evaluating scientific novelty according to NeurIPS reviewer guidelines.\n\n"
+                    "Novelty Scale & Bands (1 to 100):\n"
+                    "- Incremental (1 to 25): A minor variation on established work, with no new capability or framing.\n"
+                    "- Additive (26 to 50): A useful extension or a new combination of known techniques.\n"
+                    "- Substantial (51 to 75): A new method, dataset, or problem framing that clearly differs from prior work.\n"
+                    "- Transformative (76 to 100): A departure that opens a direction not present in the cited literature.\n\n"
+                    "Assign a precise novelty_score (1-100), identify the corresponding novelty_band, and provide a grounded justification."
+                ),
+                "user_prompt_template": "Please evaluate the novelty of the following paper:\n\nTitle: {title}\nAbstract/Content:\n{content}\n\nProvide your structured output strictly adhering to the JSON schema.",
+                "response_schema": {
+                    "type": "object",
+                    "required": ["novelty_score", "novelty_band", "justification", "departure_from_prior_work", "key_contributions"],
+                    "properties": {
+                        "novelty_band": {
+                            "enum": ["Incremental", "Additive", "Substantial", "Transformative"],
+                            "type": "string"
+                        },
+                        "justification": {"type": "string"},
+                        "novelty_score": {"type": "integer"},
+                        "key_contributions": {"type": "array", "items": {"type": "string"}},
+                        "departure_from_prior_work": {"type": "string"}
+                    }
+                },
+                "is_active": True
+            },
+            {
+                "name": f"test_e2e_rigour_{random_suffix}",
+                "exit_metric": "rigour_score",
+                "llm_model": "google/gemini-3.7-flash",
+                "system_prompt": (
+                    "You are an expert scientific peer reviewer assessing scientific Rigour and technical soundness based on NeurIPS review guidelines.\n\n"
+                    "Rigour Scale & Bands (1 to 100):\n"
+                    "- Weak (1 to 25): Claims largely unsupported, or a method with clear flaws.\n"
+                    "- Limited (26 to 50): Some support, with gaps in method or evidence.\n"
+                    "- Sound (51 to 75): Claims supported by appropriate and adequate evidence.\n"
+                    "- Strong (76 to 100): Claims thoroughly supported with honest account of limitations.\n\n"
+                    "Assign a rigour_score (1-100), select the corresponding rigour_band, and detail the technical soundness."
+                ),
+                "user_prompt_template": "Please evaluate the scientific Rigour of the following paper:\n\nTitle: {title}\nAbstract/Content:\n{content}\n\nProvide your evaluation strictly adhering to the JSON schema.",
+                "response_schema": {
+                    "type": "object",
+                    "required": ["rigour_score", "rigour_band", "justification", "methodological_soundness", "limitations_acknowledged", "evidence_gaps"],
+                    "properties": {
+                        "rigour_band": {"enum": ["Weak", "Limited", "Sound", "Strong"], "type": "string"},
+                        "rigour_score": {"type": "integer"},
+                        "evidence_gaps": {"type": "array", "items": {"type": "string"}},
+                        "justification": {"type": "string"},
+                        "limitations_acknowledged": {"type": "boolean"},
+                        "methodological_soundness": {"type": "string"}
+                    }
+                },
+                "is_active": True
+            },
+            {
+                "name": f"test_e2e_schwarz_fit_{random_suffix}",
+                "exit_metric": "fit_score",
+                "llm_model": "google/gemini-3.7-flash",
+                "system_prompt": (
+                    "You are a specialized enterprise technology evaluator assessing how closely research papers map to strategic business needs of the Schwarz Group.\n\n"
+                    "Score the overall Schwarz Fit on a 1–100 scale, evaluate each dimension, and provide a grounded justification."
+                ),
+                "user_prompt_template": "Please evaluate the Schwarz Fit for the following paper:\n\nTitle: {title}\nAbstract/Content:\n{content}\n\nProvide your structured output strictly adhering to the JSON response schema.",
+                "response_schema": {
+                    "type": "object",
+                    "required": ["fit_score", "need_match_assessment", "adoption_route_assessment", "market_width_assessment", "engagement_feasibility_assessment", "justification"],
+                    "properties": {
+                        "fit_score": {"type": "integer"},
+                        "justification": {"type": "string"},
+                        "need_match_assessment": {"type": "string"},
+                        "market_width_assessment": {"type": "string"},
+                        "adoption_route_assessment": {"type": "string"},
+                        "engagement_feasibility_assessment": {"type": "string"}
+                    }
+                },
+                "is_active": True
+            },
+            {
+                "name": f"test_e2e_significance_{random_suffix}",
+                "exit_metric": "significance_score",
+                "llm_model": "google/gemini-3.7-flash",
+                "system_prompt": (
+                    "You are an expert scientific evaluator reviewing paper significance based on NeurIPS reviewer guidelines.\n\n"
+                    "Significance Scale & Bands (1 to 100):\n"
+                    "- Narrow (1 to 25), Useful (26 to 50), Important (51 to 75), Field-shaping (76 to 100).\n"
+                    "Assign a significance_score (1-100) and detail the justification and reach."
+                ),
+                "user_prompt_template": "Please evaluate the Significance of the following paper:\n\nTitle: {title}\nAbstract/Content:\n{content}\n\nProvide your evaluation strictly adhering to the response schema.",
+                "response_schema": {
+                    "type": "object",
+                    "required": ["significance_score", "significance_band", "justification", "impact_reach", "key_outcomes"],
+                    "properties": {
+                        "impact_reach": {"type": "string"},
+                        "key_outcomes": {"type": "array", "items": {"type": "string"}},
+                        "justification": {"type": "string"},
+                        "significance_band": {"enum": ["Narrow", "Useful", "Important", "Field-shaping"], "type": "string"},
+                        "significance_score": {"type": "integer"}
+                    }
+                },
+                "is_active": True
+            },
+            {
+                "name": f"test_e2e_trl_{random_suffix}",
+                "exit_metric": "trl_level",
+                "llm_model": "google/gemini-3.7-flash",
+                "system_prompt": (
+                    "You are an expert scientific evaluator responsible for extracting and evaluating the Technology Readiness Level (TRL) of research papers based on the European Commission definition (Horizon Europe General Annex G).\n\n"
+                    "Evaluation Framework & Scale (1 to 9):\n"
+                    "- TRL 1 (Basic principles observed) to TRL 9 (Actual system proven in operational use).\n"
+                    "Assign an ordinal trl_level (1-9) with evidence quotes."
+                ),
+                "user_prompt_template": "Please evaluate and extract the Technology Readiness Level (TRL) for the following paper:\n\nTitle: {title}\nAbstract/Content:\n{content}\n\nProvide your evaluation adhering to the JSON schema.",
+                "response_schema": {
+                    "type": "object",
+                    "required": ["trl_level", "trl_label", "justification", "evidence_quote"],
+                    "properties": {
+                        "trl_label": {"type": "string"},
+                        "trl_level": {"enum": [1, 2, 3, 4, 5, 6, 7, 8, 9], "type": "integer"},
+                        "justification": {"type": "string"},
+                        "evidence_quote": {"type": "string"},
+                        "evidence_of_movement": {"type": "string"}
+                    }
+                },
+                "is_active": True
+            }
+        ]
 
         ws_data = ws_svc.create_workspace(
             name=workspace_name,
             abstract_acceptance_criteria=abstract_acceptance,
             abstract_rejection_criteria=abstract_rejection,
+            abstract_screening_system_prompt=abstract_system_prompt,
+            abstract_screening_user_prompt_template=abstract_user_template,
+            abstract_screening_response_schema=abstract_response_schema,
+            abstract_screening_exit_metric="decision_category",
             full_text_acceptance_criteria=full_text_acceptance,
             full_text_rejection_criteria=full_text_rejection,
+            full_text_screening_system_prompt=full_text_system_prompt,
+            full_text_screening_user_prompt_template=full_text_user_template,
+            full_text_screening_response_schema=full_text_response_schema,
+            full_text_screening_exit_metric="fit_score",
             signal_score_code=signal_score_code,
             screening_llm_model="google/gemini-3.7-flash",
             ocr_provider=None,  # Direct multimodal PDF mode
             reasoning_effort="medium",
+            extraction_definitions=extraction_definitions_payload,
         )
         workspace_id = ws_data["id"]
         scenario_results["workspace_id"] = workspace_id
@@ -122,61 +341,17 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         )
         scenario_results["scraper_id"] = scraper_data["id"]
 
-        # Step 4: Define Dynamic Extraction Targets
-        # 4a. Strategic Fit Target
-        ed_fit = ws_svc.create_extraction_definition(
-            workspace_id=workspace_id,
-            name="Strategic Fit",
-            exit_metric="fit_score",
-            system_prompt=(
-                "Evaluate the strategic fit and practicality of the quantum algorithm from 1 to 10. "
-                "Include key algorithmic family and verbatim quote."
-            ),
-            user_prompt_template="Title: {{paper_title}}\nAbstract: {{abstract}}\nFull Text: {{full_text}}",
-            response_schema={
-                "type": "object",
-                "properties": {
-                    "fit_score": {"type": "number", "minimum": 1, "maximum": 10},
-                    "algorithm_family": {"type": "string"},
-                    "verbatim_quote": {"type": "string"},
-                },
-                "required": ["fit_score", "algorithm_family", "verbatim_quote"],
-            },
-        )
-        # 4b. TRL Assessment Target
-        ed_trl = ws_svc.create_extraction_definition(
-            workspace_id=workspace_id,
-            name="TRL Assessment",
-            exit_metric="trl_level",
-            system_prompt="Assess Technology Readiness Level from 1 to 9 based on experimental hardware or simulation validation.",
-            user_prompt_template="Title: {{paper_title}}\nFull Text: {{full_text}}",
-            response_schema={
-                "type": "object",
-                "properties": {
-                    "trl_level": {"type": "number", "minimum": 1, "maximum": 9},
-                    "validation_type": {"type": "string", "enum": ["hardware_experiment", "simulation", "theoretical"]},
-                    "evidence_quote": {"type": "string"},
-                },
-                "required": ["trl_level", "validation_type", "evidence_quote"],
-            },
-        )
-        # 4c. Novelty Score Target
-        ed_nov = ws_svc.create_extraction_definition(
-            workspace_id=workspace_id,
-            name="Novelty Score",
-            exit_metric="novelty_score",
-            system_prompt="Rate the novelty and algorithmic innovation of the presented methodology from 1 to 10.",
-            user_prompt_template="Title: {{paper_title}}\nAbstract: {{abstract}}\nFull Text: {{full_text}}",
-            response_schema={
-                "type": "object",
-                "properties": {
-                    "novelty_score": {"type": "number", "minimum": 1, "maximum": 10},
-                    "core_innovation": {"type": "string"},
-                    "evidence_quote": {"type": "string"},
-                },
-                "required": ["novelty_score", "core_innovation", "evidence_quote"],
-            },
-        )
+        # Step 4: Define Dynamic Extraction Targets (Standalone endpoint fallback)
+        for ed_payload in extraction_definitions_payload:
+            ws_svc.create_extraction_definition(
+                workspace_id=workspace_id,
+                name=ed_payload["name"],
+                exit_metric=ed_payload["exit_metric"],
+                system_prompt=ed_payload["system_prompt"],
+                user_prompt_template=ed_payload["user_prompt_template"],
+                response_schema=ed_payload["response_schema"],
+                llm_model=ed_payload["llm_model"],
+            )
 
         # Step 5: Launch Autonomous Research Agent
         agent_proc = agent_svc.start_research_agent(
@@ -359,10 +534,15 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         return scenario_results
 
     finally:
-        if cfg.delete_after and scenario_results.get("workspace_id"):
+        if cfg.delete_after:
+            if scenario_results.get("workspace_id"):
+                try:
+                    ws_svc.delete_workspace(scenario_results["workspace_id"])
+                    scenario_results["cleaned_up"] = True
+                    logger.info(f"🧹 Cleaned up test workspace '{scenario_results['workspace_id']}' and all associated storage artifacts.")
+                except Exception as del_err:
+                    logger.warning(f"Failed to cleanup workspace '{scenario_results['workspace_id']}': {del_err}")
             try:
-                ws_svc.delete_workspace(scenario_results["workspace_id"])
-                scenario_results["cleaned_up"] = True
-                logger.info(f"🧹 Cleaned up test workspace '{scenario_results['workspace_id']}' and all associated storage artifacts.")
-            except Exception as del_err:
-                logger.warning(f"Failed to cleanup workspace '{scenario_results['workspace_id']}': {del_err}")
+                ws_svc.cleanup_old_extraction_definitions(prefix="test_e2e_")
+            except Exception as def_err:
+                logger.warning(f"Failed to cleanup test extraction definitions: {def_err}")
