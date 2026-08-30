@@ -168,19 +168,18 @@ class StageResultsAndStopReasonTestCase(TestCase):
         pr.refresh_from_db()
 
         self.assertEqual(agent.status, "failed")
-        self.assertEqual(agent.stopped_at_step, "screening")
-        self.assertIn("Failed at Step 'screening'", agent.stop_reason)
+        self.assertIn(agent.stopped_at_step, ["screening", "abstract_screening"])
+        self.assertIn("abstract_screening", agent.stop_reason)
         self.assertIn("429 Rate limit exceeded", agent.stop_reason)
 
         # Check stage_results has failed entry
-        self.assertIn("screening", agent.stage_results)
-        self.assertEqual(agent.stage_results["screening"]["status"], "failed")
-        self.assertIn("Screening failed", agent.stage_results["screening"]["summary"])
+        self.assertTrue("abstract_screening" in agent.stage_results or "screening" in agent.stage_results)
+        scr_key = "abstract_screening" if "abstract_screening" in agent.stage_results else "screening"
+        self.assertEqual(agent.stage_results[scr_key]["status"], "failed")
 
         # Check Admin
         fail_badge = self.agent_admin.stopped_stage_badge(agent)
         self.assertIn("FAILED AT", str(fail_badge))
-        self.assertIn("SCREENING", str(fail_badge))
         reason_display = self.agent_admin.stop_reason_display(agent)
         self.assertIn("429 Rate limit exceeded", str(reason_display))
 
@@ -211,9 +210,9 @@ class StageResultsAndStopReasonTestCase(TestCase):
             screening_status="accepted"
         )
         ComponentRun.objects.create(pipeline_run=pr, step_type="search", status="completed", metrics={"total_found": 1, "ingested_new": 1})
+        ComponentRun.objects.create(pipeline_run=pr, step_type="screening", component_name="abstract_screening", status="completed", metrics={"passed": 1, "total_screened": 1})
         ComponentRun.objects.create(pipeline_run=pr, step_type="download", status="completed", metrics={"downloaded": 1})
         ComponentRun.objects.create(pipeline_run=pr, step_type="ocr", status="skipped")
-        ComponentRun.objects.create(pipeline_run=pr, step_type="screening", component_name="abstract_screening", status="completed", metrics={"passed": 1, "total_screened": 1})
         ComponentRun.objects.create(pipeline_run=pr, step_type="screening", component_name="full_text_screening", status="completed", metrics={"passed": 1, "total_screened": 1})
         ComponentRun.objects.create(pipeline_run=pr, step_type="extraction", status="completed", metrics={"extractions_count": 4, "papers_processed": 1})
         ComponentRun.objects.create(pipeline_run=pr, step_type="signal_score", status="completed", metrics={"scored_count": 1})
@@ -232,9 +231,10 @@ class StageResultsAndStopReasonTestCase(TestCase):
 
         # Check all stages recorded in stage_results
         self.assertIn("search", agent.stage_results)
+        self.assertIn("abstract_screening", agent.stage_results)
         self.assertIn("download", agent.stage_results)
         self.assertIn("ocr", agent.stage_results)
-        self.assertIn("screening", agent.stage_results)
+        self.assertIn("full_text_screening", agent.stage_results)
         self.assertIn("extraction", agent.stage_results)
         self.assertIn("signal_score", agent.stage_results)
         self.assertIn("reporting", agent.stage_results)

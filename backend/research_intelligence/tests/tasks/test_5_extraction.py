@@ -108,7 +108,7 @@ class ExtractionTaskTestCase(TestCase):
     def test_extraction_node_contracts_and_dependencies(self):
         node = ExtractionNode()
         self.assertEqual(node.name, "extraction")
-        self.assertEqual(node.dependencies, ["screening"])
+        self.assertEqual(node.dependencies, ["full_text_screening"])
         self.assertIn("extraction_definitions", node.input_contract)
         self.assertIn("extractions", node.output_contract)
 

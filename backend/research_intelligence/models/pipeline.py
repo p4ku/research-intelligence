@@ -16,14 +16,16 @@ class PipelineRun(models.Model):
     run_date = models.DateField(auto_now_add=True, help_text="Date when this ingestion run was triggered")
     STAGE_CHOICES = [
         ('search', '1. Search & Metadata Ingestion'),
-        ('download', '2. PDF Binary Download'),
-        ('ocr', '3. Layout OCR Extraction'),
-        ('screening', '4. Abstract & Full-Text Screening'),
-        ('extraction', '5. Parameter & Claim Extraction'),
-        ('signal_score', '6. Composite Signal Score'),
-        ('metrics', '7. TRL & Importance Metrics'),
-        ('deep_research', '8. Deep Research Iteration'),
-        ('reporting', '9. Narrative Report Generation'),
+        ('abstract_screening', '2. Abstract Screening'),
+        ('download', '3. PDF Binary Download'),
+        ('ocr', '4. Layout OCR Extraction'),
+        ('full_text_screening', '5. Full-Text Screening'),
+        ('screening', 'Dual-Stage Screening (Legacy)'),
+        ('extraction', '6. Parameter & Claim Extraction'),
+        ('signal_score', '7. Composite Signal Score'),
+        ('metrics', 'TRL & Importance Metrics'),
+        ('deep_research', 'Deep Research Iteration'),
+        ('reporting', '8. Narrative Report Generation'),
         ('completed', 'Completed'),
     ]
 
@@ -113,7 +115,7 @@ class PipelineRun(models.Model):
 class ResearchAgentProcess(models.Model):
     """
     Autonomous State Machine Orchestrator running an ingestion & intelligence cycle for a Workspace.
-    Manages state transitions: initialized -> search -> download -> ocr (if ocr_provider set) -> screening -> extraction -> completed.
+    Manages state transitions: initialized -> search -> abstract_screening -> download -> ocr -> full_text_screening -> extraction -> signal_score -> reporting -> completed.
     Supports parallel runs, pause/resume/abort controls, dynamic search query modifiers (e.g. date_range_days),
     and sends completion/failure notifications.
     """
@@ -129,12 +131,14 @@ class ResearchAgentProcess(models.Model):
     STEP_CHOICES = [
         ('initialized', 'Initialized'),
         ('search', '1. Search & Ingestion'),
-        ('download', '2. PDF Download'),
-        ('ocr', '3. OCR Conversion'),
-        ('screening', '4. Abstract & Full-Text Screening'),
-        ('extraction', '5. Parameter & Claim Extraction'),
-        ('signal_score', '6. Signal Score Evaluation'),
-        ('reporting', '7. Narrative Reporting'),
+        ('abstract_screening', '2. Abstract Screening'),
+        ('download', '3. PDF Download'),
+        ('ocr', '4. OCR Conversion'),
+        ('full_text_screening', '5. Full-Text Screening'),
+        ('screening', 'Dual-Stage Screening (Legacy)'),
+        ('extraction', '6. Parameter & Claim Extraction'),
+        ('signal_score', '7. Signal Score Evaluation'),
+        ('reporting', '8. Narrative Reporting'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
         ('aborted', 'Aborted')

@@ -189,12 +189,20 @@ class ResearchAgentRunner:
         recipients = set()
 
         # Explicit override in config or workspace setting
-        override_email = (
-            agent_process.configuration_override.get("notification_email")
+        cfg_emails = (
+            agent_process.configuration_override.get("notification_emails")
+            or agent_process.configuration_override.get("notification_email")
             or agent_process.workspace.notification_email
         )
-        if override_email:
-            recipients.add(override_email.strip())
+        if cfg_emails:
+            if isinstance(cfg_emails, list):
+                for em in cfg_emails:
+                    if em:
+                        recipients.add(str(em).strip())
+            else:
+                for em in str(cfg_emails).split(","):
+                    if em.strip():
+                        recipients.add(em.strip())
 
         # Determine event type
         is_error = agent_process.status in ['failed', 'aborted']

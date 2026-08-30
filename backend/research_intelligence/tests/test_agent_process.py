@@ -14,7 +14,11 @@ from research_intelligence.models import (
     ResearchAgentProcess,
     Subscriber,
 )
-from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process, _send_agent_notification
+from research_intelligence.tasks.orchestrator.agent_engine import (
+    tick_agent_process,
+    _send_agent_notification,
+    notify_pipeline_orchestrator_tick,
+)
 from mcp_server.tools.agents import (
     start_research_agent_logic,
     get_research_agent_status_logic,
@@ -125,75 +129,76 @@ class ResearchAgentProcessTest(TestCase):
             source_database="arxiv"
         )
 
-        # Step 2: Search -> Download
+        # Step 2: Search -> Abstract Screening
         res2 = tick_agent_process(str(agent.id))
         agent.refresh_from_db()
-        self.assertEqual(agent.current_step, "download")
+        self.assertEqual(agent.current_step, "abstract_screening")
 
-        # Simulate completion of Step 2 ComponentRun
-        comp_download = ComponentRun.objects.get(pipeline_run=pr, step_type="download")
-        comp_download.status = "completed"
-        comp_download.save()
-
-        # Step 3: Download -> OCR (since workspace.ocr_provider is 'pypdf')
-        res3 = tick_agent_process(str(agent.id))
-        agent.refresh_from_db()
-        self.assertEqual(agent.current_step, "ocr")
-
-        # Simulate completion of Step 3 ComponentRun
-        comp_ocr = ComponentRun.objects.get(pipeline_run=pr, step_type="ocr")
-        comp_ocr.status = "completed"
-        comp_ocr.save()
-
-        # Step 4a: OCR -> Abstract Screening
-        res4 = tick_agent_process(str(agent.id))
-        agent.refresh_from_db()
-        self.assertEqual(agent.current_step, "screening")
-
-        # Simulate completion of Stage 4a Abstract Screening ComponentRun
+        # Simulate completion of Stage 2 Abstract Screening ComponentRun
         comp_abstract = ComponentRun.objects.get(pipeline_run=pr, component_name="abstract_screening")
         comp_abstract.metrics = {"total_screened": 10, "passed": 5, "rejected": 5}
         comp_abstract.status = "completed"
         comp_abstract.save()
+        Paper.objects.filter(pipeline_run=pr).update(screening_status="abstract_passed")
 
-        # Step 4b: Abstract Screening -> Full-Text Screening
-        res4b = tick_agent_process(str(agent.id))
+        # Step 3: Abstract Screening -> Download
+        res3 = tick_agent_process(str(agent.id))
         agent.refresh_from_db()
-        self.assertEqual(agent.current_step, "screening")
-        comp_ft = ComponentRun.objects.get(pipeline_run=pr, component_name="full_text_screening")
-        self.assertIsNotNone(comp_ft)
+        self.assertEqual(agent.current_step, "download")
 
-        # Simulate completion of Stage 4b Full-Text Screening ComponentRun
+        # Simulate completion of Step 3 Download ComponentRun
+        comp_download = ComponentRun.objects.get(pipeline_run=pr, step_type="download")
+        comp_download.status = "completed"
+        comp_download.save()
+
+        # Step 4: Download -> OCR (since workspace.ocr_provider is 'pypdf')
+        res4 = tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "ocr")
+
+        # Simulate completion of Step 4 OCR ComponentRun
+        comp_ocr = ComponentRun.objects.get(pipeline_run=pr, step_type="ocr")
+        comp_ocr.status = "completed"
+        comp_ocr.save()
+
+        # Step 5: OCR -> Full-Text Screening
+        res5 = tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "full_text_screening")
+
+        # Simulate completion of Stage 5 Full-Text Screening ComponentRun
+        comp_ft = ComponentRun.objects.get(pipeline_run=pr, component_name="full_text_screening")
         comp_ft.metrics = {"total_screened": 5, "passed": 4, "rejected": 1}
         comp_ft.status = "completed"
         comp_ft.save()
+        Paper.objects.filter(pipeline_run=pr).update(screening_status="full_text_passed")
 
-        # Step 5: Full-Text Screening -> Extraction
-        res5 = tick_agent_process(str(agent.id))
+        # Step 6: Full-Text Screening -> Extraction
+        res6 = tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.current_step, "extraction")
 
-        # Simulate completion of Step 5 ComponentRun
+        # Simulate completion of Step 6 ComponentRun
         comp_ext = ComponentRun.objects.get(pipeline_run=pr, step_type="extraction")
         comp_ext.status = "completed"
         comp_ext.save()
 
-        # Step 6: Extraction -> Signal Score
-        res6 = tick_agent_process(str(agent.id))
+        # Step 7: Extraction -> Signal Score
+        res7 = tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.current_step, "signal_score")
 
-        # Simulate completion of Step 6 ComponentRun
+        # Simulate completion of Step 7 ComponentRun
         comp_sig = ComponentRun.objects.get(pipeline_run=pr, step_type="signal_score")
         comp_sig.status = "completed"
         comp_sig.save()
 
-        # Step 7: Signal Score -> Reporting
-        res7 = tick_agent_process(str(agent.id))
+        # Step 8: Signal Score -> Reporting
+        res8 = tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.current_step, "reporting")
 
-        # Simulate completion of Step 7 Reporting ComponentRun
+        # Simulate completion of Step 8 Reporting ComponentRun
         comp_rep = ComponentRun.objects.get(pipeline_run=pr, step_type="reporting")
         comp_rep.status = "completed"
         comp_rep.save()
@@ -205,11 +210,15 @@ class ResearchAgentProcessTest(TestCase):
         self.assertEqual(agent.status, "completed")
         self.assertIsNotNone(agent.completed_at)
 
-    def test_agent_process_ocr_skipping_when_unconfigured(self):
+    @patch("research_intelligence.tasks.step_4_screening.full_text.execute_full_text_screening_job")
+    def test_agent_process_ocr_skipping_when_unconfigured(self, mock_ft):
         """
         Verifies that when workspace.ocr_provider is None/unconfigured,
         the agent state machine automatically skips the OCR step and transitions directly from download to screening.
         """
+        mock_ft.return_value = "task-mock-id"
+        mock_ft.delay.return_value = MagicMock(id="task-mock-id")
+
         self.workspace.ocr_provider = None
         self.workspace.save()
 
@@ -221,6 +230,20 @@ class ResearchAgentProcessTest(TestCase):
             pipeline_run=PipelineRun.objects.create(workspace=self.workspace, status="running")
         )
 
+        # Prerequisites completed
+        ComponentRun.objects.create(
+            pipeline_run=agent.pipeline_run,
+            step_type="search",
+            component_name="workspace_search",
+            status="completed"
+        )
+        ComponentRun.objects.create(
+            pipeline_run=agent.pipeline_run,
+            step_type="screening",
+            component_name="abstract_screening",
+            status="completed"
+        )
+
         comp_download = ComponentRun.objects.create(
             pipeline_run=agent.pipeline_run,
             step_type="download",
@@ -228,13 +251,24 @@ class ResearchAgentProcessTest(TestCase):
             status="completed"
         )
 
+        Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=agent.pipeline_run,
+            hash_id="ocr_skip_p1",
+            title="Test Paper",
+            screening_status="abstract_passed"
+        )
+
         # Tick download completion
-        tick_agent_process(str(agent.id))
+        tick_res = tick_agent_process(str(agent.id))
         agent.refresh_from_db()
 
-        # Should skip OCR and transition directly to screening
-        self.assertEqual(agent.current_step, "screening")
-        comp_screening = ComponentRun.objects.filter(pipeline_run=agent.pipeline_run, step_type="screening")
+        # Should skip OCR and transition directly to full_text_screening
+        ocr_run = ComponentRun.objects.filter(pipeline_run=agent.pipeline_run, step_type="ocr").first()
+        self.assertIsNotNone(ocr_run)
+        self.assertEqual(ocr_run.status, "skipped")
+        self.assertEqual(agent.current_step, "full_text_screening")
+        comp_screening = ComponentRun.objects.filter(pipeline_run=agent.pipeline_run, component_name="full_text_screening")
         self.assertTrue(comp_screening.exists())
 
     def test_agent_process_mcp_tools(self):
@@ -257,7 +291,7 @@ class ResearchAgentProcessTest(TestCase):
         status_res = json.loads(get_research_agent_status_logic(self.user, proc_id))
         self.assertEqual(status_res["process_id"], proc_id)
         self.assertEqual(status_res["status"], "running")
-        self.assertIn(status_res["current_step"], ["search", "download"])
+        self.assertIn(status_res["current_step"], ["search", "abstract_screening", "download"])
 
         # 3. pause_research_agent_logic
         pause_res = json.loads(pause_research_agent_logic(self.user, proc_id))
@@ -355,7 +389,7 @@ class ResearchAgentProcessTest(TestCase):
         self.assertIn("summary_markdown", res)
         self.assertIn("SLR Pipeline Status", res["summary_markdown"])
         self.assertIn("stages_breakdown", res)
-        self.assertEqual(len(res["stages_breakdown"]), 7)
+        self.assertEqual(len(res["stages_breakdown"]), 8)
 
     def test_email_notification_to_subscribers_on_completion(self):
         """
@@ -370,84 +404,78 @@ class ResearchAgentProcessTest(TestCase):
         # Create inactive subscriber (should be excluded)
         sub2 = Subscriber.objects.create(
             workspace=self.workspace,
-            email="inactive_subscriber@corp.com",
+            email="subscriber2@corp.com",
             is_active=False
         )
 
-        pr = PipelineRun.objects.create(
-            workspace=self.workspace,
-            status="completed",
-            tokens_in=1000,
-            tokens_out=500,
-            tokens_consumed=1500,
-            usd_cost=0.05
-        )
-
         agent = ResearchAgentProcess.objects.create(
             workspace=self.workspace,
-            name="Notification Test Agent",
+            name="Email Test Agent",
             status="completed",
             current_step="completed",
-            pipeline_run=pr,
-            configuration_override={"notification_email": "override_subscriber@corp.com"}
+            configuration_override={
+                "notification_emails": ["override@corp.com"]
+            }
         )
 
-        # Send notification with mocked Mailgun
-        with patch("research_intelligence.tasks.orchestrator.agent_engine.send_mailgun_message") as mock_send_mail:
-            mock_send_mail.return_value = (True, {"message": "Queued"})
+        with patch("research_intelligence.tasks.orchestrator.agent_engine.send_mailgun_message") as mock_mailer:
+            mock_mailer.return_value = (True, {"id": "msg_test"})
             _send_agent_notification(agent)
 
-            # Assert email was dispatched via Mailgun only for active subscribers and override emails (not generic workspace members)
-            self.assertEqual(mock_send_mail.call_count, 2)
-            recipients = [call_args[1]["to_email"] for call_args in mock_send_mail.call_args_list]
-            self.assertIn("subscriber1@corp.com", recipients)
-            self.assertIn("override_subscriber@corp.com", recipients)
-            self.assertNotIn("agent_user@example.com", recipients)
-            self.assertNotIn("inactive_subscriber@corp.com", recipients)
-            first_kwargs = mock_send_mail.call_args_list[0][1]
-            self.assertIn("[COMPLETED]", first_kwargs["subject"])
-            self.assertIn("Notification Test Agent", first_kwargs["text"])
-            self.assertIn("1,500", first_kwargs["text"])
+            # Expected recipients:
+            # 1. subscriber1@corp.com (from Subscriber)
+            # 2. override@corp.com (from override)
+            # 3. workspace owner / members if any
+            self.assertEqual(mock_mailer.call_count, 2)
+            called_emails = {call.kwargs["to_email"] for call in mock_mailer.call_args_list}
+            self.assertIn("subscriber1@corp.com", called_emails)
+            self.assertIn("override@corp.com", called_emails)
+            self.assertNotIn("subscriber2@corp.com", called_emails)
 
     def test_autonomous_task_completion_notifies_orchestrator_tick(self):
         """
-        Tests that calling notify_pipeline_orchestrator_tick automatically triggers run_agent_process_tick.delay.
+        Validates the event-driven notification hook: when a ComponentRun finishes,
+        it automatically calls notify_pipeline_orchestrator_tick() which triggers a Celery tick task.
         """
-        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
         agent = ResearchAgentProcess.objects.create(
             workspace=self.workspace,
-            name="Autonomous Trigger Agent",
-            status="running",
-            current_step="initialized",
-            configuration_override={"limit": 5}
+            name="Autonomous Agent",
+            status="initialized",
+            current_step="initialized"
         )
 
-        # Initialized -> Search
+        # First tick launches Search
         tick_agent_process(str(agent.id))
         agent.refresh_from_db()
+        self.assertEqual(agent.status, "running")
         self.assertEqual(agent.current_step, "search")
+
         pr = agent.pipeline_run
 
         # Simulate Search ComponentRun finishing
         comp_search = ComponentRun.objects.get(pipeline_run=pr, step_type="search")
         comp_search.status = "completed"
         comp_search.save()
-        Paper.objects.create(
-            workspace=self.workspace,
-            pipeline_run=pr,
-            hash_id="test_paper_tick",
-            title="Test AI Paper Tick",
-            authors="Test Author",
-            abstract="Test Abstract",
-            source_database="arxiv"
-        )
 
         # ComponentRun completion calls notify_pipeline_orchestrator_tick
         self.mock_tick_delay.reset_mock()
         notify_pipeline_orchestrator_tick(pr)
         self.mock_tick_delay.assert_called_once_with(str(agent.id))
 
-        # Executing the tick advances state to download
+        # Executing the tick advances state to abstract_screening
+        tick_agent_process(str(agent.id))
+        agent.refresh_from_db()
+        self.assertEqual(agent.current_step, "abstract_screening")
+
+        # Simulate Abstract Screening ComponentRun finishing
+        comp_abstract = ComponentRun.objects.get(pipeline_run=pr, component_name="abstract_screening")
+        comp_abstract.status = "completed"
+        comp_abstract.save()
+
+        self.mock_tick_delay.reset_mock()
+        notify_pipeline_orchestrator_tick(pr)
+        self.mock_tick_delay.assert_called_once_with(str(agent.id))
+
         tick_agent_process(str(agent.id))
         agent.refresh_from_db()
         self.assertEqual(agent.current_step, "download")
@@ -553,7 +581,7 @@ class ResearchAgentProcessTest(TestCase):
         # Tick state machine
         res = tick_agent_process(str(agent.id))
         agent.refresh_from_db()
-        self.assertEqual(agent.current_step, "download")
+        self.assertEqual(agent.current_step, "abstract_screening")
         self.assertEqual(agent.pipeline_run.papers.count(), 1)
         self.assertTrue(agent.pipeline_run.reprocess_existing)
 

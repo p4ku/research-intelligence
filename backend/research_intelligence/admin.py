@@ -1666,10 +1666,13 @@ class ComponentRunAdmin(admin.ModelAdmin):
             pr = comp.pipeline_run
             dag = build_default_slr_dag(pr.workspace)
             target_node = None
-            for n_name, node in dag.nodes.items():
-                if node.step_type == comp.step_type:
-                    target_node = n_name
-                    break
+            if comp.component_name in dag.nodes:
+                target_node = comp.component_name
+            else:
+                for n_name, node in dag.nodes.items():
+                    if node.step_type == comp.step_type:
+                        target_node = n_name
+                        break
 
             if target_node:
                 # 1. Reset DAG downstream from target node

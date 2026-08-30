@@ -21,8 +21,8 @@ class ExtractionNode(BaseWorkflowNode):
     name = "extraction"
     step_type = "extraction"
     component_name = "parameter_extraction"
-    description = "Extracts dynamic, schema-validated parameters, evidence quotes, and confidence scores."
-    dependencies = ["screening"]
+    description = "Step 6: Extracts dynamic, schema-validated parameters, evidence quotes, and confidence scores."
+    dependencies = ["full_text_screening"]
 
     input_contract = {
         "accepted_papers": "QuerySet[Paper] (papers with screening_status='accepted')",

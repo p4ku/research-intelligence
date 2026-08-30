@@ -139,21 +139,24 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
     """
     canonical_stages = [
         ("search", "1. Search & Ingestion", "🔍"),
-        ("download", "2. Parallel PDF Download", "📥"),
-        ("ocr", "3. Layout OCR Parsing", "📄"),
-        ("screening", "4. Dual-Stage Screening", "🎯"),
-        ("extraction", "5. Dynamic Parameter Extraction", "📊"),
-        ("signal_score", "6. Signal Score Ranking", "🧮"),
-        ("reporting", "7. Executive Reporting", "📑"),
+        ("abstract_screening", "2. Abstract Screening", "🎯"),
+        ("download", "3. Parallel PDF Download", "📥"),
+        ("ocr", "4. Layout OCR Parsing", "📄"),
+        ("full_text_screening", "5. Full-Text Screening", "🔬"),
+        ("extraction", "6. Dynamic Parameter Extraction", "📊"),
+        ("signal_score", "7. Signal Score Ranking", "🧮"),
+        ("reporting", "8. Executive Reporting", "📑"),
     ]
 
-    step_order = ["initialized", "search", "download", "ocr", "screening", "extraction", "signal_score", "reporting", "completed"]
+    step_order = ["initialized", "search", "abstract_screening", "download", "ocr", "full_text_screening", "screening", "extraction", "signal_score", "reporting", "completed"]
     step_weights = {
         "initialized": 5,
-        "search": 15,
-        "download": 30,
-        "ocr": 45,
-        "screening": 65,
+        "search": 12,
+        "abstract_screening": 25,
+        "download": 40,
+        "ocr": 55,
+        "full_text_screening": 70,
+        "screening": 70,
         "extraction": 85,
         "signal_score": 92,
         "reporting": 98,
@@ -183,11 +186,13 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
                 sub_pct = min(100, int((done / tot) * 100))
                 active_step_tqdm = f"{_render_progress_bar(sub_pct, length=12)} ({done}/{tot} items • {sub_pct}%)"
                 step_spans = {
-                    "search": (5, 15),
-                    "download": (15, 30),
-                    "ocr": (30, 45),
-                    "screening": (45, 65),
-                    "extraction": (65, 85),
+                    "search": (5, 12),
+                    "abstract_screening": (12, 25),
+                    "download": (25, 40),
+                    "ocr": (40, 55),
+                    "full_text_screening": (55, 70),
+                    "screening": (55, 70),
+                    "extraction": (70, 85),
                     "signal_score": (85, 92),
                     "reporting": (92, 98),
                 }
@@ -244,7 +249,11 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
             s_summary = res_info.get("message") or "Execution error in stage"
         else:
             # Infer from active agent state
-            if slug == "ocr" and not getattr(process.workspace, "ocr_provider", None):
+            if slug == "abstract_screening" and getattr(process.workspace, "skip_abstract_screening", False):
+                s_status = "skipped"
+                s_badge = "⏭️ Skipped"
+                s_summary = "Skipped by workspace configuration"
+            elif slug == "ocr" and not getattr(process.workspace, "ocr_provider", None):
                 s_status = "skipped"
                 s_badge = "⏭️ Skipped"
                 s_summary = "Direct multimodal PDF analysis with Gemini 3.7 Flash"
@@ -286,9 +295,17 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
                     s_summary = f"{fetched} papers created ({dupes} duplicates detected)"
                 elif fetched > 0:
                     s_summary = f"{fetched} papers created"
+        elif slug == "abstract_screening":
+            abs_s = paper_metrics.get("abstract_screening")
+            if abs_s and abs_s.get("screened", 0) > 0:
+                s_summary = f"{abs_s['passed']} passed, {abs_s['rejected']} rejected out of {abs_s['screened']}"
         elif slug == "download" and paper_metrics.get("downloaded_documents_count", 0) > 0:
             if s_status in ["completed", "in_progress"]:
                 s_summary = f"{paper_metrics['downloaded_documents_count']} PDFs downloaded"
+        elif slug == "full_text_screening":
+            ft_s = paper_metrics.get("full_text_screening")
+            if ft_s and ft_s.get("screened", 0) > 0:
+                s_summary = f"{ft_s['passed']} accepted, {ft_s['rejected']} rejected out of {ft_s['screened']}"
         elif slug == "screening":
             abs_s = paper_metrics.get("abstract_screening")
             ft_s = paper_metrics.get("full_text_screening")

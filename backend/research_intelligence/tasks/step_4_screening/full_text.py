@@ -506,3 +506,7 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
         notify_pipeline_orchestrator_tick(pipeline_run)
 
         return False
+
+
+# Backward compatibility alias
+execute_screening_job = execute_full_text_screening_job

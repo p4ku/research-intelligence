@@ -99,8 +99,8 @@ class PipelineMatrixCombinationsTestCase(TestCase):
         # Step 2: PDF Download (Index 2 fails download -> withdrawn)
         harness.complete_step_2_download(failed_paper_indices=[2])
         self.assertEqual(harness.papers[2].screening_status, "withdrawn")
-        # Direct multimodal skips OCR -> goes directly to screening
-        self.assertEqual(harness.agent_process.current_step, "screening")
+        # Direct multimodal skips OCR -> goes directly to full_text_screening
+        self.assertEqual(harness.agent_process.current_step, "full_text_screening")
 
         # Step 4: Full-Text Screening (papers 0 and 5 pass, papers 1, 3, 4 rejected)
         harness.complete_step_4b_full_text_screening(passed_paper_indices=[0, 5])
@@ -155,25 +155,27 @@ class PipelineMatrixCombinationsTestCase(TestCase):
         )
 
         harness.complete_step_1_search(self.cohort_papers)
-        self.assertEqual(harness.agent_process.current_step, "download")
+        self.assertEqual(harness.agent_process.current_step, "abstract_screening")
 
+        # Stage 2: Abstract Screening (0, 3, 5 pass; 1, 4 rejected)
+        harness.complete_step_4a_abstract_screening(passed_paper_indices=[0, 3, 5])
+        self.assertEqual(harness.agent_process.current_step, "download")
+        self.assertEqual(harness.papers[1].screening_status, "rejected")
+
+        # Stage 3: PDF Download (only for abstract_passed papers 0, 3, 5)
         harness.complete_step_2_download(failed_paper_indices=[2])
         self.assertEqual(harness.agent_process.current_step, "ocr")
 
+        # Stage 4: OCR
         harness.complete_step_3_ocr_if_needed()
-        self.assertEqual(harness.agent_process.current_step, "screening")
+        self.assertEqual(harness.agent_process.current_step, "full_text_screening")
 
-        # Stage 4a: Abstract Screening (0, 3, 5 pass; 1, 4 rejected)
-        harness.complete_step_4a_abstract_screening(passed_paper_indices=[0, 3, 5])
-        self.assertEqual(harness.agent_process.current_step, "screening")
-        self.assertEqual(harness.papers[1].screening_status, "rejected")
-
-        # Stage 4b: Full-Text Screening (0, 5 pass; 3 rejected)
+        # Stage 5: Full-Text Screening (0, 5 pass; 3 rejected)
         harness.complete_step_4b_full_text_screening(passed_paper_indices=[0, 5])
         self.assertEqual(harness.agent_process.current_step, "extraction")
         self.assertEqual(harness.papers[3].screening_status, "rejected")
 
-        # Step 5: Extraction
+        # Stage 6: Extraction
         harness.complete_step_5_extraction(sample_extracted_fields={"qubit_count": 127})
         self.assertEqual(harness.agent_process.status, "completed")
 
@@ -225,56 +227,57 @@ class PipelineMatrixCombinationsTestCase(TestCase):
         self.assertEqual(status_tick_1["component_runs"][0]["step_type"], "search")
         self.assertEqual(status_tick_1["component_runs"][0]["status"], "running")
 
-        # 2. Tick 2: Complete Search -> Download
+        # 2. Tick 2: Complete Search -> Abstract Screening
         harness.complete_step_1_search(self.cohort_papers[:3])
+        self.assertEqual(harness.agent_process.current_step, "abstract_screening")
+        self.assertEqual(harness.pipeline_run.current_stage, "abstract_screening")
+
+        with harness.introspector.intercept():
+            status_tick_2 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
+        self.assertEqual(status_tick_2["current_step"], "abstract_screening")
+        self.assertEqual(status_tick_2["paper_metrics"]["total_papers_fetched"], 3)
+        abs_runs = [cr for cr in status_tick_2["component_runs"] if "abstract" in cr["component_name"].lower()]
+        self.assertEqual(len(abs_runs), 1)
+        self.assertEqual(abs_runs[0]["status"], "running")
+
+        # 3. Tick 3: Complete Abstract Screening (2 pass, 1 reject) -> Download
+        harness.complete_step_4a_abstract_screening(passed_paper_indices=[0, 1])
         self.assertEqual(harness.agent_process.current_step, "download")
         self.assertEqual(harness.pipeline_run.current_stage, "download")
 
         with harness.introspector.intercept():
-            status_tick_2 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
-        self.assertEqual(status_tick_2["current_step"], "download")
-        self.assertEqual(status_tick_2["paper_metrics"]["total_papers_fetched"], 3)
-        dl_runs = [cr for cr in status_tick_2["component_runs"] if cr["step_type"] == "download"]
+            status_tick_3 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
+        self.assertEqual(status_tick_3["current_step"], "download")
+        self.assertIsNotNone(status_tick_3["paper_metrics"]["abstract_screening"])
+        self.assertEqual(status_tick_3["paper_metrics"]["abstract_screening"]["screened"], 3)
+        self.assertEqual(status_tick_3["paper_metrics"]["abstract_screening"]["passed"], 2)
+        self.assertEqual(status_tick_3["paper_metrics"]["abstract_screening"]["rejected"], 1)
+        dl_runs = [cr for cr in status_tick_3["component_runs"] if cr["step_type"] == "download"]
         self.assertEqual(len(dl_runs), 1)
         self.assertEqual(dl_runs[0]["status"], "running")
 
-        # 3. Tick 3: Complete Download -> OCR
+        # 4. Tick 4: Complete Download -> OCR
         harness.complete_step_2_download()
         self.assertEqual(harness.agent_process.current_step, "ocr")
         self.assertEqual(harness.pipeline_run.current_stage, "ocr")
 
         with harness.introspector.intercept():
-            status_tick_3 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
-        self.assertEqual(status_tick_3["current_step"], "ocr")
-        self.assertEqual(status_tick_3["paper_metrics"]["downloaded_documents_count"], 3)
-        ocr_runs = [cr for cr in status_tick_3["component_runs"] if cr["step_type"] == "ocr"]
+            status_tick_4 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
+        self.assertEqual(status_tick_4["current_step"], "ocr")
+        self.assertEqual(status_tick_4["paper_metrics"]["downloaded_documents_count"], 3)
+        ocr_runs = [cr for cr in status_tick_4["component_runs"] if cr["step_type"] == "ocr"]
         self.assertEqual(len(ocr_runs), 1)
         self.assertEqual(ocr_runs[0]["status"], "running")
 
-        # 4. Tick 4: Complete OCR -> Screening (Stage 4a: Abstract Screening)
+        # 5. Tick 5: Complete OCR -> Full-Text Screening
         harness.complete_step_3_ocr_if_needed()
-        self.assertEqual(harness.agent_process.current_step, "screening")
-        self.assertEqual(harness.pipeline_run.current_stage, "screening")
-
-        with harness.introspector.intercept():
-            status_tick_4 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
-        self.assertEqual(status_tick_4["current_step"], "screening")
-        self.assertEqual(status_tick_4["paper_metrics"]["ocr_converted_documents_count"], 3)
-        abs_runs = [cr for cr in status_tick_4["component_runs"] if "abstract" in cr["component_name"].lower()]
-        self.assertEqual(len(abs_runs), 1)
-        self.assertEqual(abs_runs[0]["status"], "running")
-
-        # 5. Tick 5: Complete Abstract Screening (2 pass, 1 reject) -> Stage 4b (Full-Text Screening)
-        harness.complete_step_4a_abstract_screening(passed_paper_indices=[0, 1])
-        self.assertEqual(harness.agent_process.current_step, "screening")
+        self.assertEqual(harness.agent_process.current_step, "full_text_screening")
+        self.assertEqual(harness.pipeline_run.current_stage, "full_text_screening")
 
         with harness.introspector.intercept():
             status_tick_5 = json.loads(get_research_agent_status_logic(user=harness.user, process_id=str(harness.agent_process.id)))
-        self.assertEqual(status_tick_5["current_step"], "screening")
-        self.assertIsNotNone(status_tick_5["paper_metrics"]["abstract_screening"])
-        self.assertEqual(status_tick_5["paper_metrics"]["abstract_screening"]["screened"], 3)
-        self.assertEqual(status_tick_5["paper_metrics"]["abstract_screening"]["passed"], 2)
-        self.assertEqual(status_tick_5["paper_metrics"]["abstract_screening"]["rejected"], 1)
+        self.assertEqual(status_tick_5["current_step"], "full_text_screening")
+        self.assertEqual(status_tick_5["paper_metrics"]["ocr_converted_documents_count"], 3)
         ft_runs = [cr for cr in status_tick_5["component_runs"] if "full_text" in cr["component_name"].lower()]
         self.assertEqual(len(ft_runs), 1)
         self.assertEqual(ft_runs[0]["status"], "running")
@@ -328,10 +331,8 @@ class PipelineMatrixCombinationsTestCase(TestCase):
         )
 
         harness.complete_step_1_search(self.cohort_papers[:3])
-        harness.complete_step_2_download()
-        harness.complete_step_3_ocr_if_needed()
 
-        # Step 4a: Abstract Screening with token consumption
+        # Step 2: Abstract Screening with token consumption
         harness.complete_step_4a_abstract_screening(
             passed_paper_indices=[0, 1],
             tokens_in=3500,
@@ -339,7 +340,13 @@ class PipelineMatrixCombinationsTestCase(TestCase):
             usd_cost=0.0042
         )
 
-        # Step 4b: Full-Text Screening with token consumption
+        # Step 3: PDF Download
+        harness.complete_step_2_download()
+
+        # Step 4: OCR
+        harness.complete_step_3_ocr_if_needed()
+
+        # Step 5: Full-Text Screening with token consumption
         harness.complete_step_4b_full_text_screening(
             passed_paper_indices=[0],
             tokens_in=18500,
@@ -347,7 +354,7 @@ class PipelineMatrixCombinationsTestCase(TestCase):
             usd_cost=0.0215
         )
 
-        # Step 5: Extraction with token consumption
+        # Step 6: Extraction with token consumption
         harness.complete_step_5_extraction(
             sample_extracted_fields={"runtime_seconds": 45.2},
             tokens_in=6200,
@@ -436,7 +443,7 @@ class PipelineMatrixCombinationsTestCase(TestCase):
         """
         harness = (
             PipelineTestHarness(name="Download Failure Lab")
-            .configure_workspace()
+            .configure_workspace(skip_abstract_screening=True)
             .add_scraper(provider="arxiv", search_query="quantum download")
             .start_agent("Failing Download Agent")
         )
@@ -460,7 +467,7 @@ class PipelineMatrixCombinationsTestCase(TestCase):
         """
         harness = (
             PipelineTestHarness(name="OCR Failure Lab")
-            .configure_workspace(ocr_provider="pypdf")
+            .configure_workspace(ocr_provider="pypdf", skip_abstract_screening=True)
             .add_scraper(provider="arxiv", search_query="quantum ocr")
             .start_agent("Failing OCR Agent")
         )
@@ -491,7 +498,7 @@ class PipelineMatrixCombinationsTestCase(TestCase):
         )
         harness.complete_step_1_search(self.cohort_papers[:2])
         harness.complete_step_2_download()
-        self.assertEqual(harness.agent_process.current_step, "screening")
+        self.assertEqual(harness.agent_process.current_step, "full_text_screening")
 
         harness.inject_failure_at_current_step(error_message="LLM Provider Quota Exhausted: 429 RESOURCE_EXHAUSTED")
 

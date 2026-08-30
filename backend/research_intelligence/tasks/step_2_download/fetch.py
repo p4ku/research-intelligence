@@ -165,7 +165,22 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
 
     try:
         start_time = time.time()
-        papers_qs = Paper.objects.filter(pipeline_run=pipeline_run)
+        # Paper selection logic:
+        # 1. If Abstract Screening was completed in this run (and not skipped), download ONLY papers with screening_status='abstract_passed'.
+        # 2. If Abstract Screening was skipped or not executed, download all papers in pipeline_run (excluding withdrawn/rejected).
+        abstract_run = ComponentRun.objects.filter(
+            pipeline_run=pipeline_run,
+            component_name='abstract_screening',
+            status='completed'
+        ).first()
+
+        if abstract_run:
+            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='abstract_passed')
+            logger.info(f"🔍 [PDF DOWNLOAD FILTER] Prior Abstract Screening job completed. Targeting {papers_qs.count()} papers with status='abstract_passed'.")
+        else:
+            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).exclude(screening_status__in=['rejected', 'withdrawn'])
+            logger.info(f"🔍 [PDF DOWNLOAD FILTER] Abstract Screening was skipped or absent. Targeting {papers_qs.count()} total candidate papers.")
+
         papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
         downloaded_count = 0
         cached_count = 0
