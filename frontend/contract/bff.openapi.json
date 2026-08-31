@@ -1342,6 +1342,12 @@
                                   },
                                   {
                                     "type": "string"
+                                  },
+                                  {
+                                    "type": "boolean"
+                                  },
+                                  {
+                                    "type": "null"
                                   }
                                 ]
                               }
@@ -3379,6 +3385,12 @@
                 },
                 {
                   "type": "string"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
                 }
               ]
             }
@@ -3707,6 +3719,12 @@
                         },
                         {
                           "type": "string"
+                        },
+                        {
+                          "type": "boolean"
+                        },
+                        {
+                          "type": "null"
                         }
                       ]
                     }

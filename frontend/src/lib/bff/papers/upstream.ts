@@ -5,10 +5,11 @@
  * Pure — the conformance script imports this.
  */
 import * as z from 'zod'
+import { scoreVariableValue } from './schema'
 
 /** `signal_score_details` on PaperMetric — `{}` until the scorer has run. */
 export const signalScoreDetailsDTO = z.looseObject({
-  variables: z.record(z.string(), z.union([z.number(), z.string()])).optional(),
+  variables: z.record(z.string(), scoreVariableValue).optional(),
   code_snippet: z.string().optional(),
   score: z.number().optional(),
   calculated_at: z.string().optional(),

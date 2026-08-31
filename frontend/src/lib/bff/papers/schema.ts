@@ -56,10 +56,19 @@ export const dimension = z
   .meta({ id: 'Dimension' })
 export type Dimension = z.infer<typeof dimension>
 
+/**
+ * A value the scoring formula saw. Extraction output is whatever the LLM
+ * produced for that dimension — production has booleans (e.g.
+ * `limitations_acknowledged`) alongside numbers and strings, and a null is
+ * possible when an extraction is missing.
+ */
+export const scoreVariableValue = z.union([z.number(), z.string(), z.boolean(), z.null()])
+export type ScoreVariableValue = z.infer<typeof scoreVariableValue>
+
 export const signalScoreDetails = z
   .object({
     /** Dimension key → the value the formula saw. */
-    variables: z.record(z.string(), z.union([z.number(), z.string()])),
+    variables: z.record(z.string(), scoreVariableValue),
     /** The workspace's scoring snippet as evaluated for this paper. */
     code_snippet: z.string().nullable(),
     calculated_at: z.string().nullable(),
