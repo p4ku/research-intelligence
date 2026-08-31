@@ -1,31 +1,41 @@
-# Use official Node.js 22 LTS base image
-FROM node:22-alpine
+# syntax=docker/dockerfile:1
+#
+# Research Intelligence frontend. Built with Bun (lockfile + install speed),
+# run on Node — Next.js's standalone server is a plain node script and the
+# oven/bun image has no `node` binary.
+#
+#   docker build --build-arg BUILD_ID=$(git rev-parse HEAD) -t research-scanner .
+#   docker run -p 3000:3000 -e BACKEND_INTERNAL_URL=http://host.docker.internal:8000 research-scanner
 
-# Set working directory
+FROM node:22-alpine AS base
+COPY --from=oven/bun:1-alpine /usr/local/bin/bun /usr/local/bin/bun
 WORKDIR /app
 
-# Set environment variables
-ENV NODE_ENV=production
-ENV NEXT_TELEMETRY_DISABLED=1
+FROM base AS deps
+COPY package.json bun.lock ./
+# Cache mounts keep bun's global package cache and Next's build cache across
+# rebuilds (carried over from main's npm Dockerfile).
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 
-# Install dependencies with persistent npm cache
-COPY package*.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm install --include=dev
-
-# Copy application source code
-COPY . .
-
-# Accept dynamic build ID from CI/CD to bust Docker build cache and asset hashes
+FROM base AS build
 ARG BUILD_ID=local
-ENV NEXT_PUBLIC_BUILD_ID=$BUILD_ID
-
-# Build Next.js production bundle with persistent Next.js build cache
+ENV BUILD_ID=$BUILD_ID NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
 RUN --mount=type=cache,target=/app/.next/cache \
-    npm run build
+    bun run build
 
-# Expose default port
+FROM node:22-alpine AS run
+ARG BUILD_ID=local
+# Runtime copy of the build id so /bff/status can report it.
+ENV BUILD_ID=$BUILD_ID
+WORKDIR /app
+# Cloud Foundry injects PORT; the standalone server honours it.
+ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 NEXT_TELEMETRY_DISABLED=1
+COPY --from=build /app/public ./public
+COPY --from=build /app/.next/standalone ./
+COPY --from=build /app/.next/static ./.next/static
+USER node
 EXPOSE 3000
-
-# Start application in production mode
-CMD ["npm", "run", "start"]
+CMD ["node", "server.js"]

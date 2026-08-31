@@ -1,0 +1,47 @@
+import { describe, expect, test } from 'bun:test'
+import { templateProse } from './prose'
+
+const paper = (title: string, signal: number | null) => ({
+  id: '00000000-0000-4000-8000-000000000001',
+  title,
+  authors: [],
+  source: 'arxiv',
+  signal_score: signal,
+})
+
+describe('templateProse', () => {
+  test('full run', () => {
+    const p = templateProse({
+      workspaceName: 'Agentic AI Scan',
+      fetched: 12,
+      passedScreening: 5,
+      surfaced: 3,
+      papers: [paper('Big Result: with subtitle', 87.5), paper('Second', 70), paper('Third', 60)],
+    })
+    expect(p.title).toBe('Big Result')
+    expect(p.in_brief).toContain('fetched 12 papers')
+    expect(p.in_brief).toContain('“Big Result” at signal 88')
+    expect(p.in_brief).toContain('Also notable: “Second” and “Third”.')
+  })
+  test('empty run', () => {
+    const p = templateProse({
+      workspaceName: 'Scan',
+      fetched: 1,
+      passedScreening: 0,
+      surfaced: 0,
+      papers: [],
+    })
+    expect(p.title).toBe('A quiet run')
+    expect(p.in_brief).toContain('fetched 1 paper;')
+  })
+  test('unscored leader has no signal clause', () => {
+    const p = templateProse({
+      workspaceName: 'Scan',
+      fetched: 3,
+      passedScreening: 1,
+      surfaced: 1,
+      papers: [paper('Solo', null)],
+    })
+    expect(p.in_brief).not.toContain('at signal')
+  })
+})

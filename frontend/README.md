@@ -1,89 +1,150 @@
-# 🖥️ Schwarz Research Intelligence - Frontend Web Application
+# Research Intelligence
 
-> **Minimalist, High-Performance Web Application built with Next.js (Pages Router), TypeScript, and Tailwind CSS.**
+Research Intelligence is an internal research-intelligence tool for an enterprise customer. It
+continuously reads new research papers, scores them across the dimensions that
+matter (technology readiness, novelty, significance, momentum, rigour, commercial
+potential), and surfaces **the next big thing** — starting with the agents & AI
+corpus.
 
----
+It is built for a mixed audience: an executive who wants a two-minute morning
+briefing, an analyst who lives in the filters, and a domain expert who wants a
+protected hour with one paper. Every score ships with a plain-English rationale
+so non-technical users can see _why_ something ranked where it did.
 
-## 🏛️ Directory Structure
+> **Status: Phase 2 core, fully behind the BFF seam.** This branch
+> (`phase-2-core`) is the frontend for the Django backend in
+> `schwarz-research-intelligence`. Every surface reads real data through
+> `src/lib/bff/*` — Ask streams the backend's chat, Briefings derive from
+> completed runs (template prose until the backend writes it), Settings save.
+> Each `src/app/bff/<resource>/` folder documents the Django endpoint we are
+> asking the backend team to build; start at `docs/backend-handoff.md`.
+> The concept prototypes and pitch material live on `main`.
 
-The frontend application uses a clean, modular Pages Router architecture with 100% Tailwind CSS styling:
+## What's here
+
+- **Login** — email or username + password at `/`, exchanged for the backend's
+  JWT pair by `/auth/login` and held in httpOnly cookies. There is no self-serve
+  sign-up; users and workspace memberships are managed in Django Admin.
+- **Workspace switcher** — the backend's unit of scope (criteria, extraction
+  definitions, runs). Remembered in the `rs-workspace` cookie.
+- **Core app**:
+  - **Today** (`/dashboard`) — the latest completed run in the workspace: its
+    funnel and the papers it surfaced, sortable by the workspace's definitions.
+  - **Briefings** (`/briefing`) — one edition per completed run: funnel,
+    surfaced papers, the screening log, and a brief (template-written until
+    the backend's reporting step lands).
+  - **Papers** (`/papers`) — every paper in the workspace scored against its
+    extraction definitions plus the backend's composite signal score; screening,
+    sort, ingest-window, signal-strength and (when defined) TRL filters; a detail
+    page with the score formula, per-dimension rationale and evidence, screening
+    notes, and arXiv/DOI links.
+  - **Scoring** (`/scoring`) — how the workspace ranks papers: the backend's
+    formula, variables, weights, and a worked example (read-only).
+  - **Ask** (`/ask`) — corpus- or paper-scoped Q&A streamed from the
+    backend's chat engine, with citations, visual evidence, a fact-check
+    verdict, and Django-backed history.
+  - **Settings** (`/settings`) — profile/password edits and the digest
+    toggle, saved to the backend where it can.
+- **Bilingual UI** — English source strings with a German dictionary
+  (`src/locales/de/`), switched from the user menu.
+
+## Documentation
+
+| Doc                                                        | What's in it                                                                                         |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| [`docs/making-it-real.md`](docs/making-it-real.md)         | The roadmap from mock to functional: ingestion, scoring pipeline, embeddings, auth, infra.           |
+| [`docs/design.md`](docs/design.md)                         | The design system: type, color, charts, layout patterns.                                             |
+| [`docs/tech-preferences.md`](docs/tech-preferences.md)     | The stack we build the real thing on.                                                                |
+| [`docs/backend-handoff.md`](docs/backend-handoff.md)       | **For the backend team**: the requested endpoints, conventions, work list, findings.                 |
+| [`docs/deploy-handoff.md`](docs/deploy-handoff.md)         | Shipping this frontend on Cloud Foundry (subtree, manifest env, smoke checks).                       |
+| [`src/app/bff/README.md`](src/app/bff/README.md)           | How the BFF seam works: sources/flags, conventions, per-resource contract READMEs.                   |
+| [`docs/backend-swap-notes.md`](docs/backend-swap-notes.md) | Working notes from wiring this app to the Django backend: topology, API facts, gotchas.              |
+| [`docs/backend-swap-plan.md`](docs/backend-swap-plan.md)   | The approved plan for slice 1 (infra + auth + Papers).                                               |
+
+## Project layout
 
 ```
-frontend/
-├── Dockerfile                  # Node.js 22 LTS production container build
-├── package.json                # Next.js 14, React 18, Tailwind CSS, Lucide icons
-├── next.config.js              # Dynamic build IDs, security & anti-caching HTTP headers
-├── tailwind.config.js          # Tailwind CSS design system tokens
-├── postcss.config.js           # PostCSS configuration
-├── tsconfig.json               # TypeScript configuration with @/* path aliases
-├── styles/
-│   └── globals.css             # Tailwind base, components, and utilities
-├── pages/                      # Application routes and page views
-│   ├── _app.tsx                # Global root layout, Head, AuthProvider & Navbar
-│   ├── index.tsx               # Root route (LandingPage or DashboardPage)
-│   ├── login/
-│   │   ├── index.tsx           # /login route entrypoint
-│   │   └── LoginPage.tsx       # Stealth authentication form
-│   ├── dashboard/
-│   │   ├── index.tsx           # /dashboard route entrypoint
-│   │   ├── DashboardPage.tsx   # Authenticated SLR Workspaces dashboard
-│   │   └── LandingPage.tsx     # Minimalist stealth landing hero
-│   └── status/
-│       ├── index.tsx           # /status route entrypoint
-│       └── StatusPage.tsx      # Infrastructure & microservice health probes
-├── components/                 # Reusable UI components
-│   ├── Navbar.tsx              # Minimalist navigation header with profile & role badge
-│   └── auth/
-│       └── ProtectedRoute.tsx  # Route guard with session verification
-└── lib/                        # Core application libraries
-    ├── auth/                   # JWT session management
-    │   ├── types.ts            # UserProfile, AuthTokens, LoginResponse interfaces
-    │   ├── token-storage.ts    # SSR-safe storage & JWT expiration decoder
-    │   └── auth-context.tsx    # React AuthContext & useAuth() hook
-    ├── api/                    # HTTP client
-    │   └── client.ts           # Typed fetch client with silent 401 token refresh interceptor
-    └── services/               # Domain services
-        └── workspace-service.ts# Typed workspace query & management service
+src/
+  app/
+    page.tsx            # / — login (public)
+    auth/login, logout  # route handlers: Django JWT ⇄ httpOnly cookies (not under /api)
+    bff/                # the seam's HTTP faces + a contract README per resource
+    (sidebar)/          # authenticated app
+      dashboard/        # Today: latest completed run + the day's brief
+      briefing/         # editions from completed runs (+ screening log)
+      papers/           # workspace papers + [id] detail
+      scoring/          # how the workspace scores (read-only)
+      ask/              # streamed Q&A over the backend chat engine
+      settings/         # profile, password, digest preference
+  proxy.ts              # reverse-proxies backend prefixes; session gate + token refresh
+  lib/
+    bff/                # the seam: core/ plumbing + per-resource schema/service/contract
+    api/                # server-only Django fetch primitive + inferred DTO types
+    auth/               # cookies, JWT decode, session user
+    chat/               # useChatStream client hook
+    sse/                # SSE parser + writer (shared by server and browser)
+    papers/             # pure derivation rules (the backend port reference; bun test)
+    workspace*.ts       # workspace scope cookie
+    i18n*.ts            # demo-scale i18n: t() over the German dictionary (chrome only)
+  locales/de/           # German dictionary, one module per app area
+  fonts/                # self-hosted Switzer + IBM Plex Mono
+  components/
+    charts.tsx          # inline-SVG chart primitives (dataviz-validated palette)
+    scanner-ui.tsx      # shared UI: stat tiles, score rings, badges, cards
+    brand.tsx           # Research Intelligence mark + wordmark
+contract/               # generated OpenAPI 3.1 (bun run contract:spec)
+scripts/                # seed-django.py, contract-spec.ts, contract-check.ts
+docs/
 ```
 
----
+## Getting started
 
-## 🔐 Authentication & Session Architecture
-
-### Dual-Channel Security
-* **Web UI (JWT Tokens)**:
-  * `POST /api/auth/login/`: Authenticates with username/email and password.
-  * Tokens stored in local storage (`access` 60m, `refresh` 24h).
-  * **Automatic 401 Refresh Interceptor**: If an API request returns `401 Unauthorized`, `apiClient` silently calls `POST /api/auth/refresh/` and replays the failed request without interrupting the user.
-* **FastMCP Agent Interface (API Keys)**:
-  * Agents (Cursor, OpenCode, FastMCP clients) authenticate independently via API Key (`key_id:secret`) with granular scope verification.
-
----
-
-## 🎨 Design System & Aesthetics (Stealth Minimalist)
-
-* **Tailwind CSS Only**: Zero inline styles across all components.
-* **Theme**: Deep dark graphite background (`#090d16`) with subtle radial gradients (`#1e1b4b`).
-* **Micro-Interactions**: Smooth hover transitions, loading skeletons, and subtle glassmorphic backdrop filters.
-* **Role Indicators**:
-  * 👑 **Admin**: Full control over workspace criteria, scrapers, definitions, and members.
-  * 🛡️ **Manager**: Operational control over pipeline runs and screening.
-  * 🔬 **Researcher**: Paper reviews, parameter extractions, and analysis exploration.
-
----
-
-## 🚀 Development & Build
+The frontend needs a running backend. From the `schwarz-research-intelligence`
+checkout (SQLite is used when `DB_HOST` is unset):
 
 ```bash
-# Install dependencies
-npm install
-
-# Start local development server (port 3000)
-npm run dev
-
-# Build production bundle
-npm run build
-
-# Start production server
-npm run start
+cd backend
+python -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+python manage.py migrate
+python manage.py createsuperuser                                   # your login
+python manage.py shell < ../../research-scanner/scripts/seed-django.py   # demo workspace
+DEBUG=True python manage.py runserver 8000
 ```
+
+Then here:
+
+```bash
+cp .env.example .env      # BACKEND_INTERNAL_URL=http://localhost:8000
+bun install
+bun run dev
+```
+
+Everything under `/api`, `/admin`, `/static`, `/docs` … is proxied to the
+backend by `src/proxy.ts`, so the browser only ever talks to the Next.js
+origin — the same shape as production, where Cloud Foundry path-routes one
+hostname across the backend apps and this one.
+
+### Tests and checks
+
+```bash
+bun run typecheck && bun run lint && bun test && bun run build
+bun run contract:check   # validates a live Django against the contract
+bun run contract:spec    # regenerates contract/*.openapi.json
+```
+
+### Docker
+
+```bash
+docker build --build-arg BUILD_ID=$(git rev-parse HEAD) -t research-scanner .
+docker run -p 3000:3000 -e BACKEND_INTERNAL_URL=http://host.docker.internal:8000 research-scanner
+```
+
+Runtime env: `BACKEND_INTERNAL_URL` (required) and `SITE_URL`, whose scheme
+decides whether session cookies carry `Secure`. On Cloud Foundry the
+`sri-frontend` app needs those in its `env:` block.
+
+## Tech
+
+Next.js 16 · React 19 · Tailwind CSS v4 · Bun · Django REST + SimpleJWT (backend).
+Design language inspired by Tailwind Plus and Adam
+Wathan's 2026-era patterns.

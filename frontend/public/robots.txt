@@ -1,0 +1,5 @@
+# Research Scanner is an internal tool — keep every environment out of search indexes.
+# (Page metadata also sets noindex/nofollow.)
+
+User-agent: *
+Disallow: /

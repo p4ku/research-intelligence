@@ -1,0 +1,333 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --font-sans: var(--font-switzer), Switzer, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* The built-in CSS easings are too weak. One strong ease-out for anything
+     entering or responding, one strong ease-in-out for on-screen movement —
+     every transition in the app draws from these two so the motion stays in tune. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+
+  /* Souverän: hard 2px radius across the scale; rounded-full stays for dots/avatars */
+  --radius-xs: 1px;
+  --radius-sm: 2px;
+  --radius-md: 2px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 2px;
+  --radius-3xl: 2px;
+  --radius-4xl: 2px;
+
+  /* Souverän card shadow (weiss) */
+  --shadow-xs: 0 1px 2px rgba(19, 19, 17, 0.06);
+  --shadow-sm: 0 1px 2px rgba(19, 19, 17, 0.06), 0 2px 6px rgba(19, 19, 17, 0.05);
+}
+
+@keyframes move-x {
+  0% {
+    transform: translateX(var(--move-x-from));
+  }
+  100% {
+    transform: translateX(var(--move-x-to));
+  }
+}
+
+@theme inline {
+  /* Souverän semantic roles */
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-line-soft: var(--line-soft);
+  --color-line-strong: var(--line-strong);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-warn: var(--warn);
+  --color-warn-ink: var(--warn-ink);
+
+  /* shadcn mappings (repointed at Souverän tokens) */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--foreground);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--foreground);
+  --color-primary: var(--foreground);
+  --color-primary-foreground: var(--background);
+  --color-secondary: var(--line-soft);
+  --color-secondary-foreground: var(--foreground);
+  /* --color-muted is a surface role (bg-muted hovers in ui/*), not the muted ink */
+  --color-muted: var(--line-soft);
+  --color-muted-foreground: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--foreground);
+  --color-destructive: var(--negative);
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--accent);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Long-tail compatibility remap: zinc/gray → Souverän warm neutrals.
+     Pages written against zinc-* render on-brand without per-file edits. */
+  --color-zinc-50: #f6f6f5;
+  --color-zinc-100: #ececea;
+  --color-zinc-200: #e2e2dc;
+  --color-zinc-300: #c9c9c1;
+  --color-zinc-400: #9a9a90;
+  --color-zinc-500: #6d6d65;
+  --color-zinc-600: #55554e;
+  --color-zinc-700: #3f3f39;
+  --color-zinc-800: #2a2a26;
+  --color-zinc-900: #1e1e1b;
+  --color-zinc-950: #131311;
+  --color-gray-50: #f6f6f5;
+  --color-gray-100: #ececea;
+  --color-gray-200: #e2e2dc;
+  --color-gray-300: #c9c9c1;
+  --color-gray-400: #9a9a90;
+  --color-gray-500: #6d6d65;
+  --color-gray-600: #55554e;
+  --color-gray-700: #3f3f39;
+  --color-gray-800: #2a2a26;
+  --color-gray-900: #1e1e1b;
+  --color-gray-950: #131311;
+
+  /* Chromatic remap: same semantic intent, Souverän values.
+     blue → accent cyan, amber → Zitrus, green → positive, red → negative. */
+  --color-blue-50: #e9f8f9;
+  --color-blue-100: #d2f1f3;
+  --color-blue-200: #a8e6ea;
+  --color-blue-300: #6fd8de;
+  --color-blue-400: #2fcbd4;
+  --color-blue-500: #00c3cd;
+  --color-blue-600: #00a4ad;
+  --color-blue-700: #00767e;
+  --color-blue-800: #00565c;
+  --color-blue-900: #00434c;
+  --color-blue-950: #003a40;
+  --color-amber-50: #fbf7e7;
+  --color-amber-100: #f6edc8;
+  --color-amber-200: #f0e19d;
+  --color-amber-300: #ecd678;
+  --color-amber-400: #e3c230;
+  --color-amber-500: #d1ad1d;
+  --color-amber-600: #a8880f;
+  --color-amber-700: #7d6510;
+  --color-amber-800: #5f4d10;
+  --color-amber-900: #4a3d10;
+  --color-green-50: #eaf4ed;
+  --color-green-100: #d4e9dc;
+  --color-green-200: #aad8bc;
+  --color-green-300: #7fc79b;
+  --color-green-400: #53c783;
+  --color-green-500: #2f9b5c;
+  --color-green-600: #257a4a;
+  --color-green-700: #1e7b44;
+  --color-green-800: #175c34;
+  --color-green-900: #124a2a;
+  --color-red-50: #f8ece9;
+  --color-red-100: #f2dad4;
+  --color-red-200: #e6b4a8;
+  --color-red-300: #dd9384;
+  --color-red-400: #e5654f;
+  --color-red-500: #c85138;
+  --color-red-600: #b5402c;
+  --color-red-700: #93331f;
+  --color-red-800: #742818;
+  --color-red-900: #5c2013;
+}
+
+/* Souverän — weiss (primary). Designer-adjusted: accent #00C3CD, background #F3F4F4. */
+:root {
+  --radius: 2px;
+  --background: #f3f4f4;
+  --surface: #ffffff;
+  --foreground: #131311;
+  --muted: #6d6d65;
+  --border: #deded7;
+  --line: #deded7;
+  --line-soft: #ebebe4;
+  /* Shell chrome only (sidebar rail, top bar) — cards stay on --line */
+  --line-strong: #d5d5cd;
+  --accent: #00c3cd;
+  --positive: #1e7b44;
+  --negative: #b5402c;
+  --warn: #e3c230;
+  --warn-ink: #7d6510;
+  --chart-1: #00c3cd;
+  --chart-2: #1e7b44;
+  --chart-3: #e3c230;
+  --chart-4: #6d6d65;
+  --chart-5: #b5402c;
+  --sidebar: #f3f4f4;
+  --sidebar-foreground: #131311;
+  --sidebar-primary: #131311;
+  --sidebar-primary-foreground: #f3f4f4;
+  --sidebar-accent: #ebebe4;
+  --sidebar-accent-foreground: #131311;
+  --sidebar-border: #deded7;
+  --sidebar-ring: #00c3cd;
+}
+
+/* Souverän — schwarz (no toggle wired yet; kept in sync for future dark mode) */
+.dark {
+  --background: #0b0b0a;
+  --surface: #141412;
+  --foreground: #f1f0ea;
+  --muted: #8d8d84;
+  --border: #2a2a26;
+  --line: #2a2a26;
+  --line-soft: #1e1e1b;
+  --line-strong: #2f2f2b;
+  --accent: #00c3cd;
+  --positive: #53c783;
+  --negative: #e5654f;
+  --warn: #e3c230;
+  --warn-ink: #e3c230;
+  --chart-1: #00c3cd;
+  --chart-2: #53c783;
+  --chart-3: #e3c230;
+  --chart-4: #8d8d84;
+  --chart-5: #e5654f;
+  --sidebar: #0b0b0a;
+  --sidebar-foreground: #f1f0ea;
+  --sidebar-primary: #f1f0ea;
+  --sidebar-primary-foreground: #0b0b0a;
+  --sidebar-accent: #1e1e1b;
+  --sidebar-accent-foreground: #f1f0ea;
+  --sidebar-border: #2a2a26;
+  --sidebar-ring: #00c3cd;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Range slider: filled portion in accent, remainder a ~40% accent tint
+   (per design feedback — no heavy grey track). Set --fill to the value %. */
+.rs-slider {
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    var(--accent) var(--fill, 50%),
+    color-mix(in srgb, var(--accent) 40%, transparent) var(--fill, 50%)
+  );
+}
+.rs-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--accent);
+  cursor: pointer;
+}
+.rs-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 9999px;
+  background: var(--accent);
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--accent);
+  cursor: pointer;
+}
+
+/* Anchor lock-on: clicking a top-bar section link traces a scanner-style
+   accent sweep around the target card, holds, then dissolves. The TopBar
+   sets data-lock-on on the target and removes it when the fade ends. */
+@property --rs-sweep {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@layer components {
+  /* components layer so position utilities (sticky/fixed) on targets still win */
+  [data-lock-on] {
+    position: relative;
+  }
+}
+
+[data-lock-on] {
+  animation: rs-lock-glow 1.5s ease-out both;
+}
+[data-lock-on]::after {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: -4px;
+  border-radius: 4px;
+  padding: 1.5px;
+  background: conic-gradient(var(--accent) var(--rs-sweep), transparent 0deg);
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation:
+    rs-lock-sweep 0.7s cubic-bezier(0.65, 0, 0.35, 1) both,
+    rs-lock-fade 0.6s ease-out 0.9s both;
+}
+@keyframes rs-lock-sweep {
+  from {
+    --rs-sweep: 0deg;
+  }
+  to {
+    --rs-sweep: 360deg;
+  }
+}
+@keyframes rs-lock-fade {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes rs-lock-glow {
+  0% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+  40% {
+    box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 35%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-lock-on] {
+    animation: none;
+  }
+  [data-lock-on]::after {
+    background: none;
+    box-shadow: inset 0 0 0 1.5px var(--accent);
+    animation: rs-lock-fade 0.8s ease-out 0.4s both;
+  }
+}

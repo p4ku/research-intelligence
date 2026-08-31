@@ -1,0 +1,115 @@
+// Core area: Papers list, filters, and paper detail page
+export const dict: Record<string, string> = {
+  // Papers list page
+  Corpus: 'Korpus',
+  Papers: 'Papers',
+
+  // Result count and filter context
+  paper: 'Paper',
+  papers: 'Papers',
+  'last {n} days': 'letzte {n} Tage',
+  'full corpus': 'gesamter Korpus',
+  'matching “{q}”': 'passend zu „{q}“',
+  'Reset filters': 'Filter zurücksetzen',
+  'No papers match these filters.': 'Keine Papers entsprechen diesen Filtern.',
+
+  // Filter sidebar
+  Search: 'Suche',
+  'Search papers': 'Papers durchsuchen',
+  '{n} hits': '{n} Treffer',
+  'Clear search': 'Suche zurücksetzen',
+  'Sort by': 'Sortieren nach',
+  'TRL window': 'TRL-Fenster',
+  'Minimum TRL': 'Minimales TRL',
+  'Maximum TRL': 'Maximales TRL',
+  to: 'bis',
+  '1–3 research': '1–3 Forschung',
+  '4–6 development': '4–6 Entwicklung',
+  '7–9 deployment': '7–9 Einsatz',
+
+  // Sort options
+  'Signal score': 'Signal-Score',
+  'Most recent': 'Neueste zuerst',
+  'Search titles, abstracts, authors, arXiv ids…':
+    'Titel, Abstracts, Autoren, arXiv-IDs durchsuchen…',
+
+  // Screening filter and pills
+  Screening: 'Screening',
+  Passed: 'Bestanden',
+  'Abstract passed': 'Abstract bestanden',
+  'Full text passed': 'Volltext bestanden',
+  Accepted: 'Akzeptiert',
+  Borderline: 'Grenzfall',
+  Pending: 'Ausstehend',
+  Rejected: 'Abgelehnt',
+  Withdrawn: 'Zurückgezogen',
+  'All statuses': 'Alle Status',
+  'through screening': 'durch das Screening',
+  Ingested: 'Aufgenommen',
+  Unscored: 'Nicht bewertet',
+
+  // Workspace scope and empty states
+  'No workspace selected': 'Kein Arbeitsbereich ausgewählt',
+  'You are not a member of any workspace yet. Membership is managed in the backend.':
+    'Sie sind noch keinem Arbeitsbereich zugeordnet. Mitgliedschaften werden im Backend verwaltet.',
+  'No papers in {workspace} yet.': 'Noch keine Papers in {workspace}.',
+  'Something went wrong loading papers.': 'Beim Laden der Papers ist ein Fehler aufgetreten.',
+  Retry: 'Erneut versuchen',
+
+  // Published windows
+  'Last 24 hours': 'Letzte 24 Stunden',
+  'Last 7 days': 'Letzte 7 Tage',
+  'Last 30 days': 'Letzte 30 Tage',
+  'This quarter': 'Dieses Quartal',
+  'All time': 'Gesamter Zeitraum',
+
+  // Signal-strength filter
+  'Signal strength': 'Signalstärke',
+  'Minimum score': 'Mindest-Score',
+  'Any signal': 'Jedes Signal',
+  'Only the strongest': 'Nur die stärksten',
+  'Signal ≥ {n}': 'Signal ≥ {n}',
+
+  // Paper detail
+  'All papers': 'Alle Papers',
+  'Signal Score': 'Signal-Score',
+  Profile: 'Profil',
+  Dimensions: 'Dimensionen',
+  'Scored by the workspace’s extraction definitions, with the model’s rationale where it gave one.':
+    'Bewertet nach den Extraktionsdefinitionen des Arbeitsbereichs, mit Begründung des Modells, wo vorhanden.',
+  Formula: 'Formel',
+  Variables: 'Variablen',
+  'Formula error': 'Formelfehler',
+  'Not scored yet': 'Noch nicht bewertet',
+  'Composite score from the workspace’s signal-score formula.':
+    'Gesamtscore aus der Signal-Score-Formel des Arbeitsbereichs.',
+  Evidence: 'Belege',
+  Confidence: 'Konfidenz',
+  'Needs review': 'Prüfung nötig',
+  'No screening notes.': 'Keine Screening-Notizen.',
+  Files: 'Dateien',
+  'Open on arXiv': 'Auf arXiv öffnen',
+  'Open DOI': 'DOI öffnen',
+  'Stored PDF': 'Gespeichertes PDF',
+  'Stored markdown': 'Gespeichertes Markdown',
+  'No file endpoint yet — storage key shown for reference.':
+    'Noch kein Datei-Endpunkt — Speicherschlüssel nur zur Referenz.',
+  'No files recorded.': 'Keine Dateien hinterlegt.',
+  'et al.': 'et al.',
+  'Why did it score {score}?': 'Warum wurde es mit {score} bewertet?',
+  'What does this paper enable?': 'Was ermöglicht dieses Paper?',
+  'How solid is the evidence?': 'Wie belastbar sind die Belege?',
+  Abstract: 'Abstract',
+
+  // Ask-this-paper rail
+  'Ask this paper': 'Paper befragen',
+  'Reading the full text…': 'Lese den Volltext…',
+  'Ask about {title}': 'Zu {title} fragen',
+  'Questions here are answered from this paper alone.':
+    'Fragen hier werden allein aus diesem Paper beantwortet.',
+  'Ask a question about this paper': 'Eine Frage zu diesem Paper stellen',
+  'Ask about this paper…': 'Zu diesem Paper fragen…',
+  Send: 'Senden',
+  "I couldn't ground an answer to that in this paper's text — try asking about what it enables, how solid the evidence is, or where it could apply.":
+    'Dazu ließ sich im Text dieses Papers keine belegte Antwort finden — fragen Sie etwa, was es ermöglicht, wie belastbar die Evidenz ist oder wo es einsetzbar wäre.',
+}
