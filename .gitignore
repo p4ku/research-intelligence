@@ -68,8 +68,11 @@ node_modules/
 tests_e2e/node_modules/
 test-results/
 playwright-report/
+tests_e2e/test-results/
+tests_e2e/playwright-report/
 blob-report/
 .playwright/
+tests_e2e/.playwright/
 .next/
 out/
 .npm
