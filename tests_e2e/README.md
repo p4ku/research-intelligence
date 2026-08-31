@@ -43,39 +43,40 @@ tests_e2e/
 
 ---
 
-## 🖥️ Running Frontend Next.js E2E Tests
+## 🖥️ Running Frontend Next.js E2E Tests (TypeScript & Playwright)
 
-### 1. Run all frontend user journeys:
+Frontend E2E tests are built natively in **TypeScript** using **`@playwright/test`** and Page Object Model:
+
+### 1. Quick Setup:
 ```bash
-python -m tests_e2e.run_frontend_e2e
+cd tests_e2e
+npm install
 ```
 
-### 2. Run against specific environment or URL:
+### 2. Run all frontend user journeys:
 ```bash
-python -m tests_e2e.run_frontend_e2e --target=prod
-python -m tests_e2e.run_frontend_e2e --target=staging
-python -m tests_e2e.run_frontend_e2e --url="https://sri-prod.apps.01.cf.eu01.onstackit.cloud"
+npm test                             # Runs all specs against Production (headless)
+npm run test:staging                 # Runs against Staging
+npm run test:local                   # Runs against Local dev
 ```
 
-### 3. Run a specific frontend scenario:
+### 3. Interactive UI Mode & Debugging (Time-Travel Debugger):
 ```bash
-python -m tests_e2e.run_frontend_e2e --scenario=settings    # Test /settings journey
-python -m tests_e2e.run_frontend_e2e --scenario=auth        # Test login & logout
-python -m tests_e2e.run_frontend_e2e --scenario=navigation  # Test sidebar menu
-python -m tests_e2e.run_frontend_e2e --scenario=workspace   # Test workspace switcher
-python -m tests_e2e.run_frontend_e2e --scenario=papers      # Test papers exploration
-python -m tests_e2e.run_frontend_e2e --scenario=i18n        # Test language toggle
-python -m tests_e2e.run_frontend_e2e --scenario=ask         # Test chat interface
+npm run test:ui                      # Opens Playwright visual UI Mode
+npm run test:headed                  # Opens visible Chrome browser
+npm run test:debug                   # Starts Playwright inspector step-by-step
+npm run test:report                  # Opens rich HTML execution report
 ```
 
-### 4. Run in headed browser mode (visible GUI):
+### 4. Run a specific user journey spec:
 ```bash
-python -m tests_e2e.run_frontend_e2e --headed
-```
-
-### 5. Run via Pytest:
-```bash
-pytest tests_e2e/test_frontend_e2e.py -s -v
+npx playwright test specs/settings.spec.ts    # /settings journey (role, profile, password)
+npx playwright test specs/auth.spec.ts        # Authentication & logout journey
+npx playwright test specs/navigation.spec.ts  # Sidebar navigation journey
+npx playwright test specs/workspace.spec.ts   # Workspace switcher journey
+npx playwright test specs/papers.spec.ts      # Papers exploration & scorecards
+npx playwright test specs/i18n.spec.ts        # Bilingual locale toggle (EN <-> DE)
+npx playwright test specs/ask.spec.ts         # Paper Chat / Ask interface
 ```
 
 ---

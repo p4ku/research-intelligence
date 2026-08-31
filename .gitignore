@@ -63,8 +63,13 @@ staticfiles/
 /backend/staticfiles/
 /backend/venv/
 
-# Node / Next.js / Frontend
+# Node / Next.js / Playwright E2E
 node_modules/
+tests_e2e/node_modules/
+test-results/
+playwright-report/
+blob-report/
+.playwright/
 .next/
 out/
 .npm
