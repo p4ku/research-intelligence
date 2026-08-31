@@ -18,6 +18,7 @@ from .views.pipeline_runs import PipelineRunViewSet, ComponentRunViewSet
 from .views.activity_logs import UserActivityLogViewSet
 from .views.auth import LoginView, TokenRefreshView, UserProfileView, ChangePasswordView, LogoutView
 from .views.diagnostics import HealthCheckView, DeepDiagnosticsView
+from observability.views import TelemetryAnalyticsAPIView
 
 router = DefaultRouter()
 router.register(r'workspaces', WorkspaceViewSet, basename='workspace')

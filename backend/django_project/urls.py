@@ -27,5 +27,8 @@ urlpatterns = [
 
     # MCP Server Discovery & Capabilities (/mcp/...)
     path('mcp/', include('mcp_server.urls')),
+
+    # Enterprise Prometheus Metrics & Observability (/metrics)
+    path('', include('observability.urls')),
 ]
 

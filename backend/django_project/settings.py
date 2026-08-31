@@ -89,6 +89,7 @@ INSTALLED_APPS = [
     'research_intelligence',
     'chat',
     'mcp_server',
+    'observability',
 ]
 
 

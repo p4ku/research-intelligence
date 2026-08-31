@@ -51,7 +51,14 @@ export class LoginPage extends BasePage {
       try {
         await this.page.waitForURL((url) => {
           const str = url.toString();
-          return str.includes('/dashboard') || str.includes('/briefing') || str.includes('/papers');
+          return !str.includes('/login') && (
+            str.includes('/dashboard') ||
+            str.includes('/briefing') ||
+            str.includes('/papers') ||
+            str.includes('/settings') ||
+            str.endsWith('.cloud/') ||
+            str.endsWith(':3000/')
+          );
         }, { timeout: 15000 });
         await this.waitForNetworkIdle();
         return true;

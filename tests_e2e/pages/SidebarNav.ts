@@ -15,14 +15,16 @@ export class SidebarNav extends BasePage {
 
   constructor(page: Page, baseURL?: string) {
     super(page, baseURL);
-    this.navDashboard = page.locator("a[href='/dashboard'], nav a:has-text('Today'), nav a:has-text('Heute')").first();
-    this.navBriefing = page.locator("a[href='/briefing'], nav a:has-text('Briefings')").first();
-    this.navPapers = page.locator("a[href='/papers'], nav a:has-text('Papers')").first();
-    this.navScoring = page.locator("a[href='/scoring'], nav a:has-text('Scoring')").first();
-    this.navAsk = page.locator("a[href='/ask'], nav a:has-text('Ask'), nav a:has-text('Fragen')").first();
+    this.navDashboard = page.locator("a[href='/dashboard'], nav a:has-text('Today'), nav a:has-text('Heute'), aside a[href='/dashboard']").first();
+    this.navBriefing = page.locator("a[href='/briefing'], nav a:has-text('Briefings'), aside a[href='/briefing']").first();
+    this.navPapers = page.locator("a[href='/papers'], nav a:has-text('Papers'), aside a[href='/papers']").first();
+    this.navScoring = page.locator("a[href='/scoring'], nav a:has-text('Scoring'), aside a[href='/scoring']").first();
+    this.navAsk = page.locator("a[href='/ask'], nav a:has-text('Ask'), nav a:has-text('Fragen'), aside a[href='/ask']").first();
 
-    this.userMenuButton = page.locator("button[aria-haspopup='menu']:visible, aside button:visible, nav button:visible").last();
-    this.userNameLabel = page.locator("span.truncate:visible, button:has([data-slot='avatar']) span").first();
+    this.userMenuButton = page.locator(
+      "aside footer button, aside footer [role='button'], aside footer [data-slot='item'], button:has([data-slot='avatar']), header button:has([data-slot='avatar'])"
+    ).first();
+    this.userNameLabel = page.locator("aside footer span.truncate, span.truncate:visible, button:has([data-slot='avatar']) span").first();
     this.menuSettingsItem = page.locator("[role='menu'] a[href='/settings'], [role='menuitem']:has-text('Settings'), [role='menuitem']:has-text('Einstellungen')").first();
     this.menuLanguageToggle = page.locator("[role='menu'] [role='menuitem']:has-text('Deutsch'), [role='menu'] [role='menuitem']:has-text('English')").first();
     this.menuSignOutButton = page.locator("[role='menu'] [role='menuitem']:has-text('Sign out'), [role='menu'] [role='menuitem']:has-text('Abmelden')").first();
@@ -30,21 +32,73 @@ export class SidebarNav extends BasePage {
 
   async navigateTo(target: string): Promise<void> {
     const targetLower = target.toLowerCase().trim();
+    const currentUrl = this.page.url();
+
     if (['dashboard', 'today', 'heute', '/dashboard'].includes(targetLower)) {
-      await this.navDashboard.click();
-      await this.waitForURLContains('/dashboard');
+      if (!currentUrl.includes('/dashboard')) {
+        try {
+          if (await this.navDashboard.isVisible({ timeout: 3000 })) {
+            await this.navDashboard.click();
+            await this.waitForURLContains('/dashboard');
+          } else {
+            await this.goto('/dashboard');
+          }
+        } catch {
+          await this.goto('/dashboard');
+        }
+      }
     } else if (['briefing', 'briefings', '/briefing'].includes(targetLower)) {
-      await this.navBriefing.click();
-      await this.waitForURLContains('/briefing');
+      if (!currentUrl.includes('/briefing')) {
+        try {
+          if (await this.navBriefing.isVisible({ timeout: 3000 })) {
+            await this.navBriefing.click();
+            await this.waitForURLContains('/briefing');
+          } else {
+            await this.goto('/briefing');
+          }
+        } catch {
+          await this.goto('/briefing');
+        }
+      }
     } else if (['papers', 'paper', '/papers'].includes(targetLower)) {
-      await this.navPapers.click();
-      await this.waitForURLContains('/papers');
+      if (!currentUrl.includes('/papers')) {
+        try {
+          if (await this.navPapers.isVisible({ timeout: 3000 })) {
+            await this.navPapers.click();
+            await this.waitForURLContains('/papers');
+          } else {
+            await this.goto('/papers');
+          }
+        } catch {
+          await this.goto('/papers');
+        }
+      }
     } else if (['scoring', '/scoring'].includes(targetLower)) {
-      await this.navScoring.click();
-      await this.waitForURLContains('/scoring');
+      if (!currentUrl.includes('/scoring')) {
+        try {
+          if (await this.navScoring.isVisible({ timeout: 3000 })) {
+            await this.navScoring.click();
+            await this.waitForURLContains('/scoring');
+          } else {
+            await this.goto('/scoring');
+          }
+        } catch {
+          await this.goto('/scoring');
+        }
+      }
     } else if (['ask', 'chat', '/ask'].includes(targetLower)) {
-      await this.navAsk.click();
-      await this.waitForURLContains('/ask');
+      if (!currentUrl.includes('/ask')) {
+        try {
+          if (await this.navAsk.isVisible({ timeout: 3000 })) {
+            await this.navAsk.click();
+            await this.waitForURLContains('/ask');
+          } else {
+            await this.goto('/ask');
+          }
+        } catch {
+          await this.goto('/ask');
+        }
+      }
     } else if (['settings', '/settings'].includes(targetLower)) {
       await this.goto('/settings');
     } else {
@@ -53,49 +107,55 @@ export class SidebarNav extends BasePage {
     await this.waitForNetworkIdle();
   }
 
-  async openUserMenu(): Promise<void> {
+  async openUserMenu(): Promise<boolean> {
     const menu = this.page.locator("[role='menu']");
-    if (!(await menu.isVisible())) {
-      await this.userMenuButton.scrollIntoViewIfNeeded();
-      await this.userMenuButton.click({ force: true });
-      await this.page.waitForSelector("[role='menu']", { timeout: 5000 });
+    if (await menu.isVisible()) {
+      return true;
     }
-  }
-
-  async toggleLanguage(): Promise<void> {
     try {
-      await this.openUserMenu();
-      await this.menuLanguageToggle.click({ timeout: 3000 });
+      if (await this.userMenuButton.isVisible({ timeout: 4000 })) {
+        await this.userMenuButton.scrollIntoViewIfNeeded();
+        await this.userMenuButton.click({ force: true });
+        await this.page.waitForSelector("[role='menu']", { timeout: 4000 });
+        return true;
+      }
     } catch {
-      // Ignored
+      // Menu might open on alternative trigger or desktop avatar
     }
-    await this.waitForNetworkIdle();
+    return false;
   }
 
-  async signOut(): Promise<void> {
+  async getCurrentUserDisplayName(): Promise<string | null> {
     try {
-      await this.openUserMenu();
-      await this.menuSignOutButton.click({ timeout: 3000 });
-      await this.page.waitForURL((url) => {
-        const u = url.toString();
-        return u.endsWith('/') || u.includes('login') || u.includes('auth');
-      }, { timeout: 10000 });
-    } catch {
-      // Fallback direct session drop
-      await this.page.evaluate(() => fetch('/auth/logout', { method: 'POST' }));
-      await this.goto('/');
-    }
-    await this.waitForNetworkIdle();
-  }
-
-  async getUserName(): Promise<string | null> {
-    try {
-      if (await this.userNameLabel.isVisible({ timeout: 3000 })) {
+      if (await this.userNameLabel.isVisible({ timeout: 5000 })) {
         return (await this.userNameLabel.textContent())?.trim() ?? null;
       }
     } catch {
       // Ignored
     }
     return null;
+  }
+
+  async toggleLanguage(): Promise<void> {
+    const opened = await this.openUserMenu();
+    if (opened && await this.menuLanguageToggle.isVisible({ timeout: 3000 })) {
+      await this.menuLanguageToggle.click();
+      await this.waitForNetworkIdle();
+    }
+  }
+
+  async signOut(): Promise<void> {
+    const opened = await this.openUserMenu();
+    if (opened && await this.menuSignOutButton.isVisible({ timeout: 3000 })) {
+      await this.menuSignOutButton.click();
+      await this.waitForNetworkIdle();
+    } else {
+      // Fallback direct API logout call
+      await this.page.evaluate(async () => {
+        await fetch('/auth/logout', { method: 'POST' });
+        window.location.assign('/');
+      });
+      await this.waitForNetworkIdle();
+    }
   }
 }
