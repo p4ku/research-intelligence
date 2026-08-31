@@ -34,14 +34,14 @@
 
 New files:
 
-- `src/lib/auth/cookies.ts` (pure, no `next/headers`): `ACCESS_COOKIE='sri_access'`, `REFRESH_COOKIE='sri_refresh'`, `USER_COOKIE='sri_user'` (base64url JSON `{id, username, email, name, isStaff}` from login's `user`, `name = full_name`); `authCookieOptions()` → `{httpOnly:true, sameSite:'lax', path:'/', secure: NODE_ENV==='production' && COOKIE_SECURE!=='false', maxAge: 86400}`; `clearAuthCookies(store)` works on both `ResponseCookies` and the `cookies()` store.
+- `src/lib/auth/cookies.ts` (pure, no `next/headers`): `ACCESS_COOKIE='sri_access'`, `REFRESH_COOKIE='sri_refresh'`, `USER_COOKIE='sri_user'` (base64url JSON `{id, username, email, name, isStaff}` from login's `user`, `name = full_name`); `authCookieOptions()` → `{httpOnly:true, sameSite:'lax', path:'/', secure: NODE_ENV==='production' && !SITE_URL.startsWith('http://'), maxAge: 86400}`; `clearAuthCookies(store)` works on both `ResponseCookies` and the `cookies()` store.
 - `src/lib/auth/jwt.ts` (pure): `decodeJwtPayload`, `secondsUntilExpiry` via `Buffer.from(b64url,'base64url')`. No verification — Django verifies.
 - `src/lib/auth/session.ts` (`server-only`): `SessionUser {id, username, name, email, image?, isStaff}`; `getSessionUser()` reads `sri_user` (falls back to one `GET /api/auth/me/` if `sri_access` exists without `sri_user`); `hasSessionCookies()`.
 - `src/lib/api/backend-url.ts` (pure): `backendUrl()` = `BACKEND_INTERNAL_URL` → `NEXT_PUBLIC_API_URL` minus `/api` → `http://localhost:8000`, trailing slash stripped.
 - `src/lib/api/server.ts` (`server-only`): `class ApiError(status, body)`; `apiFetch(path, init)` adds `Authorization: Bearer <sri_access>`, `Accept: application/json`, `cache:'no-store'`, never retries; `apiJson<T>(path, init & {onUnauthorized?: 'redirect'|'throw'})` — default redirects to `/auth/logout?reason=expired`, `'throw'` raises `ApiError` (what the later `/bff` handlers will use).
 - `src/app/auth/login/route.ts` — `POST {identifier, password, next?}` → `POST ${backend}/api/auth/login/ {username_or_email, password}`; on 200 set the three cookies, respond `{ok, redirect}` (sanitised `next`: must start with `/` and not `//`, default `/dashboard`); pass Django 401/403 through. Check `Sec-Fetch-Site`/`Origin` is same-origin.
 - `src/app/auth/logout/route.ts` — `POST` and `GET` clear cookies, `303` → `/`.
-- `.env.example` (`BACKEND_INTERNAL_URL=http://localhost:8000`, `SITE_URL`, `COOKIE_SECURE`) + `!.env.example` in `.gitignore`. Add `server-only` dep.
+- `.env.example` (`BACKEND_INTERNAL_URL=http://localhost:8000`, `SITE_URL`) + `!.env.example` in `.gitignore`. Add `server-only` dep.
 
 ## B. Pages + proxy on the Django session (commit 2)
 

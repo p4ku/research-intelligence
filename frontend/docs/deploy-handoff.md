@@ -40,7 +40,7 @@ repo's root is self-contained (`bun install` → `next build` standalone →
 Notes:
 - If `BACKEND_INTERNAL_URL` uses an internal route, its host must be in
   Django's `ALLOWED_HOSTS`.
-- Cookies are `Secure` in production (`COOKIE_SECURE=false` only for plain-
+- Cookies are `Secure` in production whenever `SITE_URL` is https (plain-
   http testing).
 - The frontend proxies `/api /admin /static …` itself when Gorouter leaks
   them, so path routing stays as it is.

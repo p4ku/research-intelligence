@@ -139,8 +139,8 @@ docker build --build-arg BUILD_ID=$(git rev-parse HEAD) -t research-scanner .
 docker run -p 3000:3000 -e BACKEND_INTERNAL_URL=http://host.docker.internal:8000 research-scanner
 ```
 
-Runtime env: `BACKEND_INTERNAL_URL` (required), `SITE_URL`, optionally
-`COOKIE_SECURE=false` for plain-http production testing. On Cloud Foundry the
+Runtime env: `BACKEND_INTERNAL_URL` (required) and `SITE_URL`, whose scheme
+decides whether session cookies carry `Secure`. On Cloud Foundry the
 `sri-frontend` app needs those in its `env:` block.
 
 ## Tech

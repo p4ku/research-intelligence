@@ -44,13 +44,25 @@ export interface AuthCookieOptions {
   maxAge: number
 }
 
+/**
+ * Whether session cookies carry `Secure`, derived from the origin we serve on.
+ *
+ * `SITE_URL` is server-side config, so unlike `X-Forwarded-Proto` a client
+ * cannot send a header to downgrade its own session. A plain-http origin (the
+ * compose stack on localhost) has to drop `Secure` or the browser discards the
+ * cookies; anything else — including an unset `SITE_URL` — keeps it.
+ */
+export function secureCookies(): boolean {
+  if (process.env.NODE_ENV !== 'production') return false
+  return !(process.env.SITE_URL ?? '').startsWith('http://')
+}
+
 export function authCookieOptions(): AuthCookieOptions {
   return {
     httpOnly: true,
     sameSite: 'lax',
     path: '/',
-    // Local `next start` on plain http needs COOKIE_SECURE=false.
-    secure: process.env.NODE_ENV === 'production' && process.env.COOKIE_SECURE !== 'false',
+    secure: secureCookies(),
     // Matches the SimpleJWT refresh lifetime (1 day). Freshness of the access
     // token is decided from its `exp` claim, not from the cookie lifetime.
     maxAge: 60 * 60 * 24,

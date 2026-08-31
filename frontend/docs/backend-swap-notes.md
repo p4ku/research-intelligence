@@ -139,10 +139,10 @@ Consequences:
 
 Cookies: `sri_access`, `sri_refresh`, `sri_user` (display-only, unsigned,
 base64url JSON). Flags: httpOnly, SameSite=Lax, Path=/, Secure in production
-unless `COOKIE_SECURE=false`, Max-Age 1 day. Session fields used by chrome:
+unless `SITE_URL` is plain http, Max-Age 1 day. Session fields used by chrome:
 `name`, `email`, `image?` (never provided by Django), `isStaff`.
 
-Env: `BACKEND_INTERNAL_URL` (required), `SITE_URL`, `COOKIE_SECURE`,
+Env: `BACKEND_INTERNAL_URL` (required), `SITE_URL`,
 `BUILD_ID` (build-time), `BUILD_DIR` (distDir, build-management convention).
 `NEXT_PUBLIC_*` is build-time and must not be used for runtime config.
 
@@ -186,7 +186,7 @@ DEBUG=True SECRET_KEY=dev ALLOWED_HOSTS=localhost,127.0.0.1,host.docker.internal
 BACKEND_INTERNAL_URL=http://localhost:8000 BUILD_DIR=.next-agent8 PORT=3008 bun run dev
 bun run typecheck && bunx eslint src && bun test && bun run build
 docker build --build-arg BUILD_ID=test -t research-scanner:test .
-docker run -p 3009:3000 -e BACKEND_INTERNAL_URL=http://host.docker.internal:8000 -e COOKIE_SECURE=false research-scanner:test
+docker run -p 3009:3000 -e BACKEND_INTERNAL_URL=http://host.docker.internal:8000 -e SITE_URL=http://localhost:3009 research-scanner:test
 ```
 
 Checked: login by username (email also accepted by Django) → cookies with
