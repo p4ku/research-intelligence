@@ -247,13 +247,9 @@ services:
     container_name: sri_frontend
     restart: always
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "3000:3000"
     environment:
-      # PORT/HOSTNAME come from the image; everything here is overridable from
-      # .env like the other services.
       - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL:-http://api:8000}
-      # Session cookies follow SITE_URL's scheme: http here, so no Secure
-      # flag (the browser would drop them); https anywhere else keeps it.
       - SITE_URL=${SITE_URL:-http://localhost:3000}
     depends_on:
       - api
