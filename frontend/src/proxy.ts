@@ -76,10 +76,17 @@ export async function proxy(request: NextRequest) {
   headers.set('cookie', replaceCookie(request.headers.get('cookie'), ACCESS_COOKIE, result.access))
   const res = NextResponse.next({ request: { headers } })
   res.cookies.set(ACCESS_COOKIE, result.access, authCookieOptions())
+  // With ROTATE_REFRESH_TOKENS the refresh we just spent is blacklisted and a
+  // replacement comes back with the access token. Storing it is what keeps the
+  // session alive past the first refresh.
+  if (result.refresh) res.cookies.set(REFRESH_COOKIE, result.refresh, authCookieOptions())
   return res
 }
 
-type RefreshResult = { kind: 'ok'; access: string } | { kind: 'rejected' } | { kind: 'unreachable' }
+type RefreshResult =
+  | { kind: 'ok'; access: string; refresh?: string }
+  | { kind: 'rejected' }
+  | { kind: 'unreachable' }
 
 async function refreshAccess(refresh: string): Promise<RefreshResult> {
   try {
@@ -90,10 +97,14 @@ async function refreshAccess(refresh: string): Promise<RefreshResult> {
       cache: 'no-store',
     })
     if (!res.ok) return { kind: 'rejected' }
-    const data = (await res.json().catch(() => null)) as { access?: unknown } | null
-    return typeof data?.access === 'string'
-      ? { kind: 'ok', access: data.access }
-      : { kind: 'rejected' }
+    const data = (await res.json().catch(() => null)) as
+      | { access?: unknown; refresh?: unknown }
+      | null
+    if (typeof data?.access !== 'string') return { kind: 'rejected' }
+    // `refresh` is only present when the backend rotates; absent is not an error.
+    return typeof data.refresh === 'string'
+      ? { kind: 'ok', access: data.access, refresh: data.refresh }
+      : { kind: 'ok', access: data.access }
   } catch {
     return { kind: 'unreachable' }
   }
