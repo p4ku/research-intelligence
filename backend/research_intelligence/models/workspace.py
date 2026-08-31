@@ -253,27 +253,36 @@ class Workspace(models.Model):
 
     def get_signal_score_prompt_snapshot(self) -> dict:
         """
-        Returns a consolidated dictionary snapshot of the signal score formula and scoring parameters.
+        Returns a consolidated, complete dictionary snapshot of the signal score formula,
+        exact AST Python evaluation logic, and the complete definitions of all parameter extractions
+        (including their system prompts, user prompt templates, exit metrics, response schemas,
+        LLM models, versions, and mapped Python variable names).
         """
         active_defs = self.extraction_definitions.filter(is_active=True).order_by('created_at', 'name')
-        available_vars = []
-        for d in active_defs:
-            clean_name = d.name.strip().lower().replace(" ", "_") if d.name else ""
-            clean_exit = d.exit_metric.strip().lower().replace(" ", "_") if d.exit_metric else ""
-            available_vars.append({
-                "definition_id": str(d.id),
-                "definition_name": d.name,
-                "exit_metric": d.exit_metric or clean_name,
-                "variable_name": clean_exit or clean_name
-            })
+        definitions_list = [
+            {
+                "id": str(d.id),
+                "name": d.name,
+                "system_prompt": d.system_prompt,
+                "user_prompt_template": d.user_prompt_template,
+                "exit_metric": d.exit_metric,
+                "variable_name": (d.exit_metric or d.name or "param").strip().lower().replace(" ", "_"),
+                "llm_model": d.llm_model or self.screening_llm_model,
+                "response_schema": d.response_schema,
+                "version": d.version,
+                "requires_consensus": d.requires_consensus,
+            }
+            for d in active_defs
+        ]
 
         return {
             "stage": "signal_score",
             "evaluation_engine": "AST Sandboxed Python 3",
             "signal_score_code": (self.signal_score_code or "").strip(),
             "has_custom_formula": bool(self.signal_score_code and self.signal_score_code.strip()),
-            "total_scoring_variables": len(available_vars),
-            "scoring_variables": available_vars,
+            "total_scoring_variables": len(definitions_list),
+            "scoring_variables": definitions_list,
+            "extraction_definitions": definitions_list,
         }
     
     # Digest distribution schedule
