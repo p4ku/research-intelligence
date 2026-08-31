@@ -34,12 +34,13 @@ It orchestrates an 8-stage processing pipeline:
                    │                                        │
  ┌─────────────────▼────────────────────────────────────────▼──────────────────┐
  │                     AUTONOMOUS STATE ENGINE & TASKS                         │
- │  ResearchAgentProcess State Machine (tasks/orchestrator/agent_engine.py)   │
- │   ├── Step 1: execute_workspace_search   (tasks/step_1_search/search.py)   │
+ │  ResearchAgentProcess State Machine                                         │
+ │  (research_intelligence/tasks/orchestrator/agent_engine.py)                 │
+ │   ├── Step 1: execute_workspace_search   (tasks/step_1_search/search.py)    │
  │   ├── Step 2: execute_screening_job      (tasks/step_4_screening/abstract.py)│
- │   ├── Step 3: execute_pdf_download_job   (tasks/step_2_download/fetch.py)  │
- │   ├── Step 4: execute_ocr_job            (tasks/step_3_ocr/convert.py)     │
- │   ├── Step 5: execute_full_text_screening(step_4_screening/full_text.py)   │
+ │   ├── Step 3: execute_pdf_download_job   (tasks/step_2_download/fetch.py)   │
+ │   ├── Step 4: execute_ocr_job            (tasks/step_3_ocr/convert.py)      │
+ │   ├── Step 5: execute_full_text_screening(tasks/step_4_screening/full_text.py)│
  │   ├── Step 6: execute_extraction_job     (tasks/step_5_extraction/extract.py)│
  │   ├── Step 7: execute_signal_score_job   (tasks/step_6_signal_score/scorer.py)│
  │   └── Step 8: execute_reporting_job      (tasks/step_7_reporting/narrative.py)│
@@ -57,9 +58,9 @@ It orchestrates an 8-stage processing pipeline:
 ## 🛠️ 3. Rules & Guidelines for AI Coding Agents
 
 ### Rule 1: Database & Testing Standard
-- **Unit Tests MUST Run on In-Memory SQLite**: Django settings (`settings.py`) automatically detect test runs (`'test' in sys.argv`) and force `:memory:` SQLite.
+- **Unit Tests MUST Run on In-Memory SQLite**: Django settings (`django_project/settings.py`) automatically detect test runs (`'test' in sys.argv`) and force `:memory:` SQLite.
 - **Production Postgres Preserved**: Environment variables (`DB_HOST=db`, `DB_NAME=research_intelligence`, `DB_USER=postgres`) in `docker-compose.yml` MUST remain intact.
-- **Verification Requirement**: ALWAYS run `.venv/bin/python backend/manage.py test research_intelligence.tests` after backend modifications. Never declare success without 100% test pass (92+ tests).
+- **Verification Requirement**: ALWAYS run `./run_tests.sh` or `.venv/bin/python backend/manage.py test research_intelligence.tests` after backend modifications. Never declare success without 100% test pass (92+ tests).
 
 ### Rule 2: Workspace Criteria Dual-Stage Isolation & Defaults
 - **Abstract Screening Criteria**: Use `workspace.get_abstract_acceptance_criteria()` and `workspace.get_abstract_rejection_criteria()`.
