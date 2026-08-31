@@ -13,14 +13,18 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json bun.lock ./
-RUN bun install --frozen-lockfile
+# Cache mounts keep bun's global package cache and Next's build cache across
+# rebuilds (carried over from main's npm Dockerfile).
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 
 FROM base AS build
 ARG BUILD_ID=local
 ENV BUILD_ID=$BUILD_ID NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN bun run build
+RUN --mount=type=cache,target=/app/.next/cache \
+    bun run build
 
 FROM node:22-alpine AS run
 ARG BUILD_ID=local

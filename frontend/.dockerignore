@@ -12,3 +12,9 @@ docs
 .vscode
 Dockerfile
 scripts/seed-django.py
+out
+build
+dist
+.DS_Store
+.idea
+*.log*
