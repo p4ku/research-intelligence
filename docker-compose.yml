@@ -222,7 +222,7 @@ services:
       dockerfile: Dockerfile
     container_name: sri_beat
     restart: always
-    command: celery -A django_project beat --loglevel=info
+    command: celery -A django_project beat --loglevel=info -s /tmp/celerybeat-schedule
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f celery || exit 1"]
       interval: 15s

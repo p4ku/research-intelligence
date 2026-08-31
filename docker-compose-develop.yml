@@ -230,18 +230,17 @@ services:
       - redis
       - minio
 
-  # Celery Scheduler (e.g. for trigger weekly executive briefings, checking daily quotas)
+  # Celery Beat Scheduler
   beat:
     image: sri_backend:develop
     container_name: sri_beat
     restart: always
-    command: celery -A django_project beat --loglevel=info
+    command: celery -A django_project beat --loglevel=info -s /tmp/celerybeat-schedule
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f celery || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 3
-      start_period: 15s
     volumes:
       - ./backend:/app
     environment:
