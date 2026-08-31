@@ -36,6 +36,9 @@
 # vercel
 .vercel
 
+# prod snapshots (see scripts/snapshot-pull.ts)
+/local-data/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
