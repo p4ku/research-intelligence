@@ -239,7 +239,16 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
     component_run.started_at = timezone.now()
     component_run.completed_at = None
     component_run.error_message = ''
-    component_run.save(update_fields=['status', 'celery_task_id', 'started_at', 'completed_at', 'error_message'])
+
+    # Snapshot extraction prompt definitions into component_run.input_params for auditability
+    try:
+        current_input_params = component_run.input_params or {}
+        current_input_params.update(workspace.get_extraction_prompt_snapshot())
+        component_run.input_params = current_input_params
+    except Exception as snap_err:
+        logger.warning(f"Could not snapshot extraction definitions into component_run.input_params: {snap_err}")
+
+    component_run.save(update_fields=['status', 'celery_task_id', 'started_at', 'completed_at', 'error_message', 'input_params'])
 
     job_t0 = time.time()
     worker_concurrency = int(os.environ.get("EXTRACTION_PARALLEL_WORKERS", max_workers))

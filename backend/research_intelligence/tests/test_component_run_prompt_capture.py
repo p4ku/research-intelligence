@@ -212,3 +212,80 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         self.assertEqual(comp_run_ft.input_params["full_text_acceptance_criteria"], "Include papers with empirical benchmark latency on NVIDIA GPUs.")
         self.assertEqual(comp_run_ft.input_params["full_text_screening_exit_metric"], "hardware_fit_score")
         self.assertEqual(comp_run_ft.input_params["limit"], 10)
+
+    def test_extraction_node_get_input_params(self):
+        """Verify ExtractionNode.get_input_params builds a complete list of extraction definitions."""
+        from research_intelligence.models import ExtractionDefinition
+        from research_intelligence.tasks.step_5_extraction.node import ExtractionNode
+
+        ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Novelty Evaluation",
+            system_prompt="Extract research novelty score and key contributions.",
+            user_prompt_template="Paper Content: {paper_text}",
+            exit_metric="novelty_score",
+            llm_model="google/gemini-3.7-flash",
+            response_schema={"type": "object", "properties": {"novelty_score": {"type": "number"}}}
+        )
+        ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="TRL Level",
+            system_prompt="Assess Technology Readiness Level (1-9).",
+            user_prompt_template="Full Text: {full_text}",
+            exit_metric="trl_level",
+            llm_model="google/gemini-3.7-flash",
+            response_schema={"type": "object", "properties": {"trl_level": {"type": "integer"}}}
+        )
+
+        node = ExtractionNode()
+        params = node.get_input_params(self.pipeline_run, self.workspace, {"limit": 10}, limit=10)
+
+        self.assertEqual(params["stage"], "extraction")
+        self.assertEqual(params["total_definitions"], 2)
+        defs = params["extraction_definitions"]
+        self.assertEqual(len(defs), 2)
+
+        def_names = [d["name"] for d in defs]
+        self.assertIn("Novelty Evaluation", def_names)
+        self.assertIn("TRL Level", def_names)
+
+        novelty_def = next(d for d in defs if d["name"] == "Novelty Evaluation")
+        self.assertEqual(novelty_def["exit_metric"], "novelty_score")
+        self.assertEqual(novelty_def["system_prompt"], "Extract research novelty score and key contributions.")
+        self.assertEqual(novelty_def["user_prompt_template"], "Paper Content: {paper_text}")
+        self.assertIn("novelty_score", novelty_def["response_schema"]["properties"])
+
+    @patch("mcp_server.tools.pipeline_runs.triggers.execute_extraction_job")
+    def test_trigger_extraction_job_logic_creates_full_input_params(self, mock_exec):
+        """Verify trigger_extraction_job_logic snapshots all extraction definitions into input_params."""
+        from research_intelligence.models import ExtractionDefinition
+        from mcp_server.tools.pipeline_runs.triggers import trigger_extraction_job_logic
+
+        mock_exec.delay.return_value = MagicMock(id="celery_task_ext_123")
+
+        ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Schwarz Strategic Fit",
+            system_prompt="Assess corporate fit with retail logistics.",
+            user_prompt_template="Evaluate: {paper_text}",
+            exit_metric="fit_score",
+            llm_model="google/gemini-3.7-flash",
+            response_schema={"type": "object", "properties": {"fit_score": {"type": "number"}}}
+        )
+
+        raw_res = trigger_extraction_job_logic(
+            user=self.user,
+            pipeline_run_id=str(self.pipeline_run.id),
+            limit=5
+        )
+        data = json.loads(raw_res)
+        self.assertTrue(data.get("success"))
+        comp_id = data.get("component_run_id")
+
+        comp_run = ComponentRun.objects.get(id=comp_id)
+        self.assertEqual(comp_run.input_params["stage"], "extraction")
+        self.assertEqual(comp_run.input_params["total_definitions"], 1)
+        self.assertEqual(comp_run.input_params["extraction_definitions"][0]["name"], "Schwarz Strategic Fit")
+        self.assertEqual(comp_run.input_params["extraction_definitions"][0]["exit_metric"], "fit_score")
+        self.assertEqual(comp_run.input_params["limit"], 5)
+

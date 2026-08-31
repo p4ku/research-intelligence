@@ -47,6 +47,11 @@ class ExtractionNode(BaseWorkflowNode):
             return f"Extraction: {extracted} parameters extracted across {papers} accepted paper(s)."
         return super().generate_stage_summary(comp_run, status=status)
 
+    def get_input_params(self, pipeline_run, workspace, config: Dict[str, Any], limit: Optional[int] = None) -> Dict[str, Any]:
+        params = super().get_input_params(pipeline_run, workspace, config, limit=limit)
+        params.update(workspace.get_extraction_prompt_snapshot())
+        return params
+
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
         from research_intelligence.tasks.step_5_extraction.extract import execute_extraction_job
         return self.dispatch_celery_task(execute_extraction_job, comp_run, limit=limit)

@@ -417,12 +417,19 @@ def trigger_extraction_job_logic(
     pipeline_run.current_stage = 'extraction'
     pipeline_run.save(update_fields=['status', 'current_stage'])
 
+    input_params = {
+        "limit": limit,
+        "pipeline_run_id": str(pipeline_run.id),
+        "active_definitions_count": active_definitions_count
+    }
+    input_params.update(workspace.get_extraction_prompt_snapshot())
+
     comp_run = ComponentRun.objects.create(
         pipeline_run=pipeline_run,
         step_type='extraction',
         component_name="parameter_extraction",
         status='pending',
-        input_params={"limit": limit, "pipeline_run_id": str(pipeline_run.id), "active_definitions_count": active_definitions_count}
+        input_params=input_params
     )
 
     celery_task_id = None

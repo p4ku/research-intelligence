@@ -50,6 +50,12 @@ class SignalScoreNode(BaseWorkflowNode):
             return f"Signal Scoring: Computed scores for {scored} paper(s)."
         return super().generate_stage_summary(comp_run, status=status)
 
+    def get_input_params(self, pipeline_run, workspace, config: Dict[str, Any], limit: Optional[int] = None) -> Dict[str, Any]:
+        params = super().get_input_params(pipeline_run, workspace, config, limit=limit)
+        params["stage"] = "signal_score"
+        params["signal_score_code"] = getattr(workspace, 'signal_score_code', '') or ""
+        return params
+
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
         from research_intelligence.tasks.step_6_signal_score.scorer import execute_signal_score_job
         return self.dispatch_celery_task(execute_signal_score_job, comp_run, limit=limit)

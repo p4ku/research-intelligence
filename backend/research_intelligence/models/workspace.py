@@ -219,6 +219,37 @@ class Workspace(models.Model):
         if str(stage).lower() in ["full_text", "fulltext", "full-text", "stage_b"]:
             return self.get_full_text_screening_prompt_snapshot()
         return self.get_abstract_screening_prompt_snapshot()
+
+    def get_extraction_prompt_snapshot(self) -> dict:
+        """
+        Returns a comprehensive snapshot of all active dynamic parameter extraction targets:
+        - extraction_definitions: list of {id, name, system_prompt, user_prompt_template, exit_metric, llm_model, response_schema, version, requires_consensus}
+        - total_definitions: count
+        - llm_model / llm_provider / reasoning_effort
+        """
+        active_defs = self.extraction_definitions.filter(is_active=True).order_by('created_at', 'name')
+        definitions_list = [
+            {
+                "id": str(d.id),
+                "name": d.name,
+                "system_prompt": d.system_prompt,
+                "user_prompt_template": d.user_prompt_template,
+                "exit_metric": d.exit_metric,
+                "llm_model": d.llm_model or self.screening_llm_model,
+                "response_schema": d.response_schema,
+                "version": d.version,
+                "requires_consensus": d.requires_consensus,
+            }
+            for d in active_defs
+        ]
+        return {
+            "stage": "extraction",
+            "llm_model": self.screening_llm_model,
+            "llm_provider": self.llm_provider,
+            "reasoning_effort": self.reasoning_effort,
+            "total_definitions": len(definitions_list),
+            "extraction_definitions": definitions_list,
+        }
     
     # Digest distribution schedule
     digest_schedule = models.CharField(max_length=100, default="0 9 * * 5", help_text="Cron expression for weekly digest execution (e.g. every Friday at 9am)")
