@@ -273,14 +273,26 @@ class Workspace(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    def record_token_usage(self, tokens_in: int, tokens_out: int, model_name: str = None):
+    def record_token_usage(
+        self,
+        tokens_in: int,
+        tokens_out: int,
+        model_name: str = None,
+        operation_type: str = "other",
+        user=None,
+        pipeline_run_id=None,
+        component_run_id=None,
+        context_metadata: dict = None
+    ):
         """
-        Increments workspace monthly token and USD usage counters atomically.
+        Increments workspace monthly token and USD usage counters atomically,
+        and logs an immutable LLMUsageRecord entry to the persistent global ledger.
         """
         from django.db.models import F
         from ..llm_providers.pricing import calculate_llm_cost
 
-        cost = calculate_llm_cost(model_name or self.screening_llm_model, tokens_in or 0, tokens_out or 0)
+        model = model_name or self.screening_llm_model
+        cost = calculate_llm_cost(model, tokens_in or 0, tokens_out or 0)
         total_tokens = (tokens_in or 0) + (tokens_out or 0)
 
         Workspace.objects.filter(pk=self.pk).update(
@@ -295,6 +307,26 @@ class Workspace(models.Model):
             'tokens_consumed_this_month',
             'usd_spent_this_month'
         ])
+
+        # Hook: Record into immutable global LLM usage ledger (preserves history even on Workspace delete)
+        try:
+            from .audit import LLMUsageRecord
+            LLMUsageRecord.record_usage(
+                tokens_in=tokens_in or 0,
+                tokens_out=tokens_out or 0,
+                llm_model=model,
+                llm_provider=self.llm_provider,
+                operation_type=operation_type,
+                workspace=self,
+                user=user,
+                pipeline_run_id=pipeline_run_id,
+                component_run_id=component_run_id,
+                usd_cost=cost,
+                context_metadata=context_metadata
+            )
+        except Exception as err:
+            logger.warning(f"Could not record LLMUsageRecord in persistent ledger: {err}")
+
         return cost
 
     def is_quota_exceeded(self):

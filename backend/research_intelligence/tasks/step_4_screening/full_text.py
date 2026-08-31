@@ -505,8 +505,16 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
         pipeline_run.total_papers_passed_screening = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='full_text_passed').count()
         pipeline_run.save(update_fields=['tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost', 'total_papers_passed_screening'])
 
-        # Record monthly quota usage on Workspace
-        workspace.record_token_usage(total_prompt_tokens, total_candidates_tokens, workspace.screening_llm_model)
+        # Record monthly quota usage on Workspace and persist into global LLM usage ledger
+        workspace.record_token_usage(
+            tokens_in=total_prompt_tokens,
+            tokens_out=total_candidates_tokens,
+            model_name=workspace.screening_llm_model,
+            operation_type="full_text_screening",
+            user=pipeline_run.triggered_by,
+            pipeline_run_id=str(pipeline_run.id),
+            component_run_id=str(component_run.id)
+        )
 
         logger.info(f"📊 [FULL-TEXT SCREENING COMPLETED] Model: {workspace.screening_llm_model} | Screened: {len(papers)} | Time: {job_duration_sec}s | Tokens: {total_tokens} (In: {total_prompt_tokens}, Out: {total_candidates_tokens}) | Cost: ${cost}")
 

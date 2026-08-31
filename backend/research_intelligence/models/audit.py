@@ -198,3 +198,135 @@ class UserActivityLog(models.Model):
     def __str__(self):
         user_str = self.user_username or (str(self.user) if self.user else "Anonymous")
         return f"[{self.timestamp.strftime('%Y-%m-%d %H:%M:%S')}] {user_str} executed {self.action_name} ({self.status})"
+
+
+class LLMUsageRecord(models.Model):
+    """
+    Immutable global ledger tracking every LLM inference call and token usage across the platform.
+    Preserves historical token counts and financial costs even if Workspaces, Pipelines, or Users are deleted.
+    """
+    OPERATION_CHOICES = [
+        ('abstract_screening', 'Abstract Screening'),
+        ('full_text_screening', 'Full-Text Screening'),
+        ('extraction', 'Parameter Extraction'),
+        ('signal_score', 'Signal Score Evaluation'),
+        ('reporting', 'Narrative Reporting'),
+        ('chat', 'Paper Chat Q&A'),
+        ('mcp', 'FastMCP Tool Call'),
+        ('other', 'Other LLM Inference'),
+    ]
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Foreign Keys (SET_NULL on deletion to guarantee permanent financial audit trail)
+    workspace = models.ForeignKey('Workspace', on_delete=models.SET_NULL, null=True, blank=True, related_name="llm_usage_records")
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="llm_usage_records")
+
+    # Denormalized immutable snapshots (Survive Workspace/User hard deletion)
+    workspace_name_snapshot = models.CharField(max_length=255, blank=True, default="", help_text="Historical workspace name")
+    workspace_id_snapshot = models.CharField(max_length=100, blank=True, default="", help_text="Historical workspace UUID")
+    user_username_snapshot = models.CharField(max_length=255, blank=True, default="", help_text="Historical user username")
+
+    pipeline_run_id = models.CharField(max_length=100, blank=True, default="", help_text="Associated PipelineRun UUID")
+    component_run_id = models.CharField(max_length=100, blank=True, default="", help_text="Associated ComponentRun UUID")
+
+    operation_type = models.CharField(max_length=50, choices=OPERATION_CHOICES, default='other', db_index=True)
+    llm_model = models.CharField(max_length=100, default='google/gemini-3.7-flash', db_index=True)
+    llm_provider = models.CharField(max_length=50, default='google')
+
+    tokens_in = models.BigIntegerField(default=0, help_text="Prompt / Input tokens consumed")
+    tokens_out = models.BigIntegerField(default=0, help_text="Completion / Thought / Output tokens consumed")
+    total_tokens = models.BigIntegerField(default=0, help_text="Total tokens (in + out)")
+    usd_cost = models.DecimalField(max_digits=12, decimal_places=6, default=0.000000, help_text="Financial cost in USD")
+
+    context_metadata = models.JSONField(blank=True, null=True, help_text="Optional execution details or parameters")
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        app_label = 'research_intelligence'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['-timestamp']),
+            models.Index(fields=['operation_type', '-timestamp']),
+            models.Index(fields=['llm_model', '-timestamp']),
+            models.Index(fields=['workspace_id_snapshot', '-timestamp']),
+        ]
+
+    def __str__(self):
+        return f"{self.operation_type} | {self.llm_model} | {self.total_tokens:,} tok (${self.usd_cost:.4f}) at {self.timestamp:%Y-%m-%d %H:%M}"
+
+    @classmethod
+    def record_usage(
+        cls,
+        tokens_in: int,
+        tokens_out: int,
+        llm_model: str = "google/gemini-3.7-flash",
+        llm_provider: str = "google",
+        operation_type: str = "other",
+        workspace=None,
+        user=None,
+        pipeline_run_id=None,
+        component_run_id=None,
+        usd_cost=None,
+        context_metadata: dict = None
+    ):
+        """
+        Creates an immutable LLMUsageRecord entry with automatic denormalization and cost calculation.
+        """
+        from decimal import Decimal
+        from .workspace import Workspace
+        from ..llm_providers.pricing import calculate_llm_cost
+
+        ws_obj = None
+        ws_name = ""
+        ws_id = ""
+
+        if isinstance(workspace, Workspace):
+            ws_obj = workspace
+            ws_name = workspace.name or ""
+            ws_id = str(workspace.id)
+        elif isinstance(workspace, (str, uuid.UUID)):
+            ws_id = str(workspace)
+            try:
+                ws_obj = Workspace.objects.filter(id=workspace).first()
+                if ws_obj:
+                    ws_name = ws_obj.name or ""
+            except Exception:
+                ws_obj = None
+
+        user_obj = user if (user and hasattr(user, 'is_authenticated') and user.is_authenticated) else None
+        user_name = user_obj.username if user_obj else ""
+
+        p_in = int(tokens_in or 0)
+        p_out = int(tokens_out or 0)
+        tot_tok = p_in + p_out
+
+        if usd_cost is None:
+            calc_cost = calculate_llm_cost(llm_model, p_in, p_out)
+        else:
+            calc_cost = Decimal(str(usd_cost))
+
+        record = cls.objects.create(
+            workspace=ws_obj,
+            workspace_name_snapshot=ws_name,
+            workspace_id_snapshot=ws_id,
+            user=user_obj,
+            user_username_snapshot=user_name,
+            pipeline_run_id=str(pipeline_run_id or ""),
+            component_run_id=str(component_run_id or ""),
+            operation_type=operation_type,
+            llm_model=llm_model,
+            llm_provider=llm_provider,
+            tokens_in=p_in,
+            tokens_out=p_out,
+            total_tokens=tot_tok,
+            usd_cost=calc_cost,
+            context_metadata=context_metadata
+        )
+
+        logger.info(
+            f"💎 [LLM USAGE LEDGER] Op: '{operation_type}' | Model: '{llm_model}' | "
+            f"Tokens: {tot_tok:,} (In: {p_in:,}, Out: {p_out:,}) | Cost: ${calc_cost:.5f} | "
+            f"Workspace: '{ws_name or ws_id or 'Global'}'"
+        )
+        return record

@@ -23,6 +23,7 @@ from research_intelligence.models import (
     NarrativeReport,
     HITLCorrection,
     UserActivityLog,
+    LLMUsageRecord,
     ResearchAgentProcess,
 )
 
@@ -2317,6 +2318,123 @@ class UserActivityLogAdmin(admin.ModelAdmin):
         return f"{obj.execution_time_ms:.1f} ms"
     execution_duration_fmt.short_description = "Duration"
     execution_duration_fmt.admin_order_field = "execution_time_ms"
+
+
+@admin.register(LLMUsageRecord)
+class LLMUsageRecordAdmin(admin.ModelAdmin):
+    """
+    State-of-the-art Persistent Financial & Token Ledger for Django Admin.
+    Guarantees permanent audit traceability across all LLM inference calls even after Workspace or Pipeline deletion.
+    """
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
+    list_display = (
+        'formatted_timestamp',
+        'operation_type_badge',
+        'llm_model_badge',
+        'workspace_display',
+        'tokens_in_fmt',
+        'tokens_out_fmt',
+        'total_tokens_fmt',
+        'usd_cost_fmt',
+        'user_display',
+        'pipeline_run_link',
+    )
+    ordering = ('-timestamp', '-id')
+    list_filter = ('operation_type', 'llm_model', 'llm_provider', 'timestamp')
+    search_fields = (
+        'workspace_name_snapshot',
+        'workspace_id_snapshot',
+        'user_username_snapshot',
+        'pipeline_run_id',
+        'component_run_id',
+        'llm_model'
+    )
+    readonly_fields = [f.name for f in LLMUsageRecord._meta.fields]
+    date_hierarchy = 'timestamp'
+
+    def has_add_permission(self, request):
+        return False  # Immutable audit ledger
+
+    def has_delete_permission(self, request, obj=None):
+        return request.user.is_superuser
+
+    def formatted_timestamp(self, obj):
+        return obj.timestamp.strftime("%Y-%m-%d %H:%M:%S")
+    formatted_timestamp.short_description = "Timestamp"
+    formatted_timestamp.admin_order_field = "timestamp"
+
+    def operation_type_badge(self, obj):
+        color_map = {
+            'abstract_screening': '#0d6efd',
+            'full_text_screening': '#6f42c1',
+            'extraction': '#198754',
+            'signal_score': '#fd7e14',
+            'reporting': '#20c997',
+            'chat': '#d63384',
+            'mcp': '#0dcaf0',
+            'other': '#6c757d',
+        }
+        color = color_map.get(obj.operation_type, '#6c757d')
+        label = obj.get_operation_type_display() if hasattr(obj, 'get_operation_type_display') else obj.operation_type
+        return format_html(
+            f'<span style="background-color: {color}; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; white-space: nowrap;">{label}</span>'
+        )
+    operation_type_badge.short_description = "Operation"
+    operation_type_badge.admin_order_field = "operation_type"
+
+    def llm_model_badge(self, obj):
+        model_short = obj.llm_model.replace("google/", "").replace("openai/", "").replace("anthropic/", "")
+        return format_html(
+            f'<span style="font-family: monospace; font-size: 12px; background: #f1f3f5; color: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #ced4da;">{model_short}</span>'
+        )
+    llm_model_badge.short_description = "Model"
+    llm_model_badge.admin_order_field = "llm_model"
+
+    def workspace_display(self, obj):
+        if obj.workspace:
+            url = reverse("admin:research_intelligence_workspace_change", args=[obj.workspace.id])
+            return format_html(f'<a href="{url}" style="font-weight: 500;">🏢 {escape(obj.workspace.name)}</a>')
+        if obj.workspace_name_snapshot:
+            return format_html(f'<span style="color: #6c757d; font-style: italic;">🗑️ {escape(obj.workspace_name_snapshot)} <span style="font-size: 10px;">(deleted)</span></span>')
+        return format_html('<span style="color: #adb5bd;">-</span>')
+    workspace_display.short_description = "Workspace"
+    workspace_display.admin_order_field = "workspace_name_snapshot"
+
+    def tokens_in_fmt(self, obj):
+        return f"{obj.tokens_in:,}"
+    tokens_in_fmt.short_description = "Prompt In"
+    tokens_in_fmt.admin_order_field = "tokens_in"
+
+    def tokens_out_fmt(self, obj):
+        return f"{obj.tokens_out:,}"
+    tokens_out_fmt.short_description = "Output"
+    tokens_out_fmt.admin_order_field = "tokens_out"
+
+    def total_tokens_fmt(self, obj):
+        return format_html(f'<strong>{obj.total_tokens:,}</strong>')
+    total_tokens_fmt.short_description = "Total Tokens"
+    total_tokens_fmt.admin_order_field = "total_tokens"
+
+    def usd_cost_fmt(self, obj):
+        return format_html(f'<span style="color: #198754; font-weight: 600;">${obj.usd_cost:.5f}</span>')
+    usd_cost_fmt.short_description = "Cost (USD)"
+    usd_cost_fmt.admin_order_field = "usd_cost"
+
+    def user_display(self, obj):
+        return obj.user_username_snapshot or (obj.user.username if obj.user else "System")
+    user_display.short_description = "User"
+
+    def pipeline_run_link(self, obj):
+        if not obj.pipeline_run_id:
+            return "-"
+        try:
+            url = reverse("admin:research_intelligence_pipelinerun_change", args=[obj.pipeline_run_id])
+            return format_html(f'<a href="{url}" style="font-family: monospace; font-size: 11px;">{obj.pipeline_run_id[:8]}...</a>')
+        except Exception:
+            return format_html(f'<span style="font-family: monospace; font-size: 11px; color: #6c757d;">{obj.pipeline_run_id[:8]}...</span>')
+    pipeline_run_link.short_description = "Pipeline"
 
 
 @admin.register(DocumentRegistry)

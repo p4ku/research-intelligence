@@ -128,7 +128,10 @@ class PaperChatEngine:
             cost = workspace.record_token_usage(
                 tokens_in,
                 tokens_out,
-                model_name=model_name
+                model_name=model_name,
+                operation_type="chat",
+                user=getattr(session, 'user', None),
+                context_metadata={"session_id": str(session.id), "paper_id": str(session.paper_id) if session.paper_id else None}
             )
 
             session.record_message_cost(tokens_in, tokens_out, cost)
@@ -308,7 +311,14 @@ class PaperChatEngine:
             tokens_in = final_usage.get("prompt_tokens", 0) or 0
             tokens_out = final_usage.get("candidates_tokens", 0) or 0
             total_tokens = final_usage.get("total_tokens", tokens_in + tokens_out)
-            cost = workspace.record_token_usage(tokens_in, tokens_out, model_name=model_name)
+            cost = workspace.record_token_usage(
+                tokens_in,
+                tokens_out,
+                model_name=model_name,
+                operation_type="chat",
+                user=getattr(session, 'user', None),
+                context_metadata={"session_id": str(session.id), "paper_id": str(session.paper_id) if session.paper_id else None}
+            )
             session.record_message_cost(tokens_in, tokens_out, cost)
 
             yield f"event: usage\ndata: {json.dumps({'tokens_in': tokens_in, 'tokens_out': tokens_out, 'total_tokens': total_tokens, 'usd_cost': float(cost)})}\n\n"

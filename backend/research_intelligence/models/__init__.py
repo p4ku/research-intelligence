@@ -30,6 +30,7 @@ from .report import (
 )
 from .audit import (
     UserActivityLog,
+    LLMUsageRecord,
 )
 
 # Re-export ejected Chat application models for backwards compatibility
@@ -52,6 +53,7 @@ __all__ = [
     "HITLCorrection",
     "NarrativeReport",
     "UserActivityLog",
+    "LLMUsageRecord",
     "PaperChatSession",
     "PaperChatMessage",
 ]

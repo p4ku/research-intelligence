@@ -470,8 +470,16 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
         pipeline_run.usd_cost = (pipeline_run.usd_cost or Decimal('0.0000')) + cost
         pipeline_run.save(update_fields=['tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost'])
 
-        # Record monthly quota usage on Workspace
-        workspace.record_token_usage(total_prompt_tokens, total_candidates_tokens, workspace.screening_llm_model)
+        # Record monthly quota usage on Workspace and persist into global LLM usage ledger
+        workspace.record_token_usage(
+            tokens_in=total_prompt_tokens,
+            tokens_out=total_candidates_tokens,
+            model_name=workspace.screening_llm_model,
+            operation_type="extraction",
+            user=pipeline_run.triggered_by,
+            pipeline_run_id=str(pipeline_run.id),
+            component_run_id=str(component_run.id)
+        )
 
         logger.info(f"📊 [EXTRACTION JOB COMPLETED] Total Extractions: {succeeded_count} | Time: {job_duration_sec}s | Tokens: {total_tokens} (In: {total_prompt_tokens}, Out: {total_candidates_tokens}) | Cost: ${cost}")
 
