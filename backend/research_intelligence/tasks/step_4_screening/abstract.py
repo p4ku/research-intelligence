@@ -206,7 +206,27 @@ def execute_screening_job(self, component_run_id: str, limit: int = None, max_wo
     component_run.started_at = timezone.now()
     component_run.completed_at = None
     component_run.error_message = ''
-    component_run.save(update_fields=['status', 'celery_task_id', 'started_at', 'completed_at', 'error_message'])
+
+    # Capture complete criteria, prompt templates, and response schema snapshot
+    input_params = dict(component_run.input_params or {})
+    prompt_snapshot = {
+        "stage": "abstract",
+        "llm_model": getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash'),
+        "llm_provider": getattr(workspace, 'llm_provider', 'google'),
+        "reasoning_effort": getattr(workspace, 'reasoning_effort', 'medium'),
+        "abstract_acceptance_criteria": workspace.get_abstract_acceptance_criteria(),
+        "abstract_rejection_criteria": workspace.get_abstract_rejection_criteria(),
+        "abstract_screening_system_prompt": workspace.get_abstract_screening_system_prompt(),
+        "abstract_screening_user_prompt_template": workspace.get_abstract_screening_user_prompt_template(),
+        "abstract_screening_exit_metric": workspace.get_abstract_screening_exit_metric(),
+        "abstract_screening_response_schema": workspace.get_abstract_screening_response_schema(),
+    }
+    for k, v in prompt_snapshot.items():
+        if k not in input_params or input_params[k] is None:
+            input_params[k] = v
+    component_run.input_params = input_params
+
+    component_run.save(update_fields=['status', 'celery_task_id', 'started_at', 'completed_at', 'error_message', 'input_params'])
 
     job_t0 = time.time()
     worker_concurrency = int(os.environ.get("SCREENING_PARALLEL_WORKERS", max_workers))
