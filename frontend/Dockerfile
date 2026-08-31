@@ -4,8 +4,14 @@
 # run on Node — Next.js's standalone server is a plain node script and the
 # oven/bun image has no `node` binary.
 #
-#   docker build --build-arg BUILD_ID=$(git rev-parse HEAD) -t research-scanner .
+#   docker build \
+#     --build-arg BUILD_ID=$(git rev-parse HEAD) \
+#     --build-arg APP_VERSION=$(node scripts/app-version.mjs) \
+#     -t research-scanner .
 #   docker run -p 3000:3000 -e BACKEND_INTERNAL_URL=http://host.docker.internal:8000 research-scanner
+#
+# APP_VERSION must come from outside: the build context has no .git, so the
+# version script can't count commits in here (it would fall back to 0.1.0-local).
 
 FROM node:22-alpine AS base
 COPY --from=oven/bun:1-alpine /usr/local/bin/bun /usr/local/bin/bun
@@ -20,7 +26,8 @@ RUN --mount=type=cache,target=/root/.bun/install/cache \
 
 FROM base AS build
 ARG BUILD_ID=local
-ENV BUILD_ID=$BUILD_ID NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production
+ARG APP_VERSION
+ENV BUILD_ID=$BUILD_ID APP_VERSION=$APP_VERSION NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN --mount=type=cache,target=/app/.next/cache \

@@ -135,9 +135,22 @@ bun run contract:spec    # regenerates contract/*.openapi.json
 ### Docker
 
 ```bash
-docker build --build-arg BUILD_ID=$(git rev-parse HEAD) -t research-scanner .
+docker build \
+  --build-arg BUILD_ID=$(git rev-parse HEAD) \
+  --build-arg APP_VERSION=$(node scripts/app-version.mjs) \
+  -t research-scanner .
 docker run -p 3000:3000 -e BACKEND_INTERNAL_URL=http://host.docker.internal:8000 research-scanner
 ```
+
+### Version
+
+The build shows `v0.1.45` under the sidebar wordmark (commit and build time on
+hover) and in `GET /bff/status`. `major.minor` is `package.json`'s version —
+bump it by hand when the product moves; the patch is the number of commits
+that touched `frontend/`, so every frontend change that reaches `main` deploys
+with a new, increasing number and nothing to remember. `node
+scripts/app-version.mjs` prints it; `APP_VERSION` overrides it where there is
+no git checkout (the Docker image — `deploy.yml` passes it in).
 
 Runtime env: `BACKEND_INTERNAL_URL` (required) and `SITE_URL`, whose scheme
 decides whether session cookies carry `Secure`. On Cloud Foundry the

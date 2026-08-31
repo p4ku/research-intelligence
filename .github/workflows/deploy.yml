@@ -21,6 +21,16 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history: the frontend version is the count of commits that
+          # touched frontend/, which a shallow clone would report as 1.
+          fetch-depth: 0
+
+      # 0.1.<n> — major.minor from frontend/package.json, n = commits that
+      # touched frontend/. Shown under the sidebar wordmark and by /bff/status.
+      - name: Resolve frontend version
+        id: frontend
+        run: echo "version=$(node frontend/scripts/app-version.mjs)" >> "$GITHUB_OUTPUT"
 
       # ------------------------------------------------------------
       # Docker / Container Registry
@@ -54,8 +64,10 @@ jobs:
           push: true
           build-args: |
             BUILD_ID=${{ github.sha }}
+            APP_VERSION=${{ steps.frontend.outputs.version }}
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
+            ${{ env.FRONTEND_IMAGE }}:v${{ steps.frontend.outputs.version }}
             ${{ env.FRONTEND_IMAGE }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
