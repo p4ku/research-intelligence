@@ -5,12 +5,13 @@
 import 'server-only'
 
 import { apiFetch } from '@/lib/api/server'
-import { papers } from '../papers/service'
-import { runs } from '../pipeline-runs/service'
-import { workspaces } from '../workspaces/service'
+import { appBuiltAt, appCommit, appVersion } from '@/lib/version'
 import { djangoOperations } from '../contract'
 import type { Operation, ProbeParam } from '../core/contract-types'
 import { RESOURCES, sourceOf, type ResourceName } from '../core/source'
+import { papers } from '../papers/service'
+import { runs } from '../pipeline-runs/service'
+import { workspaces } from '../workspaces/service'
 
 export type ProbeState = 'present' | 'missing' | 'unauthenticated' | 'unreachable' | 'skipped'
 
@@ -31,7 +32,10 @@ export interface ResourceStatus {
 
 export interface BffStatus {
   generated_at: string
+  /** `0.1.45` — see scripts/app-version.mjs. */
+  version: string
   build_id: string | null
+  built_at: string | null
   resources: ResourceStatus[]
 }
 
@@ -97,7 +101,9 @@ export async function bffStatus(): Promise<BffStatus> {
 
   return {
     generated_at: new Date().toISOString(),
-    build_id: process.env.BUILD_ID ?? null,
+    version: appVersion,
+    build_id: process.env.BUILD_ID ?? appCommit,
+    built_at: appBuiltAt,
     resources: Object.values(RESOURCES).map((def) => ({
       name: def.name,
       source: sourceOf(def.name),

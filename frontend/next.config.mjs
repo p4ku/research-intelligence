@@ -1,5 +1,6 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveAppCommit, resolveAppVersion } from './scripts/app-version.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -7,6 +8,13 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const nextConfig = {
   // Self-contained server bundle for the Docker image (node server.js).
   output: 'standalone',
+  // Build identity, inlined so the sidebar stamp and /bff/status agree on the
+  // server and in the browser (read via src/lib/version.ts).
+  env: {
+    APP_VERSION: resolveAppVersion(),
+    APP_COMMIT: resolveAppCommit() ?? '',
+    APP_BUILT_AT: new Date().toISOString(),
+  },
   // Django's URLs end in a slash; Next's default redirect of /api/papers/ →
   // /api/papers would fire before the proxy could forward it. The proxy
   // normalises trailing slashes for the app's own routes instead.

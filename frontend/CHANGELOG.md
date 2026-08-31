@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-08-31 (build version stamp)
+
+- Every build carries a version, `0.1.<n>`: `major.minor` from `package.json`,
+  `n` the number of commits that touched `frontend/` (`scripts/app-version.mjs`,
+  inlined by `next.config.mjs`). It sits under the sidebar wordmark with the
+  commit and build time on hover, `GET /bff/status` reports `version` and
+  `built_at`, and `deploy.yml` also tags the image `v0.1.<n>`.
+
 ## 2026-08-28 (backend swap, slice 2: the BFF seam + backend-team handover)
 
 - All data access now flows through a BFF seam: zod contract schemas as the

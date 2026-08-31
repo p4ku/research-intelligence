@@ -22,6 +22,7 @@ import {
 } from '@/components/sidebar'
 import { SidebarLayout } from '@/components/sidebar-layout'
 import { Switch } from '@/components/switch'
+import { VersionStamp } from '@/components/version-stamp'
 import { WorkspaceSwitcher, type WorkspaceOption } from '@/components/workspace-switcher'
 import type { SessionUser } from '@/lib/auth/cookies'
 import type { Lang } from '@/lib/i18n'
@@ -178,14 +179,16 @@ function ApplicationLayoutInner({ user, workspaces, currentWorkspaceId, children
       sidebar={
         <Sidebar>
           {/* Fixed-height row with no vertical padding so the logo line sits
-              on a stable h-14 header. */}
+              on a stable h-14 header. The version stamp tucks under the
+              wordmark so a fresh deploy is visible at a glance. */}
           <SidebarHeader>
             <div className="flex items-center gap-2.5 px-2 py-1.5">
               <ScannerMark className="text-foreground size-7" />
-              <div className="min-w-0">
+              <div className="flex min-w-0 flex-col">
                 <div className="text-foreground text-xs leading-snug font-semibold tracking-[0.14em] uppercase">
                   Research Intelligence
                 </div>
+                <VersionStamp />
               </div>
             </div>
           </SidebarHeader>
