@@ -6,7 +6,7 @@ applications:
       username: ((registry_username))
     instances: 2
     memory: 512M
-    disk_quota: 2G
+    disk_quota: 1G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/api
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/mcp
@@ -71,7 +71,7 @@ applications:
       username: ((registry_username))
     instances: 1
     memory: 512M
-    disk_quota: 2G
+    disk_quota: 1G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud
     env:
