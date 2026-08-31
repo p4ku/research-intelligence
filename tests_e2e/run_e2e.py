@@ -226,8 +226,9 @@ def print_suite_summary(scenario_results: list, total_elapsed: float, config=Non
 
         print(f"  {idx:<3} {s_name:<32} {s_status:<10} {s_time:<10} {s_papers:<8} {tok_str:<13} {usd_str}")
 
+    pass_rate = (passed_count / len(scenario_results) * 100) if scenario_results else 100.0
     print("  " + "-" * 76)
-    print(f"  🎯 Overall Result: {passed_count}/{len(scenario_results)} Scenarios Passed (100%) in {total_elapsed:.1f}s")
+    print(f"  🎯 Overall Result: {passed_count}/{len(scenario_results)} Scenarios Passed ({pass_rate:.0f}%) in {total_elapsed:.1f}s")
     print("=" * 80)
 
     # Calculate suite-level cost dictionary
@@ -407,7 +408,8 @@ def main():
                 try:
                     res = fn(*fn_args, **fn_kwargs)
                     s_elapsed = time.time() - s_t0
-                    res_dict = dict(res) if isinstance(res, dict) else {"status": "passed"}
+                    res_dict = dict(res) if isinstance(res, dict) else {}
+                    res_dict.setdefault("status", "passed")
                     res_dict["scenario_name"] = name
                     res_dict["elapsed_sec"] = s_elapsed
                     suite_results.append(res_dict)

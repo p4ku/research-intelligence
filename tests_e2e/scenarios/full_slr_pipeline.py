@@ -549,6 +549,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         logger.info("🎉 E2E FULL SLR PIPELINE SCENARIO FINISHED SUCCESSFULLY!")
         logger.info("=================================================================")
 
+        scenario_results["status"] = "passed"
         return scenario_results
 
     finally:
