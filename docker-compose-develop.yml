@@ -121,6 +121,12 @@ services:
     container_name: sri_mcp
     restart: always
     command: python manage.py run_mcp
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/sse || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     volumes:
       - ./backend:/app
     ports:
@@ -179,6 +185,12 @@ services:
     container_name: sri_worker
     restart: always
     command: celery -A django_project worker --loglevel=info -Q celery,tenant-default,tenant-bulk-scraping
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f celery || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     volumes:
       - ./backend:/app
     environment:
@@ -224,6 +236,12 @@ services:
     container_name: sri_beat
     restart: always
     command: celery -A django_project beat --loglevel=info
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f celery || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     volumes:
       - ./backend:/app
     environment:
