@@ -265,10 +265,11 @@ services:
     container_name: sri_frontend
     restart: always
     ports:
-      - "3000:3000"
+      - "${FRONTEND_PORT:-3000}:3000"
     environment:
-      - PORT=3000
-      - BACKEND_INTERNAL_URL=http://api:8000
+      # PORT/HOSTNAME come from the image. Served over TLS here, so cookies
+      # stay Secure — no COOKIE_SECURE override.
+      - BACKEND_INTERNAL_URL=${BACKEND_INTERNAL_URL:-http://api:8000}
       - SITE_URL=${SITE_URL:-https://sri.soinventive.co.uk}
     depends_on:
       - api
