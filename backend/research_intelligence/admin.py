@@ -404,9 +404,23 @@ def render_component_metrics_summary(obj):
             max_score_str,
         )
     elif obj.step_type == 'extraction':
-        created = m.get('extractions_created', 0)
+        created = m.get('extractions_created', m.get('completed_extractions', 0))
+        total_items = m.get('total_work_items', 0)
         papers = m.get('total_papers', 0)
         defs = m.get('total_definitions', 0)
+        pct = m.get('percent_complete')
+        latest = m.get('latest_processed')
+        if obj.status == 'running' and total_items > 0:
+            return format_html(
+                '<div style="line-height: 1.35; white-space: nowrap;">'
+                '<strong>{}/{} extractions</strong> (<span style="color: #0d6efd; font-weight: 600;">{}%</span>)<br>'
+                '<span style="color: #6c757d; font-size: 11px;">{}</span>'
+                '</div>',
+                created,
+                total_items,
+                pct or 0,
+                latest or f"{papers} papers, {defs} defs"
+            )
         return format_html(
             '<div style="line-height: 1.35; white-space: nowrap;">'
             '<strong>{} extractions</strong><br>'
@@ -1004,7 +1018,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
         }),
         ('Reprocessing & Ingestion Options', {
             'fields': ('reprocess_existing',),
-            'description': 'When enabled, existing and duplicate papers in the workspace will be re-screened and re-extracted through all downstream stages instead of halted at Step 1.'
+            'description': 'When enabled, existing and duplicate papers in the workspace will be re-screened and re-extracted through all downstream stages instead of halted during Search & Ingestion.'
         }),
         ('Timestamps & Metrics', {
             'fields': ('started_at', 'completed_at', 'execution_time', 'tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost')
@@ -1122,6 +1136,17 @@ class PipelineRunAdmin(admin.ModelAdmin):
         return render_badge(obj.get_current_stage_display(), bg, text_color)
     current_stage_badge.short_description = "Current Stage"
 
+    actions = ['run_full_pipeline', 'rerun_with_reprocessing', 'send_digest_email_action', 'reap_zombie_runs_action']
+
+    @admin.action(description="🧟 Reap / Terminate Stale Zombie Runs")
+    def reap_zombie_runs_action(self, request, queryset):
+        from research_intelligence.tasks.auxiliary.zombie_watchdog import reap_zombie_tasks
+        stats = reap_zombie_tasks(max_component_age_minutes=5, force=False)
+        self.message_user(
+            request,
+            f"🧟 Reaped {stats['reaped_pipelines']} stale pipeline run(s), {stats['reaped_agents']} agent process(es), and {stats['reaped_components']} component task(s)."
+        )
+
     @admin.action(description="🚀 Launch/Advance Autonomous Pipeline (Current Settings)")
     def run_full_pipeline(self, request, queryset):
         from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
@@ -1204,7 +1229,16 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         }),
     )
 
-    actions = ['tick_selected_agents', 'rerun_with_reprocessing', 'pause_selected_agents', 'resume_selected_agents', 'abort_selected_agents']
+    actions = ['tick_selected_agents', 'rerun_with_reprocessing', 'pause_selected_agents', 'resume_selected_agents', 'abort_selected_agents', 'reap_zombie_agents_action']
+
+    @admin.action(description="🧟 Reap / Terminate Stale Zombie Processes")
+    def reap_zombie_agents_action(self, request, queryset):
+        from research_intelligence.tasks.auxiliary.zombie_watchdog import reap_zombie_tasks
+        stats = reap_zombie_tasks(max_component_age_minutes=5, force=False)
+        self.message_user(
+            request,
+            f"🧟 Reaped {stats['reaped_agents']} stale agent process(es), {stats['reaped_pipelines']} pipeline run(s), and {stats['reaped_components']} component task(s)."
+        )
 
     def save_model(self, request, obj, form, change):
         is_new = obj._state.adding
@@ -1679,7 +1713,16 @@ class ComponentRunAdmin(admin.ModelAdmin):
         return render_badge(obj.status.upper(), colors.get(obj.status, '#6c757d'))
     status_badge.short_description = "Status"
 
-    actions = ['rerun_from_this_component_step', 'reexecute_single_component_run', 'abort_selected_component_runs']
+    actions = ['rerun_from_this_component_step', 'reexecute_single_component_run', 'abort_selected_component_runs', 'reap_zombie_components_action']
+
+    @admin.action(description="🧟 Reap / Terminate Stale Zombie Tasks")
+    def reap_zombie_components_action(self, request, queryset):
+        from research_intelligence.tasks.auxiliary.zombie_watchdog import reap_zombie_tasks
+        stats = reap_zombie_tasks(max_component_age_minutes=5, force=False)
+        self.message_user(
+            request,
+            f"🧟 Reaped {stats['reaped_components']} stale component task(s), {stats['reaped_pipelines']} pipeline run(s), and {stats['reaped_agents']} agent process(es)."
+        )
 
     @admin.action(description="🔄 Rerun Pipeline from Selected Step Forward")
     def rerun_from_this_component_step(self, request, queryset):

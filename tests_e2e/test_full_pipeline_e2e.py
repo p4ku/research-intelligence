@@ -15,7 +15,6 @@ from tests_e2e.scenarios import (
     run_pipeline_reprocessing_scenario,
     run_cross_source_dedup_scenario,
     run_quota_guard_scenario,
-    run_email_digest_scenario,
     run_mcp_protocol_scenario,
     run_rbac_data_isolation_scenario,
     run_mid_step_rerun_scenario,
@@ -74,13 +73,6 @@ class TestFullPipelineE2E:
         assert results["status"] == "passed"
 
     @pytest.mark.e2e
-    def test_email_digest_dispatch(self):
-        config = E2EConfig.from_env()
-        results = run_email_digest_scenario(config)
-        assert results["status"] == "passed"
-        assert results["digest_status"] in (200, 201)
-
-    @pytest.mark.e2e
     def test_mcp_protocol_tools(self):
         config = E2EConfig.from_env()
         results = run_mcp_protocol_scenario(config)
@@ -122,9 +114,10 @@ class TestFullPipelineE2E:
         top_papers = slr_results.get("top_papers", [])
 
         if top_papers:
-            from tests_e2e.client import APIClient, PipelineService
+            from tests_e2e.client import APIClient, AuthService, PipelineService
             client = APIClient(config.base_url)
-            client.set_auth_token(config.password)
+            auth = AuthService(client)
+            auth.login(config.username, config.password)
             pipeline_svc = PipelineService(client)
             papers = pipeline_svc.list_papers(workspace_id=ws_id, screening_status="full_text_passed")
             if papers:

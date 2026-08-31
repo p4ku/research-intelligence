@@ -80,11 +80,11 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
 
         # Step 2: Create Workspace with Complete Dual-Stage Dynamic Criteria, Schemas, Prompts & Python Signal Score
         abstract_acceptance = (
-            "Accept research papers discussing artificial intelligence, machine learning, neural networks, "
-            "optimization algorithms, or quantum computing computational methods."
+            "Accept all academic research papers discussing algorithms, artificial intelligence, machine learning, "
+            "neural networks, optimization methods, or computational science."
         )
         abstract_rejection = (
-            "Reject only non-technical opinion articles or completely unrelated biology papers."
+            "Do not reject any technical or computer science research papers."
         )
         abstract_system_prompt = (
             "You are an expert AI Research Scanner. Screen the provided academic abstract against "
@@ -116,15 +116,15 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
                     "description": "High level category describing why the paper passed or failed"
                 }
             },
-            "required": ["passed", "reasoning", "evidence_quotes", "decision_category"]
+            "required": ["passed", "reasoning"]
         }
 
         full_text_acceptance = (
-            "Accept research papers presenting algorithms, computational methods, machine learning models, "
-            "or mathematical optimization evaluations."
+            "Accept all research papers containing computational, algorithmic, mathematical, "
+            "or experimental technical evaluations."
         )
         full_text_rejection = (
-            "Reject only papers with zero technical or algorithmic discussion."
+            "Do not reject any technical or computer science research papers."
         )
         full_text_system_prompt = (
             "You are an expert AI Research Analyst. Perform a deep full-text evaluation of the provided "
@@ -163,7 +163,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
                     "description": "High level category describing why the paper passed or failed full-text evaluation"
                 }
             },
-            "required": ["passed", "reasoning", "evidence_quotes", "fit_score", "decision_category"]
+            "required": ["passed", "reasoning"]
         }
 
         signal_score_code = (
@@ -330,11 +330,17 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         workspace_id = ws_data["id"]
         scenario_results["workspace_id"] = workspace_id
 
-        # Step 3: Configure Academic Scraper (arXiv Machine Learning & AI Optimization)
+        # Step 3: Configure Academic Scraper (arXiv or OpenAlex)
+        provider = cfg.provider or "arxiv"
+        if provider == "openalex":
+            query = "machine learning neural networks optimization algorithms"
+        else:
+            query = 'cat:cs.AI AND (all:"machine learning" OR all:"neural network" OR all:"optimization")'
+
         scraper_data = ws_svc.create_scraper(
             workspace_id=workspace_id,
-            provider="arxiv",
-            search_query='cat:cs.AI AND (all:"machine learning" OR all:"neural network" OR all:"optimization")',
+            provider=provider,
+            search_query=query,
             limit=cfg.paper_limit,
             sort_by="relevance",
             sort_order="desc",
@@ -531,10 +537,11 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             }
 
             logger.info("💰 TOKEN & COST ECONOMICS FOR THIS RUN:")
-            logger.info(f"   • Prompt / Input Tokens      : {p_tokens_in + c_tokens_in:,}")
-            logger.info(f"   • Completion / Output Tokens : {p_tokens_out + c_tokens_out:,}")
-            logger.info(f"   • Total Tokens Consumed      : {total_run_tokens:,}")
-            logger.info(f"   • Total Cost (USD)           : ${total_run_usd:.4f} USD")
+            logger.info(f"   • Pipeline Review Cost       : ${p_usd:.4f} USD ({p_total_tokens:,} tokens)")
+            logger.info(f"   • Paper Chat Q&A Cost        : ${c_usd:.4f} USD ({c_total_tokens:,} tokens)")
+            logger.info(f"   • Total Run Tokens Consumed  : {total_run_tokens:,} tokens (In: {p_tokens_in + c_tokens_in:,}, Out: {p_tokens_out + c_tokens_out:,})")
+            logger.info(f"   • Total Run Cost (USD)       : ${total_run_usd:.4f} USD")
+            logger.info(f"   • Workspace Total Recorded   : ${float(ws_info.get('usd_spent_this_month') or total_run_usd):.4f} USD ({int(ws_info.get('tokens_consumed_this_month') or total_run_tokens):,} monthly tokens)")
         except Exception as cost_err:
             logger.warning(f"Could not aggregate token metrics: {cost_err}")
 

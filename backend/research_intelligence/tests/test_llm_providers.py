@@ -25,11 +25,15 @@ class GoogleLLMProviderTestCase(TestCase):
             {"type": "service_account", "project_id": "test-project"},
             scopes=["https://www.googleapis.com/auth/cloud-platform"]
         )
-        mock_client_cls.assert_called_once_with(
-            credentials=mock_creds,
-            vertexai=True,
-            project="test-project"
-        )
+        http_opt = types.HttpOptions(timeout=300000) if hasattr(types, 'HttpOptions') else None
+        expected_kwargs = {
+            "credentials": mock_creds,
+            "vertexai": True,
+            "project": "test-project"
+        }
+        if http_opt:
+            expected_kwargs["http_options"] = http_opt
+        mock_client_cls.assert_called_once_with(**expected_kwargs)
         self.assertEqual(client, mock_client_cls.return_value)
 
     @patch("research_intelligence.llm_providers.google.Path.exists")
@@ -42,7 +46,11 @@ class GoogleLLMProviderTestCase(TestCase):
         provider = GoogleAgentAPIProvider(api_key="real-api-key")
         client = provider._get_client()
         
-        mock_client_cls.assert_called_once_with(api_key="real-api-key")
+        http_opt = types.HttpOptions(timeout=300000) if hasattr(types, 'HttpOptions') else None
+        expected_kwargs = {"api_key": "real-api-key"}
+        if http_opt:
+            expected_kwargs["http_options"] = http_opt
+        mock_client_cls.assert_called_once_with(**expected_kwargs)
         self.assertEqual(client, mock_client_cls.return_value)
 
     @patch("research_intelligence.llm_providers.google.Path.exists")
@@ -99,10 +107,14 @@ class GoogleLLMProviderTestCase(TestCase):
         self.assertEqual(res, "Assessment result.")
         
         # Verify client recreation with "eu" location for PDFs
-        mock_client_cls.assert_called_with(
-            vertexai=True,
-            location="eu"
-        )
+        http_opt = types.HttpOptions(timeout=300000) if hasattr(types, 'HttpOptions') else None
+        expected_kwargs = {
+            "vertexai": True,
+            "location": "eu"
+        }
+        if http_opt:
+            expected_kwargs["http_options"] = http_opt
+        mock_client_cls.assert_called_with(**expected_kwargs)
         
         # Verify content formatting
         mock_client.models.generate_content.assert_called_once()

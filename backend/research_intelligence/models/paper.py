@@ -97,12 +97,12 @@ class Paper(models.Model):
         help_text="Stores the ground-truth review decision made by the human analyst lead"
     )
 
-    # Step 6: Signal Score
+    # Signal Score
     signal_score = models.FloatField(
         blank=True,
         null=True,
         db_index=True,
-        help_text="Computed composite signal score from extraction parameters in Step 6"
+        help_text="Computed composite signal score from extraction parameters"
     )
     signal_score_details = models.JSONField(
         default=dict,

@@ -19,6 +19,7 @@ class E2EConfig:
     base_url: str = os.getenv("E2E_API_URL", ENV_TARGETS.get(os.getenv("E2E_TARGET_ENV", "prod").lower(), "https://sri-prod.apps.01.cf.eu01.onstackit.cloud"))
     username: str = os.getenv("E2E_USERNAME", "test_e2e")
     password: str = os.getenv("E2E_PASSWORD", "t4st_pa55w0rD!#")
+    provider: str = os.getenv("E2E_PROVIDER", "arxiv").lower()
     paper_limit: int = int(os.getenv("E2E_PAPER_LIMIT", "10"))
     poll_interval_sec: float = float(os.getenv("E2E_POLL_INTERVAL", "5.0"))
     max_timeout_sec: int = int(os.getenv("E2E_TIMEOUT_SEC", "900"))  # 15 minutes max
@@ -34,6 +35,7 @@ class E2EConfig:
             base_url=url.rstrip("/"),
             username=os.getenv("E2E_USERNAME", "test_e2e"),
             password=os.getenv("E2E_PASSWORD", "t4st_pa55w0rD!#"),
+            provider=os.getenv("E2E_PROVIDER", "arxiv").lower(),
             paper_limit=int(os.getenv("E2E_PAPER_LIMIT", "10")),
             poll_interval_sec=float(os.getenv("E2E_POLL_INTERVAL", "5.0")),
             max_timeout_sec=int(os.getenv("E2E_TIMEOUT_SEC", "900")),

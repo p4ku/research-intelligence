@@ -60,7 +60,7 @@ def start_research_agent_logic(
         }]
     )
 
-    # Trigger first tick to launch Step 1 (Search & Ingestion)
+    # Trigger first tick to launch Search & Ingestion
     tick_res = tick_agent_process(str(agent_process.id))
     agent_process.refresh_from_db()
 
@@ -184,8 +184,8 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
         progress_percent = base_progress
         if active_comp_run:
             m = active_comp_run.get("metrics") or {}
-            tot = m.get("total_to_screen") or m.get("total_to_download") or m.get("total_to_extract") or m.get("total_papers") or 0
-            done = m.get("total_screened") or m.get("downloaded_count") or m.get("extracted_count") or m.get("processed_count") or 0
+            tot = m.get("total_to_screen") or m.get("total_to_download") or m.get("total_work_items") or m.get("total_to_extract") or m.get("total_papers") or 0
+            done = m.get("total_screened") or m.get("completed_extractions") or m.get("total_processed") or m.get("downloaded_count") or m.get("extracted_count") or m.get("processed_count") or 0
             if tot > 0:
                 sub_pct = min(100, int((done / tot) * 100))
                 active_step_tqdm = f"{_render_progress_bar(sub_pct, length=12)} ({done}/{tot} items • {sub_pct}%)"
@@ -355,7 +355,7 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
 
     # Build Markdown table of stages
     table_lines = [
-        "| Step | Stage Name | Status | Summary / Outcome |",
+        "| # | Stage Name | Status | Summary / Outcome |",
         "| :--- | :--- | :--- | :--- |"
     ]
     for idx, st in enumerate(stages_breakdown, start=1):

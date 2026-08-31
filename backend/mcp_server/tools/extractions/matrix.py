@@ -17,7 +17,7 @@ def list_extractions_logic(
     limit: int = 100
 ) -> str:
     """
-    Returns a JSON list of Extraction records (Step 5 outputs).
+    Returns a JSON list of Extraction records.
     Filters by workspace_id, pipeline_run_id, process_id, paper_id, category, or validation_status.
     """
     qs = Extraction.objects.select_related('workspace', 'paper', 'extraction_definition').all()

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class AbstractScreeningNode(BaseWorkflowNode):
     """
-    Step 2: Title & Abstract Screening (First-Stage AI Screening).
+    Title & Abstract Screening (First-Stage AI Screening).
 
     Evaluates paper titles and abstracts against Workspace abstract acceptance/rejection criteria
     using Gemini 3.7 Flash before any PDF binary downloads occur.
@@ -16,7 +16,7 @@ class AbstractScreeningNode(BaseWorkflowNode):
     name = "abstract_screening"
     step_type = "screening"
     component_name = "abstract_screening"
-    description = "Step 2: Evaluates paper titles & abstracts against Workspace criteria using Gemini 3.7 Flash."
+    description = "Evaluates paper titles & abstracts against Workspace criteria using Gemini 3.7 Flash."
     dependencies = ["search"]
 
     input_contract = {
@@ -70,7 +70,7 @@ class AbstractScreeningNode(BaseWorkflowNode):
                 pipeline_run=pipeline_run,
                 screening_status='rejected'
             ).count()
-            return True, f"Step 2 (Abstract Screening): 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
+            return True, f"Abstract Screening: 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
 
         return False, None
 
@@ -92,7 +92,7 @@ class AbstractScreeningNode(BaseWorkflowNode):
 
 class FullTextScreeningNode(BaseWorkflowNode):
     """
-    Step 5: Full-Text Screening (Second-Stage Multimodal AI Screening).
+    Full-Text Screening (Second-Stage Multimodal AI Screening).
 
     Performs deep multimodal analysis of raw PDF binaries (or OCR Markdown) against
     Workspace full_text acceptance/rejection criteria using Gemini 3.7 Flash.
@@ -100,7 +100,7 @@ class FullTextScreeningNode(BaseWorkflowNode):
     name = "full_text_screening"
     step_type = "screening"
     component_name = "full_text_screening"
-    description = "Step 5: Evaluates full PDF binary (or OCR Markdown) against full-text criteria using Gemini 3.7 Flash."
+    description = "Evaluates full PDF binary (or OCR Markdown) against full-text criteria using Gemini 3.7 Flash."
     dependencies = ["ocr"]
 
     input_contract = {
@@ -154,7 +154,7 @@ class FullTextScreeningNode(BaseWorkflowNode):
                 pipeline_run=pipeline_run,
                 screening_status='rejected'
             ).count()
-            return True, f"Step 5 (Full-Text Screening): 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
+            return True, f"Full-Text Screening: 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
 
         return False, None
 

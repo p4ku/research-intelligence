@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class SearchNode(BaseWorkflowNode):
     """
-    Step 1: Multi-source search & paper ingestion (ArXiv, OpenAlex, Lens, PubMed).
+    Search & Ingestion: Multi-source search & paper ingestion (ArXiv, OpenAlex, Lens, PubMed).
     
     Inputs:
         - Active Scraper configurations on Workspace.
@@ -58,13 +58,13 @@ class SearchNode(BaseWorkflowNode):
             total_found = metrics.get("total_found", metrics.get("total_fetched", 0))
             if duplicates > 0 or total_found > 0:
                 msg = (
-                    f"Step 1 (Search): 0 papers were found matching criteria (0 new papers ingested - "
+                    f"Search: 0 papers were found matching criteria (0 new papers ingested - "
                     f"found {total_found} on data sources, but all {duplicates} were already ingested in prior runs). "
                     f"Pipeline halted cleanly. (Enable 'reprocess_existing' to re-screen/extract existing workspace papers)."
                 )
             else:
                 msg = (
-                    f"Step 1 (Search): 0 papers were found matching criteria for workspace '{workspace.name}'. "
+                    f"Search: 0 papers were found matching criteria for workspace '{workspace.name}'. "
                     f"Check scraper query parameters or provider connectivity. Pipeline halted cleanly."
                 )
             return True, msg

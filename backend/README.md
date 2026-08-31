@@ -43,7 +43,7 @@ backend/
     │   ├── step_7_reporting/   # Executive narrative report synthesis & notification dispatch
     │   └── auxiliary/          # Email digest notifications & health monitoring
     ├── utils/                  # Mailgun HTTP transactional emailer & sandbox
-    └── tests/                  # Complete test suite (378+ tests running on in-memory SQLite)
+    └── tests/                  # Complete test suite (383+ tests running on in-memory SQLite)
 ```
 
 ---

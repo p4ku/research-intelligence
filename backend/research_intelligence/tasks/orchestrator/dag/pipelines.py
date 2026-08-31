@@ -13,25 +13,25 @@ organized as a Directed Acyclic Graph (DAG):
   │                           STANDARD SLR WORKFLOW DAG                         │
   └─────────────────────────────────────────────────────────────────────────────┘
 
-    [Step 1: SearchNode]
+    [SearchNode]
            │ (fetches papers from ArXiv, OpenAlex, Lens, PubMed with deduplication)
            ▼
-    [Step 2: DownloadNode]
+    [DownloadNode]
            │ (downloads PDFs in parallel & caches in Document Registry)
            ▼
-    [Step 3: OCRNode]  ─────────► [Skipped automatically if workspace.ocr_provider is None]
+    [OCRNode]  ─────────► [Skipped automatically if workspace.ocr_provider is None]
            │ (converts PDF layout to Markdown / Vision JSON)
            ▼
-    [Step 4: ScreeningNode]
+    [ScreeningNode]
            │ (Stage A: Abstract criteria -> Stage B: Multimodal Full-text criteria)
            ▼
-    [Step 5: ExtractionNode]
+    [ExtractionNode]
            │ (schema-validated parameter extraction with evidence quotes & confidence)
            ▼
-    [Step 6: SignalScoreNode]
+    [SignalScoreNode]
            │ (sandboxed AST execution of custom mathematical formula on workspace)
            ▼
-    [Step 7: ReportingNode]  ───► [Generates narrative executive report & sends email alerts]
+    [ReportingNode]  ───► [Generates narrative executive report & sends email alerts]
 
 Topological Dependency Gating:
 ------------------------------
@@ -87,8 +87,8 @@ def build_default_slr_dag(workspace=None, config: Optional[Dict[str, Any]] = Non
 
     4. OCRNode (dependencies: ['download'])
        - Layout OCR conversion via PyPDF, Mistral OCR, or Gemini Vision.
-       - Automatically marked as 'skipped' if workspace.ocr_provider is None,
-         enabling multimodal Gemini 3.7 Flash direct PDF ingestion in Step 5.
+        - Automatically marked as 'skipped' if workspace.ocr_provider is None,
+          enabling multimodal Gemini 3.7 Flash direct PDF ingestion in Full-Text Screening.
 
     5. FullTextScreeningNode (dependencies: ['ocr'])
        - Second-stage AI screening: deep multimodal analysis of raw PDF binaries (or OCR Markdown).

@@ -45,9 +45,14 @@ def _run_single_extraction_worker(paper, definition, workspace):
     if not paper_text and paper.original_pdf_path and default_storage.exists(paper.original_pdf_path):
         try:
             with default_storage.open(paper.original_pdf_path, 'rb') as f:
-                pdf_bytes = f.read()
-            input_source = "multimodal_pdf"
-            paper_text = "Please analyze the attached full-text PDF document for dynamic parameter extraction."
+                raw_bytes = f.read()
+            from ..step_2_download.fetch import is_valid_pdf_binary
+            if is_valid_pdf_binary(raw_bytes):
+                pdf_bytes = raw_bytes
+                input_source = "multimodal_pdf"
+                paper_text = "Please analyze the attached full-text PDF document for dynamic parameter extraction."
+            else:
+                logger.warning(f"Stored file for paper {paper.id} at {paper.original_pdf_path} is not a valid PDF. Falling back to abstract.")
         except Exception as e:
             logger.warning(f"Error reading PDF binary for paper {paper.id}: {e}")
 
@@ -57,17 +62,25 @@ def _run_single_extraction_worker(paper, definition, workspace):
 
     llm_provider = get_llm_provider(workspace.llm_provider)
     
+    raw_tmpl = definition.user_prompt_template or ""
+    # Normalize double-curly {{var}} to {var} if present
+    import re
+    normalized_tmpl = re.sub(r'\{\{([a-zA-Z0-9_]+)\}\}', r'{\1}', raw_tmpl)
+
     format_data = SafeFormatterDict(
-        paper_text=paper_text[:120000],
+        paper_text=paper_text[:120000] if paper_text else "",
+        full_text=paper_text[:120000] if paper_text else "",
         title=paper.title or "",
+        paper_title=paper.title or "",
         abstract=paper.abstract or "",
+        paper_abstract=paper.abstract or "",
         authors=paper.authors or "",
         published_date=str(getattr(paper, "published_date", "")) if getattr(paper, "published_date", None) else "",
         source_database=paper.source_database or "",
         arxiv_id=paper.arxiv_id or "",
         doi=paper.doi or ""
     )
-    user_prompt = definition.user_prompt_template.format_map(format_data)
+    user_prompt = normalized_tmpl.format_map(format_data)
 
     system_prompt = (
         f"{definition.system_prompt}\n\n"
@@ -202,7 +215,7 @@ def _run_single_extraction_worker(paper, definition, workspace):
 @shared_task(bind=True)
 def execute_extraction_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
-    Celery worker task executing Step 5 (Parameter & Claim Extraction) for papers in a ComponentRun job.
+    Celery worker task executing Parameter & Claim Extraction for papers in a ComponentRun job.
     Executes extractions for all active ExtractionDefinitions in parallel using a ThreadPoolExecutor.
     """
     component_run = None
@@ -323,37 +336,97 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
                     },
                     "fields_extracted": res.get("extracted_fields_count", 0)
                 })
-                logger.info(f"✅ [EXTRACTION COMPLETED] Paper '{res.get('paper_title')[:40]}...' | Definition '{res.get('definition_name')}' | Time: {duration_sec}s | Tokens: {t_tok}")
+                p_title = res.get('paper_title') or 'Untitled'
+                logger.info(f"✅ [EXTRACTION COMPLETED] Paper '{p_title[:40]}...' | Definition '{res.get('definition_name')}' | Time: {duration_sec}s | Tokens: {t_tok}")
             else:
                 failed_count += 1
                 logger.warning(f"⚠️ [EXTRACTION FAILED] Paper ID {res.get('paper_id')} | Def '{res.get('definition_name')}': {res.get('error')}")
 
+            # Flush live progress metrics to DB for real-time monitoring by MCP, Admin, and E2E polling
+            processed_so_far = succeeded_count + failed_count
+            total_items = len(work_items)
+            pct = round((processed_so_far / total_items * 100.0), 1) if total_items > 0 else 100.0
+            p_title = res.get('paper_title') or 'Untitled'
+            def_name = res.get('definition_name') or 'Target'
+            badge = "PASSED" if res.get("success") else "FAILED"
+            try:
+                component_run.metrics = {
+                    "total_work_items": total_items,
+                    "completed_extractions": succeeded_count,
+                    "failed_extractions": failed_count,
+                    "total_processed": processed_so_far,
+                    "total_papers": len(papers),
+                    "total_definitions": len(active_definitions),
+                    "percent_complete": pct,
+                    "latest_processed": f"[{badge}] {def_name}: {p_title[:35]}...",
+                    "elapsed_seconds": round(time.time() - job_t0, 1),
+                }
+                component_run.save(update_fields=['metrics'])
+            except Exception as me:
+                logger.debug(f"Extraction metrics live flush note: {me}")
+
         if worker_concurrency <= 1:
             for paper, definition in work_items:
-                res = _run_single_extraction_worker(paper, definition, workspace)
+                try:
+                    res = _run_single_extraction_worker(paper, definition, workspace)
+                except Exception as pe:
+                    logger.error(f"Error extracting paper '{paper.id}' with def '{definition.name}': {pe}")
+                    res = {
+                        "success": False,
+                        "error": str(pe),
+                        "paper_id": str(paper.id),
+                        "definition_id": str(definition.id),
+                        "definition_name": definition.name,
+                        "duration_seconds": 0.0,
+                        "usage": {}
+                    }
                 _record_result(res)
         else:
+            batch_timeout_sec = max(600.0, (len(work_items) / max(1, worker_concurrency)) * 300.0)
+            completed_item_keys = set()
             with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
                 future_to_item = {
                     executor.submit(_run_single_extraction_worker, paper, definition, workspace): (paper, definition)
                     for paper, definition in work_items
                 }
-                for future in as_completed(future_to_item):
-                    paper, definition = future_to_item[future]
-                    try:
-                        res = future.result()
-                    except Exception as fe:
-                        logger.error(f"Thread execution error for paper '{paper.id}' with def '{definition.name}': {fe}")
+                try:
+                    for future in as_completed(future_to_item, timeout=batch_timeout_sec):
+                        paper, definition = future_to_item[future]
+                        item_key = (str(paper.id), str(definition.id))
+                        completed_item_keys.add(item_key)
+                        try:
+                            res = future.result(timeout=300.0)
+                        except Exception as fe:
+                            logger.error(f"Thread execution error for paper '{paper.id}' with def '{definition.name}': {fe}")
+                            res = {
+                                "success": False,
+                                "error": str(fe),
+                                "paper_id": str(paper.id),
+                                "definition_id": str(definition.id),
+                                "definition_name": definition.name,
+                                "duration_seconds": 0.0,
+                                "usage": {}
+                            }
+                        _record_result(res)
+                except Exception as batch_err:
+                    logger.warning(f"⚠️ [BATCH TIMEOUT / ERROR] Parameter extraction batch interrupted: {batch_err}")
+
+                # Ensure any hanging futures are safely terminated and recorded as failed
+                for future, (paper, definition) in future_to_item.items():
+                    item_key = (str(paper.id), str(definition.id))
+                    if item_key not in completed_item_keys:
+                        future.cancel()
+                        logger.warning(f"⚠️ [TIMEOUT RECOVERY] Paper '{paper.id}' def '{definition.name}' timed out during extraction. Recording as failed.")
                         res = {
                             "success": False,
-                            "error": str(fe),
+                            "error": "Operation timed out during parameter extraction batch execution.",
                             "paper_id": str(paper.id),
                             "definition_id": str(definition.id),
                             "definition_name": definition.name,
                             "duration_seconds": 0.0,
                             "usage": {}
                         }
-                    _record_result(res)
+                        _record_result(res)
 
         job_duration_sec = round(time.time() - job_t0, 3)
         avg_duration_sec = round(job_duration_sec / len(work_items), 3) if work_items else 0.0
@@ -400,7 +473,7 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
         # Record monthly quota usage on Workspace
         workspace.record_token_usage(total_prompt_tokens, total_candidates_tokens, workspace.screening_llm_model)
 
-        logger.info(f"📊 [STEP 5 EXTRACTION JOB COMPLETED] Total Extractions: {succeeded_count} | Time: {job_duration_sec}s | Tokens: {total_tokens} (In: {total_prompt_tokens}, Out: {total_candidates_tokens}) | Cost: ${cost}")
+        logger.info(f"📊 [EXTRACTION JOB COMPLETED] Total Extractions: {succeeded_count} | Time: {job_duration_sec}s | Tokens: {total_tokens} (In: {total_prompt_tokens}, Out: {total_candidates_tokens}) | Cost: ${cost}")
 
         pipeline_run.refresh_from_db()
         pending_or_running = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status__in=['pending', 'running']).exists()

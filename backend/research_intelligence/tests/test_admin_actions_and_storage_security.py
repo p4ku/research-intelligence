@@ -547,6 +547,63 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
         self.assertLess(comp.duration_seconds, 3.0)
         self.assertTrue(comp.execution_time_display.startswith("⏳"))
 
+    def test_reap_zombie_tasks_and_admin_actions(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from research_intelligence.tasks.auxiliary.zombie_watchdog import reap_zombie_tasks
+        from research_intelligence.admin import PipelineRunAdmin
+
+        stale_time = timezone.now() - timedelta(hours=2)
+
+        # 1. Create a zombie ComponentRun
+        zombie_comp = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="screening",
+            component_name="abstract_screening",
+            status="running",
+            celery_task_id="stale_task_12345"
+        )
+        ComponentRun.objects.filter(id=zombie_comp.id).update(started_at=stale_time)
+
+        # 2. Create a zombie AgentProcess
+        zombie_agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            name="Zombie Agent Process",
+            status="running",
+            current_step="screening"
+        )
+        ResearchAgentProcess.objects.filter(id=zombie_agent.id).update(started_at=stale_time)
+
+        # 3. Execute watchdog reaping
+        stats = reap_zombie_tasks(max_component_age_minutes=30, force=False)
+        self.assertGreaterEqual(stats["reaped_components"], 1)
+        self.assertGreaterEqual(stats["reaped_pipelines"], 1)
+        self.assertGreaterEqual(stats["reaped_agents"], 1)
+
+        # Verify ComponentRun is now failed and completed_at is set (stops hourglass)
+        zombie_comp.refresh_from_db()
+        self.assertEqual(zombie_comp.status, "failed")
+        self.assertIsNotNone(zombie_comp.completed_at)
+        self.assertIn("Zombie task reaped", zombie_comp.error_message)
+
+        # Verify PipelineRun is now failed and completed_at is set
+        self.pipeline_run.refresh_from_db()
+        self.assertEqual(self.pipeline_run.status, "failed")
+        self.assertIsNotNone(self.pipeline_run.completed_at)
+
+        # Verify AgentProcess is now failed and completed_at is set
+        zombie_agent.refresh_from_db()
+        self.assertEqual(zombie_agent.status, "failed")
+        self.assertIsNotNone(zombie_agent.completed_at)
+        self.assertEqual(zombie_agent.stopped_at_step, "screening")
+        self.assertIn("Zombie", zombie_agent.stop_reason)
+
+        # 4. Test admin action invocation
+        admin_obj = PipelineRunAdmin(PipelineRun, self.site)
+        req = self._get_request_with_messages()
+        admin_obj.reap_zombie_runs_action(req, PipelineRun.objects.filter(id=self.pipeline_run.id))
+
 
 class APIKeyAdminTestCase(TestCase):
     """

@@ -301,7 +301,7 @@ else:
             pipeline_run_id=str(pipeline_run.id)
         ))
         self.assertTrue(res_json["success"])
-        self.assertIn("Successfully launched Step 6", res_json["message"])
+        self.assertIn("Successfully launched Signal Score", res_json["message"])
 
         paper.refresh_from_db()
         # With fit_score=8, novelty=0, trl=0 -> k=8 <= 10 -> score=12.0

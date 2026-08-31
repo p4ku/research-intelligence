@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class ReportingNode(BaseWorkflowNode):
     """
-    Step 8 / Auxiliary: Executive Narrative & Notification Dispatch.
+    Executive Narrative & Notification Dispatch.
 
     Inputs:
         - All accepted Paper objects, Extraction data, and calculated signal scores.

@@ -79,7 +79,12 @@ config_args["thinking_config"] = types.ThinkingConfig(
     thinking_budget=2048,  # Token budget allocated for internal chain-of-thought
     include_thoughts=True  # Instructs Gemini to yield thought traces in the response
 )
+config_args["max_output_tokens"] = 8192  # Expanded token ceiling for reasoning + structured output
 ```
+
+### 2. Regional Routing & Resilient Timeouts
+- **Location**: Set to `eu` (`https://aiplatform.eu.rep.googleapis.com` / `eu`) for European compliance and full Gemini 3.7 Flash feature parity.
+- **Timeout**: `types.HttpOptions(timeout=300000)` sets a resilient 5-minute window (300,000 ms) preventing timeouts during deep multimodal PDF analyses.
 
 ### 2. Thought Token Extraction & Separation (`part.thought` vs `part.text`)
 During inference, Gemini marks reasoning tokens with `part.thought=True`. The engine separates the internal thinking monologue from the final answer:
@@ -178,4 +183,4 @@ Comprehensive test suites are located in `backend/chat/tests/` and `backend/mcp_
 ./run_tests.sh
 ```
 
-All 378+ test cases execute in-memory (`:memory:` SQLite) in ~8 seconds with 100% PASS rate.
+All 383+ test cases execute in-memory (`:memory:` SQLite) in ~10 seconds with 100% PASS rate.

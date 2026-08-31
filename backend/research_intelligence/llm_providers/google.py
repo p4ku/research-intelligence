@@ -120,6 +120,8 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                 logger.warning(f"Failed to load credentials from GOOGLE_SERVICE_ACCOUNT_JSON env var: {str(e)}")
 
         target_project_id = self.project_id or sa_project_id
+        # Note: google-genai SDK types.HttpOptions expects timeout in milliseconds (300,000 ms = 5 minutes).
+        http_options = types.HttpOptions(timeout=300000) if hasattr(types, 'HttpOptions') else None
 
         try:
             if credentials is not None:
@@ -128,21 +130,29 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                     client_kwargs["project"] = target_project_id
                 if target_location:
                     client_kwargs["location"] = target_location
+                if http_options:
+                    client_kwargs["http_options"] = http_options
                 self._client = genai.Client(**client_kwargs)
             elif self.api_key and self.api_key != "mock-agent-key":
-                self._client = genai.Client(
-                    api_key=self.api_key
-                )
+                client_kwargs = {"api_key": self.api_key}
+                if http_options:
+                    client_kwargs["http_options"] = http_options
+                self._client = genai.Client(**client_kwargs)
             else:
                 client_kwargs = {"vertexai": True}
                 if target_project_id:
                     client_kwargs["project"] = target_project_id
                 if target_location:
                     client_kwargs["location"] = target_location
+                if http_options:
+                    client_kwargs["http_options"] = http_options
                 self._client = genai.Client(**client_kwargs)
         except Exception as e:
             logger.warning(f"Vertex AI initialization failed: {str(e)}. Falling back to standard Client.")
-            self._client = genai.Client()
+            try:
+                self._client = genai.Client(http_options=http_options) if http_options else genai.Client()
+            except Exception:
+                self._client = genai.Client()
 
         self._client_location = target_location
         return self._client
@@ -153,7 +163,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         system_instruction: str = None,
         response_schema: dict = None,
         temperature: float = 0.0,
-        max_tokens: int = 2048,
+        max_tokens: int = 8192,
         model: str = None,
         pdf_path: str = None,
         pdf_bytes: bytes = None,
@@ -267,7 +277,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
 
         config = types.GenerateContentConfig(**config_args)
 
-        # 5. Call API with Exponential Backoff Retry Strategy for 429 / RESOURCE_EXHAUSTED
+        # 5. Call API with Exponential Backoff Retry Strategy for 429, 503, Timeouts, and Network Drop
         max_retries = kwargs.get("max_retries", 5)
         response = None
 
@@ -281,17 +291,24 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                 break
             except Exception as e:
                 err_str = str(e)
-                is_rate_limit = (
+                is_transient = (
                     "429" in err_str or
                     "RESOURCE_EXHAUSTED" in err_str or
                     "Resource exhausted" in err_str or
                     "Quota" in err_str or
-                    "rate limit" in err_str.lower()
+                    "rate limit" in err_str.lower() or
+                    "timed out" in err_str.lower() or
+                    "timeout" in err_str.lower() or
+                    "503" in err_str or
+                    "500" in err_str or
+                    "unavailable" in err_str.lower() or
+                    "connection" in err_str.lower() or
+                    "deadline" in err_str.lower()
                 )
 
-                if is_rate_limit and attempt < max_retries:
-                    delay = (2 ** attempt) + (0.2 * attempt)
-                    logger.warning(f"⚠️ [RESOURCE_EXHAUSTED / 429] Rate limit hit on attempt {attempt}/{max_retries} for model '{model_name}'. Retrying in {delay:.1f}s...")
+                if is_transient and attempt < max_retries:
+                    delay = (2 ** attempt) + (0.5 * attempt)
+                    logger.warning(f"⚠️ [TRANSIENT RETRY {attempt}/{max_retries}] Google LLM call failed for model '{model_name}': {err_str}. Retrying in {delay:.1f}s...")
                     time.sleep(delay)
                 else:
                     logger.exception(f"Error during Google LLM generation (attempt {attempt}/{max_retries}): {err_str}")
@@ -378,7 +395,8 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         if "mock" in model_name:
             model_name = "gemini-3.7-flash"
 
-        client = self._get_client(location=kwargs.get("location") or self.location or "eu")
+        client_location = kwargs.get("location") or self.location or "eu"
+        client = self._get_client(location=client_location)
 
         contents = []
         f_bytes = file_bytes or pdf_bytes
@@ -467,7 +485,8 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         if "mock" in model_name:
             model_name = "gemini-3.7-flash"
 
-        client = self._get_client(location=kwargs.get("location") or self.location or "eu")
+        client_location = kwargs.get("location") or self.location or "eu"
+        client = self._get_client(location=client_location)
         try:
             cache_config = types.CreateCachedContentConfig(
                 contents=contents if isinstance(contents, list) else [contents],

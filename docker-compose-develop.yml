@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # Database with pgvector extension support for RAG
   db:
@@ -57,7 +55,7 @@ services:
 
   # Django REST API Backend
   api:
-    image: sri_api:develop
+    image: sri_backend:develop
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -83,7 +81,7 @@ services:
       - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-eu}
-      - DOWNLOAD_PARALLEL_WORKERS=${DOWNLOAD_PARALLEL_WORKERS:-8}
+      - DOWNLOAD_PARALLEL_WORKERS=${DOWNLOAD_PARALLEL_WORKERS:-4}
       - SCREENING_PARALLEL_WORKERS=${SCREENING_PARALLEL_WORKERS:-4}
       - EXTRACTION_PARALLEL_WORKERS=${EXTRACTION_PARALLEL_WORKERS:-4}
       # Unified Object Storage (Local MinIO / AWS S3 / Google Cloud Storage)
@@ -119,10 +117,7 @@ services:
 
   # FastMCP Server for AI Client integrations
   mcp:
-    image: sri_mcp:develop
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: sri_backend:develop
     container_name: sri_mcp
     restart: always
     command: python manage.py run_mcp
@@ -145,7 +140,7 @@ services:
       - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-eu}
-      - DOWNLOAD_PARALLEL_WORKERS=${DOWNLOAD_PARALLEL_WORKERS:-8}
+      - DOWNLOAD_PARALLEL_WORKERS=${DOWNLOAD_PARALLEL_WORKERS:-4}
       - SCREENING_PARALLEL_WORKERS=${SCREENING_PARALLEL_WORKERS:-4}
       - EXTRACTION_PARALLEL_WORKERS=${EXTRACTION_PARALLEL_WORKERS:-4}
       # Unified Object Storage (Local MinIO / AWS S3 / Google Cloud Storage)
@@ -180,10 +175,7 @@ services:
 
   # Celery Async Pipeline Worker
   worker:
-    image: sri_worker:develop
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: sri_backend:develop
     container_name: sri_worker
     restart: always
     command: celery -A django_project worker --loglevel=info -Q celery,tenant-default,tenant-bulk-scraping
@@ -205,7 +197,7 @@ services:
       - GOOGLE_SERVICE_ACCOUNT_JSON=${GOOGLE_SERVICE_ACCOUNT_JSON}
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT}
       - GOOGLE_CLOUD_LOCATION=${GOOGLE_CLOUD_LOCATION:-eu}
-      - DOWNLOAD_PARALLEL_WORKERS=${DOWNLOAD_PARALLEL_WORKERS:-8}
+      - DOWNLOAD_PARALLEL_WORKERS=${DOWNLOAD_PARALLEL_WORKERS:-4}
       - SCREENING_PARALLEL_WORKERS=${SCREENING_PARALLEL_WORKERS:-4}
       - EXTRACTION_PARALLEL_WORKERS=${EXTRACTION_PARALLEL_WORKERS:-4}
       # Unified Object Storage (Local MinIO / AWS S3 / Google Cloud Storage)
@@ -228,10 +220,7 @@ services:
 
   # Celery Scheduler (e.g. for trigger weekly executive briefings, checking daily quotas)
   beat:
-    image: sri_beat:develop
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: sri_backend:develop
     container_name: sri_beat
     restart: always
     command: celery -A django_project beat --loglevel=info

@@ -152,7 +152,7 @@ def _ocr_paper_task(paper):
 @shared_task(bind=True)
 def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
-    Celery worker task executing Step 3 (Layout OCR Extraction) for papers in a ComponentRun job.
+    Celery worker task executing Layout OCR Extraction for papers in a ComponentRun job.
     Executes OCR conversion concurrently using a ThreadPoolExecutor.
     """
     component_run = None
@@ -172,7 +172,7 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
     workspace = pipeline_run.workspace
 
     if not workspace.ocr_provider or str(workspace.ocr_provider).strip().lower() in ("none", ""):
-        logger.info(f"⏩ [OCR SKIPPED] Workspace '{workspace.name}' has no OCR provider configured. Skipping Step 3 (Direct Multimodal PDF mode).")
+        logger.info(f"⏩ [OCR SKIPPED] Workspace '{workspace.name}' has no OCR provider configured. Skipping OCR (Direct Multimodal PDF mode).")
         component_run.status = 'skipped'
         component_run.completed_at = timezone.now()
         component_run.metrics = {
@@ -242,19 +242,33 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
                 res = run_ocr_conversion(paper.id, paper_obj=paper)
                 _record_result(paper, res)
         else:
+            batch_timeout_sec = max(600.0, (len(papers) / max(1, worker_concurrency)) * 300.0)
+            completed_paper_ids = set()
             with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
                 future_to_paper = {
                     executor.submit(_ocr_paper_task, paper): paper
                     for paper in papers
                 }
-                for future in as_completed(future_to_paper):
-                    paper = future_to_paper[future]
-                    try:
-                        _, res = future.result()
-                    except Exception as fe:
-                        logger.error(f"Thread execution error converting OCR for paper '{paper.id}': {fe}")
-                        res = {"success": False, "error": str(fe)}
-                    _record_result(paper, res)
+                try:
+                    for future in as_completed(future_to_paper, timeout=batch_timeout_sec):
+                        paper = future_to_paper[future]
+                        completed_paper_ids.add(paper.id)
+                        try:
+                            _, res = future.result(timeout=300.0)
+                        except Exception as fe:
+                            logger.error(f"Thread execution error converting OCR for paper '{paper.id}': {fe}")
+                            res = {"success": False, "error": str(fe)}
+                        _record_result(paper, res)
+                except Exception as batch_err:
+                    logger.warning(f"⚠️ [BATCH TIMEOUT / ERROR] OCR conversion batch interrupted: {batch_err}")
+
+                # Ensure any hanging futures are safely terminated and recorded as failed
+                for future, paper in future_to_paper.items():
+                    if paper.id not in completed_paper_ids:
+                        future.cancel()
+                        logger.warning(f"⚠️ [TIMEOUT RECOVERY] Paper '{paper.id}' ({paper.title[:40]}...) timed out during OCR conversion. Recording as failed.")
+                        res = {"success": False, "error": "OCR conversion operation timed out."}
+                        _record_result(paper, res)
 
         job_duration_sec = round(time.time() - job_t0, 3)
 

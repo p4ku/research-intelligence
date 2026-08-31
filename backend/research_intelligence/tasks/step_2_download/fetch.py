@@ -15,6 +15,17 @@ from .pdf_cache import try_reuse_cached_pdf, register_document_pdf
 logger = logging.getLogger(__name__)
 
 
+def is_valid_pdf_binary(file_bytes: bytes) -> bool:
+    """Validates that bytes constitute a valid PDF binary (starts with %PDF- and is not HTML/empty)."""
+    if not file_bytes or len(file_bytes) < 10:
+        return False
+    if not file_bytes.startswith(b'%PDF-'):
+        return False
+    if b'<html' in file_bytes[:100].lower() or b'<!doctype html' in file_bytes[:100].lower():
+        return False
+    return True
+
+
 def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
     close_old_connections()
     title_snippet = paper.title[:50] if paper.title else "Untitled"
@@ -80,6 +91,10 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
             provider = get_scraper_provider(paper.source_database or "arxiv")
             file_bytes = provider.download_file(pdf_source_url)
             if file_bytes and len(file_bytes) > 0:
+                if not is_valid_pdf_binary(file_bytes):
+                    logger.warning(f"⚠️ [NON-PDF CONTENT] Downloaded {len(file_bytes)} bytes from '{pdf_source_url}' for paper '{title_snippet}...' but content is not a valid PDF (HTML landing page or corrupted).")
+                    return {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": "Downloaded content is not a valid PDF (HTML/corrupt)"}
+
                 if default_storage.exists(target_path):
                     default_storage.delete(target_path)
                 saved_path = default_storage.save(target_path, ContentFile(file_bytes))
@@ -131,7 +146,7 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
 @shared_task(bind=True)
 def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
-    Celery worker task executing Step 2 (PDF Binary Download) for papers in a ComponentRun job.
+    Celery worker task executing PDF Binary Download for papers in a ComponentRun job.
     Downloads PDF binaries concurrently using a ThreadPoolExecutor.
     """
     component_run = None
@@ -208,24 +223,60 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
             else:
                 failed_count += 1
 
+            # Flush live progress metrics to DB
+            processed_so_far = downloaded_count + skipped_count + withdrawn_count + failed_count
+            total_papers = len(papers)
+            pct = round((processed_so_far / total_papers * 100.0), 1) if total_papers > 0 else 100.0
+            p_title = res.get('title') or 'Untitled'
+            badge = "DOWNLOADED" if st == "downloaded" else ("CACHED" if res.get("from_cache") else st.upper())
+            try:
+                component_run.metrics = {
+                    "total_processed": processed_so_far,
+                    "total_to_process": total_papers,
+                    "downloaded": downloaded_count,
+                    "cached": cached_count,
+                    "skipped": skipped_count,
+                    "failed": failed_count,
+                    "percent_complete": pct,
+                    "latest_processed": f"[{badge}] {p_title[:40]}...",
+                    "elapsed_seconds": round(time.time() - start_time, 1),
+                }
+                component_run.save(update_fields=['metrics'])
+            except Exception as me:
+                logger.debug(f"Download metrics live flush note: {me}")
+
         if worker_concurrency <= 1:
             for paper in papers:
                 res = _download_paper_task(paper, workspace, pipeline_run)
                 _record_result(res)
         else:
+            batch_timeout_sec = max(600.0, (len(papers) / max(1, worker_concurrency)) * 180.0)
+            completed_paper_ids = set()
             with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
                 future_to_paper = {
                     executor.submit(_download_paper_task, paper, workspace, pipeline_run): paper
                     for paper in papers
                 }
-                for future in as_completed(future_to_paper):
-                    paper = future_to_paper[future]
-                    try:
-                        res = future.result()
-                    except Exception as fe:
-                        logger.error(f"Thread execution error downloading PDF for paper '{paper.id}': {fe}")
-                        res = {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": str(fe)}
-                    _record_result(res)
+                try:
+                    for future in as_completed(future_to_paper, timeout=batch_timeout_sec):
+                        paper = future_to_paper[future]
+                        completed_paper_ids.add(paper.id)
+                        try:
+                            res = future.result(timeout=180.0)
+                        except Exception as fe:
+                            logger.error(f"Thread execution error downloading PDF for paper '{paper.id}': {fe}")
+                            res = {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": str(fe)}
+                        _record_result(res)
+                except Exception as batch_err:
+                    logger.warning(f"⚠️ [BATCH TIMEOUT / ERROR] PDF download batch interrupted: {batch_err}")
+
+                # Ensure any hanging futures are safely terminated and recorded as failed
+                for future, paper in future_to_paper.items():
+                    if paper.id not in completed_paper_ids:
+                        future.cancel()
+                        logger.warning(f"⚠️ [TIMEOUT RECOVERY] Paper '{paper.id}' ({paper.title[:40]}...) timed out during PDF download. Recording as failed.")
+                        res = {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": "Download timed out."}
+                        _record_result(res)
 
         # Update component run lifecycle metrics & output_data
         duration_sec = round(time.time() - start_time, 2)

@@ -30,7 +30,6 @@ from tests_e2e.scenarios import (
     run_pipeline_reprocessing_scenario,
     run_cross_source_dedup_scenario,
     run_quota_guard_scenario,
-    run_email_digest_scenario,
     run_mcp_protocol_scenario,
     run_rbac_data_isolation_scenario,
     run_mid_step_rerun_scenario,
@@ -59,9 +58,15 @@ def parse_args():
     )
     parser.add_argument(
         "--scenario",
-        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "digest", "mcp", "isolation", "rerun", "guard", "concurrent", "all"],
+        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard", "concurrent", "all"],
         default="slr",
-        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Multi-Source Deduplication, quota: Quota Guard, digest: Email Digest, mcp: FastMCP SSE Tools, isolation: RBAC Multi-Tenancy, rerun: Mid-Step Rerun, guard: Hallucination Guard, concurrent: Parallel Agents Load, all: Run all)",
+        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Multi-Source Deduplication, quota: Quota Guard, mcp: FastMCP SSE Tools, isolation: RBAC Multi-Tenancy, rerun: Mid-Step Rerun, guard: Hallucination Guard, concurrent: Parallel Agents Load, all: Run all)",
+    )
+    parser.add_argument(
+        "--provider",
+        choices=["arxiv", "openalex"],
+        default="arxiv",
+        help="Academic data source provider for scraping (arxiv or openalex, default: arxiv)",
     )
     parser.add_argument(
         "--url",
@@ -152,12 +157,16 @@ def print_llm_cost_summary(c: dict, total_elapsed: float, total_papers: int = 0)
         print(f"  📄 Ingested Papers      : {total_papers} papers")
         print(f"  ⚡ Unit Economics       : ${tot_usd / total_papers:.4f} USD / paper (~{int(tot_tok / total_papers):,} tokens/paper)")
     print("  --------------------------------------------------------------------")
+    print(f"  🔄 Pipeline Review Cost : ${p_usd:.4f} USD ({p_tok:,} tokens)")
+    print(f"  💬 Paper Chat Q&A Cost  : ${c_usd:.4f} USD ({c_tok:,} tokens)")
+    print("  --------------------------------------------------------------------")
     print(f"  📥 Prompt (Input) Tokens: {tot_in:,} tokens")
     print(f"  📤 Thought/Output Tokens: {tot_out:,} tokens")
     print(f"  📊 Total Tokens Consumed: {tot_tok:,} tokens")
     print("  --------------------------------------------------------------------")
-    print(f"  💵 Total Cost (USD)     : ${tot_usd:.4f} USD")
-    print(f"  💶 Total Cost (EUR est.): ~€{tot_eur:.4f} EUR")
+    print(f"  💵 Total Run Cost (USD) : ${tot_usd:.4f} USD (~€{tot_eur:.4f} EUR)")
+    if c.get("workspace_monthly_usd") is not None:
+        print(f"  🏢 Workspace Total Spend: ${c.get('workspace_monthly_usd', 0.0):.4f} USD ({c.get('workspace_monthly_tokens', 0):,} monthly tokens)")
     print("=" * 70 + "\n")
 
 
@@ -219,6 +228,7 @@ def main():
         base_url=base_url,
         username=args.user,
         password=args.password,
+        provider=args.provider,
         paper_limit=args.limit,
         poll_interval_sec=args.poll_interval,
         max_timeout_sec=args.timeout,
@@ -261,13 +271,6 @@ def main():
             if res.get("cost_metrics"):
                 print_llm_cost_summary(res["cost_metrics"], total_elapsed=total_elapsed)
 
-        elif args.scenario == "digest":
-            res = run_email_digest_scenario(config)
-            total_elapsed = time.time() - t0
-            print(f"\n✅ EMAIL DIGEST SCENARIO COMPLETED in {total_elapsed:.1f}s (HTTP Status: {res.get('digest_status')})")
-            if res.get("cost_metrics"):
-                print_llm_cost_summary(res["cost_metrics"], total_elapsed=total_elapsed)
-
         elif args.scenario == "mcp":
             res = run_mcp_protocol_scenario(config)
             total_elapsed = time.time() - t0
@@ -302,9 +305,10 @@ def main():
             # 2. Multi-turn chat
             top_papers = slr_results.get("top_papers", [])
             if top_papers:
-                from tests_e2e.client import APIClient, PipelineService
+                from tests_e2e.client import APIClient, AuthService, PipelineService
                 client = APIClient(config.base_url)
-                client.set_auth_token(config.password)
+                auth = AuthService(client)
+                auth.login(config.username, config.password)
                 pipeline_svc = PipelineService(client)
                 papers = pipeline_svc.list_papers(workspace_id=slr_results["workspace_id"])
                 if papers:
@@ -317,9 +321,7 @@ def main():
             run_cross_source_dedup_scenario(config)
             # 6. Quota Guard
             run_quota_guard_scenario(config)
-            # 7. Email Digest
-            run_email_digest_scenario(config)
-            # 8. FastMCP Protocol
+            # 7. FastMCP Protocol
             run_mcp_protocol_scenario(config)
 
             total_elapsed = time.time() - t0
