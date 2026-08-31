@@ -14,6 +14,7 @@ from chat.serializers import (
 from chat.tasks import execute_paper_chat_task
 from chat.engine import PaperChatEngine
 from research_intelligence.services import check_workspace_access
+from api.throttles import ChatRateThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -23,8 +24,10 @@ class ChatSubmitView(APIView):
     """
     Main entrypoint for submitting interactive Q&A research questions about a specific paper or workspace.
     Dispatches to Celery background task by default (returning 202 Accepted) or executes synchronously with ?sync=true.
+    Throttled at 20 requests/minute per user to guard against LLM token depletion.
     """
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ChatRateThrottle]
 
     @extend_schema(
         request=PaperChatSubmitSerializer,

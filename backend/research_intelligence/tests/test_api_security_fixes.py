@@ -303,3 +303,70 @@ class APISecurityFixesTestCase(TestCase):
         self.workspace.refresh_from_db()
         self.assertEqual(self.workspace.tokens_consumed_this_month, 50000)
         self.assertEqual(float(self.workspace.usd_spent_this_month), 12.50)
+
+    def test_ssrf_url_guard(self):
+        """Verify that private IPs, loopback, and metadata endpoints are blocked."""
+        from research_intelligence.utils.url_guard import is_safe_external_url
+        self.assertFalse(is_safe_external_url("http://169.254.169.254/latest/meta-data/"))
+        self.assertFalse(is_safe_external_url("http://127.0.0.1:8000/api/"))
+        self.assertFalse(is_safe_external_url("http://localhost:6379/"))
+        self.assertFalse(is_safe_external_url("http://10.0.0.1/admin/"))
+        self.assertFalse(is_safe_external_url("http://192.168.1.1/secret"))
+        self.assertFalse(is_safe_external_url("file:///etc/passwd"))
+        self.assertFalse(is_safe_external_url("gopher://127.0.0.1:6379"))
+        self.assertTrue(is_safe_external_url("https://arxiv.org/pdf/2401.00001.pdf"))
+
+    def test_indirect_prompt_injection_guard(self):
+        """Verify that workspace screening templates encapsulate untrusted text in tags and directives."""
+        sys_prompt = self.workspace.get_abstract_screening_system_prompt()
+        user_prompt = self.workspace.get_abstract_screening_user_prompt_template()
+
+        self.assertIn("INDIRECT PROMPT INJECTION GUARD", sys_prompt)
+        self.assertIn("<UNTRUSTED_DOCUMENT_CONTENT>", user_prompt)
+        self.assertIn("</UNTRUSTED_DOCUMENT_CONTENT>", user_prompt)
+
+        ft_sys_prompt = self.workspace.get_full_text_screening_system_prompt()
+        ft_user_prompt = self.workspace.get_full_text_screening_user_prompt_template()
+        self.assertIn("INDIRECT PROMPT INJECTION GUARD", ft_sys_prompt)
+        self.assertIn("<UNTRUSTED_DOCUMENT_CONTENT>", ft_user_prompt)
+
+    def test_all_tokens_revoked_on_password_change(self):
+        """Verify that changing password revokes outstanding refresh tokens."""
+        refresh = RefreshToken.for_user(self.researcher_user)
+        self.client.force_authenticate(user=self.researcher_user)
+
+        change_res = self.client.post("/api/auth/change-password/", {
+            "old_password": "ResearcherPassword123!",
+            "new_password": "NewSecurePassword2026!",
+            "confirm_password": "NewSecurePassword2026!"
+        }, format="json")
+        self.assertEqual(change_res.status_code, status.HTTP_200_OK)
+
+        # Attempting to refresh using old token must now fail
+        refresh_attempt = self.client.post("/api/auth/refresh/", {
+            "refresh": str(refresh)
+        }, format="json")
+        self.assertEqual(refresh_attempt.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_cleanup_expired_tokens_task(self):
+        """Verify periodic Celery Beat task purging expired blacklisted tokens."""
+        from datetime import timedelta
+        from django.utils import timezone
+        from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+        from research_intelligence.tasks.auxiliary.token_cleanup import cleanup_expired_blacklisted_tokens
+
+        # Create expired token in past
+        past_time = timezone.now() - timedelta(days=2)
+        ot = OutstandingToken.objects.create(
+            user=self.admin_user,
+            jti="expired-test-jti",
+            token="dummy-expired-token",
+            created_at=past_time,
+            expires_at=past_time
+        )
+        BlacklistedToken.objects.create(token=ot)
+
+        res = cleanup_expired_blacklisted_tokens()
+        self.assertTrue(res["success"])
+        self.assertGreaterEqual(res["deleted_blacklisted"], 1)
+        self.assertFalse(OutstandingToken.objects.filter(jti="expired-test-jti").exists())

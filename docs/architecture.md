@@ -38,30 +38,30 @@ The platform implements an 8-stage Directed Acyclic Graph (DAG) pipeline designe
 
 ### Sequential Stages & Dependency Flow
 
-1.  **Step 1: Search & Ingestion** (`SearchNode`):
+1.  **Search & Ingestion** (`SearchNode`):
     *   Queries external repositories (**arXiv**, **OpenAlex**, **Lens.org**) based on workspace scrapers.
     *   Performs real-time deduplication across Title, DOI, and arXiv ID against existing workspace papers.
     *   Creates candidate `Paper` records with `screening_status='pending'`.
-2.  **Step 2: Abstract Screening** (`AbstractScreeningNode`):
-    *   *AI Triage Stage*: Evaluates paper titles and abstracts against workspace inclusion/exclusion criteria using **Google Gemini 3.7 Flash**.
+2.  **Abstract Screening** (`AbstractScreeningNode`):
+    *   *AI Triage Stage*: Evaluates paper titles and abstracts against workspace inclusion/exclusion criteria using **Google Gemini 3.7 Flash** with Indirect Prompt Injection guards.
     *   Classifies papers as `abstract_passed` or `rejected`.
     *   Automatically skipped if `skip_abstract_screening=True`. Halts gracefully if 0 papers pass to save bandwidth and compute.
-3.  **Step 3: Parallel PDF Download** (`DownloadNode`):
+3.  **Parallel PDF Download** (`DownloadNode`):
     *   Multi-threaded fetching targeting **only papers that passed Abstract Screening** (or all candidate papers if abstract screening was skipped).
-    *   Cross-run and cross-workspace deduplication using content-addressable **DocumentRegistry** (SHA-256 hash cache).
-4.  **Step 4: Layout OCR Parsing** (`OCRNode`):
+    *   Cross-run and cross-workspace deduplication using content-addressable **DocumentRegistry** (SHA-256 hash cache) and SSRF-safe URL validation.
+4.  **Layout OCR Parsing** (`OCRNode`):
     *   Converts PDFs to Markdown via local `PyPDF`, `Mistral OCR API`, or `Gemini Vision`.
     *   **Automatically skipped by default** (`ocr_provider=None`), passing native PDF binaries directly into multimodal Gemini 3.7 Flash.
-5.  **Step 5: Full-Text Screening** (`FullTextScreeningNode`):
+5.  **Full-Text Screening** (`FullTextScreeningNode`):
     *   Deep multimodal analysis of full PDF binaries (or OCR Markdown) against strict workspace `full_text_acceptance_criteria` and `full_text_rejection_criteria`.
     *   Assigns `full_text_passed` / `accepted` or `rejected` with structured decision categories and evidence quotes.
-6.  **Step 6: Dynamic Parameter Extraction** (`ExtractionNode`):
+6.  **Dynamic Parameter Extraction** (`ExtractionNode`):
     *   Extracts schema-validated JSON parameters (TRL levels, commercial viability, experimental specifications, patent claims) defined in workspace `ExtractionDefinition` models.
     *   Captures verbatim evidence quotes, confidence scores, and validation flags (`pass`, `warn`, `fail`).
-7.  **Step 7: Composite Signal Score Evaluation** (`SignalScoreNode`):
+7.  **Composite Signal Score Evaluation** (`SignalScoreNode`):
     *   Executes custom Python mathematical formulas defined in `workspace.signal_score_code` inside an AST-secured sandbox.
     *   Computes composite ranking scores (`paper.signal_score`) combining TRL, Novelty, and Strategic Fit.
-8.  **Step 8: Executive Narrative Reporting & Notification Dispatch** (`ReportingNode`):
+8.  **Executive Narrative Reporting & Notification Dispatch** (`ReportingNode`):
     *   Synthesizes executive narrative briefings.
     *   Dispatches transactional HTML email digests and scorecards to subscribers via **Mailgun API**.
 

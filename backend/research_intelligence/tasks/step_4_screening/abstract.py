@@ -59,8 +59,10 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
         )
     except Exception:
         user_prompt = (
+            f"<UNTRUSTED_DOCUMENT_CONTENT>\n"
             f"Title: {paper.title}\n"
-            f"Abstract:\n{paper.abstract}\n\n"
+            f"Abstract:\n{paper.abstract}\n"
+            f"</UNTRUSTED_DOCUMENT_CONTENT>\n\n"
             f"Acceptance Criteria (must satisfy to pass):\n{acceptance}\n\n"
             f"Rejection Criteria (if matched, paper is rejected):\n{rejection}"
         )

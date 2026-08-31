@@ -20,19 +20,19 @@ graph TD
     FastMCP --> AgentEngine[ResearchAgentProcess DAG Engine]
     DRF --> AgentEngine
     
-    subgraph PipelineExecution ["8-Stage Systematic Literature Review (SLR) Pipeline"]
-        AgentEngine --> Step1[Step 1: Search & Ingestion<br/>arXiv, OpenAlex, Lens, PubMed]
-        Step1 --> Step2[Step 2: Abstract Screening<br/>AI Triage via Gemini 3.7 Flash]
-        Step2 --> Step3[Step 3: Parallel PDF Download<br/>Only for Abstract-Passed Papers]
-        Step3 --> Step4{Step 4: Layout OCR Parsing}
-        Step4 -->|ocr_provider set| PyPDF_Mistral[PyPDF / Mistral OCR / Gemini -> Markdown]
-        Step4 -->|ocr_provider is None| SkipOCR[Auto-Skip OCR Step<br/>Direct Multimodal PDF Mode]
-        PyPDF_Mistral --> Step5
-        SkipOCR --> Step5
-        Step5[Step 5: Multimodal Full-Text Screening<br/>Deep PDF Verification via Gemini 3.7 Flash]
-        Step5 --> Step6[Step 6: Dynamic Parameter Extraction<br/>Schema-Constrained JSON & Evidence Quotes]
-        Step6 --> Step7[Step 7: Composite Signal Score<br/>AST-Sandboxed Custom Python Math Formula]
-        Step7 --> Step8[Step 8: Executive Reporting & Alerts<br/>Briefing Synthesis & Mailgun Email Digests]
+    subgraph PipelineExecution ["Systematic Literature Review (SLR) Pipeline"]
+        AgentEngine --> SearchStep[Search & Ingestion<br/>arXiv, OpenAlex, Lens, PubMed]
+        SearchStep --> AbstractScreening[Abstract Screening<br/>AI Triage via Gemini 3.7 Flash]
+        AbstractScreening --> DownloadStep[Parallel PDF Download<br/>Only for Abstract-Passed Papers]
+        DownloadStep --> OCRCheck{Layout OCR Parsing}
+        OCRCheck -->|ocr_provider set| PyPDF_Mistral[PyPDF / Mistral OCR / Gemini -> Markdown]
+        OCRCheck -->|ocr_provider is None| SkipOCR[Auto-Skip OCR<br/>Direct Multimodal PDF Mode]
+        PyPDF_Mistral --> FullTextScreening
+        SkipOCR --> FullTextScreening
+        FullTextScreening[Multimodal Full-Text Screening<br/>Deep PDF Verification via Gemini 3.7 Flash]
+        FullTextScreening --> ExtractionStep[Dynamic Parameter Extraction<br/>Schema-Constrained JSON & Evidence Quotes]
+        ExtractionStep --> SignalScoreStep[Composite Signal Score<br/>AST-Sandboxed Custom Python Math Formula]
+        SignalScoreStep --> ReportingStep[Executive Reporting & Alerts<br/>Briefing Synthesis & Mailgun Email Digests]
     end
     
     Step8 --> DB[(PostgreSQL Prod / SQLite Test)]
@@ -52,25 +52,25 @@ The state engine (`tasks/orchestrator/agent_engine.py` & `runner.py`) coordinate
 graph TD
     Start([User / FastMCP Client / REST API Triggers Agent]) --> Initialized[State: initialized<br/>Creates ResearchAgentProcess & PipelineRun]
     
-    Initialized --> SearchStep[Step 1: Search & Ingestion<br/>State: search<br/>Queries scrapers & deduplicates metadata]
+    Initialized --> SearchStep[Search & Ingestion<br/>State: search<br/>Queries scrapers & deduplicates metadata]
     
-    SearchStep --> AbstractScreening[Step 2: Abstract Screening<br/>State: abstract_screening<br/>Fast triage against abstract_* criteria]
+    SearchStep --> AbstractScreening[Abstract Screening<br/>State: abstract_screening<br/>Fast triage against abstract_* criteria]
     
-    AbstractScreening --> DownloadStep[Step 3: PDF Download<br/>State: download<br/>Fetches PDFs ONLY for abstract-passed papers]
+    AbstractScreening --> DownloadStep[PDF Download<br/>State: download<br/>Fetches PDFs ONLY for abstract-passed papers]
     
     DownloadStep --> OCRCheck{ocr_provider configured?}
     
-    OCRCheck -->|Yes: pypdf / mistral / gemini| OCRStep[Step 4: OCR Conversion<br/>State: ocr<br/>Parses layout to structured Markdown]
+    OCRCheck -->|Yes: pypdf / mistral / gemini| OCRStep[OCR Conversion<br/>State: ocr<br/>Parses layout to structured Markdown]
     OCRCheck -->|No: ocr_provider is None| SkipOCR[Auto-Skip OCR Step<br/>Direct pass-through for multimodal screening]
     
-    OCRStep --> FullTextScreening[Step 5: Full-Text Screening<br/>State: full_text_screening<br/>Multimodal analysis of raw PDF via Gemini 3.7 Flash]
+    OCRStep --> FullTextScreening[Full-Text Screening<br/>State: full_text_screening<br/>Multimodal analysis of raw PDF via Gemini 3.7 Flash]
     SkipOCR --> FullTextScreening
     
-    FullTextScreening --> ExtractionStep[Step 6: Parameter Extraction<br/>State: extraction<br/>Extracts schema-validated JSON & evidence quotes]
+    FullTextScreening --> ExtractionStep[Parameter Extraction<br/>State: extraction<br/>Extracts schema-validated JSON & evidence quotes]
     
-    ExtractionStep --> SignalScoreStep[Step 7: Composite Signal Scoring<br/>State: signal_score<br/>AST-sandboxed Python scoring formula evaluation]
+    ExtractionStep --> SignalScoreStep[Composite Signal Scoring<br/>State: signal_score<br/>AST-sandboxed Python scoring formula evaluation]
     
-    SignalScoreStep --> ReportingStep[Step 8: Executive Reporting<br/>State: reporting<br/>Synthesizes briefing & dispatches Mailgun digests]
+    SignalScoreStep --> ReportingStep[Executive Reporting<br/>State: reporting<br/>Synthesizes briefing & dispatches Mailgun digests]
     
     ReportingStep --> Completed([State: completed<br/>Pipeline finished successfully])
     
@@ -84,8 +84,9 @@ graph TD
 
 - **State Machine Transitions**: Sequentially advances through `initialized` $\rightarrow$ `search` $\rightarrow$ `abstract_screening` $\rightarrow$ `download` $\rightarrow$ `ocr` $\rightarrow$ `full_text_screening` $\rightarrow$ `extraction` $\rightarrow$ `signal_score` $\rightarrow$ `reporting` $\rightarrow$ `completed`.
 - **Parallel Runs**: Executes multiple agents concurrently per workspace or across workspaces.
-- **On-Demand OCR Skipping**: Automatically skips Step 4 OCR if `workspace.ocr_provider` is unconfigured (`None`), passing PDF binaries directly to multimodal Gemini 3.7 Flash.
+- **On-Demand OCR Skipping**: Automatically skips OCR if `workspace.ocr_provider` is unconfigured (`None`), passing PDF binaries directly to multimodal Gemini 3.7 Flash.
 - **Notification Engine**: Dispatches completion summary notifications to workspace member emails (`WorkspaceMember.user.email`), subscribers (`Subscriber.email`), and custom overrides via Mailgun.
+- **Security & Defense-in-Depth**: See [`docs/SECURITY.md`](./docs/SECURITY.md) for full threat model, AST sandboxing, SSRF URL filters, and RBAC matrix.
 
 ### 2. Isolated Dual-Stage Screening Criteria
 - **Abstract Screening Stage**: Evaluates paper title & abstract against `abstract_acceptance_criteria` and `abstract_rejection_criteria`.

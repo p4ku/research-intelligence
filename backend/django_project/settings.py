@@ -244,8 +244,10 @@ REST_FRAMEWORK = {
         'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/minute',
-        'user': '1000/minute',
+        'anon': '10000/minute' if 'test' in sys.argv else '100/minute',
+        'user': '10000/minute' if 'test' in sys.argv else '1000/minute',
+        'login': '10000/minute' if 'test' in sys.argv else '5/minute',
+        'chat': '10000/minute' if 'test' in sys.argv else '20/minute',
     },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
     'EXCEPTION_HANDLER': 'api.exceptions.custom_exception_handler',
@@ -311,6 +313,11 @@ CELERY_BEAT_SCHEDULE = {
     'reap-zombie-tasks-watchdog': {
         'task': 'research_intelligence.tasks.auxiliary.zombie_watchdog.reap_zombie_tasks_task',
         'schedule': 60.0,  # runs every 60 seconds
+        'options': {'queue': 'celery'}
+    },
+    'cleanup-expired-blacklisted-tokens': {
+        'task': 'research_intelligence.tasks.auxiliary.token_cleanup.cleanup_expired_tokens_task',
+        'schedule': 86400.0,  # runs daily (every 24 hours)
         'options': {'queue': 'celery'}
     },
 }

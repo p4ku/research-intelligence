@@ -10,6 +10,7 @@ from research_intelligence.models import Paper, Workspace
 from chat.serializers import PaperChatSubmitSerializer
 from chat.engine import PaperChatEngine
 from research_intelligence.services import check_workspace_access
+from api.throttles import ChatRateThrottle
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,10 @@ class ChatStreamView(APIView):
     """
     Server-Sent Events (SSE) streaming endpoint for interactive research Q&A.
     Yields live tokens, citations, fact-checking audit, and usage metrics via text/event-stream.
+    Throttled at 20 requests/minute per user to guard against LLM token depletion.
     """
     permission_classes = [permissions.IsAuthenticated]
+    throttle_classes = [ChatRateThrottle]
 
     @extend_schema(
         request=PaperChatSubmitSerializer,

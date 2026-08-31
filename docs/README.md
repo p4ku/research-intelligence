@@ -7,6 +7,7 @@ This directory contains key research documentation, blueprints, and scientific p
 ## 📖 User Documentation & Operational Guides
 
 *   **[User Documentation Portal](./user_documentation/README.md)**: Product-ready guides for setting up and running Systematic Literature Reviews via **Django Admin** and **MCP (Claude Code)**, inspecting technology scorecards, and interactive paper chatting.
+*   **[Security Architecture & Threat Model Specification](./SECURITY.md)**: Enterprise security blueprint detailing AST Sandboxing, RBAC matrices, SSRF prevention, Prompt Injection guards, JWT lifecycle, and audit logging.
 
 ---
 

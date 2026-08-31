@@ -105,8 +105,10 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
             )
         except Exception:
             user_prompt = (
+                f"<UNTRUSTED_DOCUMENT_CONTENT>\n"
                 f"Title: {paper.title}\n\n"
-                f"Full-Text Markdown Content:\n{md_text[:120000]}\n\n"
+                f"Full-Text Markdown Content:\n{md_text[:120000]}\n"
+                f"</UNTRUSTED_DOCUMENT_CONTENT>\n\n"
                 f"Acceptance Criteria (must satisfy to pass):\n{acceptance}\n\n"
                 f"Rejection Criteria (if matched, paper is rejected):\n{rejection}"
             )
@@ -125,8 +127,10 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
             )
         except Exception:
             user_prompt = (
+                f"<UNTRUSTED_DOCUMENT_CONTENT>\n"
                 f"Title: {paper.title}\n\n"
-                f"Please analyze the attached PDF document for full-text screening.\n\n"
+                f"Attached PDF document for full-text screening.\n"
+                f"</UNTRUSTED_DOCUMENT_CONTENT>\n\n"
                 f"Acceptance Criteria (must satisfy to pass):\n{acceptance}\n\n"
                 f"Rejection Criteria (if matched, paper is rejected):\n{rejection}"
             )
@@ -147,8 +151,10 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
             )
         except Exception:
             user_prompt = (
+                f"<UNTRUSTED_DOCUMENT_CONTENT>\n"
                 f"Title: {paper.title}\n\n"
-                f"Abstract (Full-Text/PDF unavailable):\n{paper.abstract}\n\n"
+                f"Abstract (Full-Text/PDF unavailable):\n{paper.abstract}\n"
+                f"</UNTRUSTED_DOCUMENT_CONTENT>\n\n"
                 f"Acceptance Criteria (must satisfy to pass):\n{acceptance}\n\n"
                 f"Rejection Criteria (if matched, paper is rejected):\n{rejection}"
             )

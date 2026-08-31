@@ -83,6 +83,11 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
         logger.warning(f"⚠️ [NO URL] Paper '{paper.id}' ({title_snippet}) has no valid PDF source URL.")
         return {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": "No valid PDF source URL"}
 
+    from ...utils.url_guard import is_safe_external_url
+    if not is_safe_external_url(pdf_source_url):
+        logger.warning(f"⚠️ [BLOCKED SSRF URL] PDF URL '{pdf_source_url}' for paper '{paper.id}' rejected by SSRF guard.")
+        return {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": f"Disallowed private / internal IP URL: {pdf_source_url}"}
+
     max_attempts = 3
     last_error = None
 

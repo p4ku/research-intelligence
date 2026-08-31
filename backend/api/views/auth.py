@@ -17,6 +17,7 @@ from ..serializers.auth import (
     ChangePasswordSerializer,
     LogoutSerializer,
 )
+from ..throttles import LoginRateThrottle
 from research_intelligence.models import APIKey, WorkspaceMember
 
 
@@ -26,9 +27,11 @@ class LoginView(APIView):
     1. Email or Username + Password (standard Django credentials).
     2. FastMCP / Agent API key (in format 'key_id:secret' or secret).
     Returns JWT access & refresh tokens along with user profile metadata.
+    Throttled at 5 requests/minute to prevent brute-force attacks.
     """
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
+    throttle_classes = [LoginRateThrottle]
 
     @extend_schema(
         request=LoginSerializer,
@@ -233,6 +236,15 @@ class ChangePasswordView(APIView):
 
         user.set_password(new_password)
         user.save()
+
+        # Revoke/Blacklist all outstanding refresh tokens for this user
+        try:
+            from rest_framework_simplejwt.token_blacklist.models import OutstandingToken, BlacklistedToken
+            outstanding = OutstandingToken.objects.filter(user=user)
+            for ot in outstanding:
+                BlacklistedToken.objects.get_or_create(token=ot)
+        except Exception:
+            pass
 
         return Response(
             {"message": "Password changed successfully."},

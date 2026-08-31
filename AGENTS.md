@@ -211,25 +211,36 @@ It orchestrates an 8-stage processing pipeline:
 ---
 
 ### REST API Endpoints (`/api/`)
-- `POST /api/chat/` (Asynchronous Paper Q&A with 202 Accepted & Celery background worker, or `?sync=true`)
-- `GET /api/chat/messages/{id}/` (Polling status, answer, and citations for a chat turn)
-- `GET /api/chat/sessions/`, `GET /api/chat/sessions/{id}/`, `DELETE /api/chat/sessions/{id}/` (Multi-turn session management)
-- `GET /api/workspaces/`, `POST /api/workspaces/`
+- `POST /api/auth/login/` (Rate-limited at 5 req/min, JWT authentication)
+- `POST /api/auth/logout/` (Token blacklist invalidation)
+- `POST /api/auth/refresh/` (Rotating token refresh)
+- `GET/PATCH /api/auth/me/` (User profile and workspace count)
+- `POST /api/auth/change-password/` (Password complexity enforcement & active session revocation)
+- `POST /api/chat/` & `POST /api/chat/stream/` (Asynchronous / SSE streaming Paper Q&A, rate-limited at 20 req/min)
+- `GET /api/chat/messages/{id}/` (Polling status, answer, citations for chat turn, owner-scoped)
+- `GET /api/chat/sessions/`, `PATCH/DELETE /api/chat/sessions/{id}/` (Owner-scoped multi-turn session management)
+- `GET /api/workspaces/`, `POST /api/workspaces/`, `PATCH/DELETE /api/workspaces/{id}/` (RBAC-protected workspace settings)
 - `GET /api/agents/`, `POST /api/agents/` (Supports `/pause/`, `/resume/`, `/abort/`)
-- `GET /api/extractions/`, `POST /api/extractions/`
+- `GET /api/papers/`, `GET /api/papers/{id}/pdf/` (Paginated literature exploration & authenticated PDF streaming)
+- `GET /api/extractions/` (Paginated extracted parameters with exit_metric)
+- `GET /api/reports/` (Read-only executive narrative briefings)
 - `GET /api/pipeline-runs/`, `POST /api/pipeline-runs/`
+- `GET /api/activity-logs/` (Read-only operational audit trail with credential redaction)
 - `GET /admin/storage-browser/` (Admin Django Storage Browser with timestamps & sizes)
 - `GET /api/docs/` (Swagger UI with OpenAPI 3.0 Interactive Test Explorer)
+- *See [`docs/SECURITY.md`](./docs/SECURITY.md) for full threat model specification and RBAC matrix.*
 
 ---
 
 ## 🧪 5. Testing & Validation Protocol
 
 ```bash
-# Run complete test suite in parallel (~8s across 153+ tests)
+# Run complete test suite in parallel (400+ tests on in-memory SQLite, 0 tokens)
 ./run_tests.sh
 
 # Run specific task test module
+./run_tests.sh research_intelligence.tests.test_api_security_fixes
+./run_tests.sh research_intelligence.tests.test_jwt_auth
 ./run_tests.sh research_intelligence.tests.test_pdf_cache
 
 # Run FastMCP test suite

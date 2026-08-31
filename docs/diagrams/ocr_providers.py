@@ -28,7 +28,7 @@ with Diagram(
     direction="LR",
     graph_attr=graph_attr
 ):
-    caller = Celery("Celery Step 3 Task\nexecute_ocr_job")
+    caller = Celery("Celery OCR Task\nexecute_ocr_job")
 
     with Cluster("OCR Abstraction Layer (Factory)", graph_attr=pod_attr):
         factory = Python("OCRProviderFactory\n(factory.py)")

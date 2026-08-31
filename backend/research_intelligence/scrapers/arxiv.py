@@ -412,6 +412,9 @@ class ArxivScraperProvider(BaseScraperProvider):
     def download_file(self, url: str) -> bytes:
         if not url or not url.lower().startswith(('http://', 'https://')):
             raise ValueError(f"Invalid URL scheme for download: '{url}'")
+        from ..utils.url_guard import is_safe_external_url
+        if not is_safe_external_url(url):
+            raise ValueError(f"Disallowed private/internal IP URL: '{url}'")
         urls_to_try = [url]
 
         # Build arXiv fallback URL variants if applicable

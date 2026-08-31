@@ -210,7 +210,7 @@ llm_providers_mermaid = """graph LR
 # 4. OCR Providers Diagram in Mermaid with Blue Pod styling
 ocr_providers_mermaid = """graph LR
     subgraph Caller ["App Layer"]
-        caller[Celery Step 4 Task <br> execute_ocr_job]
+        caller[Celery OCR Task <br> execute_ocr_job]
     end
     style Caller fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
