@@ -1,13 +1,16 @@
 # 🐍 Schwarz Research Intelligence - Backend & FastMCP Infrastructure
 
 > **Enterprise-Grade AI Architecture for Systematic Literature Review (SLR) & Deep Tech Intelligence.**  
-> Unified backend exposing both a **FastMCP SSE Interface (Port 8001)** for LLM Agent Clients and a **Django REST API (Port 8000)** for Web Interfaces.
+> Unified backend exposing a **FastMCP SSE Interface (Port 8001)** for AI Agents, a **Django REST API (Port 8000)** for Web Interfaces, and a **Django Admin & Storage Browser** for Administrators.
 
 ---
 
-## 🏛️ 1. Architecture Overview
+## 🏛️ 1. Architecture Overview & Personas
 
-The backend uses a shared Django foundation for persistent data management, FastMCP for agentic tool protocol interactions, and distributed Celery task workers backed by Redis and PostgreSQL.
+The backend provides a unified Django foundation for persistent data management, FastMCP for agentic tool protocol interactions, and distributed Celery task workers backed by Redis and PostgreSQL. It powers three core interfaces:
+1. **🧑‍💼 Manager / Researcher**: Interacts via Next.js Frontend calling **Django REST API** (`/api/auth/`, `/api/workspaces/`, `/api/papers/`, `/api/chat/`, `/api/reports/`).
+2. **⚡ Power User / AI Agent**: Interacts via **FastMCP SSE Server** (`/sse`, `/messages` on port 8001) for programmatic tool execution (`start_research_agent`, `get_paper_extractions_matrix`, `ask_paper`).
+3. **🛡️ Administrator / Lead Architect**: Manages system state directly via **Django Admin Portal & Storage Browser** (`/admin/`, `/admin/storage-browser/`).
 
 ```
 backend/

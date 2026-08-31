@@ -5,13 +5,13 @@ Welcome to **Schwarz Research Intelligence (SRI)** — an enterprise-grade AI in
 
 ---
 
-## 🌐 Platform Access & Core Links
+## 🌐 Platform Access & Personas
 
-| Service | Endpoint URL | Description |
-| :--- | :--- | :--- |
-| **SRI Main Web Application** | [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/) | Primary dashboard, research matrix, interactive analytics, and paper exploration. |
-| **SRI Administration Portal** | [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/) | Full management panel for Workspaces, Scrapers, Extraction Targets, Users, and Storage. |
-| **FastMCP SSE API (Claude Code)** | `https://sri-prod.apps.01.cf.eu01.onstackit.cloud/mcp/sse` | MCP endpoint for Claude Code, Cursor, and AI agents. |
+| Target Persona | Service & Access Channel | Endpoint URL | Description |
+| :--- | :--- | :--- | :--- |
+| **🧑‍💼 Manager / Researcher** | **SRI Next.js Web App** | [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/) | Primary dashboard, research matrix, interactive scorecards, and Paper Chat. |
+| **🛡️ Administrator / Lead** | **Django Administration Portal** | [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/) | Full management panel for Workspaces, RBAC, Quotas, Audit Logs, and Storage Browser. |
+| **⚡ Power User / AI Agent** | **FastMCP SSE API (Claude/Cursor)** | `https://sri-prod.apps.01.cf.eu01.onstackit.cloud/mcp/sse` | MCP endpoint for Claude Code, Cursor, Antigravity IDE, and autonomous agents. |
 
 ---
 

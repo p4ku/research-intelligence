@@ -6,19 +6,9 @@ This directory contains key research documentation, blueprints, and scientific p
 
 ## 📖 User Documentation & Operational Guides
 
-*   **[User Documentation Portal](./user_documentation/README.md)**: Product-ready guides for setting up and running Systematic Literature Reviews via **Django Admin** and **MCP (Claude Code)**, inspecting technology scorecards, and interactive paper chatting.
+*   **[User Documentation Portal](./user_documentation/README.md)**: Product-ready operational guides tailored for all 3 system personas: **Manager / Researcher** (Next.js Web Dashboard), **Power User / AI Engineer** (FastMCP / Claude Code / Cursor), and **Administrator** (Django Admin Portal & Storage Browser).
+*   **[System Architecture & Pipelines Blueprint](./architecture.md)**: Enterprise architecture documentation featuring the 3 core personas, routing layers, DAG state engines, pluggable LLM/OCR factories, and database persistence.
 *   **[Security Architecture & Threat Model Specification](./SECURITY.md)**: Enterprise security blueprint detailing AST Sandboxing, RBAC matrices, SSRF prevention, Prompt Injection guards, JWT lifecycle, and audit logging.
-
----
-
-## 📄 Reference Documents in this Directory
-
-*   **[AgentSLR: Automating Systematic Literature Reviews in Epidemiology with Agentic AI](./AgentSLR.pdf)**
-    *   *Significance*: This paper serves as the methodology baseline for the system's pipeline. It describes the 6-stage ingestion pipeline, the two-stage screening process (abstract and full-text), ScreenPrompt construction, database deduplication strategies, schema-constrained data extractions, and the $K=5$ self-refinement critique loop for report generation.
-*   **[Agentic AI Research Scanner Blueprints](./Agentic%20AI%20Research%20Scanner.pdf)**
-    *   *Significance*: Design specifications mapping out the core query-to-insights pipeline, database requirements (PostgreSQL, Redis, vector extensions), and architecture components.
-*   **[System Architecture & Pipelines](./architecture.md)**
-    *   *Significance*: High-level component interactions, DB states, and detailed sequential ingestion/extraction pipeline stages. Includes compiled architecture diagrams.
 
 ---
 

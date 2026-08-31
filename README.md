@@ -1,40 +1,71 @@
 # 🧠 Schwarz Research Intelligence
 
 > **Enterprise-Grade AI Platform for Autonomous Scientific Literature Review, Deep Tech Scouting & Parameter Extraction.**  
-> Powered by **FastMCP (Model Context Protocol)**, **Django REST Framework**, **Celery Distributed Workers**, and **Google GenAI / Gemini 3.7 Flash** (hosted on Schwarz Digits Cloud).
+> Powered by **FastMCP (Model Context Protocol)**, **Django REST Framework**, **Next.js Dashboard SPA**, **Celery Distributed Workers**, and **Google GenAI / Gemini 3.7 Flash** (hosted on Schwarz Digits Cloud).
 
 ---
 
-## 📋 1. System Overview
+## 📋 1. System Overview & User Personas
 
-**Schwarz Research Intelligence** is an enterprise-grade platform designed for automated, AI-driven academic literature review, competitive technology scouting, and parameter extraction.
+**Schwarz Research Intelligence** is an enterprise-grade platform designed for automated, AI-driven academic literature review, competitive technology scouting, and dynamic parameter extraction.
 
-It orchestrates an 8-stage processing pipeline driven by an autonomous **Research Agent Process** Directed Acyclic Graph (DAG) state engine:
+The system serves three core personas through dedicated access channels:
+* **🧑‍💼 Manager / Researcher (Frontend User)**: Interacts with the **Next.js Dashboard / SPA** for exploratory literature review, technology scorecards, dynamic parameter matrices, and interactive multi-turn paper Q&A (`Paper Chat`).
+* **⚡ Power User / AI Agent (MCP Client)**: Interacts programmatically via the **FastMCP SSE Server (Port 8001)** from Claude Code, Cursor, Antigravity IDE, or custom agent scripts to trigger autonomous multi-stage SLR runs (`start_research_agent`), check DAG progress, and query extracted scorecards.
+* **🛡️ Administrator / Lead Architect (Django Admin User)**: Manages workspace criteria, RBAC memberships, token/USD spending quotas, operational security audit logs, and file storage via the **Django Admin Portal & Storage Browser**.
 
 ```mermaid
-graph TD
-    UserQuery[User Request / Client Trigger] --> InterfaceLayer{Interface Layer}
-    InterfaceLayer -->|FastMCP SSE Port 8001| FastMCP[FastMCP Server]
-    InterfaceLayer -->|REST API Port 8000| DRF[Django REST API & Admin]
-    
-    FastMCP --> AgentEngine[ResearchAgentProcess DAG Engine]
-    DRF --> AgentEngine
-    
-    subgraph PipelineExecution ["Systematic Literature Review (SLR) Pipeline"]
-        AgentEngine --> SearchStep[Search & Ingestion<br/>arXiv, OpenAlex, Lens, PubMed]
-        SearchStep --> AbstractScreening[Abstract Screening<br/>AI Triage via Gemini 3.7 Flash]
-        AbstractScreening --> DownloadStep[Parallel PDF Download<br/>Only for Abstract-Passed Papers]
-        DownloadStep --> OCRCheck{Layout OCR Parsing}
-        OCRCheck -->|ocr_provider set| PyPDF_Mistral[PyPDF / Mistral OCR / Gemini -> Markdown]
-        OCRCheck -->|ocr_provider is None| SkipOCR[Auto-Skip OCR<br/>Direct Multimodal PDF Mode]
-        PyPDF_Mistral --> FullTextScreening
-        SkipOCR --> FullTextScreening
-        FullTextScreening[Multimodal Full-Text Screening<br/>Deep PDF Verification via Gemini 3.7 Flash]
-        FullTextScreening --> ExtractionStep[Dynamic Parameter Extraction<br/>Schema-Constrained JSON & Evidence Quotes]
-        ExtractionStep --> SignalScoreStep[Composite Signal Score<br/>AST-Sandboxed Custom Python Math Formula]
-        SignalScoreStep --> ReportingStep[Executive Reporting & Alerts<br/>Briefing Synthesis & Mailgun Email Digests]
+graph TB
+    subgraph Personas ["User Personas & Clients"]
+        manager["🧑‍💼 Manager / Researcher<br>(Frontend Web User)"]
+        power["⚡ Power User / AI Agent<br>(MCP Client: Claude / Cursor / Antigravity)"]
+        admin["🛡️ Administrator / Lead<br>(Django Admin User)"]
     end
-    
+
+    subgraph Ingress ["Ingress Gateway Router (Port 80/443)"]
+        nginx[Reverse Proxy & Ingress Router]
+    end
+
+    subgraph Interfaces ["Application Interfaces"]
+        frontend[Next.js Dashboard / SPA<br>Web UI & Scorecards]
+        api[Django REST API<br>/api/ - Auth, Papers, Chat]
+        django_admin[Django Admin Portal<br>/admin/ - RBAC, Quotas, Storage]
+        mcp[FastMCP SSE Server<br>Port 8001 / SSE Tools]
+    end
+
+    subgraph StateEngine ["Autonomous State Engine & DAG Orchestrator"]
+        engine[ResearchAgentRunner & DAG Workflow Engine]
+    end
+
+    subgraph PipelineExecution ["8-Stage Systematic Literature Review (SLR) Pipeline"]
+        engine --> Step1[1. Search & Ingestion<br>arXiv, OpenAlex, Lens, PubMed]
+        Step1 --> Step2[2. Abstract Screening<br>AI Triage via Gemini 3.7 Flash]
+        Step2 --> Step3[3. Parallel PDF Download<br>Only for Abstract-Passed Papers]
+        Step3 --> Step4{4. Layout OCR Parsing}
+        Step4 -->|ocr_provider set| OCRConv[PyPDF / Mistral OCR / Gemini -> MD]
+        Step4 -->|ocr_provider is None| SkipOCR[Auto-Skip OCR<br>Direct Multimodal PDF Mode]
+        OCRConv --> Step5
+        SkipOCR --> Step5
+        Step5[5. Multimodal Full-Text Screening<br>Deep PDF Verification via Gemini 3.7 Flash]
+        Step5 --> Step6[6. Dynamic Parameter Extraction<br>Schema-Constrained JSON & Evidence Quotes]
+        Step6 --> Step7[7. Composite Signal Score<br>AST-Sandboxed Custom Python Math Formula]
+        Step7 --> Step8[8. Executive Reporting & Alerts<br>Briefing Synthesis & Mailgun Email Digests]
+    end
+
+    manager ==>|HTTPS / Web Browser| nginx
+    power ==>|HTTPS / SSE MCP Protocol| nginx
+    admin ==>|HTTPS / Admin Sessions| nginx
+
+    nginx --> frontend
+    nginx --> api
+    nginx --> django_admin
+    nginx --> mcp
+
+    frontend ==>|REST Queries / JWT| api
+    api ==>|Trigger Runs / Chat| engine
+    mcp ==>|Autonomous SLR Tools| engine
+    django_admin ==>|Admin ORM & Config| engine
+
     Step8 --> DB[(PostgreSQL Prod / SQLite Test)]
     Step8 --> Storage[(Django Storage / S3 / MinIO)]
     Step8 --> EmailNotifier[Transactional Mailgun Dispatch]

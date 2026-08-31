@@ -1,15 +1,12 @@
-# Research Intelligence
+# Research Intelligence - Next.js Frontend
 
-Research Intelligence is an internal research-intelligence tool for an enterprise customer. It
-continuously reads new research papers, scores them across the dimensions that
-matter (technology readiness, novelty, significance, momentum, rigour, commercial
-potential), and surfaces **the next big thing** — starting with the agents & AI
-corpus.
+Research Intelligence is an enterprise intelligence application designed for the **Manager / Researcher** persona. It
+continuously reads new research papers, scores them across strategic dimensions (technology readiness, novelty, significance, momentum, rigour, commercial
+potential), and surfaces key competitive insights — starting with the agents & AI corpus.
 
-It is built for a mixed audience: an executive who wants a two-minute morning
-briefing, an analyst who lives in the filters, and a domain expert who wants a
-protected hour with one paper. Every score ships with a plain-English rationale
-so non-technical users can see _why_ something ranked where it did.
+It is built for business analysts, research managers, and domain experts: an executive who wants a two-minute morning
+briefing, an analyst who lives in the scorecards, and a domain expert who wants an interactive multi-turn session with an individual paper (`Paper Chat`). Every score ships with a plain-English rationale
+so users can see _why_ something ranked where it did.
 
 > **Status: Phase 2 core, fully behind the BFF seam.** This branch
 > (`phase-2-core`) is the frontend for the Django backend in
