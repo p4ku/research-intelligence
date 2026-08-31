@@ -8,37 +8,39 @@ State-of-the-art live API test suite and full pipeline simulator for **Schwarz R
 
 The E2E test suite covers both **Backend REST/MCP Pipelines** and **Next.js Frontend User Journeys**:
 
-### 1. Next.js Frontend User Journeys (Page Object Model)
-Located in `tests_e2e/pages/` and `tests_e2e/frontend_scenarios/`:
-* **`pages/`**: Clean Page Object Model abstraction:
-  * `LoginPage`: Authentication forms, input handling, and session state.
-  * `SidebarNav`: Menu traversing (`/dashboard`, `/briefing`, `/papers`, `/scoring`, `/ask`), User Menu, and Sign Out.
-  * `WorkspaceSwitcher`: Workspace dropdown, listing accessible workspaces, and cookie validation (`rs-workspace`).
-  * `SettingsPage`: `/settings` profile form, password form, workspace configuration summary, and notification toggle.
-  * `DashboardPage`, `BriefingPage`, `PapersPage`, `ScoringPage`, `AskPage`: Core application surface abstractions.
-* **`frontend_scenarios/`**: Modular, independently executable user journeys:
-  1. `test_auth_journey.py`: Login with valid/invalid credentials, error alerts, and sign out.
-  2. `test_navigation_journey.py`: Traversing through all core routes (`/dashboard`, `/briefing`, `/papers`, `/scoring`, `/ask`, `/settings`).
-  3. `test_workspace_journey.py`: Listing available workspaces and switching active scope.
-  4. `test_settings_journey.py`: Full inspection of `https://sri-prod.apps.01.cf.eu01.onstackit.cloud/settings`.
-  5. `test_papers_journey.py`: Papers exploration, filtering, and paper detail scorecard view.
-  6. `test_i18n_journey.py`: Bilingual language switcher toggle (English <-> Deutsch).
-  7. `test_ask_chat_journey.py`: Ask / Paper Chat interface and interactive question asking.
+### 1. Next.js Frontend User Journeys (TypeScript & Playwright)
+Located in `tests_e2e/pages/` and `tests_e2e/specs/`:
+* **`pages/`**: Clean Page Object Model abstraction in TypeScript:
+  * `LoginPage.ts`: Authentication forms, input handling, and session state.
+  * `SidebarNav.ts`: Menu traversing (`/dashboard`, `/briefing`, `/papers`, `/scoring`, `/ask`), User Menu, and Sign Out.
+  * `WorkspaceSwitcher.ts`: Workspace dropdown, listing accessible workspaces, and cookie validation (`rs-workspace`).
+  * `SettingsPage.ts`: `/settings` profile form, password form, workspace configuration summary, and notification toggle.
+  * `DashboardPage.ts`, `BriefingPage.ts`, `PapersPage.ts`, `ScoringPage.ts`, `AskPage.ts`: Core application surface abstractions.
+* **`specs/`**: Modular, independently executable TypeScript Playwright specs:
+  1. `auth.spec.ts`: Login with valid/invalid credentials, error alerts, and sign out.
+  2. `navigation.spec.ts`: Traversing through all core routes (`/dashboard`, `/briefing`, `/papers`, `/scoring`, `/ask`, `/settings`).
+  3. `workspace.spec.ts`: Listing available workspaces and switching active scope.
+  4. `settings.spec.ts`: Full inspection of `https://sri-prod.apps.01.cf.eu01.onstackit.cloud/settings`.
+  5. `papers.spec.ts`: Papers exploration, filtering, and paper detail scorecard view.
+  6. `i18n.spec.ts`: Bilingual language switcher toggle (English <-> Deutsch).
+  7. `ask.spec.ts`: Ask / Paper Chat interface and interactive question asking.
 
 ### 2. Backend & Live Pipeline Scenarios
 Located in `tests_e2e/scenarios/`:
 ```
 tests_e2e/
-├── config.py                 # Target environment configs (Prod, Staging, Local), quotas & credentials
-├── run_e2e.sh                # Automated shell runner with auto-venv detection
+├── package.json              # TypeScript Playwright dependencies & scripts
+├── playwright.config.ts      # Playwright multi-environment configuration
+├── tsconfig.json             # TypeScript compiler settings
+├── run_frontend_e2e.sh       # Executable shell runner for TypeScript Playwright
+├── pages/                    # Frontend Page Object Model (POM) layer (.ts)
+├── specs/                    # Frontend User Journey test specs (.spec.ts)
+├── config.py                 # Backend target environment configs (Prod, Staging, Local)
+├── run_e2e.sh                # Automated backend shell runner
 ├── run_e2e.py                # Backend live pipeline runner
-├── run_frontend_e2e.py       # Next.js Frontend Playwright E2E runner
-├── test_frontend_e2e.py      # Pytest frontend integration suite
 ├── test_full_pipeline_e2e.py # Pytest backend pipeline integration suite
-├── pages/                    # Frontend Page Object Model (POM) layer
-├── frontend_scenarios/       # Frontend User Journey test scenarios
 ├── client/                   # Modular API Client & Domain Services
-└── scenarios/                # 11 Orthogonal Backend User Journeys
+└── scenarios/                # 11 Orthogonal Backend User Journeys (.py)
 ```
 
 ---
