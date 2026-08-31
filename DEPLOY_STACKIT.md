@@ -1,119 +1,155 @@
-# Deploying Research Intelligence to STACKIT Cloud Foundry
+# 🚀 Deploying Schwarz Research Intelligence to STACKIT Cloud Foundry
 
-This guide explains how to deploy the applications in this repository (`backend`, `frontend`, `celery_worker`, `celery_beat`) to **STACKIT Cloud Foundry**.
-
----
-
-## 🏗️ How Docker-Compose Maps to STACKIT Cloud Foundry
-
-When deploying to production/staging, the local services in `docker-compose.yml` are replaced with managed STACKIT cloud resources and standalone Cloud Foundry application instances (containers):
-
-| Local Service | STACKIT / Cloud Foundry Equivalent | Description |
-| :--- | :--- | :--- |
-| `db` (Postgres + `pgvector`) | **STACKIT Managed PostgreSQL Flex** | Relational DB with native vector similarity search. |
-| `redis` | **STACKIT Managed Redis** | Task queue broker for Celery and application cache. |
-| `minio` (S3 replacement) | **STACKIT Object Storage** | S3-compatible bucket storing PDFs and parsed Markdowns. |
-| `backend` (Django REST API) | **Cloud Foundry App (`ri-backend`)** | Django running in a container, exposed via STACKIT routes. |
-| `celery_worker` | **Cloud Foundry App (`ri-celery-worker`)** | Background task processing engine (no external routes). |
-| `celery_beat` | **Cloud Foundry App (`ri-celery-beat`)** | Periodic scheduler trigger (strictly 1 instance, no routes). |
-| `frontend` (Next.js Dashboard) | **Cloud Foundry App (`ri-frontend`)** | Next.js static compile served by Nginx container. |
+Comprehensive guide for deploying, automating (CI/CD), and managing the **Schwarz Research Intelligence (SRI)** platform on **STACKIT Cloud Foundry** and **Container Registry**.
 
 ---
 
-## 🛠️ Step 1: Prerequisites & Installation
+## 🏗️ 1. Architecture & Cloud Foundry Service Mapping
 
-To deploy and manage the applications, you must install the **Cloud Foundry CLI**:
+When deploying to **Production** (`sri-prod.apps.01.cf.eu01.onstackit.cloud`) or **Staging**, the local Docker services map directly to STACKIT Cloud Foundry apps and managed services defined in [`manifest.yml`](file:///Users/piotr/git/schwarz_research_inteligence/manifest.yml):
 
+| Application / Service | Cloud Foundry Name | Instances & Sizing | Routes / Command | Role & Responsibility |
+| :--- | :--- | :--- | :--- | :--- |
+| **Django REST API** | `sri-api` | 2 instances · 1 GB RAM · 2 GB Disk | `.../api`, `.../mcp`, `.../health`, `.../admin`, `.../docs` | Core API, Auth (JWT), Swagger/OpenAPI, Admin. |
+| **FastMCP SSE Server** | `sri-mcp` | 1 instance · 512 MB RAM · 1 GB Disk | `.../sse`, `.../messages` <br>`python manage.py run_mcp` | Model Context Protocol (MCP) Server for AI tools. |
+| **Celery Task Worker** | `sri-worker` | 2 instances · 1 GB RAM · 2 GB Disk | `no-route: true` <br>`celery -A django_project worker` | Background SLR pipeline execution (4 worker threads). |
+| **Celery Beat Scheduler** | `sri-beat` | 1 instance · 256 MB RAM · 1 GB Disk | `no-route: true` <br>`celery -A django_project beat` | Periodic scraper scheduler (strictly 1 instance). |
+| **Next.js Dashboard** | `sri-frontend` | 1 instance · 512 MB RAM · 2 GB Disk | `sri-prod.apps.01.cf.eu01.onstackit.cloud` | Modern Next.js frontend application. |
+| **PostgreSQL Flex** | `sri-postgres-service` | Managed DB Service | *Internal STACKIT VNet* | Relational DB with `pgvector` similarity search. |
+| **Redis Queue** | `sri-redis-service` | Managed Cache Service | *Internal STACKIT VNet* | Broker for Celery tasks and in-memory caching. |
+| **Object Storage** | `sri-storage-service` | Managed S3 Bucket | *S3-compatible API* | Persistent PDF documents and OCR Markdowns. |
+
+---
+
+## 🤖 2. Automated CI/CD Pipeline (GitHub Actions)
+
+Production deployments are automated via GitHub Actions in [`.github/workflows/deploy.yml`](file:///Users/piotr/git/schwarz_research_inteligence/.github/workflows/deploy.yml) on push to `main`:
+
+```mermaid
+flowchart LR
+    A[Git Push to main] --> B[Parallel Build Job 1:<br/>Backend + FastMCP Image]
+    A --> C[Parallel Build Job 2:<br/>Next.js Frontend Image]
+    B --> D[STACKIT Container Registry:<br/>registry.onstackit.cloud]
+    C --> D
+    D --> E[Deploy Job:<br/>cf push -f manifest.yml]
+    E --> F[STACKIT Cloud Foundry<br/>Zero-Downtime Rolling Update]
+```
+
+### GitHub Actions Workflow Stages:
+1. **Parallel Backend Build (`build-backend`)**:
+   - Builds `registry.onstackit.cloud/sri-production/sri-backend:${{ github.sha }}` and `:latest`.
+   - Uses GitHub Actions BuildKit layer cache (`cache-from: type=gha,scope=backend`).
+2. **Parallel Frontend Build (`build-frontend`)**:
+   - Computes semantic app version (`node frontend/scripts/app-version.mjs`).
+   - Builds `registry.onstackit.cloud/sri-production/sri-frontend:${{ github.sha }}`.
+3. **Cloud Foundry Deployment (`deploy`)**:
+   - Generates dynamic variable configuration (`vars-ci.yml`).
+   - Executes zero-downtime rolling deployment:
+     ```bash
+     cf push -f manifest.yml --vars-file vars-ci.yml
+     ```
+   - Verifies all container health checks across all 5 applications.
+
+---
+
+## 💻 3. Local CI/CD & Quick Rebuilds (`local_cicd/`)
+
+You can run automated CI validation and deployments locally using the scripts in `local_cicd/`:
+
+### 1. Run Local CI (Integrity check + 153+ parallel tests):
+```bash
+./local_cicd/run_ci.sh
+```
+
+### 2. Run Local CD (Build, Tag, Push & Deploy to STACKIT):
+```bash
+./local_cicd/run_cd.sh
+```
+
+### 3. Rebuild Local Development Containers:
+```bash
+./restart_containers.sh
+```
+
+---
+
+## 🛠️ 4. Manual Deployment & Direct Cloud Foundry (CF) CLI
+
+If you need to deploy manually from your machine:
+
+### 1. Prerequisites (Install CF CLI)
 - **macOS**:
   ```bash
   brew tap cloudfoundry/tap
   brew install cf-cli@8
   ```
-- **Windows (Scoop)**:
-  ```powershell
-  scoop install cf-cli
-  ```
 - **Linux (Ubuntu/Debian)**:
   ```bash
   wget -q -O - https://packages.cloudfoundry.org/debian/cli.cloudfoundry.org.key | sudo apt-key add -
   echo "deb https://packages.cloudfoundry.org/debian stable main" | sudo tee /etc/apt/sources.list.d/cloudfoundry-cli.list
-  sudo apt-get update
-  sudo apt-get install cf8-cli
+  sudo apt-get update && sudo apt-get install cf8-cli
   ```
 
----
-
-## 🚀 Step 2: Deployment Steps
-
-### 1. Authenticate with STACKIT Cloud Foundry
-Log in and target your specific environment space (`development`, `staging`, or `production`):
+### 2. Authenticate & Target Space
 ```bash
-cf login -a https://api.apps.eu01.onstackit.cloud -u YOUR_EMAIL_ADDRESS
-cf target -o schwarz-dev-org -s development
+# Production target
+cf api https://api.apps.01.cf.eu01.onstackit.cloud
+cf auth YOUR_USERNAME YOUR_PASSWORD
+cf target -o YOUR_ORG -s production
 ```
 
-### 2. Verify Infrastructure Services
-Ensure the database, redis, and object storage have been provisioned by the infrastructure team (using Terraform). List the active service bindings in your space:
+### 3. Deploy via Manifest
 ```bash
-cf services
+# Push all applications defined in manifest.yml
+cf push -f manifest.yml --vars-file vars.yml
 ```
-*You must see `ri-dev-postgres-service`, `ri-dev-redis-service`, and `ri-dev-storage-service` in the output.*
-
-### 3. Build & Push the Frontend Docker Image
-Because the frontend runs as an Nginx proxy container serving static Next.js assets, you must build the image and push it to the STACKIT Container Registry:
-
-```bash
-# 1. Log in to the STACKIT Registry
-docker login registry.eu01.onstackit.cloud -u YOUR_REGISTRY_USER -p YOUR_REGISTRY_PASSWORD
-
-# 2. Build the Docker image (Nginx + static React files)
-docker build -t registry.eu01.onstackit.cloud/research-intelligence/frontend:dev ./frontend --build-arg NEXT_PUBLIC_API_URL=/api/v1
-
-# 3. Push to STACKIT Container Registry
-docker push registry.eu01.onstackit.cloud/research-intelligence/frontend:dev
-```
-
-### 4. Push the Applications
-Trigger the Cloud Foundry push using the environment-specific manifest:
-
-```bash
-# Deploy to Development
-cf push -f cf-manifests/manifest-dev.yml
-
-# Deploy to Staging
-cf push -f cf-manifests/manifest-stage.yml
-
-# Deploy to Production
-cf push -f cf-manifests/manifest-prod.yml
-```
-
-Upon executing this command, Cloud Foundry will:
-1. Upload the `backend` code and compile it using the python buildpack.
-2. Spin up containers for the Django API, Celery worker, and Celery beat.
-3. Pull the Next.js/Nginx image from the container registry for the frontend dashboard.
-4. Bind all containers to Postgres, Redis, and Object Storage.
-5. Launch the containers and expose public HTTPS routes for the backend and frontend.
 
 ---
 
-## 🔍 Step 3: Monitoring & Log Diagnostics
+## 🔍 5. Day-2 Operations, Monitoring & Troubleshooting
 
-To inspect the status of your deployed instances (pods equivalent) and check error logs:
+Useful commands for inspecting running instances, checking logs, and debugging in production:
 
-### List Deployed Containers:
+### Inspect Application Status:
 ```bash
-# List all running apps and their instance counts in the current space
+# List all running apps, routes, and memory consumption:
 cf apps
 
-# View status, CPU, memory, and state of individual instances of a specific app
-cf app ri-dev-backend
+# View status of individual instances of a specific app:
+cf app sri-api
+cf app sri-mcp
+cf app sri-worker
+cf app sri-frontend
 ```
 
-### Check Logs:
+### Live Log Streaming & Error Inspection:
 ```bash
-# Stream real-time logs (stdout/stderr) from an app (equivalent to kubectl logs -f)
-cf logs ri-dev-backend
+# Stream live logs in real time (equivalent to kubectl logs -f):
+cf logs sri-api
+cf logs sri-worker
+cf logs sri-mcp
+cf logs sri-frontend
 
-# Dump the recent log buffer (equivalent to kubectl logs)
-cf logs ri-dev-backend --recent
+# Dump the most recent logs buffer:
+cf logs sri-api --recent
+cf logs sri-worker --recent
+```
+
+### Restarting & Scaling Applications:
+```bash
+# Zero-downtime rolling restart:
+cf restart sri-api
+cf restart sri-worker
+cf restart sri-frontend
+
+# Scale instances or memory dynamically:
+cf scale sri-api -i 3                # Scale Django API to 3 instances
+cf scale sri-worker -m 2G            # Increase Celery worker memory to 2GB
+```
+
+### SSH into Container (Debugging):
+```bash
+# Open interactive shell in a running instance:
+cf ssh sri-api
+cf ssh sri-worker
 ```
