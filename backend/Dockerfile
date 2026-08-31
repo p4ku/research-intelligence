@@ -1,19 +1,18 @@
 # syntax=docker/dockerfile:1
 # ==============================================================================
-# Multi-Stage Optimized Production Dockerfile for Schwarz Research Intelligence
-# Produces a secure, minimal non-root image with precompiled binary wheels.
+# Fast & Lightweight Production Dockerfile for Schwarz Research Intelligence
+# Uses virtualenv in /opt/venv and native --chown for instant layer builds.
 # ==============================================================================
 
-# Stage 1: Build Dependencies & Python Wheels
+# Stage 1: Build Dependencies in /opt/venv
 FROM python:3.12-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PYTHONUNBUFFERED=1
 
 WORKDIR /build
 
-# Install build-time compilers and native libraries with cache mounts
+# Install compilation headers
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -22,10 +21,13 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+# Create virtual environment and install packages
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
 
+COPY requirements.txt .
 RUN --mount=type=cache,target=/root/.cache/pip \
-    pip install --no-cache-dir --prefix=/install -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt
 
 
 # Stage 2: Minimal Runtime Container
@@ -33,13 +35,11 @@ FROM python:3.12-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    PATH="/install/bin:$PATH" \
-    PYTHONPATH="/install/lib/python3.12/site-packages:/app:$PYTHONPATH"
+    PATH="/opt/venv/bin:$PATH"
 
 WORKDIR /app
 
-# Install minimal runtime dependencies (libpq5, poppler-utils for PDF rendering, curl for healthchecks)
+# Install minimal runtime libraries (PostgreSQL client, Poppler for PDF rendering, curl)
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -48,24 +48,20 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy installed Python packages from builder stage
-COPY --from=builder /install /install
-
-# Copy application source code
-COPY . /app/
-
-# Create non-root system user & set permissions
-RUN addgroup --system --gid 10001 appgroup && \
-    adduser --system --uid 10001 --ingroup appgroup --home /app appuser && \
-    chmod +x /app/entrypoint.sh && \
+# Create non-root user first so COPY --chown sets ownership instantly without slow chown -R
+RUN groupadd -g 10001 appgroup && \
+    useradd -u 10001 -g appgroup -d /app -s /bin/sh appuser && \
     mkdir -p /app/staticfiles /app/media /app/cache /app/workspaces && \
-    chown -R appuser:appgroup /app /install
+    chown -R appuser:appgroup /app
+
+# Copy virtual environment and source code with direct ownership
+COPY --chown=appuser:appgroup --from=builder /opt/venv /opt/venv
+COPY --chown=appuser:appgroup . /app/
+
+RUN chmod +x /app/entrypoint.sh
 
 USER appuser
 
-EXPOSE 8000
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8000/health/ || curl -f http://localhost:8001/sse || pgrep -f "celery" > /dev/null || exit 1
+EXPOSE 8000 8001
 
 ENTRYPOINT ["/app/entrypoint.sh"]
