@@ -5,6 +5,7 @@
  * example. Pure.
  */
 import * as z from 'zod'
+import { scoreVariableValue } from '../papers/schema'
 
 export const scoringVariable = z
   .object({
@@ -45,7 +46,7 @@ export const workspaceScoring = z
         paper_id: z.uuid(),
         title: z.string(),
         signal_score: z.number().nullable(),
-        variables: z.record(z.string(), z.union([z.number(), z.string()])),
+        variables: z.record(z.string(), scoreVariableValue),
       })
       .nullable(),
   })
