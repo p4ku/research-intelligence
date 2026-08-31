@@ -122,7 +122,7 @@ services:
     restart: always
     command: python manage.py run_mcp
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8001/sse || exit 1"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8001/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3

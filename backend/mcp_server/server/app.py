@@ -1459,7 +1459,7 @@ class QueryParamAuthMiddleware:
             await send(message)
 
         path = scope.get("path", "")
-        if path in ["/", "/health", "/docs", "/openapi.json"]:
+        if path in ["/", "/health", "/health/", "/docs", "/openapi.json"]:
             try:
                 return await self.app(scope, receive, wrapped_send)
             except (asyncio.CancelledError, ClientDisconnect):
@@ -1675,6 +1675,15 @@ def ask_paper(
 
 def create_app():
     starlette_app = mcp.http_app(transport="sse", middleware=[])
+    from starlette.responses import JSONResponse
+    from starlette.routing import Route
+
+    async def health_endpoint(request):
+        return JSONResponse({"status": "healthy", "service": "fastmcp"})
+
+    starlette_app.routes.append(Route("/health", health_endpoint, methods=["GET"]))
+    starlette_app.routes.append(Route("/health/", health_endpoint, methods=["GET"]))
+
     from starlette.middleware import Middleware
     starlette_app.user_middleware.insert(0, Middleware(QueryParamAuthMiddleware))
     starlette_app.middleware_stack = starlette_app.build_middleware_stack()
