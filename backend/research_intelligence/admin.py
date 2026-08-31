@@ -271,6 +271,26 @@ def render_badge(text, bg_color="#6c757d", text_color="#ffffff"):
     )
 
 
+def format_human_readable_bytes(num_bytes: int) -> str:
+    """
+    Formats raw byte count into human-readable notation (B, KB, MB, GB, TB, PB).
+    """
+    if not num_bytes or num_bytes <= 0:
+        return "0 B"
+    nb = float(num_bytes)
+    for unit in ['B', 'KB', 'MB', 'GB', 'TB', 'PB']:
+        if abs(nb) < 1024.0:
+            if unit == 'B':
+                return f"{int(nb)} B"
+            elif unit == 'KB':
+                return f"{nb:.1f} KB"
+            else:
+                return f"{nb:.2f} {unit}"
+        nb /= 1024.0
+    return f"{nb:.2f} EB"
+
+
+
 # --- Inlines for Workspace ---
 
 class WorkspaceMemberInline(admin.TabularInline):
@@ -2529,16 +2549,6 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
             ocr_docs=Count('id', filter=~Q(canonical_ocr_md_path__exact='') & Q(canonical_ocr_md_path__isnull=False)),
         )
 
-        def _fmt_size(num_bytes: int) -> str:
-            if not num_bytes or num_bytes <= 0:
-                return "0 B"
-            nb = float(num_bytes)
-            for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-                if abs(nb) < 1024.0:
-                    return f"{nb:.2f} {unit}" if unit in ['MB', 'GB', 'TB'] else f"{nb:.1f} {unit}" if unit == 'KB' else f"{int(nb)} B"
-                nb /= 1024.0
-            return f"{nb:.2f} PB"
-
         f_total = filtered_stats['total_docs'] or 0
         a_total = all_time_stats['total_docs'] or 0
         f_reused = filtered_stats['reused_docs'] or 0
@@ -2555,7 +2565,7 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
             'filtered': {
                 'total_docs': f_total,
                 'total_size_bytes': f_size,
-                'total_size_formatted': _fmt_size(f_size),
+                'total_size_formatted': format_human_readable_bytes(f_size),
                 'total_access_count': f_hits,
                 'reused_docs': f_reused,
                 'reused_pct': round((f_reused / f_total * 100.0), 1) if f_total > 0 else 0.0,
@@ -2566,7 +2576,7 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
             'all_time': {
                 'total_docs': a_total,
                 'total_size_bytes': a_size,
-                'total_size_formatted': _fmt_size(a_size),
+                'total_size_formatted': format_human_readable_bytes(a_size),
                 'total_access_count': a_hits,
                 'reused_docs': a_reused,
                 'reused_pct': round((a_reused / a_total * 100.0), 1) if a_total > 0 else 0.0,
@@ -2610,11 +2620,7 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
     primary_source_badge.admin_order_field = "primary_source"
 
     def file_size_formatted(self, obj):
-        kb = obj.pdf_file_size_bytes / 1024.0
-        if kb > 1024.0:
-            formatted = f"{kb / 1024.0:.2f} MB"
-        else:
-            formatted = f"{kb:.1f} KB"
+        formatted = format_human_readable_bytes(obj.pdf_file_size_bytes)
         return format_html('<span style="white-space: nowrap; font-family: monospace;">{}</span>', formatted)
     file_size_formatted.short_description = "PDF Size"
     file_size_formatted.admin_order_field = "pdf_file_size_bytes"

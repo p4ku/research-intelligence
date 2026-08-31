@@ -230,6 +230,16 @@ class AdminChangelistViewsTestCase(TestCase):
         self.assertContains(response, "OCR Layout Cached")
         self.assertContains(response, "512.0 KB")
 
+    def test_format_human_readable_bytes_across_all_units(self):
+        from research_intelligence.admin import format_human_readable_bytes
+        self.assertEqual(format_human_readable_bytes(0), "0 B")
+        self.assertEqual(format_human_readable_bytes(512), "512 B")
+        self.assertEqual(format_human_readable_bytes(1024), "1.0 KB")
+        self.assertEqual(format_human_readable_bytes(1024 * 1024 * 5), "5.00 MB")
+        self.assertEqual(format_human_readable_bytes(1024 * 1024 * 1024 * 3), "3.00 GB")
+        self.assertEqual(format_human_readable_bytes(1024 * 1024 * 1024 * 1024 * 2), "2.00 TB")
+        self.assertEqual(format_human_readable_bytes(1024 * 1024 * 1024 * 1024 * 1024 * 4), "4.00 PB")
+
     def test_workspace_changelist_renders(self):
         url = reverse('admin:research_intelligence_workspace_changelist')
         response = self.client.get(url)
