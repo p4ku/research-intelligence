@@ -6,33 +6,76 @@ State-of-the-art live API test suite and full pipeline simulator for **Schwarz R
 
 ## 🏛️ Architecture & Scenarios
 
-Every test scenario in `tests_e2e/scenarios/` is strictly **orthogonal, self-contained, and independently executable**:
+The E2E test suite covers both **Backend REST/MCP Pipelines** and **Next.js Frontend User Journeys**:
 
+### 1. Next.js Frontend User Journeys (Page Object Model)
+Located in `tests_e2e/pages/` and `tests_e2e/frontend_scenarios/`:
+* **`pages/`**: Clean Page Object Model abstraction:
+  * `LoginPage`: Authentication forms, input handling, and session state.
+  * `SidebarNav`: Menu traversing (`/dashboard`, `/briefing`, `/papers`, `/scoring`, `/ask`), User Menu, and Sign Out.
+  * `WorkspaceSwitcher`: Workspace dropdown, listing accessible workspaces, and cookie validation (`rs-workspace`).
+  * `SettingsPage`: `/settings` profile form, password form, workspace configuration summary, and notification toggle.
+  * `DashboardPage`, `BriefingPage`, `PapersPage`, `ScoringPage`, `AskPage`: Core application surface abstractions.
+* **`frontend_scenarios/`**: Modular, independently executable user journeys:
+  1. `test_auth_journey.py`: Login with valid/invalid credentials, error alerts, and sign out.
+  2. `test_navigation_journey.py`: Traversing through all core routes (`/dashboard`, `/briefing`, `/papers`, `/scoring`, `/ask`, `/settings`).
+  3. `test_workspace_journey.py`: Listing available workspaces and switching active scope.
+  4. `test_settings_journey.py`: Full inspection of `https://sri-prod.apps.01.cf.eu01.onstackit.cloud/settings`.
+  5. `test_papers_journey.py`: Papers exploration, filtering, and paper detail scorecard view.
+  6. `test_i18n_journey.py`: Bilingual language switcher toggle (English <-> Deutsch).
+  7. `test_ask_chat_journey.py`: Ask / Paper Chat interface and interactive question asking.
+
+### 2. Backend & Live Pipeline Scenarios
+Located in `tests_e2e/scenarios/`:
 ```
 tests_e2e/
 ├── config.py                 # Target environment configs (Prod, Staging, Local), quotas & credentials
 ├── run_e2e.sh                # Automated shell runner with auto-venv detection
-├── run_e2e.py                # Standalone CLI runner with rich ASCII scorecard & argument parsing
-├── test_full_pipeline_e2e.py # Pytest integration test suite
+├── run_e2e.py                # Backend live pipeline runner
+├── run_frontend_e2e.py       # Next.js Frontend Playwright E2E runner
+├── test_frontend_e2e.py      # Pytest frontend integration suite
+├── test_full_pipeline_e2e.py # Pytest backend pipeline integration suite
+├── pages/                    # Frontend Page Object Model (POM) layer
+├── frontend_scenarios/       # Frontend User Journey test scenarios
 ├── client/                   # Modular API Client & Domain Services
-│   ├── api_client.py         # HTTP Session with JWT Bearer auth, latency logging & retry handling
-│   ├── auth_service.py       # Login / JWT acquisition (/api/auth/login/)
-│   ├── workspace_service.py  # Workspaces, Scrapers, and Extraction Definitions CRUD
-│   ├── agent_service.py      # Research Agent process lifecycle & live heartbeat polling engine
-│   ├── pipeline_service.py   # Pipeline runs, papers, extractions, and reports querying
-│   └── chat_service.py       # Paper Chat / Knowledge Explorer interrogation (/api/chat/)
-└── scenarios/                # 11 Orthogonal & Reusable User Journeys
-    ├── full_slr_pipeline.py  # 1. Full 8-stage SLR review + Chat + Token Economics
-    ├── chat_multiturn.py     # 2. Multi-turn conversational Q&A + Context Caching
-    ├── agent_lifecycle.py    # 3. Agent Pause & Resume state machine recovery
-    ├── pipeline_reprocessing.py # 4. Reprocessing existing papers (reprocess_existing=True)
-    ├── cross_source_dedup.py # 5. Cross-source scraping & deduplication (arXiv + OpenAlex)
-    ├── quota_guard.py        # 6. Monthly budget & token ceiling enforcement
-    ├── mcp_protocol.py       # 7. FastMCP SSE tools & AI agent discovery
-    ├── rbac_data_isolation.py# 8. Multi-tenancy & unauthenticated RBAC security isolation
-    ├── mid_step_rerun.py     # 9. Mid-step pipeline re-execution (rerun_from_node)
-    ├── chat_hallucination_guard.py # 10. Hallucination guard & adversarial grounding probe
-    └── concurrent_agents_load.py   # 11. Multi-agent concurrent load & row-locking test
+└── scenarios/                # 11 Orthogonal Backend User Journeys
+```
+
+---
+
+## 🖥️ Running Frontend Next.js E2E Tests
+
+### 1. Run all frontend user journeys:
+```bash
+python -m tests_e2e.run_frontend_e2e
+```
+
+### 2. Run against specific environment or URL:
+```bash
+python -m tests_e2e.run_frontend_e2e --target=prod
+python -m tests_e2e.run_frontend_e2e --target=staging
+python -m tests_e2e.run_frontend_e2e --url="https://sri-prod.apps.01.cf.eu01.onstackit.cloud"
+```
+
+### 3. Run a specific frontend scenario:
+```bash
+python -m tests_e2e.run_frontend_e2e --scenario=settings    # Test /settings journey
+python -m tests_e2e.run_frontend_e2e --scenario=auth        # Test login & logout
+python -m tests_e2e.run_frontend_e2e --scenario=navigation  # Test sidebar menu
+python -m tests_e2e.run_frontend_e2e --scenario=workspace   # Test workspace switcher
+python -m tests_e2e.run_frontend_e2e --scenario=papers      # Test papers exploration
+python -m tests_e2e.run_frontend_e2e --scenario=i18n        # Test language toggle
+python -m tests_e2e.run_frontend_e2e --scenario=ask         # Test chat interface
+```
+
+### 4. Run in headed browser mode (visible GUI):
+```bash
+python -m tests_e2e.run_frontend_e2e --headed
+```
+
+### 5. Run via Pytest:
+```bash
+pytest tests_e2e/test_frontend_e2e.py -s -v
 ```
 
 ---
