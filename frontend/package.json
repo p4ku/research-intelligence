@@ -16,7 +16,9 @@
     "format:file": "prettier --write",
     "test": "bun test",
     "contract:spec": "bun run scripts/contract-spec.ts",
-    "contract:check": "bun run scripts/contract-check.ts"
+    "contract:check": "bun run scripts/contract-check.ts",
+    "snapshot:pull": "bun run scripts/snapshot-pull.ts",
+    "snapshot:serve": "bun run scripts/snapshot-serve.ts"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.6",

@@ -50,16 +50,16 @@ so non-technical users can see _why_ something ranked where it did.
 
 ## Documentation
 
-| Doc                                                        | What's in it                                                                                         |
-| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| [`docs/making-it-real.md`](docs/making-it-real.md)         | The roadmap from mock to functional: ingestion, scoring pipeline, embeddings, auth, infra.           |
-| [`docs/design.md`](docs/design.md)                         | The design system: type, color, charts, layout patterns.                                             |
-| [`docs/tech-preferences.md`](docs/tech-preferences.md)     | The stack we build the real thing on.                                                                |
-| [`docs/backend-handoff.md`](docs/backend-handoff.md)       | **For the backend team**: the requested endpoints, conventions, work list, findings.                 |
-| [`docs/deploy-handoff.md`](docs/deploy-handoff.md)         | Shipping this frontend on Cloud Foundry (subtree, manifest env, smoke checks).                       |
-| [`src/app/bff/README.md`](src/app/bff/README.md)           | How the BFF seam works: sources/flags, conventions, per-resource contract READMEs.                   |
-| [`docs/backend-swap-notes.md`](docs/backend-swap-notes.md) | Working notes from wiring this app to the Django backend: topology, API facts, gotchas.              |
-| [`docs/backend-swap-plan.md`](docs/backend-swap-plan.md)   | The approved plan for slice 1 (infra + auth + Papers).                                               |
+| Doc                                                        | What's in it                                                                               |
+| ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| [`docs/making-it-real.md`](docs/making-it-real.md)         | The roadmap from mock to functional: ingestion, scoring pipeline, embeddings, auth, infra. |
+| [`docs/design.md`](docs/design.md)                         | The design system: type, color, charts, layout patterns.                                   |
+| [`docs/tech-preferences.md`](docs/tech-preferences.md)     | The stack we build the real thing on.                                                      |
+| [`docs/backend-handoff.md`](docs/backend-handoff.md)       | **For the backend team**: the requested endpoints, conventions, work list, findings.       |
+| [`docs/deploy-handoff.md`](docs/deploy-handoff.md)         | Shipping this frontend on Cloud Foundry (subtree, manifest env, smoke checks).             |
+| [`src/app/bff/README.md`](src/app/bff/README.md)           | How the BFF seam works: sources/flags, conventions, per-resource contract READMEs.         |
+| [`docs/backend-swap-notes.md`](docs/backend-swap-notes.md) | Working notes from wiring this app to the Django backend: topology, API facts, gotchas.    |
+| [`docs/backend-swap-plan.md`](docs/backend-swap-plan.md)   | The approved plan for slice 1 (infra + auth + Papers).                                     |
 
 ## Project layout
 
@@ -142,6 +142,25 @@ docker run -p 3000:3000 -e BACKEND_INTERNAL_URL=http://host.docker.internal:8000
 Runtime env: `BACKEND_INTERNAL_URL` (required) and `SITE_URL`, whose scheme
 decides whether session cookies carry `Secure`. On Cloud Foundry the
 `sri-frontend` app needs those in its `env:` block.
+
+## Real data locally (production snapshot)
+
+Fixtures are hand-written; production extraction output is not (paragraph-long
+values, stringified lists, booleans). To design against the real thing without
+touching prod or running Django:
+
+```bash
+CONTRACT_BASE_URL=https://sri-prod.apps.01.cf.eu01.onstackit.cloud \
+CONTRACT_PASSWORD=... bun run snapshot:pull      # → local-data/sri-prod-<date>/
+bun run snapshot:serve                           # replays it on :8010
+BACKEND_INTERNAL_URL=http://localhost:8010 bun run dev
+```
+
+Log in with any username/password. Every GET the BFF makes is answered from
+the capture (with `?workspace=` etc. applied); writes return 501, so Ask and
+the settings forms are read-only. `local-data/` is git- and docker-ignored —
+it is production data. Edit a captured JSON to manufacture the edge case you
+want to see.
 
 ## Tech
 
