@@ -126,9 +126,12 @@ if [ "$SKIP_IMAGE_BUILD" != "true" ] && [ "$DEPLOY_TARGET" != "dry-run" ]; then
 
     # Build Frontend (Next.js / Nginx)
     echo -e "📦 Building Frontend Image [${CYAN}${TARGET_PLATFORM}${NC}]: ${CYAN}$FRONTEND_IMAGE${NC}..."
+    # APP_VERSION (0.1.<n>) must be resolved out here: the build context has no
+    # .git, and without it the image reports 0.1.0-local.
     docker build \
         --platform "$TARGET_PLATFORM" \
         --build-arg BUILD_ID="$GIT_COMMIT_SHA" \
+        --build-arg APP_VERSION="$(node frontend/scripts/app-version.mjs)" \
         -t "$FRONTEND_IMAGE" \
         -f frontend/Dockerfile \
         frontend
