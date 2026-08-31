@@ -112,4 +112,5 @@ celerybeat-schedule.db
 /backend/cache/
 test_dir/
 /test_dir/
+tests_e2e/screenshots/*.png
 

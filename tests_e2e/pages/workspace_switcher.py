@@ -13,13 +13,13 @@ class WorkspaceSwitcher(BasePage):
     @property
     def switcher_button(self) -> Locator:
         return self.page.locator(
-            "button[aria-label='Switch workspace'], button[aria-label*='workspace'], aside [data-slot='icon'] + span"
+            "button[aria-label*='workspace'], button[aria-label*='Workspace'], button:has-text('test_e2e'), button:has([data-slot='icon'])"
         ).first
 
     @property
     def current_workspace_name_label(self) -> Locator:
         return self.page.locator(
-            "button[aria-label='Switch workspace'] span, aside nav > div:first-child span"
+            "button[aria-label*='workspace'] span.truncate, button[aria-label*='Workspace'] span.truncate, button[aria-label*='workspace'] span"
         ).first
 
     @property
