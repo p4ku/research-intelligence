@@ -1,12 +1,13 @@
+import { AnswerMarkdown } from '@/components/answer-markdown'
 import { Card, PageHeader, SectionLabel, StatBand } from '@/components/scanner-ui'
 import { SectionAnchors } from '@/components/top-bar'
-import { briefings } from '@/lib/bff/briefings/service'
+import { getSessionUser } from '@/lib/auth/session'
 import type { Edition } from '@/lib/bff/briefings/schema'
+import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import { papers as papersService } from '@/lib/bff/papers/service'
-import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
-import { getSessionUser } from '@/lib/auth/session'
+import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import { fmt, formatDate } from '@/lib/i18n'
 import { getLang, getT } from '@/lib/i18n-server'
 import { isPassed } from '@/lib/papers/map'
@@ -108,14 +109,21 @@ export default async function DashboardPage() {
               </Link>
             )}
           </div>
-          <p className="mt-4 max-w-3xl text-base leading-relaxed text-pretty text-zinc-600 dark:text-zinc-300">
-            {!ws
-              ? t('No workspace selected')
-              : (editionToday?.in_brief ?? t('No completed runs yet.'))}
-          </p>
+          {ws && editionToday ? (
+            <AnswerMarkdown
+              text={editionToday.in_brief}
+              className="mt-4 max-w-3xl text-base text-pretty text-zinc-600 dark:text-zinc-300"
+            />
+          ) : (
+            <p className="mt-4 max-w-3xl text-base leading-relaxed text-pretty text-zinc-600 dark:text-zinc-300">
+              {!ws ? t('No workspace selected') : t('No completed runs yet.')}
+            </p>
+          )}
           {editionToday?.in_brief_source === 'template' && (
             <p className="mt-2 font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
-              {t('Assembled from the run — model-written briefs arrive with the backend’s reporting step.')}
+              {t(
+                'Assembled from the run — model-written briefs arrive with the backend’s reporting step.',
+              )}
             </p>
           )}
         </div>

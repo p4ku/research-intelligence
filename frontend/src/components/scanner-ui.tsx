@@ -1,3 +1,4 @@
+import { AnswerMarkdown } from '@/components/answer-markdown'
 import { Sparkline } from '@/components/charts'
 import type { T } from '@/lib/i18n'
 import type { Dimension, ScreeningStatus } from '@/lib/papers/types'
@@ -415,9 +416,10 @@ export function ScoreRow({
         </div>
       )}
       {rationale && (
-        <p className="mt-1.5 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
-          {rationale}
-        </p>
+        <AnswerMarkdown
+          text={rationale}
+          className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400"
+        />
       )}
       {evidence && evidence.length > 0 && (
         <ul className="mt-1.5 space-y-1">

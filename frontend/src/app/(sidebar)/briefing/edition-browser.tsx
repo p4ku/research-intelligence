@@ -1,5 +1,6 @@
 'use client'
 
+import { AnswerMarkdown } from '@/components/answer-markdown'
 import { SignalScore } from '@/components/scanner-ui'
 import { fmt, type Lang } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
@@ -131,9 +132,10 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
                 )}
               </p>
 
-              <p className="mt-5 max-w-2xl text-sm leading-relaxed text-pretty text-zinc-600 dark:text-zinc-300">
-                {active.inBrief}
-              </p>
+              <AnswerMarkdown
+                text={active.inBrief}
+                className="mt-5 max-w-2xl text-sm text-pretty text-zinc-600 dark:text-zinc-300"
+              />
 
               <div className="border-line-soft mt-6 border-t pt-5">
                 <div className="font-mono text-[11px] font-medium tracking-[0.18em] text-zinc-400 uppercase dark:text-zinc-500">

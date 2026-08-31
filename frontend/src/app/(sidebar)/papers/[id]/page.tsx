@@ -1,3 +1,4 @@
+import { AnswerMarkdown } from '@/components/answer-markdown'
 import { RadarChart } from '@/components/charts'
 import {
   Breadcrumbs,
@@ -164,11 +165,16 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
               <SectionLabel>{t('Screening')}</SectionLabel>
               <ScreeningPill status={paper.screening_status} t={t} />
             </div>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-              {paper.screening_reasoning || (
-                <span className="text-zinc-400">{t('No screening notes.')}</span>
-              )}
-            </p>
+            {paper.screening_reasoning ? (
+              <AnswerMarkdown
+                text={paper.screening_reasoning}
+                className="mt-2 text-sm text-zinc-700 dark:text-zinc-300"
+              />
+            ) : (
+              <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+                {t('No screening notes.')}
+              </p>
+            )}
           </Card>
 
           {/* Abstract */}

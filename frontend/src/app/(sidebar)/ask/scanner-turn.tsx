@@ -1,5 +1,6 @@
 'use client'
 
+import { AnswerMarkdown } from '@/components/answer-markdown'
 import { SignalScore } from '@/components/scanner-ui'
 import type { ChatStreamState } from '@/lib/chat/use-chat-stream'
 import { fmt } from '@/lib/i18n'
@@ -50,14 +51,6 @@ export function AskedHeading({ turn, divider }: { turn: QuestionTurn; divider?: 
   )
 }
 
-function Caret() {
-  return (
-    <span className="text-accent animate-pulse" aria-hidden="true">
-      ▍
-    </span>
-  )
-}
-
 /** Transient retrieval status shown until the first token arrives. */
 function ScanningLine({
   scopeTitle,
@@ -82,27 +75,11 @@ function ScanningLine({
   )
 }
 
-// Key stats (percentages, multipliers, deltas) render in mono so they read as
-// measurements, matching how numbers appear everywhere else in the app.
-const STAT_RE = /(\d[\d,.]*%|\d+(?:\.\d+)?x|\(±?\+?\d+\))/g
-
-function AnswerText({ text }: { text: string }) {
-  return text.split(STAT_RE).map((part, i) =>
-    i % 2 === 1 ? (
-      <span key={i} className="text-foreground font-mono font-medium tabular-nums">
-        {part}
-      </span>
-    ) : (
-      <span key={i}>{part}</span>
-    ),
-  )
-}
-
 /**
  * The in-flight answer, driven by the live stream state: connecting shows the
- * scanning line, streamed text grows with a caret. Settlement (extras, error
- * states) happens in the transcript once the parent converts the stream into
- * an AnswerTurn.
+ * scanning line, streamed markdown grows with a caret. Settlement (extras,
+ * error states) happens in the transcript once the parent converts the stream
+ * into an AnswerTurn.
  */
 export function LiveAnswer({
   state,
@@ -125,12 +102,11 @@ export function LiveAnswer({
     return <ScanningLine scopeTitle={scopeTitle} corpusCount={corpusCount} />
   }
   return (
-    <div className="min-w-0">
-      <p className="text-foreground/75 text-sm leading-relaxed whitespace-pre-wrap">
-        <AnswerText text={state.text} />
-        {state.status === 'streaming' && <Caret />}
-      </p>
-    </div>
+    <AnswerMarkdown
+      text={state.text}
+      streaming={state.status === 'streaming'}
+      className="text-foreground/75 text-sm"
+    />
   )
 }
 
@@ -152,9 +128,7 @@ export function SettledAnswer({
   }
   return (
     <div className="min-w-0">
-      <p className="text-foreground/75 text-sm leading-relaxed whitespace-pre-wrap">
-        <AnswerText text={turn.text} />
-      </p>
+      <AnswerMarkdown text={turn.text} className="text-foreground/75 text-sm" />
       <TurnExtras turn={turn} onDigIn={onDigIn} />
     </div>
   )
@@ -165,13 +139,7 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' as const } },
 }
 
-function TurnExtras({
-  turn,
-  onDigIn,
-}: {
-  turn: AnswerTurn
-  onDigIn: (paperId: string) => void
-}) {
+function TurnExtras({ turn, onDigIn }: { turn: AnswerTurn; onDigIn: (paperId: string) => void }) {
   const t = useT()
   const hasExtras =
     turn.citations.length > 0 ||
@@ -212,7 +180,10 @@ function TurnExtras({
       ))}
 
       {turn.visualCitations.length > 0 && (
-        <motion.div variants={item} className="border-line/70 space-y-1 rounded-sm border px-3 py-2">
+        <motion.div
+          variants={item}
+          className="border-line/70 space-y-1 rounded-sm border px-3 py-2"
+        >
           {turn.visualCitations.map((v, i) => (
             <p
               key={i}
@@ -241,8 +212,7 @@ function TurnExtras({
         >
           {turn.factCheck && (
             <>
-              {t('Fact check')}{' '}
-              {turn.factCheck.verified ? t('passed') : t('flagged')} ·{' '}
+              {t('Fact check')} {turn.factCheck.verified ? t('passed') : t('flagged')} ·{' '}
               {fmt(t('{n} of {total} claims grounded'), {
                 n: turn.factCheck.verified_count,
                 total: turn.factCheck.total_count,

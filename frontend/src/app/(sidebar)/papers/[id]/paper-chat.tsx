@@ -1,7 +1,8 @@
 'use client'
 
-import { bffFetch } from '@/lib/bff/client'
+import { AnswerMarkdown } from '@/components/answer-markdown'
 import type { ChatSession, ChatSessionDetail } from '@/lib/bff/chat/schema'
+import { bffFetch } from '@/lib/bff/client'
 import type { Page } from '@/lib/bff/core/pagination'
 import { useChatStream } from '@/lib/chat/use-chat-stream'
 import { fmt } from '@/lib/i18n'
@@ -129,36 +130,35 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
                 >
                   {m.text}
                 </p>
-              ) : (
-                <p
-                  key={i}
-                  className={clsx(
-                    'text-[13px] leading-relaxed whitespace-pre-wrap',
-                    m.failed ? 'text-warn' : 'text-muted-foreground',
-                  )}
-                >
+              ) : m.failed ? (
+                // Failure text is an error string, not model prose.
+                <p key={i} className="text-warn text-[13px] leading-relaxed whitespace-pre-wrap">
                   {m.text}
                 </p>
+              ) : (
+                <AnswerMarkdown
+                  key={i}
+                  text={m.text}
+                  className="text-muted-foreground text-[13px]"
+                />
               ),
             )}
-            {asking && (
-              <p className="text-muted-foreground text-[13px] leading-relaxed whitespace-pre-wrap">
-                {live.text || (
-                  <span className="flex items-center gap-2 font-mono text-xs">
-                    <span className="relative flex size-2 shrink-0">
-                      <span className="bg-accent/60 absolute inset-0 animate-ping rounded-full" />
-                      <span className="bg-accent relative size-2 rounded-full" />
-                    </span>
-                    {t('Reading the full text…')}
+            {asking &&
+              (live.text ? (
+                <AnswerMarkdown
+                  text={live.text}
+                  streaming={live.status === 'streaming'}
+                  className="text-muted-foreground text-[13px]"
+                />
+              ) : (
+                <p className="text-muted-foreground flex items-center gap-2 font-mono text-xs">
+                  <span className="relative flex size-2 shrink-0">
+                    <span className="bg-accent/60 absolute inset-0 animate-ping rounded-full" />
+                    <span className="bg-accent relative size-2 rounded-full" />
                   </span>
-                )}
-                {live.status === 'streaming' && live.text && (
-                  <span className="text-accent animate-pulse" aria-hidden="true">
-                    ▍
-                  </span>
-                )}
-              </p>
-            )}
+                  {t('Reading the full text…')}
+                </p>
+              ))}
             <div ref={endRef} aria-hidden="true" />
           </div>
         )}

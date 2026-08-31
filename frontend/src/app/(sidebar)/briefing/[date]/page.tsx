@@ -1,3 +1,4 @@
+import { AnswerMarkdown } from '@/components/answer-markdown'
 import { PaperCard } from '@/components/paper-card'
 import { Breadcrumbs, SectionLabel, StatBand } from '@/components/scanner-ui'
 import { briefings } from '@/lib/bff/briefings/service'
@@ -76,9 +77,10 @@ export default async function BriefingEditionPage({
 
       <section>
         <SectionLabel size="sm">{t('In brief')}</SectionLabel>
-        <p className="mt-4 max-w-3xl text-base leading-relaxed text-pretty text-zinc-600 dark:text-zinc-300">
-          {edition.in_brief}
-        </p>
+        <AnswerMarkdown
+          text={edition.in_brief}
+          className="mt-4 max-w-3xl text-base text-pretty text-zinc-600 dark:text-zinc-300"
+        />
       </section>
 
       <section>
