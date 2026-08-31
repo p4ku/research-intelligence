@@ -12,14 +12,15 @@ from datetime import timedelta
 from typing import Dict, Any, Optional
 from celery import shared_task
 from django.utils import timezone
+import os
 from django.db import close_old_connections, transaction
 
 logger = logging.getLogger(__name__)
 
 
 def reap_zombie_tasks(
-    max_component_age_minutes: int = 30,
-    max_pipeline_age_minutes: int = 60,
+    max_component_age_minutes: int = 60,
+    max_pipeline_age_minutes: int = 120,
     force: bool = False,
 ) -> Dict[str, Any]:
     """
@@ -28,14 +29,23 @@ def reap_zombie_tasks(
 
     Args:
         max_component_age_minutes: Maximum elapsed minutes before an in-flight
-                                   component task with no heartbeat is considered dead.
-        max_pipeline_age_minutes: Maximum elapsed minutes for overall pipeline runs.
+                                   component task with no heartbeat is considered dead (default: 60m / 1h).
+        max_pipeline_age_minutes: Maximum elapsed minutes for overall pipeline runs (default: 120m / 2h).
         force: If True, immediately terminates all running tasks regardless of age.
 
     Returns:
         Dict with counts of reaped entities.
     """
     close_old_connections()
+    
+    # Allow overriding via environment variables
+    env_comp = os.environ.get("ZOMBIE_WATCHDOG_COMPONENT_TIMEOUT_MINUTES")
+    if env_comp and env_comp.isdigit():
+        max_component_age_minutes = int(env_comp)
+    env_pipe = os.environ.get("ZOMBIE_WATCHDOG_PIPELINE_TIMEOUT_MINUTES")
+    if env_pipe and env_pipe.isdigit():
+        max_pipeline_age_minutes = int(env_pipe)
+
     now = timezone.now()
     comp_cutoff = now - timedelta(minutes=max_component_age_minutes)
     pipe_cutoff = now - timedelta(minutes=max_pipeline_age_minutes)
@@ -184,7 +194,7 @@ def reap_zombie_tasks(
 
 
 @shared_task(name="research_intelligence.tasks.auxiliary.zombie_watchdog.reap_zombie_tasks_task")
-def reap_zombie_tasks_task(max_component_age_minutes: int = 30, max_pipeline_age_minutes: int = 60) -> Dict[str, Any]:
+def reap_zombie_tasks_task(max_component_age_minutes: int = 60, max_pipeline_age_minutes: int = 120) -> Dict[str, Any]:
     """
     Celery Beat scheduled task executing periodic zombie process reaping.
     """
