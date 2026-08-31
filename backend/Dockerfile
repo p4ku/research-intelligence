@@ -39,13 +39,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install minimal runtime libraries (PostgreSQL client, Poppler for PDF rendering, curl)
+# Install minimal runtime libraries (PostgreSQL client, Poppler for PDF rendering, curl, procps for healthchecks)
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     poppler-utils \
     curl \
+    procps \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user first so COPY --chown sets ownership instantly without slow chown -R
