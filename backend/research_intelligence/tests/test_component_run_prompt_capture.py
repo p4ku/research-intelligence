@@ -361,4 +361,45 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         self.assertEqual(comp_run.input_params["limit"], 5)
         self.assertIn("scoring_variables", comp_run.input_params)
 
+    def test_workspace_auto_seeds_default_extraction_definitions(self):
+        """Verify workspace without extraction definitions auto-seeds 3 standard targets on snapshot call."""
+        new_ws = Workspace.objects.create(name="Auto Seed Test Workspace")
+        self.assertEqual(new_ws.extraction_definitions.count(), 0)
+
+        snapshot = new_ws.get_extraction_prompt_snapshot()
+        self.assertEqual(snapshot["stage"], "extraction")
+        self.assertEqual(snapshot["total_definitions"], 3)
+        self.assertEqual(len(snapshot["extraction_definitions"]), 3)
+
+        def_names = [d["name"] for d in snapshot["extraction_definitions"]]
+        self.assertIn("Schwarz Strategic Fit", def_names)
+        self.assertIn("Novelty Score", def_names)
+        self.assertIn("Technology Readiness Level (TRL)", def_names)
+
+        # Check DB was seeded
+        self.assertEqual(new_ws.extraction_definitions.count(), 3)
+
+    def test_sandbox_gracefully_handles_undeclared_variables_without_nameerror(self):
+        """Verify sandbox safely defaults missing variables (e.g. fit_score) to 0.0 without NameError."""
+        from research_intelligence.utils.sandbox import execute_sandboxed_snippet
+
+        code = "score = (fit_score * 0.5) + (novelty_score * 0.3) + 10.0"
+        # Provide empty context_vars where fit_score and novelty_score are not present
+        score = execute_sandboxed_snippet(code, context_vars={})
+        self.assertEqual(score, 10.0)
+
+    def test_compute_paper_signal_score_with_missing_extractions_does_not_fail(self):
+        """Verify computing signal score on paper with zero extractions evaluates smoothly to score."""
+        from research_intelligence.tasks.step_6_signal_score.scorer import compute_paper_signal_score
+
+        self.workspace.signal_score_code = "score = (fit_score * 0.7) + (novelty_score * 0.3)"
+        self.workspace.save()
+
+        # Paper has no extractions attached
+        score, details = compute_paper_signal_score(self.paper)
+        self.assertEqual(score, 0.0)
+        self.assertIsNone(details.get("error"))
+        self.assertEqual(self.paper.signal_score, 0.0)
+
+
 

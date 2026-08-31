@@ -249,12 +249,37 @@ def execute_sandboxed_snippet(
         if isinstance(k, str) and k.isidentifier() and not k.startswith("_") and k not in FORBIDDEN_NAMES
     }
 
+    EXCLUDED_NAMES = {
+        *SAFE_BUILTINS.keys(),
+        *FORBIDDEN_NAMES,
+        "SandboxExecutionError",
+        "SandboxSecurityError",
+        "math",
+        "extractions",
+        "signal_score",
+        "score",
+        "__loop_iter__",
+    }
+
+    # 3.1 Safely initialize any undeclared variable names referenced in the AST snippet to 0.0 default
+    for node in ast.walk(ast_tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            var_name = node.id
+            if (
+                var_name not in valid_vars
+                and var_name not in EXCLUDED_NAMES
+                and not var_name.startswith("__")
+                and var_name.isidentifier()
+            ):
+                valid_vars[var_name] = 0.0
+
     # 4. Prepare execution scope with safe builtins, math, and variables in globals
     local_scope: Dict[str, Any] = {}
     global_scope: Dict[str, Any] = {
         "__builtins__": SAFE_BUILTINS,
         "math": math,
         "SandboxExecutionError": SandboxExecutionError,
+        "SandboxSecurityError": SandboxSecurityError,
         **valid_vars,
     }
 
