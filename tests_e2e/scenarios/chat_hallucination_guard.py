@@ -65,8 +65,8 @@ def run_chat_hallucination_guard_scenario(config: Optional[E2EConfig] = None) ->
 
         # Ingest papers
         proc = agent_svc.start_research_agent(workspace_id=workspace_id, limit=2)
-        completed = agent_svc.poll_until_complete(proc["id"], max_timeout_sec=cfg.max_timeout_sec)
-        assert completed.get("status") == "completed", f"Review run failed: {completed}"
+        completed_proc = agent_svc.poll_until_complete(proc["id"], max_timeout_sec=cfg.max_timeout_sec)
+        assert completed_proc.get("status") == "completed", f"Review run failed: {completed_proc}"
 
         papers = pipeline_svc.list_papers(workspace_id=workspace_id)
         assert len(papers) > 0, "No papers ingested for hallucination guard test"
