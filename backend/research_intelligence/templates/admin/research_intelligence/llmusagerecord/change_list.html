@@ -1,0 +1,83 @@
+{% extends "admin/change_list.html" %}
+{% load i18n humanize %}
+
+{% block content %}
+{% if ledger_stats %}
+<div style="margin-bottom: 24px;">
+  <!-- Top KPI Dashboard Banner -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+    
+    <!-- Card 1: Prompt Tokens In -->
+    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 8px; padding: 16px 20px; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">📥 Prompt Tokens (In)</span>
+        <span style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600;">Input</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 700; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        {{ ledger_stats.filtered.prompt_tokens|intcomma }} <span style="font-size: 13px; font-weight: 400; color: #94a3b8;">tok</span>
+      </div>
+      {% if ledger_stats.is_filtered %}
+      <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+        All-time: {{ ledger_stats.all_time.prompt_tokens|intcomma }} tok
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Card 2: Output Tokens Out -->
+    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 8px; padding: 16px 20px; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">📤 Output Tokens (Out)</span>
+        <span style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600;">Output / CoT</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 700; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        {{ ledger_stats.filtered.output_tokens|intcomma }} <span style="font-size: 13px; font-weight: 400; color: #94a3b8;">tok</span>
+      </div>
+      {% if ledger_stats.is_filtered %}
+      <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+        All-time: {{ ledger_stats.all_time.output_tokens|intcomma }} tok
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Card 3: Total Tokens Consumed -->
+    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 8px; padding: 16px 20px; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">📊 Total Tokens Consumed</span>
+        <span style="background: rgba(14, 165, 233, 0.2); color: #38bdf8; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600;">In + Out</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 700; color: #38bdf8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        {{ ledger_stats.filtered.total_tokens|intcomma }} <span style="font-size: 13px; font-weight: 400; color: #94a3b8;">tok</span>
+      </div>
+      {% if ledger_stats.is_filtered %}
+      <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+        All-time: {{ ledger_stats.all_time.total_tokens|intcomma }} tok
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Card 4: Total Spend USD -->
+    <div style="background: linear-gradient(135deg, #064e3b 0%, #022c22 100%); border-radius: 8px; padding: 16px 20px; border: 1px solid #059669; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #a7f3d0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">💵 Total Platform Spend</span>
+        <span style="background: rgba(16, 185, 129, 0.3); color: #34d399; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 700;">USD</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 800; color: #34d399; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        ${{ ledger_stats.filtered.total_cost|floatformat:4 }} <span style="font-size: 13px; font-weight: 500; color: #a7f3d0;">USD</span>
+      </div>
+      {% if ledger_stats.is_filtered %}
+      <div style="font-size: 11px; color: #6ee7b7; margin-top: 4px;">
+        All-time: ${{ ledger_stats.all_time.total_cost|floatformat:4 }} USD ({{ ledger_stats.all_time.total_count }} calls)
+      </div>
+      {% else %}
+      <div style="font-size: 11px; color: #6ee7b7; margin-top: 4px;">
+        Across {{ ledger_stats.filtered.total_count }} total inference calls
+      </div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+{% endif %}
+
+{{ block.super }}
+{% endblock %}

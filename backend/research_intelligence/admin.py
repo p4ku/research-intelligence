@@ -2365,6 +2365,57 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
     formatted_timestamp.short_description = "Timestamp"
     formatted_timestamp.admin_order_field = "timestamp"
 
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        from django.db.models import Sum, Count
+
+        # 1. Super-fast database aggregation across the current filtered queryset
+        cl = self.get_changelist_instance(request)
+        try:
+            filtered_qs = cl.get_queryset(request)
+        except Exception:
+            filtered_qs = self.get_queryset(request)
+
+        filtered_stats = filtered_qs.aggregate(
+            prompt_tokens=Sum('tokens_in'),
+            output_tokens=Sum('tokens_out'),
+            total_tokens=Sum('total_tokens'),
+            total_cost=Sum('usd_cost'),
+            total_count=Count('id')
+        )
+
+        # 2. All-time global totals across the entire platform
+        all_time_stats = LLMUsageRecord.objects.aggregate(
+            prompt_tokens=Sum('tokens_in'),
+            output_tokens=Sum('tokens_out'),
+            total_tokens=Sum('total_tokens'),
+            total_cost=Sum('usd_cost'),
+            total_count=Count('id')
+        )
+
+        f_count = filtered_stats['total_count'] or 0
+        a_count = all_time_stats['total_count'] or 0
+
+        extra_context['ledger_stats'] = {
+            'filtered': {
+                'prompt_tokens': filtered_stats['prompt_tokens'] or 0,
+                'output_tokens': filtered_stats['output_tokens'] or 0,
+                'total_tokens': filtered_stats['total_tokens'] or 0,
+                'total_cost': float(filtered_stats['total_cost'] or 0.0),
+                'total_count': f_count,
+            },
+            'all_time': {
+                'prompt_tokens': all_time_stats['prompt_tokens'] or 0,
+                'output_tokens': all_time_stats['output_tokens'] or 0,
+                'total_tokens': all_time_stats['total_tokens'] or 0,
+                'total_cost': float(all_time_stats['total_cost'] or 0.0),
+                'total_count': a_count,
+            },
+            'is_filtered': (f_count != a_count)
+        }
+
+        return super().changelist_view(request, extra_context=extra_context)
+
     def operation_type_badge(self, obj):
         color_map = {
             'abstract_screening': '#0d6efd',
@@ -2379,7 +2430,7 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
         color = color_map.get(obj.operation_type, '#6c757d')
         label = obj.get_operation_type_display() if hasattr(obj, 'get_operation_type_display') else obj.operation_type
         return format_html(
-            f'<span style="background-color: {color}; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; white-space: nowrap;">{label}</span>'
+            f'<span style="background-color: {color}; color: white; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; white-space: nowrap; display: inline-block;">{label}</span>'
         )
     operation_type_badge.short_description = "Operation"
     operation_type_badge.admin_order_field = "operation_type"
@@ -2387,7 +2438,7 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
     def llm_model_badge(self, obj):
         model_short = obj.llm_model.replace("google/", "").replace("openai/", "").replace("anthropic/", "")
         return format_html(
-            f'<span style="font-family: monospace; font-size: 12px; background: #f1f3f5; color: #333; padding: 2px 6px; border-radius: 3px; border: 1px solid #ced4da;">{model_short}</span>'
+            f'<span style="font-family: monospace; font-size: 12px; background: #f8fafc; color: #0f172a; padding: 3px 8px; border-radius: 4px; border: 1px solid #cbd5e1; white-space: nowrap; display: inline-block; font-weight: 500;">{model_short}</span>'
         )
     llm_model_badge.short_description = "Model"
     llm_model_badge.admin_order_field = "llm_model"
@@ -2395,9 +2446,9 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
     def workspace_display(self, obj):
         if obj.workspace:
             url = reverse("admin:research_intelligence_workspace_change", args=[obj.workspace.id])
-            return format_html(f'<a href="{url}" style="font-weight: 500;">🏢 {escape(obj.workspace.name)}</a>')
+            return format_html(f'<a href="{url}" style="font-weight: 500; white-space: nowrap;">🏢 {escape(obj.workspace.name)}</a>')
         if obj.workspace_name_snapshot:
-            return format_html(f'<span style="color: #6c757d; font-style: italic;">🗑️ {escape(obj.workspace_name_snapshot)} <span style="font-size: 10px;">(deleted)</span></span>')
+            return format_html(f'<span style="color: #6c757d; font-style: italic; white-space: nowrap;">🗑️ {escape(obj.workspace_name_snapshot)} <span style="font-size: 10px;">(deleted)</span></span>')
         return format_html('<span style="color: #adb5bd;">-</span>')
     workspace_display.short_description = "Workspace"
     workspace_display.admin_order_field = "workspace_name_snapshot"
@@ -2413,12 +2464,12 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
     tokens_out_fmt.admin_order_field = "tokens_out"
 
     def total_tokens_fmt(self, obj):
-        return format_html(f'<strong>{obj.total_tokens:,}</strong>')
+        return format_html(f'<strong style="white-space: nowrap;">{obj.total_tokens:,}</strong>')
     total_tokens_fmt.short_description = "Total Tokens"
     total_tokens_fmt.admin_order_field = "total_tokens"
 
     def usd_cost_fmt(self, obj):
-        return format_html(f'<span style="color: #198754; font-weight: 600;">${obj.usd_cost:.5f}</span>')
+        return format_html(f'<span style="color: #198754; font-weight: 600; white-space: nowrap;">${obj.usd_cost:.5f}</span>')
     usd_cost_fmt.short_description = "Cost (USD)"
     usd_cost_fmt.admin_order_field = "usd_cost"
 
@@ -2431,9 +2482,9 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
             return "-"
         try:
             url = reverse("admin:research_intelligence_pipelinerun_change", args=[obj.pipeline_run_id])
-            return format_html(f'<a href="{url}" style="font-family: monospace; font-size: 11px;">{obj.pipeline_run_id[:8]}...</a>')
+            return format_html(f'<a href="{url}" style="font-family: monospace; font-size: 11px; white-space: nowrap;">{obj.pipeline_run_id[:8]}...</a>')
         except Exception:
-            return format_html(f'<span style="font-family: monospace; font-size: 11px; color: #6c757d;">{obj.pipeline_run_id[:8]}...</span>')
+            return format_html(f'<span style="font-family: monospace; font-size: 11px; color: #6c757d; white-space: nowrap;">{obj.pipeline_run_id[:8]}...</span>')
     pipeline_run_link.short_description = "Pipeline"
 
 

@@ -308,3 +308,34 @@ class AdminChangelistViewsTestCase(TestCase):
         self.assertEqual(resp_id.status_code, 200)
         self.assertContains(resp_id, "arxiv_scraper")
 
+    def test_llmusagerecord_changelist_and_dashboard_renders(self):
+        from research_intelligence.models import LLMUsageRecord
+
+        # Create sample records
+        LLMUsageRecord.record_usage(
+            tokens_in=12500,
+            tokens_out=3200,
+            llm_model="google/gemini-3.7-flash",
+            operation_type="full_text_screening",
+            workspace=self.workspace,
+            user=self.user,
+            pipeline_run_id=str(self.pipeline_run.id)
+        )
+
+        url = reverse('admin:research_intelligence_llmusagerecord_changelist')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+
+        # Check KPI cards rendered
+        self.assertContains(response, "Prompt Tokens (In)")
+        self.assertContains(response, "Output Tokens (Out)")
+        self.assertContains(response, "Total Tokens Consumed")
+        self.assertContains(response, "Total Platform Spend")
+        self.assertContains(response, "12,500")
+        self.assertContains(response, "3,200")
+        self.assertContains(response, "15,700")
+
+        # Check badges have nowrap
+        self.assertContains(response, "white-space: nowrap;")
+        self.assertContains(response, "gemini-3.7-flash")
+
