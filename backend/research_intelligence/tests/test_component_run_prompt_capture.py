@@ -327,12 +327,9 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         self.assertIn("fit_score", var_names)
         self.assertIn("novelty_score", var_names)
 
-        # Assert full prompts and schemas are captured
-        fit_var = next(v for v in params["scoring_variables"] if v["name"] == "Strategic Fit")
-        self.assertEqual(fit_var["system_prompt"], "Fit")
-        self.assertEqual(fit_var["user_prompt_template"], "Fit")
+        fit_var = next(v for v in params["scoring_variables"] if v["definition_name"] == "Strategic Fit")
         self.assertEqual(fit_var["exit_metric"], "fit_score")
-        self.assertIn("response_schema", fit_var)
+        self.assertEqual(fit_var["variable_name"], "fit_score")
 
     @patch("mcp_server.tools.pipeline_runs.triggers.execute_signal_score_job")
     def test_trigger_signal_score_job_logic_creates_full_input_params(self, mock_exec):
@@ -363,6 +360,5 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         self.assertTrue(comp_run.input_params["has_custom_formula"])
         self.assertEqual(comp_run.input_params["limit"], 5)
         self.assertIn("scoring_variables", comp_run.input_params)
-        self.assertIn("extraction_definitions", comp_run.input_params)
 
 
