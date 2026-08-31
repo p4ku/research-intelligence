@@ -183,6 +183,42 @@ class Workspace(models.Model):
 
     def get_full_text_screening_exit_metric(self) -> str:
         return (self.full_text_screening_exit_metric or "").strip() or "decision_category"
+
+    def get_abstract_screening_prompt_snapshot(self) -> dict:
+        """Returns a consolidated dictionary snapshot of all criteria, templates, and schemas for abstract screening."""
+        return {
+            "stage": "abstract",
+            "llm_model": self.screening_llm_model,
+            "llm_provider": self.llm_provider,
+            "reasoning_effort": self.reasoning_effort,
+            "abstract_acceptance_criteria": self.get_abstract_acceptance_criteria(),
+            "abstract_rejection_criteria": self.get_abstract_rejection_criteria(),
+            "abstract_screening_system_prompt": self.get_abstract_screening_system_prompt(),
+            "abstract_screening_user_prompt_template": self.get_abstract_screening_user_prompt_template(),
+            "abstract_screening_exit_metric": self.get_abstract_screening_exit_metric(),
+            "abstract_screening_response_schema": self.get_abstract_screening_response_schema(),
+        }
+
+    def get_full_text_screening_prompt_snapshot(self) -> dict:
+        """Returns a consolidated dictionary snapshot of all criteria, templates, and schemas for full-text screening."""
+        return {
+            "stage": "full_text",
+            "llm_model": self.screening_llm_model,
+            "llm_provider": self.llm_provider,
+            "reasoning_effort": self.reasoning_effort,
+            "full_text_acceptance_criteria": self.get_full_text_acceptance_criteria(),
+            "full_text_rejection_criteria": self.get_full_text_rejection_criteria(),
+            "full_text_screening_system_prompt": self.get_full_text_screening_system_prompt(),
+            "full_text_screening_user_prompt_template": self.get_full_text_screening_user_prompt_template(),
+            "full_text_screening_exit_metric": self.get_full_text_screening_exit_metric(),
+            "full_text_screening_response_schema": self.get_full_text_screening_response_schema(),
+        }
+
+    def get_screening_prompt_snapshot(self, stage: str = "abstract") -> dict:
+        """Helper to return the appropriate screening prompt snapshot by stage name."""
+        if str(stage).lower() in ["full_text", "fulltext", "full-text", "stage_b"]:
+            return self.get_full_text_screening_prompt_snapshot()
+        return self.get_abstract_screening_prompt_snapshot()
     
     # Digest distribution schedule
     digest_schedule = models.CharField(max_length=100, default="0 9 * * 5", help_text="Cron expression for weekly digest execution (e.g. every Friday at 9am)")

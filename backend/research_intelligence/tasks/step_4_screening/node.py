@@ -87,18 +87,7 @@ class AbstractScreeningNode(BaseWorkflowNode):
 
     def get_input_params(self, pipeline_run, workspace, config: Dict[str, Any], limit: Optional[int] = None) -> Dict[str, Any]:
         params = super().get_input_params(pipeline_run, workspace, config, limit=limit)
-        params.update({
-            "stage": "abstract",
-            "llm_model": getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash'),
-            "llm_provider": getattr(workspace, 'llm_provider', 'google'),
-            "reasoning_effort": getattr(workspace, 'reasoning_effort', 'medium'),
-            "abstract_acceptance_criteria": workspace.get_abstract_acceptance_criteria(),
-            "abstract_rejection_criteria": workspace.get_abstract_rejection_criteria(),
-            "abstract_screening_system_prompt": workspace.get_abstract_screening_system_prompt(),
-            "abstract_screening_user_prompt_template": workspace.get_abstract_screening_user_prompt_template(),
-            "abstract_screening_exit_metric": workspace.get_abstract_screening_exit_metric(),
-            "abstract_screening_response_schema": workspace.get_abstract_screening_response_schema(),
-        })
+        params.update(workspace.get_abstract_screening_prompt_snapshot())
         return params
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
@@ -187,18 +176,7 @@ class FullTextScreeningNode(BaseWorkflowNode):
 
     def get_input_params(self, pipeline_run, workspace, config: Dict[str, Any], limit: Optional[int] = None) -> Dict[str, Any]:
         params = super().get_input_params(pipeline_run, workspace, config, limit=limit)
-        params.update({
-            "stage": "full_text",
-            "llm_model": getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash'),
-            "llm_provider": getattr(workspace, 'llm_provider', 'google'),
-            "reasoning_effort": getattr(workspace, 'reasoning_effort', 'medium'),
-            "full_text_acceptance_criteria": workspace.get_full_text_acceptance_criteria(),
-            "full_text_rejection_criteria": workspace.get_full_text_rejection_criteria(),
-            "full_text_screening_system_prompt": workspace.get_full_text_screening_system_prompt(),
-            "full_text_screening_user_prompt_template": workspace.get_full_text_screening_user_prompt_template(),
-            "full_text_screening_exit_metric": workspace.get_full_text_screening_exit_metric(),
-            "full_text_screening_response_schema": workspace.get_full_text_screening_response_schema(),
-        })
+        params.update(workspace.get_full_text_screening_prompt_snapshot())
         return params
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:

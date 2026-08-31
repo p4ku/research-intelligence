@@ -330,36 +330,11 @@ def trigger_screening_job_logic(
     pipeline_run.current_stage = 'screening'
     pipeline_run.save(update_fields=['status', 'current_stage'])
 
-    if is_full_text:
-        input_params = {
-            "limit": limit,
-            "pipeline_run_id": str(pipeline_run.id),
-            "stage": "full_text",
-            "llm_model": getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash'),
-            "llm_provider": getattr(workspace, 'llm_provider', 'google'),
-            "reasoning_effort": getattr(workspace, 'reasoning_effort', 'medium'),
-            "full_text_acceptance_criteria": workspace.get_full_text_acceptance_criteria(),
-            "full_text_rejection_criteria": workspace.get_full_text_rejection_criteria(),
-            "full_text_screening_system_prompt": workspace.get_full_text_screening_system_prompt(),
-            "full_text_screening_user_prompt_template": workspace.get_full_text_screening_user_prompt_template(),
-            "full_text_screening_exit_metric": workspace.get_full_text_screening_exit_metric(),
-            "full_text_screening_response_schema": workspace.get_full_text_screening_response_schema(),
-        }
-    else:
-        input_params = {
-            "limit": limit,
-            "pipeline_run_id": str(pipeline_run.id),
-            "stage": "abstract",
-            "llm_model": getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash'),
-            "llm_provider": getattr(workspace, 'llm_provider', 'google'),
-            "reasoning_effort": getattr(workspace, 'reasoning_effort', 'medium'),
-            "abstract_acceptance_criteria": workspace.get_abstract_acceptance_criteria(),
-            "abstract_rejection_criteria": workspace.get_abstract_rejection_criteria(),
-            "abstract_screening_system_prompt": workspace.get_abstract_screening_system_prompt(),
-            "abstract_screening_user_prompt_template": workspace.get_abstract_screening_user_prompt_template(),
-            "abstract_screening_exit_metric": workspace.get_abstract_screening_exit_metric(),
-            "abstract_screening_response_schema": workspace.get_abstract_screening_response_schema(),
-        }
+    input_params = {
+        "limit": limit,
+        "pipeline_run_id": str(pipeline_run.id),
+        **workspace.get_screening_prompt_snapshot(stage)
+    }
 
     comp_run = ComponentRun.objects.create(
         pipeline_run=pipeline_run,
