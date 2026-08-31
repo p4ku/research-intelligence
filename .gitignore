@@ -110,4 +110,6 @@ celerybeat-schedule.db
 /backend/workspaces/
 /cache/
 /backend/cache/
+test_dir/
+/test_dir/
 

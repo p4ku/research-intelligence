@@ -1,27 +1,48 @@
+# Dependencies & build outputs
 node_modules
+**/node_modules
 .next*
-.git
-.vercel
+out
+build
+dist
+local-data
+
+# Secrets and environment files (CRITICAL: Never bake into image)
 .env*
+*.env
+*.env.*
 !.env.example
-docs
-**/docs
-*.md
-backend
-**/backend
-local_cicd
-local_cici
-prototype
+
+# Git, IDE & OS metadata
+.git
+.github
 .claude
 .codex
 .cursor
 .vscode
-Dockerfile
-scripts/seed-django.py
-out
-build
-dist
-.DS_Store
 .idea
+.DS_Store
+.DS_Store?
+._*
 *.log*
-local-data
+
+# Documentation & prototypes
+docs
+**/docs
+*.md
+prototype
+local_cicd
+local_cici
+
+# Backend isolation
+backend
+**/backend
+
+# Development scripts & tests
+scripts/seed-django.py
+scripts/snapshot-pull.ts
+scripts/snapshot-serve.ts
+scripts/contract-check.ts
+**/*.test.ts
+**/*.test.tsx
+.vercel

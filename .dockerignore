@@ -1,3 +1,12 @@
+# Environment and secrets (CRITICAL: Never bake into image)
+.env
+.env*
+*.env
+*.env.*
+.env_prod
+.env_staging
+.env_example
+
 # Virtual environments
 .venv/
 venv/
@@ -11,6 +20,12 @@ docs/
 prototype/
 local_cicd/
 local_cici/
+manifest.yml
+vars.yml
+vars-ci.yml
+DEPLOY_STACKIT.md
+PLAN.md
+REQUIREMENTS.md
 
 # Large local storage, document caches & test suites
 workspaces/
@@ -20,12 +35,15 @@ test_dir/
 tests_e2e/
 media/
 downloads/
+*.pdf
 
-# Frontend builds
+# Frontend builds & tests
 node_modules/
 **/node_modules/
 frontend/.next/
 frontend/out/
+**/*.test.ts
+**/*.test.tsx
 
 # Python cache & bytecode
 **/__pycache__/
@@ -43,16 +61,22 @@ dist/
 celerybeat-schedule*
 *.log
 
-# Git & IDE metadata
+# Git, IDE & OS metadata
 .git/
 .github/
 .vscode/
 .idea/
 .DS_Store
+.DS_Store?
+._*
 .agents/
 .gemini/
+.claude/
+.cursor/
+.codex/
 
 # Testing & Coverage
 .coverage
 .coverage.*
+.pytest_cache/
 htmlcov/
