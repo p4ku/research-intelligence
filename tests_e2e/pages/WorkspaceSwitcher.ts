@@ -10,10 +10,10 @@ export class WorkspaceSwitcher extends BasePage {
   constructor(page: Page, baseURL?: string) {
     super(page, baseURL);
     this.switcherButton = page.locator(
-      "button[aria-label*='workspace'], button[aria-label*='Workspace'], button:has-text('test_e2e'), button:has([data-slot='icon'])"
+      "aside header button[aria-label*='workspace' i], aside button[aria-label*='workspace' i], nav button[aria-label*='workspace' i], header button[aria-label*='workspace' i], button[aria-label*='Switch workspace'], button[aria-label*='workspace' i], aside button:has(span.truncate)"
     ).first();
     this.currentWorkspaceNameLabel = page.locator(
-      "button[aria-label*='workspace'] span.truncate, button[aria-label*='Workspace'] span.truncate, button[aria-label*='workspace'] span"
+      "aside header button span.truncate, aside button[aria-label*='workspace' i] span.truncate, button[aria-label*='Switch workspace'] span.truncate, button[aria-label*='workspace' i] span"
     ).first();
     this.dropdownMenu = page.locator("[role='menu']");
     this.workspaceItems = page.locator("[role='menu'] [role='menuitem']");
