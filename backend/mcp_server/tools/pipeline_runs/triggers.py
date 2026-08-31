@@ -128,7 +128,7 @@ def trigger_pdf_download_job_logic(
     limit: int = None
 ) -> str:
     """
-    Trigger Step 2 of the processing pipeline (PDF Binary Download) for papers in a PipelineRun or Workspace.
+    Trigger PDF Binary Download for papers in a PipelineRun or Workspace.
     Downloads PDF binaries into default_storage (MinIO/S3), updates paper.original_pdf_path, and skips already downloaded PDFs.
     """
     if not pipeline_run_id and not workspace_id:
@@ -158,14 +158,14 @@ def trigger_pdf_download_job_logic(
 
     papers_count = Paper.objects.filter(pipeline_run=pipeline_run).count()
     if papers_count == 0:
-        return f"Error: No papers found in PipelineRun '{pipeline_run.id}'. Please run Step 1 (trigger_scraping_job) first."
+        return f"Error: No papers found in PipelineRun '{pipeline_run.id}'. Please run search & ingestion (trigger_search_job) first."
 
     # Update pipeline_run status and current_stage
     pipeline_run.status = 'running'
     pipeline_run.current_stage = 'download'
     pipeline_run.save(update_fields=['status', 'current_stage'])
 
-    # Create ComponentRun for Step 2 (PDF Download)
+    # Create ComponentRun for PDF Download
     comp_run = ComponentRun.objects.create(
         pipeline_run=pipeline_run,
         step_type='download',
@@ -207,7 +207,7 @@ def trigger_ocr_job_logic(
     limit: int = None
 ) -> str:
     """
-    Trigger Step 3 of the processing pipeline (Layout OCR Extraction) for papers in a PipelineRun or Workspace.
+    Trigger Layout OCR Extraction for papers in a PipelineRun or Workspace.
     Converts downloaded PDFs into structured Markdown text using the workspace's configured OCR provider.
     """
     if not pipeline_run_id and not workspace_id:
@@ -237,14 +237,14 @@ def trigger_ocr_job_logic(
 
     papers_count = Paper.objects.filter(pipeline_run=pipeline_run, original_pdf_path__isnull=False).count()
     if papers_count == 0:
-        return f"Error: No papers with downloaded PDFs found in PipelineRun '{pipeline_run.id}'. Please run Step 2 (trigger_pdf_download_job) first."
+        return f"Error: No papers with downloaded PDFs found in PipelineRun '{pipeline_run.id}'. Please run PDF download (trigger_pdf_download_job) first."
 
     # Update pipeline_run status and current_stage
     pipeline_run.status = 'running'
     pipeline_run.current_stage = 'ocr'
     pipeline_run.save(update_fields=['status', 'current_stage'])
 
-    # Create ComponentRun for Step 3 (OCR Conversion)
+    # Create ComponentRun for OCR Conversion
     comp_run = ComponentRun.objects.create(
         pipeline_run=pipeline_run,
         step_type='ocr',
@@ -288,7 +288,7 @@ def trigger_screening_job_logic(
     stage: str = "abstract"
 ) -> str:
     """
-    Trigger Step 4 of the processing pipeline (Abstract or Full-Text Screening) for papers in a PipelineRun or Workspace.
+    Trigger Abstract or Full-Text Screening for papers in a PipelineRun or Workspace.
     Screens paper abstracts or full-text PDFs against workspace acceptance and rejection criteria using the workspace LLM.
     Supports stage='abstract' (default) or stage='full_text'.
     """
@@ -319,7 +319,7 @@ def trigger_screening_job_logic(
 
     papers_count = Paper.objects.filter(pipeline_run=pipeline_run).count()
     if papers_count == 0:
-        return f"Error: No papers found in PipelineRun '{pipeline_run.id}'. Please run Step 1 (trigger_search_job) first."
+        return f"Error: No papers found in PipelineRun '{pipeline_run.id}'. Please run search & ingestion (trigger_search_job) first."
 
     is_full_text = (str(stage).lower() in ["full_text", "fulltext", "full-text", "stage_b"])
     comp_name = "full_text_screening" if is_full_text else "abstract_screening"
@@ -371,7 +371,7 @@ def trigger_extraction_job_logic(
     limit: int = None
 ) -> str:
     """
-    Trigger Step 5 of the processing pipeline (Parameter & Claim Extraction) for papers in a PipelineRun or Workspace.
+    Trigger Parameter & Claim Extraction for papers in a PipelineRun or Workspace.
     Runs extraction for all active ExtractionDefinitions configured for the workspace.
     """
     if not pipeline_run_id and not workspace_id:
@@ -405,7 +405,7 @@ def trigger_extraction_job_logic(
 
     papers_count = Paper.objects.filter(pipeline_run=pipeline_run).count()
     if papers_count == 0:
-        return f"Error: No papers found in PipelineRun '{pipeline_run.id}'. Please run Step 1 (trigger_search_job) first."
+        return f"Error: No papers found in PipelineRun '{pipeline_run.id}'. Please run search & ingestion (trigger_search_job) first."
 
     pipeline_run.status = 'running'
     pipeline_run.current_stage = 'extraction'
@@ -451,7 +451,7 @@ def trigger_signal_score_job_logic(
     limit: int = None
 ) -> str:
     """
-    Trigger Step 6 (Composite Signal Score Evaluation) for a PipelineRun.
+    Trigger Composite Signal Score Evaluation for a PipelineRun.
     Evaluates the sandboxed Python signal score logic for all screened and accepted papers.
     """
     try:
@@ -496,7 +496,7 @@ def trigger_signal_score_job_logic(
 
     return json.dumps({
         "success": True,
-        "message": f"Successfully launched Step 6 Signal Score evaluation for PipelineRun '{pipeline_run.id}' across {papers_count} papers.",
+        "message": f"Successfully launched Signal Score evaluation for PipelineRun '{pipeline_run.id}' across {papers_count} papers.",
         "pipeline_run_id": str(pipeline_run.id),
         "component_run_id": str(comp_run.id),
         "status": comp_run.status,
@@ -511,7 +511,7 @@ def trigger_reporting_job_logic(
     recipient_override: list[str] = None
 ) -> str:
     """
-    Trigger Step 7 (Executive Narrative Reporting & Notification Dispatch) for a PipelineRun.
+    Trigger Executive Narrative Reporting & Notification Dispatch for a PipelineRun.
     Compiles executive SLR briefing, creates NarrativeReport records, and notifies workspace subscribers.
     """
     try:
@@ -567,7 +567,7 @@ def trigger_reporting_job_logic(
 
     return json.dumps({
         "success": True,
-        "message": f"Successfully executed Step 7 Executive Narrative Reporting for PipelineRun '{pipeline_run.id}'.",
+        "message": f"Successfully executed Executive Narrative Reporting for PipelineRun '{pipeline_run.id}'.",
         "pipeline_run_id": str(pipeline_run.id),
         "component_run_id": str(comp_run.id),
         "status": comp_run.status,

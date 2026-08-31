@@ -215,7 +215,7 @@ def _run_single_extraction_worker(paper, definition, workspace):
 @shared_task(bind=True)
 def execute_extraction_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
-    Celery worker task executing Step 5 (Parameter & Claim Extraction) for papers in a ComponentRun job.
+    Celery worker task executing Parameter & Claim Extraction for papers in a ComponentRun job.
     Executes extractions for all active ExtractionDefinitions in parallel using a ThreadPoolExecutor.
     """
     component_run = None
@@ -473,7 +473,7 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
         # Record monthly quota usage on Workspace
         workspace.record_token_usage(total_prompt_tokens, total_candidates_tokens, workspace.screening_llm_model)
 
-        logger.info(f"📊 [STEP 5 EXTRACTION JOB COMPLETED] Total Extractions: {succeeded_count} | Time: {job_duration_sec}s | Tokens: {total_tokens} (In: {total_prompt_tokens}, Out: {total_candidates_tokens}) | Cost: ${cost}")
+        logger.info(f"📊 [EXTRACTION JOB COMPLETED] Total Extractions: {succeeded_count} | Time: {job_duration_sec}s | Tokens: {total_tokens} (In: {total_prompt_tokens}, Out: {total_candidates_tokens}) | Cost: ${cost}")
 
         pipeline_run.refresh_from_db()
         pending_or_running = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, status__in=['pending', 'running']).exists()

@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class OCRNode(BaseWorkflowNode):
     """
-    Step 3: Document Layout OCR Conversion (Optional / Skippable if ocr_provider is None).
+    Document Layout OCR Conversion (Optional / Skippable if ocr_provider is None).
 
     Inputs:
         - Downloaded PDF binaries in storage.

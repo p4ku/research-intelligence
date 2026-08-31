@@ -75,13 +75,13 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
         sort_order = getattr(scraper, 'sort_order', 'desc')
 
         logger.info(
-            f"🔎 [STEP 1 SEARCH START] Querying '{scraper.provider}' for workspace '{workspace.name}' | "
+            f"🔎 [SEARCH START] Querying '{scraper.provider}' for workspace '{workspace.name}' | "
             f"Limit: {final_limit} | Sort: {sort_by} ({sort_order}) | Query: {scraper.search_query[:120]}..."
         )
 
         results = provider.search(scraper.search_query, limit=final_limit, sort_by=sort_by, sort_order=sort_order)
         fetch_elapsed = round(time.time() - start_time, 2)
-        logger.info(f"📦 [STEP 1 SEARCH FETCHED] Provider '{scraper.provider}' returned {len(results)} candidate papers in {fetch_elapsed}s.")
+        logger.info(f"📦 [SEARCH FETCHED] Provider '{scraper.provider}' returned {len(results)} candidate papers in {fetch_elapsed}s.")
         
         # 1. Update component run metrics
         component_run.metrics['total_fetched'] = len(results)
@@ -94,7 +94,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
         existing_normalized_arxiv_ids = {normalize_arxiv_id(p["arxiv_id"]) for p in existing_papers if p.get("arxiv_id")}
         existing_normalized_titles = {normalize_title(p["title"]) for p in existing_papers if p.get("title")}
 
-        logger.info(f"💾 [STEP 1 INGESTION] Starting deduplication against {len(existing_papers)} existing workspace papers...")
+        logger.info(f"💾 [INGESTION] Starting deduplication against {len(existing_papers)} existing workspace papers...")
 
         created_count = 0
         skipped_count = 0

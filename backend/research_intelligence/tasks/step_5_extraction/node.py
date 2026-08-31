@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class ExtractionNode(BaseWorkflowNode):
     """
-    Step 5: Dynamic Parameter Extraction with Pydantic schemas.
+    Dynamic Parameter Extraction with Pydantic schemas.
 
     Inputs:
         - Accepted Paper documents (full text / raw PDF).
@@ -21,7 +21,7 @@ class ExtractionNode(BaseWorkflowNode):
     name = "extraction"
     step_type = "extraction"
     component_name = "parameter_extraction"
-    description = "Step 6: Extracts dynamic, schema-validated parameters, evidence quotes, and confidence scores."
+    description = "Extracts dynamic, schema-validated parameters, evidence quotes, and confidence scores."
     dependencies = ["full_text_screening"]
 
     input_contract = {

@@ -285,7 +285,7 @@ class WorkflowDAG:
                         status='failed'
                     ).first()
                 err_msg = (failed_comp_run.error_message if failed_comp_run else f"Node '{failed_node_name}' failed.")
-                fail_summary = f"Failed at Step '{failed_node_name}': {err_msg}"
+                fail_summary = f"Failed during '{failed_node_name}': {err_msg}"
                 
                 pipeline_run.status = 'failed'
                 pipeline_run.status_message = fail_summary

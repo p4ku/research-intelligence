@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class SignalScoreNode(BaseWorkflowNode):
     """
-    Step 6: Composite Signal Score Evaluation (AST Sandboxed Python Formula).
+    Composite Signal Score Evaluation (AST Sandboxed Python Formula).
 
     Inputs:
         - Extractions for all accepted papers.

@@ -60,7 +60,7 @@ def start_research_agent_logic(
         }]
     )
 
-    # Trigger first tick to launch Step 1 (Search & Ingestion)
+    # Trigger first tick to launch Search & Ingestion
     tick_res = tick_agent_process(str(agent_process.id))
     agent_process.refresh_from_db()
 
@@ -355,7 +355,7 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
 
     # Build Markdown table of stages
     table_lines = [
-        "| Step | Stage Name | Status | Summary / Outcome |",
+        "| # | Stage Name | Status | Summary / Outcome |",
         "| :--- | :--- | :--- | :--- |"
     ]
     for idx, st in enumerate(stages_breakdown, start=1):

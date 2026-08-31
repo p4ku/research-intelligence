@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 class DownloadNode(BaseWorkflowNode):
     """
-    Step 2: Parallel PDF document download & registry caching.
+    PDF Download: Parallel PDF document download & registry caching.
 
     Inputs:
         - Ingested Paper records with valid `pdf_url` fields.
@@ -22,7 +22,7 @@ class DownloadNode(BaseWorkflowNode):
     name = "download"
     step_type = "download"
     component_name = "document_download"
-    description = "Step 3: Downloads original full-text PDF documents in parallel with global SHA-256 deduplication."
+    description = "Downloads original full-text PDF documents in parallel with global SHA-256 deduplication."
     dependencies = ["abstract_screening"]
 
     input_contract = {

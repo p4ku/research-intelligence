@@ -152,7 +152,7 @@ def _ocr_paper_task(paper):
 @shared_task(bind=True)
 def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
-    Celery worker task executing Step 3 (Layout OCR Extraction) for papers in a ComponentRun job.
+    Celery worker task executing Layout OCR Extraction for papers in a ComponentRun job.
     Executes OCR conversion concurrently using a ThreadPoolExecutor.
     """
     component_run = None
@@ -172,7 +172,7 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
     workspace = pipeline_run.workspace
 
     if not workspace.ocr_provider or str(workspace.ocr_provider).strip().lower() in ("none", ""):
-        logger.info(f"⏩ [OCR SKIPPED] Workspace '{workspace.name}' has no OCR provider configured. Skipping Step 3 (Direct Multimodal PDF mode).")
+        logger.info(f"⏩ [OCR SKIPPED] Workspace '{workspace.name}' has no OCR provider configured. Skipping OCR (Direct Multimodal PDF mode).")
         component_run.status = 'skipped'
         component_run.completed_at = timezone.now()
         component_run.metrics = {

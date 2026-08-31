@@ -200,7 +200,7 @@ calculate_paper_signal_score = compute_paper_signal_score
 @shared_task(bind=True)
 def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] = None) -> Dict[str, Any]:
     """
-    Step 6 Celery Task: Evaluates the composite signal score for all screened/accepted papers
+    Celery Task: Evaluates the composite signal score for all screened/accepted papers
     in the active PipelineRun using the Workspace's sandboxed Python logic.
     """
     comp_run = None
@@ -219,7 +219,7 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
     pipeline_run = comp_run.pipeline_run
     workspace = pipeline_run.workspace
 
-    logger.info(f"🚀 [STEP 6 START] Signal Score Evaluation for Run {pipeline_run.id} in Workspace '{workspace.name}'")
+    logger.info(f"🚀 [SIGNAL SCORE START] Signal Score Evaluation for Run {pipeline_run.id} in Workspace '{workspace.name}'")
 
     comp_run.status = 'running'
     comp_run.started_at = timezone.now()
@@ -333,7 +333,7 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
     comp_run.save(update_fields=['status', 'completed_at', 'metrics', 'output_data'])
 
     logger.info(
-        f"🏁 [STEP 6 FINISHED] Signal Score Evaluation Run {pipeline_run.id}: "
+        f"🏁 [SIGNAL SCORE FINISHED] Signal Score Evaluation Run {pipeline_run.id}: "
         f"Scored {scored_count}/{total_papers} papers. Avg Score: {avg_score:.2f}, Max: {max_score:.2f}."
     )
 

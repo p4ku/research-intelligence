@@ -1018,7 +1018,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
         }),
         ('Reprocessing & Ingestion Options', {
             'fields': ('reprocess_existing',),
-            'description': 'When enabled, existing and duplicate papers in the workspace will be re-screened and re-extracted through all downstream stages instead of halted at Step 1.'
+            'description': 'When enabled, existing and duplicate papers in the workspace will be re-screened and re-extracted through all downstream stages instead of halted during Search & Ingestion.'
         }),
         ('Timestamps & Metrics', {
             'fields': ('started_at', 'completed_at', 'execution_time', 'tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost')
