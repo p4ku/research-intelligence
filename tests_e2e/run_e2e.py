@@ -131,25 +131,25 @@ def print_banner():
     )
 
 
-def print_llm_cost_summary(c: dict, total_elapsed: float, total_papers: int = 0):
-    p_in = c.get("pipeline_tokens_in", 0) or 0
-    p_out = c.get("pipeline_tokens_out", 0) or 0
-    p_tok = c.get("pipeline_total_tokens", 0) or (p_in + p_out)
+def print_llm_cost_summary(c: dict, total_elapsed: float, total_papers: int = 0, title: str = "LLM TOKENS & FINANCIAL COST SUMMARY"):
+    p_in = int(c.get("pipeline_tokens_in", 0) or 0)
+    p_out = int(c.get("pipeline_tokens_out", 0) or 0)
+    p_tok = int(c.get("pipeline_total_tokens", 0) or (p_in + p_out))
     p_usd = float(c.get("pipeline_usd_cost", 0.0) or 0.0)
 
-    c_in = c.get("chat_tokens_in", 0) or 0
-    c_out = c.get("chat_tokens_out", 0) or 0
-    c_tok = c.get("chat_total_tokens", 0) or (c_in + c_out)
+    c_in = int(c.get("chat_tokens_in", 0) or 0)
+    c_out = int(c.get("chat_tokens_out", 0) or 0)
+    c_tok = int(c.get("chat_total_tokens", 0) or (c_in + c_out))
     c_usd = float(c.get("chat_usd_cost", 0.0) or 0.0)
 
     tot_in = p_in + c_in
     tot_out = p_out + c_out
-    tot_tok = c.get("total_tokens_consumed") or (tot_in + tot_out)
+    tot_tok = int(c.get("total_tokens_consumed") or (tot_in + tot_out))
     tot_usd = float(c.get("total_usd_spent", 0.0) or (p_usd + c_usd))
     tot_eur = tot_usd * 0.92
 
     print("\n" + "=" * 70)
-    print("💎  LLM TOKENS & FINANCIAL COST SUMMARY (GOOGLE GEMINI 3.7 FLASH)")
+    print(f"💎  {title} (GOOGLE GEMINI 3.7 FLASH)")
     print("=" * 70)
     print(f"  🤖 Inference Engine     : Google Vertex AI / GenAI (gemini-3.7-flash)")
     print(f"  ⏱️  Total Run Time       : {total_elapsed:.1f}s")
@@ -158,7 +158,8 @@ def print_llm_cost_summary(c: dict, total_elapsed: float, total_papers: int = 0)
         print(f"  ⚡ Unit Economics       : ${tot_usd / total_papers:.4f} USD / paper (~{int(tot_tok / total_papers):,} tokens/paper)")
     print("  --------------------------------------------------------------------")
     print(f"  🔄 Pipeline Review Cost : ${p_usd:.4f} USD ({p_tok:,} tokens)")
-    print(f"  💬 Paper Chat Q&A Cost  : ${c_usd:.4f} USD ({c_tok:,} tokens)")
+    if c_tok > 0 or c_usd > 0:
+        print(f"  💬 Paper Chat Q&A Cost  : ${c_usd:.4f} USD ({c_tok:,} tokens)")
     print("  --------------------------------------------------------------------")
     print(f"  📥 Prompt (Input) Tokens: {tot_in:,} tokens")
     print(f"  📤 Thought/Output Tokens: {tot_out:,} tokens")
@@ -166,8 +167,107 @@ def print_llm_cost_summary(c: dict, total_elapsed: float, total_papers: int = 0)
     print("  --------------------------------------------------------------------")
     print(f"  💵 Total Run Cost (USD) : ${tot_usd:.4f} USD (~€{tot_eur:.4f} EUR)")
     if c.get("workspace_monthly_usd") is not None:
-        print(f"  🏢 Workspace Total Spend: ${c.get('workspace_monthly_usd', 0.0):.4f} USD ({c.get('workspace_monthly_tokens', 0):,} monthly tokens)")
+        print(f"  🏢 Workspace Total Spend: ${float(c.get('workspace_monthly_usd', 0.0)):.4f} USD ({int(c.get('workspace_monthly_tokens', 0)):,} monthly tokens)")
     print("=" * 70 + "\n")
+
+
+def print_suite_summary(scenario_results: list, total_elapsed: float, config=None):
+    """
+    Aggregates and prints comprehensive scorecard and financial metrics across ALL scenarios in the test suite.
+    """
+    print("\n" + "=" * 80)
+    print("🏆  E2E TEST SUITE EXECUTION SCORECARD (ALL SCENARIOS)")
+    print("=" * 80)
+    print(f"  {'#':<3} {'Scenario Name':<32} {'Status':<10} {'Duration':<10} {'Papers':<8} {'Tokens':<13} {'Cost (USD)'}")
+    print("  " + "-" * 76)
+
+    agg_p_in = 0
+    agg_p_out = 0
+    agg_p_tok = 0
+    agg_p_usd = 0.0
+    agg_c_in = 0
+    agg_c_out = 0
+    agg_c_tok = 0
+    agg_c_usd = 0.0
+    agg_total_tokens = 0
+    agg_total_usd = 0.0
+    agg_papers = 0
+    passed_count = 0
+
+    for idx, s in enumerate(scenario_results, start=1):
+        s_name = s.get("scenario_name", f"Scenario {idx}")
+        s_status = "✅ PASS" if s.get("status") in ("passed", "completed") else "❌ FAIL"
+        if "PASS" in s_status:
+            passed_count += 1
+        s_time = f"{s.get('elapsed_sec', 0.0):.1f}s"
+        s_papers = str(s.get("total_papers") or s.get("total_papers_fetched") or s.get("papers_count") or "-")
+        if str(s_papers).isdigit():
+            agg_papers += int(s_papers)
+
+        cm = s.get("cost_metrics") or {}
+        tok = int(cm.get("total_tokens_consumed", 0) or 0)
+        usd = float(cm.get("total_usd_spent", 0.0) or 0.0)
+
+        agg_p_in += int(cm.get("pipeline_tokens_in", 0) or 0)
+        agg_p_out += int(cm.get("pipeline_tokens_out", 0) or 0)
+        agg_p_tok += int(cm.get("pipeline_total_tokens", 0) or 0)
+        agg_p_usd += float(cm.get("pipeline_usd_cost", 0.0) or 0.0)
+
+        agg_c_in += int(cm.get("chat_tokens_in", 0) or 0)
+        agg_c_out += int(cm.get("chat_tokens_out", 0) or 0)
+        agg_c_tok += int(cm.get("chat_total_tokens", 0) or 0)
+        agg_c_usd += float(cm.get("chat_usd_cost", 0.0) or 0.0)
+
+        agg_total_tokens += tok
+        agg_total_usd += usd
+
+        tok_str = f"{tok:,} tok" if tok > 0 else "-"
+        usd_str = f"${usd:.4f}" if usd > 0 else "$0.0000"
+
+        print(f"  {idx:<3} {s_name:<32} {s_status:<10} {s_time:<10} {s_papers:<8} {tok_str:<13} {usd_str}")
+
+    print("  " + "-" * 76)
+    print(f"  🎯 Overall Result: {passed_count}/{len(scenario_results)} Scenarios Passed (100%) in {total_elapsed:.1f}s")
+    print("=" * 80)
+
+    # Calculate suite-level cost dictionary
+    suite_cost_metrics = {
+        "pipeline_tokens_in": agg_p_in,
+        "pipeline_tokens_out": agg_p_out,
+        "pipeline_total_tokens": agg_p_tok or (agg_p_in + agg_p_out),
+        "pipeline_usd_cost": agg_p_usd,
+        "chat_tokens_in": agg_c_in,
+        "chat_tokens_out": agg_c_out,
+        "chat_total_tokens": agg_c_tok or (agg_c_in + agg_c_out),
+        "chat_usd_cost": agg_c_usd,
+        "total_tokens_consumed": agg_total_tokens or (agg_p_tok + agg_c_tok),
+        "total_usd_spent": agg_total_usd or (agg_p_usd + agg_c_usd),
+    }
+
+    # Query all active test workspaces if config is available to verify workspace total spend
+    if config:
+        try:
+            from tests_e2e.client import APIClient, AuthService, WorkspaceService
+            cl = APIClient(config.base_url)
+            auth = AuthService(cl)
+            auth.login(config.username, config.password)
+            ws_svc = WorkspaceService(cl)
+            workspaces = ws_svc.list_workspaces()
+            test_ws = [w for w in workspaces if w.get("name", "").startswith("test_e2e_")]
+            if test_ws:
+                total_ws_tok = sum(int(w.get("tokens_consumed_this_month", 0) or 0) for w in test_ws)
+                total_ws_usd = sum(float(w.get("usd_spent_this_month", 0.0) or 0.0) for w in test_ws)
+                suite_cost_metrics["workspace_monthly_usd"] = total_ws_usd
+                suite_cost_metrics["workspace_monthly_tokens"] = total_ws_tok
+        except Exception:
+            pass
+
+    print_llm_cost_summary(
+        suite_cost_metrics,
+        total_elapsed=total_elapsed,
+        total_papers=agg_papers,
+        title="SUITE-WIDE LLM TOKENS & FINANCIAL COST SUMMARY"
+    )
 
 
 def print_summary_card(results: dict, total_elapsed: float):
@@ -300,9 +400,34 @@ def main():
 
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")
-            # 1. Full SLR
-            slr_results = run_full_slr_pipeline_scenario(config)
-            # 2. Multi-turn chat
+            suite_results = []
+
+            def _run_and_track(name: str, fn, *fn_args, **fn_kwargs):
+                s_t0 = time.time()
+                try:
+                    res = fn(*fn_args, **fn_kwargs)
+                    s_elapsed = time.time() - s_t0
+                    res_dict = dict(res) if isinstance(res, dict) else {"status": "passed"}
+                    res_dict["scenario_name"] = name
+                    res_dict["elapsed_sec"] = s_elapsed
+                    suite_results.append(res_dict)
+                    logger.info(f"✅ [{name}] completed in {s_elapsed:.1f}s")
+                    return res
+                except Exception as s_err:
+                    s_elapsed = time.time() - s_t0
+                    suite_results.append({
+                        "scenario_name": name,
+                        "status": "failed",
+                        "error": str(s_err),
+                        "elapsed_sec": s_elapsed
+                    })
+                    logger.error(f"❌ [{name}] failed after {s_elapsed:.1f}s: {s_err}")
+                    raise
+
+            # 1. Full SLR Pipeline
+            slr_results = _run_and_track("Full SLR Pipeline", run_full_slr_pipeline_scenario, config)
+
+            # 2. Interactive Multi-Turn Chat
             top_papers = slr_results.get("top_papers", [])
             if top_papers:
                 from tests_e2e.client import APIClient, AuthService, PipelineService
@@ -312,20 +437,37 @@ def main():
                 pipeline_svc = PipelineService(client)
                 papers = pipeline_svc.list_papers(workspace_id=slr_results["workspace_id"])
                 if papers:
-                    run_chat_multiturn_scenario(slr_results["workspace_id"], papers[0]["id"], config)
-            # 3. Agent Lifecycle (Pause/Resume)
-            run_agent_lifecycle_scenario(config)
+                    _run_and_track("Interactive Paper Chat", run_chat_multiturn_scenario, slr_results["workspace_id"], papers[0]["id"], config)
+
+            # 3. Agent Lifecycle (Pause / Resume)
+            _run_and_track("Agent Lifecycle", run_agent_lifecycle_scenario, config)
+
             # 4. Pipeline Reprocessing
-            run_pipeline_reprocessing_scenario(config)
+            _run_and_track("Pipeline Reprocessing", run_pipeline_reprocessing_scenario, config)
+
             # 5. Cross-Source Deduplication
-            run_cross_source_dedup_scenario(config)
-            # 6. Quota Guard
-            run_quota_guard_scenario(config)
-            # 7. FastMCP Protocol
-            run_mcp_protocol_scenario(config)
+            _run_and_track("Cross-Source Deduplication", run_cross_source_dedup_scenario, config)
+
+            # 6. Quota Guard & Budget Limits
+            _run_and_track("Quota Guard & Limits", run_quota_guard_scenario, config)
+
+            # 7. FastMCP Protocol & AI Tools
+            _run_and_track("FastMCP Protocol Tools", run_mcp_protocol_scenario, config)
+
+            # 8. RBAC Data Isolation
+            _run_and_track("RBAC Data Isolation", run_rbac_data_isolation_scenario, config)
+
+            # 9. Mid-Step Pipeline Rerun
+            _run_and_track("Mid-Step Pipeline Rerun", run_mid_step_rerun_scenario, config)
+
+            # 10. Chat Hallucination Guard
+            _run_and_track("Chat Hallucination Guard", run_chat_hallucination_guard_scenario, config)
+
+            # 11. Concurrent Agents Load
+            _run_and_track("Concurrent Agents Load", run_concurrent_agents_load_scenario, config, num_agents=2)
 
             total_elapsed = time.time() - t0
-            print_summary_card(slr_results, total_elapsed)
+            print_suite_summary(suite_results, total_elapsed, config=config)
 
         sys.exit(0)
     except Exception as exc:

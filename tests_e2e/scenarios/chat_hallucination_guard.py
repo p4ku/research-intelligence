@@ -100,12 +100,38 @@ def run_chat_hallucination_guard_scenario(config: Optional[E2EConfig] = None) ->
         logger.info("🎉 CHAT HALLUCINATION GUARD & GROUNDING SCENARIO PASSED!")
         logger.info("=================================================================")
 
+        pipeline_run_id = completed_proc.get("pipeline_run")
+        pr_info = pipeline_svc.get_pipeline_run(pipeline_run_id) if pipeline_run_id else {}
+        p_in = pr_info.get("tokens_in", 0) or 0
+        p_out = pr_info.get("tokens_out", 0) or 0
+        p_tok = pr_info.get("tokens_consumed", 0) or (p_in + p_out)
+        p_usd = float(pr_info.get("usd_cost") or 0.0)
+
+        c_in = (resp_fact.get("tokens_in", 0) or 0) + (resp_fake.get("tokens_in", 0) or 0)
+        c_out = (resp_fact.get("tokens_out", 0) or 0) + (resp_fake.get("tokens_out", 0) or 0)
+        c_tok = (resp_fact.get("total_tokens", 0) or (c_in + c_out)) + (resp_fake.get("total_tokens", 0) or 0)
+        c_usd = float(resp_fact.get("usd_cost", 0.0) or 0.0) + float(resp_fake.get("usd_cost", 0.0) or 0.0)
+
+        cost_metrics = {
+            "pipeline_tokens_in": p_in,
+            "pipeline_tokens_out": p_out,
+            "pipeline_total_tokens": p_tok,
+            "pipeline_usd_cost": p_usd,
+            "chat_tokens_in": c_in,
+            "chat_tokens_out": c_out,
+            "chat_total_tokens": c_tok,
+            "chat_usd_cost": c_usd,
+            "total_tokens_consumed": p_tok + c_tok,
+            "total_usd_spent": p_usd + c_usd,
+        }
+
         return {
             "status": "passed",
             "workspace_id": workspace_id,
             "paper_id": paper_id,
             "factual_answer_length": len(ans_fact),
             "adversarial_guard_verified": refused_hallucination,
+            "cost_metrics": cost_metrics,
         }
 
     finally:

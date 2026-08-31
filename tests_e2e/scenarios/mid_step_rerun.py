@@ -88,11 +88,26 @@ def run_mid_step_rerun_scenario(config: Optional[E2EConfig] = None) -> Dict[str,
         logger.info("🎉 MID-STEP PIPELINE RERUN SCENARIO PASSED SUCCESSFULLY!")
         logger.info("=================================================================")
 
+        p_in = pr_updated.get("tokens_in", 0) or 0
+        p_out = pr_updated.get("tokens_out", 0) or 0
+        p_tok = pr_updated.get("tokens_consumed", 0) or (p_in + p_out)
+        p_usd = float(pr_updated.get("usd_cost") or 0.0)
+
+        cost_metrics = {
+            "pipeline_tokens_in": p_in,
+            "pipeline_tokens_out": p_out,
+            "pipeline_total_tokens": p_tok,
+            "pipeline_usd_cost": p_usd,
+            "total_tokens_consumed": p_tok,
+            "total_usd_spent": p_usd,
+        }
+
         return {
             "status": "passed",
             "workspace_id": workspace_id,
             "pipeline_run_id": pipeline_run_id,
             "component_runs_count": len(pr_updated.get("component_runs", [])),
+            "cost_metrics": cost_metrics,
         }
 
     finally:

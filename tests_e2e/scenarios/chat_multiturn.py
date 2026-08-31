@@ -85,6 +85,20 @@ def run_chat_multiturn_scenario(
     logger.info(f"🎉 MULTI-TURN CHAT SCENARIO COMPLETED (2 Turns • {total_tokens:,} tokens • ${total_cost:.4f} USD)")
     logger.info("=================================================================")
 
+    t1_in = turn1_resp.get("tokens_in", 0) or 0
+    t1_out = turn1_resp.get("tokens_out", 0) or 0
+    t2_in = turn2_resp.get("tokens_in", 0) or 0
+    t2_out = turn2_resp.get("tokens_out", 0) or 0
+
+    cost_metrics = {
+        "chat_tokens_in": t1_in + t2_in,
+        "chat_tokens_out": t1_out + t2_out,
+        "chat_total_tokens": total_tokens,
+        "chat_usd_cost": total_cost,
+        "total_tokens_consumed": total_tokens,
+        "total_usd_spent": total_cost,
+    }
+
     return {
         "status": "completed",
         "session_id": session_id,
@@ -102,4 +116,5 @@ def run_chat_multiturn_scenario(
         },
         "total_tokens": total_tokens,
         "total_cost_usd": total_cost,
+        "cost_metrics": cost_metrics,
     }
