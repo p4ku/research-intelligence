@@ -2,6 +2,12 @@
 # Schwarz Research Intelligence Git Ignore
 # ==========================================
 
+# Local CI/CD environment secrets
+local_cicd/.env
+local_cicd/.env.*
+!local_cicd/.env.example
+local_cici/
+
 # OS-specific files
 .DS_Store
 .DS_Store?
@@ -79,6 +85,8 @@ yarn-error.log*
 .env_staging
 .env_*
 !.env_example
+!*.env.example
+!**/.env.example
 
 # IDE / Editor configurations
 .idea/
