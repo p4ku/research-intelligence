@@ -21,16 +21,6 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
-        with:
-          # Full history: the frontend version is the count of commits that
-          # touched frontend/, which a shallow clone would report as 1.
-          fetch-depth: 0
-
-      # 0.1.<n> — major.minor from frontend/package.json, n = commits that
-      # touched frontend/. Shown under the sidebar wordmark and by /bff/status.
-      - name: Resolve frontend version
-        id: frontend
-        run: echo "version=$(node frontend/scripts/app-version.mjs)" >> "$GITHUB_OUTPUT"
 
       - name: Login to STACKIT Container Registry
         uses: docker/login-action@v3
@@ -63,6 +53,18 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          # Full history: the frontend version is the count of commits that
+          # touched frontend/, which a shallow clone would report as 1.
+          fetch-depth: 0
+
+      # 0.1.<n> — major.minor from frontend/package.json, n = commits that
+      # touched frontend/. Shown under the sidebar wordmark and by /bff/status.
+      # Must live in this job: step outputs don't cross jobs, and an empty
+      # APP_VERSION makes the image fall back to 0.1.0-local.
+      - name: Resolve frontend version
+        id: frontend
+        run: echo "version=$(node frontend/scripts/app-version.mjs)" >> "$GITHUB_OUTPUT"
 
       - name: Login to STACKIT Container Registry
         uses: docker/login-action@v3
