@@ -8,23 +8,19 @@ on:
 env:
   REGISTRY: registry.onstackit.cloud
   REGISTRY_PROJECT: sri-production
-
   BACKEND_IMAGE: registry.onstackit.cloud/sri-production/sri-backend
   FRONTEND_IMAGE: registry.onstackit.cloud/sri-production/sri-frontend
 
-
-
 jobs:
-  deploy:
+  # ============================================================
+  # PARALLEL BUILD 1: Backend Container (Django / Celery / FastMCP)
+  # ============================================================
+  build-backend:
+    name: Build & Push Backend
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
+      - name: Checkout Repository
         uses: actions/checkout@v4
-
-      # ------------------------------------------------------------
-      # Docker / Container Registry
-      # ------------------------------------------------------------
 
       - name: Login to STACKIT Container Registry
         uses: docker/login-action@v3
@@ -36,60 +32,75 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build and push backend image
+      - name: Build & Push Backend Image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           push: true
+          platforms: linux/amd64
           tags: |
             ${{ env.BACKEND_IMAGE }}:${{ github.sha }}
             ${{ env.BACKEND_IMAGE }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=min,scope=backend
 
-      - name: Build and push frontend image
+  # ============================================================
+  # PARALLEL BUILD 2: Frontend Container (Next.js Standalone / Bun)
+  # ============================================================
+  build-frontend:
+    name: Build & Push Frontend
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Login to STACKIT Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build & Push Frontend Image
         uses: docker/build-push-action@v5
         with:
           context: ./frontend
           push: true
+          platforms: linux/amd64
           build-args: |
             BUILD_ID=${{ github.sha }}
           tags: |
             ${{ env.FRONTEND_IMAGE }}:${{ github.sha }}
             ${{ env.FRONTEND_IMAGE }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=min,scope=frontend
 
-
-      # ------------------------------------------------------------
-      # Cloud Foundry
-      # ------------------------------------------------------------
+  # ============================================================
+  # DEPLOYMENT: STACKIT Cloud Foundry
+  # ============================================================
+  deploy:
+    name: Deploy to Cloud Foundry
+    runs-on: ubuntu-latest
+    needs: [build-backend, build-frontend]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
       - name: Install Cloud Foundry CLI
         run: |
-          wget -q \
-            https://packages.cloudfoundry.org/stable?release=linux64-binary \
-            -O cf-cli.tgz
-
+          wget -q https://packages.cloudfoundry.org/stable?release=linux64-binary -O cf-cli.tgz
           tar -xzf cf-cli.tgz
           sudo mv cf8 /usr/local/bin/cf
-
           cf version
 
-      - name: Login to Cloud Foundry
+      - name: Authenticate with Cloud Foundry
         run: |
           cf api "${{ secrets.CF_API }}"
-          cf auth \
-            "${{ secrets.CF_USERNAME }}" \
-            "${{ secrets.CF_PASSWORD }}"
-
-          cf target \
-            -o "${{ secrets.CF_ORG }}" \
-            -s "${{ secrets.CF_SPACE }}"
-
-      # ------------------------------------------------------------
-      # Generate vars file
-      # ------------------------------------------------------------
+          cf auth "${{ secrets.CF_USERNAME }}" "${{ secrets.CF_PASSWORD }}"
+          cf target -o "${{ secrets.CF_ORG }}" -s "${{ secrets.CF_SPACE }}"
 
       - name: Create Cloud Foundry vars file
         env:
@@ -101,23 +112,12 @@ jobs:
           registry_username: ${REGISTRY_USERNAME}
           EOF
 
-      # ------------------------------------------------------------
-      # Deploy
-      # ------------------------------------------------------------
-
       - name: Deploy to Cloud Foundry
         env:
           CF_DOCKER_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
         run: |
-          cf push \
-            -f manifest.yml \
-            --vars-file vars-ci.yml
+          cf push -f manifest.yml --vars-file vars-ci.yml
 
-      # ------------------------------------------------------------
-      # Verify deployment
-      # ------------------------------------------------------------
-
-      - name: Show applications
+      - name: Verify Running Applications
         run: |
           cf apps
-
