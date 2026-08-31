@@ -16,14 +16,13 @@ Located in `tests_e2e/pages/` and `tests_e2e/specs/`:
   * `WorkspaceSwitcher.ts`: Workspace dropdown, listing accessible workspaces, and cookie validation (`rs-workspace`).
   * `SettingsPage.ts`: `/settings` profile form, password form, workspace configuration summary, and notification toggle.
   * `DashboardPage.ts`, `BriefingPage.ts`, `PapersPage.ts`, `ScoringPage.ts`, `AskPage.ts`: Core application surface abstractions.
-* **`specs/`**: Modular, independently executable TypeScript Playwright specs:
-  1. `auth.spec.ts`: Login with valid/invalid credentials, error alerts, and sign out.
-  2. `navigation.spec.ts`: Traversing through all core routes (`/dashboard`, `/briefing`, `/papers`, `/scoring`, `/ask`, `/settings`).
-  3. `workspace.spec.ts`: Listing available workspaces and switching active scope.
-  4. `settings.spec.ts`: Full inspection of `https://sri-prod.apps.01.cf.eu01.onstackit.cloud/settings`.
-  5. `papers.spec.ts`: Papers exploration, filtering, and paper detail scorecard view.
-  6. `i18n.spec.ts`: Bilingual language switcher toggle (English <-> Deutsch).
-  7. `ask.spec.ts`: Ask / Paper Chat interface and interactive question asking.
+* **`specs/`**: Modular, full end-to-end user journey test suites:
+  1. `01_auth_session_lifecycle.journey.spec.ts`: Rejection of bad credentials, login, session cookies, deep-link protection, and sign out.
+  2. `02_analyst_daily_review.journey.spec.ts`: Today Dashboard funnel metrics, reading executive Briefing, systematic Papers exploration and scorecard inspections.
+  3. `03_manager_workspace_and_settings.journey.spec.ts`: Multi-tenant workspace switching, `/settings` inspection (Profile, Role, Password, Workspace Metadata), and bilingual EN <-> DE locale toggle.
+  4. `04_scoring_and_methodology.journey.spec.ts`: Inspection of workspace custom Python AST signal formula, weights, variables, and worked examples.
+  5. `05_interactive_paper_chat.journey.spec.ts`: Deep-dive literature question answering in `/ask`, reasoning engine, and citation stream validation.
+  6. `06_end_to_end_researcher_flow.journey.spec.ts`: Comprehensive full researcher flow executing the entire application lifecycle end-to-end in a single session.
 
 ### 2. Backend & Live Pipeline Scenarios
 Located in `tests_e2e/scenarios/`:

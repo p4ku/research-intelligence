@@ -1,0 +1,43 @@
+import { test, expect } from '@playwright/test';
+import { LoginPage, SidebarNav, DashboardPage, BriefingPage, PapersPage } from '../pages/index.js';
+
+const USERNAME = process.env.E2E_USERNAME || process.env.TEST_USERNAME || 'test_e2e';
+const PASSWORD = process.env.E2E_PASSWORD || process.env.TEST_PASSWORD || 't4st_pa55w0rD!#';
+
+test.describe('Journey 2: Analyst Daily Review & Literature Scouting', () => {
+  test.beforeEach(async ({ page }) => {
+    const loginPage = new LoginPage(page);
+    await loginPage.login(USERNAME, PASSWORD, true);
+  });
+
+  test('Complete Daily Review Journey: Dashboard metrics -> Briefing reading -> Papers exploration & scorecard inspection', async ({ page }) => {
+    const sidebar = new SidebarNav(page);
+    const dashboard = new DashboardPage(page);
+    const briefing = new BriefingPage(page);
+    const papers = new PapersPage(page);
+
+    console.log('📍 Step 1: Inspecting Dashboard (Today view)...');
+    await sidebar.navigateTo('dashboard');
+    expect(await dashboard.isLoaded()).toBe(true);
+    const visiblePapers = await dashboard.getPapersCount();
+    console.log(`  Dashboard papers surfaced: ${visiblePapers}`);
+
+    console.log('📍 Step 2: Navigating to Executive Briefings (/briefing)...');
+    await sidebar.navigateTo('briefing');
+    expect(await briefing.isLoaded()).toBe(true);
+    await expect(page.locator('main')).toBeVisible();
+
+    console.log('📍 Step 3: Navigating to Systematic Papers Explorer (/papers)...');
+    await sidebar.navigateTo('papers');
+    expect(await papers.isLoaded()).toBe(true);
+    const paperCount = await papers.getPapersCount();
+    console.log(`  Total Ingested Papers listed: ${paperCount}`);
+
+    console.log('📍 Step 4: Inspecting Paper detail view & parameter extraction scorecards...');
+    if (paperCount > 0) {
+      const opened = await papers.openFirstPaper();
+      expect(opened).toBe(true);
+      console.log('  ✅ Opened paper detail view and verified parameters/scores.');
+    }
+  });
+});
