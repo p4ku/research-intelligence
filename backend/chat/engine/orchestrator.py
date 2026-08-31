@@ -332,6 +332,15 @@ class PaperChatEngine:
 
             yield f"event: done\ndata: {json.dumps({'status': 'completed', 'message_id': str(message.id)})}\n\n"
 
+        except GeneratorExit:
+            logger.info(f"Client disconnected during SSE stream for message '{message.id}'.")
+            if message.status == 'processing':
+                message.status = 'aborted'
+                message.error_message = 'Client disconnected during streaming generation.'
+                message.completed_at = timezone.now()
+                message.save(update_fields=['status', 'error_message', 'completed_at'])
+            raise
+
         except Exception as ex:
             logger.error(f"Streaming failed for message '{message.id}': {ex}", exc_info=True)
             message.status = 'failed'

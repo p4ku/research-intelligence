@@ -34,9 +34,16 @@ except ImportError:
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
-SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-qrc9z6($69d3iz=jsd35l6ve+k%ljhifk4o-ph$%4-v!6ftr-x')
+DEFAULT_INSECURE_SECRET = 'django-insecure-qrc9z6($69d3iz=jsd35l6ve+k%ljhifk4o-ph$%4-v!6ftr-x'
+SECRET_KEY = os.environ.get('SECRET_KEY', DEFAULT_INSECURE_SECRET)
 
-DEBUG = os.environ.get('DEBUG', 'True').lower() in ['true', '1', 'yes']
+DEBUG = os.environ.get('DEBUG', 'False').lower() in ['true', '1', 'yes']
+if 'test' in sys.argv:
+    DEBUG = False
+
+if not DEBUG and 'test' not in sys.argv and SECRET_KEY == DEFAULT_INSECURE_SECRET:
+    import warnings
+    warnings.warn("SECURITY WARNING: Running in production (DEBUG=False) with default insecure SECRET_KEY. Set SECRET_KEY environment variable!", RuntimeWarning)
 
 ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', '').split(',') if host.strip()]
 if not ALLOWED_HOSTS or 'test' in sys.argv:
@@ -53,6 +60,12 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
 
+# Security Hardening Settings
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = 'SAMEORIGIN'
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+
 
 
 # Application definition
@@ -67,6 +80,7 @@ INSTALLED_APPS = [
     
     # Third-party Applications
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',
     'drf_spectacular_sidecar',
     
@@ -222,7 +236,19 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_FILTER_BACKENDS': [
+        'rest_framework.filters.OrderingFilter',
+    ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.AnonRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': '100/minute',
+        'user': '1000/minute',
+    },
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'EXCEPTION_HANDLER': 'api.exceptions.custom_exception_handler',
 }
 
 SPECTACULAR_SETTINGS = {
@@ -245,8 +271,8 @@ from datetime import timedelta
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
-    'ROTATE_REFRESH_TOKENS': False,
-    'BLACKLIST_AFTER_ROTATION': False,
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
     'ALGORITHM': 'HS256',
     'SIGNING_KEY': SECRET_KEY,
     'AUTH_HEADER_TYPES': ('Bearer',),

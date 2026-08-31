@@ -1,3 +1,4 @@
+from django.conf import settings
 import hashlib
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
@@ -14,6 +15,7 @@ from ..serializers.auth import (
     UserProfileSerializer,
     UpdateProfileSerializer,
     ChangePasswordSerializer,
+    LogoutSerializer,
 )
 from research_intelligence.models import APIKey, WorkspaceMember
 
@@ -238,6 +240,34 @@ class ChangePasswordView(APIView):
         )
 
 
+class LogoutView(APIView):
+    """
+    Invalidates/blacklists the provided refresh token, effectively logging out the session.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    @extend_schema(
+        request=LogoutSerializer,
+        responses={
+            200: OpenApiResponse(description="Logged out successfully"),
+            400: OpenApiResponse(description="Invalid or missing refresh token"),
+            401: OpenApiResponse(description="Unauthorized"),
+        },
+        tags=['Authentication']
+    )
+    def post(self, request, *args, **kwargs):
+        serializer = LogoutSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            refresh_token = serializer.validated_data["refresh"]
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response({"message": "Logged out successfully."}, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": "Invalid or expired token."}, status=status.HTTP_400_BAD_REQUEST)
+
+
 class WorkspaceTokenRefreshSerializer(serializers.Serializer):
     refresh = serializers.CharField(required=True, help_text="Valid SimpleJWT refresh token")
     access = serializers.CharField(read_only=True, help_text="New access JWT token")
@@ -246,14 +276,25 @@ class WorkspaceTokenRefreshSerializer(serializers.Serializer):
         try:
             refresh = RefreshToken(attrs['refresh'])
             data = {'access': str(refresh.access_token)}
+            if getattr(settings, 'SIMPLE_JWT', {}).get('ROTATE_REFRESH_TOKENS', False):
+                if getattr(settings, 'SIMPLE_JWT', {}).get('BLACKLIST_AFTER_ROTATION', False):
+                    try:
+                        refresh.blacklist()
+                    except AttributeError:
+                        pass
+                refresh.set_jti()
+                refresh.set_exp()
+                refresh.set_iat()
+                data['refresh'] = str(refresh)
             return data
         except Exception as e:
-            raise InvalidToken(str(e))
+            raise serializers.ValidationError({"refresh": str(e)})
 
 
 class TokenRefreshView(APIView):
     """
     Regenerates a fresh access token given a valid SimpleJWT refresh token.
+    Supports token rotation and blacklist validation.
     """
     permission_classes = [permissions.AllowAny]
     authentication_classes = []

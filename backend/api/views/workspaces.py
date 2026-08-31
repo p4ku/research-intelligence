@@ -13,6 +13,8 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
     """
     serializer_class = WorkspaceSerializer
     permission_classes = [permissions.IsAuthenticated]
+    ordering_fields = ['created_at', 'name', 'monthly_usd_limit']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         user = self.request.user
@@ -29,6 +31,17 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             user=self.request.user,
             defaults={'role': 'admin'}
         )
+
+    def perform_update(self, serializer):
+        workspace = self.get_object()
+        user = self.request.user
+        if not getattr(user, 'is_superuser', False):
+            has_access = WorkspaceMember.objects.filter(
+                workspace=workspace, user=user, role__in=['admin', 'manager']
+            ).exists()
+            if not has_access:
+                raise PermissionDenied("Only workspace admins and managers can modify workspace settings.")
+        serializer.save()
 
     def perform_destroy(self, instance):
         user = self.request.user
@@ -57,6 +70,8 @@ class ExtractionDefinitionViewSet(viewsets.ModelViewSet):
     """
     serializer_class = ExtractionDefinitionSerializer
     permission_classes = [permissions.IsAuthenticated]
+    ordering_fields = ['created_at', 'name', 'version', 'is_active']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         user = self.request.user
@@ -67,14 +82,15 @@ class ExtractionDefinitionViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         workspace = serializer.validated_data.get('workspace')
-        if workspace:
-            user = self.request.user
-            if not getattr(user, 'is_superuser', False):
-                has_access = WorkspaceMember.objects.filter(
-                    workspace=workspace, user=user, role__in=['admin', 'manager']
-                ).exists()
-                if not has_access:
-                    raise PermissionDenied("You do not have permission to manage extraction definitions in this workspace.")
+        if not workspace:
+            raise PermissionDenied("Workspace is required.")
+        user = self.request.user
+        if not getattr(user, 'is_superuser', False):
+            has_access = WorkspaceMember.objects.filter(
+                workspace=workspace, user=user, role__in=['admin', 'manager']
+            ).exists()
+            if not has_access:
+                raise PermissionDenied("You do not have permission to manage extraction definitions in this workspace.")
         serializer.save()
 
     def perform_update(self, serializer):

@@ -1,26 +1,39 @@
 from rest_framework import viewsets, permissions
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import extend_schema, OpenApiParameter
 from research_intelligence.models import UserActivityLog, WorkspaceMember
 from api.serializers.activity_logs import UserActivityLogSerializer
+from ..pagination import StandardResultsSetPagination
 
 
-@extend_schema(tags=['Operational Activity Logs'])
+@extend_schema(
+    tags=['Operational Activity Logs'],
+    parameters=[
+        OpenApiParameter(name='workspace', type=str, location=OpenApiParameter.QUERY, description='Filter audit logs by workspace UUID'),
+        OpenApiParameter(name='interface', type=str, location=OpenApiParameter.QUERY, description='Filter by interface (e.g. rest_api, fastmcp, cli)'),
+        OpenApiParameter(name='status', type=str, location=OpenApiParameter.QUERY, description='Filter by status (success, unauthorized, failed)'),
+    ]
+)
 class UserActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    REST API endpoint for querying user activity & operational audit logs.
+    REST API ReadOnly endpoint for querying user activity & operational audit logs.
+    Read-only: audit logs are strictly immutable and recorded automatically by system middleware.
     """
     serializer_class = UserActivityLogSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
+    http_method_names = ['get', 'head', 'options']
+    ordering_fields = ['timestamp', 'action_name', 'status', 'execution_time_ms', 'interface']
+    ordering = ['-timestamp']
 
     def get_queryset(self):
         user = self.request.user
         if not user or not getattr(user, 'is_authenticated', False) or not getattr(user, 'pk', None):
             return UserActivityLog.objects.none()
         if getattr(user, 'is_superuser', False):
-            qs = UserActivityLog.objects.all()
+            qs = UserActivityLog.objects.all().order_by('-timestamp')
         else:
             user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-            qs = UserActivityLog.objects.filter(workspace_id__in=user_ws_ids) | UserActivityLog.objects.filter(user=user)
+            qs = (UserActivityLog.objects.filter(workspace_id__in=user_ws_ids) | UserActivityLog.objects.filter(user=user)).order_by('-timestamp')
 
         workspace_id = self.request.query_params.get('workspace')
         if workspace_id:

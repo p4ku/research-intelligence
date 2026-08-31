@@ -68,6 +68,12 @@ class PipelineRunSerializer(serializers.ModelSerializer):
             'execution_time_display',
             'workspace_name',
             'triggered_by_username',
+            'total_papers_fetched',
+            'total_papers_passed_screening',
+            'tokens_in',
+            'tokens_out',
+            'tokens_consumed',
+            'usd_cost',
         ]
 
 

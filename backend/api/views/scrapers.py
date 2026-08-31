@@ -13,6 +13,8 @@ class ScraperViewSet(viewsets.ModelViewSet):
     """
     serializer_class = ScraperSerializer
     permission_classes = [permissions.IsAuthenticated]
+    ordering_fields = ['created_at', 'provider', 'is_active', 'search_query']
+    ordering = ['-created_at']
 
     def get_queryset(self):
         user = self.request.user
@@ -23,14 +25,15 @@ class ScraperViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         workspace = serializer.validated_data.get('workspace')
-        if workspace:
-            user = self.request.user
-            if not getattr(user, 'is_superuser', False):
-                has_access = WorkspaceMember.objects.filter(
-                    workspace=workspace, user=user, role__in=['admin', 'manager']
-                ).exists()
-                if not has_access:
-                    raise PermissionDenied("You do not have permission to manage scrapers in this workspace.")
+        if not workspace:
+            raise PermissionDenied("Workspace is required.")
+        user = self.request.user
+        if not getattr(user, 'is_superuser', False):
+            has_access = WorkspaceMember.objects.filter(
+                workspace=workspace, user=user, role__in=['admin', 'manager']
+            ).exists()
+            if not has_access:
+                raise PermissionDenied("You do not have permission to manage scrapers in this workspace.")
         serializer.save()
 
     def perform_update(self, serializer):

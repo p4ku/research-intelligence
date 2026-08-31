@@ -92,6 +92,8 @@ class LensScraperProvider(BaseScraperProvider):
             return []
 
     def download_file(self, url: str) -> bytes:
+        if not url or not url.lower().startswith(('http://', 'https://')):
+            raise ValueError(f"Invalid URL scheme for download: '{url}'")
         try:
             req = urllib.request.Request(
                 url, 

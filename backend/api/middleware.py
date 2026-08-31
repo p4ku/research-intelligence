@@ -6,12 +6,38 @@ from research_intelligence.models import UserActivityLog
 
 logger = logging.getLogger(__name__)
 
+SENSITIVE_KEYS = {
+    'password', 'old_password', 'new_password', 'confirm_password',
+    'token', 'access', 'refresh', 'access_token', 'refresh_token',
+    'api_key', 'secret', 'hashed_secret', 'authorization', 'cookie',
+    'set-cookie', 'client_secret', 'credentials'
+}
+
+
+def redact_sensitive_payload(data):
+    """Recursively masks sensitive keys (passwords, tokens, API keys) in dicts and lists."""
+    if isinstance(data, dict):
+        redacted = {}
+        for key, value in data.items():
+            k_lower = str(key).lower()
+            if any(s in k_lower for s in SENSITIVE_KEYS):
+                redacted[key] = "[REDACTED]"
+            elif isinstance(value, (dict, list)):
+                redacted[key] = redact_sensitive_payload(value)
+            else:
+                redacted[key] = value
+        return redacted
+    elif isinstance(data, list):
+        return [redact_sensitive_payload(item) for item in data]
+    return data
+
 
 class UserActionAuditMiddleware(MiddlewareMixin):
     """
     Middleware intercepting REST API requests (/api/) and recording UserActivityLog entries.
     Captures non-safe HTTP methods (POST, PUT, PATCH, DELETE) and key GET endpoints with execution time,
-    client IP, user agent, input payload, and status code.
+    client IP, user agent, sanitized input payload, and status code.
+    All sensitive credentials (passwords, JWT tokens, API keys) are strictly redacted.
     """
 
     def process_request(self, request):
@@ -51,18 +77,19 @@ class UserActionAuditMiddleware(MiddlewareMixin):
         else:
             status_str = "failed"
 
-        # Capture input parameters / body
+        # Capture input parameters / body with strict sensitive data redaction
         input_params = None
         if method in ['POST', 'PUT', 'PATCH', 'DELETE']:
             try:
                 body = getattr(request, '_cached_body', getattr(request, 'body', b""))
                 if body:
-                    input_params = json.loads(body.decode('utf-8'))
+                    raw_params = json.loads(body.decode('utf-8'))
+                    input_params = redact_sensitive_payload(raw_params)
                 elif request.POST:
-                    input_params = dict(request.POST)
+                    input_params = redact_sensitive_payload(dict(request.POST))
             except Exception:
                 if request.POST:
-                    input_params = dict(request.POST)
+                    input_params = redact_sensitive_payload(dict(request.POST))
 
         # Extract client IP
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -74,13 +101,13 @@ class UserActionAuditMiddleware(MiddlewareMixin):
         user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
         action_name = f"{method} {path}"
 
-        # Capture response summary if brief
+        # Capture response summary if brief with strict sensitive data redaction
         output_summary = {"status_code": status_code}
         try:
             if hasattr(response, 'content') and response.content and len(response.content) < 4000:
                 res_data = json.loads(response.content.decode('utf-8'))
                 if isinstance(res_data, dict):
-                    output_summary.update(res_data)
+                    output_summary.update(redact_sensitive_payload(res_data))
         except Exception:
             pass
 
@@ -89,7 +116,7 @@ class UserActionAuditMiddleware(MiddlewareMixin):
             try:
                 if hasattr(response, 'content') and response.content:
                     err_data = json.loads(response.content.decode('utf-8'))
-                    error_msg = json.dumps(err_data)
+                    error_msg = json.dumps(redact_sensitive_payload(err_data))
             except Exception:
                 error_msg = f"HTTP {status_code}"
 
