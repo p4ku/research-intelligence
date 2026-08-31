@@ -76,12 +76,6 @@ def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -
 
     # Pre-populate defaults from workspace extraction definitions
     if paper.workspace:
-        if paper.workspace.extraction_definitions.count() == 0:
-            try:
-                paper.workspace.ensure_default_extraction_definitions()
-            except Exception as e:
-                logger.warning(f"Could not auto-seed default extraction definitions: {e}")
-
         for ed in paper.workspace.extraction_definitions.all():
             if ed.name:
                 context[_sanitize_identifier(ed.name)] = 0.0

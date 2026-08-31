@@ -353,7 +353,6 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         data = json.loads(raw_res)
         self.assertTrue(data.get("success"))
         comp_id = data.get("component_run_id")
-
         comp_run = ComponentRun.objects.get(id=comp_id)
         self.assertEqual(comp_run.input_params["stage"], "signal_score")
         self.assertEqual(comp_run.input_params["signal_score_code"], "score = fit_score * 100.0")
@@ -361,23 +360,44 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         self.assertEqual(comp_run.input_params["limit"], 5)
         self.assertIn("scoring_variables", comp_run.input_params)
 
-    def test_workspace_auto_seeds_default_extraction_definitions(self):
-        """Verify workspace without extraction definitions auto-seeds 3 standard targets on snapshot call."""
-        new_ws = Workspace.objects.create(name="Auto Seed Test Workspace")
+    def test_workspace_empty_extraction_definitions_snapshot(self):
+        """Verify workspace without extraction definitions returns empty list and count 0."""
+        new_ws = Workspace.objects.create(name="Empty Extraction Test Workspace")
         self.assertEqual(new_ws.extraction_definitions.count(), 0)
 
         snapshot = new_ws.get_extraction_prompt_snapshot()
         self.assertEqual(snapshot["stage"], "extraction")
-        self.assertEqual(snapshot["total_definitions"], 3)
-        self.assertEqual(len(snapshot["extraction_definitions"]), 3)
+        self.assertEqual(snapshot["total_definitions"], 0)
+        self.assertEqual(snapshot["extraction_definitions"], [])
 
-        def_names = [d["name"] for d in snapshot["extraction_definitions"]]
-        self.assertIn("Schwarz Strategic Fit", def_names)
-        self.assertIn("Novelty Score", def_names)
-        self.assertIn("Technology Readiness Level (TRL)", def_names)
+    def test_workspace_serializer_creates_nested_extraction_definitions(self):
+        """Verify WorkspaceSerializer creates nested extraction definitions from creation payload."""
+        from api.serializers.workspaces import WorkspaceSerializer
 
-        # Check DB was seeded
-        self.assertEqual(new_ws.extraction_definitions.count(), 3)
+        payload = {
+            "name": "Serializer Nested Extraction Workspace",
+            "extraction_definitions": [
+                {
+                    "name": "Custom Metric Fit",
+                    "system_prompt": "Evaluate custom fit.",
+                    "user_prompt_template": "Paper: {paper_text}",
+                    "exit_metric": "custom_fit",
+                    "response_schema": {"type": "object", "properties": {"custom_fit": {"type": "number"}}},
+                }
+            ]
+        }
+        serializer = WorkspaceSerializer(data=payload)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        ws = serializer.save()
+
+        self.assertEqual(ws.extraction_definitions.count(), 1)
+        ext_def = ws.extraction_definitions.first()
+        self.assertEqual(ext_def.name, "Custom Metric Fit")
+        self.assertEqual(ext_def.exit_metric, "custom_fit")
+
+        snapshot = ws.get_extraction_prompt_snapshot()
+        self.assertEqual(snapshot["total_definitions"], 1)
+        self.assertEqual(snapshot["extraction_definitions"][0]["name"], "Custom Metric Fit")
 
     def test_sandbox_gracefully_handles_undeclared_variables_without_nameerror(self):
         """Verify sandbox safely defaults missing variables (e.g. fit_score) to 0.0 without NameError."""
@@ -400,6 +420,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         self.assertEqual(score, 0.0)
         self.assertIsNone(details.get("error"))
         self.assertEqual(self.paper.signal_score, 0.0)
+
 
 
 

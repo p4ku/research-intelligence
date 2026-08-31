@@ -220,71 +220,6 @@ class Workspace(models.Model):
             return self.get_full_text_screening_prompt_snapshot()
         return self.get_abstract_screening_prompt_snapshot()
 
-    def ensure_default_extraction_definitions(self):
-        """
-        Seeds standard extraction targets (Strategic Fit, Novelty Score, TRL Level)
-        if the workspace has no extraction definitions configured.
-        """
-        from research_intelligence.models.extraction import ExtractionDefinition
-
-        if self.extraction_definitions.count() == 0:
-            defaults = [
-                {
-                    "name": "Schwarz Strategic Fit",
-                    "exit_metric": "fit_score",
-                    "system_prompt": "Evaluate strategic fit for enterprise research, retail logistics, edge intelligence, and supply chain automation from 0.0 to 100.0.",
-                    "user_prompt_template": "Paper Title: {title}\nAbstract: {abstract}\nFull Text: {full_text}\nEvaluate fit score from 0 to 100.",
-                    "response_schema": {
-                        "type": "object",
-                        "properties": {
-                            "fit_score": {"type": "number", "minimum": 0, "maximum": 100},
-                            "key_advantage": {"type": "string"},
-                            "evidence_quote": {"type": "string"}
-                        },
-                        "required": ["fit_score", "evidence_quote"]
-                    },
-                    "is_active": True
-                },
-                {
-                    "name": "Novelty Score",
-                    "exit_metric": "novelty_score",
-                    "system_prompt": "Assess scientific and architectural novelty and originality from 0.0 to 100.0.",
-                    "user_prompt_template": "Paper Title: {title}\nFull Text: {full_text}\nEvaluate novelty from 0 to 100.",
-                    "response_schema": {
-                        "type": "object",
-                        "properties": {
-                            "novelty_score": {"type": "number", "minimum": 0, "maximum": 100},
-                            "differentiating_factor": {"type": "string"},
-                            "evidence_quote": {"type": "string"}
-                        },
-                        "required": ["novelty_score", "evidence_quote"]
-                    },
-                    "is_active": True
-                },
-                {
-                    "name": "Technology Readiness Level (TRL)",
-                    "exit_metric": "trl_level",
-                    "system_prompt": "Assess Technology Readiness Level from TRL 1 (basic principles) to TRL 9 (proven in operational environment).",
-                    "user_prompt_template": "Assess TRL level (1-9) for: {title}\n{full_text}",
-                    "response_schema": {
-                        "type": "object",
-                        "properties": {
-                            "trl_level": {"type": "number", "minimum": 1, "maximum": 9},
-                            "prototype_status": {"type": "string"},
-                            "evidence_quote": {"type": "string"}
-                        },
-                        "required": ["trl_level", "evidence_quote"]
-                    },
-                    "is_active": True
-                }
-            ]
-            for d_data in defaults:
-                ExtractionDefinition.objects.get_or_create(
-                    workspace=self,
-                    name=d_data["name"],
-                    defaults=d_data
-                )
-
     def get_extraction_prompt_snapshot(self) -> dict:
         """
         Returns a comprehensive snapshot of all active dynamic parameter extraction targets:
@@ -292,9 +227,6 @@ class Workspace(models.Model):
         - total_definitions: count
         - llm_model / llm_provider / reasoning_effort
         """
-        if self.extraction_definitions.count() == 0:
-            self.ensure_default_extraction_definitions()
-
         active_defs = self.extraction_definitions.filter(is_active=True).order_by('created_at', 'name')
         definitions_list = [
             {
@@ -323,9 +255,6 @@ class Workspace(models.Model):
         """
         Returns a consolidated dictionary snapshot of the signal score formula and scoring parameters.
         """
-        if self.extraction_definitions.count() == 0:
-            self.ensure_default_extraction_definitions()
-
         active_defs = self.extraction_definitions.filter(is_active=True).order_by('created_at', 'name')
         available_vars = []
         for d in active_defs:

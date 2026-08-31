@@ -60,13 +60,55 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         member = WorkspaceMember.objects.filter(workspace=obj, user=request.user).first()
         return member.role if member else None
 
-    def get_user_role(self, obj):
-        request = self.context.get('request')
-        if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
-            return None
-        if getattr(request.user, 'is_superuser', False):
-            return 'admin'
-        from research_intelligence.models import WorkspaceMember
-        member = WorkspaceMember.objects.filter(workspace=obj, user=request.user).first()
-        return member.role if member else None
+    def create(self, validated_data):
+        extraction_defs_data = self.initial_data.get('extraction_definitions', [])
+        scrapers_data = self.initial_data.get('scrapers', [])
+        subscribers_data = self.initial_data.get('subscribers', [])
+
+        workspace = super().create(validated_data)
+
+        # Create nested extraction definitions if passed in payload
+        if isinstance(extraction_defs_data, list):
+            for ed in extraction_defs_data:
+                if isinstance(ed, dict) and ed.get('name'):
+                    ExtractionDefinition.objects.create(
+                        workspace=workspace,
+                        name=ed.get('name'),
+                        system_prompt=ed.get('system_prompt', ''),
+                        user_prompt_template=ed.get('user_prompt_template', ''),
+                        response_schema=ed.get('response_schema', {}),
+                        exit_metric=ed.get('exit_metric'),
+                        llm_model=ed.get('llm_model', workspace.screening_llm_model),
+                        version=ed.get('version', 1),
+                        requires_consensus=bool(ed.get('requires_consensus', False)),
+                        is_active=bool(ed.get('is_active', True)),
+                    )
+
+        # Create nested scrapers if passed in payload
+        if isinstance(scrapers_data, list):
+            for sc in scrapers_data:
+                if isinstance(sc, dict) and sc.get('provider') and sc.get('search_query'):
+                    Scraper.objects.create(
+                        workspace=workspace,
+                        provider=sc.get('provider'),
+                        search_query=sc.get('search_query'),
+                        limit=sc.get('limit', 50),
+                        sort_by=sc.get('sort_by', 'relevance'),
+                        sort_order=sc.get('sort_order', 'desc'),
+                        is_active=bool(sc.get('is_active', True)),
+                    )
+
+        # Create nested subscribers if passed in payload
+        if isinstance(subscribers_data, list):
+            for sub in subscribers_data:
+                if isinstance(sub, dict) and sub.get('email'):
+                    Subscriber.objects.create(
+                        workspace=workspace,
+                        email=sub.get('email'),
+                        name=sub.get('name', ''),
+                        subscription_type=sub.get('subscription_type', 'result_report'),
+                        is_active=bool(sub.get('is_active', True)),
+                    )
+
+        return workspace
 
