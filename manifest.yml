@@ -35,7 +35,7 @@ applications:
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/sse
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/messages
-    command: python manage.py run_mcp
+    command: python manage.py run_mcp --port 8000
 
   - name: sri-worker
     docker:
