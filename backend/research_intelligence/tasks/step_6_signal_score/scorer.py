@@ -225,7 +225,16 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
     comp_run.started_at = timezone.now()
     comp_run.completed_at = None
     comp_run.error_message = ''
-    comp_run.save(update_fields=['status', 'started_at', 'completed_at', 'error_message'])
+
+    # Snapshot signal score formula and scoring variables into comp_run.input_params for auditability
+    try:
+        current_input_params = comp_run.input_params or {}
+        current_input_params.update(workspace.get_signal_score_prompt_snapshot())
+        comp_run.input_params = current_input_params
+    except Exception as snap_err:
+        logger.warning(f"Could not snapshot signal score formula into comp_run.input_params: {snap_err}")
+
+    comp_run.save(update_fields=['status', 'started_at', 'completed_at', 'error_message', 'input_params'])
 
     # Query all papers that passed screening
     accepted_statuses = ['accepted', 'full_text_passed', 'abstract_passed']

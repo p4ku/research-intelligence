@@ -488,12 +488,15 @@ def trigger_signal_score_job_logic(
     pipeline_run.current_stage = 'signal_score'
     pipeline_run.save(update_fields=['status', 'current_stage'])
 
+    input_params = {"limit": limit}
+    input_params.update(workspace.get_signal_score_prompt_snapshot())
+
     comp_run = ComponentRun.objects.create(
         pipeline_run=pipeline_run,
         step_type='signal_score',
         component_name="signal_score_evaluation",
         status='running',
-        input_params={"limit": limit}
+        input_params=input_params
     )
 
     celery_task_id = None

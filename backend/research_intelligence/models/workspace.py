@@ -250,6 +250,31 @@ class Workspace(models.Model):
             "total_definitions": len(definitions_list),
             "extraction_definitions": definitions_list,
         }
+
+    def get_signal_score_prompt_snapshot(self) -> dict:
+        """
+        Returns a consolidated dictionary snapshot of the signal score formula and scoring parameters.
+        """
+        active_defs = self.extraction_definitions.filter(is_active=True).order_by('created_at', 'name')
+        available_vars = []
+        for d in active_defs:
+            clean_name = d.name.strip().lower().replace(" ", "_") if d.name else ""
+            clean_exit = d.exit_metric.strip().lower().replace(" ", "_") if d.exit_metric else ""
+            available_vars.append({
+                "definition_id": str(d.id),
+                "definition_name": d.name,
+                "exit_metric": d.exit_metric or clean_name,
+                "variable_name": clean_exit or clean_name
+            })
+
+        return {
+            "stage": "signal_score",
+            "evaluation_engine": "AST Sandboxed Python 3",
+            "signal_score_code": (self.signal_score_code or "").strip(),
+            "has_custom_formula": bool(self.signal_score_code and self.signal_score_code.strip()),
+            "total_scoring_variables": len(available_vars),
+            "scoring_variables": available_vars,
+        }
     
     # Digest distribution schedule
     digest_schedule = models.CharField(max_length=100, default="0 9 * * 5", help_text="Cron expression for weekly digest execution (e.g. every Friday at 9am)")

@@ -289,3 +289,71 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         self.assertEqual(comp_run.input_params["extraction_definitions"][0]["exit_metric"], "fit_score")
         self.assertEqual(comp_run.input_params["limit"], 5)
 
+    def test_signal_score_node_get_input_params(self):
+        """Verify SignalScoreNode.get_input_params captures exact formula code and available variables."""
+        from research_intelligence.models import ExtractionDefinition
+        from research_intelligence.tasks.step_6_signal_score.node import SignalScoreNode
+
+        self.workspace.signal_score_code = "score = (fit_score * 0.6) + (novelty_score * 0.4)"
+        self.workspace.save()
+
+        ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Strategic Fit",
+            system_prompt="Fit",
+            user_prompt_template="Fit",
+            exit_metric="fit_score",
+            response_schema={"type": "object"}
+        )
+        ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Novelty",
+            system_prompt="Nov",
+            user_prompt_template="Nov",
+            exit_metric="novelty_score",
+            response_schema={"type": "object"}
+        )
+
+        node = SignalScoreNode()
+        params = node.get_input_params(self.pipeline_run, self.workspace, {"limit": 10}, limit=10)
+
+        self.assertEqual(params["stage"], "signal_score")
+        self.assertEqual(params["evaluation_engine"], "AST Sandboxed Python 3")
+        self.assertEqual(params["signal_score_code"], "score = (fit_score * 0.6) + (novelty_score * 0.4)")
+        self.assertTrue(params["has_custom_formula"])
+        self.assertEqual(params["total_scoring_variables"], 2)
+
+        var_names = [v["variable_name"] for v in params["scoring_variables"]]
+        self.assertIn("fit_score", var_names)
+        self.assertIn("novelty_score", var_names)
+
+    @patch("mcp_server.tools.pipeline_runs.triggers.execute_signal_score_job")
+    def test_trigger_signal_score_job_logic_creates_full_input_params(self, mock_exec):
+        """Verify trigger_signal_score_job_logic snapshots signal score formula into input_params."""
+        from research_intelligence.tasks.step_6_signal_score.scorer import compute_paper_signal_score
+        from mcp_server.tools.pipeline_runs.triggers import trigger_signal_score_job_logic
+
+        mock_exec.delay.return_value = MagicMock(id="celery_task_sig_123")
+
+        self.workspace.signal_score_code = "score = fit_score * 100.0"
+        self.workspace.save()
+
+        self.paper.screening_status = "accepted"
+        self.paper.save()
+
+        raw_res = trigger_signal_score_job_logic(
+            user=self.user,
+            pipeline_run_id=str(self.pipeline_run.id),
+            limit=5
+        )
+        data = json.loads(raw_res)
+        self.assertTrue(data.get("success"))
+        comp_id = data.get("component_run_id")
+
+        comp_run = ComponentRun.objects.get(id=comp_id)
+        self.assertEqual(comp_run.input_params["stage"], "signal_score")
+        self.assertEqual(comp_run.input_params["signal_score_code"], "score = fit_score * 100.0")
+        self.assertTrue(comp_run.input_params["has_custom_formula"])
+        self.assertEqual(comp_run.input_params["limit"], 5)
+
+
