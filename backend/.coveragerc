@@ -3,7 +3,9 @@ parallel = True
 concurrency =
     multiprocessing
 source =
-    backend/research_intelligence
+    research_intelligence
+    mcp_server
+    chat
 omit =
     */tests/*
     */migrations/*
