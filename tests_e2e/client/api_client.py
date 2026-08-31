@@ -28,6 +28,24 @@ class APIClient:
         self.refresh_token = None
         self.session.headers.pop("Authorization", None)
 
+    def refresh_auth_token(self) -> bool:
+        if not self.refresh_token:
+            return False
+        try:
+            url = f"{self.base_url}/api/auth/refresh/"
+            self.session.cookies.clear()
+            r = self.session.post(url, json={"refresh": self.refresh_token}, timeout=10)
+            if r.status_code == 200:
+                data = r.json()
+                new_access = data.get("access")
+                if new_access:
+                    self.set_auth_token(new_access, data.get("refresh", self.refresh_token))
+                    logger.info("🔄 Automatically refreshed JWT Access Token.")
+                    return True
+        except Exception as e:
+            logger.warning(f"Failed to refresh JWT token: {e}")
+        return False
+
     def _request(
         self,
         method: str,
@@ -47,6 +65,9 @@ class APIClient:
         for attempt in range(1, max_attempts + 1):
             t0 = time.time()
             try:
+                # Clear session cookies to prevent cookie bloat causing HTTP 431 on proxies
+                self.session.cookies.clear()
+
                 resp = self.session.request(
                     method=method,
                     url=url,
@@ -59,13 +80,20 @@ class APIClient:
                 logger.debug(f"{method} {url} -> {resp.status_code} ({elapsed}ms)")
                 last_resp = resp
 
-                # If server is momentarily cycling (502/503/504 or Next.js proxy fallback during rolling deploy), retry
+                # If token expired mid-poll, try refreshing it once
+                if resp.status_code == 401 and self.refresh_token and attempt < max_attempts:
+                    if self.refresh_auth_token():
+                        headers["Authorization"] = f"Bearer {self.access_token}"
+                        continue
+
+                # If proxy returns 431 or server is momentarily cycling (502/503/504), retry
                 is_transient_proxy_error = (
-                    resp.status_code in (502, 503, 504) or
+                    resp.status_code in (431, 502, 503, 504) or
                     (resp.status_code == 404 and "<!doctype html" in resp.text.lower() and attempt < max_attempts)
                 )
 
                 if is_transient_proxy_error and attempt < max_attempts:
+                    self.session.cookies.clear()
                     logger.warning(f"⚠️ [TRANSIENT {resp.status_code}] {method} {url} returned transient gateway response. Retrying in {attempt * 1.5}s...")
                     time.sleep(attempt * 1.5)
                     continue
