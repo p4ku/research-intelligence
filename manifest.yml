@@ -69,22 +69,13 @@ applications:
       image: ((frontend_image))
       username: ((registry_username))
     instances: 1
-    # 512M is tight for a Next standalone server but the CF org quota is
-    # tighter still (see main's memory trims); raise to 1G when quota allows.
     memory: 512M
     disk_quota: 2G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud
     env:
-      NODE_ENV: production
       BACKEND_INTERNAL_URL: https://sri-prod.apps.01.cf.eu01.onstackit.cloud
       SITE_URL: https://sri-prod.apps.01.cf.eu01.onstackit.cloud
-      # BFF sources - override as endpoints land (defaults in
-      # frontend/src/lib/bff/core/source.ts):
-      # BFF_SOURCE_PAPERS: composed
-      # BFF_SOURCE_BRIEFINGS: composed
-      # BFF_SOURCE_SCORING: composed
-      # BFF_SOURCE_PREFERENCES: stub
 
 
 
