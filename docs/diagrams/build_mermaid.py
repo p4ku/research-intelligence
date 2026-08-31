@@ -10,82 +10,87 @@ diagrams_dir = os.path.join(docs_dir, "diagrams")
 os.makedirs(images_dir, exist_ok=True)
 os.makedirs(diagrams_dir, exist_ok=True)
 
-# 1. High-Level System Architecture Diagram in Mermaid with Blue Pod styling
+# 1. High-Level System Architecture Diagram in Mermaid with Personas & Blue Pod styling
 architecture_mermaid = """graph TB
-    subgraph Users ["Users Pod"]
-        usr[Research Scientists & MCP Clients]
+    subgraph Personas ["User Personas & Clients"]
+        manager["🧑‍💼 Manager / Researcher<br>(Frontend Web User)"]
+        power["⚡ Power User / AI Agent<br>(MCP Client: Claude / Cursor / Antigravity)"]
+        admin["🛡️ Administrator / Lead<br>(Django Admin User)"]
     end
-    style Users fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+    style Personas fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph Ingress ["Ingress & Gateway Pod"]
-        nginx[Reverse Proxy & Cloud Foundry Router]
+    subgraph Ingress ["Ingress & Routing Layer"]
+        nginx["Reverse Proxy & Gateway Router<br>(Port 80 / 443 / SSL)"]
     end
     style Ingress fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph Frontend ["Frontend Dashboard Pod"]
-        frontend[Next.js Dashboard / SPA]
+    subgraph Frontend ["Frontend UI Layer"]
+        frontend["Next.js Dashboard / SPA<br>(Literature Review, Scorecards, Paper Chat)"]
     end
     style Frontend fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph Backend ["Backend API & MCP Server Pods"]
-        api[Django REST API & Admin]
-        mcp[FastMCP SSE Server]
+        api["Django REST API<br>(/api/ - Auth, Papers, Chat, Runs)"]
+        django_admin["Django Admin Portal & Storage Browser<br>(/admin/ - RBAC, Quotas, Audit Logs)"]
+        mcp["FastMCP SSE Server<br>(/sse, /messages - Port 8001 / FastMCP Tools)"]
     end
     style Backend fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
+    subgraph Orchestration ["State Machine & DAG Engine"]
+        agent_engine["Autonomous State Engine<br>(ResearchAgentRunner & DAG Workflow)"]
+    end
+    style Orchestration fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
+
     subgraph DataState ["Message Broker & Cache Pod"]
-        broker[(Redis <br> Broker & Cache)]
+        broker[("Redis<br>Celery Task Broker & Session Cache")]
     end
     style DataState fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph Workers ["Celery Pipeline Workers Pod"]
-        beat[Celery Beat <br> Cron Schedules]
-        w1[Celery Pipeline Workers <br> Distributed Steps 1-8]
+        beat["Celery Beat<br>Cron Schedules & Zombie Watchdog"]
+        w1["Celery Pipeline Workers<br>Distributed 8-Stage SLR DAG Nodes"]
     end
     style Workers fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    subgraph Database ["Database Pod"]
-        db[(PostgreSQL + pgvector <br> Workspace & Document DB)]
+    subgraph Database ["Database Pod (Persistent State)"]
+        db[("PostgreSQL + pgvector<br>Workspaces, Papers, Extractions, Metrics, Audit")]
     end
     style Database fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
     subgraph Storage ["Object Storage Pod"]
-        minio[(S3 / MinIO Storage <br> PDFs & Layout Markdown)]
+        minio[("S3 / MinIO Object Storage<br>Original PDFs, OCR Markdown, Narrative Briefings")]
     end
     style Storage fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 
-    usr ==>|HTTPS / WSS| nginx
-    nginx --> frontend
-    nginx --> api
-    nginx --> mcp
-    frontend ==>|REST Query| api
-    mcp ==>|Tool Execution| api
-    api -.->|Task Push| broker
-    beat -.->|Schedules| broker
-    broker ==>|Task Pull| w1
-    w1 ==>|DB State & Locks| db
-    api ==>|SQL / Relational| db
-    w1 -.->|Task Status| broker
-    api -.->|Cache / Session| broker
-    api ==>|Manage Storage| minio
-    w1 ==>|Read / Write Documents| minio
+    %% Personas routing into Ingress
+    manager ==>|HTTPS / Web Browser| nginx
+    power ==>|HTTPS / SSE MCP Protocol| nginx
+    admin ==>|HTTPS / Admin Sessions| nginx
 
-    %% Link styles for custom colored arrows
-    linkStyle 0 stroke:#0055ff,stroke-width:3px;
-    linkStyle 1 stroke:#0055ff,stroke-width:2px;
-    linkStyle 2 stroke:#0055ff,stroke-width:2px;
-    linkStyle 3 stroke:#0055ff,stroke-width:2px;
-    linkStyle 4 stroke:#0088cc,stroke-width:3px;
-    linkStyle 5 stroke:#0088cc,stroke-width:3px;
-    linkStyle 6 stroke:#8c1aff,stroke-width:2px;
-    linkStyle 7 stroke:#8c1aff,stroke-width:2px;
-    linkStyle 8 stroke:#8c1aff,stroke-width:3px;
-    linkStyle 9 stroke:#cc0000,stroke-width:3px;
-    linkStyle 10 stroke:#cc0000,stroke-width:3px;
-    linkStyle 11 stroke:#e65c00,stroke-width:2px;
-    linkStyle 12 stroke:#e65c00,stroke-width:2px;
-    linkStyle 13 stroke:#00aa55,stroke-width:3px;
-    linkStyle 14 stroke:#00aa55,stroke-width:3px;
+    %% Ingress routing to services
+    nginx -->|Web Traffic| frontend
+    nginx -->|API Calls & Chat| api
+    nginx -->|Admin Traffic| django_admin
+    nginx -->|MCP Tool Protocol| mcp
+
+    %% Service interactions
+    frontend ==>|REST Queries / JWT| api
+    mcp ==>|Autonomous SLR Tools| agent_engine
+    api ==>|Trigger Runs & Interactive Q&A| agent_engine
+    django_admin ==>|Admin Management & ORM| db
+
+    agent_engine -.->|Task Push| broker
+    beat -.->|Schedules & Heartbeats| broker
+    broker ==>|Task Pull| w1
+
+    w1 ==>|DB State, Row Locks & Metrics| db
+    api ==>|SQL & pgvector Queries| db
+    w1 -.->|Task Status / Progress| broker
+    api -.->|Session & Token Cache| broker
+
+    api ==>|Signed PDF Stream & Metadata| minio
+    django_admin ==>|Storage Browser File Inspection| minio
+    w1 ==>|Fetch PDFs & Store Markdown| minio
 """
 
 # 2. Ingestion Pipeline Stages Diagram in Mermaid with Pod styling

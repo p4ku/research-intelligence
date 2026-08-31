@@ -6,27 +6,35 @@ This document describes the technical architecture and pipeline stages of the **
 
 ## 1. High-Level System Architecture
 
-The system is designed as a secure, tenant-isolated architecture consisting of a modern Next.js frontend, a robust Django REST API backend, a dedicated FastMCP SSE server, Celery-based asynchronous task distribution workers, and persistent PostgreSQL / Object Storage.
+The system is designed as a secure, tenant-isolated multi-interface platform serving three core user personas through dedicated access channels:
 
 ![System Architecture](./images/architecture.png)
 
-### Core Components
+### User Personas & Access Channels
 
-1.  **Users / Scientists & MCP AI Agents**: Access the system via HTTPS/WSS (Web Dashboard & Django Admin) or via SSE (Claude Code, Cursor, MCP clients).
-2.  **Reverse Proxy / Router**: Acts as the ingress routing layer, forwarding frontend requests to Next.js, API/Admin calls to Django, and `/sse` / `/messages` to FastMCP.
-3.  **Next.js Dashboard / SPA**: The dashboard where researchers review technology scorecards, examine parameter matrices, query papers, and monitor live research progress.
-4.  **Django REST API & Admin Portal**: Serves REST endpoint logic, handles authentication, workspace configurations, export/import bundles, and orchestrates pipeline runs.
-5.  **FastMCP Server**: Exposes rich Model Context Protocol tools for Claude Code, Cursor, and autonomous agent orchestration (`start_research_agent`, `check_run_status`, `get_paper_extractions_matrix`, `ask_paper`).
-6.  **Redis**:
-    *   Acts as the **Celery Message Broker** to route tasks to specific worker queues.
-    *   Serves as a high-performance **Cache** layer for session management and transient state.
-7.  **PostgreSQL**:
-    *   Stores relational models (Workspaces, Extraction Definitions, Scrapers, Pipelines, Papers, Extractions, Metrics, Subscribers, Audit Logs).
-    *   Utilizes the `pgvector` extension for semantic indexing and context retrieval.
-8.  **Celery Pipeline Workers**: Distributed asynchronous execution agents performing heavy compute operations like querying academic APIs, downloading PDFs in parallel, running multimodal LLMs (Gemini 3.7 Flash), AST sandboxed signal scoring, and synthesizing executive briefings.
-9.  **MinIO / S3 Object Storage**:
-    *   Acts as the S3-compatible object storage backend with tenant and run isolation.
-    *   Stores raw source files (PDFs), layout-preserving Markdown conversions, and generated narrative briefings.
+1.  **Manager / Researcher (Frontend User)**:
+    *   **Interface**: Modern **Next.js Dashboard / SPA** (Web UI via HTTPS).
+    *   **Capabilities**: Explores systematic literature reviews, inspects dynamic parameter matrices and technology scorecards, performs multi-turn interactive paper reasoning (`Paper Chat`), and monitors live pipeline stage progress.
+    *   **Backend Destination**: Authenticated via JWT against **Django REST API** (`/api/auth/`, `/api/workspaces/`, `/api/papers/`, `/api/chat/`, `/api/reports/`).
+
+2.  **Power User / AI Engineer (MCP Client)**:
+    *   **Interface**: **FastMCP SSE Server** (`/sse`, `/messages` on port 8001) connected to LLM IDEs (Claude Code, Cursor, Antigravity IDE) and autonomous workflow agents.
+    *   **Capabilities**: Executes programmatic Model Context Protocol tools (`start_research_agent`, `check_run_status`, `get_paper_extractions_matrix`, `ask_paper`, `get_workflow_dag_schema`) for hands-free SLR orchestration.
+    *   **Backend Destination**: Authenticated via scoped MCP API keys, interacting directly with the backend State Engine & Celery workers.
+
+3.  **Administrator / Lead Architect (Django Admin User)**:
+    *   **Interface**: **Django Admin Portal & Storage Browser** (`/admin/`, `/admin/storage-browser/`).
+    *   **Capabilities**: Manages workspace configurations, RBAC memberships, token/USD spending quotas, operational security audit logs (`UserActionAuditMiddleware`), and administrative storage cleanup actions.
+    *   **Backend Destination**: Direct Django Admin interface backed by PostgreSQL and Django Storage.
+
+### Core System Infrastructure
+
+*   **Ingress & Routing Layer**: Reverse proxy and gateway routing HTTPS/WSS traffic to Next.js (`/`), Django API (`/api/`), Django Admin (`/admin/`), and FastMCP SSE (`/sse`, `/messages`).
+*   **Autonomous State Engine & DAG**: `ResearchAgentRunner` and `DAGWorkflowEngine` orchestrating state transitions across Celery tasks and database locks.
+*   **Redis Message Broker & Cache**: Celery task distribution across priority queues, task state tracking, and session caching.
+*   **PostgreSQL + pgvector**: Relational storage for workspaces, papers, extractions, audit trails, and vector embeddings.
+*   **Celery Pipeline Workers**: Distributed execution cluster executing the 8-stage SLR DAG (Search, Screening, Fetch, OCR, Full-Text, Extraction, Signal Score, Reporting).
+*   **MinIO / S3 Object Storage**: Tenant-isolated document storage for raw PDF binaries, OCR Markdown conversions, and generated narrative briefings.
 
 ---
 
