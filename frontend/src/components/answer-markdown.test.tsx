@@ -1,3 +1,4 @@
+import type { VisualCitation } from '@/lib/bff/chat/schema'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { AnswerMarkdown } from './answer-markdown'
@@ -53,12 +54,12 @@ describe('AnswerMarkdown', () => {
     expect(bold).toMatch(/<strong[^>]*><span[^>]*font-mono[^>]*>31%<\/span><\/strong>/)
   })
 
-  test('leaves bare reference markers and citation markers as text', () => {
-    const src = 'See [1] and [Page 7, Fig 4b, box_2d: [1, 2], quote: "x"].'
+  test('leaves bare references and citation markers as text unless citations are on', () => {
+    const src = 'See [1] and [Page 7, Fig 4b, box_2d: [1, 2, 3, 4], quote: "x"].'
     const out = html(src)
     expect(out).not.toContain('<a ')
     expect(out).toContain('[1]')
-    expect(out).toContain('box_2d: [1, 2]')
+    expect(out).toContain('box_2d: [1, 2, 3, 4]')
   })
 
   test('never renders raw HTML or unsafe URL schemes', () => {
@@ -111,5 +112,69 @@ describe('AnswerMarkdown', () => {
   test('not streaming: no caret, no repair', () => {
     const out = html('- a\n- b')
     expect(out).not.toContain(CARET)
+  })
+})
+
+describe('AnswerMarkdown citation chips', () => {
+  const chips = (
+    text: string,
+    opts: { citations?: VisualCitation[]; anchor?: string; streaming?: boolean } = {},
+  ) =>
+    renderToStaticMarkup(
+      <AnswerMarkdown
+        text={text}
+        citations={opts.citations ?? []}
+        citationAnchor={opts.anchor}
+        streaming={opts.streaming}
+      />,
+    )
+  const MARKER = '[Page 7, Fig 4b, box_2d: [320, 150, 680, 890], quote: "up 31%"]'
+  const leaks = (out: string) => /[]/.test(out)
+
+  test('turns a marker into a p. N · label chip and leaves bare references alone', () => {
+    const out = chips(`See [1] and ${MARKER}.`)
+    expect(out).toContain('p. 7 · Fig 4b')
+    expect(out).toContain('title="up 31%"')
+    expect(out).not.toContain('box_2d')
+    expect(out).not.toContain('<a ')
+    expect(out).toContain('[1]')
+    expect(leaks(out)).toBe(false)
+  })
+
+  test('renders chips inside emphasis, list items and code', () => {
+    const out = chips('**see [Page 7, Fig 4b]**\n\n- item [Page 2, Table 1]\n\n`x [Page 3, Fig 1]`')
+    expect(out).toMatch(/<strong[^>]*>see <span[^>]*>p\. 7 · Fig 4b<\/span><\/strong>/)
+    expect(out).toMatch(/<li[^>]*>item <span[^>]*>p\. 2 · Table 1<\/span><\/li>/)
+    expect(out).toMatch(/<code[^>]*>x <span[^>]*>p\. 3 · Fig 1<\/span><\/code>/)
+    expect(leaks(out)).toBe(false)
+  })
+
+  test('shows the verified tick only when the matched citation is verified', () => {
+    const verified = chips(MARKER, {
+      citations: [{ page: 7, label: 'Fig 4b', verified_in_source: true }],
+    })
+    expect(verified).toContain('Verified in source')
+    expect(chips(MARKER)).not.toContain('Verified in source')
+    expect(
+      chips(MARKER, { citations: [{ page: 7, label: 'Fig 4b', verified_in_source: false }] }),
+    ).not.toContain('Verified in source')
+  })
+
+  test('links to the citation card when an anchor is given; duplicates share it', () => {
+    const out = chips(`${MARKER} and again ${MARKER}`, { anchor: 'vc-3' })
+    expect(out.match(/href="#vc-3-0"/g)).toHaveLength(2)
+    expect(out).not.toContain('#vc-3-1')
+  })
+
+  test('streaming: a half-arrived marker is held back and the caret stays last', () => {
+    const open = chips('see [Page 7, Fig', { streaming: true })
+    expect(open).not.toContain('Fig')
+    expect(open).not.toContain('[')
+    expect(open).toMatch(/see<span[^>]*>▍<\/span><\/p><\/div>$/)
+
+    const closed = chips('x [Page 7, Fig 4b] y', { streaming: true })
+    expect(closed).toContain('p. 7 · Fig 4b')
+    expect(closed).toMatch(/y<span[^>]*>▍<\/span><\/p><\/div>$/)
+    expect(leaks(closed)).toBe(false)
   })
 })

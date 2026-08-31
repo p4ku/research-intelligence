@@ -1,0 +1,115 @@
+import { describe, expect, test } from 'bun:test'
+import {
+  extractCitationMarkers,
+  holdBackOpenMarker,
+  MARKER_RE,
+  matchCitations,
+  PLACEHOLDER_RE,
+} from './citation-markers'
+
+const matches = (s: string) => {
+  MARKER_RE.lastIndex = 0
+  return MARKER_RE.test(s)
+}
+
+describe('MARKER_RE', () => {
+  test('accepts the forms the backend prompt and tests use', () => {
+    for (const s of [
+      '[Page 5, Figure 4, box_2d: [10, 20, 30, 40], quote: "across 64 waveguides"]',
+      '[Page 4, Figure 3a, quote: "100 GHz modulated optical clock frequency"]',
+      '[Page 1, Fig 1]',
+      '[Page 1, Table 1, quote: "99.4% gate fidelity"]',
+      '[Page 7, Fig 4b, box_2d: [320, 150, 680, 890], quote: "exact evidence sentence"]',
+      '[page 2]',
+      '[Page 3, Fig 1 ]',
+    ]) {
+      expect(matches(s)).toBe(true)
+    }
+  })
+
+  test('rejects bare references, links and malformed markers', () => {
+    for (const s of [
+      '[1]',
+      '[Smith 2020]',
+      '[x](url)',
+      '[, Fig 1]',
+      '[Page 1, Fig 1, quote: ""]',
+    ]) {
+      expect(matches(s)).toBe(false)
+    }
+  })
+})
+
+describe('extractCitationMarkers', () => {
+  test('swaps markers for indexed placeholders and parses the fields', () => {
+    const { text, refs } = extractCitationMarkers(
+      'Rises [Page 7, Fig 4b, box_2d: [320, 150, 680, 890], quote: "up 31%"] then [Page 2, Table 1].',
+    )
+    expect(text).toBe('Rises \uE0010\uE002 then \uE0011\uE002.')
+    expect(refs).toEqual([
+      { page: 7, label: 'Fig 4b', box: [320, 150, 680, 890], quote: 'up 31%' },
+      { page: 2, label: 'Table 1' },
+    ])
+    expect(text.split(PLACEHOLDER_RE)).toEqual(['Rises ', '0', ' then ', '1', '.'])
+  })
+
+  test('collapses duplicate markers to one ref, like the backend', () => {
+    const { text, refs } = extractCitationMarkers('[Page 1, Fig 1] and again [Page 1,  Fig 1 ].')
+    expect(refs).toHaveLength(1)
+    expect(text).toBe('\uE0010\uE002 and again \uE0010\uE002.')
+  })
+
+  test('leaves text without markers untouched', () => {
+    const src = 'See [1] and [Smith 2020].'
+    expect(extractCitationMarkers(src)).toEqual({ text: src, refs: [] })
+  })
+})
+
+describe('holdBackOpenMarker', () => {
+  test('cuts an unclosed marker, including one open inside the nested box', () => {
+    expect(holdBackOpenMarker('Rises [Page 7, Fig 4b, box_2d: [320, 150')).toBe('Rises')
+    expect(holdBackOpenMarker('Rises [Page 7, Fig')).toBe('Rises')
+    expect(holdBackOpenMarker('Rises [Pa')).toBe('Rises')
+  })
+
+  test('keeps closed markers and only cuts the open one', () => {
+    const closed = 'A [Page 1, Fig 1] b'
+    expect(holdBackOpenMarker(closed)).toBe(closed)
+    expect(holdBackOpenMarker('A [Page 1, Fig 1] b [Page 2, Fig')).toBe('A [Page 1, Fig 1] b')
+  })
+
+  test('ignores brackets inside the quote', () => {
+    const src = 'A [Page 1, Fig 1, quote: "x] y"] z'
+    expect(holdBackOpenMarker(src)).toBe(src)
+    expect(holdBackOpenMarker('A [Page 1, Fig 1, quote: "x] y')).toBe('A')
+  })
+
+  test('is a no-op without markers', () => {
+    expect(holdBackOpenMarker('Plain text [1] and [x](y).')).toBe('Plain text [1] and [x](y).')
+  })
+})
+
+describe('matchCitations', () => {
+  const refs = [
+    { page: 7, label: 'Fig 4b', quote: 'a' },
+    { page: 2, label: 'Table 1' },
+  ]
+
+  test('pairs by position when counts agree', () => {
+    const cits = [
+      { page: 7, label: 'Fig 4b', verified_in_source: true },
+      { page: 2, label: 'Table 1', verified_in_source: false },
+    ]
+    expect(matchCitations(refs, cits)).toEqual(cits)
+  })
+
+  test('falls back to page + label matching, each citation used once', () => {
+    const cits = [
+      { page: 9, label: 'Fig 9' },
+      { page: 2, label: 'Table 1', verified_in_source: true },
+      { page: 7, label: 'Fig 4b', quote: 'a', verified_in_source: true },
+    ]
+    expect(matchCitations(refs, cits)).toEqual([cits[2], cits[1]])
+    expect(matchCitations([{ page: 3 }], cits)).toEqual([null])
+  })
+})

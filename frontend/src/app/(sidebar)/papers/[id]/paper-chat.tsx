@@ -1,7 +1,7 @@
 'use client'
 
 import { AnswerMarkdown } from '@/components/answer-markdown'
-import type { ChatSession, ChatSessionDetail } from '@/lib/bff/chat/schema'
+import type { ChatSession, ChatSessionDetail, VisualCitation } from '@/lib/bff/chat/schema'
 import { bffFetch } from '@/lib/bff/client'
 import type { Page } from '@/lib/bff/core/pagination'
 import { useChatStream } from '@/lib/chat/use-chat-stream'
@@ -15,6 +15,8 @@ import { useEffect, useRef, useState } from 'react'
 interface Msg {
   role: 'user' | 'scanner'
   text: string
+  /** Structured partners of the answer's inline `[Page N, …]` markers. */
+  visualCitations: VisualCitation[]
   failed?: boolean
 }
 
@@ -49,6 +51,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
         text: failed
           ? (final.error?.detail ?? final.error?.title ?? t('The answer failed.'))
           : final.text,
+        visualCitations: failed ? [] : final.visualCitations,
         failed,
       },
     ])
@@ -72,10 +75,11 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
         setSessionId(detail.id)
         setMsgs(
           detail.turns.flatMap((turn): Msg[] => [
-            { role: 'user', text: turn.question },
+            { role: 'user', text: turn.question, visualCitations: [] },
             {
               role: 'scanner',
               text: turn.answer ?? turn.error ?? t('The answer failed.'),
+              visualCitations: turn.visual_citations,
               failed: turn.status === 'failed',
             },
           ]),
@@ -92,7 +96,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
 
   function ask(q: string) {
     if (asking) return
-    setMsgs((prev) => [...prev, { role: 'user', text: q }])
+    setMsgs((prev) => [...prev, { role: 'user', text: q, visualCitations: [] }])
     setAsking(true)
     setInput('')
     void send({
@@ -139,6 +143,8 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
                 <AnswerMarkdown
                   key={i}
                   text={m.text}
+                  citations={m.visualCitations}
+                  t={t}
                   className="text-muted-foreground text-[13px]"
                 />
               ),
@@ -148,6 +154,8 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
                 <AnswerMarkdown
                   text={live.text}
                   streaming={live.status === 'streaming'}
+                  citations={live.visualCitations}
+                  t={t}
                   className="text-muted-foreground text-[13px]"
                 />
               ) : (
