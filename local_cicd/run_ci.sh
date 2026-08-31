@@ -57,12 +57,12 @@ echo -e "${GREEN}✅ Django system check passed with 0 issues.${NC}"
 
 # 5. Execute Full Parallel Test Suite (Django & FastMCP)
 echo -e "\n${BLUE}[2/3] Running Full Parallel Test Suite (Zero-token in-memory SQLite)...${NC}"
-"$ROOT_DIR/run_tests.sh"
+"$ROOT_DIR/backend/run_tests.sh"
 echo -e "${GREEN}✅ Full test suite passed successfully!${NC}"
 
 # 6. Execute FastMCP Server Tests
 echo -e "\n${BLUE}[3/3] Running FastMCP Protocol Test Suite...${NC}"
-"$ROOT_DIR/run_tests.sh" mcp_server
+"$ROOT_DIR/backend/run_tests.sh" mcp_server
 echo -e "${GREEN}✅ FastMCP test suite passed successfully!${NC}"
 
 echo -e "\n${GREEN}======================================================================${NC}"

@@ -186,9 +186,10 @@ The data layer is structured into 5 cohesive domains:
 │   └── user_documentation/      # Complete user guides for Django Admin and FastMCP (Claude Code)
 ├── .github/                     # DevOps & CI/CD Pipelines
 │   └── workflows/
-│       └── ci.yml               # GitHub Actions workflow (SQLite tests + pip & Docker caching)
+│       ├── ci.yml               # GitHub Actions workflow (SQLite tests + pip caching)
+│       └── deploy.yml           # Automated deployment to STACKIT Cloud Foundry
+├── tests_e2e/                   # E2E Test Suites (Frontend TS Playwright + Backend Python Pipeline)
 ├── docker-compose.yml           # Unified local development & production stack
-├── AGENTS.md                    # Guidelines for AI agent assistants (Gemini, Claude, Cursor)
 └── README.md                    # System documentation (This file)
 ```
 
@@ -200,6 +201,7 @@ The data layer is structured into 5 cohesive domains:
 | :--- | :--- | :--- |
 | **Backend Framework** | Python 3.12+, Django 6.0, DRF | Core models, database management, and REST API. |
 | **MCP SSE Server** | FastMCP | Model Context Protocol SSE server on port 8001. |
+| **Frontend Framework** | Next.js 15, React 19, TailwindCSS | Modern responsive literature intelligence dashboard. |
 | **Task Queue** | Celery, Redis | Distributed async pipeline execution and DAG state engine polling. |
 | **Database Layer** | PostgreSQL (Prod) / SQLite (Tests) | Persistent storage, audit logs, and in-memory test runner. |
 | **Storage Layer** | Django `default_storage` | Local filesystem / AWS S3 / MinIO storage abstraction. |
@@ -222,6 +224,7 @@ cp .env_example .env
 docker compose up --build
 
 # 3. Access interfaces:
+# - Next.js Frontend: http://localhost:3000
 # - Django REST API: http://localhost:8000/api/
 # - FastMCP SSE Endpoint: http://localhost:8001/mcp/
 # - Django Admin: http://localhost:8000/admin/
@@ -230,5 +233,5 @@ docker compose up --build
 ### Run Unit Tests Locally
 Tests automatically run on an in-memory SQLite database:
 ```bash
-./run_tests.sh
+./backend/run_tests.sh
 ```

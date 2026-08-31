@@ -1,38 +1,68 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# ==============================================================================
+# Schwarz Research Intelligence - Fast Parallel Backend Test Runner with Coverage
+# Executes complete test suite using in-memory SQLite, auto-parallelization,
+# and generates real-time code coverage metrics upon test completion.
+# ==============================================================================
+
 set -e
 
-# Change directory to the backend directory where this script is located
-cd "$(dirname "$0")"
+# Resolve directory paths (supports running from repo root or backend directory)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-echo "============================================="
-echo "🧪 Research Intelligence Backend Test Runner"
-echo "============================================="
+cd "${SCRIPT_DIR}"
 
-# 1. Setup / Repair Virtual Environment
-if [ ! -d "venv" ]; then
-    echo "Creating virtual environment 'venv'..."
-    python3 -m venv venv
+# 1. Detect Python interpreter (.venv at root, venv in backend, or system python)
+if [ -f "${PROJECT_ROOT}/.venv/bin/python" ]; then
+    PYTHON_BIN="${PROJECT_ROOT}/.venv/bin/python"
+elif [ -f "${SCRIPT_DIR}/venv/bin/python" ]; then
+    PYTHON_BIN="${SCRIPT_DIR}/venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="python"
 else
-    # Check if the python executable works (handles broken link/framework errors)
-    if ! ./venv/bin/python -c "import sys" &> /dev/null; then
-        echo "⚠️  Virtual environment 'venv' appears broken or outdated. Repairing..."
-        python3 -m venv --clear venv
-    fi
+    echo "❌ Error: Python interpreter not found."
+    exit 1
 fi
 
-# 2. Activate virtual environment
-echo "Activating virtual environment..."
-source venv/bin/activate
-
-# 3. Ensure dependencies are installed
-echo "Installing/verifying requirements..."
-pip install --upgrade pip &> /dev/null
-pip install -r requirements.txt &> /dev/null
-
-# 4. Run Django Tests
-echo "Running test suite..."
-python manage.py test
+# 2. Detect Coverage binary
+if [ -f "${PROJECT_ROOT}/.venv/bin/coverage" ]; then
+    COVERAGE_BIN="${PROJECT_ROOT}/.venv/bin/coverage"
+elif [ -f "${SCRIPT_DIR}/venv/bin/coverage" ]; then
+    COVERAGE_BIN="${SCRIPT_DIR}/venv/bin/coverage"
+elif command -v coverage >/dev/null 2>&1; then
+    COVERAGE_BIN="coverage"
+else
+    COVERAGE_BIN=""
+fi
 
 echo "============================================="
-echo "✅ Tests completed successfully!"
+echo "🧪 Running SRI Backend Test Suite in Parallel..."
+echo "📍 Python interpreter : ${PYTHON_BIN}"
 echo "============================================="
+
+if [ -n "$COVERAGE_BIN" ]; then
+    echo "📊 Coverage tracking enabled ($COVERAGE_BIN)"
+    "$COVERAGE_BIN" erase
+    
+    if [ $# -gt 0 ]; then
+        "$COVERAGE_BIN" run manage.py test "$@"
+    else
+        "$COVERAGE_BIN" run manage.py test --parallel auto research_intelligence.tests mcp_server chat
+    fi
+    
+    echo ""
+    echo "================================================================================"
+    echo "📊 Code Coverage Summary (Application Logic):"
+    echo "================================================================================"
+    "$COVERAGE_BIN" combine --quiet 2>/dev/null || true
+    "$COVERAGE_BIN" report
+else
+    if [ $# -gt 0 ]; then
+        exec "$PYTHON_BIN" manage.py test "$@"
+    else
+        exec "$PYTHON_BIN" manage.py test --parallel auto research_intelligence.tests mcp_server chat
+    fi
+fi

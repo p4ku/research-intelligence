@@ -112,7 +112,7 @@ The platform must maintain two orthogonal, automated E2E test suites:
    * Located in `tests_e2e/scenarios/` and executed via `./tests_e2e/run_e2e.sh`.
    * 11 orthogonal scenarios: `full_slr_pipeline`, `chat_multiturn`, `agent_lifecycle`, `pipeline_reprocessing`, `cross_source_dedup`, `quota_guard`, `mcp_protocol`, `rbac_data_isolation`, `mid_step_rerun`, `chat_hallucination_guard`, `concurrent_agents_load`.
 3. **Unit Test Suite:**
-   * 153+ unit/integration tests running against In-Memory SQLite in $\approx 8$ seconds via `./run_tests.sh` with 100% pass rate.
+   * 153+ unit/integration tests running against In-Memory SQLite in $\approx 8$ seconds via `./backend/run_tests.sh` with 100% pass rate.
 
 ### NFR-3: S3-Compatible Storage Strategy
 * All binary assets (PDFs, Markdown conversions, LaTeX reports) are stored in S3-compatible storage (Cloudflare R2, AWS S3, MinIO).
