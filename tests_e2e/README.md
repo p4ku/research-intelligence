@@ -38,7 +38,6 @@ tests_e2e/
 ├── run_e2e.sh                # Automated backend shell runner
 ├── run_e2e.py                # Backend live pipeline runner
 ├── test_full_pipeline_e2e.py # Pytest backend pipeline integration suite
-├── client/                   # Modular API Client & Domain Services
 └── scenarios/                # 11 Orthogonal Backend User Journeys (.py)
 ```
 
