@@ -94,6 +94,11 @@ services:
       - MAILGUN_API_URL=${MAILGUN_API_URL:-https://api.eu.mailgun.net/v3}
       - MAILGUN_SENDER_DOMAIN=${MAILGUN_SENDER_DOMAIN:-soinventive.co.uk}
       - SENTRY_DSN=
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     depends_on:
       db:
         condition: service_healthy

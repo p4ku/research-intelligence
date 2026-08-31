@@ -45,7 +45,7 @@ applications:
     disk_quota: 2G
     no-route: true
     health-check-type: process
-    command: celery -A django_project worker --loglevel=info -Q celery,tenant-default,tenant-bulk-scraping --concurrency=4 --max-tasks-per-child=100
+    command: celery -A django_project worker --loglevel=info -Q celery,tenant-default,tenant-bulk-scraping --concurrency=4 --max-tasks-per-child=100 -O fair --prefetch-multiplier=1
     env:
       EXTRACTION_PARALLEL_WORKERS: "4"
       SCREENING_PARALLEL_WORKERS: "4"
