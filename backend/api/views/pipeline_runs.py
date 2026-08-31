@@ -44,6 +44,9 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
     Scoped strictly to workspaces the authenticated user belongs to.
     """
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+    ordering_fields = ['started_at', 'completed_at', 'status', 'current_stage', 'tokens_consumed', 'usd_cost']
+    ordering = ['-started_at']
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
@@ -265,6 +268,8 @@ class ComponentRunViewSet(viewsets.ReadOnlyModelViewSet):
     """
     serializer_class = ComponentRunSerializer
     permission_classes = [permissions.IsAuthenticated]
+    ordering_fields = ['started_at', 'completed_at', 'step_type', 'component_name', 'status']
+    ordering = ['-started_at']
 
     def get_queryset(self):
         user = self.request.user

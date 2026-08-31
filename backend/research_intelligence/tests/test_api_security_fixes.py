@@ -1,0 +1,305 @@
+from django.test import TestCase
+from django.contrib.auth.models import User
+from rest_framework.test import APIClient
+from rest_framework import status
+from rest_framework_simplejwt.tokens import RefreshToken
+from research_intelligence.models import (
+    Workspace,
+    WorkspaceMember,
+    PipelineRun,
+    Paper,
+    UserActivityLog,
+    ExtractionDefinition,
+    Extraction,
+    HITLCorrection,
+    NarrativeReport,
+)
+from chat.models import PaperChatSession, PaperChatMessage
+from api.middleware import redact_sensitive_payload
+
+
+class APISecurityFixesTestCase(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.admin_user = User.objects.create_user(
+            username="admin_sec",
+            email="admin_sec@example.com",
+            password="AdminPassword123!"
+        )
+        self.researcher_user = User.objects.create_user(
+            username="researcher_sec",
+            email="researcher_sec@example.com",
+            password="ResearcherPassword123!"
+        )
+        self.other_user = User.objects.create_user(
+            username="other_sec",
+            email="other_sec@example.com",
+            password="OtherPassword123!"
+        )
+
+        self.workspace = Workspace.objects.create(name="Security Test Workspace")
+        WorkspaceMember.objects.create(workspace=self.workspace, user=self.admin_user, role="admin")
+        WorkspaceMember.objects.create(workspace=self.workspace, user=self.researcher_user, role="researcher")
+
+    def test_middleware_sensitive_data_redaction(self):
+        """Verify password, token, and API key redaction in dicts/lists."""
+        payload = {
+            "username": "alice",
+            "password": "MyPlaintextPassword!",
+            "nested": {
+                "access": "secret_jwt_access_token",
+                "refresh_token": "secret_refresh_token",
+                "safe_field": "visible_value",
+            },
+            "items_list": ["item1", {"api_key": "raw_secret_key"}]
+        }
+        redacted = redact_sensitive_payload(payload)
+        self.assertEqual(redacted["password"], "[REDACTED]")
+        self.assertEqual(redacted["nested"]["access"], "[REDACTED]")
+        self.assertEqual(redacted["nested"]["refresh_token"], "[REDACTED]")
+        self.assertEqual(redacted["nested"]["safe_field"], "visible_value")
+        self.assertEqual(redacted["items_list"][1]["api_key"], "[REDACTED]")
+
+    def test_workspace_rbac_researcher_cannot_update_workspace(self):
+        """Researcher cannot update workspace settings (requires admin/manager)."""
+        self.client.force_authenticate(user=self.researcher_user)
+        res = self.client.patch(f"/api/workspaces/{self.workspace.id}/", {
+            "name": "Hacked Workspace Name"
+        }, format="json")
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Admin can update workspace settings
+        self.client.force_authenticate(user=self.admin_user)
+        res_admin = self.client.patch(f"/api/workspaces/{self.workspace.id}/", {
+            "name": "Updated Workspace Name"
+        }, format="json")
+        self.assertEqual(res_admin.status_code, status.HTTP_200_OK)
+
+    def test_chat_session_owner_isolation_and_rename(self):
+        """User cannot see, modify, or delete another user's session without admin role."""
+        session_res = PaperChatSession.objects.create(
+            workspace=self.workspace,
+            user=self.researcher_user,
+            title="Researcher Private Chat"
+        )
+        session_other = PaperChatSession.objects.create(
+            workspace=self.workspace,
+            user=self.other_user,
+            title="Other Private Chat"
+        )
+
+        # Researcher cannot see Other's session
+        self.client.force_authenticate(user=self.researcher_user)
+        list_res = self.client.get("/api/chat/sessions/")
+        self.assertEqual(list_res.status_code, status.HTTP_200_OK)
+        session_ids = [s["id"] for s in list_res.data]
+        self.assertIn(str(session_res.id), session_ids)
+        self.assertNotIn(str(session_other.id), session_ids)
+
+        # Researcher can rename own session
+        patch_res = self.client.patch(f"/api/chat/sessions/{session_res.id}/", {
+            "title": "Renamed Chat Title"
+        }, format="json")
+        self.assertEqual(patch_res.status_code, status.HTTP_200_OK)
+        session_res.refresh_from_db()
+        self.assertEqual(session_res.title, "Renamed Chat Title")
+
+        # Researcher cannot delete other's session
+        del_res = self.client.delete(f"/api/chat/sessions/{session_other.id}/")
+        self.assertIn(del_res.status_code, [status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND])
+
+    def test_logout_and_token_blacklist(self):
+        """Test that logging out blacklists the refresh token."""
+        refresh = RefreshToken.for_user(self.admin_user)
+        self.client.force_authenticate(user=self.admin_user)
+        res = self.client.post("/api/auth/logout/", {
+            "refresh": str(refresh)
+        }, format="json")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        # Reusing the blacklisted token should fail
+        refresh_attempt = self.client.post("/api/auth/refresh/", {
+            "refresh": str(refresh)
+        }, format="json")
+        self.assertEqual(refresh_attempt.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_change_password_enforces_validation(self):
+        """Verify that password change enforces validation rules."""
+        self.client.force_authenticate(user=self.researcher_user)
+        # Attempt simple short password
+        res = self.client.post("/api/auth/change-password/", {
+            "old_password": "ResearcherPassword123!",
+            "new_password": "123",
+            "confirm_password": "123"
+        }, format="json")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_custom_exception_handler_consistent_envelope(self):
+        """Verify standard error structure on 404 and 400."""
+        self.client.force_authenticate(user=self.admin_user)
+        res = self.client.get("/api/workspaces/00000000-0000-0000-0000-000000000000/")
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertIn("status_code", res.data)
+        self.assertIn("error", res.data)
+        self.assertEqual(res.data["status_code"], 404)
+
+    def test_reports_and_audit_logs_are_strictly_read_only(self):
+        """Verify that reports and activity logs reject POST/PUT/PATCH/DELETE with 405."""
+        self.client.force_authenticate(user=self.admin_user)
+
+        # Reports endpoint
+        res_report_post = self.client.post("/api/reports/", {"title": "Fake Report"}, format="json")
+        self.assertEqual(res_report_post.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        # Activity logs endpoint
+        res_log_post = self.client.post("/api/activity-logs/", {"action_name": "Fake Action"}, format="json")
+        self.assertEqual(res_log_post.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_pipeline_runs_and_agents_disallow_arbitrary_put_patch(self):
+        """Verify that PipelineRun and Agent processes reject arbitrary PUT/PATCH with 405."""
+        self.client.force_authenticate(user=self.admin_user)
+        run = PipelineRun.objects.create(workspace=self.workspace, status="pending")
+        res_run_put = self.client.put(f"/api/pipeline-runs/{run.id}/", {"status": "completed"}, format="json")
+        self.assertEqual(res_run_put.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+        res_run_patch = self.client.patch(f"/api/pipeline-runs/{run.id}/", {"status": "completed"}, format="json")
+        self.assertEqual(res_run_patch.status_code, status.HTTP_405_METHOD_NOT_ALLOWED)
+
+    def test_pagination_on_papers_endpoint(self):
+        """Verify standard Django DRF PageNumberPagination on /api/papers/."""
+        self.client.force_authenticate(user=self.admin_user)
+        run = PipelineRun.objects.create(workspace=self.workspace, status="completed")
+        # Create 12 dummy papers
+        for i in range(12):
+            Paper.objects.create(
+                workspace=self.workspace,
+                pipeline_run=run,
+                title=f"Paginated Paper #{i+1}",
+                hash_id=f"hash_pag_{i}"
+            )
+
+        # Page 1 with page_size=5
+        res_p1 = self.client.get(f"/api/papers/?workspace={self.workspace.id}&page=1&page_size=5")
+        self.assertEqual(res_p1.status_code, status.HTTP_200_OK)
+        self.assertIn("count", res_p1.data)
+        self.assertIn("results", res_p1.data)
+        self.assertIn("next", res_p1.data)
+        self.assertEqual(res_p1.data["count"], 12)
+        self.assertEqual(len(res_p1.data["results"]), 5)
+        self.assertIsNotNone(res_p1.data["next"])
+        self.assertIsNone(res_p1.data["previous"])
+
+        # Page 2 with page_size=5
+        res_p2 = self.client.get(f"/api/papers/?workspace={self.workspace.id}&page=2&page_size=5")
+        self.assertEqual(res_p2.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res_p2.data["results"]), 5)
+        self.assertIsNotNone(res_p2.data["previous"])
+
+        # Page 3 with page_size=5 (remaining 2)
+        res_p3 = self.client.get(f"/api/papers/?workspace={self.workspace.id}&page=3&page_size=5")
+        self.assertEqual(res_p3.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(res_p3.data["results"]), 2)
+        self.assertIsNone(res_p3.data["next"])
+
+    def test_pagination_on_reports_and_extractions(self):
+        """Verify pagination on /api/reports/ and /api/extractions/."""
+        self.client.force_authenticate(user=self.admin_user)
+        run = PipelineRun.objects.create(workspace=self.workspace, status="completed")
+        # Create dummy reports
+        for i in range(6):
+            NarrativeReport.objects.create(
+                workspace=self.workspace,
+                pipeline_run=run,
+                title=f"Report #{i+1}",
+                content_markdown="# Summary"
+            )
+
+        res_rep = self.client.get(f"/api/reports/?workspace={self.workspace.id}&page=1&page_size=2")
+        self.assertEqual(res_rep.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_rep.data["count"], 6)
+        self.assertEqual(len(res_rep.data["results"]), 2)
+
+        # Create dummy extractions
+        paper = Paper.objects.create(workspace=self.workspace, pipeline_run=run, title="Extraction Paper", hash_id="ext_paper_hash")
+        ext_def = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Test Metric",
+            system_prompt="Prompt",
+            user_prompt_template="Template",
+            response_schema={"type": "object"}
+        )
+        for i in range(4):
+            Extraction.objects.create(
+                workspace=self.workspace,
+                paper=paper,
+                extraction_definition=ext_def,
+                category="test_metric",
+                fields_data={"score": i}
+            )
+
+        res_ext = self.client.get(f"/api/extractions/?workspace={self.workspace.id}&page=1&page_size=2")
+        self.assertEqual(res_ext.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_ext.data["count"], 4)
+        self.assertEqual(len(res_ext.data["results"]), 2)
+
+    def test_ordering_on_endpoints(self):
+        """Verify Django REST framework OrderingFilter on endpoints."""
+        self.client.force_authenticate(user=self.admin_user)
+        run = PipelineRun.objects.create(workspace=self.workspace, status="completed")
+
+        Paper.objects.create(workspace=self.workspace, pipeline_run=run, title="Alpha Paper", hash_id="h_alpha", signal_score=10.0)
+        Paper.objects.create(workspace=self.workspace, pipeline_run=run, title="Zeta Paper", hash_id="h_zeta", signal_score=90.0)
+        Paper.objects.create(workspace=self.workspace, pipeline_run=run, title="Beta Paper", hash_id="h_beta", signal_score=50.0)
+
+        # Ascending title ordering
+        res_asc = self.client.get(f"/api/papers/?workspace={self.workspace.id}&ordering=title")
+        self.assertEqual(res_asc.status_code, status.HTTP_200_OK)
+        titles_asc = [p["title"] for p in res_asc.data]
+        self.assertEqual(titles_asc, ["Alpha Paper", "Beta Paper", "Zeta Paper"])
+
+        # Descending signal_score ordering
+        res_score_desc = self.client.get(f"/api/papers/?workspace={self.workspace.id}&ordering=-signal_score")
+        self.assertEqual(res_score_desc.status_code, status.HTTP_200_OK)
+        titles_score = [p["title"] for p in res_score_desc.data]
+        self.assertEqual(titles_score, ["Zeta Paper", "Beta Paper", "Alpha Paper"])
+
+    def test_chat_message_owner_isolation(self):
+        """Verify that researcher cannot fetch message details from another researcher's session."""
+        session_other = PaperChatSession.objects.create(
+            workspace=self.workspace,
+            user=self.other_user,
+            title="Other Secret Chat"
+        )
+        msg_other = PaperChatMessage.objects.create(
+            session=session_other,
+            sender="assistant",
+            message="Confidential answer",
+            status="completed"
+        )
+
+        self.client.force_authenticate(user=self.researcher_user)
+        res = self.client.get(f"/api/chat/messages/{msg_other.id}/")
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Admin can view
+        self.client.force_authenticate(user=self.admin_user)
+        res_admin = self.client.get(f"/api/chat/messages/{msg_other.id}/")
+        self.assertEqual(res_admin.status_code, status.HTTP_200_OK)
+
+    def test_workspace_mass_assignment_protection(self):
+        """Verify that client cannot overwrite token consumption or spend metrics via API."""
+        self.client.force_authenticate(user=self.admin_user)
+        self.workspace.tokens_consumed_this_month = 50000
+        self.workspace.usd_spent_this_month = 12.50
+        self.workspace.save()
+
+        # Try to zero out billing counters via PATCH
+        res = self.client.patch(f"/api/workspaces/{self.workspace.id}/", {
+            "tokens_consumed_this_month": 0,
+            "usd_spent_this_month": 0.00
+        }, format="json")
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+
+        self.workspace.refresh_from_db()
+        self.assertEqual(self.workspace.tokens_consumed_this_month, 50000)
+        self.assertEqual(float(self.workspace.usd_spent_this_month), 12.50)

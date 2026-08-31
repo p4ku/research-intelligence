@@ -28,7 +28,22 @@ class PaperChatSessionSerializer(serializers.ModelSerializer):
             'created_at',
             'updated_at',
         ]
-        read_only_fields = fields
+        read_only_fields = [
+            'id',
+            'workspace',
+            'paper',
+            'paper_title',
+            'paper_doi',
+            'user',
+            'summary',
+            'messages_count',
+            'total_tokens_in',
+            'total_tokens_out',
+            'total_tokens',
+            'total_usd_cost',
+            'created_at',
+            'updated_at',
+        ]
 
     @extend_schema_field(serializers.IntegerField)
     def get_messages_count(self, obj):

@@ -27,6 +27,9 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
     """
     serializer_class = ResearchAgentProcessSerializer
     permission_classes = [permissions.IsAuthenticated]
+    http_method_names = ['get', 'post', 'delete', 'head', 'options']
+    ordering_fields = ['started_at', 'completed_at', 'name', 'status', 'current_step']
+    ordering = ['-started_at']
 
     def get_queryset(self):
         user = self.request.user

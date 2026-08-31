@@ -44,7 +44,13 @@ class ChangePasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError({"confirm_password": "New passwords do not match."})
         if attrs['old_password'] == attrs['new_password']:
             raise serializers.ValidationError({"new_password": "New password must be different from old password."})
+        user = self.context.get('request').user if self.context.get('request') else None
+        validate_password(attrs['new_password'], user=user)
         return attrs
+
+
+class LogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField(required=True, help_text="Valid SimpleJWT refresh token to invalidate")
 
 
 class LoginSerializer(serializers.Serializer):

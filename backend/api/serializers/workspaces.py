@@ -45,6 +45,10 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             'user_role',
             'created_at'
         ]
+        read_only_fields = [
+            'id', 'tokens_in_consumed_this_month', 'tokens_out_consumed_this_month',
+            'tokens_consumed_this_month', 'usd_spent_this_month', 'created_at'
+        ]
 
     def get_user_role(self, obj):
         request = self.context.get('request')
