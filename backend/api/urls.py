@@ -50,6 +50,7 @@ urlpatterns = [
     path('auth/change-password/', ChangePasswordView.as_view(), name='user-change-password'),
     path('health/', HealthCheckView.as_view(), name='health-check'),
     path('health/diagnostics/', DeepDiagnosticsView.as_view(), name='deep-diagnostics'),
+    path('telemetry/', TelemetryAnalyticsAPIView.as_view(), name='api-telemetry'),
 
     # Interactive Paper Chat & Knowledge Explorer
     path('chat/', ChatSubmitView.as_view(), name='chat-submit'),

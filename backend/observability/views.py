@@ -5,18 +5,25 @@ from rest_framework import status, permissions
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from .metrics import collect_telemetry_snapshot, generate_prometheus_metrics_text
+from .auth import verify_metrics_credentials
 
 
 class PrometheusMetricsView(APIView):
     """
     Prometheus / OpenTelemetry Metrics Exporter Endpoint.
     Exposes platform-wide operational telemetry in standard Prometheus text exposition format (v0.0.4).
-    Targeted by Prometheus scrapers, Datadog agents, and Cloud Monitoring probes.
+    Protected: Requires valid METRICS_EXPORT_KEY, FastMCP APIKey, or authenticated JWT session.
     """
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
 
     def get(self, request, *args, **kwargs):
+        if not verify_metrics_credentials(request):
+            return HttpResponse(
+                "# 401 Unauthorized: Valid metrics scrape token (Bearer / X-Metrics-Key) or APIKey required.\n",
+                status=status.HTTP_401_UNAUTHORIZED,
+                content_type="text/plain; charset=utf-8"
+            )
         metrics_text = generate_prometheus_metrics_text()
         return HttpResponse(
             metrics_text,

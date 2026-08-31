@@ -111,6 +111,10 @@ The Systematic Literature Review (SLR) state engine processes external academic 
 - Intercepts all REST API mutations (`POST`, `PUT`, `PATCH`, `DELETE`) and logs operational metadata.
 - **Recursive Sanitization**: All fields containing `password`, `old_password`, `new_password`, `confirm_password`, `token`, `access`, `refresh`, `api_key`, `secret`, `authorization`, `cookie`, or `client_secret` are masked with `[REDACTED]`.
 
+### 📊 Enterprise Prometheus Metrics & Observability (`/metrics`)
+- **`GET /metrics`**: Exports platform telemetry in standard Prometheus text exposition format (v0.0.4) for monitoring scrapers (Datadog, Prometheus, Grafana).
+- **`GET /api/telemetry/`**: Authenticated JSON API endpoint exposing funnel yields, token burn rates, latency percentiles, and cache bandwidth savings for frontend dashboards.
+
 ### 💰 Workspace Quota Guards
 - Workspaces enforce hard monthly limits on prompt/candidate tokens (`monthly_token_limit`) and USD spend (`monthly_usd_limit`).
 - State engine tasks verify quota availability prior to dispatching LLM calls.
