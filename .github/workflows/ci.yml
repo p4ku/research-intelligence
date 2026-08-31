@@ -41,7 +41,7 @@ jobs:
           SECRET_KEY: 'ci_secret_key_testing_12345'
           GOOGLE_AGENT_API_KEY: 'mock_key_for_testing'
         run: |
-          ./run_tests.sh
+          ./backend/run_tests.sh
 
   docker-cache-build:
     name: Build & Cache Docker Container Layers
