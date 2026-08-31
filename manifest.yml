@@ -4,9 +4,9 @@ applications:
     docker:
       image: ((backend_image))
       username: ((registry_username))
-    instances: 1
+    instances: 2
     memory: 1G
-    disk_quota: 3G
+    disk_quota: 2G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/api
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/mcp
@@ -30,7 +30,7 @@ applications:
       username: ((registry_username))
     instances: 1
     memory: 512M
-    disk_quota: 3G
+    disk_quota: 2G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/sse
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/messages
@@ -40,9 +40,9 @@ applications:
     docker:
       image: ((backend_image))
       username: ((registry_username))
-    instances: 1
-    memory: 1536M
-    disk_quota: 3G
+    instances: 2
+    memory: 1G
+    disk_quota: 2G
     no-route: true
     health-check-type: process
     command: celery -A django_project worker --loglevel=info -Q celery,tenant-default,tenant-bulk-scraping --concurrency=4 --max-tasks-per-child=100
@@ -59,7 +59,7 @@ applications:
       username: ((registry_username))
     instances: 1
     memory: 256M
-    disk_quota: 3G
+    disk_quota: 1G
     no-route: true
     health-check-type: process
     command: celery -A django_project beat --loglevel=info

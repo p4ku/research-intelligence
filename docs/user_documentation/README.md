@@ -34,13 +34,14 @@ SRI automates the entire lifecycle from academic ingestion to custom scorecards 
                                                                                 ▼
  6. CHAT & DEEP DIVE             5. SCORECARD & RESULTS            4. AUTONOMOUS SLR ENGINE
  ┌─────────────────────────┐     ┌─────────────────────────┐       ┌─────────────────────────┐
- │ • Interactive Paper Q&A │ ◄── │ • Parameter Scorecard   │  ◄─── │ • Step 1: Ingestion     │
- │ • Multimodal Evidence   │     │ • Python Signal Ranking │       │ • Step 2: PDF Fetch     │
- │ • Formula Derivations   │     │ • Audit Quotes & Flags  │       │ • Step 3: OCR (Optional)│
- │ • Visual Bounding Boxes │     │ • Executive PDF/Email   │       │ • Step 4: Dual Screening│
- └─────────────────────────┘     └─────────────────────────┘       │ • Step 5: AI Extraction │
-                                                                   │ • Step 6: Signal Score  │
-                                                                   │ • Step 7: Exec Report   │
+ │ • Interactive Paper Q&A │ ◄── │ • Parameter Scorecard   │  ◄─── │ • Search & Ingestion    │
+ │ • Multimodal Evidence   │     │ • Python Signal Ranking │       │ • Abstract Screening    │
+ │ • Formula Derivations   │     │ • Audit Quotes & Flags  │       │ • PDF Fetch & Cache     │
+ │ • Visual Bounding Boxes │     │ • Executive PDF/Email   │       │ • OCR (Optional)        │
+ └─────────────────────────┘     └─────────────────────────┘       │ • Full-Text Screening   │
+                                                                   │ • Parameter Extraction  │
+                                                                   │ • Composite Signal Score│
+                                                                   │ • Executive Reporting   │
                                                                    └─────────────────────────┘
 ```
 

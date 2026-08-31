@@ -4,6 +4,16 @@ venv/
 env/
 ENV/
 
+# Documentation, blueprints & reference PDFs
+docs/
+**/docs/
+*.md
+prototype/
+local_cicd/
+local_cici/
+frontend/
+**/frontend/
+
 # Python cache & bytecode
 __pycache__/
 *.py[cod]

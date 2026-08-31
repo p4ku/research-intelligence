@@ -95,16 +95,16 @@ Navigate to your active process to inspect:
 ![Pipeline Run Execution Details](./images/08b_pipeline_run_detail.png)
 *Figure 4: Detailed Component Run execution hierarchy with timing and logs.*
 
-| Component Step | Status | Key Metrics Displayed |
+| Component Stage | Status | Key Metrics Displayed |
 | :--- | :--- | :--- |
-| **Step 1: Search & Ingestion** | `completed` | 50 papers discovered, 42 unique (8 duplicates pruned) |
-| **Step 2: Abstract Screening** | `completed` | 42 screened: 18 passed criteria, 24 excluded |
-| **Step 3: PDF Download** | `completed` | 18 PDFs successfully downloaded for passed papers (SHA256 cached) |
-| **Step 4: Layout OCR Conversion** | `skipped` | OCR skipped (`ocr_provider=None`) for native multimodal ingest |
-| **Step 5: Full-Text Screening** | `completed` | 18 evaluated: 9 accepted, 9 rejected with AI reasoning |
-| **Step 6: Parameter Extraction** | `completed` | 27 parameters extracted across 9 accepted papers |
-| **Step 7: Composite Signal Score**| `completed` | 9 papers scored (Top: 94.2/100, Avg: 81.5/100) |
-| **Step 8: Executive Reporting** | `completed` | Executive briefing compiled and email digest dispatched |
+| **Search & Ingestion** | `completed` | 50 papers discovered, 42 unique (8 duplicates pruned) |
+| **Abstract Screening** | `completed` | 42 screened: 18 passed criteria, 24 excluded |
+| **PDF Download** | `completed` | 18 PDFs successfully downloaded for passed papers (SHA256 cached) |
+| **Layout OCR Conversion** | `skipped` | OCR skipped (`ocr_provider=None`) for native multimodal ingest |
+| **Full-Text Screening** | `completed` | 18 evaluated: 9 accepted, 9 rejected with AI reasoning |
+| **Parameter Extraction** | `completed` | 27 parameters extracted across 9 accepted papers |
+| **Composite Signal Score**| `completed` | 9 papers scored (Top: 94.2/100, Avg: 81.5/100) |
+| **Executive Reporting** | `completed` | Executive briefing compiled and email digest dispatched |
 
 ---
 

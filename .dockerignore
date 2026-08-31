@@ -4,6 +4,14 @@ venv/
 env/
 ENV/
 
+# Documentation, blueprints & reference PDFs
+docs/
+**/docs/
+*.md
+prototype/
+local_cicd/
+local_cici/
+
 # Large local storage, document caches & test suites
 workspaces/
 cache/

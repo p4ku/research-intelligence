@@ -5,7 +5,13 @@ node_modules
 .env*
 !.env.example
 docs
+**/docs
 *.md
+backend
+**/backend
+local_cicd
+local_cici
+prototype
 .claude
 .codex
 .cursor
