@@ -224,6 +224,11 @@ class AdminChangelistViewsTestCase(TestCase):
         self.assertContains(response, "Superconducting Qubits Scalability")
         self.assertContains(response, "⚡ 5 hits")
         self.assertContains(response, "gemini")
+        self.assertContains(response, "Total Documents")
+        self.assertContains(response, "Total Storage Size")
+        self.assertContains(response, "Cache Reused")
+        self.assertContains(response, "OCR Layout Cached")
+        self.assertContains(response, "512.0 KB")
 
     def test_workspace_changelist_renders(self):
         url = reverse('admin:research_intelligence_workspace_changelist')

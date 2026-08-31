@@ -1,0 +1,83 @@
+{% extends "admin/change_list.html" %}
+{% load i18n humanize %}
+
+{% block content %}
+{% if doc_registry_stats %}
+<div style="margin-bottom: 24px;">
+  <!-- Top KPI Dashboard Banner -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-bottom: 16px;">
+    
+    <!-- Card 1: Total Canonical Documents -->
+    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 8px; padding: 16px 20px; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">📄 Total Documents</span>
+        <span style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600;">Canonical</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 700; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        {{ doc_registry_stats.filtered.total_docs|intcomma }} <span style="font-size: 13px; font-weight: 400; color: #94a3b8;">PDFs</span>
+      </div>
+      {% if doc_registry_stats.is_filtered %}
+      <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+        All-time: {{ doc_registry_stats.all_time.total_docs|intcomma }} indexed documents
+      </div>
+      {% else %}
+      <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+        Deduplicated across all workspaces
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Card 2: Total Storage Binary Size -->
+    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 8px; padding: 16px 20px; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">💾 Total Storage Size</span>
+        <span style="background: rgba(168, 85, 247, 0.2); color: #c084fc; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600;">S3 / Storage</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 700; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        {{ doc_registry_stats.filtered.total_size_formatted }}
+      </div>
+      {% if doc_registry_stats.is_filtered %}
+      <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+        All-time: {{ doc_registry_stats.all_time.total_size_formatted }} ({{ doc_registry_stats.all_time.total_size_bytes|intcomma }} B)
+      </div>
+      {% else %}
+      <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+        {{ doc_registry_stats.filtered.total_size_bytes|intcomma }} raw bytes
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Card 3: Cache Reused Documents (> 1 hit) -->
+    <div style="background: linear-gradient(135deg, #0f2b48 0%, #091e32 100%); border-radius: 8px; padding: 16px 20px; border: 1px solid #0284c7; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #bae6fd; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">⚡ Cache Reused (Hits &gt; 1)</span>
+        <span style="background: rgba(14, 165, 233, 0.3); color: #38bdf8; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 700;">Dedup Hits</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 700; color: #38bdf8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        {{ doc_registry_stats.filtered.reused_docs|intcomma }} <span style="font-size: 13px; font-weight: 400; color: #bae6fd;">reused ({{ doc_registry_stats.filtered.reused_pct }}%)</span>
+      </div>
+      <div style="font-size: 11px; color: #7dd3fc; margin-top: 4px;">
+        {{ doc_registry_stats.filtered.total_access_count|intcomma }} total hits (<strong>{{ doc_registry_stats.filtered.saved_downloads|intcomma }}</strong> downloads saved)
+      </div>
+    </div>
+
+    <!-- Card 4: OCR & Markdown Layout Cache -->
+    <div style="background: linear-gradient(135deg, #064e3b 0%, #022c22 100%); border-radius: 8px; padding: 16px 20px; border: 1px solid #059669; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #a7f3d0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">🔍 OCR Layout Cached</span>
+        <span style="background: rgba(16, 185, 129, 0.3); color: #34d399; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 700;">Markdown</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 800; color: #34d399; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        {{ doc_registry_stats.filtered.ocr_docs|intcomma }} <span style="font-size: 13px; font-weight: 500; color: #a7f3d0;">layouts ({{ doc_registry_stats.filtered.ocr_pct }}%)</span>
+      </div>
+      <div style="font-size: 11px; color: #6ee7b7; margin-top: 4px;">
+        Structured Markdown ready for screening &amp; extraction
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endif %}
+
+{{ block.super }}
+{% endblock %}

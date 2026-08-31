@@ -2492,28 +2492,132 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
 class DocumentRegistryAdmin(admin.ModelAdmin):
     list_display = (
         'title_snippet',
-        'doi',
-        'arxiv_id',
-        'primary_source',
+        'doi_display',
+        'arxiv_id_display',
+        'primary_source_badge',
         'file_size_formatted',
         'ocr_status_badge',
         'access_count_badge',
-        'last_accessed_at',
+        'last_accessed_at_display',
     )
     search_fields = ('title', 'doi', 'arxiv_id', 'sha256_hash', 'canonical_pdf_path')
     list_filter = ('primary_source', 'ocr_provider', 'first_ingested_at', 'last_accessed_at')
     readonly_fields = ('id', 'sha256_hash', 'first_ingested_at', 'last_accessed_at', 'access_count')
 
+    def changelist_view(self, request, extra_context=None):
+        from django.db.models import Sum, Count, Q
+        extra_context = extra_context or {}
+
+        cl = self.get_changelist_instance(request)
+        queryset = cl.get_queryset(request)
+
+        # 1. Aggregation for filtered view (single fast SQL query)
+        filtered_stats = queryset.aggregate(
+            total_docs=Count('id'),
+            total_size_bytes=Sum('pdf_file_size_bytes'),
+            total_access_count=Sum('access_count'),
+            reused_docs=Count('id', filter=Q(access_count__gt=1)),
+            ocr_docs=Count('id', filter=~Q(canonical_ocr_md_path__exact='') & Q(canonical_ocr_md_path__isnull=False)),
+        )
+
+        # 2. All-time global totals (single fast SQL query)
+        all_time_stats = DocumentRegistry.objects.aggregate(
+            total_docs=Count('id'),
+            total_size_bytes=Sum('pdf_file_size_bytes'),
+            total_access_count=Sum('access_count'),
+            reused_docs=Count('id', filter=Q(access_count__gt=1)),
+            ocr_docs=Count('id', filter=~Q(canonical_ocr_md_path__exact='') & Q(canonical_ocr_md_path__isnull=False)),
+        )
+
+        def _fmt_size(num_bytes: int) -> str:
+            if not num_bytes or num_bytes <= 0:
+                return "0 B"
+            nb = float(num_bytes)
+            for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+                if abs(nb) < 1024.0:
+                    return f"{nb:.2f} {unit}" if unit in ['MB', 'GB', 'TB'] else f"{nb:.1f} {unit}" if unit == 'KB' else f"{int(nb)} B"
+                nb /= 1024.0
+            return f"{nb:.2f} PB"
+
+        f_total = filtered_stats['total_docs'] or 0
+        a_total = all_time_stats['total_docs'] or 0
+        f_reused = filtered_stats['reused_docs'] or 0
+        a_reused = all_time_stats['reused_docs'] or 0
+        f_ocr = filtered_stats['ocr_docs'] or 0
+        a_ocr = all_time_stats['ocr_docs'] or 0
+        f_hits = filtered_stats['total_access_count'] or 0
+        a_hits = all_time_stats['total_access_count'] or 0
+
+        f_size = filtered_stats['total_size_bytes'] or 0
+        a_size = all_time_stats['total_size_bytes'] or 0
+
+        extra_context['doc_registry_stats'] = {
+            'filtered': {
+                'total_docs': f_total,
+                'total_size_bytes': f_size,
+                'total_size_formatted': _fmt_size(f_size),
+                'total_access_count': f_hits,
+                'reused_docs': f_reused,
+                'reused_pct': round((f_reused / f_total * 100.0), 1) if f_total > 0 else 0.0,
+                'saved_downloads': max(0, f_hits - f_total),
+                'ocr_docs': f_ocr,
+                'ocr_pct': round((f_ocr / f_total * 100.0), 1) if f_total > 0 else 0.0,
+            },
+            'all_time': {
+                'total_docs': a_total,
+                'total_size_bytes': a_size,
+                'total_size_formatted': _fmt_size(a_size),
+                'total_access_count': a_hits,
+                'reused_docs': a_reused,
+                'reused_pct': round((a_reused / a_total * 100.0), 1) if a_total > 0 else 0.0,
+                'saved_downloads': max(0, a_hits - a_total),
+                'ocr_docs': a_ocr,
+                'ocr_pct': round((a_ocr / a_total * 100.0), 1) if a_total > 0 else 0.0,
+            },
+            'is_filtered': (f_total != a_total)
+        }
+
+        return super().changelist_view(request, extra_context=extra_context)
+
     def title_snippet(self, obj):
         return obj.title[:60] + "..." if len(obj.title) > 60 else obj.title
     title_snippet.short_description = "Title"
 
+    def doi_display(self, obj):
+        if not obj.doi:
+            return format_html('<span style="color: #adb5bd;">-</span>')
+        return format_html('<span style="font-family: monospace; font-size: 11px; white-space: nowrap;">{}</span>', obj.doi)
+    doi_display.short_description = "DOI"
+    doi_display.admin_order_field = "doi"
+
+    def arxiv_id_display(self, obj):
+        if not obj.arxiv_id:
+            return format_html('<span style="color: #adb5bd;">-</span>')
+        return format_html('<span style="font-family: monospace; font-size: 11px; white-space: nowrap; color: #b31b1b; font-weight: 500;">arXiv:{}</span>', obj.arxiv_id)
+    arxiv_id_display.short_description = "arXiv ID"
+    arxiv_id_display.admin_order_field = "arxiv_id"
+
+    def primary_source_badge(self, obj):
+        color_map = {
+            'arxiv': '#b31b1b',
+            'openalex': '#0d6efd',
+            'lens': '#6f42c1',
+            'pubmed': '#198754',
+        }
+        color = color_map.get((obj.primary_source or '').lower(), '#6c757d')
+        return render_badge((obj.primary_source or 'source').upper(), color)
+    primary_source_badge.short_description = "Source"
+    primary_source_badge.admin_order_field = "primary_source"
+
     def file_size_formatted(self, obj):
-        kb = obj.pdf_file_size_bytes / 1024
-        if kb > 1024:
-            return f"{kb / 1024:.2f} MB"
-        return f"{kb:.1f} KB"
+        kb = obj.pdf_file_size_bytes / 1024.0
+        if kb > 1024.0:
+            formatted = f"{kb / 1024.0:.2f} MB"
+        else:
+            formatted = f"{kb:.1f} KB"
+        return format_html('<span style="white-space: nowrap; font-family: monospace;">{}</span>', formatted)
     file_size_formatted.short_description = "PDF Size"
+    file_size_formatted.admin_order_field = "pdf_file_size_bytes"
 
     def ocr_status_badge(self, obj):
         if obj.canonical_ocr_md_path:
@@ -2526,6 +2630,13 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
         return render_badge(f"⚡ {obj.access_count} hits", color)
     access_count_badge.short_description = "Reused"
     access_count_badge.admin_order_field = "access_count"
+
+    def last_accessed_at_display(self, obj):
+        if not obj.last_accessed_at:
+            return "-"
+        return format_html('<span style="white-space: nowrap; font-size: 11px;">{}</span>', obj.last_accessed_at.strftime("%Y-%m-%d %H:%M"))
+    last_accessed_at_display.short_description = "Last Accessed"
+    last_accessed_at_display.admin_order_field = "last_accessed_at"
 
 
 # Customize Admin Portal Branding Header & Titles
