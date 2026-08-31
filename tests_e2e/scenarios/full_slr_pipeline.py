@@ -347,17 +347,20 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         )
         scenario_results["scraper_id"] = scraper_data["id"]
 
-        # Step 4: Define Dynamic Extraction Targets (Standalone endpoint fallback)
+        # Step 4: Define Dynamic Extraction Targets (Standalone endpoint fallback if not already provisioned)
+        existing_defs = ws_svc.list_extraction_definitions(workspace_id=workspace_id)
+        existing_names = {d.get("name") for d in existing_defs}
         for ed_payload in extraction_definitions_payload:
-            ws_svc.create_extraction_definition(
-                workspace_id=workspace_id,
-                name=ed_payload["name"],
-                exit_metric=ed_payload["exit_metric"],
-                system_prompt=ed_payload["system_prompt"],
-                user_prompt_template=ed_payload["user_prompt_template"],
-                response_schema=ed_payload["response_schema"],
-                llm_model=ed_payload["llm_model"],
-            )
+            if ed_payload["name"] not in existing_names:
+                ws_svc.create_extraction_definition(
+                    workspace_id=workspace_id,
+                    name=ed_payload["name"],
+                    exit_metric=ed_payload["exit_metric"],
+                    system_prompt=ed_payload["system_prompt"],
+                    user_prompt_template=ed_payload["user_prompt_template"],
+                    response_schema=ed_payload["response_schema"],
+                    llm_model=ed_payload["llm_model"],
+                )
 
         # Step 5: Launch Autonomous Research Agent
         agent_proc = agent_svc.start_research_agent(

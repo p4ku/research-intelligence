@@ -13,6 +13,62 @@ class WorkspaceService:
     def __init__(self, client: APIClient):
         self.client = client
 
+    @staticmethod
+    def get_default_e2e_extraction_definitions(prefix: str = "test_e2e_") -> List[Dict[str, Any]]:
+        """
+        Returns standard extraction target definitions for E2E scenarios.
+        """
+        return [
+            {
+                "name": f"{prefix}fit_score",
+                "exit_metric": "fit_score",
+                "llm_model": "google/gemini-3.7-flash",
+                "system_prompt": "Evaluate strategic fit for enterprise research from 0.0 to 100.0.",
+                "user_prompt_template": "Paper Title: {title}\nAbstract/Content:\n{content}\nEvaluate strategic fit (0-100).",
+                "response_schema": {
+                    "type": "object",
+                    "required": ["fit_score", "justification"],
+                    "properties": {
+                        "fit_score": {"type": "integer", "minimum": 0, "maximum": 100},
+                        "justification": {"type": "string"},
+                    }
+                },
+                "is_active": True,
+            },
+            {
+                "name": f"{prefix}novelty_score",
+                "exit_metric": "novelty_score",
+                "llm_model": "google/gemini-3.7-flash",
+                "system_prompt": "Evaluate scientific novelty and originality from 0.0 to 100.0.",
+                "user_prompt_template": "Paper Title: {title}\nAbstract/Content:\n{content}\nEvaluate novelty score (0-100).",
+                "response_schema": {
+                    "type": "object",
+                    "required": ["novelty_score", "justification"],
+                    "properties": {
+                        "novelty_score": {"type": "integer", "minimum": 0, "maximum": 100},
+                        "justification": {"type": "string"},
+                    }
+                },
+                "is_active": True,
+            },
+            {
+                "name": f"{prefix}trl_level",
+                "exit_metric": "trl_level",
+                "llm_model": "google/gemini-3.7-flash",
+                "system_prompt": "Evaluate Technology Readiness Level from 1 to 9.",
+                "user_prompt_template": "Paper Title: {title}\nAbstract/Content:\n{content}\nEvaluate TRL level (1-9).",
+                "response_schema": {
+                    "type": "object",
+                    "required": ["trl_level", "justification"],
+                    "properties": {
+                        "trl_level": {"type": "integer", "minimum": 1, "maximum": 9},
+                        "justification": {"type": "string"},
+                    }
+                },
+                "is_active": True,
+            },
+        ]
+
     def create_workspace(
         self,
         name: str,
@@ -57,6 +113,8 @@ class WorkspaceService:
             "reasoning_effort": reasoning_effort,
             "skip_abstract_screening": skip_abstract_screening,
         }
+        if extraction_definitions is None:
+            extraction_definitions = self.get_default_e2e_extraction_definitions(prefix=f"{name}_")
         if extraction_definitions:
             payload["extraction_definitions"] = extraction_definitions
         if scrapers:
