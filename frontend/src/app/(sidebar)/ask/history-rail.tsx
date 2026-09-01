@@ -69,7 +69,11 @@ function HistoryRow({
             <span className="truncate">{t('All papers')}</span>
           )}
           <span aria-hidden="true">·</span>
-          <span className="shrink-0">{fmt(t('{n} turns'), { n: session.turns_count })}</span>
+          <span className="shrink-0">
+            {session.turns_count === 1
+              ? t('1 question')
+              : fmt(t('{n} questions'), { n: session.turns_count })}
+          </span>
         </span>
       </button>
       <button
@@ -164,7 +168,7 @@ export function HistoryRail({
       <div className="flex items-center gap-2 px-3">
         <SectionLabel className="!text-[11px]">{t('History')}</SectionLabel>
         <span className="text-muted-foreground ml-auto font-mono text-[11px] tabular-nums">
-          {fmt(t('{n} asked'), { n: threads.length })}
+          {threads.length === 1 ? t('1 question') : fmt(t('{n} questions'), { n: threads.length })}
         </span>
         <button
           type="button"

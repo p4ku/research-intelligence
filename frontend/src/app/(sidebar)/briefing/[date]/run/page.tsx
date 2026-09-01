@@ -19,13 +19,15 @@ export async function generateMetadata(): Promise<Metadata> {
 // means something because the exclusions are inspectable.
 
 export default async function ScreeningLogPage({ params }: { params: Promise<{ date: string }> }) {
-  const [{ date }, ws] = await Promise.all([params, getCurrentWorkspace()])
+  const [{ date }, ws, t, lang] = await Promise.all([
+    params,
+    getCurrentWorkspace(),
+    getT(),
+    getLang(),
+  ])
   if (!ws) notFound()
-  const edition = await forPage(briefings.getByDate(ws.id, date))
+  const edition = await forPage(briefings.getByDate(ws.id, date, lang))
   if (!edition) notFound()
-
-  const t = await getT()
-  const lang = await getLang()
 
   const funnel = [
     { value: edition.funnel.fetched, label: t('Screened'), sub: t('matched the focus fields') },
@@ -46,6 +48,7 @@ export default async function ScreeningLogPage({ params }: { params: Promise<{ d
             { label: formatEditionDate(edition.date, lang), href: `/briefing/${edition.date}` },
             { label: t('Screening log') },
           ]}
+          t={t}
         />
         <h1 className="text-[26px]/8 font-semibold tracking-tight text-zinc-950 dark:text-white">
           {t('Screening log')}

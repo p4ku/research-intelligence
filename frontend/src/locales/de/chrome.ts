@@ -6,6 +6,7 @@ export const dict: Record<string, string> = {
   'nav|Today': 'Heute',
   'nav|Briefings': 'Briefings',
   'nav|Papers': 'Papers',
+  'nav|Tuning': 'Tuning',
   'nav|Ask': 'Fragen',
   'My account': 'Mein Konto',
   Settings: 'Einstellungen',
@@ -27,6 +28,10 @@ export const dict: Record<string, string> = {
   // Route error boundaries (src/components/route-error.tsx + per-segment error.tsx).
   'Something went wrong loading this page.': 'Beim Laden dieser Seite ist ein Fehler aufgetreten.',
   Retry: 'Erneut versuchen',
+  // Accessibility labels on the shell (mobile nav drawer, breadcrumb trail).
+  'Open navigation': 'Navigation öffnen',
+  'Close navigation': 'Navigation schließen',
+  Breadcrumb: 'Pfadnavigation',
   'Retrying…': 'Wird erneut versucht …',
   'Reference {id}': 'Referenz {id}',
   "Couldn't load this page.": 'Diese Seite konnte nicht geladen werden.',

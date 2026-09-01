@@ -2,6 +2,7 @@
 
 import * as Headless from '@headlessui/react'
 import React, { useState } from 'react'
+import { useT } from '@/lib/i18n-client'
 import { NavbarItem } from './app-navbar'
 
 function OpenMenuIcon() {
@@ -25,6 +26,7 @@ function MobileSidebar({
   close,
   children,
 }: React.PropsWithChildren<{ open: boolean; close: () => void }>) {
+  const t = useT()
   return (
     <Headless.Dialog open={open} onClose={close} className="lg:hidden">
       <Headless.DialogBackdrop
@@ -37,7 +39,7 @@ function MobileSidebar({
       >
         <div className="bg-surface ring-line flex h-full flex-col rounded-lg shadow-xs ring-1">
           <div className="-mb-3 px-4 pt-3">
-            <Headless.CloseButton as={NavbarItem} aria-label="Close navigation">
+            <Headless.CloseButton as={NavbarItem} aria-label={t('Close navigation')}>
               <CloseMenuIcon />
             </Headless.CloseButton>
           </div>
@@ -54,6 +56,7 @@ export function SidebarLayout({
   children,
 }: React.PropsWithChildren<{ navbar: React.ReactNode; sidebar: React.ReactNode }>) {
   let [showSidebar, setShowSidebar] = useState(false)
+  const t = useT()
 
   return (
     <div className="bg-surface lg:bg-background relative isolate flex min-h-svh w-full max-lg:flex-col">
@@ -68,7 +71,7 @@ export function SidebarLayout({
       {/* Navbar on mobile */}
       <header className="flex items-center px-4 lg:hidden">
         <div className="py-2.5">
-          <NavbarItem onClick={() => setShowSidebar(true)} aria-label="Open navigation">
+          <NavbarItem onClick={() => setShowSidebar(true)} aria-label={t('Open navigation')}>
             <OpenMenuIcon />
           </NavbarItem>
         </div>

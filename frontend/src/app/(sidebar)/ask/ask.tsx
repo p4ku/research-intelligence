@@ -3,28 +3,72 @@
 import type { ChatSession, ChatSessionDetail } from '@/lib/bff/chat/schema'
 import { bffFetch } from '@/lib/bff/client'
 import type { Page } from '@/lib/bff/core/pagination'
-import { useChatStream } from '@/lib/chat/use-chat-stream'
+import { useChatStream, type ChatStreamState } from '@/lib/chat/use-chat-stream'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
-import { MagnifyingGlassIcon, PaperAirplaneIcon } from '@heroicons/react/16/solid'
+import {
+  ArrowDownIcon,
+  ChevronUpDownIcon,
+  PaperAirplaneIcon,
+  StopIcon,
+  XMarkIcon,
+} from '@heroicons/react/16/solid'
 import clsx from 'clsx'
-import { motion, useReducedMotion } from 'motion/react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { HistoryList, HistoryRail } from './history-rail'
-import { PaperPalette } from './paper-palette'
-import { AskedHeading, LiveAnswer, SettledAnswer } from './scanner-turn'
-import { ScopeToggle } from './scope-toggle'
+import { MiniScore, PaperPicker, pickable, scoreColor } from './paper-picker'
+import { AskedHeading, FollowUps, LiveAnswer, SettledAnswer } from './scanner-turn'
 import {
   shortTitle,
   timeOf,
   type AnswerTurn,
   type AskScope,
   type PaletteEntry,
+  type QuestionTurn,
   type Turn,
 } from './types'
+import { useTranscriptScroll } from './use-transcript-scroll'
 
 const nowTime = () => timeOf(new Date().toISOString())
+const EASE_OUT = [0.23, 1, 0.32, 1] as const
+const EASE_IN_OUT = [0.77, 0, 0.175, 1] as const
+const FIELD_MAX_PX = 176
+const RAISED =
+  'shadow-[0_1px_2px_rgba(19,19,17,0.05),0_5px_14px_-4px_rgba(19,19,17,0.10)] dark:shadow-none'
 
+/** The transcript as question/answer pairs, with target changes between. */
+type Group =
+  | { kind: 'target'; key: number; scope: AskScope }
+  | { kind: 'qa'; key: number; question: QuestionTurn; answer: AnswerTurn | null }
+
+function groupTurns(turns: Turn[]): Group[] {
+  const groups: Group[] = []
+  turns.forEach((turn, i) => {
+    if (turn.kind === 'target') groups.push({ kind: 'target', key: i, scope: turn.scope })
+    else if (turn.kind === 'question')
+      groups.push({ kind: 'qa', key: i, question: turn, answer: null })
+    else {
+      const last = groups[groups.length - 1]
+      if (last?.kind === 'qa' && !last.answer) last.answer = turn
+    }
+  })
+  return groups
+}
+
+function autogrow(el: HTMLTextAreaElement) {
+  el.style.height = 'auto'
+  el.style.height = `${Math.min(el.scrollHeight, FIELD_MAX_PX)}px`
+}
+
+/**
+ * The Ask console. Conversations are scoped to one paper: until a paper is
+ * chosen the composer is the picker; once chosen, the paper rides in the
+ * composer as a chip and questions go to its full text. The composer starts
+ * in the upper third of the empty console and docks at the bottom on the
+ * first question; the transcript above it anchors each new question to the
+ * top and follows the streamed answer.
+ */
 export function Ask({
   workspaceId,
   entries,
@@ -39,47 +83,72 @@ export function Ask({
   initialSessionId?: string
 }) {
   const t = useT()
+  const reduceMotion = useReducedMotion() ?? false
   const initialTarget = initialPaperId
     ? (entries.find((e) => e.id === initialPaperId) ?? null)
     : null
 
-  // The target: what the next question is asked of. null = the whole corpus.
   const [target, setTarget] = useState<PaletteEntry | null>(initialTarget)
   const [turns, setTurns] = useState<Turn[]>([])
   const [sessions, setSessions] = useState<ChatSession[]>(initialSessions)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [input, setInput] = useState('')
-  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [pickQuery, setPickQuery] = useState('')
+  const [cursor, setCursor] = useState(0)
   const [openingId, setOpeningId] = useState<string | null>(null)
+  // Bumps per question so the anchor effect fires even for a repeated question.
+  const [askSeq, setAskSeq] = useState(0)
 
   // The question the in-flight answer belongs to; null once settled. The ref
-  // mirrors it for the stream's finish callback.
+  // mirrors it for callbacks that run outside render.
   const [liveQuestion, setLiveQuestionState] = useState<string | null>(null)
   const liveQuestionRef = useRef<string | null>(null)
   const setLiveQuestion = (q: string | null) => {
     liveQuestionRef.current = q
     setLiveQuestionState(q)
   }
+  // The paper the current conversation is bound to (sessions are one-scope).
+  const scopeRef = useRef<string | null>(initialTarget?.id ?? null)
 
-  const reduceMotion = useReducedMotion()
-  const inputRef = useRef<HTMLInputElement>(null)
-  const endRef = useRef<HTMLDivElement>(null)
-  const mounted = useRef(false)
+  const fieldRef = useRef<HTMLTextAreaElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const dockRef = useRef<HTMLDivElement>(null)
+  const listRef = useRef<HTMLDivElement>(null)
 
+  const busy = liveQuestion !== null
+  const mode: 'pick' | 'ask' = target ? 'ask' : 'pick'
+  const hasConversation = turns.length > 0
+  const groups = groupTurns(turns)
+
+  const {
+    ref: transcriptRef,
+    jump,
+    onScroll,
+    anchorTurn,
+    follow,
+    jumpToLatest,
+    setBusy,
+  } = useTranscriptScroll(reduceMotion)
+  useEffect(() => setBusy(busy), [busy, setBusy])
+
+  // The jump button sits just above the dock, whatever height the field has.
   useEffect(() => {
-    if (!mounted.current) {
-      mounted.current = true
-      return
-    }
-    if (turns.length === 0) return
-    endRef.current?.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'end' })
-  }, [turns.length, reduceMotion])
-
-  // Instant scroll used while an answer streams — smooth scrolling stutters
-  // when retriggered every few frames.
-  const scrollToEnd = useCallback(() => {
-    endRef.current?.scrollIntoView({ behavior: 'auto', block: 'end' })
+    const dock = dockRef.current
+    const body = bodyRef.current
+    if (!dock || !body) return
+    const measure = () => body.style.setProperty('--dock-h', `${dock.offsetHeight}px`)
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(dock)
+    return () => ro.disconnect()
   }, [])
+
+  // The field shrinks back when its value is cleared from code.
+  useEffect(() => {
+    if (fieldRef.current) autogrow(fieldRef.current)
+  }, [input, pickQuery, mode])
+
+  const focusField = () => fieldRef.current?.focus()
 
   const refreshSessions = useCallback(async () => {
     try {
@@ -92,32 +161,77 @@ export function Ask({
     }
   }, [workspaceId])
 
-  // Settle the finished stream into the transcript. Runs from the stream
-  // loop (not a render effect); ignored when the conversation was cleared
-  // mid-flight.
+  /* ------------------------------ Settling ------------------------------ */
+
+  // A stream settles into the transcript once two things are true: the
+  // stream has finished (finalRef) and the reveal has shown every word
+  // (revealedRef). Either can come first.
+  const finalRef = useRef<ChatStreamState | null>(null)
+  const revealedRef = useRef(false)
+  const stoppedRef = useRef(false)
+
+  const commit = useCallback(
+    (final: ChatStreamState) => {
+      if (liveQuestionRef.current === null) return
+      const answer: AnswerTurn = {
+        kind: 'answer',
+        text: final.text,
+        citations: final.citations,
+        visualCitations: final.visualCitations,
+        factCheck: final.factCheck,
+        usage: final.usage,
+        error:
+          final.status === 'error'
+            ? (final.error?.detail ?? final.error?.title ?? t('The answer failed.'))
+            : null,
+        arrived: true,
+        stopped: stoppedRef.current,
+      }
+      stoppedRef.current = false
+      setTurns((prev) => [...prev, answer])
+      setLiveQuestion(null)
+      if (final.sessionId) setActiveSessionId(final.sessionId)
+      void refreshSessions()
+      focusField()
+    },
+    [refreshSessions, t],
+  )
+
+  const trySettle = useCallback(() => {
+    const final = finalRef.current
+    if (!final || !revealedRef.current || liveQuestionRef.current === null) return
+    finalRef.current = null
+    revealedRef.current = false
+    // Let the last words finish unveiling before the tail arrives.
+    const delay = reduceMotion || final.status === 'error' ? 0 : 600
+    window.setTimeout(() => commit(final), delay)
+  }, [commit, reduceMotion])
+
   const {
     state: live,
     send,
+    abort,
     reset,
   } = useChatStream((final) => {
     if (liveQuestionRef.current === null) return
-    const answer: AnswerTurn = {
-      kind: 'answer',
-      text: final.text,
-      citations: final.citations,
-      visualCitations: final.visualCitations,
-      factCheck: final.factCheck,
-      usage: final.usage,
-      error:
-        final.status === 'error'
-          ? (final.error?.detail ?? final.error?.title ?? t('The answer failed.'))
-          : null,
-    }
-    setTurns((prev) => [...prev, answer])
-    setLiveQuestion(null)
-    if (final.sessionId) setActiveSessionId(final.sessionId)
-    void refreshSessions()
+    finalRef.current = final
+    trySettle()
   })
+
+  const onRevealed = useCallback(() => {
+    revealedRef.current = true
+    trySettle()
+  }, [trySettle])
+
+  const clearInFlight = () => {
+    finalRef.current = null
+    revealedRef.current = false
+    stoppedRef.current = false
+    setLiveQuestion(null)
+    reset()
+  }
+
+  /* ------------------------------ Sessions ------------------------------ */
 
   async function openThread(session: ChatSession) {
     if (session.id === activeSessionId || openingId) return
@@ -137,13 +251,16 @@ export function Ask({
           error: turn.status === 'failed' ? (turn.error ?? t('The answer failed.')) : null,
         },
       ])
+      clearInFlight()
       setActiveSessionId(detail.id)
       setTurns(loaded)
-      setTarget(detail.paper_id ? (entries.find((e) => e.id === detail.paper_id) ?? null) : null)
-      setLiveQuestion(null)
-      reset()
+      const paper = detail.paper_id ? (entries.find((e) => e.id === detail.paper_id) ?? null) : null
+      setTarget(paper)
+      scopeRef.current = detail.paper_id
       setInput('')
-      window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' })
+      setPickQuery('')
+      setCursor(0)
+      transcriptRef.current?.scrollTo({ top: 0 })
     } catch {
       // Leave the console as it was.
     } finally {
@@ -162,12 +279,15 @@ export function Ask({
   }, [initialSessionId, sessions])
 
   function newThread() {
+    clearInFlight()
     setActiveSessionId(null)
     setTurns([])
     setTarget(null)
-    setLiveQuestion(null)
-    reset()
+    scopeRef.current = null
     setInput('')
+    setPickQuery('')
+    setCursor(0)
+    focusField()
   }
 
   async function deleteThread(session: ChatSession) {
@@ -180,226 +300,405 @@ export function Ask({
     }
   }
 
-  function switchTarget(entry: PaletteEntry | null) {
-    if ((entry?.id ?? null) === (target?.id ?? null)) {
-      inputRef.current?.focus()
-      return
-    }
+  /* ------------------------------- Target ------------------------------- */
+
+  function pick(entry: PaletteEntry) {
     setTarget(entry)
-    // A target switch starts a fresh session on the next question (sessions
-    // are bound to one scope) — mid-conversation it leaves one quiet line.
-    setActiveSessionId(null)
-    if (turns.length > 0) {
+    setPickQuery('')
+    setCursor(0)
+    // A different paper mid-conversation starts a fresh session on the next
+    // question, leaving one quiet line in the transcript.
+    if (turns.length > 0 && scopeRef.current !== entry.id) {
+      setActiveSessionId(null)
       setTurns((prev) => [
         ...prev,
-        { kind: 'target', scope: { paper_id: entry?.id ?? null, title: entry?.title ?? null } },
+        { kind: 'target', scope: { paper_id: entry.id, title: entry.title } },
       ])
     }
-    inputRef.current?.focus()
+    focusField()
   }
 
+  function unpick() {
+    if (busy) return
+    setTarget(null)
+    setPickQuery('')
+    setCursor(0)
+    focusField()
+  }
+
+  /* ------------------------------- Asking ------------------------------- */
+
   function ask(q: string) {
-    if (liveQuestion !== null) return // one question at a time
-    const scope: AskScope = { paper_id: target?.id ?? null, title: target?.title ?? null }
+    if (busy || !target) return
+    const scope: AskScope = { paper_id: target.id, title: target.title }
+    scopeRef.current = target.id
     setTurns((prev) => [...prev, { kind: 'question', text: q, askedAt: nowTime(), scope }])
     setLiveQuestion(q)
+    setAskSeq((n) => n + 1)
     setInput('')
     void send({
       question: q,
-      paper_id: target?.id,
-      workspace_id: target ? undefined : workspaceId,
+      paper_id: target.id,
       session_id: activeSessionId ?? undefined,
       deep_thinking: false,
     })
   }
 
-  const hasConversation = turns.length > 0 || liveQuestion !== null
+  // A new question rises to the top of the transcript.
+  useLayoutEffect(() => {
+    if (askSeq === 0) return
+    const el = listRef.current?.querySelector<HTMLElement>('article[data-live]')
+    if (el) anchorTurn(el)
+  }, [askSeq, anchorTurn])
+
+  function stop() {
+    if (!busy) return
+    stoppedRef.current = true
+    const connecting = live.status === 'connecting'
+    abort()
+    // Before the first byte the hook has nothing to settle; file the empty turn ourselves.
+    if (connecting) {
+      revealedRef.current = true
+      finalRef.current = { ...live, status: 'done' }
+      trySettle()
+    }
+  }
+
+  function submit() {
+    if (mode === 'pick') {
+      focusField()
+      return
+    }
+    const q = input.trim()
+    if (!q || busy) return
+    ask(q)
+  }
+
+  function onFieldChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
+    const value = e.target.value
+    autogrow(e.target)
+    if (mode === 'pick') {
+      setPickQuery(value)
+      setCursor(0)
+      return
+    }
+    // @ on its own is the way back to the picker.
+    if (value.trim() === '@') {
+      setInput('')
+      unpick()
+      return
+    }
+    setInput(value)
+  }
+
+  function onFieldKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
+    if (mode === 'pick') {
+      const rows = pickable(entries, pickQuery)
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setCursor((c) => Math.min(c + 1, rows.length - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setCursor((c) => Math.max(c - 1, 0))
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        const row = rows[cursor]
+        if (row) pick(row)
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        setPickQuery('')
+        setCursor(0)
+      }
+      return
+    }
+    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+      e.preventDefault()
+      submit()
+    }
+  }
+
+  const lastGroup = groups[groups.length - 1]
+  const sendLive = busy || (mode === 'ask' && input.trim() !== '')
 
   return (
-    <>
-      <div className="grid items-start gap-6 lg:grid-cols-3">
-        {/* Console: the ask field sits at the top; the conversation follows below it. */}
-        <section
-          aria-label={t('Ask console')}
-          className="border-line bg-surface isolate flex min-w-0 flex-col rounded-sm border shadow-xs lg:col-span-2"
-        >
-          <div className="border-line-soft flex items-center gap-3 border-b px-4 py-2.5">
-            <span className="text-foreground font-mono text-[11px] font-medium tracking-[0.18em] uppercase">
-              Ask
-            </span>
-            {/* Scope lives in the header strip — set the aim before typing. */}
-            <div className="ml-auto min-w-0">
-              <ScopeToggle
-                target={target}
-                onPick={() => setPaletteOpen(true)}
-                onCorpus={() => switchTarget(null)}
-              />
-            </div>
-          </div>
-
-          <div className="p-4 sm:p-6">
-            <Composer
-              target={target}
-              value={input}
-              onChange={setInput}
-              onSubmit={ask}
-              inputRef={inputRef}
-              busy={liveQuestion !== null}
-            />
-
-            {hasConversation && (
-              <div className="mt-8 space-y-5">
-                {turns.map((turn, i) => (
-                  <motion.div
-                    key={i}
-                    initial={false}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={clsx(turn.kind === 'question' && i > 0 && 'pt-2')}
-                  >
-                    {turn.kind === 'target' ? (
-                      <TargetLine scope={turn.scope} />
-                    ) : turn.kind === 'question' ? (
-                      <AskedHeading turn={turn} divider={i > 0} />
-                    ) : (
-                      <SettledAnswer
-                        turn={turn}
-                        anchor={`vc-${i}`}
-                        onDigIn={(id) => switchTarget(entries.find((e) => e.id === id) ?? null)}
-                      />
-                    )}
-                  </motion.div>
-                ))}
-                {liveQuestion !== null && (
-                  <LiveAnswer
-                    state={live}
-                    scopeTitle={target ? shortTitle(target.title) : null}
-                    corpusCount={entries.length}
-                    onGrow={scrollToEnd}
-                  />
-                )}
-                <div ref={endRef} aria-hidden="true" className="scroll-mb-6" />
-              </div>
+    <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(17rem,1fr)] lg:grid-rows-1">
+      {/* Console: transcript above, the composer docked below. */}
+      <section
+        aria-label={t('Ask console')}
+        className={clsx(
+          'border-line-strong bg-surface relative isolate flex min-h-0 min-w-0 flex-col rounded-sm border',
+          RAISED,
+        )}
+      >
+        <div className="border-line-soft flex shrink-0 items-center gap-3 border-b px-4 py-2.5">
+          <span className="text-foreground font-mono text-[11px] font-medium tracking-[0.18em] uppercase">
+            {t('Ask', 'console')}
+          </span>
+          <div className="ml-auto flex min-w-0 items-center">
+            {target ? (
+              <button
+                type="button"
+                onClick={unpick}
+                disabled={busy}
+                title={t('Change paper')}
+                className="hover:bg-foreground/5 flex max-w-80 min-w-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-left transition-colors duration-150 ease-out disabled:cursor-default disabled:hover:bg-transparent"
+              >
+                <MiniScore score={target.signal_score} />
+                <span className="text-foreground truncate text-[11px] font-medium">
+                  {shortTitle(target.title)}
+                </span>
+                <ChevronUpDownIcon className="text-muted-foreground size-3 shrink-0" />
+              </button>
+            ) : (
+              <span className="text-muted-foreground font-mono text-[10px] tracking-[0.07em] uppercase">
+                {t('No paper yet')}
+              </span>
             )}
           </div>
-        </section>
+        </div>
 
-        {/* History rail: always to the right. */}
-        <aside aria-label={t('Conversation history')} className="max-lg:hidden lg:col-span-1">
-          <HistoryRail
+        <div
+          ref={bodyRef}
+          className={clsx(
+            'relative flex min-h-0 flex-1 flex-col',
+            !hasConversation && 'pt-[clamp(2rem,10vh,7rem)]',
+          )}
+        >
+          {hasConversation && (
+            <div
+              ref={transcriptRef}
+              onScroll={onScroll}
+              className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-2 lg:px-8"
+            >
+              <div ref={listRef} className="mx-auto max-w-[800px]">
+                {groups.map((g) =>
+                  g.kind === 'target' ? (
+                    <TargetLine key={g.key} scope={g.scope} />
+                  ) : (
+                    <article
+                      key={g.key}
+                      data-live={!g.answer && busy ? '' : undefined}
+                      className={clsx(
+                        'border-line-soft border-t pt-[18px] pb-2 first:border-t-0 last:min-h-(--turn-min)',
+                        !g.answer && busy && 'animate-rise-in motion-reduce:animate-none',
+                      )}
+                    >
+                      <AskedHeading turn={g.question} />
+                      {g.answer ? (
+                        <>
+                          <SettledAnswer turn={g.answer} anchor={`vc-${g.key}`} />
+                          {g === lastGroup && !busy && !g.answer.error && target && (
+                            <FollowUps exclude={g.question.text} onAsk={ask} />
+                          )}
+                        </>
+                      ) : busy ? (
+                        <LiveAnswer
+                          key={askSeq}
+                          state={live}
+                          scopeTitle={target ? shortTitle(target.title) : null}
+                          onGrow={follow}
+                          onRevealed={onRevealed}
+                        />
+                      ) : null}
+                    </article>
+                  ),
+                )}
+              </div>
+            </div>
+          )}
+
+          <AnimatePresence>
+            {jump && (
+              <motion.button
+                key="jump"
+                type="button"
+                onClick={jumpToLatest}
+                initial={{ opacity: 0, y: 6, scale: 0.94 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.94 }}
+                transition={{ duration: reduceMotion ? 0 : 0.2, ease: EASE_OUT }}
+                className={clsx(
+                  'border-line-strong bg-surface text-foreground absolute bottom-[calc(var(--dock-h,6rem)+0.75rem)] left-1/2 z-[6] flex -translate-x-1/2 items-center gap-1.5 rounded-sm border py-1.5 pr-2.5 pl-2 text-xs font-medium',
+                  RAISED,
+                )}
+              >
+                <ArrowDownIcon className="size-3" />
+                {t('Jump to latest')}
+              </motion.button>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence initial={false} mode="popLayout">
+            {!hasConversation && (
+              <motion.div
+                key="greeting"
+                exit={{ opacity: 0 }}
+                transition={{ duration: reduceMotion ? 0 : 0.15 }}
+                className="mx-auto mb-[18px] w-[min(100%-3rem,800px)] shrink-0"
+              >
+                <p className="text-muted-foreground font-mono text-[10px] font-medium tracking-[0.18em] uppercase">
+                  {t('One paper at a time')}
+                </p>
+                <p className="text-foreground mt-1.5 text-[15px] text-balance">
+                  {t('Every answer is read from a single paper’s full text.')}{' '}
+                  <span className="text-muted-foreground">
+                    {t('Choose the paper, then ask it anything.')}
+                  </span>
+                </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* The dock: composer + picker. Same element before and after the first question — it travels. */}
+          <motion.div
+            ref={dockRef}
+            layout="position"
+            transition={{ layout: { duration: reduceMotion ? 0 : 0.42, ease: EASE_IN_OUT } }}
+            className={clsx(
+              'relative z-[4] mx-auto w-[min(100%-3rem,800px)] shrink-0 pb-5',
+              hasConversation &&
+                'before:to-surface pt-3 before:pointer-events-none before:absolute before:-top-7 before:-right-6 before:-left-6 before:h-10 before:bg-gradient-to-b before:from-transparent',
+            )}
+          >
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                submit()
+              }}
+              className="border-line bg-surface focus-within:border-accent/60 focus-within:ring-accent/15 relative flex flex-col rounded-sm border transition focus-within:ring-4"
+            >
+              <textarea
+                ref={fieldRef}
+                name="question"
+                rows={1}
+                value={mode === 'pick' ? pickQuery : input}
+                onChange={onFieldChange}
+                onKeyDown={onFieldKeyDown}
+                role={mode === 'pick' ? 'combobox' : undefined}
+                aria-expanded={mode === 'pick' ? true : undefined}
+                aria-controls={mode === 'pick' ? 'paper-picker' : undefined}
+                aria-autocomplete={mode === 'pick' ? 'list' : undefined}
+                aria-label={mode === 'pick' ? t('Find a paper') : t('Ask a question')}
+                placeholder={
+                  mode === 'pick'
+                    ? t('Which paper? Type a title, author, or source…')
+                    : t('Ask about this paper…')
+                }
+                autoComplete="off"
+                spellCheck={false}
+                className="text-foreground placeholder:text-muted-foreground block max-h-44 w-full resize-none bg-transparent px-4 pt-3.5 pb-1.5 text-[15px] leading-relaxed focus:outline-none"
+              />
+              <div className="flex min-h-10 items-center gap-2 py-1.5 pr-2 pb-2 pl-3">
+                {target && (
+                  <motion.span
+                    initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.18, ease: EASE_OUT }}
+                    className="bg-foreground/5 flex max-w-[70%] items-center gap-1.5 rounded-sm py-[3px] pr-1 pl-2"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="size-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: scoreColor(target.signal_score) }}
+                    />
+                    <span className="text-foreground truncate text-xs font-medium">
+                      {shortTitle(target.title)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={unpick}
+                      disabled={busy}
+                      aria-label={t('Choose a different paper')}
+                      className="text-muted-foreground hover:bg-foreground/10 hover:text-foreground grid size-[18px] shrink-0 place-items-center rounded-full transition-colors duration-100 ease-out disabled:opacity-50"
+                    >
+                      <XMarkIcon className="size-3" />
+                    </button>
+                  </motion.span>
+                )}
+                <span className="flex-1" />
+                <button
+                  type={busy ? 'button' : 'submit'}
+                  onClick={busy ? stop : undefined}
+                  aria-label={busy ? t('Stop') : t('Send')}
+                  className={clsx(
+                    'focus-visible:outline-accent relative flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.94]',
+                    sendLive
+                      ? 'bg-foreground text-background hover:bg-foreground/85'
+                      : 'bg-foreground/10 text-muted-foreground',
+                  )}
+                >
+                  {busy ? (
+                    <StopIcon className="size-3.5" />
+                  ) : (
+                    <PaperAirplaneIcon className="size-4" />
+                  )}
+                </button>
+              </div>
+            </form>
+
+            {mode === 'pick' && (
+              <PaperPicker
+                entries={entries}
+                query={pickQuery}
+                cursor={cursor}
+                placement={hasConversation ? 'above' : 'below'}
+                onCursor={setCursor}
+                onPick={pick}
+              />
+            )}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* History rail: always to the right. */}
+      <aside
+        aria-label={t('Conversation history')}
+        className="min-h-0 overflow-y-auto pb-6 max-lg:hidden"
+      >
+        <HistoryRail
+          threads={sessions}
+          activeId={activeSessionId}
+          onOpen={openThread}
+          onNew={newThread}
+          onDelete={deleteThread}
+        />
+      </aside>
+
+      <details className="border-line bg-surface rounded-sm border px-4 py-3 lg:hidden">
+        <summary className="text-foreground cursor-default text-xs font-semibold tracking-[0.18em] uppercase">
+          {t('History')}{' '}
+          <span className="text-muted-foreground font-mono font-normal normal-case tabular-nums">
+            ·{' '}
+            {sessions.length === 1
+              ? t('1 question')
+              : fmt(t('{n} questions'), { n: sessions.length })}
+          </span>
+        </summary>
+        <div className="mt-3 max-h-72 overflow-y-auto">
+          <HistoryList
             threads={sessions}
             activeId={activeSessionId}
             onOpen={openThread}
-            onNew={newThread}
             onDelete={deleteThread}
           />
-        </aside>
-
-        <details className="border-line bg-surface rounded-sm border px-4 py-3 lg:hidden">
-          <summary className="text-foreground cursor-default text-xs font-semibold tracking-[0.18em] uppercase">
-            {t('History')}{' '}
-            <span className="text-muted-foreground font-mono font-normal normal-case tabular-nums">
-              · {fmt(t('{n} asked'), { n: sessions.length })}
-            </span>
-          </summary>
-          <div className="mt-3">
-            <HistoryList
-              threads={sessions}
-              activeId={activeSessionId}
-              onOpen={openThread}
-              onDelete={deleteThread}
-            />
-          </div>
-        </details>
-      </div>
-
-      <PaperPalette
-        open={paletteOpen}
-        entries={entries}
-        currentPaperId={target?.id}
-        onClose={() => setPaletteOpen(false)}
-        onSelect={(entry) => switchTarget(entry)}
-      />
-    </>
+        </div>
+      </details>
+    </div>
   )
 }
 
 /** A bare target change: one quiet centered line, no rules, no card. */
-function TargetLine({ scope }: { scope: { paper_id: string | null; title: string | null } }) {
+function TargetLine({ scope }: { scope: AskScope }) {
   const t = useT()
   return (
     <p
       role="separator"
-      className="text-muted-foreground text-center font-mono text-[11px] tracking-[0.05em]"
+      className="text-muted-foreground pt-3.5 pb-1 text-center font-mono text-[11px] tracking-[0.05em]"
     >
       {t('Target')} →{' '}
       {scope.title
         ? fmt(t('{title} · full text'), { title: shortTitle(scope.title) })
         : t('All papers')}
     </p>
-  )
-}
-
-/** The question field — styled like the Papers & Briefings search. */
-function Composer({
-  target,
-  value,
-  onChange,
-  onSubmit,
-  inputRef,
-  busy,
-}: {
-  target: PaletteEntry | null
-  value: string
-  onChange: (v: string) => void
-  onSubmit: (q: string) => void
-  inputRef: React.RefObject<HTMLInputElement | null>
-  busy: boolean
-}) {
-  const t = useT()
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        if (value.trim() && !busy) onSubmit(value.trim())
-      }}
-      className="group border-line bg-surface focus-within:border-accent/60 focus-within:ring-accent/15 relative flex items-center gap-3 rounded-md border px-4 py-3 transition focus-within:ring-4"
-    >
-      <MagnifyingGlassIcon
-        className={clsx(
-          'size-5 shrink-0 transition-colors',
-          target ? 'text-accent' : 'group-focus-within:text-accent text-zinc-400',
-        )}
-      />
-      <input
-        ref={inputRef}
-        name="question"
-        aria-label={t('Ask a question')}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={
-          target
-            ? fmt(t('Ask about {title}…'), { title: shortTitle(target.title) })
-            : t('Ask across all papers…')
-        }
-        className="text-foreground placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-base focus:outline-none max-sm:text-base"
-      />
-      <button
-        type="submit"
-        aria-label={t('Send')}
-        disabled={busy}
-        className={clsx(
-          'focus-visible:outline-accent relative flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
-          value.trim() && !busy
-            ? 'bg-foreground text-background hover:bg-foreground/85'
-            : 'bg-foreground/10 text-muted-foreground',
-        )}
-      >
-        <span
-          className="absolute top-1/2 left-1/2 size-[max(100%,3rem)] -translate-1/2 pointer-fine:hidden"
-          aria-hidden="true"
-        />
-        <PaperAirplaneIcon className="size-4" />
-      </button>
-    </form>
   )
 }

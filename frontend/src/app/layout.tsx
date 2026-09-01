@@ -1,3 +1,4 @@
+import { getLang } from '@/lib/i18n-server'
 import '@/styles/tailwind.css'
 import type { Metadata } from 'next'
 import { Toaster } from 'sonner'
@@ -49,13 +50,16 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // The document language follows the UI language, so screen readers,
+  // hyphenation and spellcheck get German when the chrome is German.
+  const lang = await getLang()
   return (
-    <html lang="en" className={`${switzer.variable} ${plexMono.variable}`}>
+    <html lang={lang} className={`${switzer.variable} ${plexMono.variable}`}>
       <body className="text-foreground antialiased">
         {children}
         {/* Un-anchored background outcomes only (first consumers: batch 4).

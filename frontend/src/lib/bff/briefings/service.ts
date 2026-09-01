@@ -6,6 +6,7 @@
  */
 import 'server-only'
 
+import type { Lang } from '@/lib/i18n'
 import { isPassed } from '@/lib/papers/map'
 import { byValueDesc } from '@/lib/papers/select'
 import type { ScoredPaper } from '@/lib/papers/types'
@@ -29,6 +30,7 @@ function composeEdition(
   run: PipelineRun,
   workspaceName: string,
   corpus: ScoredPaper[],
+  lang: Lang,
 ): Edition {
   const ofRun = corpus.filter((p) => p.pipeline_run_id === run.id)
   const surfaced = ofRun
@@ -49,13 +51,16 @@ function composeEdition(
       source: p.source,
       reason: p.screening_reasoning,
     }))
-  const prose = templateProse({
-    workspaceName,
-    fetched: run.total_papers_fetched,
-    passedScreening: run.total_papers_passed_screening,
-    surfaced: surfaced.length,
-    papers: surfaced,
-  })
+  const prose = templateProse(
+    {
+      workspaceName,
+      fetched: run.total_papers_fetched,
+      passedScreening: run.total_papers_passed_screening,
+      surfaced: surfaced.length,
+      papers: surfaced,
+    },
+    lang,
+  )
   return {
     run_id: run.id,
     workspace_id: run.workspace_id,
@@ -74,7 +79,7 @@ function composeEdition(
   }
 }
 
-async function composeAll(workspaceId: string): Promise<Edition[]> {
+async function composeAll(workspaceId: string, lang: Lang): Promise<Edition[]> {
   const [completed, scored] = await Promise.all([
     runs.listAll(workspaceId, 'completed'),
     papers.listAll(workspaceId),
@@ -87,14 +92,14 @@ async function composeAll(workspaceId: string): Promise<Edition[]> {
     const date = editionDate(run)
     if (seen.has(date)) continue
     seen.add(date)
-    editions.push(composeEdition(run, scored.workspace.name, scored.papers))
+    editions.push(composeEdition(run, scored.workspace.name, scored.papers, lang))
   }
   return editions
 }
 
 export const briefings = {
-  /** Every edition for a workspace, newest first, with exclusions. */
-  async listAll(workspaceId: string): Promise<Edition[]> {
+  /** Every edition for a workspace, newest first, with exclusions. `lang` only affects composed template prose. */
+  async listAll(workspaceId: string, lang: Lang = 'en'): Promise<Edition[]> {
     switch (sourceOf('briefings')) {
       case 'stub':
         return fixtureEditions.map((e) => ({ ...e, workspace_id: workspaceId }))
@@ -107,18 +112,18 @@ export const briefings = {
         return page.results.map((summary: EditionSummary) => ({ ...summary, exclusions: [] }))
       }
       default:
-        return composeAll(workspaceId)
+        return composeAll(workspaceId, lang)
     }
   },
 
-  async list(query: EditionsQuery): Promise<Page<Omit<Edition, 'exclusions'>>> {
-    const all = await briefings.listAll(query.workspace_id)
+  async list(query: EditionsQuery, lang: Lang = 'en'): Promise<Page<Omit<Edition, 'exclusions'>>> {
+    const all = await briefings.listAll(query.workspace_id, lang)
     const summaries = all.map(({ exclusions: _exclusions, ...summary }) => summary)
     return paginate(summaries, query, '/bff/briefings', { workspace_id: query.workspace_id })
   },
 
   /** One edition by date; null when no completed run produced one. */
-  async getByDate(workspaceId: string, date: string): Promise<Edition | null> {
+  async getByDate(workspaceId: string, date: string, lang: Lang = 'en'): Promise<Edition | null> {
     if (sourceOf('briefings') === 'django') {
       try {
         return await django(`/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/editions/${date}/`, edition)
@@ -127,7 +132,7 @@ export const briefings = {
         throw error
       }
     }
-    return (await briefings.listAll(workspaceId)).find((e) => e.date === date) ?? null
+    return (await briefings.listAll(workspaceId, lang)).find((e) => e.date === date) ?? null
   },
 }
 

@@ -10,10 +10,16 @@ import Link from 'next/link'
 
 // Location trail in the app's mono-eyebrow style. The final item is the
 // current page (rendered emphasised, not linked); earlier items link up.
-export function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }) {
+export function Breadcrumbs({
+  items,
+  t = (s) => s,
+}: {
+  items: { label: string; href?: string }[]
+  t?: T
+}) {
   return (
     <nav
-      aria-label="Breadcrumb"
+      aria-label={t('Breadcrumb')}
       className="flex max-w-full items-center gap-2 font-mono text-[11px] tracking-[0.14em] uppercase"
     >
       {items.map((item, i) => {

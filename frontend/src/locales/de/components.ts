@@ -13,7 +13,7 @@ export const dict: Record<string, string> = {
   // workshop-signals.tsx
   'Strategic relevance': 'Strategische Relevanz',
   'Schwarz fit': 'Schwarz-Eignung',
-  Readiness: 'Reife',
+  // 'Readiness' lives in dashboard.ts ('Reifegrad') — one value, one module.
   'Author strength': 'Autoren-Stärke',
   'Beyond citation counts': 'Über Zitationszahlen hinaus',
   Reproducibility: 'Reproduzierbarkeit',

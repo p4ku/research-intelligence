@@ -1,42 +1,40 @@
 'use client'
 
 import { AnswerMarkdown } from '@/components/answer-markdown'
-import { ErrorNote, SignalScore } from '@/components/scanner-ui'
+import { ErrorNote } from '@/components/scanner-ui'
 import type { ChatStreamState } from '@/lib/chat/use-chat-stream'
+import { useSmoothText } from '@/lib/chat/use-smooth-text'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { CheckCircleIcon } from '@heroicons/react/16/solid'
-import { motion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { MiniScore } from './paper-picker'
 import { shortTitle, type AnswerTurn, type QuestionTurn } from './types'
 
+const EASE_OUT = [0.23, 1, 0.32, 1] as const
+
 /**
- * A user question, rendered as a scoped memo heading: a mono eyebrow carrying
- * time + scope, then the question itself. Scope lives in every eyebrow, so
- * mid-thread target changes read naturally without a divider.
+ * A user question as the turn's heading: a mono eyebrow carrying time + scope,
+ * then the question itself. It sticks to the top of the transcript while its
+ * answer scrolls beneath it, and gets a hairline only while stuck (the scroll
+ * model toggles `data-stuck`).
  */
-export function AskedHeading({ turn, divider }: { turn: QuestionTurn; divider?: boolean }) {
+export function AskedHeading({ turn }: { turn: QuestionTurn }) {
   const t = useT()
   return (
-    <div>
-      {divider && (
-        <div className="mb-4 flex items-center gap-3">
-          <span aria-hidden="true" className="bg-line-soft h-px flex-1" />
-          <span className="text-muted-foreground shrink-0 font-mono text-[11px] tabular-nums">
-            {turn.askedAt}
-          </span>
-        </div>
-      )}
+    <header
+      data-q-head
+      className="bg-surface data-stuck:border-line-soft sticky top-0 z-[3] -mt-[18px] border-b border-transparent pt-[18px] pb-2.5 transition-colors duration-150 ease-out"
+    >
       <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 font-mono text-[11px] tracking-[0.07em] uppercase tabular-nums">
-        <span className="shrink-0">
-          {divider ? t('Asked') : fmt(t('Asked {time}'), { time: turn.askedAt })}
-        </span>
+        <span className="shrink-0">{fmt(t('Asked {time}'), { time: turn.askedAt })}</span>
         <span aria-hidden="true">·</span>
         {turn.scope.title ? (
           <>
             <span className="bg-accent size-1.5 shrink-0 rounded-full" />
-            <span className="truncate">{shortTitle(turn.scope.title)}</span>
+            <span className="min-w-0 truncate">{shortTitle(turn.scope.title)}</span>
             <span aria-hidden="true">·</span>
             <span className="shrink-0">{t('full text')}</span>
           </>
@@ -47,67 +45,82 @@ export function AskedHeading({ turn, divider }: { turn: QuestionTurn; divider?: 
       <h3 className="text-foreground mt-1.5 text-[15px] font-semibold tracking-tight text-pretty">
         {turn.text}
       </h3>
-    </div>
+    </header>
   )
 }
 
-/** Transient retrieval status shown until the first token arrives. */
-function ScanningLine({
-  scopeTitle,
-  corpusCount,
-}: {
-  scopeTitle: string | null
-  corpusCount: number
-}) {
+function useElapsed(active: boolean) {
+  const [ms, setMs] = useState(0)
+  useEffect(() => {
+    if (!active) return
+    const t0 = performance.now()
+    const id = window.setInterval(() => setMs(performance.now() - t0), 100)
+    return () => window.clearInterval(id)
+  }, [active])
+  return ms
+}
+
+/** Retrieval status shown until the first word arrives, with the wait counted. */
+function ScanningLine({ scopeTitle }: { scopeTitle: string | null }) {
   const t = useT()
+  const ms = useElapsed(true)
   return (
-    <p className="text-muted-foreground mt-1.5 flex items-center gap-2 font-mono text-xs tabular-nums">
+    <p className="text-muted-foreground mt-1 flex items-center gap-2 font-mono text-xs tabular-nums">
       <span className="relative flex size-2 shrink-0">
         <span className="bg-accent/60 absolute inset-0 animate-ping rounded-full" />
         <span className="bg-accent relative size-2 rounded-full" />
       </span>
-      <span className="truncate">
+      <span className="min-w-0 truncate">
         {scopeTitle
           ? fmt(t('Reading “{title}” · full text'), { title: scopeTitle })
-          : fmt(t('Scanning {n} papers'), { n: corpusCount })}
+          : t('Reading the full text…')}
       </span>
+      <span className="ml-auto shrink-0">{(ms / 1000).toFixed(1)}s</span>
     </p>
   )
 }
 
 /**
- * The in-flight answer, driven by the live stream state: connecting shows the
- * scanning line, streamed markdown grows with a caret. Settlement (extras,
- * error states) happens in the transcript once the parent converts the stream
- * into an AnswerTurn.
+ * The in-flight answer. Streamed text is revealed at a steady word cadence and
+ * each word unveils out of a blur; the scanning line holds until the first
+ * word. Settlement happens in the transcript once `onRevealed` reports that
+ * the stream has finished and every word is on screen.
  */
 export function LiveAnswer({
   state,
   scopeTitle,
-  corpusCount,
   onGrow,
+  onRevealed,
 }: {
   state: ChatStreamState
   scopeTitle: string | null
-  corpusCount: number
+  /** Called as words land, so the transcript can follow. */
   onGrow: () => void
+  /** The stream has finished and the reveal has caught up with it. */
+  onRevealed: () => void
 }) {
   const t = useT()
-  // Keep the transcript pinned to the newest words while streaming.
+  const shown = useSmoothText(state.text, state.status)
+  const finished = state.status === 'done' || state.status === 'error'
+
   useEffect(() => {
-    if (state.text) onGrow()
-  }, [state.text, onGrow])
+    if (shown.text) onGrow()
+  }, [shown.text, onGrow])
+
+  useEffect(() => {
+    if (finished && shown.caughtUp) onRevealed()
+  }, [finished, shown.caughtUp, onRevealed])
 
   if (state.status === 'idle') return null
-  if (state.status === 'connecting' || state.text === '') {
-    return <ScanningLine scopeTitle={scopeTitle} corpusCount={corpusCount} />
-  }
+  if (shown.text === '') return <ScanningLine scopeTitle={scopeTitle} />
   // Visual citations land after the last delta, so chips render without ticks
   // until then.
   return (
     <AnswerMarkdown
-      text={state.text}
-      streaming={state.status === 'streaming'}
+      text={shown.text}
+      streaming
+      unveil
+      caret={false}
       citations={state.visualCitations}
       t={t}
       className="text-foreground/75 text-sm"
@@ -116,19 +129,11 @@ export function LiveAnswer({
 }
 
 /**
- * A settled scanner answer: body plus citations / visual evidence / fact check.
+ * A settled answer: body plus citations / visual evidence / fact check.
  * `anchor` is the DOM id prefix that ties inline citation chips to the
  * visual-evidence rows below.
  */
-export function SettledAnswer({
-  turn,
-  anchor,
-  onDigIn,
-}: {
-  turn: AnswerTurn
-  anchor: string
-  onDigIn: (paperId: string) => void
-}) {
+export function SettledAnswer({ turn, anchor }: { turn: AnswerTurn; anchor: string }) {
   const t = useT()
   if (turn.error) {
     return <ErrorNote>{turn.error}</ErrorNote>
@@ -142,26 +147,28 @@ export function SettledAnswer({
         t={t}
         className="text-foreground/75 text-sm"
       />
-      <TurnExtras turn={turn} anchor={anchor} onDigIn={onDigIn} />
+      {turn.stopped && (
+        <p className="text-muted-foreground mt-2 font-mono text-[11px]">{t('Stopped')}</p>
+      )}
+      <TurnExtras turn={turn} anchor={anchor} />
     </div>
   )
 }
 
 const item = {
   hidden: { opacity: 0, y: 6 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' as const } },
+  show: { opacity: 1, y: 0, transition: { duration: 0.28, ease: EASE_OUT } },
 }
 
-function TurnExtras({
-  turn,
-  anchor,
-  onDigIn,
-}: {
-  turn: AnswerTurn
-  anchor: string
-  onDigIn: (paperId: string) => void
-}) {
+/**
+ * Citations, page evidence and the fact-check line. For an answer that just
+ * settled, the block opens as one soft expansion and its pieces arrive inside
+ * it one after another; loaded history renders settled. Inline citation chips
+ * link here via `${anchor}-${i}` ids.
+ */
+function TurnExtras({ turn, anchor }: { turn: AnswerTurn; anchor: string }) {
   const t = useT()
+  const reduceMotion = useReducedMotion()
   const hasExtras =
     turn.citations.length > 0 ||
     turn.visualCitations.length > 0 ||
@@ -169,34 +176,23 @@ function TurnExtras({
     turn.usage !== null
   if (!hasExtras) return null
 
-  return (
+  const animate = Boolean(turn.arrived) && !reduceMotion
+  const body = (
     <motion.div
-      initial="hidden"
+      initial={animate ? 'hidden' : false}
       animate="show"
-      variants={{ show: { transition: { staggerChildren: 0.07 } } }}
+      variants={{ show: { transition: { staggerChildren: 0.09, delayChildren: 0.08 } } }}
       className="mt-3 space-y-1.5"
     >
       {turn.citations.map((cite) => (
-        <motion.div
-          key={cite.paper_id}
-          variants={item}
-          className="border-line/70 hover:border-line flex items-center gap-1 rounded-sm border pr-1.5"
-        >
+        <motion.div key={cite.paper_id} variants={item}>
           <Link
             href={cite.href}
-            className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-3 text-xs"
+            className="border-line/70 hover:border-line flex min-w-0 items-center gap-2 rounded-sm border px-3 py-2 text-xs"
           >
-            <SignalScore score={cite.signal_score} size="sm" />
+            <MiniScore score={cite.signal_score} />
             <span className="text-foreground truncate font-medium">{cite.title}</span>
           </Link>
-          <button
-            type="button"
-            onClick={() => onDigIn(cite.paper_id)}
-            title={t('Target the conversation at this paper')}
-            className="hover:bg-accent/10 shrink-0 rounded-sm px-2 py-1 text-xs font-medium text-blue-700"
-          >
-            {t('Dig in')}
-          </button>
         </motion.div>
       ))}
 
@@ -246,6 +242,54 @@ function TurnExtras({
             fmt(t('{n} tokens'), { n: turn.usage.total_tokens.toLocaleString() })}
         </motion.p>
       )}
+    </motion.div>
+  )
+
+  if (!animate) return body
+  return (
+    <motion.div
+      initial={{ height: 0, opacity: 0 }}
+      animate={{ height: 'auto', opacity: 1 }}
+      transition={{ duration: 0.38, ease: EASE_OUT }}
+      className="overflow-hidden"
+    >
+      {body}
+    </motion.div>
+  )
+}
+
+const FOLLOW_UPS = [
+  'What does this actually enable?',
+  'What is the strongest counter-argument?',
+  'What would it take to use this at case scale?',
+  'Which claims are weakest?',
+]
+
+/** The next questions, offered under the newest settled answer. */
+export function FollowUps({ exclude, onAsk }: { exclude: string; onAsk: (q: string) => void }) {
+  const t = useT()
+  const reduceMotion = useReducedMotion()
+  const pool = FOLLOW_UPS.map((q) => t(q))
+    .filter((q) => q !== exclude)
+    .slice(0, 3)
+  return (
+    <motion.div
+      initial={reduceMotion ? false : 'hidden'}
+      animate="show"
+      variants={{ show: { transition: { staggerChildren: 0.04, delayChildren: 0.3 } } }}
+      className="mt-3.5 flex flex-wrap gap-1.5"
+    >
+      {pool.map((q) => (
+        <motion.button
+          key={q}
+          variants={item}
+          type="button"
+          onClick={() => onAsk(q)}
+          className="border-line text-muted-foreground hover:border-line-strong hover:text-foreground hover:bg-foreground/3 rounded-sm border px-2.5 py-1.5 text-left text-xs transition-colors duration-100 ease-out active:scale-[0.98]"
+        >
+          {q}
+        </motion.button>
+      ))}
     </motion.div>
   )
 }

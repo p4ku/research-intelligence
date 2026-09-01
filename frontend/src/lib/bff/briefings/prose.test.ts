@@ -44,4 +44,29 @@ describe('templateProse', () => {
     })
     expect(p.in_brief).not.toContain('at signal')
   })
+  test('full run, German', () => {
+    const p = templateProse(
+      {
+        workspaceName: 'Agentic AI Scan',
+        fetched: 12,
+        passedScreening: 5,
+        surfaced: 3,
+        papers: [paper('Big Result: with subtitle', 87.5), paper('Second', 70), paper('Third', 60)],
+      },
+      'de',
+    )
+    expect(p.title).toBe('Big Result')
+    expect(p.in_brief).toContain('„Agentic AI Scan“ hat 12 Papers geladen')
+    expect(p.in_brief).toContain('An der Spitze: „Big Result“ mit Signal 88.')
+    expect(p.in_brief).toContain('Ebenfalls bemerkenswert: „Second“ und „Third“.')
+  })
+  test('empty run, German singular', () => {
+    const p = templateProse(
+      { workspaceName: 'Scan', fetched: 1, passedScreening: 0, surfaced: 0, papers: [] },
+      'de',
+    )
+    expect(p.title).toBe('Ein ruhiger Lauf')
+    expect(p.in_brief).toContain('hat 1 Paper geladen;')
+    expect(p.in_brief).toContain('keines hat das Screening')
+  })
 })

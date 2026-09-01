@@ -50,8 +50,8 @@ export const dict: Record<string, string> = {
 
   // Workspace scope and empty states
   'No workspace selected': 'Kein Arbeitsbereich ausgewählt',
-  'You are not a member of any workspace yet. Membership is managed in the backend.':
-    'Sie sind noch keinem Arbeitsbereich zugeordnet. Mitgliedschaften werden im Backend verwaltet.',
+  'You are not a member of any workspace yet. Ask an administrator for access.':
+    'Sie sind noch keinem Arbeitsbereich zugeordnet. Wenden Sie sich für Zugriff an die Administration.',
   'No papers in {workspace} yet.': 'Noch keine Papers in {workspace}.',
   'Something went wrong loading papers.': 'Beim Laden der Papers ist ein Fehler aufgetreten.',
   Retry: 'Erneut versuchen',
@@ -66,6 +66,7 @@ export const dict: Record<string, string> = {
   // Signal-strength filter
   'Signal strength': 'Signalstärke',
   'Minimum score': 'Mindest-Score',
+  Any: 'Beliebig',
   'Any signal': 'Jedes Signal',
   'Only the strongest': 'Nur die stärksten',
   'Signal ≥ {n}': 'Signal ≥ {n}',
@@ -111,8 +112,8 @@ export const dict: Record<string, string> = {
   'Open DOI': 'DOI öffnen',
   'Stored PDF': 'Gespeichertes PDF',
   'Stored markdown': 'Gespeichertes Markdown',
-  'No file endpoint yet — storage key shown for reference.':
-    'Noch kein Datei-Endpunkt — Speicherschlüssel nur zur Referenz.',
+  'Stored in the research archive — download is not yet available.':
+    'Im Forschungsarchiv gespeichert — der Download ist noch nicht verfügbar.',
   'No files recorded.': 'Keine Dateien hinterlegt.',
   'et al.': 'et al.',
   'Why did it score {score}?': 'Warum wurde es mit {score} bewertet?',
@@ -122,7 +123,7 @@ export const dict: Record<string, string> = {
 
   // Ask-this-paper rail
   'Ask this paper': 'Paper befragen',
-  'Reading the full text…': 'Lese den Volltext…',
+  'Reading the full text…': 'Der Volltext wird gelesen…',
   'Ask about {title}': 'Zu {title} fragen',
   'Questions here are answered from this paper alone.':
     'Fragen hier werden allein aus diesem Paper beantwortet.',
