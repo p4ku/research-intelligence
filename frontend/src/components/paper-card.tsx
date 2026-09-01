@@ -4,8 +4,86 @@ import { formatDate } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
 import { trlDimension } from '@/lib/papers/select'
 import type { ScoredPaper } from '@/lib/papers/types'
+import clsx from 'clsx'
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 import { ScreeningPill, SignalScore, TrlBadge } from './scanner-ui'
+import { Bone } from './skeleton'
+
+// The loaded card's chrome, exactly as before the Frame split; the hover
+// affordances apply only when the card is a link (i.e. loaded).
+const CARD =
+  'flex items-start gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-950/10 dark:bg-zinc-900 dark:ring-white/10'
+const CARD_HOVER =
+  'transition hover:-translate-y-px hover:shadow-md hover:ring-zinc-950/15 dark:hover:ring-white/20'
+
+/**
+ * Layout contract shared by PaperCard and PaperCardSkeleton: one set of slot
+ * classes, so the skeleton cannot drift from the loaded card. The
+ * data-shape/data-row markers are measured by scripts/skeleton-drift.ts via
+ * the /studio/skeletons gallery.
+ */
+function PaperCardFrame({
+  href,
+  score,
+  meta,
+  title,
+  abstract,
+  footer,
+}: {
+  /** Present on the loaded card; the skeleton renders a plain div. */
+  href?: string
+  score: ReactNode
+  meta: ReactNode
+  title: ReactNode
+  abstract: ReactNode
+  footer: ReactNode
+}) {
+  const body = (
+    <>
+      {score}
+      <div className="min-w-0 flex-1">
+        <div data-row="meta" className="flex flex-wrap items-center gap-2">
+          {meta}
+        </div>
+        <h3
+          data-row="title"
+          className="mt-1 text-base font-semibold text-pretty text-zinc-950 dark:text-white"
+        >
+          {title}
+        </h3>
+        {/* line-clamp only on the loaded card: clamping block bones renders
+            unpredictably, and the skeleton's two fixed lines match the clamp. */}
+        <p
+          data-row="abstract"
+          className={clsx('mt-1 text-sm text-zinc-500 dark:text-zinc-400', href && 'line-clamp-2')}
+        >
+          {abstract}
+        </p>
+        <div
+          data-row="footer"
+          className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs"
+        >
+          {footer}
+        </div>
+      </div>
+    </>
+  )
+  return href ? (
+    <Link
+      href={href}
+      data-shape="paper-card"
+      data-state="loaded"
+      className={clsx(CARD, CARD_HOVER)}
+    >
+      {body}
+    </Link>
+  ) : (
+    <div data-shape="paper-card" data-state="skeleton" className={CARD}>
+      {body}
+    </div>
+  )
+}
 
 export function PaperCard({ paper }: { paper: ScoredPaper }) {
   const t = useT()
@@ -15,26 +93,22 @@ export function PaperCard({ paper }: { paper: ScoredPaper }) {
   const stats = paper.dimensions.filter((d) => !d.is_trl && d.value !== null).slice(0, 2)
   const lead = paper.authors[0]
   return (
-    <Link
+    <PaperCardFrame
       href={`/papers/${paper.id}`}
-      className="flex items-start gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-950/10 transition hover:-translate-y-px hover:shadow-md hover:ring-zinc-950/15 dark:bg-zinc-900 dark:ring-white/10 dark:hover:ring-white/20"
-    >
-      <SignalScore score={paper.signal_score} />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
+      score={<SignalScore score={paper.signal_score} />}
+      meta={
+        <>
           <ScreeningPill status={paper.screening_status} t={t} />
           <span className="text-xs text-zinc-400">·</span>
           <span className="text-xs text-zinc-400">{paper.source}</span>
           <span className="text-xs text-zinc-400">·</span>
           <span className="text-xs text-zinc-400">{formatDate(paper.created_at, lang)}</span>
-        </div>
-        <h3 className="mt-1 text-base font-semibold text-pretty text-zinc-950 dark:text-white">
-          {paper.title}
-        </h3>
-        <p className="mt-1 line-clamp-2 text-sm text-zinc-500 dark:text-zinc-400">
-          {paper.abstract}
-        </p>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs">
+        </>
+      }
+      title={paper.title}
+      abstract={paper.abstract}
+      footer={
+        <>
           {trl?.value !== null && trl?.value !== undefined && <TrlBadge trl={trl.value} t={t} />}
           {stats.map((d) => (
             <ScoreStat key={d.key} label={d.name} value={d.raw} />
@@ -46,9 +120,41 @@ export function PaperCard({ paper }: { paper: ScoredPaper }) {
               {paper.authors.length > 1 && ` ${t('et al.')}`}
             </span>
           )}
-        </div>
-      </div>
-    </Link>
+        </>
+      }
+    />
+  )
+}
+
+/**
+ * The card's loading state: same frame, bones in the slots. The real `·`
+ * separators stay so the meta row keeps its loaded rhythm. `scored={false}`
+ * drops the TRL chip for lists where most rows are unscored.
+ */
+export function PaperCardSkeleton({ scored = true }: { scored?: boolean }) {
+  return (
+    <PaperCardFrame
+      score={<Bone.Ring size={52} stroke={4} />}
+      meta={
+        <>
+          <Bone.Chip width={104} />
+          <span className="text-xs text-zinc-400">·</span>
+          <Bone.Text widths={['5ch']} className="text-xs" />
+          <span className="text-xs text-zinc-400">·</span>
+          <Bone.Text widths={['11ch']} className="text-xs" />
+        </>
+      }
+      title={<Bone.Text widths={['72%']} />}
+      abstract={<Bone.Text lines={2} widths={['100%', '88%']} />}
+      footer={
+        <>
+          {scored && <Bone.Chip width={124} />}
+          <Bone.Text widths={['9ch']} className="text-xs" />
+          <Bone.Text widths={['9ch']} className="text-xs" />
+          <Bone.Text widths={['14ch']} className="ml-auto text-xs" />
+        </>
+      }
+    />
   )
 }
 

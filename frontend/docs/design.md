@@ -106,6 +106,7 @@ Charts are dependency-free inline SVG — no charting library. Primitives:
 | `components/scanner-ui.tsx` | `PageHeader`, `Card`, `StatTile`, `SignalScore`, `ScoreRow`, `Tldr`, badges, chips |
 | `components/paper-card.tsx` | the standard paper list row                                                      |
 | `components/answer-markdown.tsx` | `AnswerMarkdown` — model-written markdown in app tokens; mono figures; streaming caret; `[Page N, …]` markers as citation chips (opt-in via `citations`) |
+| `components/skeleton.tsx`   | `Bone.*` placeholder primitives + `Skeleton.Region` — see `docs/skeletons.md` |
 | `components/*` (Catalyst)   | retained UI primitives: `sidebar`, `dropdown`, `avatar`, `button`, `input`, etc. |
 
 The old Tailwind Plus _marketing_ components (bento cards, testimonials, logo

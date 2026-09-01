@@ -13,6 +13,7 @@ import { Fragment, memo, type ReactNode } from 'react'
 import Markdown, { type Components, type Options } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remend from 'remend'
+import { Bone } from './skeleton'
 
 /**
  * Model-written markdown (chat answers, screening notes, rationales), rendered
@@ -316,6 +317,9 @@ function streamingSource(text: string, caret: boolean): string {
   return ownLine ? `${mended}\n\n${CARET}` : `${mended} ${CARET}`
 }
 
+// One root class for the loaded renderer and its skeleton (drift contract).
+const ROOT_CLASS = 'min-w-0 space-y-2 leading-relaxed break-words'
+
 export const AnswerMarkdown = memo(function AnswerMarkdown({
   text,
   streaming = false,
@@ -364,7 +368,7 @@ export const AnswerMarkdown = memo(function AnswerMarkdown({
       : undefined
   const components = cite ? buildComponents(opts, cite) : componentsFor(opts)
   return (
-    <div className={clsx('min-w-0 space-y-2 leading-relaxed break-words', className)}>
+    <div data-shape="answer-markdown" data-state="loaded" className={clsx(ROOT_CLASS, className)}>
       <Markdown
         remarkPlugins={REMARK_PLUGINS}
         components={components}
@@ -377,3 +381,34 @@ export const AnswerMarkdown = memo(function AnswerMarkdown({
     </div>
   )
 })
+
+/**
+ * The prose loading state — for finished documents only (the dashboard brief).
+ * Streaming chat answers keep ScanningLine + the caret; never skeleton them.
+ */
+export function AnswerMarkdownSkeleton({
+  className,
+  heading = false,
+  paragraphs = [3, 2],
+}: {
+  className?: string
+  /** Lead with a short heading-width bone. */
+  heading?: boolean
+  /** One entry per paragraph: its line count. */
+  paragraphs?: number[]
+}) {
+  return (
+    <div data-shape="answer-markdown" data-state="skeleton" className={clsx(ROOT_CLASS, className)}>
+      {heading && (
+        <div className="pt-1">
+          <Bone.Text widths={['18ch']} />
+        </div>
+      )}
+      {paragraphs.map((lines, i) => (
+        <div key={i}>
+          <Bone.Text lines={lines} />
+        </div>
+      ))}
+    </div>
+  )
+}
