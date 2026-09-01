@@ -49,7 +49,7 @@ export const workspaceDTO = z.looseObject({
   ocr_provider: z.string().nullable(),
   screening_llm_model: z.string(),
   llm_provider: z.string(),
-  digest_schedule: z.string().nullable().optional(),
+  digest_schedule: z.string(),
   monthly_token_limit: z.number(),
   tokens_in_consumed_this_month: z.number(),
   tokens_out_consumed_this_month: z.number(),

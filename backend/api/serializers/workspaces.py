@@ -25,6 +25,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
     scrapers = ScraperSerializer(many=True, read_only=True)
     extraction_definitions = ExtractionDefinitionSerializer(many=True, read_only=True)
     user_role = serializers.SerializerMethodField()
+    digest_schedule = serializers.SerializerMethodField()
 
     class Meta:
         model = Workspace
@@ -38,7 +39,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             'full_text_screening_response_schema', 'full_text_screening_exit_metric',
             'signal_score_code', 'skip_abstract_screening',
             'extraction_definitions', 'ocr_provider',
-            'screening_llm_model', 'llm_provider', 'reasoning_effort',
+            'screening_llm_model', 'llm_provider', 'reasoning_effort', 'digest_schedule',
             'monthly_token_limit',
             'tokens_in_consumed_this_month', 'tokens_out_consumed_this_month', 'tokens_consumed_this_month',
             'monthly_usd_limit', 'usd_spent_this_month', 'subscribers',
@@ -47,8 +48,11 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id', 'tokens_in_consumed_this_month', 'tokens_out_consumed_this_month',
-            'tokens_consumed_this_month', 'usd_spent_this_month', 'created_at'
+            'tokens_consumed_this_month', 'usd_spent_this_month', 'created_at', 'digest_schedule'
         ]
+
+    def get_digest_schedule(self, obj):
+        return None
 
     def get_user_role(self, obj):
         request = self.context.get('request')
