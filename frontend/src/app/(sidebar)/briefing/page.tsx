@@ -20,7 +20,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function BriefingPage() {
   const [t, lang, ws] = await Promise.all([getT(), getLang(), getCurrentWorkspace()])
-  const editions = ws ? await forPage(briefings.listAll(ws.id)) : []
+  const editions = ws ? await forPage(briefings.listAll(ws.id, lang)) : []
 
   if (!ws || editions.length === 0) {
     return (
@@ -33,7 +33,7 @@ export default async function BriefingPage() {
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             {ws
               ? t('Once a pipeline run completes in this workspace, its briefing appears here.')
-              : t('You are not a member of any workspace yet. Membership is managed in the backend.')}
+              : t('You are not a member of any workspace yet. Ask an administrator for access.')}
           </p>
         </Card>
       </div>

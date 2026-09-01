@@ -35,6 +35,7 @@ import {
   UserCircleIcon,
 } from '@heroicons/react/16/solid'
 import {
+  AdjustmentsHorizontalIcon,
   ChatBubbleLeftRightIcon,
   Cog6ToothIcon,
   DocumentTextIcon,
@@ -58,6 +59,7 @@ const coreNav: ShellNavItem[] = [
   { href: '/briefing', label: 'Briefings', Icon: NewspaperIcon },
   { href: '/papers', label: 'Papers', Icon: DocumentTextIcon },
   { href: '/ask', label: 'Ask', Icon: ChatBubbleLeftRightIcon },
+  { href: '/tuning', label: 'Tuning', Icon: AdjustmentsHorizontalIcon },
 ]
 
 const studioNav: ShellNavItem[] = [

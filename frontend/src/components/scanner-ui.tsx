@@ -3,7 +3,7 @@ import { Sparkline } from '@/components/charts'
 import { Bone } from '@/components/skeleton'
 import type { T } from '@/lib/i18n'
 import type { Dimension, ScreeningStatus } from '@/lib/papers/types'
-import { ArrowDownIcon, ArrowRightIcon } from '@heroicons/react/16/solid'
+import { ArrowDownIcon, ArrowRightIcon, ExclamationTriangleIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import Link from 'next/link'
 
@@ -11,10 +11,16 @@ import Link from 'next/link'
 
 // Location trail in the app's mono-eyebrow style. The final item is the
 // current page (rendered emphasised, not linked); earlier items link up.
-export function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }) {
+export function Breadcrumbs({
+  items,
+  t = (s) => s,
+}: {
+  items: { label: string; href?: string }[]
+  t?: T
+}) {
   return (
     <nav
-      aria-label="Breadcrumb"
+      aria-label={t('Breadcrumb')}
       className="flex max-w-full items-center gap-2 font-mono text-[11px] tracking-[0.14em] uppercase"
     >
       {items.map((item, i) => {
@@ -696,5 +702,37 @@ export function LinkCard({
     >
       {children}
     </Link>
+  )
+}
+
+/* -------------------------------- ErrorNote -------------------------------- */
+
+// The single inline error presentation: tinted panel, icon, message, optional
+// action slot. `role="alert"` announces it when it appears. Error ink is
+// `--negative` (5.6:1 on white) — `--warn` is a chart/badge fill, not a text
+// colour (see route-error.test.tsx, which pins both).
+export function ErrorNote({
+  action,
+  className,
+  children,
+}: {
+  action?: React.ReactNode
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      role="alert"
+      className={clsx(
+        'border-negative/40 bg-negative/5 flex items-start gap-2 rounded-sm border px-3 py-2.5',
+        className,
+      )}
+    >
+      <ExclamationTriangleIcon aria-hidden="true" className="text-negative mt-0.5 size-4 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="text-foreground/90 text-sm leading-relaxed">{children}</div>
+        {action && <div className="mt-2">{action}</div>}
+      </div>
+    </div>
   )
 }

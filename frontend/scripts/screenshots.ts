@@ -197,6 +197,7 @@ const SCREENS: Screen[] = [
   { name: 'papers', route: '/papers', auth: true },
   { name: 'paper-detail', route: '/papers/[id]', auth: true },
   { name: 'ask', route: '/ask', auth: true },
+  { name: 'tuning', route: '/tuning', auth: true },
   { name: 'settings', route: '/settings', auth: true },
   // The skeleton gallery (loaded and skeleton panes side by side, sweep frozen)
   // so loading states ride the same review loop as every other screen.

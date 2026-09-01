@@ -8,8 +8,10 @@ import { dict as briefing } from './briefing'
 import { dict as chrome } from './chrome'
 import { dict as components } from './components'
 import { dict as dashboard } from './dashboard'
+import { dict as login } from './login'
 import { dict as papers } from './papers'
 import { dict as settings } from './settings'
+import { dict as tuning } from './tuning'
 
 export const de: Record<string, string> = {
   ...ask,
@@ -17,6 +19,8 @@ export const de: Record<string, string> = {
   ...chrome,
   ...components,
   ...dashboard,
+  ...login,
   ...papers,
   ...settings,
+  ...tuning,
 }

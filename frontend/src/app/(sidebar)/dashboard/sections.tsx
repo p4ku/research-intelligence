@@ -31,8 +31,8 @@ export async function Funnel({ wsId, t }: { wsId: string; t: T }) {
   return <StatBand items={funnel} flow className="lg:grid-cols-3!" />
 }
 
-export async function BriefLink({ wsId, t }: { wsId: string; t: T }) {
-  const edition = await forPage(editionToday(wsId))
+export async function BriefLink({ wsId, t, lang }: { wsId: string; t: T; lang: Lang }) {
+  const edition = await forPage(editionToday(wsId, lang))
   if (!edition) return null
   return (
     <Link
@@ -44,8 +44,8 @@ export async function BriefLink({ wsId, t }: { wsId: string; t: T }) {
   )
 }
 
-export async function Brief({ wsId, t }: { wsId: string; t: T }) {
-  const edition = await forPage(editionToday(wsId))
+export async function Brief({ wsId, t, lang }: { wsId: string; t: T; lang: Lang }) {
+  const edition = await forPage(editionToday(wsId, lang))
   if (!edition) {
     return (
       <p className="mt-4 max-w-3xl text-base leading-relaxed text-pretty text-zinc-600 dark:text-zinc-300">
@@ -63,9 +63,7 @@ export async function Brief({ wsId, t }: { wsId: string; t: T }) {
       />
       {edition.in_brief_source === 'template' && (
         <p className="mt-2 font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
-          {t(
-            'Assembled from the run — model-written briefs arrive with the backend’s reporting step.',
-          )}
+          {t('Assembled automatically from this run.')}
         </p>
       )}
     </div>

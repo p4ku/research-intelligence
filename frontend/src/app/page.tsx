@@ -1,4 +1,6 @@
 import { hasSessionCookies } from '@/lib/auth/session'
+import { makeT } from '@/lib/i18n'
+import { getLang } from '@/lib/i18n-server'
 import { redirect } from 'next/navigation'
 import { LoginPanel } from './login-panel'
 
@@ -12,7 +14,8 @@ export default async function LoginPage({
   // Cookie presence only; if the tokens are stale the proxy clears them on
   // the way into /dashboard and sends the user back here.
   if (await hasSessionCookies()) redirect('/dashboard')
-  const { next, reason } = await searchParams
+  const [{ next, reason }, lang] = await Promise.all([searchParams, getLang()])
+  const t = makeT(lang)
 
   return (
     <main className="grid min-h-dvh lg:grid-cols-2">
@@ -20,7 +23,10 @@ export default async function LoginPage({
       <div className="bg-surface flex items-center justify-center px-6 py-16">
         <LoginPanel
           next={next}
-          notice={reason === 'expired' ? 'Your session expired. Please sign in again.' : undefined}
+          lang={lang}
+          notice={
+            reason === 'expired' ? t('Your session expired. Please sign in again.') : undefined
+          }
         />
       </div>
 

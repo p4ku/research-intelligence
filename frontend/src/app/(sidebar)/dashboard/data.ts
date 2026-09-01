@@ -3,7 +3,7 @@ import 'server-only'
 import { briefings } from '@/lib/bff/briefings/service'
 import { papers as papersService } from '@/lib/bff/papers/service'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
-import type { T } from '@/lib/i18n'
+import type { Lang, T } from '@/lib/i18n'
 import { isPassed } from '@/lib/papers/map'
 import { byValueDesc } from '@/lib/papers/select'
 import { cache } from 'react'
@@ -33,7 +33,7 @@ export const runPapers = cache(async (wsId: string) => {
 })
 
 export const editionToday = cache(
-  async (wsId: string) => (await briefings.listAll(wsId))[0] ?? null,
+  async (wsId: string, lang: Lang) => (await briefings.listAll(wsId, lang))[0] ?? null,
 )
 
 /** The funnel's static copy — shared by the loaded band and its skeleton. */

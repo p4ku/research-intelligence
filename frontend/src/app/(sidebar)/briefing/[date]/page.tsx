@@ -34,15 +34,17 @@ export default async function BriefingEditionPage({
 }: {
   params: Promise<{ date: string }>
 }) {
-  const [{ date }, ws] = await Promise.all([params, getCurrentWorkspace()])
+  const [{ date }, ws, t, lang] = await Promise.all([
+    params,
+    getCurrentWorkspace(),
+    getT(),
+    getLang(),
+  ])
   if (!ws) notFound()
   const [edition, scored] = await forPage(
-    Promise.all([briefings.getByDate(ws.id, date), papersService.listAll(ws.id)]),
+    Promise.all([briefings.getByDate(ws.id, date, lang), papersService.listAll(ws.id)]),
   )
   if (!edition) notFound()
-
-  const t = await getT()
-  const lang = await getLang()
 
   const byId = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
   const cards = edition.papers
@@ -67,6 +69,7 @@ export default async function BriefingEditionPage({
             { label: t('Briefings'), href: '/briefing' },
             { label: formatEditionDate(edition.date, lang) },
           ]}
+          t={t}
         />
         <h1 className="text-[26px]/8 font-semibold tracking-tight text-zinc-950 dark:text-white">
           {edition.title}

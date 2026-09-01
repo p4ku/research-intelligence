@@ -3,8 +3,7 @@ export const dict: Record<string, string> = {
   Today: 'Heute',
   'Today · {date}': 'Heute · {date}',
   'Open briefing →': 'Briefing öffnen →',
-  'Assembled from the run — model-written briefs arrive with the backend’s reporting step.':
-    'Aus dem Lauf zusammengesetzt — modellgeschriebene Briefings kommen mit dem Reporting-Schritt des Backends.',
+  'Assembled automatically from this run.': 'Automatisch aus diesem Lauf zusammengestellt.',
   'No completed runs yet.': 'Noch keine abgeschlossenen Läufe.',
   'No workspace selected': 'Kein Arbeitsbereich ausgewählt',
   'Run of {date}: {fetched} papers fetched, {passed} passed screening, {n} listed below.':

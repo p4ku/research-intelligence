@@ -1,5 +1,7 @@
+import { getLang } from '@/lib/i18n-server'
 import '@/styles/tailwind.css'
 import type { Metadata } from 'next'
+import { Toaster } from 'sonner'
 import localFont from 'next/font/local'
 
 // Self-hosted: no third-party font CDNs from a German corporate deployment.
@@ -48,14 +50,22 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // The document language follows the UI language, so screen readers,
+  // hyphenation and spellcheck get German when the chrome is German.
+  const lang = await getLang()
   return (
-    <html lang="en" className={`${switzer.variable} ${plexMono.variable}`}>
-      <body className="text-foreground antialiased">{children}</body>
+    <html lang={lang} className={`${switzer.variable} ${plexMono.variable}`}>
+      <body className="text-foreground antialiased">
+        {children}
+        {/* Un-anchored background outcomes only (first consumers: batch 4).
+            Anchored errors — forms, turns, dialogs — never toast. */}
+        <Toaster toastOptions={{ style: { borderRadius: '2px' } }} />
+      </body>
     </html>
   )
 }

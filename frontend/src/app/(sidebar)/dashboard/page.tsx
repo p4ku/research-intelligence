@@ -66,9 +66,7 @@ export default async function DashboardPage() {
           <div className="mt-5">
             <Card>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                {t(
-                  'You are not a member of any workspace yet. Membership is managed in the backend.',
-                )}
+                {t('You are not a member of any workspace yet. Ask an administrator for access.')}
               </p>
             </Card>
           </div>
@@ -113,7 +111,7 @@ export default async function DashboardPage() {
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <SectionLabel size="sm">{t('Today in brief')}</SectionLabel>
             <Suspense fallback={null}>
-              <BriefLink wsId={ws.id} t={t} />
+              <BriefLink wsId={ws.id} t={t} lang={lang} />
             </Suspense>
           </div>
           <Suspense
@@ -124,7 +122,7 @@ export default async function DashboardPage() {
             }
           >
             <ViewTransition enter="bone-enter" default="none">
-              <Brief wsId={ws.id} t={t} />
+              <Brief wsId={ws.id} t={t} lang={lang} />
             </ViewTransition>
           </Suspense>
         </div>

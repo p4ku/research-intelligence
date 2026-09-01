@@ -27,6 +27,32 @@
   /* Souverän card shadow (weiss) */
   --shadow-xs: 0 1px 2px rgba(19, 19, 17, 0.06);
   --shadow-sm: 0 1px 2px rgba(19, 19, 17, 0.06), 0 2px 6px rgba(19, 19, 17, 0.05);
+
+  /* Streamed answers: each word resolves out of a soft blur (the Ask console);
+     panels and new turns rise in. Both stay on opacity/filter/transform. */
+  --animate-unveil: unveil 900ms var(--ease-out) both;
+  --animate-rise-in: rise-in 220ms var(--ease-out) both;
+
+  @keyframes unveil {
+    from {
+      opacity: 0;
+      filter: blur(3px);
+    }
+    to {
+      opacity: 1;
+      filter: blur(0);
+    }
+  }
+  @keyframes rise-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
 }
 
 @keyframes move-x {

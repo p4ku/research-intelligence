@@ -1,9 +1,33 @@
 'use client'
 
 import { ScannerMark } from '@/components/brand'
-import { useState } from 'react'
+import { fmt, makeT, type Lang } from '@/lib/i18n'
+import { useMemo, useState } from 'react'
+import type { LoginErrorCode } from './auth/login/route'
 
-export function LoginPanel({ next, notice }: { next?: string; notice?: string }) {
+// English fallbacks per /auth/login error code; t() renders them in the
+// interface language. Kept as full sentences so the dictionary keys read.
+const ERROR_TEXT: Record<LoginErrorCode, string> = {
+  'cross-site': 'The sign-in request was rejected. Reload the page and try again.',
+  'invalid-request': 'The sign-in request was rejected. Reload the page and try again.',
+  'missing-credentials': 'Enter your email or username and password.',
+  unreachable: 'The service cannot be reached right now. Please try again shortly.',
+  credentials: 'Those credentials did not match. Please try again.',
+  upstream: 'The sign-in could not be processed (HTTP {status}).',
+}
+
+export function LoginPanel({
+  next,
+  notice,
+  lang,
+}: {
+  next?: string
+  notice?: string
+  lang: Lang
+}) {
+  // The login page renders outside the app shell (no LanguageProvider), so
+  // the server page resolves the language and hands it in as a prop.
+  const t = useMemo(() => makeT(lang), [lang])
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -16,7 +40,7 @@ export function LoginPanel({ next, notice }: { next?: string; notice?: string })
     const password = form.get('password') as string
     // The route handler exchanges these for Django's JWT pair and sets the
     // session cookies; Django accepts either a username or an email here.
-    let data: { redirect?: string; error?: string } = {}
+    let data: { redirect?: string; code?: LoginErrorCode; status?: number } = {}
     try {
       const res = await fetch('/auth/login', {
         method: 'POST',
@@ -24,13 +48,10 @@ export function LoginPanel({ next, notice }: { next?: string; notice?: string })
         body: JSON.stringify({ identifier, password, next }),
       })
       data = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(data.error)
-    } catch (err) {
-      setError(
-        err instanceof Error && err.message
-          ? err.message
-          : 'Those credentials did not match. Please try again.',
-      )
+      if (!res.ok) throw new Error('login-failed')
+    } catch {
+      const text = ERROR_TEXT[data.code ?? 'credentials'] ?? ERROR_TEXT.credentials
+      setError(fmt(t(text), { status: data.status ?? '' }))
       setLoading(false)
       return
     }
@@ -48,10 +69,10 @@ export function LoginPanel({ next, notice }: { next?: string; notice?: string })
       </div>
 
       <h1 className="mt-10 text-2xl font-semibold tracking-tight text-zinc-950 dark:text-white">
-        Sign in
+        {t('Sign in')}
       </h1>
       <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
-        Use your email or username and password to continue.
+        {t('Use your email or username and password to continue.')}
       </p>
 
       {notice && (
@@ -63,7 +84,7 @@ export function LoginPanel({ next, notice }: { next?: string; notice?: string })
       <form onSubmit={signIn} className="mt-8 space-y-4">
         <div>
           <label className="block text-sm font-medium text-zinc-800 dark:text-zinc-200">
-            Email or username
+            {t('Email or username')}
           </label>
           <input
             type="text"
@@ -75,7 +96,7 @@ export function LoginPanel({ next, notice }: { next?: string; notice?: string })
         </div>
         <div>
           <label className="block text-sm font-medium text-zinc-800 dark:text-zinc-200">
-            Password
+            {t('Password')}
           </label>
           <input
             type="password"
@@ -90,7 +111,7 @@ export function LoginPanel({ next, notice }: { next?: string; notice?: string })
           disabled={loading}
           className="flex w-full items-center justify-center rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-zinc-800 disabled:opacity-60 dark:bg-white dark:text-zinc-950 dark:hover:bg-zinc-200"
         >
-          {loading ? 'Signing in…' : 'Sign in'}
+          {loading ? t('Signing in…') : t('Sign in')}
         </button>
       </form>
 
@@ -101,7 +122,7 @@ export function LoginPanel({ next, notice }: { next?: string; notice?: string })
       )}
 
       <p className="mt-10 text-xs text-zinc-400 dark:text-zinc-500">
-        Research Intelligence is an internal tool. Access is restricted to authorized accounts.
+        {t('Research Intelligence is an internal tool. Access is restricted to authorized accounts.')}
       </p>
     </div>
   )
