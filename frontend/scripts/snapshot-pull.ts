@@ -30,7 +30,8 @@ const COLLECTIONS: { list: string; detail?: (id: string) => string }[] = [
   { list: '/api/workspaces/', detail: (id) => `/api/workspaces/${id}/` },
   { list: '/api/papers/', detail: (id) => `/api/papers/${id}/` },
   { list: '/api/extractions/' },
-  { list: '/api/pipeline-runs/' },
+  { list: '/api/pipeline-runs/', detail: (id) => `/api/pipeline-runs/${id}/` },
+  { list: '/api/component-runs/' },
   { list: '/api/chat/sessions/', detail: (id) => `/api/chat/sessions/${id}/` },
 ]
 const SINGLETONS = ['/api/auth/me/']

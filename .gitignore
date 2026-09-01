@@ -121,4 +121,5 @@ celerybeat-schedule.db
 test_dir/
 /test_dir/
 tests_e2e/screenshots/*.png
-
+# Studio screenshots: captured artefacts, published to the screenshots/studio branch
+frontend/screenshots/

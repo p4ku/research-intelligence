@@ -30,3 +30,16 @@ export const pipelineRunDTO = z.looseObject({
   /** Pre-formatted with an emoji; prefer duration_seconds. */
   execution_time_display: z.string(),
 })
+
+/**
+ * `PipelineRunDetailSerializer` — the list shape plus per-run counts and
+ * storage stats. `storage_stats` is loose because the serializer's success
+ * path returns `size_bytes` while its exception fallback returns
+ * `total_bytes`; the service reads whichever is present.
+ */
+export const pipelineRunDetailDTO = pipelineRunDTO.extend({
+  papers_count: z.number(),
+  duplicates_count: z.number(),
+  extractions_count: z.number(),
+  storage_stats: z.looseObject({ size_formatted: z.string() }).nullable(),
+})

@@ -16,7 +16,11 @@ import type {
   paperMetricDTO,
   signalScoreDetailsDTO,
 } from '@/lib/bff/papers/upstream'
-import type { pipelineRunDTO } from '@/lib/bff/pipeline-runs/upstream'
+import type { componentRunDTO } from '@/lib/bff/component-runs/upstream'
+import type {
+  pipelineRunDTO,
+  pipelineRunDetailDTO,
+} from '@/lib/bff/pipeline-runs/upstream'
 import type {
   extractionDefinitionDTO,
   scraperDTO,
@@ -33,6 +37,8 @@ export type ScraperDTO = z.infer<typeof scraperDTO>
 export type SubscriberDTO = z.infer<typeof subscriberDTO>
 export type WorkspaceDTO = z.infer<typeof workspaceDTO>
 export type PipelineRunDTO = z.infer<typeof pipelineRunDTO>
+export type PipelineRunDetailDTO = z.infer<typeof pipelineRunDetailDTO>
+export type ComponentRunDTO = z.infer<typeof componentRunDTO>
 
 export type ScreeningStatusDTO = string
 

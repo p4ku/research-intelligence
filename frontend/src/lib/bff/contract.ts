@@ -6,6 +6,7 @@
 import type { Operation } from './core/contract-types'
 import { briefingsOperations } from './briefings/contract'
 import { chatOperations } from './chat/contract'
+import { componentRunsOperations } from './component-runs/contract'
 import { papersOperations } from './papers/contract'
 import { pipelineRunsOperations } from './pipeline-runs/contract'
 import { scoringOperations } from './scoring/contract'
@@ -20,6 +21,7 @@ export const allOperations: Operation[] = [
   ...scoringOperations,
   ...workspacesOperations,
   ...pipelineRunsOperations,
+  ...componentRunsOperations,
 ]
 
 export const djangoOperations = (kind: 'current' | 'desired') =>

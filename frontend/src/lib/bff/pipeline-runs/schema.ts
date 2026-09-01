@@ -23,6 +23,10 @@ export const pipelineRun = z
     total_papers_passed_screening: z.number().int(),
     /** The engine's one-line human summary of the run. */
     status_message: z.string().nullable(),
+    /** Django computes this; null while a run is still in flight. */
+    duration_seconds: z.number().nullable(),
+    /** DRF serialises the Decimal as a string; the contract carries a number. */
+    usd_cost: z.number(),
     started_at: z.iso.datetime({ offset: true }).nullable(),
     completed_at: z.iso.datetime({ offset: true }).nullable(),
   })
@@ -36,3 +40,51 @@ export const runsQuery = listQuery.extend({
 export type RunsQuery = z.infer<typeof runsQuery>
 
 export const runPage = pageSchema(pipelineRun).meta({ id: 'PipelineRunPage' })
+
+/**
+ * One run in full: the list shape plus what it produced, what it cost and
+ * where its artefacts landed. Backs `/studio/runs/[id]`.
+ */
+export const pipelineRunDetail = pipelineRun
+  .extend({
+    workspace_name: z.string(),
+    /** Username, or null for a scheduled/system run. */
+    triggered_by: z.string().nullable(),
+    reprocess_existing: z.boolean(),
+    tokens_in: z.number().int(),
+    tokens_out: z.number().int(),
+    total_tokens: z.number().int(),
+    papers_count: z.number().int(),
+    duplicates_count: z.number().int(),
+    extractions_count: z.number().int(),
+    storage: z
+      .object({ size_formatted: z.string(), files: z.number().int() })
+      .nullable(),
+  })
+  .meta({ id: 'PipelineRunDetail' })
+export type PipelineRunDetail = z.infer<typeof pipelineRunDetail>
+
+/**
+ * `full_text_screening` → `Full-text screening`; `ocr` → `OCR`.
+ *
+ * NOT a claim about where a run stopped. `PipelineRun.current_stage` is the
+ * last stage the engine *dispatched*, and `DAG.reset_from_node()`
+ * (`tasks/orchestrator/dag/engine.py:526`) rewrites it to the re-triggered
+ * step, so a run that finished everything and then had one step re-run carries
+ * an early stage name while being entirely complete. Label it, do not diagnose
+ * from it.
+ */
+const STAGE_LABELS: Record<string, string> = {
+  ocr: 'OCR',
+  full_text_screening: 'Full-text screening',
+  abstract_screening: 'Abstract screening',
+  signal_score: 'Signal score',
+  deep_research: 'Deep research',
+}
+
+export function stageLabel(stage: string): string {
+  const known = STAGE_LABELS[stage]
+  if (known) return known
+  const words = stage.replace(/_/g, ' ').trim()
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
