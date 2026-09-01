@@ -1,9 +1,10 @@
 'use client'
 
-import { Card, SectionLabel } from '@/components/scanner-ui'
+import { Card, ErrorNote, SectionLabel } from '@/components/scanner-ui'
 import { bffFetch, BffClientError } from '@/lib/bff/client'
 import type { Preferences, Profile } from '@/lib/bff/settings/schema'
 import { useT } from '@/lib/i18n-client'
+import { ExclamationTriangleIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
@@ -38,7 +39,12 @@ function Field({
         autoComplete={autoComplete}
         className={inputClass}
       />
-      {error && <p className="text-warn mt-1 text-xs">{error}</p>}
+      {error && (
+        <p className="text-negative mt-1 flex items-start gap-1 text-xs">
+          <ExclamationTriangleIcon aria-hidden="true" className="mt-px size-3.5 shrink-0" />
+          {error}
+        </p>
+      )}
     </div>
   )
 }
@@ -149,7 +155,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
           autoComplete="username"
           error={errors.username}
         />
-        {errors._ && <p className="text-warn text-sm">{errors._}</p>}
+        {errors._ && <ErrorNote>{errors._}</ErrorNote>}
         <div className="flex items-center gap-3">
           <SaveButton busy={busy}>{t('Save profile')}</SaveButton>
           {done && <span className="text-muted-foreground text-xs">{done}</span>}
@@ -210,7 +216,7 @@ export function PasswordForm() {
             error={errors.confirm_password}
           />
         </div>
-        {errors._ && <p className="text-warn text-sm">{errors._}</p>}
+        {errors._ && <ErrorNote>{errors._}</ErrorNote>}
         <div className="flex items-center gap-3">
           <SaveButton busy={busy}>{t('Change password')}</SaveButton>
           {done && <span className="text-muted-foreground text-xs">{done}</span>}
