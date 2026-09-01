@@ -32,6 +32,5 @@ export const dict: Record<string, string> = {
   Notifications: 'Benachrichtigungen',
   'Daily briefing email': 'Tägliche Briefing-E-Mail',
   'A morning digest of the top signals.': 'Ein morgendlicher Überblick der Top-Signale.',
-  'Not yet persisted by the backend — saved for this session only.':
-    'Vom Backend noch nicht gespeichert — gilt nur für diese Sitzung.',
+  'Currently saved for this session only.': 'Wird derzeit nur für diese Sitzung gespeichert.',
 }

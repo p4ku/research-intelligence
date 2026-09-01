@@ -5,11 +5,13 @@ export const dict: Record<string, string> = {
   // page.tsx
   Assistant: 'Assistent',
   'Ask Research Intelligence': 'Research Intelligence fragen',
-  // Tab title. Distinct from the nav's 'Ask', which stays an anglicism on purpose.
+  // Tab title. The nav's 'Ask' translates via the 'nav' context in chrome.ts.
   'Ask the scanner': 'Scanner fragen',
 
   // ask.tsx — console chrome
-  'Ask console': 'Ask-Konsole',
+  'Ask console': 'Fragen-Konsole',
+  // The console's mono eyebrow; scoped so it can differ from the nav label.
+  'console|Ask': 'Fragen',
   'No paper yet': 'Noch kein Paper',
   'Change paper': 'Paper wechseln',
   'Choose a different paper': 'Ein anderes Paper wählen',
@@ -21,21 +23,24 @@ export const dict: Record<string, string> = {
   'Which paper? Type a title, author, or source…':
     'Welches Paper? Titel, Autor oder Quelle tippen…',
   'Ask a question': 'Eine Frage stellen',
-  'Ask about this paper…': 'Frage zu diesem Paper…',
+  // Same value in de/papers.ts (the paper-detail chat) — the test enforces that.
+  'Ask about this paper…': 'Zu diesem Paper fragen…',
   Send: 'Senden',
   Stop: 'Stopp',
   'Jump to latest': 'Zum Neuesten',
-  Target: 'Ziel',
+  Target: 'Fokus',
   '{title} · full text': '{title} · Volltext',
   'All papers': 'Alle Papers',
   'Conversation history': 'Gesprächsverlauf',
   History: 'Verlauf',
-  '{n} asked': '{n} gefragt',
+  // Question counts (history header and per-session rows) share one pair.
+  '1 question': '1 Frage',
+  '{n} questions': '{n} Fragen',
 
   // paper-picker.tsx
   Papers: 'Papers',
   'No papers match “{q}” — the workspace holds {n} papers.':
-    'Keine Papers passen zu „{q}“ — der Workspace umfasst {n} Papers.',
+    'Keine Papers passen zu „{q}“ — der Arbeitsbereich umfasst {n} Papers.',
   choose: 'wählen',
   'scope the conversation': 'Gespräch eingrenzen',
   'Top {n} of {total}': 'Top {n} von {total}',
@@ -47,13 +52,13 @@ export const dict: Record<string, string> = {
   Yesterday: 'Gestern',
   'New conversation': 'Neues Gespräch',
   'Delete conversation': 'Gespräch löschen',
-  '{n} turns': '{n} Fragen',
   'Questions you ask are filed here.': 'Gestellte Fragen werden hier abgelegt.',
 
   // scanner-turn.tsx
   'Asked {time}': 'Gefragt {time}',
-  'Reading “{title}” · full text': 'Lese „{title}“ · Volltext',
-  'Reading the full text…': 'Lese den Volltext…',
+  'Reading “{title}” · full text': '„{title}“ wird gelesen · Volltext',
+  // Same value in de/papers.ts — the dictionary test enforces that.
+  'Reading the full text…': 'Der Volltext wird gelesen…',
   'The answer failed.': 'Die Antwort ist fehlgeschlagen.',
   Stopped: 'Gestoppt',
   'p. {n}': 'S. {n}',

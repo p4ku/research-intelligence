@@ -44,7 +44,7 @@ export default async function DashboardPage() {
       Promise.all([
         runsService.listAll(ws.id, 'completed'),
         papersService.listAll(ws.id),
-        briefings.listAll(ws.id),
+        briefings.listAll(ws.id, lang),
       ]),
     )
     editionToday = editions[0] ?? null
@@ -121,9 +121,7 @@ export default async function DashboardPage() {
           )}
           {editionToday?.in_brief_source === 'template' && (
             <p className="mt-2 font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
-              {t(
-                'Assembled from the run — model-written briefs arrive with the backend’s reporting step.',
-              )}
+              {t('Assembled automatically from this run.')}
             </p>
           )}
         </div>
@@ -148,9 +146,7 @@ export default async function DashboardPage() {
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
                 {ws
                   ? t('Once a pipeline run completes in this workspace, its papers appear here.')
-                  : t(
-                      'You are not a member of any workspace yet. Membership is managed in the backend.',
-                    )}
+                  : t('You are not a member of any workspace yet. Ask an administrator for access.')}
               </p>
             </Card>
           )}

@@ -29,4 +29,8 @@ export const dict: Record<string, string> = {
   // with papers/error.tsx, which had no translation before.
   'Something went wrong loading this page.': 'Beim Laden dieser Seite ist ein Fehler aufgetreten.',
   Retry: 'Erneut versuchen',
+  // Accessibility labels on the shell (mobile nav drawer, breadcrumb trail).
+  'Open navigation': 'Navigation öffnen',
+  'Close navigation': 'Navigation schließen',
+  Breadcrumb: 'Pfadnavigation',
 }
