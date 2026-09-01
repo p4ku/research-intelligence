@@ -13,7 +13,7 @@
  *   bun run screenshots                              # http://localhost:3009, mobile + desktop
  *   bun run screenshots --url http://localhost:3010  # another dev server
  *   bun run screenshots --viewports desktop          # one viewport
- *   bun run screenshots --routes /papers,/scoring    # subset of screens
+ *   bun run screenshots --routes papers,scoring      # subset of screens, by name
  *   bun run screenshots --lang de --theme dark       # German UI, `.dark` on <html>
  *   bun run screenshots --no-full-page --headed      # viewport-only, visible browser
  *
@@ -21,9 +21,8 @@
  * Any credentials work against the replay server; a real Django needs the
  * real ones. `screenshots/` is git-ignored.
  */
-import { existsSync } from 'node:fs'
 import { mkdir, rm, symlink, writeFile } from 'node:fs/promises'
-import { join, relative } from 'node:path'
+import { join, relative, resolve, sep } from 'node:path'
 import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
 
 // ---------------------------------------------------------------- arguments
@@ -50,7 +49,9 @@ function parseArgs(argv: string[]): Options {
   const opts: Options = {
     url: process.env.SCREENSHOT_URL ?? 'http://localhost:3009',
     user: process.env.SCREENSHOT_USER ?? 'admin',
-    password: process.env.SCREENSHOT_PASSWORD ?? 'schwarz123!',
+    // The replay server accepts any password; a real Django needs the real one
+    // via $SCREENSHOT_PASSWORD (see local-docs/backend-frontend-seam.md).
+    password: process.env.SCREENSHOT_PASSWORD ?? 'replay',
     out: process.env.SCREENSHOT_OUT ?? '',
     viewports: ['mobile', 'desktop'],
     routes: null,
@@ -125,6 +126,14 @@ function parseArgs(argv: string[]): Options {
       throw new Error(`Unknown viewport "${v}" (${Object.keys(VIEWPORTS).join(', ')})`)
   }
   if (opts.lang && !['en', 'de'].includes(opts.lang)) throw new Error('--lang must be en or de')
+  if (opts.scale !== null && (!Number.isFinite(opts.scale) || opts.scale <= 0))
+    throw new Error('--scale must be a positive number')
+  if (!Number.isFinite(opts.timeout) || opts.timeout <= 0)
+    throw new Error('--timeout must be a positive number of milliseconds')
+  if (opts.routes && !SCREENS.some((s) => wanted(s, opts)))
+    throw new Error(
+      `--routes matched no screens. Use screen names or route templates: ${SCREENS.map((s) => s.name).join(', ')}`,
+    )
   if (!['light', 'dark'].includes(opts.theme)) throw new Error('--theme must be light or dark')
   if (!opts.out) {
     const stamp = new Date().toISOString().replace(/[-:]/g, '').replace('T', '-').slice(0, 15)
@@ -139,7 +148,7 @@ function usage(): string {
   --user/--password       login (default admin / $SCREENSHOT_PASSWORD; anything works on the replay)
   --out <dir>             output dir (default screenshots/<stamp>)
   --viewports <list>      ${Object.keys(VIEWPORTS).join(',')} (default mobile,desktop)
-  --routes <list>         only these routes, e.g. /papers,/papers/[id],/nav-open
+  --routes <list>         only these screens by name, e.g. papers,paper-detail,nav-open
   --lang en|de            set the rs-lang cookie
   --theme light|dark      add the .dark class to <html>
   --scale <n>             device scale factor for every viewport
@@ -293,7 +302,8 @@ async function login(browser: Browser, opts: Options) {
       .textContent({ timeout: 1_000 })
       .catch(() => null)
     throw new Error(
-      `Login failed at ${opts.url} as ${opts.user}: ${alert?.trim() || (err as Error).message}`,
+      `Login failed at ${opts.url} as ${opts.user}: ${alert?.trim() || (err as Error).message}` +
+        ' (against a real Django set SCREENSHOT_PASSWORD — see local-docs/backend-frontend-seam.md; the replay accepts any password)',
     )
   } finally {
     await ctx.close()
@@ -375,12 +385,12 @@ async function main() {
         `\n[${vpName}] ${viewport.width}×${viewport.height} @${opts.scale ?? viewport.deviceScaleFactor}x`,
       )
 
-      let index = 0
       for (const screen of SCREENS) {
         if (!wanted(screen, opts)) continue
         if (screen.only && !screen.only.includes(vpName)) continue
-        index++
-        const file = `${String(index).padStart(2, '0')}-${screen.name}.png`
+        // Number by position in SCREENS so the same screen keeps the same
+        // filename across viewports, runs and --routes subsets (gaps are fine).
+        const file = `${String(SCREENS.indexOf(screen) + 1).padStart(2, '0')}-${screen.name}.png`
         const shot: Shot = {
           name: screen.name,
           route: screen.route,
@@ -480,10 +490,13 @@ async function main() {
   await writeFile(join(opts.out, 'manifest.json'), JSON.stringify(manifest, null, 2))
   await writeFile(join(opts.out, 'index.html'), contactSheet(manifest))
 
-  const latest = join(import.meta.dir, '..', 'screenshots', 'latest')
-  if (opts.out.startsWith(join(import.meta.dir, '..', 'screenshots'))) {
-    if (existsSync(latest)) await rm(latest, { recursive: true, force: true })
-    await symlink(relative(join(latest, '..'), opts.out), latest)
+  const screensRoot = resolve(import.meta.dir, '..', 'screenshots')
+  const latest = join(screensRoot, 'latest')
+  if (resolve(opts.out).startsWith(screensRoot + sep) && resolve(opts.out) !== latest) {
+    // rm with force tolerates a missing or dangling symlink; it removes only
+    // the link itself, never the directory it points to.
+    await rm(latest, { recursive: true, force: true })
+    await symlink(relative(screensRoot, resolve(opts.out)), latest)
   }
 
   const ok = shots.filter((s) => s.file && !s.error && !(s.status && s.status >= 400)).length
@@ -544,4 +557,7 @@ ${rows}
 </table>`
 }
 
-main()
+main().catch((err) => {
+  console.error(err instanceof Error ? err.message : err)
+  process.exit(2)
+})

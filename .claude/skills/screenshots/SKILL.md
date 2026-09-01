@@ -35,10 +35,11 @@ lsof -nP -iTCP:3009 -iTCP:3010 -iTCP:8010 -iTCP:8011 -sTCP:LISTEN
 - A deployed target works too, e.g. `--url https://sri-prod.apps.01.cf.eu01.onstackit.cloud`
   with real credentials via env (see below). Prefer the replay for design work.
 
-Credentials: default `admin` / `$SCREENSHOT_PASSWORD` (default is the local
-dev password from `local-docs/backend-frontend-seam.md`). The replay server on
-`8010` accepts any credentials. Never print or paste a password into the chat;
-pass it as `SCREENSHOT_PASSWORD=… bun run screenshots`.
+Credentials: default `admin` with a dummy password — the replay server accepts
+any credentials, so against the replay no setup is needed. Against a real
+Django, export `SCREENSHOT_PASSWORD` in the shell first (value in
+`local-docs/backend-frontend-seam.md`); never print or paste a password into
+the chat or put it on a visible command line.
 
 ## 2. Run it
 
@@ -51,11 +52,11 @@ cd frontend
 bun run screenshots                               # http://localhost:3009, mobile + desktop, full page
 bun run screenshots --url http://localhost:3010   # another server
 bun run screenshots --viewports desktop           # one viewport (mobile|tablet|desktop)
-bun run screenshots --routes /papers,/papers/[id] # subset; names work too: papers,paper-detail,nav-open
+bun run screenshots --routes papers,paper-detail  # subset, by screen name (login, dashboard, nav-open, briefing, briefing-edition, briefing-run, papers, paper-detail, scoring, ask, settings). Avoid the /papers/[id] route form — zsh globs the brackets.
 bun run screenshots --lang de                     # German UI (sets the rs-lang cookie)
 bun run screenshots --theme dark                  # adds .dark to <html>
 bun run screenshots --no-full-page                # viewport-only captures
-bun run screenshots --out /path/to/dir            # custom output dir (no `latest` symlink then)
+bun run screenshots --out /path/to/dir            # custom output dir (relative = from frontend/; `latest` only updates for dirs under frontend/screenshots/)
 bun run screenshots --headed                      # watch it
 ```
 
@@ -75,7 +76,9 @@ The log prints one line per shot. Look for:
 - `skip …` — no `[date]`/`[id]` link found (empty workspace); the manifest
   records the reason.
 
-Exit code is non-zero if login failed or any shot failed or returned ≥ 400.
+Exit code is non-zero if login failed or any shot failed or returned ≥ 400 —
+but `skip` (missing `[date]`/`[id]` data) still exits 0, so also check the
+manifest's `error` fields before declaring the run complete.
 
 Then inspect the images. `frontend/screenshots/latest/index.html` is the
 quickest overview for a human (open it in a browser). For your own review:
@@ -91,8 +94,13 @@ quickest overview for a human (open it in a browser). For your own review:
 ## 4. Before/after comparisons
 
 Each run gets its own timestamped folder, so capture, change the code, capture
-again, and compare the two folders (`manifest.json` lists every file). Use
-`--out` to name the folders meaningfully, e.g. `--out screenshots/before-tabs-fix`.
+again, and compare the two folders. File numbers are stable (each screen keeps
+its number across runs, viewports and `--routes` subsets, with gaps where
+screens are skipped), but join runs on `manifest.json` (`name` + `viewport`),
+not on eyeballed filenames. `--out` names a folder meaningfully, e.g.
+`--out screenshots/before-tabs-fix` (relative to `frontend/`; dirs under
+`frontend/screenshots/` also move the `latest` symlink — so for before/after
+work review the two named folders directly, not `latest`).
 
 ## Gotchas
 
