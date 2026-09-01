@@ -19,7 +19,8 @@
     "contract:check": "bun run scripts/contract-check.ts",
     "snapshot:pull": "bun run scripts/snapshot-pull.ts",
     "snapshot:serve": "bun run scripts/snapshot-serve.ts",
-    "screenshots": "bun run scripts/screenshots.ts"
+    "screenshots": "bun run scripts/screenshots.ts",
+    "skeleton:drift": "bun run scripts/skeleton-drift.ts"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.6",

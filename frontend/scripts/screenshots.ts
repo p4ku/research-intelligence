@@ -23,26 +23,26 @@
  */
 import { mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { join, relative, resolve, sep } from 'node:path'
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright'
+import { chromium, type Browser, type Page } from 'playwright'
+import {
+  login,
+  newContext,
+  settle,
+  VIEWPORTS,
+  type BrowserOptions,
+  type Lang,
+  type Theme,
+  type Viewport,
+} from './lib/browser'
 
 // ---------------------------------------------------------------- arguments
 
-type Lang = 'en' | 'de'
-type Theme = 'light' | 'dark'
-
-interface Options {
-  url: string
-  user: string
-  password: string
+interface Options extends BrowserOptions {
   out: string
   viewports: string[]
   routes: string[] | null
-  lang: Lang | null
-  theme: Theme
   fullPage: boolean
   headed: boolean
-  scale: number | null
-  timeout: number
 }
 
 function parseArgs(argv: string[]): Options {
@@ -157,21 +157,6 @@ function usage(): string {
   --timeout <ms>          per-navigation timeout (default 30000)`
 }
 
-// ---------------------------------------------------------------- viewports
-
-interface Viewport {
-  width: number
-  height: number
-  deviceScaleFactor: number
-  isMobile: boolean
-}
-
-const VIEWPORTS: Record<string, Viewport> = {
-  mobile: { width: 390, height: 844, deviceScaleFactor: 2, isMobile: true }, // iPhone 14/15
-  tablet: { width: 834, height: 1194, deviceScaleFactor: 2, isMobile: true }, // iPad Air, portrait
-  desktop: { width: 1440, height: 900, deviceScaleFactor: 1, isMobile: false },
-}
-
 // ---------------------------------------------------------------- screens
 
 /**
@@ -213,6 +198,9 @@ const SCREENS: Screen[] = [
   { name: 'paper-detail', route: '/papers/[id]', auth: true },
   { name: 'ask', route: '/ask', auth: true },
   { name: 'settings', route: '/settings', auth: true },
+  // The skeleton gallery (loaded and skeleton panes side by side, sweep frozen)
+  // so loading states ride the same review loop as every other screen.
+  { name: 'skeletons', route: '/studio/skeletons?motion=static', auth: true },
 ]
 
 /** `/nav-open` is a pseudo-route: it renders /dashboard with the drawer open. */
@@ -240,73 +228,6 @@ const MAX_DEVICE_PX = 16_000
 
 function log(msg: string) {
   console.log(msg)
-}
-
-async function settle(page: Page, timeout: number) {
-  await page.waitForLoadState('load', { timeout }).catch(() => {})
-  // Dev servers keep HMR sockets open, so networkidle can never arrive; cap it.
-  await page.waitForLoadState('networkidle', { timeout: 5_000 }).catch(() => {})
-  await page.evaluate(() => document.fonts.ready).catch(() => {})
-  // Hide the Next.js dev indicator (bottom-left "N" badge) on dev-server captures.
-  await page.addStyleTag({ content: 'nextjs-portal{display:none!important}' }).catch(() => {})
-  await page.waitForTimeout(300)
-}
-
-async function newContext(
-  browser: Browser,
-  opts: Options,
-  viewport: Viewport,
-): Promise<BrowserContext> {
-  const ctx = await browser.newContext({
-    baseURL: opts.url,
-    viewport: { width: viewport.width, height: viewport.height },
-    deviceScaleFactor: opts.scale ?? viewport.deviceScaleFactor,
-    isMobile: viewport.isMobile,
-    hasTouch: viewport.isMobile,
-    reducedMotion: 'reduce',
-    colorScheme: opts.theme,
-    locale: opts.lang === 'de' ? 'de-DE' : 'en-GB',
-    timezoneId: 'Europe/Berlin',
-  })
-  ctx.setDefaultTimeout(opts.timeout)
-  if (opts.lang) {
-    await ctx.addCookies([{ name: 'rs-lang', value: opts.lang, url: opts.url }])
-  }
-  if (opts.theme === 'dark') {
-    await ctx.addInitScript(() => document.documentElement.classList.add('dark'))
-  }
-  return ctx
-}
-
-/** Log in through the real form once; returns the session cookies. */
-async function login(browser: Browser, opts: Options) {
-  const ctx = await newContext(browser, opts, VIEWPORTS.desktop)
-  const page = await ctx.newPage()
-  try {
-    await page.goto('/', { waitUntil: 'domcontentloaded' })
-    await page.locator("input[name='identifier']").fill(opts.user)
-    await page.locator("input[name='password']").fill(opts.password)
-    await page.locator("button[type='submit']").click()
-    await page.waitForURL((u) => u.pathname !== '/', { timeout: opts.timeout })
-    await settle(page, opts.timeout)
-    const cookies = await ctx.cookies()
-    if (!cookies.some((c) => c.name === 'sri_access')) {
-      throw new Error('no sri_access cookie after sign-in')
-    }
-    return cookies
-  } catch (err) {
-    const alert = await page
-      .locator("[role='alert']")
-      .first()
-      .textContent({ timeout: 1_000 })
-      .catch(() => null)
-    throw new Error(
-      `Login failed at ${opts.url} as ${opts.user}: ${alert?.trim() || (err as Error).message}` +
-        ' (against a real Django set SCREENSHOT_PASSWORD — see local-docs/backend-frontend-seam.md; the replay accepts any password)',
-    )
-  } finally {
-    await ctx.close()
-  }
 }
 
 /** Find one real `[date]` and `[id]` from the list pages. */
