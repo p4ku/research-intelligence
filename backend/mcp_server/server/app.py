@@ -966,11 +966,23 @@ def trigger_search_job(
     workspace_id: str,
     scraper_id: str | None = None,
     limit: int = None,
-    reprocess_existing: bool = False,
+    reprocess_existing: bool = None,
     date_range_days: int | None = None,
     query_prefix: str | None = None
 ) -> str:
-    """[MANUAL COMPONENT ONLY] Trigger Search & Metadata Ingestion. Set limit to integer (e.g. 50) or None (all results from scraper). Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
+    """
+    [MANUAL COMPONENT ONLY] Trigger Search & Academic Metadata Ingestion for a workspace.
+    
+    PARAMETERS:
+    - workspace_id: Target workspace UUID.
+    - scraper_id: Optional UUID of a specific scraper (if omitted, triggers all active scrapers).
+    - limit: Max papers to ingest per scraper (default: None = all available).
+    - reprocess_existing: If True, forces re-screening of existing papers. If None, inherits the workspace default policy (`workspace.reprocess_existing`).
+    - date_range_days: Ingestion date window filter (e.g. 30, 90, 180).
+    - query_prefix: Optional keyword prepended to active scraper queries.
+    
+    NOTE: To run the full end-to-end pipeline automatically, use `start_research_agent` instead.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "runs:write")
@@ -1018,7 +1030,7 @@ def trigger_screening_job(pipeline_run_id: str = None, workspace_id: str = None,
 @mcp.tool()
 @with_db_connection
 def trigger_extraction_job(pipeline_run_id: str = None, workspace_id: str = None, limit: int = None) -> str:
-    """[MANUAL COMPONENT ONLY] Trigger Parameter & Claim Extraction. If limit is None, extracts parameters from all accepted papers. Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
+    """[MANUAL COMPONENT ONLY] Trigger Parameter Extraction against accepted papers. Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "runs:write")
@@ -1202,7 +1214,7 @@ def start_research_agent(
     query_prefix: str = None,
     skip_abstract_screening: bool = None,
     notification_email: str = None,
-    reprocess_existing: bool = False
+    reprocess_existing: bool = None
 ) -> str:
     """
     [PRIMARY SLR ORCHESTRATOR - RECOMMENDED ENTRYPOINT]
@@ -1210,15 +1222,16 @@ def start_research_agent(
     Search & Ingestion -> Download PDFs -> OCR (auto-skipped if None) -> Dual-Stage Screening (Abstract + Full-Text via Gemini 3.7) -> Dynamic Parameter Extraction -> Composite Signal Scoring -> Executive Narrative.
     
     WHEN TO USE:
-    - Primary entrypoint to run a review. Do not trigger individual steps manually unless debugging.
+    - Primary entrypoint to run a systematic review. Do not trigger individual manual steps unless debugging.
     
     KEY PARAMETERS:
     - workspace_id: The target workspace UUID.
     - limit: Optional maximum number of papers to ingest and process across all steps (default: None = all papers found by scrapers).
     - date_range_days: Optional date window filter (e.g. 30, 90, 180, 365).
     - query_prefix: Optional query modifier prepended to workspace scrapers.
-    - reprocess_existing: Set to True to re-screen and re-extract parameters from already-ingested workspace papers.
-    - notification_email: Optional email to notify via Mailgun upon pipeline completion.
+    - reprocess_existing: Reprocessing policy override. When None (default), inherits the workspace-level default policy (`workspace.reprocess_existing`). Set explicitly to True to re-screen and re-extract all existing workspace papers even if no new papers were found; set False to only process newly scraped papers.
+    - notification_email: Optional single-run email override to receive Mailgun completion report (default: sends to all active workspace Subscribers).
+    - skip_abstract_screening: If True, skips Abstract Screening and routes all candidate papers directly to Full-Text Screening (default: inherits `workspace.skip_abstract_screening`).
     
     NEXT STEPS:
     - Immediately after calling this, call `check_run_status(process_id=...)` to check real-time progress without blocking, or query `get_paper_extractions_matrix(process_id=...)` once complete.

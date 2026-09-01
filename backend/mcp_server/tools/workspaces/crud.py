@@ -104,6 +104,28 @@ def get_workspace_logic(user, workspace_id: str) -> str:
                 "is_active": d.is_active
             }
             for d in extraction_defs
+        ],
+        "subscribers": [
+            {
+                "subscriber_id": str(sub.id),
+                "email": sub.email,
+                "name": sub.name,
+                "subscription_type": sub.subscription_type,
+                "is_active": sub.is_active
+            }
+            for sub in workspace.subscribers.all()
+        ],
+        "schedules": [
+            {
+                "schedule_id": str(sched.id),
+                "name": sched.name,
+                "frequency": sched.frequency,
+                "cron_expression": sched.cron_expression,
+                "reprocess_existing": sched.reprocess_existing,
+                "is_active": sched.is_active,
+                "next_run_at": sched.next_run_at.isoformat() if sched.next_run_at else None
+            }
+            for sched in workspace.schedules.all()
         ]
     }
     return json.dumps(data, indent=2, cls=DjangoJSONEncoder)
@@ -135,7 +157,13 @@ def create_workspace_logic(
     skip_abstract_screening: bool = False,
     reprocess_existing: bool = False
 ) -> str:
-    """Create a new workspace and automatically assign the creator as the 'admin' member."""
+    """
+    Create a new systematic review workspace and assign the creator as 'admin'.
+    
+    Parameters:
+    - reprocess_existing: Default workspace policy (boolean, default False). If True, pipeline runs
+      default to re-screening and re-evaluating existing workspace papers unless overridden per-run.
+    """
     from research_intelligence.services import create_workspace_record
 
     usd_limit = cost_limit_usd if cost_limit_usd is not None else monthly_usd_limit

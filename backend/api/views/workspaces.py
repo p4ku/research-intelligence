@@ -5,10 +5,21 @@ from research_intelligence.models import Workspace, WorkspaceMember, ExtractionD
 from ..serializers.workspaces import WorkspaceSerializer, ExtractionDefinitionSerializer
 
 
-@extend_schema(tags=['Workspaces Management'])
+@extend_schema(
+    tags=['Workspaces Management'],
+    description="""
+Manage SLR Workspace Projects, screening criteria, screening LLM engines, and default processing policies.
+
+### Key Fields & Policies:
+- **`reprocess_existing`** (boolean): Default workspace policy for pipeline runs. If `True`, pipeline runs re-evaluate and re-screen existing workspace papers even if no new papers are found from scrapers. This can be overridden per individual run via `configuration_override['reprocess_existing']` in API / MCP.
+- **`skip_abstract_screening`** (boolean): If `True`, skips Abstract Screening and routes all candidate papers directly to multimodal Full-Text Screening.
+- **`subscribers`**: Email recipients receiving automated execution reports and error alerts.
+- **`workflow_schedules`**: Recurring (cron) and one-off execution schedules managed via `/api/schedules/`.
+"""
+)
 class WorkspaceViewSet(viewsets.ModelViewSet):
     """
-    CRUD endpoints for Workspace (Projects) and prompt limits configurations.
+    CRUD endpoints for Workspace (Projects), dual-stage criteria, and processing policies.
     Scoped to workspaces the authenticated user is a member of.
     """
     serializer_class = WorkspaceSerializer
