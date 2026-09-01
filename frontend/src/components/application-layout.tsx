@@ -40,18 +40,45 @@ import {
   DocumentTextIcon,
   HomeIcon,
   NewspaperIcon,
+  PlayCircleIcon,
   VariableIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 
-const coreNav = [
+interface ShellNavItem {
+  href: string
+  label: string
+  Icon: React.ComponentType<{ className?: string }>
+  /** Match the path exactly rather than by prefix (for index routes). */
+  exact?: boolean
+}
+
+const coreNav: ShellNavItem[] = [
   { href: '/dashboard', label: 'Today', Icon: HomeIcon, exact: true },
   { href: '/briefing', label: 'Briefings', Icon: NewspaperIcon },
   { href: '/papers', label: 'Papers', Icon: DocumentTextIcon },
   { href: '/scoring', label: 'Scoring', Icon: VariableIcon },
   { href: '/ask', label: 'Ask', Icon: ChatBubbleLeftRightIcon },
 ]
+
+const studioNav: ShellNavItem[] = [
+  { href: '/studio/runs', label: 'Runs', Icon: PlayCircleIcon },
+  { href: '/dashboard', label: 'Briefings app', Icon: HomeIcon, exact: true },
+]
+
+/**
+ * Nav sets live here, in the client module, and callers pick one by name:
+ * icon components are not serializable, so a server layout cannot hand them
+ * across the boundary.
+ */
+const NAVS = { core: coreNav, studio: studioNav } as const
+
+/** Which area of the product the shell is framing. */
+export type ShellArea = keyof typeof NAVS
+
+/** Badge shown beside the wordmark; the reading app is the unmarked default. */
+const AREA_BADGE: Record<ShellArea, string | null> = { core: null, studio: 'Studio' }
 
 function AccountDropdownMenu({
   anchor,
@@ -125,6 +152,8 @@ interface ShellProps {
   workspaces: WorkspaceOption[]
   currentWorkspaceId: string | null
   children: React.ReactNode
+  /** Which nav to show; defaults to the reading app's. */
+  area?: ShellArea
 }
 
 export function ApplicationLayout({ lang, ...props }: ShellProps & { lang: Lang }) {
@@ -135,7 +164,15 @@ export function ApplicationLayout({ lang, ...props }: ShellProps & { lang: Lang 
   )
 }
 
-function ApplicationLayoutInner({ user, workspaces, currentWorkspaceId, children }: ShellProps) {
+function ApplicationLayoutInner({
+  user,
+  workspaces,
+  currentWorkspaceId,
+  children,
+  area = 'core',
+}: ShellProps) {
+  const nav = NAVS[area]
+  const areaBadge = AREA_BADGE[area]
   const t = useT()
   const pathname = usePathname()
   // false until hydration completes; the user-menu Dropdown mounts client-only
@@ -185,8 +222,15 @@ function ApplicationLayoutInner({ user, workspaces, currentWorkspaceId, children
             <div className="flex items-center gap-2.5 px-2 py-1.5">
               <ScannerMark className="text-foreground size-7" />
               <div className="flex min-w-0 flex-col">
-                <div className="text-foreground text-xs leading-snug font-semibold tracking-[0.14em] uppercase">
-                  Research Intelligence
+                <div className="text-foreground flex items-center gap-1.5 text-xs leading-snug font-semibold tracking-[0.14em] uppercase">
+                  <span className="truncate">Research Intelligence</span>
+                  {/* Names the area so it is obvious which tool you are in —
+                      the reading app and the Studio share this chrome. */}
+                  {areaBadge && (
+                    <span className="bg-accent shrink-0 rounded-sm px-1.5 py-px text-[10px] tracking-[0.12em] text-white">
+                      {areaBadge}
+                    </span>
+                  )}
                 </div>
                 <VersionStamp />
               </div>
@@ -203,7 +247,7 @@ function ApplicationLayoutInner({ user, workspaces, currentWorkspaceId, children
             </SidebarSection>
 
             <SidebarSection>
-              {coreNav.map(({ href, label, Icon, exact }) => (
+              {nav.map(({ href, label, Icon, exact }) => (
                 <SidebarItem
                   key={href}
                   href={href}

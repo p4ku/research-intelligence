@@ -2,7 +2,7 @@
 import * as z from 'zod'
 import type { Operation } from '../core/contract-types'
 import { runPage, runsQuery } from './schema'
-import { pipelineRunDTO } from './upstream'
+import { pipelineRunDTO, pipelineRunDetailDTO } from './upstream'
 
 export const pipelineRunsOperations: Operation[] = [
   {
@@ -28,6 +28,17 @@ export const pipelineRunsOperations: Operation[] = [
     query: runsQuery.omit({ workspace_id: true }),
     responses: { 200: runPage },
     probe: { requires: ['workspace_id'] },
+  },
+  {
+    id: 'pipeline-runs.get.current',
+    resource: 'pipeline-runs',
+    face: 'django',
+    kind: 'current',
+    method: 'GET',
+    path: '/api/pipeline-runs/{run_id}/',
+    summary: 'One run: the list shape plus per-run counts, storage stats and embedded steps.',
+    responses: { 200: pipelineRunDetailDTO },
+    probe: { requires: ['run_id'] },
   },
   {
     id: 'pipeline-runs.list.bff',

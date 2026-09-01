@@ -19,6 +19,7 @@ export type ResourceName =
   | 'papers'
   | 'workspaces'
   | 'pipeline-runs'
+  | 'component-runs'
   | 'chat'
   | 'briefings'
   | 'preferences'
@@ -47,6 +48,7 @@ export const RESOURCES: Record<ResourceName, ResourceDef> = {
   papers: def('papers', 'BFF_SOURCE_PAPERS', ['stub', 'composed', 'django'], 'composed'),
   workspaces: def('workspaces', 'BFF_SOURCE_WORKSPACES', ['django'], 'django'),
   'pipeline-runs': def('pipeline-runs', 'BFF_SOURCE_PIPELINE_RUNS', ['django'], 'django'),
+  'component-runs': def('component-runs', 'BFF_SOURCE_COMPONENT_RUNS', ['django'], 'django'),
   chat: def('chat', 'BFF_SOURCE_CHAT', ['stub', 'django'], 'django'),
   briefings: def('briefings', 'BFF_SOURCE_BRIEFINGS', ['stub', 'composed', 'django'], 'composed'),
   preferences: def('preferences', 'BFF_SOURCE_PREFERENCES', ['stub', 'django'], 'stub'),
