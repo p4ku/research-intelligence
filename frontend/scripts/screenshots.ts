@@ -13,7 +13,7 @@
  *   bun run screenshots                              # http://localhost:3009, mobile + desktop
  *   bun run screenshots --url http://localhost:3010  # another dev server
  *   bun run screenshots --viewports desktop          # one viewport
- *   bun run screenshots --routes papers,scoring      # subset of screens, by name
+ *   bun run screenshots --routes papers,ask          # subset of screens, by name
  *   bun run screenshots --lang de --theme dark       # German UI, `.dark` on <html>
  *   bun run screenshots --no-full-page --headed      # viewport-only, visible browser
  *
@@ -211,7 +211,6 @@ const SCREENS: Screen[] = [
   { name: 'briefing-run', route: '/briefing/[date]/run', auth: true },
   { name: 'papers', route: '/papers', auth: true },
   { name: 'paper-detail', route: '/papers/[id]', auth: true },
-  { name: 'scoring', route: '/scoring', auth: true },
   { name: 'ask', route: '/ask', auth: true },
   { name: 'settings', route: '/settings', auth: true },
 ]

@@ -2,10 +2,15 @@
 
 ## Purpose
 
-The read-only **Scoring** page (`/scoring`): how this workspace ranks papers —
-the signal-score formula, the variables it reads, per-dimension weights, and
-one worked example. Users never edit; the formula stays a backend-owned
-Python snippet (`Workspace.signal_score_code`).
+How this workspace ranks papers — the signal-score formula, the variables it
+reads, per-dimension weights, and one worked example. The formula stays a
+backend-owned Python snippet (`Workspace.signal_score_code`); nothing here is
+editable.
+
+> **No UI consumer right now.** The `/scoring` page was removed; the endpoint,
+> schema and service are kept so the contract with the backend survives and a
+> future surface can read it. The paper detail page (`/papers/[id]`) still
+> explains a single paper's score from its own metrics.
 
 ## BFF route
 
@@ -37,10 +42,10 @@ parsing Python. P2.
 `composed` (default): `code` and the example come from the newest scored
 paper's `metrics[].signal_score_details` (the workspace serializer does not
 expose `signal_score_code`); variables from the workspace's definitions;
-weights are an **even placeholder split flagged `weights_source: 'stub'`**
-(the page says so). `stub` serves `fixtures.ts`.
+weights are an **even placeholder split flagged `weights_source: 'stub'`**.
+`stub` serves `fixtures.ts`.
 
 ## Done criteria
 
 `contract:check` PASS for `scoring.get.desired`; default flipped to `django`;
-the placeholder-weights note disappears.
+real weights replace the placeholder split.
