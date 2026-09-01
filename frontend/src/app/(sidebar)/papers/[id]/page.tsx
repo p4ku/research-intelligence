@@ -10,11 +10,14 @@ import {
   TrlBadge,
   dimensionRadarAxes,
 } from '@/components/scanner-ui'
+import { ScoreVariables } from '@/components/score-variables'
+import { SignalLedger } from '@/components/signal-ledger'
 import { forPage } from '@/lib/bff/core/page'
 import { papers } from '@/lib/bff/papers/service'
 import { formatDate } from '@/lib/i18n'
 import { getLang, getT } from '@/lib/i18n-server'
 import { trlDimension } from '@/lib/papers/select'
+import { ledgerInputs } from '@/lib/papers/signal-formula'
 import type { Dimension } from '@/lib/papers/types'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
@@ -43,7 +46,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
   const trl = trlDimension(paper)
   const radarAxes = dimensionRadarAxes(paper.dimensions)
   const details = paper.signal_score_details
-  const variables = details ? Object.entries(details.variables) : []
+  const ledger = ledgerInputs(details?.code_snippet, details?.variables, paper.signal_score)
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -76,45 +79,54 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
             </div>
           </div>
 
-          {/* Signal score */}
-          <Card className="flex flex-wrap items-start gap-6">
-            <SignalScore score={paper.signal_score} size="lg" />
-            <div className="min-w-0 flex-1">
-              <SectionLabel>{t('Signal score')}</SectionLabel>
-              <p className="mt-1 text-xs text-zinc-400">
-                {paper.signal_score === null
-                  ? t('Not scored yet')
-                  : t('Composite score from the workspace’s signal-score formula.')}
-              </p>
-              {details?.error && (
-                <p className="mt-2 inline-flex rounded-sm bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
-                  {t('Formula error')}: {details.error}
+          {/* Signal score: a ledger when the breakdown provably applies, else the inputs. */}
+          {ledger && details ? (
+            <Card>
+              <SignalLedger
+                inputs={ledger}
+                heading={
+                  <>
+                    <SectionLabel>{t('Signal score')}</SectionLabel>
+                    <p className="mt-1 text-xs text-zinc-400">
+                      {t('What the score is made of — and what would move it.')}
+                    </p>
+                  </>
+                }
+              />
+              <ScoreVariables
+                mode="compact"
+                variables={details.variables}
+                code={details.code_snippet}
+                t={t}
+                className="border-line-soft mt-4 border-t pt-3"
+              />
+            </Card>
+          ) : (
+            <Card className="flex flex-wrap items-start gap-6">
+              <SignalScore score={paper.signal_score} size="lg" />
+              <div className="min-w-0 flex-1">
+                <SectionLabel>{t('Signal score')}</SectionLabel>
+                <p className="mt-1 text-xs text-zinc-400">
+                  {paper.signal_score === null
+                    ? t('Not scored yet')
+                    : t('Composite score from the workspace’s signal-score formula.')}
                 </p>
-              )}
-              {variables.length > 0 && (
-                <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-1 text-xs sm:grid-cols-3">
-                  {variables.map(([k, v]) => (
-                    <div key={k} className="flex items-baseline justify-between gap-2">
-                      <dt className="truncate font-mono text-zinc-400">{k}</dt>
-                      <dd className="font-mono text-zinc-700 tabular-nums dark:text-zinc-200">
-                        {String(v)}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              )}
-              {details?.code_snippet && (
-                <details className="mt-3">
-                  <summary className="cursor-pointer text-xs font-medium text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-100">
-                    {t('Formula')}
-                  </summary>
-                  <pre className="bg-foreground/5 mt-2 overflow-x-auto rounded-sm p-3 font-mono text-[11px] leading-relaxed text-zinc-700 dark:text-zinc-200">
-                    {details.code_snippet.trim()}
-                  </pre>
-                </details>
-              )}
-            </div>
-          </Card>
+                {details?.error && (
+                  <p className="mt-2 inline-flex rounded-sm bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
+                    {t('Formula error')}: {details.error}
+                  </p>
+                )}
+                {details && (
+                  <ScoreVariables
+                    variables={details.variables}
+                    code={details.code_snippet}
+                    t={t}
+                    className="mt-3"
+                  />
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* Dimensions + profile */}
           <div className="grid gap-6 lg:grid-cols-5">

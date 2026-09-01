@@ -80,6 +80,25 @@ export const dict: Record<string, string> = {
   Formula: 'Formel',
   Variables: 'Variablen',
   'Formula error': 'Formelfehler',
+  'Formula inputs': 'Formeleingaben',
+  'Other values': 'Weitere Werte',
+  '{n} extracted fields': '{n} extrahierte Felder',
+  '{n} more recorded values': '{n} weitere erfasste Werte',
+  Yes: 'Ja',
+  No: 'Nein',
+  // Signal ledger
+  'What the score is made of — and what would move it.':
+    'Woraus sich der Score zusammensetzt — und was ihn verändern würde.',
+  'Fit score': 'Fit-Score',
+  'Novelty score': 'Neuheits-Score',
+  'TRL level': 'TRL-Stufe',
+  'as scored': 'wie bewertet',
+  'Reset to actual {n}': 'Zurück auf tatsächlich {n}',
+  'TRL {n}+ bonus': 'Bonus ab TRL {n}',
+  'Below TRL {n} the score is 0, whatever the fit and novelty.':
+    'Unter TRL {n} ist der Score 0, unabhängig von Fit und Neuheit.',
+  gate: 'Schwelle',
+  actual: 'tatsächlich',
   'Not scored yet': 'Noch nicht bewertet',
   'Composite score from the workspace’s signal-score formula.':
     'Gesamtscore aus der Signal-Score-Formel des Arbeitsbereichs.',
