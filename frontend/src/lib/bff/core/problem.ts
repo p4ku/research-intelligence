@@ -29,10 +29,10 @@ const CATALOG = {
   'method-not-allowed': { status: 405, title: 'Method not allowed' },
   conflict: { status: 409, title: 'Conflict' },
   internal: { status: 500, title: 'Internal error' },
-  'not-implemented': { status: 501, title: 'Not implemented by the backend yet' },
+  'not-implemented': { status: 501, title: 'Not available yet' },
   'upstream-unavailable': { status: 502, title: 'Backend unreachable' },
   'upstream-error': { status: 502, title: 'Backend error' },
-  'upstream-shape': { status: 502, title: 'Backend response did not match the contract' },
+  'upstream-shape': { status: 502, title: 'The data service returned an unexpected response' },
 } as const
 
 export type ProblemSlug = keyof typeof CATALOG

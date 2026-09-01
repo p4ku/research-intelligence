@@ -225,7 +225,7 @@ export function Ask({
         >
           <div className="border-line-soft flex items-center gap-3 border-b px-4 py-2.5">
             <span className="text-foreground font-mono text-[11px] font-medium tracking-[0.18em] uppercase">
-              Ask
+              {t('Ask', 'console')}
             </span>
             {/* Scope lives in the header strip — set the aim before typing. */}
             <div className="ml-auto min-w-0">
@@ -298,7 +298,10 @@ export function Ask({
           <summary className="text-foreground cursor-default text-xs font-semibold tracking-[0.18em] uppercase">
             {t('History')}{' '}
             <span className="text-muted-foreground font-mono font-normal normal-case tabular-nums">
-              · {fmt(t('{n} asked'), { n: sessions.length })}
+              ·{' '}
+              {sessions.length === 1
+                ? t('1 question')
+                : fmt(t('{n} questions'), { n: sessions.length })}
             </span>
           </summary>
           <div className="mt-3">

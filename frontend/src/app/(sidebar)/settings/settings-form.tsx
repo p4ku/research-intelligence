@@ -266,7 +266,7 @@ export function NotificationSettings({
             <div className="text-xs text-zinc-400">{t('A morning digest of the top signals.')}</div>
             {stubbed && (
               <div className="mt-1 font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
-                {t('Not yet persisted by the backend — saved for this session only.')}
+                {t('Currently saved for this session only.')}
               </div>
             )}
           </div>

@@ -6,15 +6,19 @@ export const dict: Record<string, string> = {
   // page.tsx
   Assistant: 'Assistent',
   'Ask Research Intelligence': 'Research Intelligence fragen',
-  // Tab title. Distinct from the nav's 'Ask', which stays an anglicism on purpose.
+  // Tab title. The nav's 'Ask' translates via the 'nav' context in chrome.ts.
   'Ask the scanner': 'Scanner fragen',
 
   // ask.tsx — console chrome
-  'Ask console': 'Ask-Konsole',
-  Target: 'Ziel',
+  'Ask console': 'Fragen-Konsole',
+  // The console's mono eyebrow; scoped so it can differ from the nav label.
+  'console|Ask': 'Fragen',
+  Target: 'Fokus',
   'Conversation history': 'Gesprächsverlauf',
   History: 'Verlauf',
-  '{n} asked': '{n} gefragt',
+  // Question counts (history header and per-session rows) share one pair.
+  '1 question': '1 Frage',
+  '{n} questions': '{n} Fragen',
   '{title} · full text': '{title} · Volltext',
   'All papers': 'Alle Papers',
   'Ask a question': 'Eine Frage stellen',
@@ -32,14 +36,13 @@ export const dict: Record<string, string> = {
   Yesterday: 'Gestern',
   'New conversation': 'Neues Gespräch',
   'Delete conversation': 'Gespräch löschen',
-  '{n} turns': '{n} Fragen',
   'Questions you ask are filed here.': 'Gestellte Fragen werden hier abgelegt.',
 
   // scanner-turn.tsx
   'Asked {time}': 'Gefragt {time}',
   Asked: 'Gefragt',
-  'Reading “{title}” · full text': 'Lese „{title}“ · Volltext',
-  'Scanning {n} papers': 'Scanne {n} Papers',
+  'Reading “{title}” · full text': '„{title}“ wird gelesen · Volltext',
+  'Scanning {n} papers': '{n} Papers werden durchsucht',
   'Target the conversation at this paper': 'Das Gespräch auf dieses Paper ausrichten',
   'Dig in': 'Vertiefen',
   'The answer failed.': 'Die Antwort ist fehlgeschlagen.',
@@ -55,7 +58,7 @@ export const dict: Record<string, string> = {
   'Find a paper — title, author, source…': 'Paper finden — Titel, Autor, Quelle…',
   'Find a paper to scope the conversation to': 'Ein Paper wählen, um das Gespräch einzugrenzen',
   'No papers match “{q}” — the workspace holds {n} papers.':
-    'Keine Papers passen zu „{q}“ — der Workspace umfasst {n} Papers.',
+    'Keine Papers passen zu „{q}“ — der Arbeitsbereich umfasst {n} Papers.',
   '{n} papers scanned': '{n} Papers gescannt',
   navigate: 'navigieren',
   'scope the conversation': 'Gespräch eingrenzen',
