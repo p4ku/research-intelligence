@@ -33,7 +33,7 @@ export default async function TuningPage() {
             {t('No workspace selected')}
           </p>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {t('You are not a member of any workspace yet. Membership is managed in the backend.')}
+            {t('You are not a member of any workspace yet. Ask an administrator for access.')}
           </p>
         </Card>
       </div>

@@ -23,7 +23,8 @@ export const dict: Record<string, string> = {
   'Which paper? Type a title, author, or source…':
     'Welches Paper? Titel, Autor oder Quelle tippen…',
   'Ask a question': 'Eine Frage stellen',
-  'Ask about this paper…': 'Frage zu diesem Paper…',
+  // Same value in de/papers.ts (the paper-detail chat) — the test enforces that.
+  'Ask about this paper…': 'Zu diesem Paper fragen…',
   Send: 'Senden',
   Stop: 'Stopp',
   'Jump to latest': 'Zum Neuesten',

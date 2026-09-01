@@ -85,12 +85,18 @@ browser. Coverage check: `cd frontend && bun test src/lib/i18n.test.ts`.
   (`ui/spinner.tsx:9`).
 - The root layout `description` (used for OpenGraph) is English only.
 
-### P1.6 German mobile overflow
+### P1.6 German text length breaks layouts
 - German strings are ~30% longer and widen the layout past the viewport
   (measured with `bun run screenshots --lang de --viewports mobile`):
   `/briefing` +375px, `/settings` +132px (English: +17px — the German labels
   in the workspace definition list are the delta), `/papers` +15px,
   `/papers/[id]` +14px.
+- Desktop instance, in the Ask Focus console (spotted 2026-09-01 when the
+  console landed): the history rail's "New conversation" button wraps to two
+  lines as "Neues Gespräch", and the "{n} questions" count beside it wraps
+  too. The rail is sized for the English label
+  (`app/(sidebar)/ask/ask.tsx`, history aside). Cheapest fixes: let the
+  button shrink, or shorten the German to "Neues Gespräch" → "Neu".
 - Action: fix alongside the known English overflow items in
   `local-docs/open-items.md`; re-measure in both languages.
 
