@@ -91,7 +91,7 @@ export default async function RunsPage({
       <PageHeader
         eyebrow={ws.name}
         title="Runs"
-        description="Every pipeline run in this workspace — what it produced, what it cost, and where it stopped."
+        description="Every pipeline run in this workspace — what it produced, what it cost, and how long it took."
       />
 
       <StatBand

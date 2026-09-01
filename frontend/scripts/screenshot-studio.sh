@@ -9,13 +9,15 @@
 #
 # Run ids are DISCOVERED from the runs list, not pinned: run ids differ between
 # every snapshot, replay and environment, so a pinned id would break on the next
-# `snapshot:pull`. The script shoots the newest run, and — separately — the
-# newest run that closed early, because "halted" is the state worth reviewing
-# and it is not always present in the first row.
+# `snapshot:pull`.
 #
 # Usage:
 #   scripts/screenshot-studio.sh [base-url]            # capture only
 #   scripts/screenshot-studio.sh [base-url] --pr 9     # capture, then attach to PR #9
+#
+# STUDIO_WORKSPACE selects a workspace by name through the sidebar switcher
+# before capturing — runs are workspace-scoped, so without it you get whichever
+# workspace the fresh session happens to land on, which may have one run.
 #
 # Default base-url is the replay stack (see local-docs/snapshot-replay.md):
 #   bun run snapshot:serve                                        # :8010
@@ -45,6 +47,7 @@ while [ $# -gt 0 ]; do
 done
 
 LOGIN_IDENTIFIER="${CONTRACT_USER:-admin}"
+WORKSPACE="${STUDIO_WORKSPACE:-}"
 LOGIN_PASSWORD="${CONTRACT_PASSWORD:-schwarz123!}"
 
 # Unique session per run: a wedged leftover session would otherwise break every
@@ -113,8 +116,23 @@ capture() {
   return 1
 }
 
+# The Next dev indicator (and any issue badge) is chrome, not the page. Hidden
+# only after page_error() has read the portal's shadow text, so error detection
+# still works. Harmless against a production build, where it does not exist.
+hide_dev_overlay() {
+  ab eval "(() => {
+    const id = 'studio-shot-hide-devtools';
+    if (document.getElementById(id)) return;
+    const style = document.createElement('style');
+    style.id = id;
+    style.textContent = 'nextjs-portal{display:none!important}';
+    document.head.appendChild(style);
+  })()" >/dev/null
+}
+
 capture_shot() {
   local path="$1" out="$2" mode="$3" h
+  hide_dev_overlay
   if [ "$mode" = mobile ]; then
     # Nothing is position:fixed down the page at phone widths, so Playwright's
     # full-page stitch is correct here.
@@ -167,26 +185,38 @@ if ab find first "input[name='identifier']" fill "$LOGIN_IDENTIFIER"; then
   ab wait --load networkidle
 fi
 
+# Runs are workspace-scoped, so pick the workspace before capturing anything.
+if [ -n "$WORKSPACE" ]; then
+  echo "Selecting workspace: $WORKSPACE"
+  ab open "$BASE_URL/studio/runs"
+  ab wait --load networkidle
+  # Match on the menuitem role, not on text: the shell renders a second,
+  # hidden copy of the sidebar for the mobile drawer, and a bare text match
+  # resolves to that covered element instead of the open menu.
+  if ab find role button click --name "Switch workspace" && ab wait 400 &&
+     ab find role menuitem click --name "$WORKSPACE"; then
+    ab wait --load networkidle
+    ab wait 500
+  else
+    echo "  could not select '$WORKSPACE' — capturing the current workspace instead" >&2
+  fi
+fi
+
 echo "Runs list:"
 capture /studio/runs "$OUT_ROOT/desktop/runs-list.png" desktop || true
 
-# Discover the newest run from the list we are already on.
+# Discover the newest run from the list we are already on. Ids differ between
+# every snapshot and environment, so they are never pinned.
 newest_run=$(first_run_href)
 
-echo "Halted filter:"
-capture "/studio/runs?status=halted" "$OUT_ROOT/desktop/runs-halted.png" desktop || true
-halted_run=$(first_run_href)
+echo "Completed filter:"
+capture "/studio/runs?status=completed" "$OUT_ROOT/desktop/runs-completed.png" desktop || true
 
 if [ -n "$newest_run" ]; then
   echo "Newest run detail:"
   capture "$newest_run" "$OUT_ROOT/desktop/run-detail.png" desktop || true
 else
   echo "  no runs in this workspace — skipping run detail" >&2
-fi
-
-if [ -n "$halted_run" ] && [ "$halted_run" != "$newest_run" ]; then
-  echo "Halted run detail:"
-  capture "$halted_run" "$OUT_ROOT/desktop/run-detail-halted.png" desktop || true
 fi
 
 echo "Mobile:"
@@ -242,9 +272,8 @@ BODY=$(mktemp)
   printf '_Captured %s UTC from `%s`. Regenerate with `frontend/scripts/screenshot-studio.sh <base-url> --pr %s`._\n\n' \
     "$(date -u '+%Y-%m-%d %H:%M')" "$BASE_URL" "$PR_NUMBER"
   shot_md 'Runs list' desktop/runs-list.png
-  shot_md 'Runs list — halted filter' desktop/runs-halted.png
+  shot_md 'Runs list — filtered to completed' desktop/runs-completed.png
   shot_md 'Run detail' desktop/run-detail.png
-  shot_md 'Run detail — halted run' desktop/run-detail-halted.png
   printf '<details><summary>Mobile</summary>\n\n'
   shot_md 'Runs list (390px)' mobile/runs-list.png
   shot_md 'Run detail (390px)' mobile/run-detail.png
