@@ -49,12 +49,15 @@ function Fact({
  */
 function timestampUtc(iso: string | null): string {
   if (!iso) return '—'
-  return `${new Date(iso).toLocaleString('en-GB', {
+  // The zone is named in the field label, not appended here — at phone widths
+  // the value truncates, and a dropped "UTC" would leave a time that looks
+  // local again, which is the whole bug this function exists to avoid.
+  return new Date(iso).toLocaleString('en-GB', {
     timeZone: 'UTC',
     dateStyle: 'medium',
     timeStyle: 'short',
     hour12: false,
-  })} UTC`
+  })
 }
 
 export default async function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -144,7 +147,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
 
       <Card>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
-          <Fact label="Started">{started}</Fact>
+          <Fact label="Started (UTC)">{started}</Fact>
           <Fact label="Duration">{formatDuration(run.duration_seconds)}</Fact>
           <Fact label="Cost">{formatUsd(run.usd_cost)}</Fact>
           <Fact
