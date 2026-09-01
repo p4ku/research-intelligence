@@ -682,7 +682,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
     fieldsets = (
 
         ('Basic Information', {
-            'fields': ('name', 'digest_schedule', 'skip_abstract_screening', 'notification_email')
+            'fields': ('name', 'skip_abstract_screening')
         }),
         ('Engine & Provider Configuration', {
             'fields': ('ocr_provider', 'screening_llm_model', 'llm_provider', 'reasoning_effort')

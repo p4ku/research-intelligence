@@ -38,7 +38,7 @@ export const workspace = z
     definitions: z.array(definitionSummary),
     scrapers: z.array(workspaceScraper),
     /** Cron expression for the digest email; null when none. */
-    digest_schedule: z.string().nullable(),
+    digest_schedule: z.string().nullable().optional(),
     screening_llm_model: z.string().nullable(),
     llm_provider: z.string().nullable(),
     created_at: z.iso.datetime({ offset: true }),

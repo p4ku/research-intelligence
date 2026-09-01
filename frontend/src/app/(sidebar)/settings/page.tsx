@@ -2,7 +2,6 @@ import { Card, PageHeader, SectionLabel } from '@/components/scanner-ui'
 import { forPage } from '@/lib/bff/core/page'
 import { sourceOf } from '@/lib/bff/core/source'
 import { settings } from '@/lib/bff/settings/service'
-import { describeCron } from '@/lib/cron'
 import { getLang, getT } from '@/lib/i18n-server'
 import { getCurrentWorkspace } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
@@ -73,16 +72,6 @@ export default async function SettingsPage() {
               }
             />
             <Row label={t('Screening model')} value={ws.screening_llm_model ?? '—'} />
-            <Row
-              label={t('Digest schedule')}
-              value={
-                ws.digest_schedule
-                  ? (describeCron(ws.digest_schedule, lang) ?? (
-                      <code className="font-mono text-xs">{ws.digest_schedule}</code>
-                    ))
-                  : '—'
-              }
-            />
           </dl>
         </Card>
       )}

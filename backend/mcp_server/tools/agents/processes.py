@@ -42,7 +42,7 @@ def start_research_agent_logic(
         "date_range_days": date_range_days,
         "query_prefix": query_prefix,
         "skip_abstract_screening": skip_abstract_screening if skip_abstract_screening is not None else workspace.skip_abstract_screening,
-        "notification_email": notification_email or workspace.notification_email,
+        "notification_email": notification_email,
         "reprocess_existing": bool(reprocess_existing)
     }
 

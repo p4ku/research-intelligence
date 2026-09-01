@@ -86,9 +86,7 @@ def create_workspace_record(
     signal_score_code: Optional[str] = None,
     monthly_token_limit: int = 10000000,
     monthly_usd_limit: float = 100.0,
-    digest_schedule: str = "0 9 * * 5",
-    skip_abstract_screening: bool = False,
-    notification_email: Optional[str] = None
+    skip_abstract_screening: bool = False
 ) -> Tuple[Optional[Workspace], Optional[str]]:
     """
     Creates a new Workspace domain record, formats screening criteria, and establishes admin membership.
@@ -132,11 +130,9 @@ def create_workspace_record(
         screening_llm_model=screening_llm_model,
         reasoning_effort=reasoning_effort or "medium",
         signal_score_code=signal_score_code,
-        digest_schedule=digest_schedule or "0 9 * * 5",
         monthly_token_limit=monthly_token_limit if monthly_token_limit is not None else 10000000,
         monthly_usd_limit=monthly_usd_limit if monthly_usd_limit is not None else 100.0,
-        skip_abstract_screening=bool(skip_abstract_screening),
-        notification_email=notification_email
+        skip_abstract_screening=bool(skip_abstract_screening)
     )
 
     if user and not getattr(user, "is_anonymous", False) and getattr(user, "pk", None):
@@ -157,13 +153,11 @@ def serialize_workspace_configuration(workspace: Workspace) -> dict:
     """
     return {
         "name": workspace.name,
-        "digest_schedule": workspace.digest_schedule,
         "ocr_provider": workspace.ocr_provider,
         "screening_llm_model": workspace.screening_llm_model,
         "llm_provider": workspace.llm_provider,
         "reasoning_effort": workspace.reasoning_effort,
         "skip_abstract_screening": workspace.skip_abstract_screening,
-        "notification_email": workspace.notification_email,
         "monthly_token_limit": workspace.monthly_token_limit,
         "monthly_usd_limit": float(workspace.monthly_usd_limit) if workspace.monthly_usd_limit is not None else 100.0,
         "signal_score_code": workspace.signal_score_code,
@@ -261,13 +255,11 @@ def import_workspace_configuration_bundle(
 
         name = ws_data["name"].strip()
         ws_fields = {
-            "digest_schedule": ws_data.get("digest_schedule", "0 9 * * 5"),
             "ocr_provider": ws_data.get("ocr_provider"),
             "screening_llm_model": ws_data.get("screening_llm_model", "google/gemini-3.7-flash"),
             "llm_provider": ws_data.get("llm_provider", "google"),
             "reasoning_effort": ws_data.get("reasoning_effort", "medium"),
             "skip_abstract_screening": bool(ws_data.get("skip_abstract_screening", False)),
-            "notification_email": ws_data.get("notification_email"),
             "monthly_token_limit": ws_data.get("monthly_token_limit", 10000000),
             "monthly_usd_limit": ws_data.get("monthly_usd_limit", 100.0),
             "signal_score_code": ws_data.get("signal_score_code"),

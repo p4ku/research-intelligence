@@ -188,11 +188,10 @@ class ResearchAgentRunner:
         """
         recipients = set()
 
-        # Explicit override in config or workspace setting
+        # Explicit override in config
         cfg_emails = (
             agent_process.configuration_override.get("notification_emails")
             or agent_process.configuration_override.get("notification_email")
-            or agent_process.workspace.notification_email
         )
         if cfg_emails:
             if isinstance(cfg_emails, list):
