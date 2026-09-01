@@ -9,7 +9,6 @@ import { dict as chrome } from './chrome'
 import { dict as components } from './components'
 import { dict as dashboard } from './dashboard'
 import { dict as papers } from './papers'
-import { dict as scoring } from './scoring'
 import { dict as settings } from './settings'
 
 export const de: Record<string, string> = {
@@ -19,6 +18,5 @@ export const de: Record<string, string> = {
   ...components,
   ...dashboard,
   ...papers,
-  ...scoring,
   ...settings,
 }

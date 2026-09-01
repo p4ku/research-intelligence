@@ -1,7 +1,7 @@
 'use client'
 
-import { bffFetch } from '@/lib/bff/client'
 import type { ChatSession, ChatSessionDetail } from '@/lib/bff/chat/schema'
+import { bffFetch } from '@/lib/bff/client'
 import type { Page } from '@/lib/bff/core/pagination'
 import { useChatStream } from '@/lib/chat/use-chat-stream'
 import { fmt } from '@/lib/i18n'
@@ -14,7 +14,14 @@ import { HistoryList, HistoryRail } from './history-rail'
 import { PaperPalette } from './paper-palette'
 import { AskedHeading, LiveAnswer, SettledAnswer } from './scanner-turn'
 import { ScopeToggle } from './scope-toggle'
-import { shortTitle, timeOf, type AnswerTurn, type AskScope, type PaletteEntry, type Turn } from './types'
+import {
+  shortTitle,
+  timeOf,
+  type AnswerTurn,
+  type AskScope,
+  type PaletteEntry,
+  type Turn,
+} from './types'
 
 const nowTime = () => timeOf(new Date().toISOString())
 
@@ -88,7 +95,11 @@ export function Ask({
   // Settle the finished stream into the transcript. Runs from the stream
   // loop (not a render effect); ignored when the conversation was cleared
   // mid-flight.
-  const { state: live, send, reset } = useChatStream((final) => {
+  const {
+    state: live,
+    send,
+    reset,
+  } = useChatStream((final) => {
     if (liveQuestionRef.current === null) return
     const answer: AnswerTurn = {
       kind: 'answer',
@@ -252,6 +263,7 @@ export function Ask({
                     ) : (
                       <SettledAnswer
                         turn={turn}
+                        anchor={`vc-${i}`}
                         onDigIn={(id) => switchTarget(entries.find((e) => e.id === id) ?? null)}
                       />
                     )}

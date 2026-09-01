@@ -39,12 +39,20 @@ export const fixtureSessionDetails: ChatSessionDetail[] = [
       {
         id: '00000000-0000-4000-8000-000000000061',
         question: 'What does this paper enable?',
+        // The model's inline marker stays in the stored answer (the backend
+        // parses it into `visual_citations` but does not strip it).
         answer:
-          'It shows cooperating language-model agents can divide tool use adaptively, lifting task completion by 31% over a single-agent baseline on the new benchmark.',
+          'It shows cooperating language-model agents can divide tool use adaptively [Page 7, Figure 4b, box_2d: [320, 150, 680, 890], quote: "agents divide tool use adaptively"], lifting task completion by 31% over a single-agent baseline on the new benchmark.',
         status: 'completed',
         deep_thinking: false,
         visual_citations: [
-          { page: 7, label: 'Figure 4b', box_2d: [320, 150, 680, 890], quote: 'agents divide tool use adaptively', verified_in_source: true },
+          {
+            page: 7,
+            label: 'Figure 4b',
+            box_2d: [320, 150, 680, 890],
+            quote: 'agents divide tool use adaptively',
+            verified_in_source: true,
+          },
         ],
         fact_check: {
           verified: true,
@@ -86,14 +94,29 @@ export const fixtureStreamFrames: ChatEvent[] = [
       ],
     },
   },
+  // A citation marker split across frames, as Django's raw deltas do it.
   { event: 'delta', data: { text: 'The paper demonstrates that cooperating agents ' } },
-  { event: 'delta', data: { text: 'divide tool use adaptively, ' } },
-  { event: 'delta', data: { text: 'lifting task completion by 31% over a single-agent baseline.' } },
+  {
+    event: 'delta',
+    data: { text: 'divide tool use adaptively [Page 7, Figure 4b, box_2d: [320, 150, ' },
+  },
+  {
+    event: 'delta',
+    data: {
+      text: '680, 890], quote: "agents divide tool use adaptively"], lifting task completion by 31% over a single-agent baseline.',
+    },
+  },
   {
     event: 'visual_citations',
     data: {
       items: [
-        { page: 7, label: 'Figure 4b', box_2d: [320, 150, 680, 890], quote: 'agents divide tool use adaptively', verified_in_source: true },
+        {
+          page: 7,
+          label: 'Figure 4b',
+          box_2d: [320, 150, 680, 890],
+          quote: 'agents divide tool use adaptively',
+          verified_in_source: true,
+        },
       ],
     },
   },
@@ -101,7 +124,10 @@ export const fixtureStreamFrames: ChatEvent[] = [
     event: 'fact_check',
     data: { verified: true, grounding_score: 1, verified_count: 1, total_count: 1, status: 'PASS' },
   },
-  { event: 'usage', data: { tokens_in: 4200, tokens_out: 260, total_tokens: 4460, usd_cost: 0.0042 } },
+  {
+    event: 'usage',
+    data: { tokens_in: 4200, tokens_out: 260, total_tokens: 4460, usd_cost: 0.0042 },
+  },
   {
     event: 'done',
     data: {

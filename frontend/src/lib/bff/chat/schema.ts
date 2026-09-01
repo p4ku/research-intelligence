@@ -110,7 +110,11 @@ export const chatTurn = z
   .object({
     id: z.uuid(),
     question: z.string(),
-    /** The cleaned answer markdown; null while pending/failed. */
+    /**
+     * The answer markdown; null while pending/failed. Fenced citation blocks
+     * are stripped upstream, but the model's inline `[Page N, …]` markers are
+     * not — the UI renders them as chips (`AnswerMarkdown` + `visual_citations`).
+     */
     answer: z.string().nullable(),
     status: z.enum(['pending', 'processing', 'completed', 'failed']),
     deep_thinking: z.boolean(),

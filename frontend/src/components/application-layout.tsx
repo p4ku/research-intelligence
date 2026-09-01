@@ -41,7 +41,6 @@ import {
   HomeIcon,
   NewspaperIcon,
   PlayCircleIcon,
-  VariableIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -58,7 +57,6 @@ const coreNav: ShellNavItem[] = [
   { href: '/dashboard', label: 'Today', Icon: HomeIcon, exact: true },
   { href: '/briefing', label: 'Briefings', Icon: NewspaperIcon },
   { href: '/papers', label: 'Papers', Icon: DocumentTextIcon },
-  { href: '/scoring', label: 'Scoring', Icon: VariableIcon },
   { href: '/ask', label: 'Ask', Icon: ChatBubbleLeftRightIcon },
 ]
 

@@ -38,8 +38,6 @@ so non-technical users can see _why_ something ranked where it did.
     sort, ingest-window, signal-strength and (when defined) TRL filters; a detail
     page with the score formula, per-dimension rationale and evidence, screening
     notes, and arXiv/DOI links.
-  - **Scoring** (`/scoring`) — how the workspace ranks papers: the backend's
-    formula, variables, weights, and a worked example (read-only).
   - **Ask** (`/ask`) — corpus- or paper-scoped Q&A streamed from the
     backend's chat engine, with citations, visual evidence, a fact-check
     verdict, and Django-backed history.
@@ -73,7 +71,6 @@ src/
       dashboard/        # Today: latest completed run + the day's brief
       briefing/         # editions from completed runs (+ screening log)
       papers/           # workspace papers + [id] detail
-      scoring/          # how the workspace scores (read-only)
       ask/              # streamed Q&A over the backend chat engine
       settings/         # profile, password, digest preference
   proxy.ts              # reverse-proxies backend prefixes; session gate + token refresh

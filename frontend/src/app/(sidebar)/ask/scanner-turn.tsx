@@ -92,6 +92,7 @@ export function LiveAnswer({
   corpusCount: number
   onGrow: () => void
 }) {
+  const t = useT()
   // Keep the transcript pinned to the newest words while streaming.
   useEffect(() => {
     if (state.text) onGrow()
@@ -101,23 +102,34 @@ export function LiveAnswer({
   if (state.status === 'connecting' || state.text === '') {
     return <ScanningLine scopeTitle={scopeTitle} corpusCount={corpusCount} />
   }
+  // Visual citations land after the last delta, so chips render without ticks
+  // until then.
   return (
     <AnswerMarkdown
       text={state.text}
       streaming={state.status === 'streaming'}
+      citations={state.visualCitations}
+      t={t}
       className="text-foreground/75 text-sm"
     />
   )
 }
 
-/** A settled scanner answer: body plus citations / visual evidence / fact check. */
+/**
+ * A settled scanner answer: body plus citations / visual evidence / fact check.
+ * `anchor` is the DOM id prefix that ties inline citation chips to the
+ * visual-evidence rows below.
+ */
 export function SettledAnswer({
   turn,
+  anchor,
   onDigIn,
 }: {
   turn: AnswerTurn
+  anchor: string
   onDigIn: (paperId: string) => void
 }) {
+  const t = useT()
   if (turn.error) {
     return (
       <div className="border-warn/40 bg-warn/5 flex items-start gap-2 rounded-sm border px-3 py-2.5">
@@ -128,8 +140,14 @@ export function SettledAnswer({
   }
   return (
     <div className="min-w-0">
-      <AnswerMarkdown text={turn.text} className="text-foreground/75 text-sm" />
-      <TurnExtras turn={turn} onDigIn={onDigIn} />
+      <AnswerMarkdown
+        text={turn.text}
+        citations={turn.visualCitations}
+        citationAnchor={anchor}
+        t={t}
+        className="text-foreground/75 text-sm"
+      />
+      <TurnExtras turn={turn} anchor={anchor} onDigIn={onDigIn} />
     </div>
   )
 }
@@ -139,7 +157,15 @@ const item = {
   show: { opacity: 1, y: 0, transition: { duration: 0.25, ease: 'easeOut' as const } },
 }
 
-function TurnExtras({ turn, onDigIn }: { turn: AnswerTurn; onDigIn: (paperId: string) => void }) {
+function TurnExtras({
+  turn,
+  anchor,
+  onDigIn,
+}: {
+  turn: AnswerTurn
+  anchor: string
+  onDigIn: (paperId: string) => void
+}) {
   const t = useT()
   const hasExtras =
     turn.citations.length > 0 ||
@@ -187,7 +213,8 @@ function TurnExtras({ turn, onDigIn }: { turn: AnswerTurn; onDigIn: (paperId: st
           {turn.visualCitations.map((v, i) => (
             <p
               key={i}
-              className="text-muted-foreground flex min-w-0 items-baseline gap-1.5 text-[11px]"
+              id={`${anchor}-${i}`}
+              className="text-muted-foreground flex min-w-0 scroll-mt-24 items-baseline gap-1.5 text-[11px]"
             >
               <span className="shrink-0 font-mono tabular-nums">
                 {v.page != null ? fmt(t('p. {n}'), { n: v.page }) : '—'}

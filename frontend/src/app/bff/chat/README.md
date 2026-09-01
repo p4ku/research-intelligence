@@ -18,29 +18,29 @@ and server-side session history.
 
 ## BFF routes
 
-| Route | Notes |
-| --- | --- |
-| `POST /bff/chat/stream` | Body `ChatStreamRequest` `{question, workspace_id \| paper_id, session_id?, deep_thinking?}` (exactly one scope id). Response: SSE (below). Pre-stream failures are plain problem+json. |
-| `GET /bff/chat/sessions?workspace_id=\|paper_id=&page=` | `ChatSessionPage` |
-| `GET /bff/chat/sessions/{id}` | `ChatSessionDetail` — `turns[]`, one per Q+A |
-| `DELETE /bff/chat/sessions/{id}` | 204 |
-| `PATCH /bff/chat/sessions/{id}` | **501** until Django's rename saves (see below) |
+| Route                                                   | Notes                                                                                                                                                                                   |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST /bff/chat/stream`                                 | Body `ChatStreamRequest` `{question, workspace_id \| paper_id, session_id?, deep_thinking?}` (exactly one scope id). Response: SSE (below). Pre-stream failures are plain problem+json. |
+| `GET /bff/chat/sessions?workspace_id=\|paper_id=&page=` | `ChatSessionPage`                                                                                                                                                                       |
+| `GET /bff/chat/sessions/{id}`                           | `ChatSessionDetail` — `turns[]`, one per Q+A                                                                                                                                            |
+| `DELETE /bff/chat/sessions/{id}`                        | 204                                                                                                                                                                                     |
+| `PATCH /bff/chat/sessions/{id}`                         | **501** until Django's rename saves (see below)                                                                                                                                         |
 
 ### Our SSE contract (also what we request of Django)
 
 Frames `id: <n>\nevent: <name>\ndata: <one-line JSON>\n\n`; `: ping <iso>`
 comments every 15 s. Events, in order:
 
-| Event | Payload |
-| --- | --- |
-| `metadata` | `{message_id, session_id, scope: {workspace_id, paper_id}}` |
-| `citations` | `{items: PaperCitation[]}` |
-| `delta` | `{text}` |
-| `visual_citations` | `{items: [{page?, label?, box_2d?, quote?, verified_in_source?}]}` |
-| `fact_check` | `{verified, grounding_score, verified_count, total_count, status}` |
-| `usage` | `{tokens_in, tokens_out, total_tokens, usd_cost: number}` |
-| `done` | `{message_id, session_id}` |
-| `error` | a Problem object; ends the stream |
+| Event              | Payload                                                                                                                                                     |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `metadata`         | `{message_id, session_id, scope: {workspace_id, paper_id}}`                                                                                                 |
+| `citations`        | `{items: PaperCitation[]}`                                                                                                                                  |
+| `delta`            | `{text}` — raw model text; inline `[Page N, Fig X, box_2d: […], quote: "…"]` markers arrive verbatim (split across frames) and the UI renders them as chips |
+| `visual_citations` | `{items: [{page?, label?, box_2d?, quote?, verified_in_source?}]}` — one entry per distinct inline marker, in order of first appearance                     |
+| `fact_check`       | `{verified, grounding_score, verified_count, total_count, status}`                                                                                          |
+| `usage`            | `{tokens_in, tokens_out, total_tokens, usd_cost: number}`                                                                                                   |
+| `done`             | `{message_id, session_id}`                                                                                                                                  |
+| `error`            | a Problem object; ends the stream                                                                                                                           |
 
 Schemas: `src/lib/bff/chat/schema.ts` (`ChatEvent`).
 
@@ -63,6 +63,14 @@ The chat backend **exists and works** — these are upgrades to
 4. **Rename**: `PATCH /api/chat/sessions/{id}/ {title}` currently returns 200
    without saving (all-read-only serializer). Make it save; the BFF's PATCH
    answers 501 until then.
+5. **Citations on the stream**: `visual_citations` is emitted before the fact
+   checker runs (`chat/engine/orchestrator.py`), so live answers never carry
+   `verified_in_source` — only the stored message does. Emit the verified list
+   (move the yield after `verify()`, or send a second frame). Longer term,
+   strip the inline markers server-side (`citations.py` parses but keeps them)
+   and carry citation positions in the contract — then the UI's marker regex
+   (`src/lib/chat/citation-markers.ts`) can go. Until then the backend must
+   **not** strip them silently: the chips depend on them.
 
 ## Current implementation
 
@@ -73,7 +81,7 @@ turn** (it holds `question` + `message`; `sender` is always `'user'`).
 `stub` replays `fixtures.ts` frames with delays for offline UI work.
 
 Known upstream quirks the service already absorbs: `usd_cost` is a Decimal
-*string* on messages but a number on the `usage` frame; `hallucination_guard`
+_string_ on messages but a number on the `usage` frame; `hallucination_guard`
 may be `{}`; `visual_citations` items are loosely shaped.
 
 ## curl

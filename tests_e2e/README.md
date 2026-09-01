@@ -12,17 +12,16 @@ The E2E test suite covers both **Backend REST/MCP Pipelines** and **Next.js Fron
 Located in `tests_e2e/pages/` and `tests_e2e/specs/`:
 * **`pages/`**: Clean Page Object Model abstraction in TypeScript:
   * `LoginPage.ts`: Authentication forms, input handling, and session state.
-  * `SidebarNav.ts`: Menu traversing (`/dashboard`, `/briefing`, `/papers`, `/scoring`, `/ask`), User Menu, and Sign Out.
+  * `SidebarNav.ts`: Menu traversing (`/dashboard`, `/briefing`, `/papers`, `/ask`), User Menu, and Sign Out.
   * `WorkspaceSwitcher.ts`: Workspace dropdown, listing accessible workspaces, and cookie validation (`rs-workspace`).
   * `SettingsPage.ts`: `/settings` profile form, password form, workspace configuration summary, and notification toggle.
-  * `DashboardPage.ts`, `BriefingPage.ts`, `PapersPage.ts`, `ScoringPage.ts`, `AskPage.ts`: Core application surface abstractions.
+  * `DashboardPage.ts`, `BriefingPage.ts`, `PapersPage.ts`, `AskPage.ts`: Core application surface abstractions.
 * **`specs/`**: Modular, full end-to-end user journey test suites:
   1. `01_auth_session_lifecycle.journey.spec.ts`: Rejection of bad credentials, login, session cookies, deep-link protection, and sign out.
   2. `02_analyst_daily_review.journey.spec.ts`: Today Dashboard funnel metrics, reading executive Briefing, systematic Papers exploration and scorecard inspections.
   3. `03_manager_workspace_and_settings.journey.spec.ts`: Multi-tenant workspace switching, `/settings` inspection (Profile, Role, Password, Workspace Metadata), and bilingual EN <-> DE locale toggle.
-  4. `04_scoring_and_methodology.journey.spec.ts`: Inspection of workspace custom Python AST signal formula, weights, variables, and worked examples.
-  5. `05_interactive_paper_chat.journey.spec.ts`: Deep-dive literature question answering in `/ask`, reasoning engine, and citation stream validation.
-  6. `06_end_to_end_researcher_flow.journey.spec.ts`: Comprehensive full researcher flow executing the entire application lifecycle end-to-end in a single session.
+  4. `05_interactive_paper_chat.journey.spec.ts`: Deep-dive literature question answering in `/ask`, reasoning engine, and citation stream validation.
+  5. `06_end_to_end_researcher_flow.journey.spec.ts`: Comprehensive full researcher flow executing the entire application lifecycle end-to-end in a single session.
 
 ### 2. Backend & Live Pipeline Scenarios
 Located in `tests_e2e/scenarios/`:

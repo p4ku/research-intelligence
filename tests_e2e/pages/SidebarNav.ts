@@ -5,7 +5,6 @@ export class SidebarNav extends BasePage {
   readonly navDashboard: Locator;
   readonly navBriefing: Locator;
   readonly navPapers: Locator;
-  readonly navScoring: Locator;
   readonly navAsk: Locator;
   readonly userMenuButton: Locator;
   readonly userNameLabel: Locator;
@@ -18,7 +17,6 @@ export class SidebarNav extends BasePage {
     this.navDashboard = page.locator("a[href='/dashboard'], nav a:has-text('Today'), nav a:has-text('Heute'), aside a[href='/dashboard']").first();
     this.navBriefing = page.locator("a[href='/briefing'], nav a:has-text('Briefings'), aside a[href='/briefing']").first();
     this.navPapers = page.locator("a[href='/papers'], nav a:has-text('Papers'), aside a[href='/papers']").first();
-    this.navScoring = page.locator("a[href='/scoring'], nav a:has-text('Scoring'), aside a[href='/scoring']").first();
     this.navAsk = page.locator("a[href='/ask'], nav a:has-text('Ask'), nav a:has-text('Fragen'), aside a[href='/ask']").first();
 
     this.userMenuButton = page.locator(
@@ -71,19 +69,6 @@ export class SidebarNav extends BasePage {
           }
         } catch {
           await this.goto('/papers');
-        }
-      }
-    } else if (['scoring', '/scoring'].includes(targetLower)) {
-      if (!currentUrl.includes('/scoring')) {
-        try {
-          if (await this.navScoring.isVisible({ timeout: 3000 })) {
-            await this.navScoring.click();
-            await this.waitForURLContains('/scoring');
-          } else {
-            await this.goto('/scoring');
-          }
-        } catch {
-          await this.goto('/scoring');
         }
       }
     } else if (['ask', 'chat', '/ask'].includes(targetLower)) {

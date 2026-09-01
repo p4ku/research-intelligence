@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-01 (Scoring page removed)
+
+- The read-only **Scoring** page (`/scoring`) is gone, along with its nav entry,
+  German dictionary and Playwright journey. The URL now 404s. Per-paper score
+  explanation stays on `/papers/[id]` (signal ledger + variables).
+- The BFF layer behind it is kept on purpose — `GET /bff/scoring`,
+  `src/lib/bff/scoring/*` and the `scoring.get.desired` contract entry — so the
+  ask on the backend team survives and a future surface can read it.
+
 ## 2026-08-31 (build version stamp)
 
 - Every build carries a version, `0.1.<n>`: `major.minor` from `package.json`,
