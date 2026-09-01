@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>i18n P0 — before / after (German UI)</title>
+<style>
+  body { margin:0; font:15px/1.5 -apple-system, system-ui, sans-serif; color:#18181b; background:#fafafa }
+  main { max-width:1500px; margin:0 auto; padding:36px 24px 80px }
+  h1 { font-size:24px; margin:0 0 4px }
+  p.lede { color:#6b7280; margin:0 0 28px }
+  section { margin:36px 0 }
+  h2 { font-size:16px; margin:0 0 4px }
+  p.what { font-size:13px; color:#374151; margin:0 0 10px; max-width:100ch }
+  .pair { display:grid; grid-template-columns:1fr 1fr; gap:14px }
+  figure { margin:0; border:1px solid #e5e7eb; border-radius:6px; overflow:hidden; background:#fff }
+  figcaption { font:600 11px/1 monospace; letter-spacing:.08em; text-transform:uppercase; padding:8px 10px; border-bottom:1px solid #e5e7eb }
+  .before figcaption { color:#b42318; background:#fef3f2 } .after figcaption { color:#067647; background:#f0fdf4 }
+  figure img { display:block; width:100%; height:auto }
+  code { font:12px monospace; background:#f1f1f2; padding:1px 5px; border-radius:4px }
+</style>
+</head>
+<body>
+<main>
+<h1>i18n P0 — before / after</h1>
+<p class="lede">German UI (<code>rs-lang=de</code>) against the 2026-08-31 prod-snapshot replay. Before = <code>main @ e78847e</code>; after = the P0 i18n pass (PR #16), now on <code>main</code>. Desktop 1440×900, full page. Reasoning and the full finding list: <a href="audit.html">audit.html</a>; remaining work: <code>docs/i18n-backlog.md</code>.</p>
+
+<section>
+  <h2>Login</h2>
+  <p class="what">Was 100% English regardless of language; now fully German, and a German browser lands here in German on the very first visit (Accept-Language → <code>rs-lang</code> cookie, injected into the same request). Sign-in errors are now codes translated client-side.</p>
+  <div class="pair">
+    <figure class="before"><figcaption>Before</figcaption><img src="shots/de-before/desktop/01-login.png" alt=""></figure>
+    <figure class="after"><figcaption>After</figcaption><img src="shots/de-after/desktop/01-login.png" alt=""></figure>
+  </div>
+</section>
+
+<section>
+  <h2>Dashboard</h2>
+  <p class="what">The “Heute in Kürze” paragraph was English template prose; now German (<code>templateProse(input, lang)</code>). The dev note “modellgeschriebene Briefings kommen mit dem Reporting-Schritt des Backends” became “Automatisch aus diesem Lauf zusammengestellt.” <code>&lt;html lang&gt;</code> is now <code>de</code>.</p>
+  <div class="pair">
+    <figure class="before"><figcaption>Before</figcaption><img src="shots/de-before/desktop/02-dashboard.png" alt=""></figure>
+    <figure class="after"><figcaption>After</figcaption><img src="shots/de-after/desktop/02-dashboard.png" alt=""></figure>
+  </div>
+</section>
+
+<section>
+  <h2>Briefings</h2>
+  <p class="what">“Auto-Brief” (reads as “automatic letter”) → “Auto-Briefing”; the edition summary sentence is now German.</p>
+  <div class="pair">
+    <figure class="before"><figcaption>Before</figcaption><img src="shots/de-before/desktop/04-briefing.png" alt=""></figure>
+    <figure class="after"><figcaption>After</figcaption><img src="shots/de-after/desktop/04-briefing.png" alt=""></figure>
+  </div>
+</section>
+
+<section>
+  <h2>Briefing edition + screening log</h2>
+  <p class="what">“In Kürze” now German. (The screening reasons remain English by design — backend-generated content.)</p>
+  <div class="pair">
+    <figure class="before"><figcaption>Before</figcaption><img src="shots/de-before/desktop/05-briefing-edition.png" alt=""></figure>
+    <figure class="after"><figcaption>After</figcaption><img src="shots/de-after/desktop/05-briefing-edition.png" alt=""></figure>
+  </div>
+</section>
+
+<section>
+  <h2>Papers</h2>
+  <p class="what">The Signalstärke filter showed untranslated “Any” twice; now “Beliebig”.</p>
+  <div class="pair">
+    <figure class="before"><figcaption>Before</figcaption><img src="shots/de-before/desktop/07-papers.png" alt=""></figure>
+    <figure class="after"><figcaption>After</figcaption><img src="shots/de-after/desktop/07-papers.png" alt=""></figure>
+  </div>
+</section>
+
+<section>
+  <h2>Paper detail</h2>
+  <p class="what">“Noch kein Datei-Endpunkt — Speicherschlüssel nur zur Referenz” → “Im Forschungsarchiv gespeichert — der Download ist noch nicht verfügbar.” Breadcrumb aria-label translated.</p>
+  <div class="pair">
+    <figure class="before"><figcaption>Before</figcaption><img src="shots/de-before/desktop/08-paper-detail.png" alt=""></figure>
+    <figure class="after"><figcaption>After</figcaption><img src="shots/de-after/desktop/08-paper-detail.png" alt=""></figure>
+  </div>
+</section>
+
+<section>
+  <h2>Ask</h2>
+  <p class="what">The hardcoded “ASK” console eyebrow is now “FRAGEN”; the history count no longer reads “0 gefragt” (now “{n} Fragen” with a proper “1 Frage” singular).</p>
+  <div class="pair">
+    <figure class="before"><figcaption>Before</figcaption><img src="shots/de-before/desktop/09-ask.png" alt=""></figure>
+    <figure class="after"><figcaption>After</figcaption><img src="shots/de-after/desktop/09-ask.png" alt=""></figure>
+  </div>
+</section>
+
+<section>
+  <h2>Settings</h2>
+  <p class="what">Raw cron <code>0 9 * * 5</code> → “freitags um 09:00 Uhr”; “Vom Backend noch nicht gespeichert” → “Wird derzeit nur für diese Sitzung gespeichert.”; the tab title is now translated too (generateMetadata).</p>
+  <div class="pair">
+    <figure class="before"><figcaption>Before</figcaption><img src="shots/de-before/desktop/10-settings.png" alt=""></figure>
+    <figure class="after"><figcaption>After</figcaption><img src="shots/de-after/desktop/10-settings.png" alt=""></figure>
+  </div>
+</section>
+</main>
+</body>
+</html>
