@@ -1,9 +1,8 @@
 import { Card, PageHeader, StatBand } from '@/components/scanner-ui'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { forPage } from '@/lib/bff/core/page'
-import { haltedStage, type PipelineRun } from '@/lib/bff/pipeline-runs/schema'
+import { stageLabel, type PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
-import { getLang } from '@/lib/i18n-server'
 import { getCurrentWorkspace } from '@/lib/workspace-server'
 import clsx from 'clsx'
 import type { Metadata } from 'next'
@@ -13,26 +12,21 @@ import { formatDuration, formatUsd, RunStatus as RunStatusPill } from '../run-pr
 export const metadata: Metadata = { title: 'Runs' }
 export const dynamic = 'force-dynamic'
 
-/** Tabs are derived, not queried: Django has no "halted" status to filter on. */
-type Tab = 'all' | 'completed' | 'halted' | 'failed' | 'running'
+type Tab = 'all' | 'completed' | 'failed' | 'running'
 
 const TABS: { key: Tab; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'running', label: 'Running' },
   { key: 'completed', label: 'Completed' },
-  { key: 'halted', label: 'Halted' },
   { key: 'failed', label: 'Failed' },
 ]
 
 function matches(run: PipelineRun, tab: Tab): boolean {
-  const halted = haltedStage(run) !== null
   switch (tab) {
     case 'all':
       return true
-    case 'halted':
-      return halted
     case 'completed':
-      return run.status === 'completed' && !halted
+      return run.status === 'completed'
     case 'failed':
       return run.status === 'failed' || run.status === 'aborted'
     case 'running':
@@ -40,14 +34,24 @@ function matches(run: PipelineRun, tab: Tab): boolean {
   }
 }
 
-/** Local wall-clock stamp; runs are compared against each other, not read as prose. */
-function timestamp(iso: string | null, lang: string): string {
+/**
+ * UTC, explicitly and labelled in the column header.
+ *
+ * These are server components: `toLocaleString` without a `timeZone` would use
+ * the Node process's zone, which is the *server's*, not the reader's — a
+ * Berlin operator would silently read Cloud Foundry's UTC as local time. The
+ * backend stores and logs UTC, so showing UTC is also what correlates with the
+ * logs an operator is cross-referencing.
+ */
+function timestampUtc(iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString(lang === 'de' ? 'de-DE' : 'en-US', {
+  return new Date(iso).toLocaleString('en-GB', {
+    timeZone: 'UTC',
+    day: '2-digit',
     month: 'short',
-    day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: false,
   })
 }
 
@@ -56,7 +60,7 @@ export default async function RunsPage({
 }: {
   searchParams: Promise<{ status?: string }>
 }) {
-  const [{ status }, ws, lang] = await Promise.all([searchParams, getCurrentWorkspace(), getLang()])
+  const [{ status }, ws] = await Promise.all([searchParams, getCurrentWorkspace()])
   const tab: Tab = TABS.some((candidate) => candidate.key === status) ? (status as Tab) : 'all'
 
   if (!ws) {
@@ -78,7 +82,6 @@ export default async function RunsPage({
   const all = await forPage(runsService.listAll(ws.id))
   const shown = all.filter((run) => matches(run, tab))
 
-  const haltedCount = all.filter((run) => haltedStage(run) !== null).length
   const fetched = all.reduce((sum, run) => sum + run.total_papers_fetched, 0)
   const passed = all.reduce((sum, run) => sum + run.total_papers_passed_screening, 0)
   const spend = all.reduce((sum, run) => sum + run.usd_cost, 0)
@@ -94,11 +97,7 @@ export default async function RunsPage({
       <StatBand
         items={[
           { label: 'Runs', value: all.length },
-          {
-            label: 'Halted early',
-            value: haltedCount,
-            sub: haltedCount > 0 ? 'finished before the last stage' : 'all ran to completion',
-          },
+          { label: 'Papers fetched', value: fetched.toLocaleString('en-US') },
           {
             label: 'Passed screening',
             value: passed.toLocaleString('en-US'),
@@ -148,8 +147,9 @@ export default async function RunsPage({
         <Table dense>
           <TableHead>
             <TableRow>
-              <TableHeader>Started</TableHeader>
+              <TableHeader>Started (UTC)</TableHeader>
               <TableHeader>Outcome</TableHeader>
+              <TableHeader>Last stage</TableHeader>
               <TableHeader className="text-right">Fetched</TableHeader>
               <TableHeader className="text-right">Passed</TableHeader>
               <TableHeader className="text-right">Duration</TableHeader>
@@ -161,10 +161,16 @@ export default async function RunsPage({
             {shown.map((run) => (
               <TableRow key={run.id} href={`/studio/runs/${run.id}`} title={`Run ${run.id}`}>
                 <TableCell className="font-medium tabular-nums">
-                  {timestamp(run.started_at, lang)}
+                  {timestampUtc(run.started_at)}
                 </TableCell>
                 <TableCell>
                   <RunStatusPill run={run} />
+                </TableCell>
+                {/* The stage the engine last dispatched — reported, not
+                    interpreted. A rerun rewrites it to the re-triggered step,
+                    so it is not evidence that a run stopped there. */}
+                <TableCell className="text-zinc-500 dark:text-zinc-400">
+                  {run.current_stage ? stageLabel(run.current_stage) : '—'}
                 </TableCell>
                 <TableCell className="text-right tabular-nums">
                   {run.total_papers_fetched.toLocaleString('en-US')}

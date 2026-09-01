@@ -53,6 +53,7 @@ const STEP_LABELS: Record<StepType, string> = {
   metrics: 'Metrics',
   deep_research: 'Deep research',
   reporting: 'Reporting',
+  unknown: 'Unrecognised step',
 }
 
 /** `component_name` is more specific than `step_type` where the engine splits a step. */

@@ -14,6 +14,7 @@ import { cache } from 'react'
 import * as z from 'zod'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
+import { assertUuid } from '../core/validate'
 import {
   componentStatus,
   stepType,
@@ -27,9 +28,10 @@ import { componentRunDTO } from './upstream'
 
 function toComponentRun(dto: ComponentRunDTO): ComponentRun {
   const step = stepType.safeParse(dto.step_type)
-  // An unknown step still belongs on the timeline; `metrics` fails to resolve
-  // and it renders as "no metrics recorded" rather than vanishing.
-  const resolvedStep: StepType = step.success ? step.data : 'metrics'
+  // An unmodelled step still belongs on the timeline, but it must not be
+  // dressed up as one of the step types we do know — `metrics` is itself a
+  // real step, so falling back to it would assert something false.
+  const resolvedStep: StepType = step.success ? step.data : 'unknown'
   const status = componentStatus.safeParse(dto.status)
   const resolvedStatus: ComponentStatus = status.success ? status.data : 'pending'
 
@@ -61,6 +63,7 @@ const STEP_ORDER: StepType[] = [
   'metrics',
   'deep_research',
   'reporting',
+  'unknown',
 ]
 
 function chronologically(a: ComponentRun, b: ComponentRun): number {
@@ -77,7 +80,7 @@ function chronologically(a: ComponentRun, b: ComponentRun): number {
 export const componentRuns = {
   /** Every step of one run, in execution order. */
   listAll: cache(async (pipelineRunId: string): Promise<ComponentRun[]> => {
-    const params = new URLSearchParams({ pipeline_run: pipelineRunId })
+    const params = new URLSearchParams({ pipeline_run: assertUuid(pipelineRunId, 'pipeline_run_id') })
     const rows = await django(`/api/component-runs/?${params}`, z.array(componentRunDTO))
     return rows.map(toComponentRun).sort(chronologically)
   }),

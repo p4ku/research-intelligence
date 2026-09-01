@@ -11,6 +11,7 @@ import { cache } from 'react'
 import * as z from 'zod'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
+import { assertUuid } from '../core/validate'
 import {
   runStatus,
   type PipelineRun,
@@ -64,7 +65,7 @@ function toRunDetail(dto: PipelineRunDetailDTO): PipelineRunDetail {
 export const runs = {
   /** One run in full. */
   get: cache(async (id: string): Promise<PipelineRunDetail> => {
-    const dto = await django(`/api/pipeline-runs/${encodeURIComponent(id)}/`, pipelineRunDetailDTO)
+    const dto = await django(`/api/pipeline-runs/${assertUuid(id, 'run id')}/`, pipelineRunDetailDTO)
     return toRunDetail(dto)
   }),
 

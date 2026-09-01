@@ -28,6 +28,10 @@ export const stepType = z
     'metrics',
     'deep_research',
     'reporting',
+    /** BFF-internal: a step type this contract does not know. Never sent by
+     *  Django — it means the engine grew a step we have not modelled, and the
+     *  row is shown as unrecognised rather than mislabelled as a real step. */
+    'unknown',
   ])
   .meta({ id: 'ComponentStepType' })
 export type StepType = z.infer<typeof stepType>

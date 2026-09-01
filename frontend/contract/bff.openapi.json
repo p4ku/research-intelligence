@@ -2833,7 +2833,8 @@
           "signal_score",
           "metrics",
           "deep_research",
-          "reporting"
+          "reporting",
+          "unknown"
         ]
       },
       "ComponentSummary": {

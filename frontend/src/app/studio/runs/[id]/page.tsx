@@ -1,9 +1,10 @@
 import { Breadcrumbs, Card, PageHeader, SectionLabel, StatBand } from '@/components/scanner-ui'
 import { componentRuns as componentRunsService } from '@/lib/bff/component-runs/service'
+import { forPage } from '@/lib/bff/core/page'
 import { ProblemError } from '@/lib/bff/core/problem'
-import { haltedStage, stageLabel } from '@/lib/bff/pipeline-runs/schema'
+import { stageLabel } from '@/lib/bff/pipeline-runs/schema'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
-import { getLang } from '@/lib/i18n-server'
+import { getCurrentWorkspace } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { formatDuration, formatTokens, formatUsd, RunStatus } from '../../run-presentation'
@@ -42,29 +43,48 @@ function Fact({
   )
 }
 
+/**
+ * UTC, explicitly — see the note in `../page.tsx`. Server components would
+ * otherwise format in the server's zone and pass it off as the reader's.
+ */
+function timestampUtc(iso: string | null): string {
+  if (!iso) return '—'
+  return `${new Date(iso).toLocaleString('en-GB', {
+    timeZone: 'UTC',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    hour12: false,
+  })} UTC`
+}
+
 export default async function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const [{ id }, lang] = await Promise.all([params, getLang()])
+  const [{ id }, workspace] = await Promise.all([params, getCurrentWorkspace()])
 
-  // A 401 is handled by `forPage` elsewhere; here a bad id is the likely
-  // failure, and it should read as "no such run", not as a crash.
-  const [run, steps] = await Promise.all([
-    runsService.get(id).catch((error: unknown) => {
-      if (error instanceof ProblemError && error.problem.status === 404) notFound()
-      throw error
-    }),
-    componentRunsService.listAll(id).catch((error: unknown) => {
-      if (error instanceof ProblemError && error.problem.status === 404) return []
-      throw error
-    }),
-  ])
+  // `forPage` sends an expired session through the logout flow; the 404 catch
+  // inside it turns an unknown (or non-member) run id into a proper not-found
+  // rather than an error card.
+  const [run, steps] = await forPage(
+    Promise.all([
+      runsService.get(id).catch((error: unknown) => {
+        if (error instanceof ProblemError && error.problem.status === 404) notFound()
+        throw error
+      }),
+      componentRunsService.listAll(id).catch((error: unknown) => {
+        if (error instanceof ProblemError && error.problem.status === 404) return []
+        throw error
+      }),
+    ]),
+  )
 
-  const halted = haltedStage(run)
-  const started = run.started_at
-    ? new Date(run.started_at).toLocaleString(lang === 'de' ? 'de-DE' : 'en-US', {
-        dateStyle: 'medium',
-        timeStyle: 'short',
-      })
-    : '—'
+  // Any run id is reachable by URL, so it can belong to a workspace other than
+  // the one the sidebar is showing. Say so rather than letting the chrome imply
+  // the run belongs to the selected workspace.
+  const foreign = workspace !== null && workspace.id !== run.workspace_id
+  const started = timestampUtc(run.started_at)
+
+  const failedSteps = steps.filter(
+    (step) => step.status === 'failed' || step.status === 'aborted',
+  )
 
   // Only steps that recorded spend contribute; the rest are genuinely unmeasured.
   const stepSpend = steps.reduce((sum, step) => sum + (step.cost.usd ?? 0), 0)
@@ -87,15 +107,20 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
         actions={<RunStatus run={run} />}
       />
 
-      {halted && (
+      {foreign && (
         <div className="rounded-sm border border-amber-300/60 bg-amber-50 p-4 dark:border-amber-400/25 dark:bg-amber-400/10">
-          <p className="text-sm font-medium text-amber-900 dark:text-amber-200">
-            This run closed at {stageLabel(halted).toLowerCase()}, before the final stage.
+          <p className="text-sm text-amber-900 dark:text-amber-200">
+            This run belongs to <strong>{run.workspace_name}</strong>, not the workspace selected in
+            the sidebar. Switch workspace to see it in the runs list.
           </p>
-          <p className="mt-1 text-sm text-amber-800/90 dark:text-amber-200/80">
-            Django records it as <code className="font-mono text-[13px]">completed</code> because
-            the engine stopped cleanly — no new papers, an exhausted quota or a guard tripping all
-            look like this. The stages after {stageLabel(halted).toLowerCase()} never ran.
+        </div>
+      )}
+
+      {failedSteps.length > 0 && (
+        <div className="rounded-sm border border-red-300/60 bg-red-50 p-4 dark:border-red-400/25 dark:bg-red-500/10">
+          <p className="text-sm font-medium text-red-900 dark:text-red-200">
+            {failedSteps.length} step{failedSteps.length === 1 ? '' : 's'} did not succeed:{' '}
+            {failedSteps.map((step) => step.label).join(', ')}.
           </p>
         </div>
       )}
@@ -133,6 +158,12 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
           </Fact>
           <Fact label="Mode">
             {run.reprocess_existing ? 'Reprocess existing' : 'Skip duplicates'}
+          </Fact>
+          {/* Reported, not interpreted: `current_stage` is the last stage the
+              engine dispatched, and a rerun rewrites it to the re-triggered
+              step. The timeline below is the evidence of what actually ran. */}
+          <Fact label="Last stage dispatched">
+            {run.current_stage ? stageLabel(run.current_stage) : '—'}
           </Fact>
           {run.duplicates_count > 0 && (
             <Fact label="Duplicates">{run.duplicates_count.toLocaleString('en-US')}</Fact>

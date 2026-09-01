@@ -6,19 +6,28 @@
  * until someone who knows the domain terms supplies them.
  */
 import type { ComponentRun, ComponentSummary } from '@/lib/bff/component-runs/schema'
-import { haltedStage, stageLabel, type PipelineRun } from '@/lib/bff/pipeline-runs/schema'
+import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import clsx from 'clsx'
 
 /* --------------------------------- Values --------------------------------- */
 
-/** `0.84s`, `43.0s`, `1m 08s`, `3m 53s`. Null renders as an em dash. */
+/**
+ * `0.84s`, `43.0s`, `1m 08s`, `3m 53s`, `2h 04m`. Null renders as an em dash.
+ *
+ * Rounds to whole seconds *before* splitting, so a duration like 119.7s cannot
+ * render as `1m 60s` — the trap in rounding the remainder independently.
+ */
 export function formatDuration(seconds: number | null): string {
   if (seconds === null || !Number.isFinite(seconds)) return '—'
+  if (seconds < 0) return '—'
   if (seconds < 1) return `${seconds.toFixed(2)}s`
-  if (seconds < 60) return `${seconds.toFixed(1)}s`
-  const minutes = Math.floor(seconds / 60)
-  const rest = Math.round(seconds % 60)
-  return `${minutes}m ${String(rest).padStart(2, '0')}s`
+  if (seconds < 59.95) return `${seconds.toFixed(1)}s`
+  const whole = Math.round(seconds)
+  if (whole < 3600) {
+    return `${Math.floor(whole / 60)}m ${String(whole % 60).padStart(2, '0')}s`
+  }
+  const hours = Math.floor(whole / 3600)
+  return `${hours}h ${String(Math.floor((whole % 3600) / 60)).padStart(2, '0')}m`
 }
 
 /**
@@ -29,7 +38,11 @@ export function formatDuration(seconds: number | null): string {
 export function formatUsd(usd: number | null): string {
   if (usd === null || !Number.isFinite(usd)) return '—'
   if (usd === 0) return '$0'
-  return usd < 0.01 ? `$${usd.toFixed(4)}` : `$${usd.toFixed(2)}`
+  // Sign goes outside the currency symbol, and the precision test uses the
+  // magnitude so a small negative doesn't fall into the coarse branch.
+  const sign = usd < 0 ? '-' : ''
+  const magnitude = Math.abs(usd)
+  return magnitude < 0.01 ? `${sign}$${magnitude.toFixed(4)}` : `${sign}$${magnitude.toFixed(2)}`
 }
 
 export function formatTokens(tokens: number | null): string {
@@ -65,14 +78,15 @@ function Pill({ tone, children }: { tone: Tone; children: React.ReactNode }) {
 }
 
 /**
- * A run's outcome, including the case the Django admin gets wrong: a run whose
- * `status` is `completed` while its engine stopped at an earlier stage. Two of
- * the thirteen runs in the production snapshot are like that, and calling them
- * simply "Completed" hides exactly the thing an operator is looking for.
+ * A run's outcome — Django's `status` and nothing more.
+ *
+ * Deliberately does NOT try to infer "halted early" from `current_stage`: that
+ * field is the last stage *dispatched*, and a rerun rewrites it to the
+ * re-triggered step, so a fully-complete run can carry an early stage name.
+ * Whether a run really stopped short is visible in its step timeline, which is
+ * evidence rather than inference.
  */
-export function RunStatus({ run }: { run: Pick<PipelineRun, 'status' | 'current_stage'> }) {
-  const halted = haltedStage(run)
-  if (halted) return <Pill tone="warn">Halted at {stageLabel(halted).toLowerCase()}</Pill>
+export function RunStatus({ run }: { run: Pick<PipelineRun, 'status'> }) {
   switch (run.status) {
     case 'completed':
       return <Pill tone="ok">Completed</Pill>

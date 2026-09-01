@@ -65,24 +65,26 @@ export const pipelineRunDetail = pipelineRun
 export type PipelineRunDetail = z.infer<typeof pipelineRunDetail>
 
 /**
- * The stage a run stopped at, or null if it ran to the end.
+ * `full_text_screening` → `Full-text screening`; `ocr` → `OCR`.
  *
- * A run can carry `status: 'completed'` while `current_stage` is an earlier
- * stage — the engine stopped (no new papers, quota exhausted, a guard tripped)
- * and closed the run cleanly. 2 of the 13 runs in the 2026-09-01 production
- * snapshot look like this. Rendering those as a plain green "Completed" is the
- * single most misleading thing this UI could do, so the derivation lives here
- * and every surface that shows a run status uses it.
+ * NOT a claim about where a run stopped. `PipelineRun.current_stage` is the
+ * last stage the engine *dispatched*, and `DAG.reset_from_node()`
+ * (`tasks/orchestrator/dag/engine.py:526`) rewrites it to the re-triggered
+ * step, so a run that finished everything and then had one step re-run carries
+ * an early stage name while being entirely complete. Label it, do not diagnose
+ * from it.
  */
-export function haltedStage(run: Pick<PipelineRun, 'status' | 'current_stage'>): string | null {
-  if (run.status !== 'completed') return null
-  const stage = run.current_stage
-  if (!stage || stage === 'completed' || stage === 'reporting') return null
-  return stage
+const STAGE_LABELS: Record<string, string> = {
+  ocr: 'OCR',
+  full_text_screening: 'Full-text screening',
+  abstract_screening: 'Abstract screening',
+  signal_score: 'Signal score',
+  deep_research: 'Deep research',
 }
 
-/** `full_text_screening` → `Full text screening`. */
 export function stageLabel(stage: string): string {
+  const known = STAGE_LABELS[stage]
+  if (known) return known
   const words = stage.replace(/_/g, ' ').trim()
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
