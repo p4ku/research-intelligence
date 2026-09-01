@@ -360,12 +360,18 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
             p_tok = getattr(meta, "prompt_token_count", 0) or 0
             c_tok = getattr(meta, "candidates_token_count", 0) or 0
             t_tok = getattr(meta, "total_token_count", 0) or (p_tok + c_tok)
-            usage = {
-                "prompt_tokens": p_tok,
-                "candidates_tokens": c_tok,
-                "total_tokens": t_tok,
-                "thought_process": thought_text
-            }
+            usage["prompt_tokens"] = p_tok
+            usage["candidates_tokens"] = c_tok
+            usage["total_tokens"] = t_tok
+
+        # Robust fallback estimation if provider API omitted token metrics
+        if usage["prompt_tokens"] == 0:
+            prompt_str = prompt if isinstance(prompt, str) else str(contents)
+            usage["prompt_tokens"] = max(len(prompt_str) // 4, 1)
+        if usage["candidates_tokens"] == 0 and (parsed_result or thought_text):
+            out_str = (str(parsed_result) if parsed_result else "") + thought_text
+            usage["candidates_tokens"] = max(len(out_str) // 4, 1)
+        usage["total_tokens"] = usage["prompt_tokens"] + usage["candidates_tokens"]
 
         if kwargs.get("return_usage"):
             return parsed_result, usage
@@ -434,6 +440,10 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                 contents=contents,
                 config=config,
             )
+            accumulated_text_len = 0
+            accumulated_thought_len = 0
+            final_captured_usage = None
+
             for chunk in response_stream:
                 chunk_thought = ""
                 chunk_answer = ""
@@ -448,13 +458,20 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                                 chunk_answer += p_text
 
                 chunk_text = chunk_answer if chunk_answer else (getattr(chunk, 'text', '') or '')
+                if chunk_text:
+                    accumulated_text_len += len(chunk_text)
+                if chunk_thought:
+                    accumulated_thought_len += len(chunk_thought)
+
                 usage = None
                 if hasattr(chunk, 'usage_metadata') and chunk.usage_metadata:
                     meta = chunk.usage_metadata
                     p_tok = getattr(meta, "prompt_token_count", 0) or 0
                     c_tok = getattr(meta, "candidates_token_count", 0) or 0
                     t_tok = getattr(meta, "total_token_count", 0) or (p_tok + c_tok)
-                    usage = {"prompt_tokens": p_tok, "candidates_tokens": c_tok, "total_tokens": t_tok}
+                    if p_tok > 0 or c_tok > 0 or t_tok > 0:
+                        usage = {"prompt_tokens": p_tok, "candidates_tokens": c_tok, "total_tokens": t_tok}
+                        final_captured_usage = usage
 
                 if chunk_thought:
                     usage_with_thought = (usage or {}).copy()
@@ -462,6 +479,25 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                     yield "", usage_with_thought
                 if chunk_text:
                     yield chunk_text, usage
+
+            # Check if response_stream itself has final usage_metadata attached
+            if not final_captured_usage and hasattr(response_stream, 'usage_metadata') and response_stream.usage_metadata:
+                meta = response_stream.usage_metadata
+                p_tok = getattr(meta, "prompt_token_count", 0) or 0
+                c_tok = getattr(meta, "candidates_token_count", 0) or 0
+                t_tok = getattr(meta, "total_token_count", 0) or (p_tok + c_tok)
+                if p_tok > 0 or c_tok > 0:
+                    final_captured_usage = {"prompt_tokens": p_tok, "candidates_tokens": c_tok, "total_tokens": t_tok}
+                    yield "", final_captured_usage
+
+            # Fallback estimation if stream produced output but no token usage was reported
+            if not final_captured_usage or (final_captured_usage.get("prompt_tokens", 0) == 0 and final_captured_usage.get("candidates_tokens", 0) == 0):
+                prompt_str = prompt if isinstance(prompt, str) else str(contents)
+                p_est = max(len(prompt_str) // 4, 1)
+                c_est = max((accumulated_text_len + accumulated_thought_len) // 4, 1) if (accumulated_text_len or accumulated_thought_len) else 0
+                fallback_usage = {"prompt_tokens": p_est, "candidates_tokens": c_est, "total_tokens": p_est + c_est}
+                yield "", fallback_usage
+
         except Exception as e:
             logger.exception(f"Error during streaming generate_content_stream: {e}")
             raise
