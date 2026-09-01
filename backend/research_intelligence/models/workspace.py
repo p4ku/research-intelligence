@@ -318,6 +318,10 @@ class Workspace(models.Model):
     
     # Agent & Pipeline Configuration
     skip_abstract_screening = models.BooleanField(default=False, help_text="If True, skips Abstract Screening and performs direct Full-Text Screening")
+    reprocess_existing = models.BooleanField(
+        default=False,
+        help_text="Default workspace policy to reprocess and re-screen existing workspace papers on pipeline runs unless explicitly overridden."
+    )
     signal_score_code = models.TextField(
         blank=True, 
         null=True, 

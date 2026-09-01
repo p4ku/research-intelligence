@@ -34,6 +34,7 @@ def list_workspaces_logic(user) -> str:
             "screening_llm_model": ws.screening_llm_model,
             "reasoning_effort": getattr(ws, 'reasoning_effort', 'medium'),
             "skip_abstract_screening": getattr(ws, 'skip_abstract_screening', False),
+            "reprocess_existing": getattr(ws, 'reprocess_existing', False),
             "signal_score_code": ws.signal_score_code,
             "tokens_consumed_this_month": getattr(ws, 'tokens_consumed_this_month', 0),
             "usd_spent_this_month": float(getattr(ws, 'usd_spent_this_month', 0.0)),
@@ -61,6 +62,7 @@ def get_workspace_logic(user, workspace_id: str) -> str:
         "screening_llm_model": workspace.screening_llm_model,
         "reasoning_effort": getattr(workspace, 'reasoning_effort', 'medium'),
         "skip_abstract_screening": getattr(workspace, 'skip_abstract_screening', False),
+        "reprocess_existing": getattr(workspace, 'reprocess_existing', False),
         "signal_score_code": workspace.signal_score_code,
         "quota_tokens_monthly": getattr(workspace, 'quota_tokens_monthly', getattr(workspace, 'monthly_token_limit', None)),
         "quota_usd_monthly": float(workspace.quota_usd_monthly) if getattr(workspace, 'quota_usd_monthly', None) else None,
@@ -130,7 +132,8 @@ def create_workspace_logic(
     monthly_usd_limit: float = 100.00,
     cost_limit_usd: float = None,
     signal_score_code: str = None,
-    skip_abstract_screening: bool = False
+    skip_abstract_screening: bool = False,
+    reprocess_existing: bool = False
 ) -> str:
     """Create a new workspace and automatically assign the creator as the 'admin' member."""
     from research_intelligence.services import create_workspace_record
@@ -159,7 +162,8 @@ def create_workspace_logic(
         monthly_token_limit=monthly_token_limit if monthly_token_limit is not None else 10000000,
         monthly_usd_limit=usd_limit if usd_limit is not None else 100.00,
         signal_score_code=signal_score_code,
-        skip_abstract_screening=bool(skip_abstract_screening)
+        skip_abstract_screening=bool(skip_abstract_screening),
+        reprocess_existing=bool(reprocess_existing)
     )
 
     if err:
@@ -197,7 +201,8 @@ def update_workspace_logic(
     cost_limit_usd: float = None,
     monthly_usd_limit: float = None,
     signal_score_code: str = None,
-    skip_abstract_screening: bool = None
+    skip_abstract_screening: bool = None,
+    reprocess_existing: bool = None
 ) -> str:
     """Update criteria, OCR provider, screening prompts/schemas, or LLM configuration for a workspace. Requires admin or manager role."""
     workspace, _, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
@@ -252,6 +257,9 @@ def update_workspace_logic(
     if skip_abstract_screening is not None:
         workspace.skip_abstract_screening = bool(skip_abstract_screening)
         fields_to_update.append('skip_abstract_screening')
+    if reprocess_existing is not None:
+        workspace.reprocess_existing = bool(reprocess_existing)
+        fields_to_update.append('reprocess_existing')
     if ocr_provider is not None:
         if isinstance(ocr_provider, str) and (ocr_provider.strip().lower() in ('none', '')):
             workspace.ocr_provider = None

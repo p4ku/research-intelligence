@@ -86,7 +86,8 @@ def create_workspace_record(
     signal_score_code: Optional[str] = None,
     monthly_token_limit: int = 10000000,
     monthly_usd_limit: float = 100.0,
-    skip_abstract_screening: bool = False
+    skip_abstract_screening: bool = False,
+    reprocess_existing: bool = False
 ) -> Tuple[Optional[Workspace], Optional[str]]:
     """
     Creates a new Workspace domain record, formats screening criteria, and establishes admin membership.
@@ -132,7 +133,8 @@ def create_workspace_record(
         signal_score_code=signal_score_code,
         monthly_token_limit=monthly_token_limit if monthly_token_limit is not None else 10000000,
         monthly_usd_limit=monthly_usd_limit if monthly_usd_limit is not None else 100.0,
-        skip_abstract_screening=bool(skip_abstract_screening)
+        skip_abstract_screening=bool(skip_abstract_screening),
+        reprocess_existing=bool(reprocess_existing)
     )
 
     if user and not getattr(user, "is_anonymous", False) and getattr(user, "pk", None):
@@ -158,6 +160,7 @@ def serialize_workspace_configuration(workspace: Workspace) -> dict:
         "llm_provider": workspace.llm_provider,
         "reasoning_effort": workspace.reasoning_effort,
         "skip_abstract_screening": workspace.skip_abstract_screening,
+        "reprocess_existing": workspace.reprocess_existing,
         "monthly_token_limit": workspace.monthly_token_limit,
         "monthly_usd_limit": float(workspace.monthly_usd_limit) if workspace.monthly_usd_limit is not None else 100.0,
         "signal_score_code": workspace.signal_score_code,
@@ -260,6 +263,7 @@ def import_workspace_configuration_bundle(
             "llm_provider": ws_data.get("llm_provider", "google"),
             "reasoning_effort": ws_data.get("reasoning_effort", "medium"),
             "skip_abstract_screening": bool(ws_data.get("skip_abstract_screening", False)),
+            "reprocess_existing": bool(ws_data.get("reprocess_existing", False)),
             "monthly_token_limit": ws_data.get("monthly_token_limit", 10000000),
             "monthly_usd_limit": ws_data.get("monthly_usd_limit", 100.0),
             "signal_score_code": ws_data.get("signal_score_code"),

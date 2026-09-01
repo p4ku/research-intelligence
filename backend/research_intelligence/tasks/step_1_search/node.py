@@ -45,7 +45,7 @@ class SearchNode(BaseWorkflowNode):
         if not search_runs.filter(status='completed').exists():
             return False, None
 
-        reprocess = config.get("reprocess_existing", getattr(pipeline_run, 'reprocess_existing', False))
+        reprocess = config.get("reprocess_existing", getattr(pipeline_run, 'reprocess_existing', getattr(workspace, 'reprocess_existing', False)))
         if reprocess:
             papers_count = Paper.objects.filter(workspace=workspace).count()
         else:

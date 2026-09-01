@@ -37,7 +37,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             'abstract_screening_response_schema', 'abstract_screening_exit_metric',
             'full_text_screening_system_prompt', 'full_text_screening_user_prompt_template',
             'full_text_screening_response_schema', 'full_text_screening_exit_metric',
-            'signal_score_code', 'skip_abstract_screening',
+            'signal_score_code', 'skip_abstract_screening', 'reprocess_existing',
             'extraction_definitions', 'ocr_provider',
             'screening_llm_model', 'llm_provider', 'reasoning_effort', 'digest_schedule',
             'monthly_token_limit',

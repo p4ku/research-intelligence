@@ -79,7 +79,7 @@ class ResearchAgentRunner:
 
             # 1. State: INITIALIZED -> Initialize PipelineRun
             if process.current_step == 'initialized' or not process.pipeline_run:
-                reprocess_existing = config.get("reprocess_existing", False)
+                reprocess_existing = config.get("reprocess_existing", getattr(workspace, "reprocess_existing", False))
                 pipeline_run = PipelineRun.objects.create(
                     workspace=workspace,
                     status='running',

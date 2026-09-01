@@ -533,7 +533,8 @@ def create_workspace(
     monthly_token_limit: int = 10000000,
     cost_limit_usd: float = 100.00,
     signal_score_code: str = None,
-    skip_abstract_screening: bool = False
+    skip_abstract_screening: bool = False,
+    reprocess_existing: bool = False
 ) -> str:
     """
     [PROJECT SETUP - WORKSPACE]
@@ -557,6 +558,7 @@ def create_workspace(
     - full_text_screening_response_schema: Optional JSON schema for structured full-text screening outputs.
     - full_text_screening_exit_metric: Optional field key to extract from full-text screening as primary metric (e.g. 'decision_category', 'fit_score').
     - skip_abstract_screening: Defaults to False. If True, skips Abstract Screening and downloads all candidate papers for direct Full-Text Screening.
+    - reprocess_existing: Defaults to False. If True, sets default workspace policy to re-evaluate and re-screen existing papers on pipeline runs.
     - ocr_provider: Defaults to None (skips OCR and passes native PDF binary directly to multimodal Gemini 3.7 Flash). Set to 'pypdf', 'mistral', or 'gemini' only if text layout markdown is explicitly required.
     - screening_llm_model: Default 'google/gemini-3.7-flash'.
     - signal_score_code: Optional sandboxed Python math formula to rank papers (e.g. 'score = 0.6 * fit_score + 0.4 * novelty_score\\nreturn score').
@@ -590,7 +592,8 @@ def create_workspace(
         monthly_token_limit=monthly_token_limit,
         monthly_usd_limit=cost_limit_usd,
         signal_score_code=signal_score_code,
-        skip_abstract_screening=skip_abstract_screening
+        skip_abstract_screening=skip_abstract_screening,
+        reprocess_existing=reprocess_existing
     )
 
 
@@ -617,7 +620,8 @@ def update_workspace(
     monthly_token_limit: int = None,
     cost_limit_usd: float = None,
     signal_score_code: str = None,
-    skip_abstract_screening: bool = None
+    skip_abstract_screening: bool = None,
+    reprocess_existing: bool = None
 ) -> str:
     """
     [SETTINGS UPDATE]
@@ -633,6 +637,7 @@ def update_workspace(
     - full_text_acceptance_criteria / full_text_rejection_criteria: Inclusion/exclusion prompts for deep raw PDF screening.
     - full_text_screening_system_prompt / full_text_screening_user_prompt_template / full_text_screening_response_schema / full_text_screening_exit_metric: Dynamic full-text screening configuration.
     - skip_abstract_screening: Set to True to skip Abstract Screening.
+    - reprocess_existing: Set default workspace policy to re-evaluate and re-screen existing workspace papers.
     - signal_score_code: Custom Python AST snippet to calculate composite scores (e.g. 'score = 0.5*fit_score + 0.3*novelty_score + 0.2*trl_level\\nreturn round(score, 2)').
     - ocr_provider: 'pypdf', 'mistral', 'gemini', or None/'none' (leave None to skip OCR and pass native PDF to Gemini).
     """
@@ -663,7 +668,8 @@ def update_workspace(
         monthly_token_limit=monthly_token_limit,
         cost_limit_usd=cost_limit_usd,
         signal_score_code=signal_score_code,
-        skip_abstract_screening=skip_abstract_screening
+        skip_abstract_screening=skip_abstract_screening,
+        reprocess_existing=reprocess_existing
     )
 
 

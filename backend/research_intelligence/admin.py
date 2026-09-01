@@ -645,7 +645,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
         'full_text_acceptance_criteria',
         'full_text_rejection_criteria'
     )
-    list_filter = ('ocr_provider', 'llm_provider', 'reasoning_effort', 'skip_abstract_screening', 'created_at')
+    list_filter = ('ocr_provider', 'llm_provider', 'reasoning_effort', 'skip_abstract_screening', 'reprocess_existing', 'created_at')
     inlines = [WorkspaceMemberInline, ScraperInline, ExtractionDefinitionInline, SubscriberInline, WorkflowScheduleInline]
 
     def get_queryset(self, request):
@@ -682,7 +682,7 @@ class WorkspaceAdmin(admin.ModelAdmin):
     fieldsets = (
 
         ('Basic Information', {
-            'fields': ('name', 'skip_abstract_screening')
+            'fields': ('name', 'skip_abstract_screening', 'reprocess_existing')
         }),
         ('Engine & Provider Configuration', {
             'fields': ('ocr_provider', 'screening_llm_model', 'llm_provider', 'reasoning_effort')
