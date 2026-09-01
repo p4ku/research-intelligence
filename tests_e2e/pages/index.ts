@@ -6,4 +6,5 @@ export * from './SettingsPage.js';
 export * from './DashboardPage.js';
 export * from './BriefingPage.js';
 export * from './PapersPage.js';
+export * from './TuningPage.js';
 export * from './AskPage.js';
