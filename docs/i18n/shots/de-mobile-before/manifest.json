@@ -1,0 +1,89 @@
+{
+  "baseUrl": "http://localhost:3012",
+  "capturedAt": "2026-09-01T15:24:58.215Z",
+  "lang": "de",
+  "theme": "light",
+  "fullPage": true,
+  "viewports": {
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "deviceScaleFactor": 2,
+      "isMobile": true
+    }
+  },
+  "shots": [
+    {
+      "name": "dashboard",
+      "route": "/dashboard",
+      "url": "http://localhost:3012/dashboard",
+      "viewport": "mobile",
+      "file": "mobile/02-dashboard.png",
+      "status": 200,
+      "finalUrl": "http://localhost:3012/dashboard",
+      "error": null,
+      "overflowX": 0,
+      "truncated": false
+    },
+    {
+      "name": "briefing",
+      "route": "/briefing",
+      "url": "http://localhost:3012/briefing",
+      "viewport": "mobile",
+      "file": "mobile/04-briefing.png",
+      "status": 200,
+      "finalUrl": "http://localhost:3012/briefing",
+      "error": null,
+      "overflowX": 375,
+      "truncated": false
+    },
+    {
+      "name": "papers",
+      "route": "/papers",
+      "url": "http://localhost:3012/papers",
+      "viewport": "mobile",
+      "file": "mobile/07-papers.png",
+      "status": 200,
+      "finalUrl": "http://localhost:3012/papers",
+      "error": null,
+      "overflowX": 15,
+      "truncated": false
+    },
+    {
+      "name": "paper-detail",
+      "route": "/papers/[id]",
+      "url": "http://localhost:3012/papers/9cede620-0970-496f-9f86-58083ee002ad",
+      "viewport": "mobile",
+      "file": "mobile/08-paper-detail.png",
+      "status": 200,
+      "finalUrl": "http://localhost:3012/papers/9cede620-0970-496f-9f86-58083ee002ad",
+      "error": null,
+      "overflowX": 14,
+      "truncated": false
+    },
+    {
+      "name": "ask",
+      "route": "/ask",
+      "url": "http://localhost:3012/ask",
+      "viewport": "mobile",
+      "file": "mobile/09-ask.png",
+      "status": 200,
+      "finalUrl": "http://localhost:3012/ask",
+      "error": null,
+      "overflowX": 0,
+      "truncated": false
+    },
+    {
+      "name": "settings",
+      "route": "/settings",
+      "url": "http://localhost:3012/settings",
+      "viewport": "mobile",
+      "file": "mobile/10-settings.png",
+      "status": 200,
+      "finalUrl": "http://localhost:3012/settings",
+      "error": null,
+      "overflowX": 132,
+      "truncated": false
+    }
+  ]
+}

@@ -1,18 +1,21 @@
 # German / English backlog (P1 & P2)
 
-Findings from the DE/EN audit of 2026-09-01 (`main @ e78847e`) that are **not**
-part of the immediate pre-handover fixes. The P0 items (html `lang`,
-Accept-Language default, English login, English template prose in the German
-UI, dev-facing copy, and a set of dictionary corrections) are tracked in their
-own PR and are not repeated here.
+**This file is the live to-do list** for German/English work. Findings from
+the DE/EN audit of 2026-09-01 (`main @ e78847e`) that are **not** part of the
+pre-handover fixes. The P0 items — html `lang`, Accept-Language default,
+English login, English template prose in the German UI, dev-facing copy and a
+set of dictionary corrections — shipped in PR #16 and are not repeated here;
+where a P0 change partly covered an item below, that item says so.
 
 Scope of the audit: every `t()` call in `frontend/src` vs the merged German
 dictionary (`src/locales/de/`), the backend's language handling, and a
 DE + EN screenshot pass over all nine screens against the 2026-08-31 prod
 snapshot (`bun run screenshots --lang de`).
 
-How to re-run the coverage check: the audit script is committed as a test
-(see P1.1); until then, `bun test` + the screenshot script are the tools.
+The reasoning and the evidence behind these items live in **`docs/i18n/`**:
+`audit.html` (full findings, word-choice tables, pre-fix screenshots) and
+`before-after.html` (the P0 pass screen by screen). Open them directly in a
+browser. Coverage check: `cd frontend && bun test src/lib/i18n.test.ts`.
 
 ---
 
@@ -22,13 +25,14 @@ How to re-run the coverage check: the audit script is committed as a test
 - Keys are the English source strings (gettext-style). Editing English copy
   silently drops the German — `makeT` falls back to English with only a
   dev-time `console.warn` (`src/lib/i18n.ts:19-26`). Nothing fails.
-- CI (`.github/workflows/ci.yml`) runs Django tests and a Docker build only —
-  no `bun run typecheck / test / lint`.
-- Action: commit the audit script as `frontend/src/lib/i18n.test.ts`
-  (fail on: keys used in source but missing from the dictionary; the same key
-  defined with different values in two modules; `{placeholder}` mismatches
-  between key and translation. Warn on: dead keys) and add the frontend
-  checks to CI.
+- **Done (P0 pass):** `frontend/src/lib/i18n.test.ts` fails on keys used in
+  source but missing from the dictionary, on the same key defined with
+  different values in two modules, and on `{placeholder}` mismatches; it warns
+  on keys with no static caller.
+- **Still open:** CI (`.github/workflows/ci.yml`) runs Django tests and a
+  Docker build only — no `bun run typecheck / test / lint`, so the guard
+  above protects only people who run `bun test` locally. Add the frontend
+  checks as a CI job.
 
 ### P1.2 One date locale, explicit time zone
 - Three English date locales are in use: `formatDate` uses `en-US`
@@ -60,22 +64,25 @@ How to re-run the coverage check: the audit script is committed as a test
 
 ### P1.4 Plural handling
 - `1 paper` / `{n} papers` is special-cased in one place
-  (`briefing/edition-browser.tsx:142`) and nowhere else. Live defects:
-  "1 Fragen" (`'{n} turns'`, `ask/history-rail.tsx:72`), "0 gefragt"
-  (`'{n} asked'`, `ask/ask.tsx:301`), plus `{n} hits`, `{n} tokens`,
-  `{n} of {total} claims grounded`.
+  (`briefing/edition-browser.tsx:142`); the P0 pass added a second such pair
+  for the Ask question counts (`1 question` / `{n} questions`, which fixed
+  the "1 Fragen" and "0 gefragt" defects). Both are still hand-rolled at the
+  call site.
+- Still unhandled: `{n} hits`, `{n} tokens`, `{n} of {total} claims grounded`,
+  `{n} papers scanned`.
 - Action: a small `plural(n, one, other)` helper on `Intl.PluralRules`
   (German and English both have simple one/other rules), or `one|other`
-  key pairs.
+  key pairs, and route the two existing hand-rolled pairs through it.
 
 ### P1.5 Untranslated accessibility strings and tab titles
-- Hardcoded `aria-label`s in shared components: "Previous page" /
-  "Next page" (`components/pagination.tsx:20,48`), "Open navigation" /
-  "Close navigation" (`sidebar-layout.tsx:40,71`, `stacked-layout.tsx:40,68`),
-  "Loading" (`ui/spinner.tsx:9`), "Breadcrumb" (`scanner-ui.tsx:16`).
-- `/papers` and `/settings` export static `metadata.title` — the browser tab
-  says "Settings · Research Intelligence" in German mode — while every other
-  page already uses `generateMetadata` + `getT()`.
+- **Done (P0 pass):** the mobile nav drawer ("Open navigation" /
+  "Close navigation", `sidebar-layout.tsx`) and the breadcrumb trail
+  (`scanner-ui.tsx`, via an optional `t` prop) are translated, and `/papers`
+  and `/settings` now use `generateMetadata` + `getT()` like every other page.
+- **Still open:** hardcoded `aria-label`s in "Previous page" / "Next page"
+  (`components/pagination.tsx:20,48`), `stacked-layout.tsx:40,68` (the
+  unused-by-the-shell variant of the nav drawer), and "Loading"
+  (`ui/spinner.tsx:9`).
 - The root layout `description` (used for OpenGraph) is English only.
 
 ### P1.6 German mobile overflow
@@ -130,7 +137,10 @@ current list mechanically; groups as of the audit:
 
 ### P1.9 Word choice — German (second pass)
 Register (formal *Sie*) and typography („“, –, …) are right; these are
-consistency items:
+consistency items. (The P0 pass already took *Auto-Brief → Auto-Briefing*,
+*Ausgesiebt → Aussortiert*, *Ziel → Fokus*, *Workspace → Arbeitsbereich*,
+the missing *Any → Beliebig*, the first-person progress strings, and the
+*Reife/Reifegrad* conflict.)
 | English | Current German | Suggestion |
 |---|---|---|
 | Included / Ingested | both **Aufgenommen** | Ingested → **Erfasst** (two states, one word today: the papers filter header vs the briefing funnel column) |
@@ -142,7 +152,6 @@ consistency items:
 | The answer failed. | Die Antwort ist fehlgeschlagen. | **Die Antwort konnte nicht erstellt werden.** |
 | All statuses | Alle Status | **Alle** or **Alle Stufen** (correct Duden plural, reads like a typo) |
 | Minimum/Maximum TRL | Minimales/Maximales TRL | **Min./Max. TRL** |
-| Screened out | Ausgesiebt | **Aussortiert** (matches "Nothing was screened out" → aussortiert) |
 
 ### P1.10 Word choice — English (non-native audience)
 - Idioms that don't travel: "deep-dived", "surfaced", "cleared the signal
