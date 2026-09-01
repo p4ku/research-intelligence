@@ -211,8 +211,8 @@ const SCREENS: Screen[] = [
   { name: 'briefing-run', route: '/briefing/[date]/run', auth: true },
   { name: 'papers', route: '/papers', auth: true },
   { name: 'paper-detail', route: '/papers/[id]', auth: true },
-  { name: 'tuning', route: '/tuning', auth: true },
   { name: 'ask', route: '/ask', auth: true },
+  { name: 'tuning', route: '/tuning', auth: true },
   { name: 'settings', route: '/settings', auth: true },
 ]
 
