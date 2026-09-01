@@ -85,6 +85,10 @@ export const dict: Record<string, string> = {
   'cleared the signal bar': 'über der Signalschwelle',
   'In the briefing': 'Im Briefing',
   'listed below': 'unten gelistet',
+  // Streaming skeleton statuses (Skeleton.Region announcements).
+  'Loading the funnel': 'Die Kennzahlen werden geladen',
+  'Loading today’s brief': '„Heute in Kürze“ wird geladen',
+  'Loading the papers': 'Die Papers werden geladen',
   Papers: 'Papers',
   'Not yet active': 'Noch nicht aktiv',
   'A dense day for Hybrid Computing: agents pick up deterministic control flow, recovery-first tool use, and a learned memory at a sixth of the tokens; durable content credentials survive real platform pipelines, and verifiable delegation answers the know-your-agent question at checkout.':
