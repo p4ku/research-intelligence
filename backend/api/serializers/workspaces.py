@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from research_intelligence.models import Workspace, Subscriber, ExtractionDefinition, Scraper
 
 class SubscriberSerializer(serializers.ModelSerializer):
@@ -51,9 +52,11 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             'tokens_consumed_this_month', 'usd_spent_this_month', 'created_at', 'digest_schedule'
         ]
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_digest_schedule(self, obj):
         return None
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_user_role(self, obj):
         request = self.context.get('request')
         if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
