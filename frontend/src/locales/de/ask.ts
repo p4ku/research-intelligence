@@ -1,7 +1,6 @@
-// Ask — the conversational surface (console, scope toggle, history rail,
-// paper palette, streamed answers). Chrome strings only: questions, answers,
-// citations, and titles arrive from the backend in English and are never
-// translated.
+// Ask — the conversational surface (console, paper picker, history rail,
+// streamed answers). Chrome strings only: questions, answers, citations, and
+// titles arrive from the backend in English and are never translated.
 export const dict: Record<string, string> = {
   // page.tsx
   Assistant: 'Assistent',
@@ -13,22 +12,38 @@ export const dict: Record<string, string> = {
   'Ask console': 'Fragen-Konsole',
   // The console's mono eyebrow; scoped so it can differ from the nav label.
   'console|Ask': 'Fragen',
+  'No paper yet': 'Noch kein Paper',
+  'Change paper': 'Paper wechseln',
+  'Choose a different paper': 'Ein anderes Paper wählen',
+  'One paper at a time': 'Ein Paper nach dem anderen',
+  'Every answer is read from a single paper’s full text.':
+    'Jede Antwort wird aus dem Volltext eines einzelnen Papers gelesen.',
+  'Choose the paper, then ask it anything.': 'Paper wählen, dann alles fragen.',
+  'Find a paper': 'Ein Paper finden',
+  'Which paper? Type a title, author, or source…':
+    'Welches Paper? Titel, Autor oder Quelle tippen…',
+  'Ask a question': 'Eine Frage stellen',
+  'Ask about this paper…': 'Frage zu diesem Paper…',
+  Send: 'Senden',
+  Stop: 'Stopp',
+  'Jump to latest': 'Zum Neuesten',
   Target: 'Fokus',
+  '{title} · full text': '{title} · Volltext',
+  'All papers': 'Alle Papers',
   'Conversation history': 'Gesprächsverlauf',
   History: 'Verlauf',
   // Question counts (history header and per-session rows) share one pair.
   '1 question': '1 Frage',
   '{n} questions': '{n} Fragen',
-  '{title} · full text': '{title} · Volltext',
-  'All papers': 'Alle Papers',
-  'Ask a question': 'Eine Frage stellen',
-  'Ask about {title}…': 'Frage zu {title}…',
-  'Ask across all papers…': 'Über alle Papers fragen…',
-  Send: 'Senden',
 
-  // scope-toggle.tsx
-  'Change paper': 'Paper wechseln',
-  'Choose a paper': 'Paper auswählen',
+  // paper-picker.tsx
+  Papers: 'Papers',
+  'No papers match “{q}” — the workspace holds {n} papers.':
+    'Keine Papers passen zu „{q}“ — der Arbeitsbereich umfasst {n} Papers.',
+  choose: 'wählen',
+  'scope the conversation': 'Gespräch eingrenzen',
+  'Top {n} of {total}': 'Top {n} von {total}',
+  '{n} of {total}': '{n} von {total}',
 
   // history-rail.tsx
   'full text': 'Volltext',
@@ -40,12 +55,11 @@ export const dict: Record<string, string> = {
 
   // scanner-turn.tsx
   'Asked {time}': 'Gefragt {time}',
-  Asked: 'Gefragt',
   'Reading “{title}” · full text': '„{title}“ wird gelesen · Volltext',
-  'Scanning {n} papers': '{n} Papers werden durchsucht',
-  'Target the conversation at this paper': 'Das Gespräch auf dieses Paper ausrichten',
-  'Dig in': 'Vertiefen',
+  // Same value in de/papers.ts — the dictionary test enforces that.
+  'Reading the full text…': 'Der Volltext wird gelesen…',
   'The answer failed.': 'Die Antwort ist fehlgeschlagen.',
+  Stopped: 'Gestoppt',
   'p. {n}': 'S. {n}',
   'Verified in source': 'In der Quelle belegt',
   'Fact check': 'Faktencheck',
@@ -53,13 +67,10 @@ export const dict: Record<string, string> = {
   flagged: 'auffällig',
   '{n} of {total} claims grounded': '{n} von {total} Aussagen belegt',
   '{n} tokens': '{n} Tokens',
-
-  // paper-palette.tsx
-  'Find a paper — title, author, source…': 'Paper finden — Titel, Autor, Quelle…',
-  'Find a paper to scope the conversation to': 'Ein Paper wählen, um das Gespräch einzugrenzen',
-  'No papers match “{q}” — the workspace holds {n} papers.':
-    'Keine Papers passen zu „{q}“ — der Arbeitsbereich umfasst {n} Papers.',
-  '{n} papers scanned': '{n} Papers gescannt',
-  navigate: 'navigieren',
-  'scope the conversation': 'Gespräch eingrenzen',
+  // Follow-up questions offered under the newest answer.
+  'What does this actually enable?': 'Was ermöglicht das konkret?',
+  'What is the strongest counter-argument?': 'Was ist das stärkste Gegenargument?',
+  'What would it take to use this at case scale?':
+    'Was wäre nötig, um das im Projektmaßstab einzusetzen?',
+  'Which claims are weakest?': 'Welche Aussagen sind am schwächsten belegt?',
 }

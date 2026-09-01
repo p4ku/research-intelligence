@@ -6,6 +6,7 @@ export const dict: Record<string, string> = {
   'nav|Today': 'Heute',
   'nav|Briefings': 'Briefings',
   'nav|Papers': 'Papers',
+  'nav|Tuning': 'Tuning',
   'nav|Ask': 'Fragen',
   'My account': 'Mein Konto',
   Settings: 'Einstellungen',

@@ -48,7 +48,21 @@ const CARET_TAIL = / ?$/
 // GFM would read as strikethrough.
 const REMARK_PLUGINS: NonNullable<Options['remarkPlugins']> = [[remarkGfm, { singleTilde: false }]]
 
+// Streamed words resolve out of a soft blur. The span stays inline, so filter
+// and opacity apply without disturbing line boxes; whitespace rides between
+// spans as bare text so nothing is swallowed and keys stay put as text grows.
+const UNVEIL = 'animate-unveil motion-reduce:animate-none'
+
 const IDENTITY: T = (s) => s
+
+interface RenderOpts {
+  /** Render figures (94.0%, 3.2x, (+12)) in mono per the design rule. */
+  stats: boolean
+  /** Wrap each word in an unveiling span (streamed answers). */
+  unveil: boolean
+  /** Show the caret at the end of the block being written. */
+  caret: boolean
+}
 
 /** Per-render citation context, threaded through the renderers as a closure. */
 interface CiteCtx {
@@ -107,26 +121,62 @@ function CitationChip({ cite, index, ctx }: { cite: CitationRef; index: number; 
   )
 }
 
-/** Strip the caret sentinel, swap citation placeholders for chips, wrap stats in mono, append the caret. */
-function renderString(s: string, stats: boolean, cite?: CiteCtx): ReactNode[] {
-  const caret = s.endsWith(CARET)
-  const body = caret ? s.replace(CARET_TAIL, '') : s
+/** Each word in its own animated span; the whitespace between stays bare. */
+function unveilWords(s: string, keyPrefix: string): ReactNode[] {
+  return s.split(/(\s+)/).map((piece, j) =>
+    piece === '' ? null : /^\s+$/.test(piece) ? (
+      piece
+    ) : (
+      <span key={`${keyPrefix}-${j}`} className={UNVEIL}>
+        {piece}
+      </span>
+    ),
+  )
+}
+
+/** Strip the caret sentinel, swap citation placeholders for chips, wrap stats in mono (and words, when unveiling), append the caret. */
+function renderString(s: string, opts: RenderOpts, cite?: CiteCtx): ReactNode[] {
+  const hasCaret = s.endsWith(CARET)
+  const body = hasCaret ? s.replace(CARET_TAIL, '') : s
   const segments = cite ? body.split(PLACEHOLDER_RE) : [body]
   const out: ReactNode[] = []
   segments.forEach((segment, i) => {
     if (cite && i % 2 === 1) {
       const index = Number(segment)
       const ref = cite.refs[index]
-      if (ref) out.push(<CitationChip key={`cite-${i}`} cite={ref} index={index} ctx={cite} />)
+      if (!ref) return
+      // The chip unveils whole; splitting its label would fight the tick.
+      const chip = <CitationChip cite={ref} index={index} ctx={cite} />
+      out.push(
+        opts.unveil ? (
+          <span key={`cite-${i}`} className={UNVEIL}>
+            {chip}
+          </span>
+        ) : (
+          <Fragment key={`cite-${i}`}>{chip}</Fragment>
+        ),
+      )
       return
     }
-    const parts = stats ? segment.split(STAT_RE) : [segment]
+    const parts = opts.stats ? segment.split(STAT_RE) : [segment]
     parts.forEach((part, j) => {
-      out.push(
-        j % 2 === 1 ? (
-          <span key={`${i}-${j}`} className="text-foreground font-mono font-medium tabular-nums">
+      if (j % 2 === 1) {
+        out.push(
+          <span
+            key={`${i}-${j}`}
+            className={clsx(
+              'text-foreground font-mono font-medium tabular-nums',
+              opts.unveil && UNVEIL,
+            )}
+          >
             {part}
-          </span>
+          </span>,
+        )
+        return
+      }
+      out.push(
+        opts.unveil ? (
+          <Fragment key={`${i}-${j}`}>{unveilWords(part, `${i}-${j}`)}</Fragment>
         ) : (
           part
         ),
@@ -134,17 +184,17 @@ function renderString(s: string, stats: boolean, cite?: CiteCtx): ReactNode[] {
     })
   })
   // Stable key so the pulse animation survives re-renders as text grows.
-  if (caret) out.push(<Caret key="caret" />)
+  if (hasCaret && opts.caret) out.push(<Caret key="caret" />)
   return out
 }
 
 /** String children get the chip/stat/caret pass; element children handle their own text. */
-function inline(children: ReactNode, stats: boolean, cite?: CiteCtx): ReactNode {
-  if (typeof children === 'string') return renderString(children, stats, cite)
+function inline(children: ReactNode, opts: RenderOpts, cite?: CiteCtx): ReactNode {
+  if (typeof children === 'string') return renderString(children, opts, cite)
   if (Array.isArray(children)) {
     return children.map((child, i) =>
       typeof child === 'string' ? (
-        <Fragment key={i}>{renderString(child, stats, cite)}</Fragment>
+        <Fragment key={i}>{renderString(child, opts, cite)}</Fragment>
       ) : (
         child
       ),
@@ -155,14 +205,15 @@ function inline(children: ReactNode, stats: boolean, cite?: CiteCtx): ReactNode 
 
 // Model headings become section labels: in a transcript the user's question is
 // already the heading, and a full-size h3 mid-answer would outrank it.
-function buildComponents(stats: boolean, cite?: CiteCtx): Components {
+function buildComponents(opts: RenderOpts, cite?: CiteCtx): Components {
+  const plain: RenderOpts = { ...opts, stats: false }
   const Heading = ({ children }: { children?: ReactNode }) => (
     <h4 className="text-foreground pt-1 text-[11px] font-semibold tracking-[0.18em] uppercase">
-      {inline(children, stats, cite)}
+      {inline(children, opts, cite)}
     </h4>
   )
   return {
-    p: ({ children }) => <p>{inline(children, stats, cite)}</p>,
+    p: ({ children }) => <p>{inline(children, opts, cite)}</p>,
     h1: Heading,
     h2: Heading,
     h3: Heading,
@@ -178,13 +229,13 @@ function buildComponents(stats: boolean, cite?: CiteCtx): Components {
       </ol>
     ),
     li: ({ children }) => (
-      <li className="pl-0.5 [&>ol]:mt-1 [&>ul]:mt-1">{inline(children, stats, cite)}</li>
+      <li className="pl-0.5 [&>ol]:mt-1 [&>ul]:mt-1">{inline(children, opts, cite)}</li>
     ),
     strong: ({ children }) => (
-      <strong className="text-foreground font-semibold">{inline(children, stats, cite)}</strong>
+      <strong className="text-foreground font-semibold">{inline(children, opts, cite)}</strong>
     ),
-    em: ({ children }) => <em className="italic">{inline(children, stats, cite)}</em>,
-    del: ({ children }) => <del className="line-through">{inline(children, stats, cite)}</del>,
+    em: ({ children }) => <em className="italic">{inline(children, opts, cite)}</em>,
+    del: ({ children }) => <del className="line-through">{inline(children, opts, cite)}</del>,
     // react-markdown blanks unsafe schemes (javascript:, data:…) before we see
     // them, so an empty href means "not a link".
     a: ({ href, children }) =>
@@ -195,14 +246,14 @@ function buildComponents(stats: boolean, cite?: CiteCtx): Components {
           rel="noopener noreferrer"
           className="text-blue-700 underline underline-offset-2 hover:text-blue-800"
         >
-          {inline(children, false, cite)}
+          {inline(children, plain, cite)}
         </a>
       ) : (
-        <span>{inline(children, false, cite)}</span>
+        <span>{inline(children, plain, cite)}</span>
       ),
     code: ({ children }) => (
       <code className="bg-foreground/5 rounded-xs px-1 py-px font-mono text-[0.9em]">
-        {inline(children, false, cite)}
+        {inline(children, plain, cite)}
       </code>
     ),
     pre: ({ children }) => (
@@ -223,23 +274,32 @@ function buildComponents(stats: boolean, cite?: CiteCtx): Components {
     ),
     th: ({ children }) => (
       <th className="border-line text-foreground border-b py-1 pr-3 text-left align-bottom font-semibold">
-        {inline(children, stats, cite)}
+        {inline(children, opts, cite)}
       </th>
     ),
     td: ({ children }) => (
       <td className="border-line-soft border-b py-1 pr-3 align-top">
-        {inline(children, stats, cite)}
+        {inline(children, opts, cite)}
       </td>
     ),
   }
 }
 
-// react-markdown re-parses on every render regardless; these singletons only
-// save rebuilding the closures. `memo` on AnswerMarkdown is what avoids
+// react-markdown re-parses on every render regardless; the cache only saves
+// rebuilding the closures (one entry per stats/unveil/caret combination, of
+// which there are a handful). `memo` on AnswerMarkdown is what avoids
 // re-renders. Chip-enabled renders build a map per render (the context is
 // per turn), which costs nothing extra.
-const COMPONENTS_WITH_STATS = buildComponents(true)
-const COMPONENTS_PLAIN = buildComponents(false)
+const componentCache = new Map<string, Components>()
+function componentsFor(opts: RenderOpts): Components {
+  const key = `${opts.stats}|${opts.unveil}|${opts.caret}`
+  let components = componentCache.get(key)
+  if (!components) {
+    components = buildComponents(opts)
+    componentCache.set(key, components)
+  }
+  return components
+}
 
 /**
  * While streaming, close whatever markers the model is mid-way through
@@ -249,8 +309,9 @@ const COMPONENTS_PLAIN = buildComponents(false)
  * the fence the sentinel would reopen it, and after a row's last `|` it would
  * be an extra cell that GFM drops.
  */
-function streamingSource(text: string): string {
+function streamingSource(text: string, caret: boolean): string {
   const mended = remend(text, { linkMode: 'text-only' }).replace(/\s+$/, '')
+  if (!caret) return mended
   const ownLine = mended.endsWith('```') || mended.endsWith('|')
   return ownLine ? `${mended}\n\n${CARET}` : `${mended} ${CARET}`
 }
@@ -259,6 +320,8 @@ export const AnswerMarkdown = memo(function AnswerMarkdown({
   text,
   streaming = false,
   stats = true,
+  unveil = false,
+  caret = true,
   className,
   citations,
   citationAnchor,
@@ -269,6 +332,10 @@ export const AnswerMarkdown = memo(function AnswerMarkdown({
   streaming?: boolean
   /** Render figures (94.0%, 3.2x, (+12)) in mono per the design rule. */
   stats?: boolean
+  /** Streamed words resolve out of a blur as they arrive (the Ask console). */
+  unveil?: boolean
+  /** Show the caret while streaming; off when the unveil carries the motion. */
+  caret?: boolean
   /** Size and ink for the surface, e.g. `text-sm text-foreground/75`. */
   className?: string
   /**
@@ -289,16 +356,13 @@ export const AnswerMarkdown = memo(function AnswerMarkdown({
     : null
   const refs = extracted?.refs ?? []
   let source = extracted ? extracted.text : text
-  if (streaming) source = streamingSource(source)
+  if (streaming) source = streamingSource(source, caret)
+  const opts: RenderOpts = { stats, unveil, caret }
   const cite: CiteCtx | undefined =
     refs.length > 0
       ? { refs, matches: matchCitations(refs, citations ?? []), anchor: citationAnchor, t }
       : undefined
-  const components = cite
-    ? buildComponents(stats, cite)
-    : stats
-      ? COMPONENTS_WITH_STATS
-      : COMPONENTS_PLAIN
+  const components = cite ? buildComponents(opts, cite) : componentsFor(opts)
   return (
     <div className={clsx('min-w-0 space-y-2 leading-relaxed break-words', className)}>
       <Markdown
