@@ -17,6 +17,7 @@ class WorkflowScheduleSerializer(serializers.ModelSerializer):
             'is_active',
             'frequency',
             'frequency_display',
+            'one_off_datetime',
             'time_of_day',
             'days_of_week',
             'day_of_month',

@@ -117,6 +117,29 @@ class WorkflowScheduleModelAndDispatcherTests(TestCase):
         self.assertEqual(schedule.get_effective_cron_expression(), "0 4 * * 6")
         self.assertEqual(schedule.schedule_description, "Cron: 0 4 * * 6 UTC")
 
+    def test_one_off_schedule_creation_and_auto_deactivation(self):
+        future_dt = timezone.now() + datetime.timedelta(hours=5)
+        schedule = WorkflowSchedule.objects.create(
+            workspace=self.workspace,
+            name="One-Off Late Night Run",
+            frequency="one_off",
+            one_off_datetime=future_dt,
+            is_active=True
+        )
+        self.assertEqual(schedule.next_run_at, future_dt)
+        self.assertIn("One-off run at", schedule.schedule_description)
+
+        # Trigger run
+        agent = schedule.trigger_run(triggered_by_user=self.user)
+        self.assertIsNotNone(agent)
+
+        # Verify auto-deactivation after run
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.total_runs_count, 1)
+        self.assertFalse(schedule.is_active)
+        self.assertIsNone(schedule.next_run_at)
+        self.assertIn("One-off (Executed at", schedule.schedule_description)
+
     def test_trigger_run_creates_pipeline_and_agent(self):
         schedule = WorkflowSchedule.objects.create(
             workspace=self.workspace,

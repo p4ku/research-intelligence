@@ -18,6 +18,7 @@ class WorkflowSchedule(models.Model):
     """
 
     FREQUENCY_CHOICES = [
+        ('one_off', 'One-Off (Run Once at Specific Date & Time)'),
         ('daily', 'Daily (Every Day)'),
         ('weekdays', 'Weekdays (Mon - Fri, excluding Sat & Sun)'),
         ('weekly', 'Weekly (Specific Days of Week)'),
@@ -45,7 +46,7 @@ class WorkflowSchedule(models.Model):
     )
     name = models.CharField(
         max_length=255,
-        help_text="Human-readable schedule name (e.g. 'Daily 3pm Intelligence Ingestion', 'Weekly Deep Review')"
+        help_text="Human-readable schedule name (e.g. 'Daily 3pm Intelligence Ingestion', 'Weekly Deep Review', 'One-Off Ingestion Run')"
     )
     is_active = models.BooleanField(
         default=True,
@@ -60,9 +61,14 @@ class WorkflowSchedule(models.Model):
         default='daily',
         help_text="Recurrence frequency pattern"
     )
+    one_off_datetime = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Specific execution date and time for 'one_off' frequency"
+    )
     time_of_day = models.TimeField(
         default=datetime.time(2, 0),
-        help_text="Execution time of day (e.g. 02:00, 15:00)"
+        help_text="Execution time of day for recurring frequencies (e.g. 02:00, 15:00)"
     )
     days_of_week = models.JSONField(
         default=list,
@@ -157,7 +163,10 @@ class WorkflowSchedule(models.Model):
 
     def clean(self):
         """Validates schedule frequency parameters and cron expressions."""
-        if self.frequency == 'custom_cron':
+        if self.frequency == 'one_off':
+            if not self.one_off_datetime:
+                raise ValidationError({"one_off_datetime": "An execution date & time is required for 'one_off' frequency."})
+        elif self.frequency == 'custom_cron':
             if not self.cron_expression:
                 raise ValidationError({"cron_expression": "A cron expression is required for 'custom_cron' frequency."})
             try:
@@ -177,6 +186,11 @@ class WorkflowSchedule(models.Model):
         Returns the canonical 5-part cron expression representing this schedule.
         Auto-generates from frequency settings if frequency is not custom_cron.
         """
+        if self.frequency == 'one_off':
+            if self.one_off_datetime:
+                return f"{self.one_off_datetime.minute} {self.one_off_datetime.hour} {self.one_off_datetime.day} {self.one_off_datetime.month} *"
+            return ""
+
         if self.frequency == 'custom_cron' and self.cron_expression:
             return self.cron_expression.strip()
 
@@ -224,7 +238,14 @@ class WorkflowSchedule(models.Model):
         t_str = self.time_of_day.strftime("%H:%M") if self.time_of_day else "02:00"
         tz_suffix = f" {self.timezone_name}" if self.timezone_name else ""
 
-        if self.frequency == 'daily':
+        if self.frequency == 'one_off':
+            if self.total_runs_count > 0:
+                exec_time = self.last_run_at.strftime('%Y-%m-%d %H:%M') if self.last_run_at else ''
+                return f"One-off (Executed at {exec_time}{tz_suffix})"
+            elif self.one_off_datetime:
+                return f"One-off run at {self.one_off_datetime.strftime('%Y-%m-%d %H:%M')}{tz_suffix}"
+            return f"One-off run"
+        elif self.frequency == 'daily':
             return f"Every day at {t_str}{tz_suffix}"
         elif self.frequency == 'weekdays':
             return f"Every weekday (Mon - Fri) at {t_str}{tz_suffix}"
@@ -244,10 +265,16 @@ class WorkflowSchedule(models.Model):
             return f"Cron: {self.cron_expression}{tz_suffix}"
         return f"At {t_str}{tz_suffix}"
 
-    def compute_next_run(self, base_time: Optional[datetime.datetime] = None) -> datetime.datetime:
+    def compute_next_run(self, base_time: Optional[datetime.datetime] = None) -> Optional[datetime.datetime]:
         """
         Calculates and returns the next upcoming execution datetime using croniter.
+        For one-off schedules, returns one_off_datetime (if not already executed).
         """
+        if self.frequency == 'one_off':
+            if self.total_runs_count > 0 or not self.is_active:
+                return None
+            return self.one_off_datetime
+
         from croniter import croniter
         now_dt = base_time or timezone.now()
         cron_expr = self.get_effective_cron_expression()
@@ -266,6 +293,7 @@ class WorkflowSchedule(models.Model):
         1. Creates a PipelineRun & ResearchAgentProcess
         2. Ticks the orchestrator runner
         3. Updates last_run_at, next_run_at, total_runs_count, and last_pipeline_run
+        For One-Off schedules, automatically marks is_active=False and next_run_at=None.
         """
         from research_intelligence.models import PipelineRun, ResearchAgentProcess
         from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
@@ -295,8 +323,14 @@ class WorkflowSchedule(models.Model):
         self.last_pipeline_run = pipeline_run
         self.last_status = 'running'
         self.total_runs_count += 1
-        self.next_run_at = self.compute_next_run(base_time=now)
-        self.save(update_fields=['last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'next_run_at', 'updated_at'])
+        
+        if self.frequency == 'one_off':
+            self.is_active = False
+            self.next_run_at = None
+            self.save(update_fields=['last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'next_run_at', 'is_active', 'updated_at'])
+        else:
+            self.next_run_at = self.compute_next_run(base_time=now)
+            self.save(update_fields=['last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'next_run_at', 'updated_at'])
 
         logger.info(f"⏰ [SCHEDULE DISPATCHED] Triggered scheduled workflow '{self.name}' (Agent: {agent.id}, PipelineRun: {pipeline_run.id})")
         
@@ -309,9 +343,16 @@ class WorkflowSchedule(models.Model):
         if not self.cron_expression or self.frequency != 'custom_cron':
             self.cron_expression = self.get_effective_cron_expression()
 
-        if self.is_active and (not self.next_run_at or self.next_run_at <= timezone.now() - datetime.timedelta(hours=24)):
-            self.next_run_at = self.compute_next_run()
-        elif not self.is_active:
-            self.next_run_at = None
+        if self.frequency == 'one_off':
+            if self.total_runs_count > 0:
+                self.is_active = False
+                self.next_run_at = None
+            elif self.is_active and self.one_off_datetime:
+                self.next_run_at = self.one_off_datetime
+        else:
+            if self.is_active and (not self.next_run_at or self.next_run_at <= timezone.now() - datetime.timedelta(hours=24)):
+                self.next_run_at = self.compute_next_run()
+            elif not self.is_active:
+                self.next_run_at = None
 
         super().save(*args, **kwargs)

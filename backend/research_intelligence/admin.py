@@ -1041,8 +1041,8 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
             'fields': ('name', 'workspace', 'is_active', 'created_by')
         }),
         ('Recurrence & Timing Pattern', {
-            'description': 'Configure the automated execution schedule. Supports Daily, Weekdays (Mon-Fri), Weekly (e.g. 2am every Monday), Monthly (e.g. 1st of month), Interval Hours, or Custom Cron expressions.',
-            'fields': ('frequency', 'time_of_day', 'days_of_week', 'day_of_month', 'interval_hours', 'cron_expression', 'timezone_name')
+            'description': 'Configure the automated execution schedule. Supports One-Off (Run Once), Daily, Weekdays (Mon-Fri), Weekly, Monthly, Interval Hours, or Custom Cron expressions.',
+            'fields': ('frequency', 'one_off_datetime', 'time_of_day', 'days_of_week', 'day_of_month', 'interval_hours', 'cron_expression', 'timezone_name')
         }),
         ('Execution Parameters & Overrides', {
             'fields': ('reprocess_existing', 'configuration_override'),
@@ -1110,6 +1110,7 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
 
     def frequency_badge(self, obj):
         colors = {
+            'one_off': '#e83e8c',
             'daily': '#0d6efd',
             'weekdays': '#6f42c1',
             'weekly': '#198754',
@@ -1122,6 +1123,15 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
     frequency_badge.admin_order_field = "frequency"
 
     def schedule_pattern_display(self, obj):
+        if obj.frequency == 'one_off':
+            date_chip = f'<span style="font-size: 11px; background-color: #fce8f3; color: #d63384; padding: 2px 6px; border-radius: 4px; font-weight: 600;">⏱️ Run Once</span>'
+            return format_html(
+                '<div style="font-size: 12px; font-weight: 600; color: #212529; margin-bottom: 2px;">🗓️ {}</div>'
+                '{}',
+                obj.schedule_description,
+                mark_safe(date_chip)
+            )
+
         return format_html(
             '<div style="font-size: 12px; font-weight: 600; color: #212529; margin-bottom: 2px;">🗓️ {}</div>'
             '<span style="font-family: monospace; font-size: 11px; background-color: #f1f3f5; color: #495057; padding: 2px 6px; border-radius: 4px; border: 1px solid #dee2e6;">cron: {}</span>',
