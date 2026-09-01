@@ -2,8 +2,8 @@ import { Card, PageHeader } from '@/components/scanner-ui'
 import { chat } from '@/lib/bff/chat/service'
 import { forPage } from '@/lib/bff/core/page'
 import { papers } from '@/lib/bff/papers/service'
-import { byValueDesc } from '@/lib/papers/select'
 import { getT } from '@/lib/i18n-server'
+import { byValueDesc } from '@/lib/papers/select'
 import { getCurrentWorkspace } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { Ask } from './ask'
@@ -63,11 +63,14 @@ export default async function AskPage({
 
   const initialPaperId = paper && entries.some((e) => e.id === paper) ? paper : undefined
 
+  // The console owns the viewport: the page does not scroll, the transcript does.
   return (
-    <div className="space-y-8">
-      <PageHeader eyebrow={t('Assistant')} title={t('Ask Research Intelligence')} />
+    <div className="flex h-[calc(100dvh-6.5rem)] flex-col gap-6 lg:h-[calc(100dvh-6rem)]">
+      <div className="shrink-0">
+        <PageHeader eyebrow={t('Assistant')} title={t('Ask Research Intelligence')} />
+      </div>
       <Ask
-        key={`${ws.id}:${initialPaperId ?? 'corpus'}`}
+        key={`${ws.id}:${initialPaperId ?? 'none'}`}
         workspaceId={ws.id}
         entries={entries}
         initialSessions={sessions.results}

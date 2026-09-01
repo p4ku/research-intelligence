@@ -2,14 +2,9 @@
 // (src/lib/bff/chat/schema.ts); these shapes add the presentation snapshot a
 // transcript needs (asked-at time, the scope's display title at ask time).
 
-import type {
-  ChatUsage,
-  FactCheck,
-  PaperCitation,
-  VisualCitation,
-} from '@/lib/bff/chat/schema'
+import type { ChatUsage, FactCheck, PaperCitation, VisualCitation } from '@/lib/bff/chat/schema'
 
-/** A palette row / scope target — a slim projection of ScoredPaper. */
+/** A picker row / scope target — a slim projection of ScoredPaper. */
 export interface PaletteEntry {
   id: string
   title: string
@@ -19,7 +14,11 @@ export interface PaletteEntry {
   created_at: string
 }
 
-/** What the question was aimed at, captured at ask time. null = whole corpus. */
+/**
+ * What the question was aimed at, captured at ask time. Conversations are
+ * always scoped to one paper; null survives only for sessions filed before
+ * whole-corpus asking was hidden.
+ */
 export interface AskScope {
   paper_id: string | null
   /** Display title of the paper (survives papers leaving the workspace). */
@@ -43,6 +42,10 @@ export interface AnswerTurn {
   usage: ChatUsage | null
   /** Problem title/detail when the turn failed. */
   error: string | null
+  /** Settled from a live stream in this view (its extras arrive with motion). */
+  arrived?: boolean
+  /** The reader stopped the stream; the text is what had arrived. */
+  stopped?: boolean
 }
 
 /** A bare target change, rendered as a quiet centered line in the transcript. */
