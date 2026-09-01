@@ -183,15 +183,33 @@ class WorkflowScheduleModelAndDispatcherTests(TestCase):
             is_active=True
         )
 
-        # 1. Test changelist view renders
+        # 1. Test changelist view renders and contains KPI banner stats
         changelist_url = reverse('admin:research_intelligence_workflowschedule_changelist')
         resp = self.client.get(changelist_url)
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Admin Test Schedule")
         self.assertContains(resp, "Every weekday (Mon - Fri) at 15:00 UTC")
         self.assertContains(resp, "🚀 Run Now")
+        self.assertContains(resp, "Active Schedules")
+        self.assertContains(resp, "Next 24h Queue")
+        self.assertContains(resp, "Total Runs Triggered")
 
-        # 2. Test direct Run Now view
+        # 2. Test direct toggle view
+        toggle_url = reverse('admin:research_intelligence_workflowschedule_toggle', args=[schedule.id])
+        resp_toggle = self.client.get(toggle_url, follow=True)
+        self.assertEqual(resp_toggle.status_code, 200)
+        self.assertContains(resp_toggle, "Paused schedule")
+        schedule.refresh_from_db()
+        self.assertFalse(schedule.is_active)
+
+        # Resume toggle
+        resp_resume = self.client.get(toggle_url, follow=True)
+        self.assertEqual(resp_resume.status_code, 200)
+        self.assertContains(resp_resume, "Resumed schedule")
+        schedule.refresh_from_db()
+        self.assertTrue(schedule.is_active)
+
+        # 3. Test direct Run Now view
         trigger_url = reverse('admin:research_intelligence_workflowschedule_trigger', args=[schedule.id])
         resp_trigger = self.client.get(trigger_url, follow=True)
         self.assertEqual(resp_trigger.status_code, 200)

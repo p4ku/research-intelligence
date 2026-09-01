@@ -1023,14 +1023,13 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
         models.JSONField: {'widget': PrettyJSONWidget},
     }
     list_display = (
-        'name',
-        'workspace_link',
+        'schedule_identity_display',
         'frequency_badge',
         'schedule_pattern_display',
-        'is_active_badge',
+        'is_active_toggle',
         'next_run_display',
         'last_run_display',
-        'total_runs_count',
+        'total_runs_display',
         'trigger_actions_column',
     )
     list_filter = ('is_active', 'frequency', 'timezone_name', 'workspace')
@@ -1056,11 +1055,58 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
     )
     readonly_fields = ('next_run_at', 'last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'created_at', 'updated_at')
 
-    def workspace_link(self, obj):
-        url = reverse('admin:research_intelligence_workspace_change', args=[obj.workspace.id])
-        return format_html('<a href="{}" style="font-weight: 600; text-decoration: none;">{}</a>', url, obj.workspace.name)
-    workspace_link.short_description = "Workspace"
-    workspace_link.admin_order_field = "workspace__name"
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        from django.utils import timezone
+        import datetime
+
+        now = timezone.now()
+        next_24h = now + datetime.timedelta(hours=24)
+
+        all_schedules = WorkflowSchedule.objects.all()
+        total_count = all_schedules.count()
+        active_count = all_schedules.filter(is_active=True).count()
+        paused_count = total_count - active_count
+        upcoming_24h_count = all_schedules.filter(is_active=True, next_run_at__range=(now, next_24h)).count()
+        total_dispatched_runs = all_schedules.aggregate(models.Sum('total_runs_count'))['total_runs_count__sum'] or 0
+        latest_run = all_schedules.filter(last_run_at__isnull=False).order_by('-last_run_at').first()
+
+        extra_context['schedule_stats'] = {
+            'total_count': total_count,
+            'active_count': active_count,
+            'paused_count': paused_count,
+            'upcoming_24h_count': upcoming_24h_count,
+            'total_dispatched_runs': total_dispatched_runs,
+            'last_dispatched_at': latest_run.last_run_at if latest_run else None,
+        }
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def schedule_identity_display(self, obj):
+        change_url = reverse('admin:research_intelligence_workflowschedule_change', args=[obj.id])
+        ws_url = reverse('admin:research_intelligence_workspace_change', args=[obj.workspace.id])
+        
+        reprocess_tag = (
+            '<span style="background-color: #6f42c1; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-left: 6px;">🔄 Full Reprocess</span>'
+            if obj.reprocess_existing else
+            '<span style="background-color: #0d6efd; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-left: 6px;">⚡ Incremental</span>'
+        )
+
+        return format_html(
+            '<div style="font-weight: 700; font-size: 13px; margin-bottom: 4px;">'
+            '<a href="{}" style="text-decoration: none; color: inherit;">{}</a>'
+            '</div>'
+            '<div style="font-size: 11px; color: #6c757d; display: flex; align-items: center;">'
+            'Target: <a href="{}" style="margin-left: 4px; color: #0d6efd; text-decoration: none; font-weight: 500;">📁 {}</a>'
+            '{}'
+            '</div>',
+            change_url,
+            obj.name,
+            ws_url,
+            obj.workspace.name,
+            mark_safe(reprocess_tag)
+        )
+    schedule_identity_display.short_description = "Schedule & Target Workflow"
+    schedule_identity_display.admin_order_field = "name"
 
     def frequency_badge(self, obj):
         colors = {
@@ -1077,37 +1123,53 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
 
     def schedule_pattern_display(self, obj):
         return format_html(
-            '<div style="font-size: 12px; font-weight: 500;">🗓️ {}</div>'
-            '<div style="font-family: monospace; font-size: 11px; color: #6c757d;">cron: {}</div>',
+            '<div style="font-size: 12px; font-weight: 600; color: #212529; margin-bottom: 2px;">🗓️ {}</div>'
+            '<span style="font-family: monospace; font-size: 11px; background-color: #f1f3f5; color: #495057; padding: 2px 6px; border-radius: 4px; border: 1px solid #dee2e6;">cron: {}</span>',
             obj.schedule_description,
             obj.cron_expression or '-'
         )
-    schedule_pattern_display.short_description = "Schedule Pattern"
+    schedule_pattern_display.short_description = "Schedule Recurrence"
 
-    def is_active_badge(self, obj):
+    def is_active_toggle(self, obj):
+        toggle_url = reverse('admin:research_intelligence_workflowschedule_toggle', args=[obj.id])
         if obj.is_active:
-            return render_badge("ACTIVE", "#198754")
-        return render_badge("PAUSED", "#6c757d")
-    is_active_badge.short_description = "Active"
-    is_active_badge.admin_order_field = "is_active"
+            badge = render_badge("ACTIVE", "#198754")
+            action_text = "⏸️ Pause"
+        else:
+            badge = render_badge("PAUSED", "#6c757d")
+            action_text = "▶️ Resume"
+
+        return format_html(
+            '<div style="display: flex; align-items: center; gap: 8px;">'
+            '{}'
+            '<a href="{}" style="font-size: 11px; color: #6c757d; text-decoration: none; border: 1px solid #ced4da; padding: 2px 6px; border-radius: 4px; background: #fff;" title="Click to toggle status">{}</a>'
+            '</div>',
+            badge,
+            toggle_url,
+            action_text
+        )
+    is_active_toggle.short_description = "Status"
+    is_active_toggle.admin_order_field = "is_active"
 
     def next_run_display(self, obj):
         if not obj.is_active or not obj.next_run_at:
-            return format_html('<span style="color: #6c757d; font-size: 11px;">Paused</span>')
+            return format_html('<span style="color: #6c757d; font-size: 11px; font-style: italic;">Paused</span>')
         from django.utils import timezone
         now = timezone.now()
         diff = obj.next_run_at - now
         if diff.total_seconds() < 0:
-            diff_str = "Due now"
+            diff_badge = '<span style="background-color: #dc3545; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">🚨 Due now</span>'
         else:
             hours = int(diff.total_seconds() // 3600)
             minutes = int((diff.total_seconds() % 3600) // 60)
             diff_str = f"in {hours}h {minutes}m" if hours > 0 else f"in {minutes}m"
+            diff_badge = f'<span style="background-color: #e7f5ff; color: #0c85d0; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;">⏳ {diff_str}</span>'
+
         return format_html(
-            '<span style="white-space: nowrap; font-size: 12px; font-weight: 600; color: #0d6efd;">{}</span><br>'
-            '<span style="font-size: 11px; color: #6c757d;">({})</span>',
+            '<div style="white-space: nowrap; font-size: 12px; font-weight: 600; color: #212529; margin-bottom: 2px;">{}</div>'
+            '<div>{}</div>',
             obj.next_run_at.strftime("%Y-%m-%d %H:%M UTC"),
-            diff_str
+            mark_safe(diff_badge)
         )
     next_run_display.short_description = "Next Run"
     next_run_display.admin_order_field = "next_run_at"
@@ -1116,28 +1178,47 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
         if not obj.last_run_at:
             return format_html('<span style="color: #adb5bd;">Never</span>')
         status_color = "#198754" if obj.last_status == 'completed' else ("#dc3545" if obj.last_status == 'failed' else "#17a2b8")
-        status_badge_html = f' &nbsp;{render_badge(obj.last_status.upper(), status_color)}' if obj.last_status else ''
+        status_badge = render_badge(obj.last_status.upper(), status_color) if obj.last_status else ''
+        
+        run_link = ""
+        if obj.last_pipeline_run:
+            run_url = reverse('admin:research_intelligence_pipelinerun_change', args=[obj.last_pipeline_run.id])
+            run_link = format_html(' <a href="{}" style="font-size: 11px; text-decoration: none; color: #0d6efd; margin-left: 4px;">🔍 View Run</a>', run_url)
+
         return format_html(
-            '<span style="white-space: nowrap; font-size: 11px;">{}</span>{}',
+            '<div style="white-space: nowrap; font-size: 11px; color: #212529; margin-bottom: 2px;">{}</div>'
+            '<div style="display: flex; align-items: center;">{}{}</div>',
             obj.last_run_at.strftime("%Y-%m-%d %H:%M"),
-            mark_safe(status_badge_html)
+            status_badge,
+            mark_safe(run_link)
         )
-    last_run_display.short_description = "Last Run"
+    last_run_display.short_description = "Last Execution"
     last_run_display.admin_order_field = "last_run_at"
+
+    def total_runs_display(self, obj):
+        return format_html(
+            '<span style="background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; padding: 3px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; white-space: nowrap;">🚀 {} runs</span>',
+            obj.total_runs_count
+        )
+    total_runs_display.short_description = "Runs"
+    total_runs_display.admin_order_field = "total_runs_count"
 
     def trigger_actions_column(self, obj):
         url = reverse('admin:research_intelligence_workflowschedule_trigger', args=[obj.id])
         return format_html(
-            '<a href="{}" class="button" style="background-color: #198754; color: white !important; font-weight: bold; padding: 3px 8px; border-radius: 4px; text-decoration: none; font-size: 11px; white-space: nowrap;">🚀 Run Now</a>',
+            '<a href="{}" class="button" style="background-color: #198754; color: white !important; font-weight: bold; padding: 4px 10px; border-radius: 4px; text-decoration: none; font-size: 11px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">'
+            '🚀 Run Now'
+            '</a>',
             url
         )
-    trigger_actions_column.short_description = "Action"
+    trigger_actions_column.short_description = "Actions"
 
     def get_urls(self):
         from django.urls import path
         urls = super().get_urls()
         custom_urls = [
             path('<uuid:schedule_id>/trigger/', self.admin_site.admin_view(self.trigger_schedule_view), name='research_intelligence_workflowschedule_trigger'),
+            path('<uuid:schedule_id>/toggle/', self.admin_site.admin_view(self.toggle_schedule_view), name='research_intelligence_workflowschedule_toggle'),
         ]
         return custom_urls + urls
 
@@ -1147,6 +1228,20 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
         schedule = get_object_or_404(WorkflowSchedule, id=schedule_id)
         agent = schedule.trigger_run(triggered_by_user=request.user)
         messages.success(request, f"Successfully triggered scheduled workflow '{schedule.name}' (Agent Process: {agent.id}).")
+        return redirect('admin:research_intelligence_workflowschedule_changelist')
+
+    def toggle_schedule_view(self, request, schedule_id):
+        from django.shortcuts import get_object_or_404, redirect
+        from django.contrib import messages
+        schedule = get_object_or_404(WorkflowSchedule, id=schedule_id)
+        schedule.is_active = not schedule.is_active
+        if schedule.is_active:
+            schedule.next_run_at = schedule.compute_next_run()
+            messages.success(request, f"Resumed schedule '{schedule.name}'. Next run at {schedule.next_run_at.strftime('%Y-%m-%d %H:%M UTC')}.")
+        else:
+            schedule.next_run_at = None
+            messages.info(request, f"Paused schedule '{schedule.name}'.")
+        schedule.save(update_fields=['is_active', 'next_run_at'])
         return redirect('admin:research_intelligence_workflowschedule_changelist')
 
     @admin.action(description="🚀 Trigger Selected Schedules Now")
