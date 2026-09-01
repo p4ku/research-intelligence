@@ -1,11 +1,12 @@
 'use client'
 
 import { AnswerMarkdown } from '@/components/answer-markdown'
+import { ErrorNote } from '@/components/scanner-ui'
 import type { ChatStreamState } from '@/lib/chat/use-chat-stream'
 import { useSmoothText } from '@/lib/chat/use-smooth-text'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
-import { CheckCircleIcon, ExclamationTriangleIcon } from '@heroicons/react/16/solid'
+import { CheckCircleIcon } from '@heroicons/react/16/solid'
 import { motion, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
@@ -135,12 +136,7 @@ export function LiveAnswer({
 export function SettledAnswer({ turn, anchor }: { turn: AnswerTurn; anchor: string }) {
   const t = useT()
   if (turn.error) {
-    return (
-      <div className="border-warn/40 bg-warn/5 flex items-start gap-2 rounded-sm border px-3 py-2.5">
-        <ExclamationTriangleIcon className="text-warn mt-0.5 size-4 shrink-0" />
-        <p className="text-foreground/80 text-sm leading-relaxed">{turn.error}</p>
-      </div>
-    )
+    return <ErrorNote>{turn.error}</ErrorNote>
   }
   return (
     <div className="min-w-0">

@@ -1,4 +1,5 @@
 import { ApplicationLayout } from '@/components/application-layout'
+import { forPage } from '@/lib/bff/core/page'
 import { getSessionUser } from '@/lib/auth/session'
 import { getLang } from '@/lib/i18n-server'
 import { getCurrentWorkspace, listWorkspaceChoices } from '@/lib/workspace-server'
@@ -15,11 +16,12 @@ export default async function StudioLayout({ children }: { children: React.React
   const user = await getSessionUser()
   if (!user) redirect('/')
 
-  const [lang, workspaces, current] = await Promise.all([
-    getLang(),
-    listWorkspaceChoices(),
-    getCurrentWorkspace(),
-  ])
+  // forPage: a 401 (Django rejected the session) becomes the logout redirect
+  // instead of an uncatchable layout throw — error.tsx cannot catch its own
+  // layout, so anything escaping here would land on global-error.tsx.
+  const [lang, workspaces, current] = await forPage(
+    Promise.all([getLang(), listWorkspaceChoices(), getCurrentWorkspace()]),
+  )
   return (
     <ApplicationLayout
       lang={lang}

@@ -25,12 +25,31 @@ export const dict: Record<string, string> = {
   'Designed for:': 'Konzipiert für:',
   'No workspace': 'Kein Arbeitsbereich',
   'Switch workspace': 'Arbeitsbereich wechseln',
-  // Route-group error boundary (src/app/(sidebar)/error.tsx). 'Retry' is shared
-  // with papers/error.tsx, which had no translation before.
+  // Route error boundaries (src/components/route-error.tsx + per-segment error.tsx).
   'Something went wrong loading this page.': 'Beim Laden dieser Seite ist ein Fehler aufgetreten.',
   Retry: 'Erneut versuchen',
   // Accessibility labels on the shell (mobile nav drawer, breadcrumb trail).
   'Open navigation': 'Navigation öffnen',
   'Close navigation': 'Navigation schließen',
   Breadcrumb: 'Pfadnavigation',
+  'Retrying…': 'Wird erneut versucht …',
+  'Reference {id}': 'Referenz {id}',
+  "Couldn't load this page.": 'Diese Seite konnte nicht geladen werden.',
+  "Couldn't load papers.": 'Die Papers konnten nicht geladen werden.',
+  "Couldn't load this paper.": 'Dieses Paper konnte nicht geladen werden.',
+  "Couldn't load Ask.": 'Fragen konnte nicht geladen werden.',
+  "Couldn't load Settings.": 'Die Einstellungen konnten nicht geladen werden.',
+  "Couldn't load Briefings.": 'Die Briefings konnten nicht geladen werden.',
+  'Nothing was lost. Try again, or go back to Today.':
+    'Es ist nichts verloren gegangen. Versuchen Sie es erneut oder kehren Sie zu Heute zurück.',
+  'Nothing was lost. Try again in a moment.':
+    'Es ist nichts verloren gegangen. Versuchen Sie es gleich erneut.',
+  'Nothing you asked was lost. Try again in a moment.':
+    'Ihre Fragen sind nicht verloren gegangen. Versuchen Sie es gleich erneut.',
+  'No changes were saved. Try again in a moment.':
+    'Es wurden keine Änderungen gespeichert. Versuchen Sie es gleich erneut.',
+  'The paper is still there. Try again, or go back to the list.':
+    'Das Paper ist weiterhin vorhanden. Versuchen Sie es erneut oder kehren Sie zur Liste zurück.',
+  'Back to Today': 'Zurück zu Heute',
+  'Back to Papers': 'Zurück zu Papers',
 }
