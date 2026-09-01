@@ -172,6 +172,8 @@ class WorkflowSchedule(models.Model):
             try:
                 from croniter import croniter
                 croniter(self.cron_expression)
+            except ImportError:
+                pass
             except Exception as e:
                 raise ValidationError({"cron_expression": f"Invalid cron expression '{self.cron_expression}': {e}"})
         elif self.frequency == 'monthly':
@@ -275,11 +277,11 @@ class WorkflowSchedule(models.Model):
                 return None
             return self.one_off_datetime
 
-        from croniter import croniter
         now_dt = base_time or timezone.now()
         cron_expr = self.get_effective_cron_expression()
         
         try:
+            from croniter import croniter
             itr = croniter(cron_expr, now_dt)
             next_ts = itr.get_next(float)
             return datetime.datetime.fromtimestamp(next_ts, tz=datetime.timezone.utc)
