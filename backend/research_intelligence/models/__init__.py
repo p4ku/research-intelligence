@@ -32,6 +32,9 @@ from .audit import (
     UserActivityLog,
     LLMUsageRecord,
 )
+from .schedule import (
+    WorkflowSchedule,
+)
 
 # Re-export ejected Chat application models for backwards compatibility
 from chat.models import PaperChatSession, PaperChatMessage
@@ -42,6 +45,7 @@ __all__ = [
     "Scraper",
     "WorkspaceMember",
     "APIKey",
+    "WorkflowSchedule",
     "PipelineRun",
     "ResearchAgentProcess",
     "ComponentRun",
@@ -57,3 +61,4 @@ __all__ = [
     "PaperChatSession",
     "PaperChatMessage",
 ]
+

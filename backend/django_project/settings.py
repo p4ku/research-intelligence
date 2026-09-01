@@ -310,10 +310,15 @@ CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'UTC'
 
-# Celery Beat Periodic Scheduled Tasks (Zombie Watchdog & Scheduled Digests)
+# Celery Beat Periodic Scheduled Tasks (Zombie Watchdog, Workflow Dispatcher & Scheduled Digests)
 CELERY_BEAT_SCHEDULE = {
     'reap-zombie-tasks-watchdog': {
         'task': 'research_intelligence.tasks.auxiliary.zombie_watchdog.reap_zombie_tasks_task',
+        'schedule': 60.0,  # runs every 60 seconds
+        'options': {'queue': 'celery'}
+    },
+    'dispatch-scheduled-workflow-runs': {
+        'task': 'research_intelligence.tasks.auxiliary.schedule_dispatcher.dispatch_scheduled_workflow_runs_task',
         'schedule': 60.0,  # runs every 60 seconds
         'options': {'queue': 'celery'}
     },
