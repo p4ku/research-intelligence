@@ -52,7 +52,7 @@ Claude Code will automatically orchestrate the corresponding FastMCP tools step-
 If you prefer to review or execute individual MCP tool calls, follow this sequence:
 
 ### Step 1: Create the Isolated Workspace (`create_workspace`)
-Creates the project with tailored dual-stage screening criteria.
+Creates the project with tailored dual-stage screening criteria and default reprocessing policies.
 
 ```json
 {
@@ -62,7 +62,8 @@ Creates the project with tailored dual-stage screening criteria.
   "full_text_acceptance_criteria": "Accept if the full PDF reports verified experimental data on ionic conductivity (S/cm), volumetric/gravimetric energy density (Wh/kg or Wh/L), capacity retention after >100 cycles, and full cell fabrication details.",
   "full_text_rejection_criteria": "Reject theoretical reviews without experimental or numerical validation, or papers missing core battery performance metrics.",
   "screening_llm_model": "google/gemini-3.7-flash",
-  "ocr_provider": null
+  "ocr_provider": null,
+  "reprocess_existing": false
 }
 ```
 

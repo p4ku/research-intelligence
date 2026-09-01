@@ -54,12 +54,12 @@ This is the **primary recommended entrypoint** for running systematic reviews.
 
 #### Parameters:
 * `workspace_id` *(required)*: UUID of your target workspace.
-* `limit` *(optional, default 50)*: Maximum number of candidate papers to harvest.
+* `limit` *(optional, default: null = all available)*: Maximum number of candidate papers to harvest across scrapers.
 * `date_range_days` *(optional)*: Filter papers published within the last N days (e.g., `30`, `90`, `365`).
 * `query_prefix` *(optional)*: Additional query keywords to prepend to all scraper queries.
-* `skip_abstract_screening` *(optional, boolean)*: Set to `true` to skip abstract screening and screen full text directly.
-* `reprocess_existing` *(optional, boolean)*: Set to `true` to re-screen and re-extract parameters from already downloaded workspace papers using modified criteria.
-* `notification_email` *(optional)*: Email address to notify upon run completion.
+* `skip_abstract_screening` *(optional, boolean)*: Set to `true` to skip abstract screening and route all papers directly to full text screening (default: inherits `workspace.skip_abstract_screening`).
+* `reprocess_existing` *(optional, boolean)*: Reprocessing policy override. When omitted (`null`), inherits the workspace default policy (`workspace.reprocess_existing`). Set explicitly to `true` to re-screen and re-extract all existing workspace papers even if no new papers are found; set `false` to only process newly scraped papers.
+* `notification_email` *(optional)*: Single-run email override to receive Mailgun completion report (default: sends to all active workspace Subscribers).
 
 #### Tool Invocation Example:
 ```json
