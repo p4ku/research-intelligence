@@ -429,7 +429,7 @@ export function toScoredPaper(
   return {
     id: paper.id,
     workspace_id: paper.workspace,
-    pipeline_run_id: paper.pipeline_run,
+    pipeline_run_id: paper.pipeline_run ?? paper.pipeline_run_id ?? '',
     title: paper.title,
     authors: splitAuthors(paper.authors),
     authors_raw: paper.authors ?? '',

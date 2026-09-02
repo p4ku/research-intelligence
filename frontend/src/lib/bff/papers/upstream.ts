@@ -33,7 +33,7 @@ export const paperMetricDTO = z.looseObject({
 export const paperDTO = z.looseObject({
   id: z.string(),
   workspace: z.string(),
-  pipeline_run: z.string(),
+  pipeline_run: z.string().nullable(),
   hash_id: z.string(),
   doi: z.string().nullable(),
   arxiv_id: z.string().nullable(),
@@ -49,6 +49,8 @@ export const paperDTO = z.looseObject({
   screening_reasoning: z.string().nullable(),
   is_evaluation_benchmark: z.boolean(),
   evaluation_label: z.enum(['passed', 'rejected']).nullable(),
+  signal_score: z.number().nullable().optional(),
+  signal_score_details: signalScoreDetailsDTO.optional(),
   metrics: z.array(paperMetricDTO),
   created_at: z.string(),
 })

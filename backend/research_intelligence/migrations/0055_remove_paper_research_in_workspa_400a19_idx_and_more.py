@@ -29,6 +29,7 @@ def copy_paper_evaluations_to_metrics(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    atomic = False
 
     dependencies = [
         ('research_intelligence', '0054_remove_paper_signal_score_and_more'),
@@ -72,6 +73,18 @@ class Migration(migrations.Migration):
             name='metrics_data',
             field=models.JSONField(blank=True, default=dict, help_text='Dictionary of extracted and calculated variables used for scoring'),
         ),
+        migrations.AddIndex(
+            model_name='papermetric',
+            index=models.Index(fields=['pipeline_run', 'screening_status'], name='research_in_pipelin_3fd015_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='papermetric',
+            index=models.Index(fields=['workspace', 'screening_status'], name='research_in_workspa_ea7a98_idx'),
+        ),
+        migrations.AddIndex(
+            model_name='papermetric',
+            index=models.Index(fields=['paper', 'pipeline_run'], name='research_in_paper_i_459aaf_idx'),
+        ),
         migrations.RunPython(copy_paper_evaluations_to_metrics, reverse_code=migrations.RunPython.noop),
         migrations.RemoveField(
             model_name='paper',
@@ -88,17 +101,5 @@ class Migration(migrations.Migration):
         migrations.RemoveField(
             model_name='paper',
             name='screening_status',
-        ),
-        migrations.AddIndex(
-            model_name='papermetric',
-            index=models.Index(fields=['pipeline_run', 'screening_status'], name='research_in_pipelin_3fd015_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='papermetric',
-            index=models.Index(fields=['workspace', 'screening_status'], name='research_in_workspa_ea7a98_idx'),
-        ),
-        migrations.AddIndex(
-            model_name='papermetric',
-            index=models.Index(fields=['paper', 'pipeline_run'], name='research_in_paper_i_459aaf_idx'),
         ),
     ]

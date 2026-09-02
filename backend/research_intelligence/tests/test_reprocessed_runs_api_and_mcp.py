@@ -363,17 +363,16 @@ class ReprocessedRunsAPIMCPTests(TestCase):
         err_msg = get_pipeline_run_status_logic(self.user, "bad-uuid")
         self.assertIn("not a valid UUID format", err_msg)
 
-    def test_rest_api_papers_endpoint_includes_run_id_and_supports_run_id_param(self):
+    def test_rest_api_papers_endpoint_canonical_pipeline_run(self):
         """
-        GET /api/papers/?run_id={run_2.id} returns paper with pipeline_run_id and run_id.
+        GET /api/papers/?pipeline_run={run_2.id} returns paper with canonical pipeline_run field.
         """
-        resp = self.client.get(f"/api/papers/?run_id={self.run_2.id}")
+        resp = self.client.get(f"/api/papers/?pipeline_run={self.run_2.id}")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         results = data["results"] if "results" in data else data
         self.assertEqual(len(results), 1)
-        self.assertEqual(results[0]["pipeline_run_id"], str(self.run_2.id))
-        self.assertEqual(results[0]["run_id"], str(self.run_2.id))
+        self.assertEqual(results[0]["pipeline_run"], str(self.run_2.id))
         self.assertEqual(results[0]["signal_score"], 94.5)
 
     def test_rest_api_paper_metrics_dedicated_endpoint(self):

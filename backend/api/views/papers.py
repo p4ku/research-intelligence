@@ -13,10 +13,7 @@ from ..pagination import StandardResultsSetPagination
     tags=['Literature & Papers'],
     parameters=[
         OpenApiParameter(name='workspace', type=str, location=OpenApiParameter.QUERY, description='Filter papers by workspace UUID'),
-        OpenApiParameter(name='workspace_id', type=str, location=OpenApiParameter.QUERY, description='Alias for workspace filter'),
         OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Filter papers by PipelineRun UUID'),
-        OpenApiParameter(name='pipeline_run_id', type=str, location=OpenApiParameter.QUERY, description='Alias for pipeline_run filter'),
-        OpenApiParameter(name='run_id', type=str, location=OpenApiParameter.QUERY, description='Alias for pipeline_run filter'),
         OpenApiParameter(name='screening_status', type=str, location=OpenApiParameter.QUERY, description='Filter by screening status (e.g. accepted, rejected)'),
     ]
 )
@@ -53,7 +50,6 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
         pipeline_run_id = (
             self.request.query_params.get('pipeline_run')
             or self.request.query_params.get('pipeline_run_id')
-            or self.request.query_params.get('run_id')
         )
         pr_uuid = None
         screening_status = self.request.query_params.get('screening_status')
@@ -130,12 +126,8 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
     tags=['Literature & Papers'],
     parameters=[
         OpenApiParameter(name='workspace', type=str, location=OpenApiParameter.QUERY, description='Filter metrics by workspace UUID'),
-        OpenApiParameter(name='workspace_id', type=str, location=OpenApiParameter.QUERY, description='Alias for workspace filter'),
         OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Filter by PipelineRun UUID'),
-        OpenApiParameter(name='pipeline_run_id', type=str, location=OpenApiParameter.QUERY, description='Alias for pipeline_run filter'),
-        OpenApiParameter(name='run_id', type=str, location=OpenApiParameter.QUERY, description='Alias for pipeline_run filter'),
         OpenApiParameter(name='paper', type=str, location=OpenApiParameter.QUERY, description='Filter by Paper UUID'),
-        OpenApiParameter(name='paper_id', type=str, location=OpenApiParameter.QUERY, description='Alias for paper filter'),
         OpenApiParameter(name='screening_status', type=str, location=OpenApiParameter.QUERY, description='Filter by screening status (e.g. accepted, rejected)'),
     ]
 )
@@ -166,7 +158,6 @@ class PaperMetricViewSet(viewsets.ReadOnlyModelViewSet):
         pr_id = (
             self.request.query_params.get('pipeline_run')
             or self.request.query_params.get('pipeline_run_id')
-            or self.request.query_params.get('run_id')
         )
         if pr_id and str(pr_id).lower() not in ('undefined', 'null', ''):
             qs = qs.filter(pipeline_run_id=pr_id)

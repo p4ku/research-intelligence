@@ -76,8 +76,7 @@ def list_workspace_papers(
             pr_id = None
         results.append({
             "paper_id": str(p.id),
-            "pipeline_run_id": pr_id,
-            "run_id": pr_id,
+            "pipeline_run": pr_id,
             "title": p.title,
             "authors": p.authors,
             "abstract": p.abstract,

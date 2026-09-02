@@ -160,7 +160,7 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
 
         for item in data_1:
             idx = int(item["title"].split("#")[1])
-            self.assertEqual(item["pipeline_run_id"], str(self.run_1.id))
+            self.assertEqual(item["pipeline_run"], str(self.run_1.id))
             expected_status = "accepted" if idx < 6 else "rejected"
             self.assertEqual(item["screening_status"], expected_status)
             expected_score = 50.0 + (idx * 3.5) if expected_status == "accepted" else 10.0
@@ -174,7 +174,7 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
 
         for item in data_2:
             idx = int(item["title"].split("#")[1])
-            self.assertEqual(item["pipeline_run_id"], str(self.run_2.id))
+            self.assertEqual(item["pipeline_run"], str(self.run_2.id))
             expected_status = "accepted" if idx >= 8 else "full_text_passed"
             self.assertEqual(item["screening_status"], expected_status)
             expected_score = 60.0 + (idx * 2.0)
@@ -228,7 +228,7 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
         papers_1 = list_workspace_papers(self.user, str(self.workspace.id), pipeline_run_id=str(self.run_1.id))
         self.assertEqual(len(papers_1), 10)
         for p in papers_1:
-            self.assertEqual(p["pipeline_run_id"], str(self.run_1.id))
+            self.assertEqual(p["pipeline_run"], str(self.run_1.id))
 
     def test_query_count_for_papers_api_endpoint(self):
         """
@@ -297,9 +297,9 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
         print(f"\n[BENCHMARK] /api/paper-metrics/?pipeline_run= executed {query_count} queries for 10 metrics.")
         self.assertLessEqual(query_count, 5, f"Expected <= 5 queries, got {query_count}")
 
-    def test_reports_and_extractions_endpoints_with_run_id_alias(self):
+    def test_reports_and_extractions_endpoints_pipeline_run_filter(self):
         """
-        Verify that /api/reports/ and /api/extractions/ cleanly accept ?run_id= alias
+        Verify that /api/reports/ and /api/extractions/ cleanly filter by ?pipeline_run=
         and return the correct dataset.
         """
         from research_intelligence.models import NarrativeReport
@@ -310,14 +310,14 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
             content_markdown="# Briefing Content"
         )
 
-        resp_rep = self.client.get(f"/api/reports/?run_id={self.run_1.id}")
+        resp_rep = self.client.get(f"/api/reports/?pipeline_run={self.run_1.id}")
         self.assertEqual(resp_rep.status_code, 200)
         data_rep = resp_rep.json()
         results_rep = data_rep["results"] if isinstance(data_rep, dict) and "results" in data_rep else data_rep
         self.assertEqual(len(results_rep), 1)
         self.assertEqual(results_rep[0]["id"], str(report.id))
 
-        resp_ext = self.client.get(f"/api/extractions/?run_id={self.run_1.id}")
+        resp_ext = self.client.get(f"/api/extractions/?pipeline_run={self.run_1.id}")
         self.assertEqual(resp_ext.status_code, 200)
         data_ext = resp_ext.json()
         results_ext = data_ext["results"] if isinstance(data_ext, dict) and "results" in data_ext else data_ext

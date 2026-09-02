@@ -26,10 +26,7 @@ class ExtractionSerializer(serializers.ModelSerializer):
         OpenApiParameter(name='paper', type=str, location=OpenApiParameter.QUERY, description='Filter extractions by Paper UUID'),
         OpenApiParameter(name='paper_id', type=str, location=OpenApiParameter.QUERY, description='Alias for paper filter'),
         OpenApiParameter(name='definition', type=str, location=OpenApiParameter.QUERY, description='Filter extractions by definition UUID'),
-        OpenApiParameter(name='definition_id', type=str, location=OpenApiParameter.QUERY, description='Alias for definition filter'),
-        OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Filter extractions by PipelineRun UUID (including reprocessed papers)'),
-        OpenApiParameter(name='pipeline_run_id', type=str, location=OpenApiParameter.QUERY, description='Alias for pipeline_run filter'),
-        OpenApiParameter(name='run_id', type=str, location=OpenApiParameter.QUERY, description='Alias for pipeline_run filter'),
+        OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Filter extractions by PipelineRun UUID'),
     ]
 )
 class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -67,7 +64,6 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
         pipeline_run_id = (
             self.request.query_params.get('pipeline_run')
             or self.request.query_params.get('pipeline_run_id')
-            or self.request.query_params.get('run_id')
         )
         if pipeline_run_id and str(pipeline_run_id).lower() not in ('undefined', 'null', ''):
             import uuid

@@ -20,6 +20,7 @@ def preserve_reprocessed_runs_as_metrics(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
+    atomic = False
 
     dependencies = [
         ('research_intelligence', '0055_remove_paper_research_in_workspa_400a19_idx_and_more'),
