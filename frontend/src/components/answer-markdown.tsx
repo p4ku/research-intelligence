@@ -9,9 +9,12 @@ import {
 import { fmt, type T } from '@/lib/i18n'
 import { CheckCircleIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
+import 'katex/dist/katex.min.css'
 import { Fragment, memo, type ReactNode } from 'react'
 import Markdown, { type Components, type Options } from 'react-markdown'
+import rehypeKatex from 'rehype-katex'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
 import remend from 'remend'
 
 /**
@@ -45,8 +48,52 @@ const CARET = ''
 const CARET_TAIL = / ?$/
 
 // `singleTilde: false` — scientific prose writes "~5% to ~10%", which default
-// GFM would read as strikethrough.
-const REMARK_PLUGINS: NonNullable<Options['remarkPlugins']> = [[remarkGfm, { singleTilde: false }]]
+// GFM would read as strikethrough. `remark-math` + `rehype-katex` turn the
+// LaTeX the OCR step writes into the markdown ($…$ inline, $$…$$ display, per
+// `ocr_providers/gemini_provider.py`) into typeset math instead of raw source.
+const REMARK_PLUGINS: NonNullable<Options['remarkPlugins']> = [
+  [remarkGfm, { singleTilde: false }],
+  remarkMath,
+]
+
+// `throwOnError: false` degrades an unparseable formula to its red source text
+// instead of blowing up the answer; `strict: false` accepts the loose LaTeX
+// models write (unicode in \text{}, \newline, …). `trust: false` (the default)
+// keeps \href and \includegraphics out.
+const REHYPE_PLUGINS: NonNullable<Options['rehypePlugins']> = [
+  [rehypeKatex, { throwOnError: false, strict: false, errorColor: 'var(--negative)' }],
+]
+
+// Delimiters the OCR prompt allows (ocr_providers/gemini_provider.py) but
+// remark-math does not read: `\(…\)` inline and `\[…\]` display. It also only
+// treats `$$…$$` as a display block when the formula sits on its own lines, so
+// a one-line `$$…$$` — which is what models write — is squared up here too.
+// Fenced code is masked out first, so LaTeX quoted as code stays source.
+const FENCE = /^```[\s\S]*?^```/gm
+const MASK = /\u{E001}(\d+)\u{E001}/gu
+const PAREN_MATH = /\\\(([\s\S]+?)\\\)/g
+const BRACKET_MATH = /\\\[([\s\S]+?)\\\]/g
+const OWN_LINE_BRACKET = /^[ \t]*\\\[([\s\S]+?)\\\][ \t]*$/gm
+const OWN_LINE_DISPLAY = /^[ \t]*\$\$[ \t]*(.+?)[ \t]*\$\$[ \t]*$/gm
+
+/** `\[x\]` or `$$x$$` alone on a line → the blank-line-fenced display block. */
+const displayBlock = (body: string) => `\n\n$$\n${body.trim()}\n$$\n\n`
+
+function normalizeMath(text: string): string {
+  // Plain `$…$` needs nothing; skipping the passes keeps streaming re-renders,
+  // which run this on every token, off the regexes.
+  if (!text.includes('\\(') && !text.includes('\\[') && !text.includes('$$')) return text
+  const fences: string[] = []
+  const masked = text.replace(FENCE, (block) => `\u{E001}${fences.push(block) - 1}\u{E001}`)
+  const converted = masked
+    .replace(OWN_LINE_BRACKET, (_m, body: string) => displayBlock(body))
+    .replace(BRACKET_MATH, (_m, body: string) => `$$${body}$$`)
+    .replace(PAREN_MATH, (_m, body: string) => `$${body}$`)
+    .replace(OWN_LINE_DISPLAY, (_m, body: string) => displayBlock(body))
+  return fences.length === 0
+    ? converted
+    : converted.replace(MASK, (_m, i: string) => fences[Number(i)])
+}
 
 // Streamed words resolve out of a soft blur. The span stays inline, so filter
 // and opacity apply without disturbing line boxes; whitespace rides between
@@ -79,6 +126,11 @@ function Caret() {
     </span>
   )
 }
+
+// Hook for the KaTeX rules in styles/tailwind.css. They live there rather than
+// as utilities here because they have to out-specify katex.min.css, which Next
+// loads after the app stylesheet.
+const MATH_CLASS = 'answer-md'
 
 const CHIP_CLASS =
   // Left margin only, so trailing punctuation hugs the chip.
@@ -188,19 +240,24 @@ function renderString(s: string, opts: RenderOpts, cite?: CiteCtx): ReactNode[] 
   return out
 }
 
-/** String children get the chip/stat/caret pass; element children handle their own text. */
+/**
+ * String children get the chip/stat/caret pass; element children handle their
+ * own text. A lone string is wrapped exactly as it would be inside an array:
+ * mid-stream a paragraph's single text child becomes `[text, <strong>, text]`
+ * the moment the model closes a `**bold**` (or writes `$x$`, or a citation
+ * marker), and if the two paths nested their words differently, every word
+ * already on screen would remount and re-run its unveil — the answer flickers.
+ */
 function inline(children: ReactNode, opts: RenderOpts, cite?: CiteCtx): ReactNode {
-  if (typeof children === 'string') return renderString(children, opts, cite)
-  if (Array.isArray(children)) {
-    return children.map((child, i) =>
-      typeof child === 'string' ? (
-        <Fragment key={i}>{renderString(child, opts, cite)}</Fragment>
-      ) : (
-        child
-      ),
-    )
-  }
-  return children
+  const list = typeof children === 'string' ? [children] : children
+  if (!Array.isArray(list)) return children
+  return list.map((child, i) =>
+    typeof child === 'string' ? (
+      <Fragment key={i}>{renderString(child, opts, cite)}</Fragment>
+    ) : (
+      child
+    ),
+  )
 }
 
 // Model headings become section labels: in a transcript the user's question is
@@ -302,17 +359,45 @@ function componentsFor(opts: RenderOpts): Components {
 }
 
 /**
+ * A formula still being written is TeX source, and showing it only to swap it
+ * for typeset math a moment later makes the line flash. So while the stream is
+ * open, hold back the tail after an unpaired `$` — but only when it reads like
+ * LaTeX (a backslash, a brace, a superscript) and is still short, so a lone `$`
+ * in prose ("about $5 a run") never swallows the rest of the answer.
+ */
+const OPEN_MATH = /\$([^$\n]*)$/
+const LOOKS_LATEX = /[\\{}^_]/
+
+function holdBackOpenMath(text: string): string {
+  // An odd number of `$$` means a display block is open; it spans lines, so it
+  // is measured from the last one rather than by a line-bound match.
+  if ((text.match(/\$\$/g)?.length ?? 0) % 2 === 1) {
+    const at = text.lastIndexOf('$$')
+    const body = text.slice(at + 2)
+    if (body.length <= 400 && (body.trim() === '' || LOOKS_LATEX.test(body)))
+      return text.slice(0, at)
+    return text
+  }
+  if ((text.match(/\$/g)?.length ?? 0) % 2 === 0) return text
+  const open = OPEN_MATH.exec(text)
+  if (!open) return text
+  const body = open[1]
+  return body.length <= 120 && LOOKS_LATEX.test(body) ? text.slice(0, open.index) : text
+}
+
+/**
  * While streaming, close whatever markers the model is mid-way through
  * (`remend`) and append the caret sentinel. Trailing whitespace goes first so
  * the caret stays on the current block rather than jumping to an empty one. A
- * just-closed code fence or a table row gets a blank line instead: appended to
- * the fence the sentinel would reopen it, and after a row's last `|` it would
- * be an extra cell that GFM drops.
+ * just-closed code fence, table row or display formula gets a blank line
+ * instead: appended to the fence the sentinel would reopen it, after a row's
+ * last `|` it would be an extra cell that GFM drops, and on a closing `$$` it
+ * would leave the formula unterminated.
  */
 function streamingSource(text: string, caret: boolean): string {
-  const mended = remend(text, { linkMode: 'text-only' }).replace(/\s+$/, '')
+  const mended = remend(holdBackOpenMath(text), { linkMode: 'text-only' }).replace(/\s+$/, '')
   if (!caret) return mended
-  const ownLine = mended.endsWith('```') || mended.endsWith('|')
+  const ownLine = mended.endsWith('```') || mended.endsWith('|') || mended.endsWith('$$')
   return ownLine ? `${mended}\n\n${CARET}` : `${mended} ${CARET}`
 }
 
@@ -355,7 +440,7 @@ export const AnswerMarkdown = memo(function AnswerMarkdown({
     ? extractCitationMarkers(streaming ? holdBackOpenMarker(text) : text)
     : null
   const refs = extracted?.refs ?? []
-  let source = extracted ? extracted.text : text
+  let source = normalizeMath(extracted ? extracted.text : text)
   if (streaming) source = streamingSource(source, caret)
   const opts: RenderOpts = { stats, unveil, caret }
   const cite: CiteCtx | undefined =
@@ -364,9 +449,10 @@ export const AnswerMarkdown = memo(function AnswerMarkdown({
       : undefined
   const components = cite ? buildComponents(opts, cite) : componentsFor(opts)
   return (
-    <div className={clsx('min-w-0 space-y-2 leading-relaxed break-words', className)}>
+    <div className={clsx('min-w-0 space-y-2 leading-relaxed break-words', MATH_CLASS, className)}>
       <Markdown
         remarkPlugins={REMARK_PLUGINS}
+        rehypePlugins={REHYPE_PLUGINS}
         components={components}
         skipHtml
         disallowedElements={['img']}

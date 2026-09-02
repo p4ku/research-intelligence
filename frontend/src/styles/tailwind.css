@@ -357,3 +357,21 @@
     animation: rs-lock-fade 0.8s ease-out 0.4s both;
   }
 }
+
+/* Model-written LaTeX, typeset by KaTeX inside AnswerMarkdown (`.answer-md`).
+   Two classes deep so these win over katex.min.css, which Next loads after this
+   stylesheet. KaTeX's own 1.21em scale shouts next to 12–13px UI type; a long
+   display formula scrolls in its own box rather than widening the answer
+   column, as tables do. */
+.answer-md .katex {
+  font-size: 1.05em;
+}
+.answer-md .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 0.25rem;
+}
+/* Its colour comes from KaTeX's `errorColor`, which is already a token. */
+.answer-md .katex-error {
+  font-family: var(--font-mono);
+}
