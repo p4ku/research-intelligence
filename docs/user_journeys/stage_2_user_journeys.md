@@ -1,6 +1,6 @@
 # Frontend User Journeys & Architecture Specification (Stage 2)
 
-**Document Version**: 2.3  
+**Document Version**: 2.4  
 **Target Roles**: Administrator, Manager (Research Lead), Researcher (Analyst)  
 **Scope**: Pure Frontend User Journeys, UI Views, Screen Transitions & Interactive States  
 
@@ -418,3 +418,55 @@ sequenceDiagram
 | **Trigger New Review Run** | ✅ Enabled | ✅ Enabled | ❌ **Hidden / Disabled** |
 | **Trigger Reprocess Existing Run** | ✅ Enabled | ✅ Enabled | ❌ **Hidden / Disabled** |
 | **Run Actions (Pause / Abort / Rerun)** | ✅ Full Control | ✅ Workspace Control | ❌ **Hidden / Disabled** |
+
+---
+
+## 11. End-to-End Frontend Verification: The 7 Core Operational Workflows
+
+To ensure zero ambiguity during enterprise demos, user acceptance testing, or frontend development, here is the exact step-by-step UI verification for each required capability:
+
+### 🔹 1. User Authentication (Login & Sign Out)
+- **Action**: User visits `/`, enters username and password, clicks **Sign In**.
+- **Result**: Button shows loading spinner, validates credentials, and transitions smoothly to `/dashboard` with the active workspace loaded.
+- **Sign Out**: Clicking the avatar menu and selecting **Sign Out** immediately invalidates session cookies and returns to the login screen with a confirmation banner.
+
+### 🔹 2. Workspace Discovery & Selection
+- **Action**: User clicks the `WorkspaceSwitcher` dropdown in the top navigation bar.
+- **Result**: Displays all accessible workspaces (Admins see global list, Managers/Researchers see assigned workspaces).
+- **Behavior**: Selecting a workspace immediately refreshes all run selectors, funnels, briefings, and paper lists to that workspace context.
+
+### 🔹 3. Historical Run Exploration & Overview Dashboard (`/dashboard`)
+- **Action**: User clicks the `RunSelector` in the top navigation bar.
+- **Result**: Displays historical runs with run number, execution date, status badge (*Completed*, *Running*, *Failed*), and summary chips (*50 papers • $0.086 USD*).
+- **Behavior**: Selecting any past run updates the **Overview Dashboard (`/dashboard`)** to display the exact conversion funnel (Ingested $\rightarrow$ Abstract Passed $\rightarrow$ Full-Text Passed $\rightarrow$ High Signal), Top Signal Cards, and Token Economics for that specific run.
+
+### 🔹 4. Deep-Dive into Run Execution Details (`/runs/[id]`)
+- **Action**: From `/runs` or the active run chip, user clicks **Inspect Run Details**.
+- **Result**: Direct navigation to `/runs/[id]` showing the interactive 8-step execution stepper:
+  $$\text{Search} \longrightarrow \text{Abstract Screening} \longrightarrow \text{PDF Download} \longrightarrow \text{OCR} \longrightarrow \text{Full-Text} \longrightarrow \text{Extraction} \longrightarrow \text{Signal Scoring} \longrightarrow \text{Reporting}$$
+- **Features**: Step-by-step execution times, processed paper counts, failure logs, and direct quick-links (*"Browse {N} Screened Papers $\rightarrow$"* / *"Read Briefing $\rightarrow$"*).
+- **Controls (Admin & Manager)**: **Pause**, **Resume**, **Abort**, and **Rerun from Step** buttons.
+
+### 🔹 5. Individual Paper Scorecard & Grounded Assessment (`/papers/[id]`)
+- **Action**: User clicks any paper row in `/papers` or a Top Signal card on `/dashboard`.
+- **Result**: Opens the comprehensive scorecard at `/papers/[id]`:
+  - **Breadcrumbs**: `Quantum Computing / Run #14 / Papers / [Paper Title]`.
+  - **Signal Score Audit (`SignalLedger`)**: Full breakdown of Python AST formula variables and computed score.
+  - **Extracted Dimensions (`DimensionsFrame`)**: Parameter table showing values, confidence ratings, and LLM justifications.
+  - **Clickable Evidence Quotes**: Clicking an evidence tag opens a document drawer highlighting the exact text snippet from the PDF.
+  - **Screening Justification**: Full dual-stage screening rationale.
+  - **Side-by-Side Paper Chat (`PaperChat`)**: Instant multi-turn Q&A grounded exclusively in this paper.
+
+### 🔹 6. Trivial One-Click Pipeline Management (`+ New Pipeline Run`)
+- **Action (Admin & Manager)**: User navigates to `/runs` and clicks **`+ New Pipeline Run`**.
+- **Result**: Opens a clear, lightweight modal with two intuitive choices:
+  - 🔘 **Full Review Run**: Launches fresh search and ingestion with an optional paper limit slider/input (e.g., 5, 20, 50).
+  - 🔘 **Reprocess Existing Papers**: Re-evaluates existing cached PDFs using updated extraction models or scoring formulas without re-scraping.
+- **Behavior**: Clicking **Launch Pipeline** immediately starts execution and automatically routes the user to the Live Stepper with real-time stage animations.
+
+### 🔹 7. User Profile, Security & Notification Preferences (`/settings`)
+- **Action**: User opens Avatar Menu $\rightarrow$ **My Account** (`/settings`).
+- **Result**:
+  - **Profile Form**: Updates First Name, Last Name, Email with immediate top-bar and avatar initial refresh.
+  - **Password Form**: Validates and updates password with instant green confirmation.
+  - **Notification Preferences**: Toggle email alerts ON/OFF and select delivery cadence (*Instant Run Completion*, *Daily Digest*, *Weekly Executive Briefing*).
