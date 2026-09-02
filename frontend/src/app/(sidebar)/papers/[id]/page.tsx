@@ -50,7 +50,10 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div className="mx-auto max-w-7xl">
-      <Breadcrumbs items={[{ label: t('Papers'), href: '/papers' }, { label: paper.title }]} t={t} />
+      <Breadcrumbs
+        items={[{ label: t('Papers'), href: '/papers' }, { label: paper.title }]}
+        t={t}
+      />
 
       <div className="mt-8 grid items-start gap-8 lg:grid-cols-[2fr_1fr]">
         <div className="min-w-0 space-y-8">

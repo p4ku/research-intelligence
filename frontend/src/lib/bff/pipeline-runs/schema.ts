@@ -57,9 +57,7 @@ export const pipelineRunDetail = pipelineRun
     papers_count: z.number().int(),
     duplicates_count: z.number().int(),
     extractions_count: z.number().int(),
-    storage: z
-      .object({ size_formatted: z.string(), files: z.number().int() })
-      .nullable(),
+    storage: z.object({ size_formatted: z.string(), files: z.number().int() }).nullable(),
   })
   .meta({ id: 'PipelineRunDetail' })
 export type PipelineRunDetail = z.infer<typeof pipelineRunDetail>

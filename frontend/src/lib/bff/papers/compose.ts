@@ -9,7 +9,12 @@
 import 'server-only'
 
 import type { ExtractionDTO } from '@/lib/api/types'
-import { corpusMaxima, definitionContexts, toScoredPaper, toWorkspaceSummary } from '@/lib/papers/map'
+import {
+  corpusMaxima,
+  definitionContexts,
+  toScoredPaper,
+  toWorkspaceSummary,
+} from '@/lib/papers/map'
 import type { ScoredPaper, WorkspaceSummary } from '@/lib/papers/types'
 import { cache } from 'react'
 import * as z from 'zod'

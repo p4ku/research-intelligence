@@ -190,7 +190,7 @@ export function StepSummary({ summary }: { summary: ComponentSummary }) {
           {summary.avg !== null && (
             <span className="whitespace-nowrap text-zinc-500 dark:text-zinc-400">
               avg{' '}
-              <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
+              <span className="font-medium text-zinc-900 tabular-nums dark:text-zinc-100">
                 {summary.avg.toFixed(1)}
               </span>
             </span>
@@ -198,7 +198,7 @@ export function StepSummary({ summary }: { summary: ComponentSummary }) {
           {summary.max !== null && (
             <span className="whitespace-nowrap text-zinc-500 dark:text-zinc-400">
               max{' '}
-              <span className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
+              <span className="font-medium text-zinc-900 tabular-nums dark:text-zinc-100">
                 {summary.max.toFixed(1)}
               </span>
             </span>
@@ -211,9 +211,7 @@ export function StepSummary({ summary }: { summary: ComponentSummary }) {
           <span className="text-zinc-500 dark:text-zinc-400">
             {summary.generated ? 'Report generated' : 'No report'}
           </span>
-          {summary.characters !== null && (
-            <Count value={summary.characters} label="characters" />
-          )}
+          {summary.characters !== null && <Count value={summary.characters} label="characters" />}
         </div>
       )
     case 'none':

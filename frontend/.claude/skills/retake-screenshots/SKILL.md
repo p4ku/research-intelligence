@@ -56,7 +56,7 @@ graphic errors (they name the exact `.png` the `.tex` expects), then rebuild.
 
 ## Notes
 
-- Wording: the future-phase concepts are *possibilities under consideration
-  for future phases* — never describe them as "on the roadmap".
+- Wording: the future-phase concepts are _possibilities under consideration
+  for future phases_ — never describe them as "on the roadmap".
 - The screenshot gallery (`screenshots/index.html`) is built separately by
   `scripts/build-screenshot-gallery.ts`; regenerate it too if it's in use.

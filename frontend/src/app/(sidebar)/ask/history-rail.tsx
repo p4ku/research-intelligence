@@ -50,7 +50,12 @@ function HistoryRow({
           session.paper_id ? 'bg-accent/70' : 'bg-line-strong',
         )}
       />
-      <button type="button" onClick={onOpen} aria-current={active || undefined} className="min-w-0 flex-1 text-left">
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-current={active || undefined}
+        className="min-w-0 flex-1 text-left"
+      >
         <span
           className={clsx(
             'line-clamp-2 block text-xs',

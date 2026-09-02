@@ -31,20 +31,20 @@ no toggle is wired; the app renders weiss). The zinc/gray/blue/amber/green/red
 Tailwind scales are **remapped** there to Souverän values, so legacy utility
 classes stay on-brand; new code should prefer the semantic utilities.
 
-| Job                     | Token / value                                       |
-| ----------------------- | --------------------------------------------------- |
-| Page background         | `bg-background` `#F3F4F4`                           |
-| Card surface            | `bg-surface` `#FFFFFF`                              |
-| Ink                     | `text-foreground` `#131311`                         |
-| Muted ink               | `text-muted-foreground` `#6D6D65`                   |
-| Hairline border         | `border-line` `#DEDED7`                             |
-| Soft hairline (in-card) | `border-line-soft` `#EBEBE4`                        |
-| Signal / links / "hot"  | `accent` `#00C3CD` (text on light: blue-700 `#00767E`) |
-| Positive delta          | `text-positive` `#1E7B44`                           |
-| Negative delta          | `text-negative` `#B5402C`                           |
+| Job                     | Token / value                                                 |
+| ----------------------- | ------------------------------------------------------------- |
+| Page background         | `bg-background` `#F3F4F4`                                     |
+| Card surface            | `bg-surface` `#FFFFFF`                                        |
+| Ink                     | `text-foreground` `#131311`                                   |
+| Muted ink               | `text-muted-foreground` `#6D6D65`                             |
+| Hairline border         | `border-line` `#DEDED7`                                       |
+| Soft hairline (in-card) | `border-line-soft` `#EBEBE4`                                  |
+| Signal / links / "hot"  | `accent` `#00C3CD` (text on light: blue-700 `#00767E`)        |
+| Positive delta          | `text-positive` `#1E7B44`                                     |
+| Negative delta          | `text-negative` `#B5402C`                                     |
 | Concept marker / warn   | `bg-warn` `#E3C230` (Zitrus; text: `text-warn-ink` `#7D6510`) |
-| Primary action          | foreground (near-black, inverts in dark)            |
-| Tile wash               | `bg-foreground/3` (3% ink over the surface)         |
+| Primary action          | foreground (near-black, inverts in dark)                      |
+| Tile wash               | `bg-foreground/3` (3% ink over the surface)                   |
 
 Raw `#00C3CD` fails contrast as body text on white — use `text-blue-700`
 (`#00767E`) for accent-colored text; Zitrus text always via `text-warn-ink`.
@@ -99,15 +99,15 @@ Charts are dependency-free inline SVG — no charting library. Primitives:
 
 ## Components map
 
-| File                        | Holds                                                                            |
-| --------------------------- | -------------------------------------------------------------------------------- |
-| `components/brand.tsx`      | `ScannerMark` (aperture logo), `ScannerWordmark` (letterspaced caps)             |
-| `components/charts.tsx`     | inline-SVG chart primitives + palette                                            |
-| `components/scanner-ui.tsx` | `PageHeader`, `Card`, `StatTile`, `SignalScore`, `ScoreRow`, `Tldr`, badges, chips |
-| `components/paper-card.tsx` | the standard paper list row                                                      |
+| File                             | Holds                                                                                                                                                    |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `components/brand.tsx`           | `ScannerMark` (aperture logo), `ScannerWordmark` (letterspaced caps)                                                                                     |
+| `components/charts.tsx`          | inline-SVG chart primitives + palette                                                                                                                    |
+| `components/scanner-ui.tsx`      | `PageHeader`, `Card`, `StatTile`, `SignalScore`, `ScoreRow`, `Tldr`, badges, chips                                                                       |
+| `components/paper-card.tsx`      | the standard paper list row                                                                                                                              |
 | `components/answer-markdown.tsx` | `AnswerMarkdown` — model-written markdown in app tokens; mono figures; streaming caret; `[Page N, …]` markers as citation chips (opt-in via `citations`) |
-| `components/skeleton.tsx`   | `Bone.*` placeholder primitives + `Skeleton.Region` — see `docs/skeletons.md` |
-| `components/*` (Catalyst)   | retained UI primitives: `sidebar`, `dropdown`, `avatar`, `button`, `input`, etc. |
+| `components/skeleton.tsx`        | `Bone.*` placeholder primitives + `Skeleton.Region` — see `docs/skeletons.md`                                                                            |
+| `components/*` (Catalyst)        | retained UI primitives: `sidebar`, `dropdown`, `avatar`, `button`, `input`, etc.                                                                         |
 
 The old Tailwind Plus _marketing_ components (bento cards, testimonials, logo
 clouds, gradients) were deleted — they have no place in an internal tool.

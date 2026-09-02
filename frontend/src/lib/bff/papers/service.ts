@@ -16,8 +16,8 @@ import * as z from 'zod'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { problem, ProblemError } from '../core/problem'
-import { assertUuid } from '../core/validate'
 import { sourceOf } from '../core/source'
+import { assertUuid } from '../core/validate'
 import { workspace, type WorkspaceSummary } from '../workspaces/schema'
 import { composeGet, composeListAll } from './compose'
 import { fixturePapers, fixtureWorkspace } from './fixtures'
@@ -127,7 +127,10 @@ export const papers = {
       }
       case 'django':
         try {
-          return await django(`/api/papers/${assertUuid(id, 'paper id')}/scorecard/`, detailResponse)
+          return await django(
+            `/api/papers/${assertUuid(id, 'paper id')}/scorecard/`,
+            detailResponse,
+          )
         } catch (error) {
           if (error instanceof ProblemError && error.problem.status === 404) return null
           throw error

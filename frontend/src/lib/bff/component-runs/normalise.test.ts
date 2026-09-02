@@ -31,9 +31,9 @@ describe('toSummary', () => {
   })
 
   test('search falls back through key variants when only the older ones exist', () => {
-    expect(toSummary('search', { total_created: 4, total_found: 9, total_duplicates: 5 }, {})).toEqual(
-      { kind: 'search', created: 4, fetched: 9, duplicates: 5 },
-    )
+    expect(
+      toSummary('search', { total_created: 4, total_found: 9, total_duplicates: 5 }, {}),
+    ).toEqual({ kind: 'search', created: 4, fetched: 9, duplicates: 5 })
   })
 
   test('screening reads the counts the engine records', () => {
@@ -77,9 +77,9 @@ describe('toSummary', () => {
         {},
       ),
     ).toEqual({ kind: 'signal_score', scored: 3, total: 3, avg: 41.7, max: 62 })
-    expect(toSummary('signal_score', { papers_scored: 2, total_papers: 2, top_score: 88 }, {})).toEqual(
-      { kind: 'signal_score', scored: 2, total: 2, avg: null, max: 88 },
-    )
+    expect(
+      toSummary('signal_score', { papers_scored: 2, total_papers: 2, top_score: 88 }, {}),
+    ).toEqual({ kind: 'signal_score', scored: 2, total: 2, avg: null, max: 88 })
   })
 
   test('reporting reads output_data when metrics is thin', () => {
@@ -99,9 +99,9 @@ describe('toSummary', () => {
   })
 
   test('metrics wins over output_data when both carry a key', () => {
-    expect(toSummary('screening', { total_screened: 3, passed: 1, rejected: 2 }, { passed: 99 })).toEqual(
-      { kind: 'screening', screened: 3, passed: 1, rejected: 2, withdrawn: 0 },
-    )
+    expect(
+      toSummary('screening', { total_screened: 3, passed: 1, rejected: 2 }, { passed: 99 }),
+    ).toEqual({ kind: 'screening', screened: 3, passed: 1, rejected: 2, withdrawn: 0 })
   })
 })
 

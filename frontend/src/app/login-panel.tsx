@@ -16,15 +16,7 @@ const ERROR_TEXT: Record<LoginErrorCode, string> = {
   upstream: 'The sign-in could not be processed (HTTP {status}).',
 }
 
-export function LoginPanel({
-  next,
-  notice,
-  lang,
-}: {
-  next?: string
-  notice?: string
-  lang: Lang
-}) {
+export function LoginPanel({ next, notice, lang }: { next?: string; notice?: string; lang: Lang }) {
   // The login page renders outside the app shell (no LanguageProvider), so
   // the server page resolves the language and hands it in as a prop.
   const t = useMemo(() => makeT(lang), [lang])
@@ -122,7 +114,9 @@ export function LoginPanel({
       )}
 
       <p className="mt-10 text-xs text-zinc-400 dark:text-zinc-500">
-        {t('Research Intelligence is an internal tool. Access is restricted to authorized accounts.')}
+        {t(
+          'Research Intelligence is an internal tool. Access is restricted to authorized accounts.',
+        )}
       </p>
     </div>
   )

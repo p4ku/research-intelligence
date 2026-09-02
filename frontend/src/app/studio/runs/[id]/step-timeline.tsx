@@ -109,16 +109,13 @@ export function StepTimeline({ steps }: { steps: ComponentRun[] }) {
                     className="hidden h-1 w-24 overflow-hidden rounded-full bg-zinc-100 sm:block dark:bg-zinc-800"
                     aria-hidden="true"
                   >
-                    <div
-                      className="bg-accent h-full rounded-full"
-                      style={{ width: `${width}%` }}
-                    />
+                    <div className="bg-accent h-full rounded-full" style={{ width: `${width}%` }} />
                   </div>
-                  <span className="text-sm tabular-nums text-zinc-700 dark:text-zinc-300">
+                  <span className="text-sm text-zinc-700 tabular-nums dark:text-zinc-300">
                     {formatDuration(step.duration_seconds)}
                   </span>
                 </div>
-                <div className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">
+                <div className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
                   {formatUsd(step.cost.usd)}
                   {step.cost.total_tokens !== null && (
                     <span className="text-zinc-400 dark:text-zinc-500">

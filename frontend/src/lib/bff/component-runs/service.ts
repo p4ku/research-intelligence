@@ -15,6 +15,7 @@ import * as z from 'zod'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { assertUuid } from '../core/validate'
+import { labelFor, toCost, toSummary } from './normalise'
 import {
   componentStatus,
   stepType,
@@ -23,7 +24,6 @@ import {
   type ComponentStatus,
   type StepType,
 } from './schema'
-import { labelFor, toCost, toSummary } from './normalise'
 import { componentRunDTO } from './upstream'
 
 function toComponentRun(dto: ComponentRunDTO): ComponentRun {
@@ -42,7 +42,9 @@ function toComponentRun(dto: ComponentRunDTO): ComponentRun {
     component_name: dto.component_name,
     label: labelFor(resolvedStep, dto.component_name),
     status: resolvedStatus,
-    summary: step.success ? toSummary(resolvedStep, dto.metrics, dto.output_data) : { kind: 'none' },
+    summary: step.success
+      ? toSummary(resolvedStep, dto.metrics, dto.output_data)
+      : { kind: 'none' },
     cost: toCost(dto.metrics, dto.output_data),
     duration_seconds: dto.duration_seconds,
     started_at: dto.started_at,
@@ -80,7 +82,9 @@ function chronologically(a: ComponentRun, b: ComponentRun): number {
 export const componentRuns = {
   /** Every step of one run, in execution order. */
   listAll: cache(async (pipelineRunId: string): Promise<ComponentRun[]> => {
-    const params = new URLSearchParams({ pipeline_run: assertUuid(pipelineRunId, 'pipeline_run_id') })
+    const params = new URLSearchParams({
+      pipeline_run: assertUuid(pipelineRunId, 'pipeline_run_id'),
+    })
     const rows = await django(`/api/component-runs/?${params}`, z.array(componentRunDTO))
     return rows.map(toComponentRun).sort(chronologically)
   }),

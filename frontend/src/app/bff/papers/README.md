@@ -20,10 +20,10 @@ dashboard's run list, and the Ask paper palette.
 
 ## BFF routes
 
-| Route | Query | Returns |
-| --- | --- | --- |
-| `GET /bff/papers` | `workspace_id` (required), `page`, `page_size` (≤200), `screening=passed\|all\|<status>`, `ordering=[-]signal_score\|[-]created_at\|[-]dim:<key>`, `search` | `ScoredPaperPage` |
-| `GET /bff/papers/{id}` | — | `{workspace: Workspace, paper: ScoredPaper}` |
+| Route                  | Query                                                                                                                                                       | Returns                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `GET /bff/papers`      | `workspace_id` (required), `page`, `page_size` (≤200), `screening=passed\|all\|<status>`, `ordering=[-]signal_score\|[-]created_at\|[-]dim:<key>`, `search` | `ScoredPaperPage`                            |
+| `GET /bff/papers/{id}` | —                                                                                                                                                           | `{workspace: Workspace, paper: ScoredPaper}` |
 
 Schemas: `src/lib/bff/papers/schema.ts` (`ScoredPaper`, `Dimension`,
 `SignalScoreDetails`). Errors are problem+json.

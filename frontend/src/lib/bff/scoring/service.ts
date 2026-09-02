@@ -9,9 +9,9 @@
 import 'server-only'
 
 import { django } from '../core/http'
-import { assertUuid } from '../core/validate'
 import { problem } from '../core/problem'
 import { sourceOf } from '../core/source'
+import { assertUuid } from '../core/validate'
 import { papers } from '../papers/service'
 import { fixtureScoring } from './fixtures'
 import { workspaceScoring, type WorkspaceScoring } from './schema'
@@ -30,8 +30,7 @@ async function compose(workspaceId: string): Promise<WorkspaceScoring> {
     .filter((p) => p.signal_score_details?.code_snippet)
     .sort(
       (a, b) =>
-        (b.signal_score ?? -1) - (a.signal_score ?? -1) ||
-        b.created_at.localeCompare(a.created_at),
+        (b.signal_score ?? -1) - (a.signal_score ?? -1) || b.created_at.localeCompare(a.created_at),
     )[0]
   const details = newestScored?.signal_score_details ?? null
 
@@ -68,7 +67,10 @@ export const scoring = {
       case 'stub':
         return { ...fixtureScoring, workspace_id: workspaceId }
       case 'django':
-        return django(`/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/scoring/`, workspaceScoring)
+        return django(
+          `/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/scoring/`,
+          workspaceScoring,
+        )
       default:
         return compose(workspaceId)
     }

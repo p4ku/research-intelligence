@@ -7,12 +7,12 @@ The Settings page: profile edits, password change, the workspace card
 
 ## BFF routes
 
-| Route | Backing | Notes |
-| --- | --- | --- |
-| `GET /bff/settings/profile` | **real** `GET /api/auth/me/` | `Profile` |
-| `PATCH /bff/settings/profile` | **real** `PATCH /api/auth/me/` | `{username?, email?, first_name?, last_name?}`; uniqueness errors come back as `problem.errors`; the handler re-sets the `sri_user` display cookie |
-| `POST /bff/settings/password` | **real** `POST /api/auth/change-password/` | `{old_password, new_password, confirm_password}`; Django's field messages surface per field |
-| `GET/PUT /bff/settings/preferences?workspace_id=` | **stub** | `{digest_email: boolean}`; per-process memory until the backend persists it |
+| Route                                             | Backing                                    | Notes                                                                                                                                              |
+| ------------------------------------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /bff/settings/profile`                       | **real** `GET /api/auth/me/`               | `Profile`                                                                                                                                          |
+| `PATCH /bff/settings/profile`                     | **real** `PATCH /api/auth/me/`             | `{username?, email?, first_name?, last_name?}`; uniqueness errors come back as `problem.errors`; the handler re-sets the `sri_user` display cookie |
+| `POST /bff/settings/password`                     | **real** `POST /api/auth/change-password/` | `{old_password, new_password, confirm_password}`; Django's field messages surface per field                                                        |
+| `GET/PUT /bff/settings/preferences?workspace_id=` | **stub**                                   | `{digest_email: boolean}`; per-process memory until the backend persists it                                                                        |
 
 The workspace card reads the workspaces resource (scrapers, definitions,
 digest cron, screening model) — nothing extra needed here.

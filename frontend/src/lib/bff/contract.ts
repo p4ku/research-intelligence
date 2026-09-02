@@ -3,10 +3,10 @@
  * `/bff/status`, `scripts/contract-spec.ts`, and `scripts/contract-check.ts`.
  * Resources register here as their slices land.
  */
-import type { Operation } from './core/contract-types'
 import { briefingsOperations } from './briefings/contract'
 import { chatOperations } from './chat/contract'
 import { componentRunsOperations } from './component-runs/contract'
+import type { Operation } from './core/contract-types'
 import { papersOperations } from './papers/contract'
 import { pipelineRunsOperations } from './pipeline-runs/contract'
 import { scoringOperations } from './scoring/contract'

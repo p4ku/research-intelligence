@@ -56,7 +56,9 @@ export async function* parseSse(
         // A lone `\r` at the end of the buffer may be half of a `\r\n`.
         if (buffer[index] === '\r' && index === buffer.length - 1 && !done) break
         const line = buffer.slice(0, index)
-        buffer = buffer.slice(index + (buffer[index] === '\r' && buffer[index + 1] === '\n' ? 2 : 1))
+        buffer = buffer.slice(
+          index + (buffer[index] === '\r' && buffer[index + 1] === '\n' ? 2 : 1),
+        )
         const frame = handleLine(line)
         if (frame) yield frame
       }

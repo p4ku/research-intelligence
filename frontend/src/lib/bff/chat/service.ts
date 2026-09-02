@@ -11,16 +11,12 @@ import * as z from 'zod'
 import { django, djangoVoid } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { problem, ProblemError } from '../core/problem'
-import { assertUuid } from '../core/validate'
 import { sourceOf } from '../core/source'
+import { assertUuid } from '../core/validate'
 import { fixtureSessionDetails, fixtureSessions } from './fixtures'
 import type { ChatSession, ChatSessionDetail, ChatTurn, SessionsQuery } from './schema'
 import { factCheck, visualCitation } from './schema'
-import {
-  chatMessageDTO,
-  chatSessionDetailDTO,
-  chatSessionDTO,
-} from './upstream'
+import { chatMessageDTO, chatSessionDetailDTO, chatSessionDTO } from './upstream'
 
 type SessionDTO = z.infer<typeof chatSessionDTO>
 type MessageDTO = z.infer<typeof chatMessageDTO>
@@ -47,8 +43,7 @@ export function toTurn(dto: MessageDTO): ChatTurn {
         .map((r) => r.data)
     : []
   const guard = factCheck.safeParse(dto.hallucination_guard)
-  const hasUsage =
-    dto.tokens_in !== null || dto.tokens_out !== null || dto.total_tokens !== null
+  const hasUsage = dto.tokens_in !== null || dto.tokens_out !== null || dto.total_tokens !== null
   const status = (['pending', 'processing', 'completed', 'failed'] as const).includes(
     dto.status as never,
   )
@@ -96,7 +91,10 @@ export const chat = {
   async getSession(id: string): Promise<ChatSessionDetail | null> {
     if (sourceOf('chat') === 'stub') return fixtureSessionDetails.find((s) => s.id === id) ?? null
     try {
-      const dto = await django(`/api/chat/sessions/${assertUuid(id, 'session id')}/`, chatSessionDetailDTO)
+      const dto = await django(
+        `/api/chat/sessions/${assertUuid(id, 'session id')}/`,
+        chatSessionDetailDTO,
+      )
       return { ...toSession(dto), turns: dto.messages.map(toTurn) }
     } catch (error) {
       if (error instanceof ProblemError && error.problem.status === 404) return null

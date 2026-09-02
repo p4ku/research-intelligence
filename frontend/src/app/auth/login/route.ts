@@ -107,4 +107,3 @@ export async function POST(request: NextRequest) {
   res.cookies.set(USER_COOKIE, encodeUserCookie(toCookieUser(user)), options)
   return res
 }
-

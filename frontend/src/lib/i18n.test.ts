@@ -12,12 +12,12 @@
 import { describe, expect, test } from 'bun:test'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative } from 'node:path'
+import { de } from '../locales/de'
 import { dict as ask } from '../locales/de/ask'
 import { dict as briefing } from '../locales/de/briefing'
 import { dict as chrome } from '../locales/de/chrome'
 import { dict as components } from '../locales/de/components'
 import { dict as dashboard } from '../locales/de/dashboard'
-import { de } from '../locales/de'
 import { dict as login } from '../locales/de/login'
 import { dict as papers } from '../locales/de/papers'
 import { dict as settings } from '../locales/de/settings'
@@ -76,9 +76,9 @@ describe('German dictionary', () => {
 
   test('covers every statically used string', () => {
     const missing = [...uses].filter(([key]) => !(key in de))
-    expect(
-      missing.map(([key, files]) => `"${key}" (${[...new Set(files)].join(', ')})`),
-    ).toEqual([])
+    expect(missing.map(([key, files]) => `"${key}" (${[...new Set(files)].join(', ')})`)).toEqual(
+      [],
+    )
   })
 
   test('has no conflicting duplicates across area modules', () => {
@@ -88,7 +88,9 @@ describe('German dictionary', () => {
         seen.set(k, [...(seen.get(k) ?? []), { area, value: v }])
     const conflicts = [...seen]
       .filter(([, v]) => new Set(v.map((x) => x.value)).size > 1)
-      .map(([k, v]) => `"${k}": ${v.map((x) => `${x.area}=${JSON.stringify(x.value)}`).join(' vs ')}`)
+      .map(
+        ([k, v]) => `"${k}": ${v.map((x) => `${x.area}=${JSON.stringify(x.value)}`).join(' vs ')}`,
+      )
     expect(conflicts).toEqual([])
   })
 

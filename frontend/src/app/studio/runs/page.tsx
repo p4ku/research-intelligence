@@ -178,10 +178,10 @@ export default async function RunsPage({
                 <TableCell className="text-right tabular-nums">
                   {run.total_papers_passed_screening.toLocaleString('en-US')}
                 </TableCell>
-                <TableCell className="text-right tabular-nums text-zinc-500 dark:text-zinc-400">
+                <TableCell className="text-right text-zinc-500 tabular-nums dark:text-zinc-400">
                   {formatDuration(run.duration_seconds)}
                 </TableCell>
-                <TableCell className="text-right tabular-nums text-zinc-500 dark:text-zinc-400">
+                <TableCell className="text-right text-zinc-500 tabular-nums dark:text-zinc-400">
                   {formatUsd(run.usd_cost)}
                 </TableCell>
                 <TableCell className="max-w-md truncate text-zinc-500 dark:text-zinc-400">

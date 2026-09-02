@@ -23,7 +23,9 @@ export default function RootError({
     <main className="bg-background text-foreground grid min-h-dvh place-items-center">
       <div role="alert" className="bg-surface border-line m-4 max-w-md rounded-sm border px-6 py-5">
         <p className="text-sm font-medium">Something went wrong loading this page.</p>
-        <p className="text-muted-foreground mt-1 text-sm">Nothing was lost. Try again in a moment.</p>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Nothing was lost. Try again in a moment.
+        </p>
         <div className="mt-4 flex items-center gap-3">
           <button
             type="button"
@@ -40,7 +42,9 @@ export default function RootError({
           </Link>
         </div>
         {error.digest && (
-          <p className="text-muted-foreground mt-3 font-mono text-[11px]">Reference {error.digest}</p>
+          <p className="text-muted-foreground mt-3 font-mono text-[11px]">
+            Reference {error.digest}
+          </p>
         )}
       </div>
     </main>

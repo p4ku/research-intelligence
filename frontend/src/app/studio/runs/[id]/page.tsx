@@ -85,9 +85,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
   const foreign = workspace !== null && workspace.id !== run.workspace_id
   const started = timestampUtc(run.started_at)
 
-  const failedSteps = steps.filter(
-    (step) => step.status === 'failed' || step.status === 'aborted',
-  )
+  const failedSteps = steps.filter((step) => step.status === 'failed' || step.status === 'aborted')
 
   // Only steps that recorded spend contribute; the rest are genuinely unmeasured.
   const stepSpend = steps.reduce((sum, step) => sum + (step.cost.usd ?? 0), 0)

@@ -24,12 +24,19 @@ editable.
 ```jsonc
 {
   "workspace_id": "…",
-  "code": "signal_score = fit_score * 0.7 + …",   // Workspace.signal_score_code
+  "code": "signal_score = fit_score * 0.7 + …", // Workspace.signal_score_code
   "code_source": "workspace",
-  "variables": [{ "key": "fit_score", "definition_id": "…", "name": "Fit Score", "max": 100, "is_trl": false }],
+  "variables": [
+    { "key": "fit_score", "definition_id": "…", "name": "Fit Score", "max": 100, "is_trl": false },
+  ],
   "weights": [{ "key": "fit_score", "definition_id": "…", "name": "Fit Score", "weight": 70 }],
   "weights_source": "backend",
-  "example": { "paper_id": "…", "title": "…", "signal_score": 87.5, "variables": { "fit_score": 92 } }
+  "example": {
+    "paper_id": "…",
+    "title": "…",
+    "signal_score": 87.5,
+    "variables": { "fit_score": 92 },
+  },
 }
 ```
 

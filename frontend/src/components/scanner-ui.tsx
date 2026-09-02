@@ -728,7 +728,10 @@ export function ErrorNote({
         className,
       )}
     >
-      <ExclamationTriangleIcon aria-hidden="true" className="text-negative mt-0.5 size-4 shrink-0" />
+      <ExclamationTriangleIcon
+        aria-hidden="true"
+        className="text-negative mt-0.5 size-4 shrink-0"
+      />
       <div className="min-w-0 flex-1">
         <div className="text-foreground/90 text-sm leading-relaxed">{children}</div>
         {action && <div className="mt-2">{action}</div>}

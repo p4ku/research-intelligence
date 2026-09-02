@@ -1,5 +1,5 @@
-import { chat } from '@/lib/bff/chat/service'
 import { sessionsQuery } from '@/lib/bff/chat/schema'
+import { chat } from '@/lib/bff/chat/service'
 import { bff } from '@/lib/bff/core/handler'
 import { parseQuery } from '@/lib/bff/core/validate'
 

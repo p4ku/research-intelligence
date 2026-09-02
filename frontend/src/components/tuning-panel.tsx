@@ -25,9 +25,7 @@ export function InfluenceBar({ profile }: { profile: Influence[] }) {
       <div
         className="bg-line-soft relative h-3 w-full"
         role="img"
-        aria-label={shares
-          .map((s) => `${t(s.label)} ${pctOf(s.share!)}`)
-          .join(', ')}
+        aria-label={shares.map((s) => `${t(s.label)} ${pctOf(s.share!)}`).join(', ')}
       >
         {shares.map((s, i) => (
           <span

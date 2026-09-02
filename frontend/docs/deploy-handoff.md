@@ -23,21 +23,22 @@ repo's root is self-contained (`bun install` → `next build` standalone →
 ## 2. `manifest.yml` changes for `sri-frontend`
 
 ```yaml
-  - name: sri-frontend
-    memory: 512M          # deliberate: the CF org quota is tight; 1G when it allows
-    env:
-      NODE_ENV: production
-      BACKEND_INTERNAL_URL: https://<the shared hostname>   # or the C2C internal route
-      SITE_URL: https://<the shared hostname>
-      # BFF sources — override as endpoints land (defaults in
-      # src/lib/bff/core/source.ts):
-      # BFF_SOURCE_PAPERS: composed
-      # BFF_SOURCE_BRIEFINGS: composed
-      # BFF_SOURCE_SCORING: composed
-      # BFF_SOURCE_PREFERENCES: stub
+- name: sri-frontend
+  memory: 512M # deliberate: the CF org quota is tight; 1G when it allows
+  env:
+    NODE_ENV: production
+    BACKEND_INTERNAL_URL: https://<the shared hostname> # or the C2C internal route
+    SITE_URL: https://<the shared hostname>
+    # BFF sources — override as endpoints land (defaults in
+    # src/lib/bff/core/source.ts):
+    # BFF_SOURCE_PAPERS: composed
+    # BFF_SOURCE_BRIEFINGS: composed
+    # BFF_SOURCE_SCORING: composed
+    # BFF_SOURCE_PREFERENCES: stub
 ```
 
 Notes:
+
 - If `BACKEND_INTERNAL_URL` uses an internal route, its host must be in
   Django's `ALLOWED_HOSTS`.
 - Cookies are `Secure` in production whenever `SITE_URL` is https (plain-

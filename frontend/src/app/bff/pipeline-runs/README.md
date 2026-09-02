@@ -8,8 +8,8 @@ run date; briefing editions are derived from completed runs.
 
 ## BFF routes
 
-| Route | Query | Returns |
-| --- | --- | --- |
+| Route                    | Query                                                    | Returns           |
+| ------------------------ | -------------------------------------------------------- | ----------------- |
 | `GET /bff/pipeline-runs` | `workspace_id` (required), `status`, `page`, `page_size` | `PipelineRunPage` |
 
 Schema: `src/lib/bff/pipeline-runs/schema.ts` (`PipelineRun` — the contract

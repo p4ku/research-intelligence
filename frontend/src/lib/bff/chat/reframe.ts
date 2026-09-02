@@ -91,10 +91,7 @@ export async function pumpChatStream(
           })
           return
         case 'error':
-          writer.frame(
-            'error',
-            problemBody('upstream-error', { detail: event.data.error }),
-          )
+          writer.frame('error', problemBody('upstream-error', { detail: event.data.error }))
           return
       }
     }

@@ -1,8 +1,8 @@
 import { getLang } from '@/lib/i18n-server'
 import '@/styles/tailwind.css'
 import type { Metadata } from 'next'
-import { Toaster } from 'sonner'
 import localFont from 'next/font/local'
+import { Toaster } from 'sonner'
 
 // Self-hosted: no third-party font CDNs from a German corporate deployment.
 const switzer = localFont({

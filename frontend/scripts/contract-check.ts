@@ -55,7 +55,9 @@ async function login(): Promise<string> {
   })
   const body = (await res.json().catch(() => null)) as { access?: string; error?: string } | null
   if (!res.ok || !body?.access) {
-    console.error(`Login failed against ${BASE} as ${USER}: HTTP ${res.status} ${body?.error ?? ''}`)
+    console.error(
+      `Login failed against ${BASE} as ${USER}: HTTP ${res.status} ${body?.error ?? ''}`,
+    )
     process.exit(2)
   }
   return body.access
@@ -77,7 +79,14 @@ async function discover(token: string): Promise<Partial<Record<ProbeParam, strin
     if (paper?.id) ctx.paper_id = paper.id
     const runs = await getJson(`/api/pipeline-runs/?workspace=${ctx.workspace_id}`, token)
     const run = Array.isArray(runs.body)
-      ? (runs.body as { id?: string; run_date?: string; completed_at?: string | null; status?: string }[])[0]
+      ? (
+          runs.body as {
+            id?: string
+            run_date?: string
+            completed_at?: string | null
+            status?: string
+          }[]
+        )[0]
       : undefined
     if (run?.id) ctx.run_id = run.id
     const completed = Array.isArray(runs.body)
@@ -88,7 +97,9 @@ async function discover(token: string): Promise<Partial<Record<ProbeParam, strin
     const date = completed?.completed_at?.slice(0, 10) ?? completed?.run_date
     if (date) ctx.date = date
     const sessions = await getJson(`/api/chat/sessions/?workspace_id=${ctx.workspace_id}`, token)
-    const session = Array.isArray(sessions.body) ? (sessions.body as { id?: string }[])[0] : undefined
+    const session = Array.isArray(sessions.body)
+      ? (sessions.body as { id?: string }[])[0]
+      : undefined
     if (session?.id) ctx.session_id = session.id
   }
   return ctx
@@ -146,14 +157,19 @@ function issuesNote(error: z.ZodError): string {
   return issues.join('; ') + more
 }
 
-async function checkOp(op: Operation, token: string, ctx: Partial<Record<ProbeParam, string>>): Promise<Row> {
+async function checkOp(
+  op: Operation,
+  token: string,
+  ctx: Partial<Record<ProbeParam, string>>,
+): Promise<Row> {
   const base: Omit<Row, 'result' | 'http' | 'note'> = {
     resource: op.resource,
     kind: op.kind,
     op: `${op.method} ${op.path}`,
   }
   if (op.sse) return { ...base, result: 'SKIP', http: null, note: 'SSE — not executed' }
-  if (op.method !== 'GET') return { ...base, result: 'SKIP', http: null, note: 'non-GET — not executed' }
+  if (op.method !== 'GET')
+    return { ...base, result: 'SKIP', http: null, note: 'non-GET — not executed' }
   const path = fillPath(op, ctx)
   if (!path) return { ...base, result: 'SKIP', http: null, note: 'no sample id available' }
   let status: number
@@ -163,8 +179,10 @@ async function checkOp(op: Operation, token: string, ctx: Partial<Record<ProbePa
   } catch (error) {
     return { ...base, result: 'ERROR', http: null, note: `unreachable: ${String(error)}` }
   }
-  if (status === 404 || status === 405) return { ...base, result: 'MISSING', http: status, note: '' }
-  if (status >= 400) return { ...base, result: 'ERROR', http: status, note: JSON.stringify(body).slice(0, 120) }
+  if (status === 404 || status === 405)
+    return { ...base, result: 'MISSING', http: status, note: '' }
+  if (status >= 400)
+    return { ...base, result: 'ERROR', http: status, note: JSON.stringify(body).slice(0, 120) }
   const schema = op.responses[200]
   if (!schema) return { ...base, result: 'PASS', http: status, note: 'no 200 schema declared' }
   const parsed = schema.safeParse(body)
@@ -174,7 +192,12 @@ async function checkOp(op: Operation, token: string, ctx: Partial<Record<ProbePa
     if (op.supersedes) {
       const current = allOperations.find((o) => o.id === op.supersedes)
       if (current?.responses[200]?.safeParse(body).success) {
-        return { ...base, result: 'MISSING', http: status, note: 'still the current shape — upgrade not built' }
+        return {
+          ...base,
+          result: 'MISSING',
+          http: status,
+          note: 'still the current shape — upgrade not built',
+        }
       }
     }
     return { ...base, result: 'MISMATCH', http: status, note: issuesNote(parsed.error) }
