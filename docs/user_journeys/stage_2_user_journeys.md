@@ -1,7 +1,7 @@
 # Frontend User Journeys & Architecture Specification (Stage 2)
 
-**Document Version**: 2.0  
-**Target Roles**: Administrator, Manager (Research Lead), Researcher  
+**Document Version**: 2.1  
+**Target Roles**: Administrator, Manager (Research Lead), Researcher (Analyst)  
 **Status**: Ready for Frontend Implementation & E2E Test Scenarios  
 
 ---
@@ -41,15 +41,32 @@ Every overview metric, paper list, extraction score, executive briefing, and cha
 | `/papers` | **Papers** | Workspace + Selected Run | All Roles | Table of all papers in the selected run with filters (Status, TRL, Fit, Novelty) and slide-over paper inspection sheets. |
 | `/papers/[id]` | **Paper Detail** | Workspace + Run + Paper | All Roles | Deep scorecard: parameter breakdown, formula ledger, radar chart, screening justifications, and side-by-side paper chat. |
 | `/ask` | **Ask Assistant** | Workspace + Run + Paper | All Roles | Grounded AI interrogation assistant. Users can ask questions about the entire run or drill down into a specific paper with clickable PDF citations. |
-| `/runs` | **Runs** | Workspace | **Admin & Manager Only** | Complete run history, live execution status, and **Run Initiation** (`+ New Run` modal: Full Review vs Reprocess Existing). |
+| `/runs` | **Runs** | Workspace | **Admin & Manager Only** | Complete run history, live execution status, and **Run Initiation** (`+ New Run` modal: Full Review vs Reprocess Existing). *(Hidden for Researchers)*. |
 | `/runs/[id]` | **Run Stepper** | Specific Run | **Admin & Manager Only** | Live 8-stage execution stepper with Pause, Resume, Abort, and Mid-Step Rerun controls. |
 | `/settings` | **Settings** | User Account | All Roles | User Profile, Security/Password, and Notification Preferences (instant/digest). *(Workspace config & tuning removed).* |
 
 ---
 
-## 3. Persona 1: Administrator (Platform & Pipeline Orchestrator)
+## 3. Role Separation & Architectural Boundaries
 
-> **Persona Profile**: The Administrator oversees system integrity, computational budget, multi-workspace operations, and infrastructure-level re-evaluation of research datasets.
+To ensure operational stability and prevent unauthorized background resource consumption:
+1. **Administrators & Managers** possess full orchestration privileges:
+   - Starting new literature search runs (`POST /api/pipeline-runs/`).
+   - Triggering reprocessing of existing papers (`reprocess_existing=True`).
+   - Live pipeline control (Pause, Resume, Abort, Mid-Step Rerun).
+2. **Researchers (Domain Scientists & Analysts)** operate in a **pure consumption & interrogation mode**:
+   - Can freely navigate all workspaces they are assigned to.
+   - Can inspect any historical or latest completed pipeline run.
+   - Can explore papers, scorecards, mathematical formula audits, and radar profiles.
+   - Can read and download Executive Briefings (Markdown / PDF).
+   - Can engage in multi-turn grounded conversations with the **Ask Paper Assistant**.
+   - **CANNOT** start, stop, rerun, or configure pipeline runs (`/runs` tab and trigger buttons are hidden/disabled).
+
+---
+
+## 4. Persona 1: Administrator (Platform & Multi-Workspace Pipeline Orchestrator)
+
+> **Persona Profile**: The Administrator oversees platform infrastructure, computational budgets, multi-workspace operations, and system-wide re-evaluations.
 
 ```mermaid
 sequenceDiagram
@@ -80,7 +97,7 @@ sequenceDiagram
 
 1. **Workspace & System Health Review**:
    - Logs in and selects the target research workspace from the top-bar `WorkspaceSwitcher`.
-   - Inspects the global token consumption and monthly budget ceiling in the top statistics band.
+   - Inspects global token consumption and monthly budget ceiling in the top statistics band.
 2. **Pipeline Initiation (`/runs`)**:
    - Navigates to **Runs** in the primary navigation.
    - Clicks **`+ New Pipeline Run`**.
@@ -98,9 +115,9 @@ sequenceDiagram
 
 ---
 
-## 4. Persona 2: Manager / Research Lead (Project & Intelligence Director)
+## 5. Persona 2: Manager / Research Lead (Project Intelligence Lead & Workspace Run Manager)
 
-> **Persona Profile**: The Research Manager leads strategic research programs, triggers targeted literature sweeps on demand, validates TRL and Strategic Fit distributions, and exports intelligence briefings for executive stakeholders.
+> **Persona Profile**: The Research Manager directs domain-specific research roadmaps, triggers targeted literature sweeps on demand, validates TRL and Strategic Fit distributions, and exports intelligence briefings for executive stakeholders.
 
 ```mermaid
 sequenceDiagram
@@ -110,15 +127,15 @@ sequenceDiagram
     participant Overview as /dashboard (Run Overview)
     participant Briefing as /briefing (Executive Report)
     participant PapersUI as /papers (Papers & Metrics)
-    participant AskUI as /ask (Scoped Paper Chat)
+    participant RunsUI as /runs (Runs Management)
 
     Mgr->>TopBar: Selects Workspace & Run ('Run #12 - Q3 Deep Review')
     Mgr->>Overview: Reviews Run Funnel (Passed: 14/50 papers, Avg Fit: 88%)
     Mgr->>Briefing: Reads Executive Narrative Report & Downloads PDF
     Mgr->>PapersUI: Filters papers by 'Signal Score > 80' and 'TRL >= 4'
     PapersUI->>Mgr: Opens Paper Detail Sheet (Extracted parameters & screening rationale)
-    Mgr->>AskUI: Clicks 'Ask AI about this Paper'
-    AskUI->>Mgr: Streams multi-turn answers grounded in selected Paper & Run context
+    Mgr->>RunsUI: Navigates to /runs and clicks '+ New Pipeline Run'
+    RunsUI->>Mgr: Triggers on-demand review for new emerging technology topic
 ```
 
 ### End-to-End User Journey Steps:
@@ -133,7 +150,7 @@ sequenceDiagram
 3. **Reading & Exporting Executive Briefings (`/briefing`)**:
    - Navigates to **Briefings** to read the generated `NarrativeReport` for the active run.
    - Reviews key sections: *Executive Summary*, *Methodological Breakthroughs*, *Technological Bottlenecks*, and *Identified Market Signals*.
-   - Clicks **`Export PDF`** to generate an executive-ready document for team review.
+   - Clicks **`Export PDF`** to generate an executive-ready document for steering committees.
 4. **Drilling Down into Papers & Extracted Metrics (`/papers`)**:
    - Views the papers associated specifically with the chosen run.
    - Filters by **Signal Score**, **TRL Level**, or **Screening Status**.
@@ -141,36 +158,87 @@ sequenceDiagram
      - Reads the exact reasoning for acceptance/rejection.
      - Inspects all extracted parameters (e.g., *Qubit Modality*, *Fidelity Rate*, *Physical vs Logical Qubit Overhead*).
      - Reviews the radar chart of technological dimensions.
-5. **Targeted Paper Interrogation (`/ask` or Side-by-Side Paper Chat)**:
-   - Uses the side-by-side `PaperChat` directly on the paper page or navigates to `/ask` with pre-filled context: `Workspace: Quantum Computing | Run: #12 | Paper: [Selected Paper]`.
-   - Asks domain-specific questions (e.g., *"What error correction threshold is demonstrated and what are the main physical limitations?"*).
-   - Verifies the answer through clickable evidence snippets linking directly to PDF sections.
-6. **Triggering an On-Demand Run (`/runs`)**:
-   - When a new research inquiry arises, navigates to **Runs** and triggers a new run with targeted search terms to generate a fresh run dataset.
+5. **Triggering an On-Demand Run (`/runs`)**:
+   - When a new research inquiry arises, navigates to **Runs** and triggers a new review run to generate fresh intelligence.
 
 ---
 
-## 5. Detailed Page & Component Specifications
+## 6. Persona 3: Researcher / Analyst (Domain Scientist & Intelligence Consumer)
 
-### 5.1 Top Navigation Bar (Context Engine)
+> **Persona Profile**: The Researcher investigates state-of-the-art literature, verifies mathematical derivations and benchmark metrics, checks evidence quotes against original source PDFs, and synthesizes findings using the Ask Paper Assistant.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Res as 🔬 Researcher / Analyst
+    participant TopBar as Top Navigation Bar (Run Selector)
+    participant Overview as /dashboard (Run Overview)
+    participant PapersUI as /papers (Papers & Filters)
+    participant DetailUI as /papers/[id] (Scorecard & Evidence)
+    participant AskUI as /ask (Interactive Chat & Citations)
+
+    Res->>TopBar: Selects Workspace ('Quantum Computing') & Run ('Run #14')
+    Res->>Overview: Inspects Top Signal papers and Funnel acceptance rate
+    Res->>PapersUI: Filters papers by 'Accepted' and 'TRL >= 4'
+    Res->>DetailUI: Clicks top paper to open Scorecard & Radar profile
+    DetailUI->>Res: Reviews extracted variables (Fidelity: 99.9%, Overhead: 1000:1)
+    Res->>DetailUI: Clicks 'Evidence Quote' -> Highlights exact snippet from PDF
+    Res->>AskUI: Opens Ask Assistant scoped to this Paper & Run
+    Res->>AskUI: Asks: "How does this error correction scheme compare to surface codes?"
+    AskUI-->>Res: Returns synthesized answer with clickable grounded citations
+```
+
+### End-to-End User Journey Steps:
+
+1. **Context Initialization**:
+   - Logs into SRI with Researcher credentials.
+   - Selects the relevant research workspace (e.g., *Quantum Error Correction*) and picks a completed run from the **Run Selector** (defaults to the latest run).
+2. **Reviewing the Intelligence Summary (`/dashboard`)**:
+   - Inspects the conversion funnel to see how many candidate papers were evaluated.
+   - Identifies high-signal papers flagged by the pipeline's composite scoring formula.
+3. **Exploring Filtered Literature (`/papers`)**:
+   - Browses the curated paper catalog for the active run.
+   - Applies domain filters: *Screening Status = Full Text Passed*, *Minimum TRL = 4*, or *Sort by Signal Score descending*.
+4. **Deep-Dive Scorecard & Grounding Audit (`/papers/[id]`)**:
+   - Opens the detailed paper view.
+   - **Signal Score Audit**: Reviews the mathematical formula breakdown (`SignalLedger`) to understand why this paper ranked highly.
+   - **Extracted Parameters**: Inspects specific parameters extracted by the LLM (e.g., benchmark numbers, error margins, qubit technologies).
+   - **Evidence Verification**: Clicks on evidence quotes to verify that the extracted values match the text of the source PDF.
+   - **Screening Justification**: Reads the AI agent's structured rationale for passing or rejecting the paper.
+5. **Interactive Interrogation (`/ask` & Side-by-Side `PaperChat`)**:
+   - Directly from `/papers/[id]`, uses the side-by-side **PaperChat** panel to interrogate the document.
+   - Asks deep technical questions (e.g., *"What specific physical noise model is assumed in theorem 2?"*).
+   - Switches to `/ask` for cross-paper questions across the entire run (e.g., *"Compare the hardware requirements across all 5 accepted fault-tolerant architectures"*).
+   - Clicks on returned citation tags to verify source claims.
+6. **Reading & Exporting Executive Briefings (`/briefing`)**:
+   - Reads the compiled synthesis report for the run.
+   - Downloads the PDF or copies the BibTeX citations for use in research publications.
+7. **Read-Only Protection**:
+   - The Researcher cannot accidentally trigger pipeline runs or modify system parameters; all execution controls remain hidden.
+
+---
+
+## 7. Detailed Page & Component Specifications
+
+### 7.1 Top Navigation Bar (Context Engine)
 - **Workspace Switcher**: Dropdown allowing the user to switch between workspaces they have membership in (Admins see all workspaces).
 - **Run Selector**: Dropdown showing the list of completed and in-progress runs for the active workspace. Displays:
   - Run number / Date (e.g., *Run #14 (Latest: Sep 2, 2026)*).
   - Badge with status (*Completed*, *Running*, *Failed*).
   - Quick summary chip (*50 papers • $0.086 USD*).
 
-### 5.2 `/dashboard` (Run Overview)
+### 7.2 `/dashboard` (Run Overview)
 - **Run Conversion Funnel**: Interactive stat band showing:
   - *Ingested Papers* $\longrightarrow$ *Abstract Passed* $\longrightarrow$ *Full-Text Passed* $\longrightarrow$ *High Signal Papers*.
 - **Top Signal Highlights**: Ranked cards of top-scoring papers in the selected run.
 - **Run Token & Cost Economics**: Total prompt/completion tokens and USD spend for this run.
 
-### 5.3 `/briefing` (Executive Narrative Briefing)
+### 7.3 `/briefing` (Executive Narrative Briefing)
 - **Report Reader**: Clean markdown rendering of the synthesized `NarrativeReport` for the active run.
 - **Export Toolbar**: Buttons to download PDF, copy LaTeX bibliography, or export raw markdown.
 - **Run Archive Selector**: Sidebar/tabs to browse historical briefings from previous runs.
 
-### 5.4 `/papers` & `/papers/[id]` (Paper Scorecard & Grounded Inspection)
+### 7.4 `/papers` & `/papers/[id]` (Paper Scorecard & Grounded Inspection)
 - **`/papers`**: Searchable, filterable table scoped to the active run. Filter by screening status (*Abstract Passed*, *Full Text Passed*, *Rejected*), minimum *Signal Score*, or *TRL Level*.
 - **`/papers/[id]`**:
   - **Header**: Paper title, authors, publication date, DOI / arXiv external link.
@@ -180,13 +248,13 @@ sequenceDiagram
   - **Screening Decision**: Pill badge and detailed markdown rationale for acceptance/rejection.
   - **Side-by-Side Paper Chat (`PaperChat`)**: Interactive chat assistant scoped to this single paper.
 
-### 5.5 `/ask` (Grounded Research Assistant)
+### 7.5 `/ask` (Grounded Research Assistant)
 - **Scope Selector**: Toggle between *Entire Run (Cross-Paper Synthesis)* and *Specific Paper*.
 - **Multi-Turn Chat Console**: Conversational interface with context caching for low latency.
 - **Clickable Citations**: Generated responses include source tags (e.g., `[Paper: 2401.xxxx, §3.2]`) that highlight evidence quotes in a slide-over panel.
 
-### 5.6 `/runs` & `/runs/[id]` (Pipeline Orchestration — Admin & Manager)
-- **`/runs` Table**: List of all historical and active runs with date, status, trigger type (automated vs manual), paper counts, and total cost.
+### 7.6 `/runs` & `/runs/[id]` (Pipeline Orchestration — Admin & Manager Only)
+- **`/runs` Table**: List of all historical and active runs with date, status, trigger type (automated vs manual), paper counts, and total cost. *(Hidden for Researcher role)*.
 - **`+ New Pipeline Run` Modal**:
   - Radio toggle: *Full Review (New Search & Ingestion)* vs *Reprocess Existing Papers*.
   - Optional paper limit override.
@@ -194,7 +262,7 @@ sequenceDiagram
   - Visual 8-stage progress tracker.
   - Action buttons: **Pause**, **Resume**, **Abort**, **Rerun from Step**.
 
-### 5.7 `/settings` (User Account Settings)
+### 7.7 `/settings` (User Account Settings)
 - **Profile Form**: Name, email, organization.
 - **Security Form**: Password change and API key management.
 - **Notification Preferences**: Toggle between instant email alerts, daily digest, and weekly executive briefing summary.
@@ -202,7 +270,7 @@ sequenceDiagram
 
 ---
 
-## 6. Role & Permissions Comparison Matrix
+## 8. Role & Permissions Comparison Matrix
 
 | Feature / UI Action | Administrator 👑 | Manager 💼 | Researcher 🔬 |
 | :--- | :---: | :---: | :---: |
@@ -214,25 +282,25 @@ sequenceDiagram
 | **Paper Detail & Scorecard (`/papers/[id]`)** | ✅ Full Inspection | ✅ Full Inspection | ✅ Full Inspection |
 | **Ask Paper Assistant (`/ask`)** | ✅ Full Interactive | ✅ Full Interactive | ✅ Full Interactive |
 | **Side-by-Side Paper Chat** | ✅ Full Interactive | ✅ Full Interactive | ✅ Full Interactive |
-| **Access Runs List (`/runs`)** | ✅ Full Access | ✅ Full Access | ❌ Hidden / Disabled |
-| **Trigger New Review Run** | ✅ Enabled | ✅ Enabled | ❌ Hidden / Disabled |
-| **Trigger Reprocess Existing Run** | ✅ Enabled | ✅ Enabled | ❌ Hidden / Disabled |
-| **Run Actions (Pause / Abort / Rerun)** | ✅ Full Control | ✅ Workspace Control | ❌ View Only |
+| **Access Runs List (`/runs`)** | ✅ Full Access | ✅ Full Access | ❌ **Hidden / Disabled** |
+| **Trigger New Review Run** | ✅ Enabled | ✅ Enabled | ❌ **Hidden / Disabled** |
+| **Trigger Reprocess Existing Run** | ✅ Enabled | ✅ Enabled | ❌ **Hidden / Disabled** |
+| **Run Actions (Pause / Abort / Rerun)** | ✅ Full Control | ✅ Workspace Control | ❌ **Hidden / Disabled** |
 | **User Settings (`/settings`)** | Profile, Security, Alerts | Profile, Security, Alerts | Profile, Security, Alerts |
 
 ---
 
-## 7. Backend Data Model & REST API Mapping Table
+## 9. Backend Data Model & REST API Mapping Table
 
 | UI Action / Component | Backend Model | REST API Endpoint | Payload / Query Parameters |
 | :--- | :--- | :--- | :--- |
 | **List Workspaces** | `Workspace` | `GET /api/workspaces/` | User-membership scoped |
 | **List Runs for Workspace** | `PipelineRun` | `GET /api/pipeline-runs/?workspace={ws_id}` | `ordering=-started_at` |
-| **Trigger New Pipeline Run** | `PipelineRun` | `POST /api/pipeline-runs/` | `{"workspace_id": "...", "reprocess_existing": false}` |
-| **Trigger Reprocess Run** | `PipelineRun` | `POST /api/pipeline-runs/` | `{"workspace_id": "...", "reprocess_existing": true}` |
+| **Trigger New Pipeline Run** | `PipelineRun` | `POST /api/pipeline-runs/` | `{"workspace_id": "...", "reprocess_existing": false}` (Admin/Manager) |
+| **Trigger Reprocess Run** | `PipelineRun` | `POST /api/pipeline-runs/` | `{"workspace_id": "...", "reprocess_existing": true}` (Admin/Manager) |
 | **Get Run Details & Steps** | `ComponentRun` | `GET /api/pipeline-runs/{id}/` | Full step trace, token breakdown, USD cost |
-| **Abort Running Pipeline** | `PipelineRun` | `POST /api/pipeline-runs/{id}/abort/` | `{}` |
-| **Mid-Step Pipeline Rerun** | `PipelineRun` | `POST /api/pipeline-runs/{id}/rerun_from_node/` | `{"node_name": "step_4_screening"}` |
+| **Abort Running Pipeline** | `PipelineRun` | `POST /api/pipeline-runs/{id}/abort/` | `{}` (Admin/Manager) |
+| **Mid-Step Pipeline Rerun** | `PipelineRun` | `POST /api/pipeline-runs/{id}/rerun_from_node/` | `{"node_name": "step_4_screening"}` (Admin/Manager) |
 | **Get Narrative Briefing** | `NarrativeReport` | `GET /api/reports/?workspace={ws_id}&pipeline_run={run_id}` | Markdown, LaTeX, S3 PDF key |
 | **Get Run Papers & Metrics** | `Paper` + `PaperMetric` | `GET /api/papers/?workspace={ws_id}&pipeline_run={run_id}` | Filter by `screening_status`, `signal_score` |
 | **Get Paper Scorecard** | `Paper` + `PaperMetric` | `GET /api/papers/{id}/` | Extracted parameters, signal ledger, screening reasoning |
