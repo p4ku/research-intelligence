@@ -175,7 +175,7 @@ class DownloadTaskTestCase(TestCase):
             pipeline_run=self.pipeline_run,
             workspace=self.workspace,
             screening_status="withdrawn",
-            screening_reasoning="Paper withdrawn by author due to experimental flaw."
+            abstract_screening_reasoning="Paper withdrawn by author due to experimental flaw."
         )
 
         with patch("research_intelligence.scrapers.arxiv.ArxivScraperProvider.download_file") as mock_dl:

@@ -184,7 +184,8 @@ def build_pipeline_run_digest_payload(
 
         pm = metrics_by_paper.get(p.id)
         pm_status = (pm.screening_status if pm else 'pending').replace('_', ' ')
-        pm_reason = (pm.screening_reasoning if pm else '') or ''
+        abs_reason = (pm.abstract_screening_reasoning if pm else '') or ''
+        ft_reason = (pm.full_text_screening_reasoning if pm else '') or ''
         pm_score = pm.signal_score if pm else None
 
         is_gated_paper = False
@@ -208,7 +209,8 @@ def build_pipeline_run_digest_payload(
             "pdf_link": pdf_link,
             "abstract": p.abstract or "",
             "screening_status": pm_status,
-            "screening_reason": pm_reason,
+            "abstract_screening_reasoning": abs_reason,
+            "full_text_screening_reasoning": ft_reason,
             "signal_score": round(pm_score, 2) if pm_score is not None else None,
             "signal_score_formatted": score_formatted,
             "is_gated": is_gated_paper,

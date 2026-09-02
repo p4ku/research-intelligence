@@ -510,7 +510,7 @@ class WorkspaceReprocessFlagTestCase(TestCase):
             pipeline_run=run_1,
             workspace=ws,
             screening_status="abstract_passed",
-            screening_reasoning="Passed in Run 1",
+            abstract_screening_reasoning="Passed in Run 1",
             signal_score=0.85
         )
 
@@ -546,6 +546,6 @@ class WorkspaceReprocessFlagTestCase(TestCase):
         self.assertEqual(run_1.papers.count(), 1)
         pm_1 = PaperMetric.objects.get(paper=paper_1, pipeline_run=run_1)
         self.assertEqual(pm_1.screening_status, "abstract_passed")
-        self.assertEqual(pm_1.screening_reasoning, "Passed in Run 1")
+        self.assertEqual(pm_1.abstract_screening_reasoning, "Passed in Run 1")
         self.assertIn(run_2, paper_1.reprocessed_runs.all())
         self.assertIn(paper_1, run_2.get_papers())

@@ -1667,7 +1667,7 @@ def ask_paper(
     
     AUTOMATICALLY INJECTED SCIENTIFIC CONTEXT:
     - Full Document Content: Layout OCR Markdown or native multimodal PDF binary from storage.
-    - SLR Screening Decision: Status (`screening_status`), decision rationale (`screening_reasoning`), and workspace acceptance/rejection criteria.
+    - SLR Screening Decision: Status (`screening_status`), decision rationales (`abstract_screening_reasoning`, `full_text_screening_reasoning`), and workspace acceptance/rejection criteria.
     - Parameter Extraction Matrix: All extracted parameter definitions, JSON values, evidence quotes, and HITL validation flags.
     - Composite Signal Score: Calculated score (`PaperMetric.signal_score`), audit details (`signal_score_details`), and the sandboxed Python formula (`workspace.signal_score_code`).
     - Multi-Turn History: All preceding questions and answers within the conversation thread.

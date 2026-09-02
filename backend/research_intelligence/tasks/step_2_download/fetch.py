@@ -33,7 +33,7 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
     # Check if paper is already marked as withdrawn
     pm = PaperMetric.objects.filter(paper=paper, pipeline_run=pipeline_run_obj).first()
     if pm and pm.screening_status == 'withdrawn':
-        reason = pm.screening_reasoning or "Paper has been withdrawn by authors."
+        reason = pm.latest_screening_reasoning or "Paper has been withdrawn by authors."
         logger.info(f"⏭️ [WITHDRAWN] Skipped paper '{title_snippet}...' ({reason})")
         return {
             "status": "withdrawn",
@@ -136,7 +136,7 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
                         defaults={
                             'workspace_id': getattr(paper, 'workspace_id', None),
                             'screening_status': 'withdrawn',
-                            'screening_reasoning': f"Paper withdrawn by authors or unavailable at source ({e})."
+                            'abstract_screening_reasoning': f"Paper withdrawn by authors or unavailable at source ({e})."
                         }
                     )
                 logger.info(f"⏭️ [WITHDRAWN 404] Paper '{title_snippet}...' marked as withdrawn ({e})")

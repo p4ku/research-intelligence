@@ -168,7 +168,7 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
         trigger_screening_job_logic(self.user, pipeline_run_id=str(pipeline_run.id))
         pm.refresh_from_db()
         self.assertEqual(pm.screening_status, "rejected")
-        self.assertIn("polymer electrolyte exclusion", pm.screening_reasoning)
+        self.assertIn("polymer electrolyte exclusion", pm.abstract_screening_reasoning)
 
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
     def test_rerun_step_5_extraction_and_step_6_signal_scoring(self, mock_llm):

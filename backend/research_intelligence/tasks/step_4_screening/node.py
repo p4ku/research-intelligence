@@ -31,7 +31,7 @@ class AbstractScreeningNode(BaseWorkflowNode):
     output_contract = {
         "updated_models": {
             "PaperMetric.screening_status": "'abstract_passed' | 'rejected' | 'pending'",
-            "PaperMetric.screening_reasoning": "Detailed markdown explanation with criteria evaluation",
+            "PaperMetric.abstract_screening_reasoning": "Detailed markdown explanation with criteria evaluation",
             "PaperMetric.metrics_data": "JSON audit trail with timestamps and LLM confidence",
         },
         "component_run_metrics": {
@@ -114,7 +114,7 @@ class FullTextScreeningNode(BaseWorkflowNode):
     output_contract = {
         "updated_models": {
             "PaperMetric.screening_status": "'full_text_passed' | 'accepted' | 'rejected' | 'pending'",
-            "PaperMetric.screening_reasoning": "Detailed markdown explanation with criteria evaluation",
+            "PaperMetric.full_text_screening_reasoning": "Detailed markdown explanation with criteria evaluation",
             "PaperMetric.metrics_data": "JSON audit trail with timestamps and LLM confidence",
         },
         "component_run_metrics": {

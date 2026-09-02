@@ -80,7 +80,7 @@ class PaperChatTestCase(TestCase):
             pipeline_run=self.run_a,
             workspace=self.workspace_a,
             screening_status="full_text_passed",
-            screening_reasoning="Demonstrates empirical 128-qubit compilation meeting full-text criteria.",
+            full_text_screening_reasoning="Demonstrates empirical 128-qubit compilation meeting full-text criteria.",
             signal_score=8.5,
             signal_score_details={"trl_level": 7.0, "novelty_score": 10.0}
         )

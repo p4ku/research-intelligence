@@ -45,7 +45,7 @@ class ChatEngineTestCase(TestCase):
             pipeline_run=self.run,
             workspace=self.workspace,
             screening_status="abstract_passed",
-            screening_reasoning="High throughput optical compute engine matches domain scope",
+            abstract_screening_reasoning="High throughput optical compute engine matches domain scope",
             signal_score=9.2,
             signal_score_details={"fit_score": 9.5, "novelty_score": 8.8}
         )

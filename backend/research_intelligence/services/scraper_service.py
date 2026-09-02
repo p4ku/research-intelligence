@@ -58,10 +58,13 @@ def list_workspace_papers(
     qs = qs.annotate(
         annotated_pipeline_run_id=Subquery(metric_sub.values('pipeline_run_id')[:1]),
         annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
-        annotated_screening_reasoning=Subquery(metric_sub.values('screening_reasoning')[:1]),
         annotated_abstract_screening_reasoning=Subquery(metric_sub.values('abstract_screening_reasoning')[:1]),
         annotated_full_text_screening_reasoning=Subquery(metric_sub.values('full_text_screening_reasoning')[:1]),
+        annotated_is_evaluation_benchmark=Subquery(metric_sub.values('is_evaluation_benchmark')[:1]),
+        annotated_evaluation_label=Subquery(metric_sub.values('evaluation_label')[:1]),
         annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
+        annotated_signal_score_details=Subquery(metric_sub.values('signal_score_details')[:1]),
+        annotated_metrics_data=Subquery(metric_sub.values('metrics_data')[:1]),
     )
 
     papers = list(qs.order_by('-created_at')[:limit])
@@ -78,19 +81,25 @@ def list_workspace_papers(
             pr_id = None
         results.append({
             "paper_id": str(p.id),
+            "workspace_id": str(p.workspace_id) if p.workspace_id else None,
             "pipeline_run": pr_id,
             "title": p.title,
             "authors": p.authors,
             "abstract": p.abstract,
             "source_database": p.source_database,
             "pdf_url": p.original_pdf_path,
+            "original_pdf_path": p.original_pdf_path,
+            "converted_md_path": p.converted_md_path,
             "doi": p.doi,
             "arxiv_id": p.arxiv_id,
             "screening_status": getattr(p, 'annotated_screening_status', None) or 'pending',
-            "screening_reasoning": getattr(p, 'annotated_screening_reasoning', None),
             "abstract_screening_reasoning": getattr(p, 'annotated_abstract_screening_reasoning', None),
             "full_text_screening_reasoning": getattr(p, 'annotated_full_text_screening_reasoning', None),
+            "is_evaluation_benchmark": getattr(p, 'annotated_is_evaluation_benchmark', False),
+            "evaluation_label": getattr(p, 'annotated_evaluation_label', None),
             "signal_score": getattr(p, 'annotated_signal_score', None),
+            "signal_score_details": getattr(p, 'annotated_signal_score_details', None) or {},
+            "metrics_data": getattr(p, 'annotated_metrics_data', None) or {},
             "created_at": p.created_at.isoformat()
         })
     return results

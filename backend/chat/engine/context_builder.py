@@ -109,8 +109,6 @@ class PaperContextBuilder:
                 screening_lines.append(f"  Abstract Screening Reason: {latest_metric.abstract_screening_reasoning}")
             if latest_metric.full_text_screening_reasoning:
                 screening_lines.append(f"  Full-Text Screening Reason: {latest_metric.full_text_screening_reasoning}")
-            elif latest_metric.screening_reasoning:
-                screening_lines.append(f"  Screening Reason: {latest_metric.screening_reasoning}")
 
         if screening_lines:
             context_parts.append("### SLR Screening Evaluation\n" + "\n".join(screening_lines))

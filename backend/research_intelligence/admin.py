@@ -2618,8 +2618,7 @@ class PaperMetricAdmin(admin.ModelAdmin):
     list_filter = ('screening_status', 'is_evaluation_benchmark', 'workspace', 'pipeline_run')
     search_fields = (
         'paper__title', 'paper__authors', 'paper__doi', 'paper__arxiv_id',
-        'pipeline_run__id', 'screening_reasoning',
-        'abstract_screening_reasoning', 'full_text_screening_reasoning'
+        'pipeline_run__id', 'abstract_screening_reasoning', 'full_text_screening_reasoning'
     )
     readonly_fields = (
         'id', 'created_at', 'paper_detail_link', 'pipeline_run_detail_link',
@@ -2708,10 +2707,6 @@ class PaperMetricAdmin(admin.ModelAdmin):
                     if str(sp.get('paper_id')) == str(obj.paper_id):
                         text = sp.get('reasoning')
                         break
-        # Fallback 3: if status is full_text_passed / accepted, screening_reasoning is from full text
-        if not text and obj.screening_status in ['full_text_passed', 'accepted']:
-            text = obj.screening_reasoning
-
         if not text:
             return mark_safe('<span style="color: #adb5bd; font-style: italic;">Brak uzasadnienia dla etapu pełnego tekstu (np. odrzucony na etapie abstraktu)</span>')
         return format_html(

@@ -220,7 +220,7 @@ class PipelineTestHarness:
                     defaults={
                         'workspace': self.workspace,
                         'screening_status': 'withdrawn',
-                        'screening_reasoning': "Failed to download PDF: 404 Not Found at source."
+                        'abstract_screening_reasoning': "Failed to download PDF: 404 Not Found at source."
                     }
                 )
             else:

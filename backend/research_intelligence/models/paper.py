@@ -66,8 +66,6 @@ class PaperQuerySet(models.QuerySet):
                 new_kwargs['metrics__screening_status'] = v
             elif k == 'screening_status__in':
                 new_kwargs['metrics__screening_status__in'] = v
-            elif k == 'screening_reasoning':
-                new_kwargs['metrics__screening_reasoning'] = v
             elif k == 'abstract_screening_reasoning':
                 new_kwargs['metrics__abstract_screening_reasoning'] = v
             elif k == 'full_text_screening_reasoning':
@@ -90,9 +88,12 @@ class PaperManager(models.Manager.from_queryset(PaperQuerySet)):
         pipeline_run = kwargs.pop('pipeline_run', None) or kwargs.pop('pipeline_run_id', None)
         reprocessed_runs = kwargs.pop('reprocessed_runs', None)
         screening_status = kwargs.pop('screening_status', None)
-        screening_reasoning = kwargs.pop('screening_reasoning', None)
         abstract_screening_reasoning = kwargs.pop('abstract_screening_reasoning', None)
         full_text_screening_reasoning = kwargs.pop('full_text_screening_reasoning', None)
+        legacy_screening_reasoning = kwargs.pop('screening_reasoning', None)
+        if legacy_screening_reasoning and not abstract_screening_reasoning and not full_text_screening_reasoning:
+            abstract_screening_reasoning = legacy_screening_reasoning
+
         signal_score = kwargs.pop('signal_score', None)
         signal_score_details = kwargs.pop('signal_score_details', None)
         is_evaluation_benchmark = kwargs.pop('is_evaluation_benchmark', None)
@@ -106,7 +107,6 @@ class PaperManager(models.Manager.from_queryset(PaperQuerySet)):
             defaults = {
                 'workspace': paper.workspace,
                 'screening_status': screening_status or 'pending',
-                'screening_reasoning': screening_reasoning,
                 'abstract_screening_reasoning': abstract_screening_reasoning,
                 'full_text_screening_reasoning': full_text_screening_reasoning,
                 'signal_score': signal_score,
@@ -263,6 +263,13 @@ class PaperMetricManager(models.Manager):
             paper_id = getattr(paper, 'id', paper)
             pipeline_run_id = getattr(pipeline_run, 'id', pipeline_run)
             clean_kwargs = {k: v for k, v in kwargs.items() if k not in ('paper', 'paper_id', 'pipeline_run', 'pipeline_run_id')}
+            if 'screening_reasoning' in clean_kwargs:
+                r = clean_kwargs.pop('screening_reasoning')
+                st = clean_kwargs.get('screening_status')
+                if 'full_text_screening_reasoning' not in clean_kwargs and st in ['full_text_passed', 'accepted']:
+                    clean_kwargs['full_text_screening_reasoning'] = r
+                elif 'abstract_screening_reasoning' not in clean_kwargs:
+                    clean_kwargs['abstract_screening_reasoning'] = r
             if 'workspace' not in clean_kwargs and 'workspace_id' not in clean_kwargs and workspace:
                 clean_kwargs['workspace'] = workspace
             obj, _ = self.update_or_create(
@@ -312,7 +319,6 @@ class PaperMetric(models.Model):
         db_index=True,
         help_text="Review decision for this paper within this pipeline run"
     )
-    screening_reasoning = models.TextField(blank=True, null=True, help_text="Agent justification for screening action in this run")
     abstract_screening_reasoning = models.TextField(blank=True, null=True, help_text="Agent justification for abstract screening decision in this run")
     full_text_screening_reasoning = models.TextField(blank=True, null=True, help_text="Agent justification for full-text screening decision in this run")
     is_evaluation_benchmark = models.BooleanField(default=False, help_text="Flags whether this paper evaluation is part of the benchmark set for this run")
@@ -345,7 +351,18 @@ class PaperMetric(models.Model):
 
     @property
     def latest_screening_reasoning(self):
-        return self.full_text_screening_reasoning or self.abstract_screening_reasoning or self.screening_reasoning
+        return self.full_text_screening_reasoning or self.abstract_screening_reasoning
+
+    @property
+    def screening_reasoning(self):
+        return self.full_text_screening_reasoning or self.abstract_screening_reasoning
+
+    @screening_reasoning.setter
+    def screening_reasoning(self, val):
+        if self.screening_status in ['full_text_passed', 'accepted']:
+            self.full_text_screening_reasoning = val
+        else:
+            self.abstract_screening_reasoning = val
 
     def __str__(self):
         score_str = f"{self.signal_score:.2f}" if self.signal_score is not None else "-"

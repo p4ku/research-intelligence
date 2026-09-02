@@ -50,7 +50,7 @@ class ScreeningTasksTestCase(TestCase):
         metric = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
         self.assertIsNotNone(metric)
         self.assertEqual(metric.screening_status, "abstract_passed")
-        self.assertEqual(metric.screening_reasoning, "Contains agentic keywords.")
+        self.assertEqual(metric.abstract_screening_reasoning, "Contains agentic keywords.")
 
         # Ensure correct model and reasoning_effort parameters were passed
         mock_generate.assert_called_once()
@@ -73,7 +73,7 @@ class ScreeningTasksTestCase(TestCase):
         metric = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
         self.assertIsNotNone(metric)
         self.assertEqual(metric.screening_status, "full_text_passed")
-        self.assertEqual(metric.screening_reasoning, "Full text details reasoning workflows.")
+        self.assertEqual(metric.full_text_screening_reasoning, "Full text details reasoning workflows.")
 
         # Ensure correct model and reasoning_effort parameters were passed
         mock_generate.assert_called_once()
@@ -103,7 +103,7 @@ class ScreeningTasksTestCase(TestCase):
         self.assertTrue(res_pass)
         metric_pass = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
         self.assertEqual(metric_pass.screening_status, "abstract_passed")
-        self.assertEqual(metric_pass.screening_reasoning, "Abstract satisfies inclusion criteria.")
+        self.assertEqual(metric_pass.abstract_screening_reasoning, "Abstract satisfies inclusion criteria.")
         
         # Verify prompt contained abstract_acceptance_criteria
         prompt_text = mock_generate.call_args.kwargs.get("prompt", "")
@@ -121,7 +121,7 @@ class ScreeningTasksTestCase(TestCase):
         self.assertTrue(res_reject)
         metric_rej = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
         self.assertEqual(metric_rej.screening_status, "rejected")
-        self.assertEqual(metric_rej.screening_reasoning, "Abstract matches rejection criteria (robotics hardware).")
+        self.assertEqual(metric_rej.abstract_screening_reasoning, "Abstract matches rejection criteria (robotics hardware).")
 
     @patch("django.core.files.storage.default_storage.open")
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
@@ -140,6 +140,7 @@ class ScreeningTasksTestCase(TestCase):
         self.assertTrue(abs_res)
         m_abs = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
         self.assertEqual(m_abs.screening_status, "abstract_passed")
+        self.assertEqual(m_abs.abstract_screening_reasoning, "Abstract passed initial screening.")
 
         # Stage 2: Full-Text Screening
         mock_generate.reset_mock()
@@ -152,7 +153,8 @@ class ScreeningTasksTestCase(TestCase):
         self.assertTrue(ft_res)
         m_ft = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
         self.assertEqual(m_ft.screening_status, "full_text_passed")
-        self.assertEqual(m_ft.screening_reasoning, "Full text confirms technical feasibility and agentic architecture.")
+        self.assertEqual(m_ft.abstract_screening_reasoning, "Abstract passed initial screening.")
+        self.assertEqual(m_ft.full_text_screening_reasoning, "Full text confirms technical feasibility and agentic architecture.")
 
     @patch("django.core.files.storage.default_storage.open")
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
@@ -166,6 +168,7 @@ class ScreeningTasksTestCase(TestCase):
         screen_abstract(self.paper.id, self.workspace.id)
         m1 = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
         self.assertEqual(m1.screening_status, "abstract_passed")
+        self.assertEqual(m1.abstract_screening_reasoning, "Abstract sounds relevant.")
 
         # Stage 2: Full-Text Screening fails
         mock_generate.reset_mock()
@@ -177,7 +180,8 @@ class ScreeningTasksTestCase(TestCase):
         screen_full_text(self.paper.id, self.workspace.id)
         m2 = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
         self.assertEqual(m2.screening_status, "rejected")
-        self.assertEqual(m2.screening_reasoning, "Full text analysis reveals physical robotics hardware constraint.")
+        self.assertEqual(m2.abstract_screening_reasoning, "Abstract sounds relevant.")
+        self.assertEqual(m2.full_text_screening_reasoning, "Full text analysis reveals physical robotics hardware constraint.")
 
     @patch("django.core.files.storage.default_storage.open")
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")

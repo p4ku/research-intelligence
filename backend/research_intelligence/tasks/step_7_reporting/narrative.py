@@ -46,19 +46,22 @@ def generate_executive_narrative_report(pipeline_run: PipelineRun) -> Dict[str, 
         accepted_papers = list(pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted']).annotate(
             annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
             annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
-            annotated_screening_reasoning=Subquery(metric_sub.values('screening_reasoning')[:1]),
+            annotated_abstract_screening_reasoning=Subquery(metric_sub.values('abstract_screening_reasoning')[:1]),
+            annotated_full_text_screening_reasoning=Subquery(metric_sub.values('full_text_screening_reasoning')[:1]),
         ).prefetch_related('extractions', 'extractions__extraction_definition').order_by('-created_at'))
     elif pipeline_run.get_papers(screening_status='abstract_passed').exists():
         accepted_papers = list(pipeline_run.get_papers(screening_status='abstract_passed').annotate(
             annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
             annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
-            annotated_screening_reasoning=Subquery(metric_sub.values('screening_reasoning')[:1]),
+            annotated_abstract_screening_reasoning=Subquery(metric_sub.values('abstract_screening_reasoning')[:1]),
+            annotated_full_text_screening_reasoning=Subquery(metric_sub.values('full_text_screening_reasoning')[:1]),
         ).prefetch_related('extractions', 'extractions__extraction_definition').order_by('-created_at'))
     else:
         accepted_papers = list(pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn', 'pending']).annotate(
             annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
             annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
-            annotated_screening_reasoning=Subquery(metric_sub.values('screening_reasoning')[:1]),
+            annotated_abstract_screening_reasoning=Subquery(metric_sub.values('abstract_screening_reasoning')[:1]),
+            annotated_full_text_screening_reasoning=Subquery(metric_sub.values('full_text_screening_reasoning')[:1]),
         ).prefetch_related('extractions', 'extractions__extraction_definition').order_by('-created_at'))
 
     # Sort: highest signal_score first
@@ -108,9 +111,12 @@ def generate_executive_narrative_report(pipeline_run: PipelineRun) -> Dict[str, 
             
             status_display = getattr(paper, 'annotated_screening_status', None) or 'pending'
             lines.append(f"- **Screening Decision**: `{status_display}`")
-            reasoning_display = getattr(paper, 'annotated_screening_reasoning', None)
-            if reasoning_display:
-                lines.append(f"- **Assessment Rationale**: {reasoning_display}")
+            abs_reason = getattr(paper, 'annotated_abstract_screening_reasoning', None)
+            if abs_reason:
+                lines.append(f"- **Abstract Screening Rationale**: {abs_reason}")
+            ft_reason = getattr(paper, 'annotated_full_text_screening_reasoning', None)
+            if ft_reason:
+                lines.append(f"- **Full-Text Screening Rationale**: {ft_reason}")
 
             # Include parameter extractions
             extractions = list(paper.extractions.all())

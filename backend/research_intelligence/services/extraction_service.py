@@ -96,9 +96,10 @@ def build_paper_extractions_matrix(
             annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
             annotated_signal_score_details=Subquery(metric_sub.values('signal_score_details')[:1]),
             annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
-            annotated_screening_reasoning=Subquery(metric_sub.values('screening_reasoning')[:1]),
             annotated_abstract_screening_reasoning=Subquery(metric_sub.values('abstract_screening_reasoning')[:1]),
-            annotated_full_text_screening_reasoning=Subquery(metric_sub.values('full_text_screening_reasoning')[:1])
+            annotated_full_text_screening_reasoning=Subquery(metric_sub.values('full_text_screening_reasoning')[:1]),
+            annotated_is_evaluation_benchmark=Subquery(metric_sub.values('is_evaluation_benchmark')[:1]),
+            annotated_evaluation_label=Subquery(metric_sub.values('evaluation_label')[:1])
         )
     else:
         metric_sub = PaperMetric.objects.filter(paper=OuterRef('pk')).order_by('-created_at')
@@ -106,9 +107,10 @@ def build_paper_extractions_matrix(
             annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
             annotated_signal_score_details=Subquery(metric_sub.values('signal_score_details')[:1]),
             annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
-            annotated_screening_reasoning=Subquery(metric_sub.values('screening_reasoning')[:1]),
             annotated_abstract_screening_reasoning=Subquery(metric_sub.values('abstract_screening_reasoning')[:1]),
-            annotated_full_text_screening_reasoning=Subquery(metric_sub.values('full_text_screening_reasoning')[:1])
+            annotated_full_text_screening_reasoning=Subquery(metric_sub.values('full_text_screening_reasoning')[:1]),
+            annotated_is_evaluation_benchmark=Subquery(metric_sub.values('is_evaluation_benchmark')[:1]),
+            annotated_evaluation_label=Subquery(metric_sub.values('evaluation_label')[:1])
         )
 
     if screening_status and screening_status != 'all':
@@ -155,9 +157,10 @@ def build_paper_extractions_matrix(
         score_val = getattr(paper, 'annotated_signal_score', None)
         details_val = getattr(paper, 'annotated_signal_score_details', None)
         status_val = getattr(paper, 'annotated_screening_status', None)
-        reasoning_val = getattr(paper, 'annotated_screening_reasoning', None)
         abstract_reasoning_val = getattr(paper, 'annotated_abstract_screening_reasoning', None)
         full_text_reasoning_val = getattr(paper, 'annotated_full_text_screening_reasoning', None)
+        is_benchmark_val = getattr(paper, 'annotated_is_evaluation_benchmark', None)
+        eval_label_val = getattr(paper, 'annotated_evaluation_label', None)
         if score_val is None or details_val is None or status_val is None:
             all_m = list(paper.metrics.all())
             pm = None
@@ -172,12 +175,14 @@ def build_paper_extractions_matrix(
                     details_val = pm.signal_score_details
                 if status_val is None:
                     status_val = pm.screening_status
-                if reasoning_val is None:
-                    reasoning_val = pm.screening_reasoning
                 if abstract_reasoning_val is None:
                     abstract_reasoning_val = pm.abstract_screening_reasoning
                 if full_text_reasoning_val is None:
                     full_text_reasoning_val = pm.full_text_screening_reasoning
+                if is_benchmark_val is None:
+                    is_benchmark_val = pm.is_evaluation_benchmark
+                if eval_label_val is None:
+                    eval_label_val = pm.evaluation_label
 
         results.append({
             "index": idx,
@@ -187,13 +192,15 @@ def build_paper_extractions_matrix(
             "doi": paper.doi,
             "arxiv_id": paper.arxiv_id,
             "screening_status": status_val or 'pending',
-            "screening_reasoning": reasoning_val,
             "abstract_screening_reasoning": abstract_reasoning_val,
             "full_text_screening_reasoning": full_text_reasoning_val,
+            "is_evaluation_benchmark": bool(is_benchmark_val) if is_benchmark_val is not None else False,
+            "evaluation_label": eval_label_val,
             "signal_score": score_val,
             "signal_score_details": details_val or {},
             "pdf_url": (f"https://arxiv.org/pdf/{paper.arxiv_id}.pdf" if paper.arxiv_id else None) or paper.original_pdf_path,
             "original_pdf_path": paper.original_pdf_path,
+            "converted_md_path": paper.converted_md_path,
             "abstract": paper.abstract,
             "metrics_summary": metrics_summary,
             "extractions_count": len(extractions_list),

@@ -543,10 +543,12 @@ score = clamp(trl_val) * 0.5 + 4.0
         data = ser.data
         self.assertEqual(data["abstract_screening_reasoning"], "Abstract clearly addresses fault-tolerant syndrome decoding.")
         self.assertEqual(data["full_text_screening_reasoning"], "Full text proves physical threshold p < 1.2% on simulated grid.")
+        self.assertNotIn("screening_reasoning", data)
 
         metric_ser = PaperMetricSerializer(pm)
         self.assertEqual(metric_ser.data["abstract_screening_reasoning"], "Abstract clearly addresses fault-tolerant syndrome decoding.")
         self.assertEqual(metric_ser.data["full_text_screening_reasoning"], "Full text proves physical threshold p < 1.2% on simulated grid.")
+        self.assertNotIn("screening_reasoning", metric_ser.data)
 
         # 5. PaperMetricAdmin renders both reasonings in detail displays
         admin = PaperMetricAdmin(PaperMetric, AdminSite())
@@ -567,7 +569,6 @@ score = clamp(trl_val) * 0.5 + 4.0
             pipeline_run=self.run_a1,
             workspace=self.workspace_a,
             screening_status="full_text_passed",
-            screening_reasoning="Legacy full text reasoning",
             abstract_screening_reasoning=None,
             full_text_screening_reasoning=None
         )

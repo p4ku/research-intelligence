@@ -91,7 +91,7 @@ class ReprocessedRunsAPIMCPTests(TestCase):
             pipeline_run=self.run_1,
             workspace=self.workspace,
             screening_status="full_text_passed",
-            screening_reasoning="Breakthrough topological error threshold.",
+            full_text_screening_reasoning="Breakthrough topological error threshold.",
             signal_score=80.0,
             signal_score_details={"formula": "base"}
         )
@@ -127,7 +127,7 @@ class ReprocessedRunsAPIMCPTests(TestCase):
             pipeline_run=self.run_2,
             workspace=self.workspace,
             screening_status="full_text_passed",
-            screening_reasoning="Reprocessed with newer topological models.",
+            full_text_screening_reasoning="Reprocessed with newer topological models.",
             signal_score=94.5,
             signal_score_details={"formula": "reprocessed"}
         )
