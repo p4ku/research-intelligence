@@ -131,12 +131,49 @@ export function LiveAnswer({
 /**
  * A settled answer: body plus citations / visual evidence / fact check.
  * `anchor` is the DOM id prefix that ties inline citation chips to the
- * visual-evidence rows below.
+ * visual-evidence rows below. A failed turn keeps whatever streamed — the
+ * partial prose renders above the error, with `onRetry` as its one action —
+ * and suppresses the extras (a fact-check line under an unfinished answer
+ * misleads).
  */
-export function SettledAnswer({ turn, anchor }: { turn: AnswerTurn; anchor: string }) {
+export function SettledAnswer({
+  turn,
+  anchor,
+  onRetry,
+}: {
+  turn: AnswerTurn
+  anchor: string
+  onRetry?: () => void
+}) {
   const t = useT()
   if (turn.error) {
-    return <ErrorNote>{turn.error}</ErrorNote>
+    return (
+      <div className="min-w-0">
+        {turn.text !== '' && (
+          <AnswerMarkdown
+            text={turn.text}
+            citations={[]}
+            t={t}
+            className="text-foreground/75 mb-3 text-sm"
+          />
+        )}
+        <ErrorNote
+          action={
+            onRetry && (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="bg-foreground text-background hover:bg-foreground/85 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors"
+              >
+                {t('Ask again')}
+              </button>
+            )
+          }
+        >
+          {turn.text !== '' ? t('The answer stopped part-way through.') : turn.error}
+        </ErrorNote>
+      </div>
+    )
   }
   return (
     <div className="min-w-0">

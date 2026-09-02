@@ -123,7 +123,13 @@ def get_workspace_logic(user, workspace_id: str) -> str:
                 "cron_expression": sched.cron_expression,
                 "reprocess_existing": sched.reprocess_existing,
                 "is_active": sched.is_active,
-                "next_run_at": sched.next_run_at.isoformat() if sched.next_run_at else None
+                "prevent_overlap": sched.prevent_overlap,
+                "consecutive_failures_count": sched.consecutive_failures_count,
+                "max_consecutive_failures": sched.max_consecutive_failures,
+                "success_rate_percent": sched.success_rate_percent,
+                "next_run_at": sched.next_run_at.isoformat() if sched.next_run_at else None,
+                "last_run_at": sched.last_run_at.isoformat() if sched.last_run_at else None,
+                "last_status": sched.current_execution_status or sched.last_status,
             }
             for sched in workspace.schedules.all()
         ]

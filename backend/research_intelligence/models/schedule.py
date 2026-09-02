@@ -103,10 +103,24 @@ class WorkflowSchedule(models.Model):
         default=False,
         help_text="If True, re-screen and re-extract all workspace papers instead of skipping existing papers"
     )
+    prevent_overlap = models.BooleanField(
+        default=True,
+        help_text="Prevent concurrent execution if a previous PipelineRun for this schedule is still running"
+    )
     configuration_override = models.JSONField(
         default=dict,
         blank=True,
         help_text="Optional pipeline configuration overrides (e.g. limit, date_range_days, skip_abstract_screening)"
+    )
+
+    # Reliability, Telemetry & Failure Guardrails
+    consecutive_failures_count = models.IntegerField(
+        default=0,
+        help_text="Number of consecutive execution failures"
+    )
+    max_consecutive_failures = models.IntegerField(
+        default=5,
+        help_text="Auto-pause schedule if consecutive failures reach this limit"
     )
 
     # Execution tracking & telemetry
@@ -158,11 +172,86 @@ class WorkflowSchedule(models.Model):
             models.Index(fields=['workspace', 'is_active']),
         ]
 
+    @property
+    def current_execution_status(self) -> str:
+        """
+        Observable property: dynamically derives the live status from the linked PipelineRun
+        (and ResearchAgentProcess), ensuring real-time consistency without desynchronization.
+        """
+        if self.last_pipeline_run:
+            p_status = self.last_pipeline_run.status
+            if p_status in ('completed', 'failed', 'aborted'):
+                return p_status
+            agent = self.last_pipeline_run.agent_processes.first()
+            if agent and agent.status in ('completed', 'failed', 'aborted'):
+                return agent.status
+            return p_status or self.last_status or 'running'
+        return self.last_status or ''
+
+    @property
+    def is_last_execution_halted_early(self) -> tuple[bool, str]:
+        """
+        Returns (True, halt_step_name) if the last execution completed early / halted
+        (e.g. 0 new papers found due to duplicates, or 0 papers passed screening).
+        """
+        if not self.last_pipeline_run:
+            return False, ""
+        agent = self.last_pipeline_run.agent_processes.first()
+        if agent:
+            step = agent.stopped_at_step
+            if agent.status == 'completed' and step and step not in ('completed', 'reporting'):
+                return True, step
+        return False, ""
+
+    @property
+    def last_execution_stop_reason(self) -> str:
+        """
+        Returns the stop reason or status message of the last execution if available.
+        """
+        if not self.last_pipeline_run:
+            return ""
+        agent = self.last_pipeline_run.agent_processes.first()
+        if agent and agent.stop_reason:
+            return agent.stop_reason
+        if self.last_pipeline_run.status_message:
+            return self.last_pipeline_run.status_message
+        return ""
+
+    @property
+    def runs_history(self):
+        """Returns QuerySet of all PipelineRun records dispatched by this schedule, newest first."""
+        return self.pipeline_runs.all().order_by('-started_at')
+
+    @property
+    def successful_runs_count(self) -> int:
+        """Returns total number of completed pipeline runs."""
+        return self.pipeline_runs.filter(status='completed').count()
+
+    @property
+    def failed_runs_count(self) -> int:
+        """Returns total number of failed pipeline runs."""
+        return self.pipeline_runs.filter(status='failed').count()
+
+    @property
+    def success_rate_percent(self) -> Optional[float]:
+        """Returns overall success rate percentage (0.0-100.0) or None if no runs recorded."""
+        total = self.total_runs_count or self.pipeline_runs.count()
+        if total == 0:
+            return None
+        return round((self.successful_runs_count / total) * 100.0, 1)
+
     def __str__(self):
         return f"{self.name} [{self.workspace.name}] ({self.schedule_description})"
 
     def clean(self):
-        """Validates schedule frequency parameters and cron expressions."""
+        """Validates schedule frequency parameters, cron expressions, and timezone."""
+        if self.timezone_name:
+            try:
+                from zoneinfo import ZoneInfo
+                ZoneInfo(self.timezone_name)
+            except Exception as e:
+                raise ValidationError({"timezone_name": f"Invalid timezone '{self.timezone_name}': {e}"})
+
         if self.frequency == 'one_off':
             if not self.one_off_datetime:
                 raise ValidationError({"one_off_datetime": "An execution date & time is required for 'one_off' frequency."})
@@ -267,9 +356,21 @@ class WorkflowSchedule(models.Model):
             return f"Cron: {self.cron_expression}{tz_suffix}"
         return f"At {t_str}{tz_suffix}"
 
+    def get_timezone_obj(self):
+        """Returns standard python zoneinfo.ZoneInfo object based on timezone_name."""
+        if self.timezone_name:
+            try:
+                from zoneinfo import ZoneInfo
+                return ZoneInfo(self.timezone_name)
+            except Exception:
+                pass
+        return datetime.timezone.utc
+
     def compute_next_run(self, base_time: Optional[datetime.datetime] = None) -> Optional[datetime.datetime]:
         """
         Calculates and returns the next upcoming execution datetime using croniter.
+        Accurately respects local time and Daylight Saving Time (DST) clock changes
+        based on self.timezone_name.
         For one-off schedules, returns one_off_datetime (if not already executed).
         """
         if self.frequency == 'one_off':
@@ -279,33 +380,52 @@ class WorkflowSchedule(models.Model):
 
         now_dt = base_time or timezone.now()
         cron_expr = self.get_effective_cron_expression()
-        
+        tz = self.get_timezone_obj()
+
         try:
             from croniter import croniter
-            itr = croniter(cron_expr, now_dt)
-            next_ts = itr.get_next(float)
-            return datetime.datetime.fromtimestamp(next_ts, tz=datetime.timezone.utc)
+            # Convert base datetime to target timezone so croniter matches local wall-clock time
+            local_dt = now_dt.astimezone(tz)
+            itr = croniter(cron_expr, local_dt)
+            next_local = itr.get_next(datetime.datetime)
+            if next_local.tzinfo is None:
+                next_local = next_local.replace(tzinfo=tz)
+            # Store in database as UTC
+            return next_local.astimezone(datetime.timezone.utc)
         except Exception as e:
             logger.warning(f"Error computing next run for schedule '{self.id}' with expr '{cron_expr}': {e}")
             return now_dt + datetime.timedelta(days=1)
 
-    def trigger_run(self, triggered_by_user=None) -> Any:
+    def trigger_run(self, triggered_by_user=None, force: bool = False, jitter_seconds: int = 0) -> Any:
         """
         Dispatches an autonomous pipeline run for this schedule:
-        1. Creates a PipelineRun & ResearchAgentProcess
-        2. Ticks the orchestrator runner
-        3. Updates last_run_at, next_run_at, total_runs_count, and last_pipeline_run
+        1. Checks concurrency / overlap policy (skips if prevent_overlap=True and previous run is active, unless force=True)
+        2. Creates a PipelineRun (linked to self) & ResearchAgentProcess
+        3. Ticks the orchestrator runner asynchronously (with optional jitter delay)
+        4. Updates last_run_at, next_run_at, total_runs_count, and last_pipeline_run
         For One-Off schedules, automatically marks is_active=False and next_run_at=None.
         """
         from research_intelligence.models import PipelineRun, ResearchAgentProcess
         from research_intelligence.tasks.orchestrator.agent_engine import run_agent_process_tick, tick_agent_process
 
         now = timezone.now()
+
+        # Concurrency / Overlap Guard
+        if not force and self.prevent_overlap and self.last_pipeline_run:
+            current_status = self.current_execution_status
+            if current_status in ('running', 'pending'):
+                logger.warning(
+                    f"⚠️ [SCHEDULE OVERLAP PREVENTED] Schedule '{self.name}' ({self.id}) skipped "
+                    f"because previous PipelineRun '{self.last_pipeline_run.id}' is still in status '{current_status}'."
+                )
+                return None
+
         config_override = dict(self.configuration_override or {})
         config_override["reprocess_existing"] = self.reprocess_existing
 
         pipeline_run = PipelineRun.objects.create(
             workspace=self.workspace,
+            schedule=self,
             status='running',
             current_stage='search',
             reprocess_existing=self.reprocess_existing,
@@ -334,14 +454,17 @@ class WorkflowSchedule(models.Model):
             self.next_run_at = self.compute_next_run(base_time=now)
             self.save(update_fields=['last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'next_run_at', 'updated_at'])
 
-        logger.info(f"⏰ [SCHEDULE DISPATCHED] Triggered scheduled workflow '{self.name}' (Agent: {agent.id}, PipelineRun: {pipeline_run.id})")
+        logger.info(f"⏰ [SCHEDULE DISPATCHED] Triggered scheduled workflow '{self.name}' (Agent: {agent.id}, PipelineRun: {pipeline_run.id}, Jitter: {jitter_seconds}s)")
         
-        # Start execution asynchronously via Celery after transaction commit (with sync fallback)
+        # Start execution asynchronously via Celery after transaction commit (with optional jitter)
         agent_id_str = str(agent.id)
 
         def _dispatch_execution():
             try:
-                run_agent_process_tick.delay(agent_id_str)
+                if jitter_seconds > 0:
+                    run_agent_process_tick.apply_async(args=[agent_id_str], countdown=jitter_seconds)
+                else:
+                    run_agent_process_tick.delay(agent_id_str)
             except Exception as e_celery:
                 logger.warning(f"⚠️ Celery dispatch failed, falling back to direct execution: {e_celery}")
                 tick_agent_process(agent_id_str)

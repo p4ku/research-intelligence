@@ -263,11 +263,13 @@ class PrettyPythonCodeWidget(forms.Textarea):
 
 
 # Helper function to render CSS badges in Django Admin
-def render_badge(text, bg_color="#6c757d", text_color="#ffffff"):
+def render_badge(text, bg_color="#6c757d", text_color="#ffffff", title=None):
+    title_attr = format_html(' title="{}"', title) if title else ""
     return format_html(
-        '<span style="background-color: {}; color: {}; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; white-space: nowrap; display: inline-block;">{}</span>',
+        '<span style="background-color: {}; color: {}; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 11px; white-space: nowrap; display: inline-block;"{}>{}</span>',
         bg_color,
         text_color,
+        title_attr,
         text
     )
 
@@ -1045,15 +1047,15 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
             'fields': ('frequency', 'one_off_datetime', 'time_of_day', 'days_of_week', 'day_of_month', 'interval_hours', 'cron_expression', 'timezone_name')
         }),
         ('Execution Parameters & Overrides', {
-            'fields': ('reprocess_existing', 'configuration_override'),
+            'fields': ('reprocess_existing', 'prevent_overlap', 'configuration_override'),
             'classes': ('collapse',)
         }),
         ('Telemetry & Run History', {
-            'fields': ('next_run_at', 'last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'created_at', 'updated_at'),
+            'fields': ('next_run_at', 'last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'consecutive_failures_count', 'max_consecutive_failures', 'created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
-    readonly_fields = ('next_run_at', 'last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'created_at', 'updated_at')
+    readonly_fields = ('next_run_at', 'last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'consecutive_failures_count', 'created_at', 'updated_at')
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
@@ -1086,18 +1088,20 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
         ws_url = reverse('admin:research_intelligence_workspace_change', args=[obj.workspace.id])
         
         reprocess_tag = (
-            '<span style="background-color: #6f42c1; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-left: 6px;">🔄 Full Reprocess</span>'
+            '<span style="background-color: #6f42c1; color: white; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; display: inline-block; white-space: nowrap;">🔄 Full Reprocess</span>'
             if obj.reprocess_existing else
-            '<span style="background-color: #0d6efd; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; margin-left: 6px;">⚡ Incremental</span>'
+            '<span style="background-color: #0d6efd; color: white; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; display: inline-block; white-space: nowrap;">⚡ Incremental</span>'
         )
 
         return format_html(
-            '<div style="font-weight: 700; font-size: 13px; margin-bottom: 4px;">'
+            '<div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">'
+            '<div style="font-weight: 700; font-size: 13px; color: #212529;">'
             '<a href="{}" style="text-decoration: none; color: inherit;">{}</a>'
             '</div>'
-            '<div style="font-size: 11px; color: #6c757d; display: flex; align-items: center;">'
-            'Target: <a href="{}" style="margin-left: 4px; color: #0d6efd; text-decoration: none; font-weight: 500;">📁 {}</a>'
-            '{}'
+            '<div style="font-size: 11px; color: #6c757d; white-space: nowrap;">'
+            'Target: <a href="{}" style="color: #0d6efd; text-decoration: none; font-weight: 500;">📁 {}</a>'
+            '</div>'
+            '<div>{}</div>'
             '</div>',
             change_url,
             obj.name,
@@ -1124,17 +1128,17 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
 
     def schedule_pattern_display(self, obj):
         if obj.frequency == 'one_off':
-            date_chip = f'<span style="font-size: 11px; background-color: #fce8f3; color: #d63384; padding: 2px 6px; border-radius: 4px; font-weight: 600;">⏱️ Run Once</span>'
+            date_chip = f'<span style="font-size: 11px; background-color: #fce8f3; color: #d63384; padding: 2px 6px; border-radius: 4px; font-weight: 600; white-space: nowrap;">⏱️ Run Once</span>'
             return format_html(
-                '<div style="font-size: 12px; font-weight: 600; color: #212529; margin-bottom: 2px;">🗓️ {}</div>'
-                '{}',
+                '<div style="font-size: 12px; font-weight: 600; color: #212529; margin-bottom: 3px;">🗓️ {}</div>'
+                '<div>{}</div>',
                 obj.schedule_description,
                 mark_safe(date_chip)
             )
 
         return format_html(
-            '<div style="font-size: 12px; font-weight: 600; color: #212529; margin-bottom: 2px;">🗓️ {}</div>'
-            '<span style="font-family: monospace; font-size: 11px; background-color: #f1f3f5; color: #495057; padding: 2px 6px; border-radius: 4px; border: 1px solid #dee2e6;">cron: {}</span>',
+            '<div style="font-size: 12px; font-weight: 600; color: #212529; margin-bottom: 3px;">🗓️ {}</div>'
+            '<span style="font-family: monospace; font-size: 11px; background-color: #f1f3f5; color: #495057; padding: 2px 6px; border-radius: 4px; border: 1px solid #dee2e6; white-space: nowrap;">cron: {}</span>',
             obj.schedule_description,
             obj.cron_expression or '-'
         )
@@ -1145,17 +1149,20 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
         if obj.is_active:
             badge = render_badge("ACTIVE", "#198754")
             action_text = "⏸️ Pause"
+            action_hover = "Click to pause schedule"
         else:
             badge = render_badge("PAUSED", "#6c757d")
             action_text = "▶️ Resume"
+            action_hover = "Click to activate schedule"
 
         return format_html(
-            '<div style="display: flex; align-items: center; gap: 8px;">'
-            '{}'
-            '<a href="{}" style="font-size: 11px; color: #6c757d; text-decoration: none; border: 1px solid #ced4da; padding: 2px 6px; border-radius: 4px; background: #fff;" title="Click to toggle status">{}</a>'
+            '<div style="display: flex; flex-direction: column; gap: 6px; align-items: flex-start;">'
+            '<div>{}</div>'
+            '<a href="{}" style="font-size: 10px; color: #495057; text-decoration: none; border: 1px solid #ced4da; padding: 2px 7px; border-radius: 4px; background: #ffffff; font-weight: 500; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.05);" title="{}">{}</a>'
             '</div>',
             badge,
             toggle_url,
+            action_hover,
             action_text
         )
     is_active_toggle.short_description = "Status"
@@ -1168,15 +1175,15 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
         now = timezone.now()
         diff = obj.next_run_at - now
         if diff.total_seconds() < 0:
-            diff_badge = '<span style="background-color: #dc3545; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700;">🚨 Due now</span>'
+            diff_badge = '<span style="background-color: #dc3545; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; white-space: nowrap;">🚨 Due now</span>'
         else:
             hours = int(diff.total_seconds() // 3600)
             minutes = int((diff.total_seconds() % 3600) // 60)
             diff_str = f"in {hours}h {minutes}m" if hours > 0 else f"in {minutes}m"
-            diff_badge = f'<span style="background-color: #e7f5ff; color: #0c85d0; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;">⏳ {diff_str}</span>'
+            diff_badge = f'<span style="background-color: #e7f5ff; color: #0c85d0; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600; white-space: nowrap;">⏳ {diff_str}</span>'
 
         return format_html(
-            '<div style="white-space: nowrap; font-size: 12px; font-weight: 600; color: #212529; margin-bottom: 2px;">{}</div>'
+            '<div style="white-space: nowrap; font-size: 12px; font-weight: 600; color: #212529; margin-bottom: 3px;">{}</div>'
             '<div>{}</div>',
             obj.next_run_at.strftime("%Y-%m-%d %H:%M UTC"),
             mark_safe(diff_badge)
@@ -1187,30 +1194,105 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
     def last_run_display(self, obj):
         if not obj.last_run_at:
             return format_html('<span style="color: #adb5bd;">Never</span>')
-        status_color = "#198754" if obj.last_status == 'completed' else ("#dc3545" if obj.last_status == 'failed' else "#17a2b8")
-        status_badge = render_badge(obj.last_status.upper(), status_color) if obj.last_status else ''
+
+        # Observable status: reflect live state from pipeline_run/agent_process
+        status = obj.current_execution_status or obj.last_status or 'pending'
+        if obj.last_status != status:
+            WorkflowSchedule.objects.filter(id=obj.id).update(last_status=status)
+            obj.last_status = status
+
+        is_halted, halt_step = getattr(obj, 'is_last_execution_halted_early', (False, ""))
+        stop_reason = getattr(obj, 'last_execution_stop_reason', "") or ""
+
+        note_html = ""
+        if is_halted:
+            status_color = "#fd7e14"
+            badge_label = f"⚠️ HALTED ({halt_step.upper()})" if halt_step else "⚠️ HALTED"
+            if "duplicate" in stop_reason.lower():
+                short_note = "0 new papers (duplicates)"
+            elif "0" in stop_reason and "paper" in stop_reason.lower():
+                short_note = "0 papers passed criteria"
+            elif stop_reason:
+                short_note = stop_reason[:28] + ("..." if len(stop_reason) > 28 else "")
+            else:
+                short_note = f"Halted at {halt_step}"
+            note_html = format_html(
+                '<div style="font-size: 10px; color: #856404; background-color: #fff3cd; border: 1px solid #ffeeba; border-radius: 3px; padding: 2px 6px; white-space: nowrap; max-width: 170px; overflow: hidden; text-overflow: ellipsis;" title="{}">ℹ️ {}</div>',
+                stop_reason,
+                short_note
+            )
+        elif status == 'completed':
+            status_color = "#198754"
+            badge_label = "COMPLETED"
+        elif status == 'failed':
+            status_color = "#dc3545"
+            badge_label = "FAILED"
+            if stop_reason:
+                short_note = stop_reason[:26] + ("..." if len(stop_reason) > 26 else "")
+                note_html = format_html(
+                    '<div style="font-size: 10px; color: #842029; background-color: #f8d7da; border: 1px solid #f5c2c7; border-radius: 3px; padding: 2px 6px; white-space: nowrap; max-width: 170px; overflow: hidden; text-overflow: ellipsis;" title="{}">❌ {}</div>',
+                    stop_reason,
+                    short_note
+                )
+        elif status == 'running':
+            status_color = "#17a2b8"
+            badge_label = "RUNNING"
+        elif status == 'aborted':
+            status_color = "#495057"
+            badge_label = "ABORTED"
+        else:
+            status_color = "#6c757d"
+            badge_label = status.upper()
+
+        status_badge = render_badge(badge_label, status_color, title=stop_reason if stop_reason else None)
         
-        run_link = ""
+        run_link_html = ""
         if obj.last_pipeline_run:
             run_url = reverse('admin:research_intelligence_pipelinerun_change', args=[obj.last_pipeline_run.id])
-            run_link = format_html(' <a href="{}" style="font-size: 11px; text-decoration: none; color: #0d6efd; margin-left: 4px;">🔍 View Run</a>', run_url)
+            run_link_html = format_html(
+                '<a href="{}" style="font-size: 11px; font-weight: 500; text-decoration: none; color: #0d6efd; background-color: #f0f6ff; border: 1px solid #b6d4fe; border-radius: 4px; padding: 2px 8px; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; box-shadow: 0 1px 2px rgba(0,0,0,0.04);" title="Inspect detailed pipeline run execution">'
+                '🔍 View Run'
+                '</a>',
+                run_url
+            )
 
         return format_html(
-            '<div style="white-space: nowrap; font-size: 11px; color: #212529; margin-bottom: 2px;">{}</div>'
-            '<div style="display: flex; align-items: center;">{}{}</div>',
+            '<div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">'
+            '<div style="font-size: 11px; font-weight: 600; color: #495057; white-space: nowrap;">{}</div>'
+            '<div>{}</div>'
+            '{}'
+            '<div>{}</div>'
+            '</div>',
             obj.last_run_at.strftime("%Y-%m-%d %H:%M"),
             status_badge,
-            mark_safe(run_link)
+            note_html,
+            mark_safe(run_link_html)
         )
     last_run_display.short_description = "Last Execution"
     last_run_display.admin_order_field = "last_run_at"
 
     def total_runs_display(self, obj):
+        sr = obj.success_rate_percent
+        if sr is not None:
+            sr_color = "#198754" if sr >= 90 else ("#fd7e14" if sr >= 70 else "#dc3545")
+            rate_badge = f'<div style="font-size: 10px; color: {sr_color}; font-weight: 600; margin-top: 2px;">{sr}% success</div>'
+        else:
+            rate_badge = ''
+
+        runs_url = reverse('admin:research_intelligence_pipelinerun_changelist') + f"?schedule__id__exact={obj.id}"
+
         return format_html(
-            '<span style="background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; padding: 3px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; white-space: nowrap;">🚀 {} runs</span>',
-            obj.total_runs_count
+            '<div style="display: flex; flex-direction: column; align-items: flex-start;">'
+            '<a href="{}" style="background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; padding: 2px 7px; border-radius: 12px; font-weight: 600; font-size: 11px; white-space: nowrap; text-decoration: none;" title="View all pipeline runs triggered by this schedule">'
+            '🚀 {} runs'
+            '</a>'
+            '{}'
+            '</div>',
+            runs_url,
+            obj.total_runs_count,
+            mark_safe(rate_badge)
         )
-    total_runs_display.short_description = "Runs"
+    total_runs_display.short_description = "Runs & SLA"
     total_runs_display.admin_order_field = "total_runs_count"
 
     def trigger_actions_column(self, obj):
@@ -1236,7 +1318,7 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
         from django.shortcuts import get_object_or_404, redirect
         from django.contrib import messages
         schedule = get_object_or_404(WorkflowSchedule, id=schedule_id)
-        agent = schedule.trigger_run(triggered_by_user=request.user)
+        agent = schedule.trigger_run(triggered_by_user=request.user, force=True)
         messages.success(request, f"Successfully triggered scheduled workflow '{schedule.name}' (Agent Process: {agent.id}).")
         return redirect('admin:research_intelligence_workflowschedule_changelist')
 
@@ -1258,7 +1340,7 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
     def trigger_now_action(self, request, queryset):
         count = 0
         for sched in queryset:
-            sched.trigger_run(triggered_by_user=request.user)
+            sched.trigger_run(triggered_by_user=request.user, force=True)
             count += 1
         self.message_user(request, f"Successfully triggered {count} scheduled workflow run(s).")
 
@@ -1281,6 +1363,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'workspace',
+        'schedule_display',
         'run_date',
         'status_badge',
         'current_stage_badge',
@@ -1295,15 +1378,15 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'triggered_by_display'
     )
     ordering = ('-started_at', '-id')
-    list_select_related = ('workspace', 'triggered_by')
-    list_filter = ('status', 'current_stage', 'reprocess_existing', 'run_date', 'workspace', 'triggered_by')
-    search_fields = ('id', 'workspace__name', 'status_message', 'triggered_by__username', 'triggered_by__email')
+    list_select_related = ('workspace', 'triggered_by', 'schedule')
+    list_filter = ('status', 'current_stage', 'reprocess_existing', 'schedule', 'run_date', 'workspace', 'triggered_by')
+    search_fields = ('id', 'workspace__name', 'status_message', 'schedule__name', 'triggered_by__username', 'triggered_by__email')
     readonly_fields = ('started_at', 'completed_at', 'execution_time')
     inlines = [ComponentRunInline]
 
     fieldsets = (
         ('Execution Info', {
-            'fields': ('workspace', 'status', 'current_stage', 'status_message', 'triggered_by')
+            'fields': ('workspace', 'schedule', 'status', 'current_stage', 'status_message', 'triggered_by')
         }),
         ('Reprocessing & Ingestion Options', {
             'fields': ('reprocess_existing',),
@@ -1315,6 +1398,18 @@ class PipelineRunAdmin(admin.ModelAdmin):
     )
 
     actions = ['run_full_pipeline', 'rerun_with_reprocessing']
+
+    def schedule_display(self, obj):
+        if not obj.schedule:
+            return format_html('<span style="color: #adb5bd; font-size: 11px;">Manual</span>')
+        sched_url = reverse('admin:research_intelligence_workflowschedule_change', args=[obj.schedule.id])
+        return format_html(
+            '<a href="{}" style="font-size: 11px; color: #0d6efd; text-decoration: none; font-weight: 500;" title="View trigger schedule">⏰ {}</a>',
+            sched_url,
+            obj.schedule.name
+        )
+    schedule_display.short_description = "Schedule"
+    schedule_display.admin_order_field = "schedule__name"
 
     def save_model(self, request, obj, form, change):
         if not obj.triggered_by and request.user.is_authenticated:

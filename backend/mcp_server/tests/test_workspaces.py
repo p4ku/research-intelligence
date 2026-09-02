@@ -283,5 +283,29 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
         ws.refresh_from_db()
         self.assertFalse(ws.skip_abstract_screening)
 
+    def test_workspace_schedules_nested_mcp_representation(self):
+        from research_intelligence.models import WorkflowSchedule
+        ws = Workspace.objects.create(name="Schedule Nesting WS")
+        from research_intelligence.models import WorkspaceMember
+        WorkspaceMember.objects.create(workspace=ws, user=self.admin, role="admin")
+
+        schedule = WorkflowSchedule.objects.create(
+            workspace=ws,
+            name="Daily Schedule",
+            frequency="daily",
+            prevent_overlap=True,
+            is_active=True
+        )
+
+        ws_details = self.parse_res(get_workspace_logic(self.admin, workspace_id=str(ws.id)))
+        self.assertIn("schedules", ws_details)
+        self.assertEqual(len(ws_details["schedules"]), 1)
+        sched_data = ws_details["schedules"][0]
+        self.assertEqual(sched_data["schedule_id"], str(schedule.id))
+        self.assertEqual(sched_data["name"], "Daily Schedule")
+        self.assertTrue(sched_data["prevent_overlap"])
+        self.assertEqual(sched_data["consecutive_failures_count"], 0)
+        self.assertEqual(sched_data["max_consecutive_failures"], 5)
+
 
 

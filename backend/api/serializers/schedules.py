@@ -6,6 +6,8 @@ class WorkflowScheduleSerializer(serializers.ModelSerializer):
     workspace_name = serializers.ReadOnlyField(source='workspace.name')
     frequency_display = serializers.CharField(source='get_frequency_display', read_only=True)
     schedule_description = serializers.CharField(read_only=True)
+    last_status = serializers.CharField(source='current_execution_status', read_only=True)
+    success_rate_percent = serializers.FloatField(read_only=True)
 
     class Meta:
         model = WorkflowSchedule
@@ -26,12 +28,16 @@ class WorkflowScheduleSerializer(serializers.ModelSerializer):
             'timezone_name',
             'schedule_description',
             'reprocess_existing',
+            'prevent_overlap',
             'configuration_override',
             'last_run_at',
             'next_run_at',
             'last_pipeline_run',
             'last_status',
             'total_runs_count',
+            'consecutive_failures_count',
+            'max_consecutive_failures',
+            'success_rate_percent',
             'created_by',
             'created_at',
             'updated_at',
@@ -46,6 +52,8 @@ class WorkflowScheduleSerializer(serializers.ModelSerializer):
             'last_pipeline_run',
             'last_status',
             'total_runs_count',
+            'consecutive_failures_count',
+            'success_rate_percent',
             'created_by',
             'created_at',
             'updated_at',

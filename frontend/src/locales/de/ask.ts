@@ -60,6 +60,9 @@ export const dict: Record<string, string> = {
   // Same value in de/papers.ts — the dictionary test enforces that.
   'Reading the full text…': 'Der Volltext wird gelesen…',
   'The answer failed.': 'Die Antwort ist fehlgeschlagen.',
+  'The answer stopped part-way through.': 'Die Antwort ist mittendrin abgebrochen.',
+  'Ask again': 'Erneut fragen',
+  'Answer ready': 'Antwort bereit',
   Stopped: 'Gestoppt',
   'p. {n}': 'S. {n}',
   'Verified in source': 'In der Quelle belegt',
