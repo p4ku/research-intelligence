@@ -1,0 +1,87 @@
+{
+ "journey": "expert",
+ "baseUrls": {
+  "replay": "http://localhost:3009",
+  "prod": "https://sri-prod.apps.01.cf.eu01.onstackit.cloud"
+ },
+ "workspace": {
+  "id": "e58506de-5fdb-4663-a550-42c0c3105f04",
+  "name": "Hybrid Computing"
+ },
+ "capturedAt": "2026-09-02T11:06:53.272Z",
+ "steps": [
+  {
+   "n": 1,
+   "slug": "scorecard",
+   "file": "01-scorecard.png",
+   "video": null,
+   "poster": null,
+   "url": "http://localhost:3009/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+   "status": 200,
+   "clipRange": null,
+   "error": null
+  },
+  {
+   "n": 2,
+   "slug": "signal-ledger",
+   "file": "02-signal-ledger.png",
+   "video": "02-signal-ledger.mp4",
+   "poster": "02-signal-ledger-poster.png",
+   "url": "http://localhost:3009/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+   "status": 200,
+   "clipRange": [
+    13.55,
+    20.61
+   ],
+   "error": null
+  },
+  {
+   "n": 3,
+   "slug": "dimensions",
+   "file": "03-dimensions.png",
+   "video": null,
+   "poster": null,
+   "url": "http://localhost:3009/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+   "status": 200,
+   "clipRange": null,
+   "error": null
+  },
+  {
+   "n": 4,
+   "slug": "abstract-files",
+   "file": "04-abstract-files.png",
+   "video": null,
+   "poster": null,
+   "url": "http://localhost:3009/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+   "status": 200,
+   "clipRange": null,
+   "error": null
+  },
+  {
+   "n": 5,
+   "slug": "ask-this-paper",
+   "file": "05-ask-this-paper.png",
+   "video": null,
+   "poster": null,
+   "url": "http://localhost:3009/ask?paper=ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+   "status": 200,
+   "clipRange": null,
+   "error": null
+  },
+  {
+   "n": 6,
+   "slug": "streamed-answer",
+   "file": "06-streamed-answer.png",
+   "video": "06-streamed-answer.mp4",
+   "poster": "06-streamed-answer-poster.png",
+   "url": "https://sri-prod.apps.01.cf.eu01.onstackit.cloud/ask?paper=ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+   "status": 200,
+   "clipRange": [
+    6.92,
+    25.92
+   ],
+   "error": null,
+   "note": "still, poster and clip cropped to 1112x900 after capture to exclude the history rail; clip head trimmed 1.0 s to start after the workspace pin; poster is the final frame"
+  }
+ ]
+}

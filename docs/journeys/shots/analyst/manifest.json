@@ -1,0 +1,99 @@
+{
+  "journey": "analyst",
+  "baseUrls": {
+    "replay": "http://localhost:3009"
+  },
+  "workspace": {
+    "id": "e58506de-5fdb-4663-a550-42c0c3105f04",
+    "name": "Hybrid Computing"
+  },
+  "capturedAt": "2026-09-02T10:58:13.872Z",
+  "steps": [
+    {
+      "n": 1,
+      "slug": "papers",
+      "file": "01-papers.png",
+      "video": null,
+      "poster": null,
+      "url": "http://localhost:3009/papers",
+      "status": 200,
+      "clipRange": null,
+      "error": null
+    },
+    {
+      "n": 2,
+      "slug": "search",
+      "file": "02-search.png",
+      "video": "02-search.mp4",
+      "poster": "02-search-poster.png",
+      "url": "http://localhost:3009/papers",
+      "status": 200,
+      "clipRange": [
+        7.97,
+        11.52
+      ],
+      "error": null
+    },
+    {
+      "n": 3,
+      "slug": "widen-screening",
+      "file": "03-widen-screening.png",
+      "video": "03-widen-screening.mp4",
+      "poster": "03-widen-screening-poster.png",
+      "url": "http://localhost:3009/papers",
+      "status": 200,
+      "clipRange": [
+        10.52,
+        17.71
+      ],
+      "error": null
+    },
+    {
+      "n": 4,
+      "slug": "sort-dimension",
+      "file": "04-sort-dimension.png",
+      "video": "04-sort-dimension.mp4",
+      "poster": "04-sort-dimension-poster.png",
+      "url": "http://localhost:3009/papers",
+      "status": 200,
+      "clipRange": [
+        16.71,
+        23.67
+      ],
+      "error": null
+    },
+    {
+      "n": 5,
+      "slug": "page-2",
+      "file": "05-page-2.png",
+      "video": null,
+      "poster": null,
+      "url": "http://localhost:3009/papers",
+      "status": 200,
+      "clipRange": null,
+      "error": null
+    },
+    {
+      "n": 6,
+      "slug": "screening-log",
+      "file": "06-screening-log.png",
+      "video": null,
+      "poster": null,
+      "url": "http://localhost:3009/briefing/2026-08-30/run",
+      "status": 200,
+      "clipRange": null,
+      "error": null
+    },
+    {
+      "n": 7,
+      "slug": "second-look",
+      "file": "07-second-look.png",
+      "video": null,
+      "poster": null,
+      "url": "http://localhost:3009/papers/696b1dc8-714f-462c-ba11-e3637aa31399",
+      "status": 200,
+      "clipRange": null,
+      "error": null
+    }
+  ]
+}

@@ -1,0 +1,946 @@
+{
+ "version": 1,
+ "baseUrl": "http://localhost:3009",
+ "prodUrl": "https://sri-prod.apps.01.cf.eu01.onstackit.cloud",
+ "snapshot": "sri-prod-2026-09-01",
+ "workspace": {
+  "id": "e58506de-5fdb-4663-a550-42c0c3105f04",
+  "name": "Hybrid Computing"
+ },
+ "viewport": {
+  "width": 1440,
+  "height": 900,
+  "deviceScaleFactor": 1
+ },
+ "journeys": [
+  {
+   "id": "executive",
+   "persona": "Executive",
+   "goal": "Two minutes before the first meeting: what moved overnight, and why.",
+   "fixtures": {
+    "date": "2026-08-30",
+    "paperId": "ee9f8ca9-801a-4f36-8950-e7be86ee08c0"
+   },
+   "steps": [
+    {
+     "n": 1,
+     "slug": "sign-in",
+     "route": "/",
+     "title": "Sign in",
+     "sees": "One sign-in panel on the left — Research Intelligence, a field for an email or username, a field for a password, and a line saying access is restricted to authorized accounts. The right half of the screen is a dark panel carrying the product's radar motif; there is nothing to act on there.",
+     "does": "Signs in with the work account; nothing else on the page asks for input.",
+     "decides": "Nothing to weigh here — the two minutes start on the other side.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": false,
+      "url": "http://localhost:3009/",
+      "file": "shots/executive/01-sign-in.png",
+      "video": null,
+      "poster": null,
+      "status": 200,
+      "capturedAt": "2026-09-02T10:25:30.620Z",
+      "clipRange": null,
+      "actions": [
+       {
+        "goto": "/"
+       },
+       {
+        "waitForSelector": "input[name='identifier']"
+       },
+       {
+        "waitForText": "Sign in"
+       }
+      ],
+      "expect": [
+       "Sign in",
+       "Email or username",
+       "Password",
+       "Research Intelligence is an internal tool. Access is restricted to authorized accounts."
+      ]
+     }
+    },
+    {
+     "n": 2,
+     "slug": "today",
+     "route": "/dashboard",
+     "title": "Today",
+     "sees": "Today, 30 August, in the Hybrid Computing workspace: 45 papers screened against the focus fields, 21 cleared the signal bar, 21 carried into the briefing. Underneath, a short brief names HybridGen at signal 76 as the leader, with SolidGPT and “Bridging the Linear-Quadratic Gap” behind it, over a line saying it was assembled automatically from this run.",
+     "does": "Reads the three counts and the brief, and leaves the sort controls under The papers untouched.",
+     "decides": "One overnight run with one candidate worth naming aloud — worth thirty more seconds before the meeting.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": false,
+      "url": "http://localhost:3009/dashboard",
+      "file": "shots/executive/02-today.png",
+      "video": null,
+      "poster": null,
+      "status": 200,
+      "capturedAt": "2026-09-02T10:25:30.620Z",
+      "clipRange": null,
+      "actions": [
+       {
+        "login": true
+       },
+       {
+        "waitForUrl": "/dashboard"
+       },
+       {
+        "waitForText": "Today in brief"
+       },
+       {
+        "waitForSelector": "a[href^='/briefing/']"
+       },
+       {
+        "hold": 800
+       }
+      ],
+      "expect": [
+       "Today in brief",
+       "Open briefing →",
+       "matched the focus fields",
+       "cleared the signal bar",
+       "HybridGen: Efficient LLM Generative Inference via CPU-GPU Hybrid Computing"
+      ]
+     }
+    },
+    {
+     "n": 3,
+     "slug": "open-briefing",
+     "route": "/briefing/2026-08-30",
+     "title": "Open the briefing",
+     "sees": "The edition for Sunday, 30 August, headed HybridGen: the same three counts, the brief in full, and 21 papers ranked by signal — HybridGen at 76.4 ahead of SolidGPT at 64 and the supply-chain paper at 56.",
+     "does": "Skims the top of the ranked list — the first two cards in full, each with its screening decision, source, date and readiness level; the third is cut at the fold, its score, decision, source and date in view and its headline cut off at the bottom of the screen.",
+     "decides": "The gap between first and second is wide enough that the day has one story, not three.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": true,
+      "url": "http://localhost:3009/briefing/2026-08-30",
+      "file": "shots/executive/03-open-briefing.png",
+      "video": "shots/executive/03-open-briefing.mp4",
+      "poster": "shots/executive/03-open-briefing-poster.png",
+      "status": 200,
+      "capturedAt": "2026-09-02T10:25:30.620Z",
+      "clipRange": [
+       8.37,
+       14.26
+      ],
+      "actions": [
+       {
+        "click": {
+         "selector": "a[href^='/briefing/']"
+        }
+       },
+       {
+        "waitForUrl": "/briefing/2026-08-30"
+       },
+       {
+        "waitForText": "In brief"
+       },
+       {
+        "waitForSelector": "a[href^='/papers/']"
+       },
+       {
+        "hold": 800
+       }
+      ],
+      "expect": [
+       "Sunday, 30 August 2026",
+       "In brief",
+       "The papers",
+       "21 papers",
+       "Screening log →"
+      ]
+     }
+    },
+    {
+     "n": 4,
+     "slug": "top-paper",
+     "route": "/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+     "title": "Glance at the top paper",
+     "sees": "HybridGen's own page: full text passed, from arXiv, dated 30 August, a signal score of 76.4, and a line stating what the score is made of and what would move it. The dimensions start directly beneath, opening at readiness level (TRL) 4 of 9 — development — with the reasoning beginning in plain sentences and running on past the edge of the frame.",
+     "does": "Reads the number and the first stretch of reasoning, and stops there rather than scrolling into the evidence quotes and the abstract.",
+     "decides": "Solid enough to carry into the meeting as a single sentence, with the detail left to the platform team.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": false,
+      "url": "http://localhost:3009/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+      "file": "shots/executive/04-top-paper.png",
+      "video": null,
+      "poster": null,
+      "status": 200,
+      "capturedAt": "2026-09-02T10:25:30.620Z",
+      "clipRange": null,
+      "actions": [
+       {
+        "click": {
+         "selector": "a[href^='/papers/']"
+        }
+       },
+       {
+        "waitForUrl": "/papers/"
+       },
+       {
+        "waitForText": "Signal score"
+       },
+       {
+        "hold": 800
+       }
+      ],
+      "expect": [
+       "HybridGen: Efficient LLM Generative Inference via CPU-GPU Hybrid Computing",
+       "Full text passed",
+       "Signal score",
+       "What the score is made of — and what would move it.",
+       "Dimensions"
+      ],
+      "region": {
+       "x": 276,
+       "y": 36,
+       "width": 745,
+       "height": 688
+      }
+     }
+    }
+   ],
+   "caveats": [
+    "The replay snapshot is frozen at one completed run, so \"today\" is always 30 August 2026 and the counts (45 screened, 21 included, 21 in the briefing) never change between captures.",
+    "The greeting on the Today screen is fixed to \"Good morning\" and carries the signed-in account's first name — \"admin\" on the replay — so it will read differently on production. Keep it out of frame-critical assertions.",
+    "The brief is composed from the run's own numbers and titles, not written prose. The Today screen says so directly — it stamps the brief \"Assembled automatically from this run.\" The briefing edition carries the same brief without that stamp, so the walkthrough must not claim the line appears on both, and the step 3 frame does not show it. Worth raising separately: the briefing edition is the surface the executive actually reads, so the stamp arguably belongs there too.",
+    "The Today screen streams its funnel, brief and paper list in after the header, so a capture that waits only for the address will photograph skeletons. Every step here waits for real text.",
+    "The session opens on whichever workspace it last remembered; without Hybrid Computing selected, the counts, the brief and the top paper all belong to a different corpus.",
+    "No step in this journey writes anything, so the replay's refusal of writes never fires — though the paper screen's question box is visible in an uncropped step 4 frame and would be refused if used.",
+    "Step 4's still is cropped to the reading column — the score and the opening dimension — which is exactly what the step is about. The Schwarz-fit reasoning the executive would most want sits further down that same column, and is in neither the crop nor the unscrolled screen.",
+    "On the briefing edition the third paper sits on the fold: its score, screening decision and headline are in frame, its readiness level and author line are not. The copy claims only what the frame shows.",
+    "The paper page's score card puts its own breakdown on screen — the contributing parts and their multipliers. The frame is fine as captured, but the walkthrough page should present the score as one number with a stated basis and not transcribe that arithmetic.",
+    "Beside the reasoning sits a panel labelled Profile. Its chart is vertically centred in a card as tall as the reasoning column next to it, so on an executive-height screen the panel's visible body is empty from top to bottom. Nothing is missing — the chart is simply much further down — but the full screen reads as a broken panel, so this step's still is cropped just below the opening of the reasoning, where the Profile card is cut by the frame edge in the same breath as the sentence beside it.",
+    "The paper screen keeps a single-paper question box fixed to the right. It is empty until someone types, so in a still it reads as a large blank column, and it stays in place at any scroll position; this step's frame is cropped to exclude it. It is also the one write affordance on an otherwise read-only journey.",
+    "The clip for step 3 cuts from the moment the action begins, so its first frame — and therefore its poster image — is the Today screen, not the briefing. Use the step's own still beside the clip, or caption the clip as the move between the two screens rather than as the destination. The last half-second also already carries the next step's highlight ring on the top paper card.",
+    "Several headings are stored in sentence case and shown in capitals — \"Today in brief\", \"In brief\", \"The papers\", \"Signal score\", \"Dimensions\", and the briefing date \"Sunday, 30 August 2026\". The expected strings match the stored text, not the capitals a reader sees, so any check that asserts against rendered text will report false failures on them."
+   ],
+   "verified": {
+    "by": "agent-browser verifier (independent replay)",
+    "status": "pass",
+    "at": "2026-09-02T11:30:00Z",
+    "notes": [
+     "4/4 steps reproduced after one repair round (step 4 reframed to the reading column via a capture region); all expected strings present; clip is a real transition. The step 4 frame shows the score ledger as the app renders it; captions treat the score as one number."
+    ]
+   }
+  },
+  {
+   "id": "analyst",
+   "persona": "Analyst",
+   "goal": "Triage today's feed in ten minutes: what passed, what was screened out, what deserves a second look.",
+   "fixtures": {
+    "date": "2026-08-30",
+    "paperId": "696b1dc8-714f-462c-ba11-e3637aa31399",
+    "paperTitle": "Interfacing Quantum Computing Systems with High-Performance Computing Systems: An Overview",
+    "search": "quantum",
+    "dimension": "Novelty"
+   },
+   "steps": [
+    {
+     "n": 1,
+     "slug": "papers",
+     "route": "/papers",
+     "title": "The corpus, passed papers first",
+     "sees": "The Hybrid Computing corpus opens on the 21 papers that got through screening, strongest signal first: HybridGen at 76.4, then SolidGPT at 64, then a slide down through the forties.",
+     "does": "Reads down the cards without opening anything — screening status, source, date, the readiness level (TRL) band and the two headline dimensions are all on the card.",
+     "decides": "One clear leader and a thin middle, so the useful ten minutes are in the tail and in whatever never reached this list.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": false,
+      "url": "http://localhost:3009/papers",
+      "file": "shots/analyst/01-papers.png",
+      "video": null,
+      "poster": null,
+      "status": 200,
+      "capturedAt": "2026-09-02T10:58:13.872Z",
+      "clipRange": null,
+      "actions": [
+       {
+        "goto": "/"
+       },
+       {
+        "login": true
+       },
+       {
+        "goto": "/papers"
+       },
+       {
+        "waitForText": "through screening · full corpus"
+       },
+       {
+        "waitForText": "HybridGen: Efficient LLM Generative Inference via CPU-GPU Hybrid Computing"
+       }
+      ],
+      "expect": [
+       "Papers",
+       "through screening · full corpus",
+       "HybridGen: Efficient LLM Generative Inference via CPU-GPU Hybrid Computing",
+       "Full text passed",
+       "76.4"
+      ]
+     }
+    },
+    {
+     "n": 2,
+     "slug": "search",
+     "route": "/papers",
+     "title": "Search by keyword",
+     "sees": "Typing quantum cuts the passed set from 21 to 16, the hit count sits in the search field, and the line above the results now reads through screening, full corpus, matching “quantum”.",
+     "does": "Searches titles, abstracts, authors and arXiv ids for the term this workspace was built around.",
+     "decides": "Quantum-classical work carries most of the passed set, so the five hybrids that are not quantum are worth reading as their own group.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": true,
+      "url": "http://localhost:3009/papers",
+      "file": "shots/analyst/02-search.png",
+      "video": "shots/analyst/02-search.mp4",
+      "poster": "shots/analyst/02-search-poster.png",
+      "status": 200,
+      "capturedAt": "2026-09-02T10:58:13.872Z",
+      "clipRange": [
+       7.97,
+       11.52
+      ],
+      "actions": [
+       {
+        "fill": {
+         "selector": "input[name='search']",
+         "value": "quantum"
+        }
+       },
+       {
+        "hold": 800
+       },
+       {
+        "waitForText": "16 hits"
+       }
+      ],
+      "expect": [
+       "16 hits",
+       "matching “quantum”",
+       "Reset filters",
+       "Bridging the Linear-Quadratic Gap: A Quantum-Classical Hybrid Approach to Robust Supply Chain Design"
+      ]
+     }
+    },
+    {
+     "n": 3,
+     "slug": "widen-screening",
+     "route": "/papers",
+     "title": "Widen screening to everything",
+     "sees": "Switching screening to All statuses and clearing the search takes the list from 16 back to the whole corpus of 45 papers, with a removable All statuses filter above the results.",
+     "does": "Drops the default screening filter to see everything the run touched, not only what cleared the bar.",
+     "decides": "The top of the ranking barely moves, because the 24 papers that did not pass were never scored — they drop to the tail of the ordered view with a dash where a score would be, and the reason each was cut has to be read in the screening log.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": true,
+      "url": "http://localhost:3009/papers",
+      "file": "shots/analyst/03-widen-screening.png",
+      "video": "shots/analyst/03-widen-screening.mp4",
+      "poster": "shots/analyst/03-widen-screening-poster.png",
+      "status": 200,
+      "capturedAt": "2026-09-02T10:58:13.872Z",
+      "clipRange": [
+       10.52,
+       17.71
+      ],
+      "actions": [
+       {
+        "hold": 1200
+       },
+       {
+        "click": {
+         "role": "button",
+         "name": "All statuses"
+        }
+       },
+       {
+        "fill": {
+         "selector": "input[name='search']",
+         "value": ""
+        }
+       },
+       {
+        "hold": 800
+       }
+      ],
+      "expect": [
+       "All statuses",
+       "Reset filters",
+       "HybridGen: Efficient LLM Generative Inference via CPU-GPU Hybrid Computing",
+       "Empowering smart app development with SolidGPT: an edge-cloud hybrid AI agent framework"
+      ]
+     }
+    },
+    {
+     "n": 4,
+     "slug": "sort-dimension",
+     "route": "/papers",
+     "title": "Sort by a single dimension",
+     "sees": "Sorting by Novelty reshuffles the corpus: the Diffusion Computation order-finding paper leads on Substantial novelty while sitting at a signal score of 32.8, and HybridQC edges ahead of HybridGen. The cards show each paper's novelty band, while the order follows the underlying novelty number, which is why a 32.8 paper can lead a 76.4 one here.",
+     "does": "Swaps the sort from the headline signal score to one dimension, to see which papers the composite number is holding down.",
+     "decides": "Novelty and signal disagree at the top, and the order-finding paper is the one to read against the leader before the digest is written.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": true,
+      "url": "http://localhost:3009/papers",
+      "file": "shots/analyst/04-sort-dimension.png",
+      "video": "shots/analyst/04-sort-dimension.mp4",
+      "poster": "shots/analyst/04-sort-dimension-poster.png",
+      "status": 200,
+      "capturedAt": "2026-09-02T10:58:13.872Z",
+      "clipRange": [
+       16.71,
+       23.67
+      ],
+      "actions": [
+       {
+        "hold": 1200
+       },
+       {
+        "click": {
+         "role": "button",
+         "name": "Novelty"
+        }
+       },
+       {
+        "hold": 800
+       }
+      ],
+      "expect": [
+       "Diffusion Computation versus Quantum Computation: A Comparative Model for Order Finding and Factoring",
+       "HybridQC: Hardware-Grounded Simulation of Tightly Integrated Hybrid Quantum-Classical Systems",
+       "32.8",
+       "Substantial"
+      ]
+     }
+    },
+    {
+     "n": 5,
+     "slug": "page-2",
+     "route": "/papers",
+     "title": "One page into the ranking",
+     "sees": "Page two of the novelty ranking, every card marked Full text passed: the Quantum-HPC biomolecular workflow heads it at 30.4, Substantial novelty at TRL 4, then a Quantum-Centric Supercomputer reference architecture scoring 0 at TRL 2, an embedding scheme at 22.2, and a distributed K-SAT algorithm scoring 0 as well.",
+     "does": "Pages past the top of the ranking to see whether one page in changes the picture, reading the scores against the maturity bands.",
+     "decides": "The two zeroes are concept-stage work, scored rather than left blank, and the page is mixed rather than a tail — nothing here moves this week, so the remaining time goes on the exclusions.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": false,
+      "url": "http://localhost:3009/papers",
+      "file": "shots/analyst/05-page-2.png",
+      "video": null,
+      "poster": null,
+      "status": 200,
+      "capturedAt": "2026-09-02T10:58:13.872Z",
+      "clipRange": null,
+      "actions": [
+       {
+        "hold": 1200
+       },
+       {
+        "click": {
+         "role": "button",
+         "name": "Next"
+        }
+       },
+       {
+        "hold": 600
+       },
+       {
+        "waitForText": "Reference Architecture of a Quantum-Centric Supercomputer"
+       },
+       {
+        "scrollTo": {
+         "selector": "h1"
+        }
+       },
+       {
+        "hold": 400
+       }
+      ],
+      "expect": [
+       "full corpus",
+       "All statuses",
+       "Quantum-HPC hybrid computation of biomolecular excited-state energies",
+       "Reference Architecture of a Quantum-Centric Supercomputer",
+       "Distributed quantum-classical hybrid algorithm for solving K-SAT problem",
+       "Substantial",
+       "22.2"
+      ]
+     }
+    },
+    {
+     "n": 6,
+     "slug": "screening-log",
+     "route": "/briefing/2026-08-30/run",
+     "title": "What was screened out, and why",
+     "sees": "The run behind the 30 August edition: 45 screened, 21 included, 21 in the briefing, then a table of everything that did not pass, with a written reason against each title.",
+     "does": "Reads the reasons down the column — the four in view are all papers that use the word hybrid about something other than computing hardware: a numerical method, a GUI agent, an encryption scheme.",
+     "decides": "The screen is holding the line it was set to hold, and nearly every exclusion is plainly off-topic. The exception is an on-topic overview cut for being descriptive rather than empirical, one row further down the table, and that one is worth reopening.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": false,
+      "url": "http://localhost:3009/briefing/2026-08-30/run",
+      "file": "shots/analyst/06-screening-log.png",
+      "video": null,
+      "poster": null,
+      "status": 200,
+      "capturedAt": "2026-09-02T10:58:13.872Z",
+      "clipRange": null,
+      "actions": [
+       {
+        "goto": "/briefing/2026-08-30/run"
+       },
+       {
+        "waitForText": "Screening log"
+       },
+       {
+        "scrollTo": {
+         "text": "Screened out"
+        }
+       },
+       {
+        "hold": 400
+       }
+      ],
+      "expect": [
+       "Screening log",
+       "Screened out",
+       "Why it did not pass",
+       "cleared the signal bar",
+       "45"
+      ]
+     }
+    },
+    {
+     "n": 7,
+     "slug": "second-look",
+     "route": "/papers/696b1dc8-714f-462c-ba11-e3637aa31399",
+     "title": "A second look at one rejection",
+     "sees": "The rejected HPC-QC overview at the top of its page: Rejected against the title, no signal score — Not scored yet — a dash in all five dimensions, and a screening note saying the paper surveys the field without offering new architectures, benchmarks or performance evaluations.",
+     "does": "Narrows the corpus to Rejected, finds the overview by name and opens it to read the screening note, with the abstract below it on the same page.",
+     "decides": "The exclusion holds — a survey is not a signal — and the reason is specific enough to trust, so the rest of the rejected tail can be left alone today.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": false,
+      "url": "http://localhost:3009/papers/696b1dc8-714f-462c-ba11-e3637aa31399",
+      "file": "shots/analyst/07-second-look.png",
+      "video": null,
+      "poster": null,
+      "status": 200,
+      "capturedAt": "2026-09-02T10:58:13.872Z",
+      "clipRange": null,
+      "actions": [
+       {
+        "goto": "/papers"
+       },
+       {
+        "click": {
+         "role": "button",
+         "name": "Rejected"
+        }
+       },
+       {
+        "fill": {
+         "selector": "input[name='search']",
+         "value": "Interfacing Quantum"
+        }
+       },
+       {
+        "waitForSelector": "a[href='/papers/696b1dc8-714f-462c-ba11-e3637aa31399']"
+       },
+       {
+        "click": {
+         "selector": "a[href='/papers/696b1dc8-714f-462c-ba11-e3637aa31399']"
+        }
+       },
+       {
+        "waitForUrl": "/papers/696b1dc8-714f-462c-ba11-e3637aa31399"
+       },
+       {
+        "waitForText": "Not scored yet"
+       }
+      ],
+      "expect": [
+       "Interfacing Quantum Computing Systems with High-Performance Computing Systems: An Overview",
+       "Not scored yet",
+       "Dimensions",
+       "Screening",
+       "Rejected",
+       "Ask this paper"
+      ]
+     }
+    }
+   ],
+   "caveats": [
+    "The snapshot holds one completed run, dated 30 August 2026, so every paper in Hybrid Computing carries the same ingest date and the Ingested time windows separate nothing.",
+    "This workspace has no borderline or pending papers. The 45 split into 21 that passed full-text screening, 23 rejected and 1 withdrawn, so the second look in step 7 is at a rejected paper rather than a borderline one.",
+    "Papers that did not pass screening are never scored: no signal score, and a dash in every dimension. Widening the screening filter therefore changes the counts and the filters shown but leaves the top of a scored ranking untouched — steps 1 and 3 open on the same three papers in the same order.",
+    "Widening to All statuses also drops the through screening clause from the line above the results, which then reads simply 45 papers, full corpus.",
+    "The screening log lists all 24 exclusions in one long table, so step 6 frames the funnel band and the first four reasons. The rejected overview that step 7 opens sits further down that table.",
+    "The log’s exclusion rows are plain table rows, not links, so step 7 returns to the corpus and filters to Rejected rather than clicking through from the log.",
+    "Paging forward leaves the list scrolled to the foot, so step 5 scrolls back to the page heading before the shutter. Its shot therefore shows the head of page two and not the pager, and the caption claims no page count because none is in frame.",
+    "Two papers on page two of the novelty ranking score 0 rather than going unscored. That is a real judgement the run made, not a missing number — and the two are not a neighbouring pair: they sit second and fourth, with a 22.2-scoring embedding scheme between them, so the four cards in frame read 30.4, 0, 22.2, 0.",
+    "Screening states appear exactly as the app words them: Full text passed, Rejected, Withdrawn.",
+    "Papers that did not pass screening carry no score, so on any ranking they sit at the tail with a dash instead of a number, still labelled with their screening status; the reasons they were cut live in the screening log.",
+    "Step 7 is framed to the first screenful of the paper rather than the whole page. The signal score, the five dashed dimensions and the screening note all sit above the fold; the abstract and the stored-file links sit below it, out of frame.",
+    "Asking a question from the paper’s Ask panel cannot be captured on this snapshot — sending is unavailable — so step 7 shows the panel at rest.",
+    "Selecting All statuses adds a filter row above the results and pushes the screening list down a row, so in the clip for step 3 the Withdrawn row lights up briefly under the resting pointer before the list settles."
+   ],
+   "verified": {
+    "by": "agent-browser verifier (independent replay)",
+    "status": "pass",
+    "at": "2026-09-02T11:20:00Z",
+    "notes": [
+     "7/7 steps reproduced; step 3 caption start-count corrected to 16→45 after the verdict; hover flash inside the step 3 clip acknowledged in the caveats."
+    ]
+   }
+  },
+  {
+   "id": "expert",
+   "persona": "Domain expert",
+   "goal": "A protected hour with one paper: understand the score, read the evidence, interrogate the full text.",
+   "fixtures": {
+    "date": "2026-08-30",
+    "paperId": "ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+    "question": "What hardware setup did the authors use, and what speed-up do they report?"
+   },
+   "steps": [
+    {
+     "n": 1,
+     "slug": "scorecard",
+     "route": "/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+     "title": "The scorecard",
+     "sees": "One paper on one page: HybridGen: Efficient LLM Generative Inference via CPU-GPU Hybrid Computing, an arXiv preprint from 30 August 2026 that passed full-text screening, scored 76.4. Under the score sit five scored dimensions with their reasoning, the screening decision, the abstract and the archived PDF.",
+     "does": "Reads the whole record once, top to bottom, without opening or clicking anything.",
+     "decides": "Worth the hour — every number on the page has words attached to it, so there is something to argue with rather than a verdict to accept.",
+     "capture": {
+      "target": "replay",
+      "fullPage": true,
+      "clip": false,
+      "clipRange": null,
+      "actions": [
+       {
+        "goto": "/"
+       },
+       {
+        "waitForSelector": "input[name='identifier']"
+       },
+       {
+        "login": true
+       },
+       {
+        "goto": "/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0"
+       },
+       {
+        "waitForText": "Signal score"
+       },
+       {
+        "hold": 600
+       }
+      ],
+      "expect": [
+       "HybridGen: Efficient LLM Generative Inference via CPU-GPU Hybrid Computing",
+       "Full text passed",
+       "Signal score",
+       "Dimensions",
+       "Abstract"
+      ],
+      "file": "shots/expert/01-scorecard.png",
+      "video": null,
+      "poster": null,
+      "url": "http://localhost:3009/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+      "status": 200,
+      "capturedAt": "2026-09-02T10:38:41.391Z"
+     }
+    },
+    {
+     "n": 2,
+     "slug": "signal-ledger",
+     "route": "/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+     "title": "What the score is made of",
+     "sees": "The 76.4 taken apart on one bar: a fit share, a smaller novelty share, and a readiness bonus this paper does not earn, over three values that can be moved in place — readiness level (TRL) 4, fit 82, novelty 68.",
+     "does": "Opens the 26 further recorded values behind the number: the rigour, novelty and significance bands, an evidence-gap figure, an impact-reach note, and the passage quoted from the paper.",
+     "decides": "The score is legible rather than opaque — readiness is what is holding it back, and readiness 4 is the right call for a lab prototype, so 76.4 stands.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": true,
+      "clipRange": [
+       13.55,
+       20.61
+      ],
+      "actions": [
+       {
+        "scrollTo": {
+         "text": "Signal score"
+        }
+       },
+       {
+        "hold": 400
+       },
+       {
+        "click": {
+         "selector": "details > summary"
+        }
+       },
+       {
+        "hold": 900
+       }
+      ],
+      "expect": [
+       "Signal score",
+       "What the score is made of — and what would move it.",
+       "as scored",
+       "26 more recorded values",
+       "Rigour band"
+      ],
+      "file": "shots/expert/02-signal-ledger.png",
+      "video": "shots/expert/02-signal-ledger.mp4",
+      "poster": "shots/expert/02-signal-ledger-poster.png",
+      "url": "http://localhost:3009/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+      "status": 200,
+      "capturedAt": "2026-09-02T10:38:41.391Z"
+     }
+    },
+    {
+     "n": 3,
+     "slug": "dimensions",
+     "route": "/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+     "title": "Dimensions, rationale and profile",
+     "sees": "Three of the five dimensions in view — significance 72, Schwarz Fit 82, rigour 82, each at 90% confidence and each followed by a paragraph of reasoning. Two of the three lean on the same measured result, a 1.41x–3.2x speed-up; the third argues from the breadth of the testing instead — 11 model sizes, 3 hardware platforms. The profile chart alongside names all five axes at once.",
+     "does": "Scrolls into the rationales and reads them against one another, checking whether the same claim is doing the work in every dimension.",
+     "decides": "The profile is lopsided in a way that makes sense — strong on fit and rigour, thin on readiness — and the reasoning leans on one measured result, which is the thing to test next.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": false,
+      "clipRange": null,
+      "actions": [
+       {
+        "hold": 1200
+       },
+       {
+        "scrollTo": {
+         "selector": "span:text-is(\"Schwarz Fit\")"
+        }
+       },
+       {
+        "hold": 500
+       }
+      ],
+      "expect": [
+       "Schwarz Fit",
+       "Rigour",
+       "Significance",
+       "Confidence 90%",
+       "TRL (Technology Readiness Level)"
+      ],
+      "file": "shots/expert/03-dimensions.png",
+      "video": null,
+      "poster": null,
+      "url": "http://localhost:3009/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+      "status": 200,
+      "capturedAt": "2026-09-02T10:38:41.391Z"
+     }
+    },
+    {
+     "n": 4,
+     "slug": "abstract-files",
+     "route": "/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+     "title": "Screening, abstract and files",
+     "sees": "The screening decision in full — passed full-text screening, on the grounds that the paper defines a complete architecture and evaluates it across the A100, H100 and RTX 5090, and the OPT, Llama and Qwen families — then the abstract, and the stored PDF, held in the research archive but not yet downloadable.",
+     "does": "Reads the abstract last, against the rationales already read, and notes that the paper is public on arXiv.",
+     "decides": "Screening reason and abstract say the same thing, so the open questions are about the experiment itself, not about the summary.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": false,
+      "clipRange": null,
+      "actions": [
+       {
+        "scrollTo": {
+         "text": "Abstract"
+        }
+       },
+       {
+        "hold": 400
+       },
+       {
+        "scrollTo": {
+         "text": "Stored in the research archive"
+        }
+       },
+       {
+        "hold": 500
+       }
+      ],
+      "expect": [
+       "Screening",
+       "Abstract",
+       "Files",
+       "Stored PDF",
+       "Stored in the research archive — download is not yet available."
+      ],
+      "file": "shots/expert/04-abstract-files.png",
+      "video": null,
+      "poster": null,
+      "url": "http://localhost:3009/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+      "status": 200,
+      "capturedAt": "2026-09-02T10:38:41.391Z"
+     }
+    },
+    {
+     "n": 5,
+     "slug": "ask-this-paper",
+     "route": "/ask?paper=ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+     "title": "Ask this paper",
+     "sees": "The Ask console already pointed at HybridGen — the paper named at the head of the console beside its score of 76, and named again inside the question box — with one rule stated plainly: every answer is read from a single paper’s full text. The history beside it is empty.",
+     "does": "Follows the Ask panel on the paper page, which carries the paper across to the full Ask screen, then types the question the hour has been building to — what hardware setup did the authors use, and what speed-up do they report — without sending it yet.",
+     "decides": "The claim worth testing is the speed-up, and it is only worth repeating once the hardware it was measured on is named.",
+     "capture": {
+      "target": "replay",
+      "fullPage": false,
+      "clip": false,
+      "clipRange": null,
+      "actions": [
+       {
+        "goto": "/ask?paper=ee9f8ca9-801a-4f36-8950-e7be86ee08c0"
+       },
+       {
+        "waitForSelector": "textarea[name='question']"
+       },
+       {
+        "fill": {
+         "selector": "textarea[name='question']",
+         "value": "What hardware setup did the authors use, and what speed-up do they report?"
+        }
+       },
+       {
+        "hold": 500
+       }
+      ],
+      "expect": [
+       "Ask Research Intelligence",
+       "One paper at a time",
+       "Every answer is read from a single paper’s full text.",
+       "HybridGen",
+       "Questions you ask are filed here."
+      ],
+      "file": "shots/expert/05-ask-this-paper.png",
+      "video": null,
+      "poster": null,
+      "url": "http://localhost:3009/ask?paper=ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+      "status": 200,
+      "capturedAt": "2026-09-02T10:38:41.391Z"
+     }
+    },
+    {
+     "n": 6,
+     "slug": "streamed-answer",
+     "route": "/ask?paper=ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+     "title": "The answer, with citations",
+     "sees": "The question at the head of the transcript, and under it the answer read out of the paper’s full text: a hardware section naming Intel Xeon processors with NVIDIA A100, H100 and RTX 5090 cards over tiered host memory and a CXL memory expansion, then a speed-up section giving 1.41x to 3.2x against six baselines, measured over three model families and eleven model sizes. At the foot of the answer sits the one source it points back to — the paper itself, named and carrying its score of 76.",
+     "does": "Sends the question and watches the answer arrive: first a reading note counting the seconds while the paper is read, then the answer building under it. Finishes at the foot, on what the answer points back to rather than on the prose.",
+     "decides": "The hardware is named and the speed-up is attributed to a stated baseline, so the figure is usable as it stands; the answer cites the paper rather than a page, so the exact figures are confirmed in the paper itself.",
+     "capture": {
+      "target": "prod",
+      "fullPage": false,
+      "clip": true,
+      "clipRange": [
+       6.92,
+       25.92
+      ],
+      "actions": [
+       {
+        "goto": "/"
+       },
+       {
+        "waitForSelector": "input[name='identifier']"
+       },
+       {
+        "hold": 2000
+       },
+       {
+        "login": true
+       },
+       {
+        "goto": "/ask?paper=ee9f8ca9-801a-4f36-8950-e7be86ee08c0"
+       },
+       {
+        "waitForText": "Hybrid Computing"
+       },
+       {
+        "waitForSelector": "textarea[name='question']"
+       },
+       {
+        "fill": {
+         "selector": "textarea[name='question']",
+         "value": "What hardware setup did the authors use, and what speed-up do they report?"
+        }
+       },
+       {
+        "click": {
+         "selector": "button[type='submit']"
+        }
+       },
+       {
+        "waitForText": "Fact check"
+       },
+       {
+        "hold": 1500
+       }
+      ],
+      "expect": [
+       "Hybrid Computing",
+       "What hardware setup did the authors use, and what speed-up do they report?",
+       "HybridGen",
+       "Fact check"
+      ],
+      "file": "shots/expert/06-streamed-answer.png",
+      "video": "shots/expert/06-streamed-answer.mp4",
+      "poster": "shots/expert/06-streamed-answer-poster.png",
+      "url": "https://sri-prod.apps.01.cf.eu01.onstackit.cloud/ask?paper=ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+      "status": 200,
+      "capturedAt": "2026-09-02T11:06:53.272Z"
+     }
+    }
+   ],
+   "caveats": [
+    "Steps 1–5 run against the prod-snapshot replay, which rejects every non-auth write. The question in step 5 is therefore composed but never sent; only step 6 would send one, on production.",
+    "On the replay the conversation history is empty (“0 questions”), so the rail beside the console shows only its empty state and the transcript area below the question box stays blank — a real workspace would have prior threads in both.",
+    "The full-page scorecard in step 1 is captured with the 26 recorded values still collapsed; step 2 opens them, so the page is taller from step 2 onward.",
+    "The step-3 frame holds the reasoning but not the evidence around it: the readiness quote sits above it, the rigour quotes are cut off at its foot, and the hardware behind the speed-ups — Intel Xeon CPUs, NVIDIA A100 and H100, RTX 5090 with CXL memory — is named only in the readiness rationale and in the screening reason, both outside the frame. Step 1's full-page capture is where all three can be read.",
+    "Step 6 was captured on the live system, not the snapshot. The answer is written fresh each time the question is asked, so its wording, and whatever it points back to, will differ on another day; the question, the paper and the shape of the reply are what this step shows.",
+    "Step 6 was captured on the live system, not the snapshot. The answer is written fresh each time the question is asked, so its wording, and whatever it points back to, will differ on another day; the question, the paper and the shape of the reply are what this step shows.",
+    "The Files card on the paper screen shows the stored file's archive key as the app prints it. It is in frame at the foot of step 1 and in step 4 because that is the screen as shipped.",
+    "The fact-check line under the answer in step 6 sits just below the fold of the frame. On this run it read that the check passed with no claims grounded to a page, so the numbers in the answer still have to be found in the paper itself.",
+    "Steps 1 to 5 show the snapshot's build and step 6 the live build of the same day; the version stamp in the sidebar differs between them, and small wording differences in the ask console are possible.",
+    "The conversation history beside the console is empty on the snapshot (steps 1 to 5) but holds earlier throwaway threads on the live system (step 6).",
+    "The clip for step 6 begins a moment after sign-in, once the Hybrid Computing workspace is in place; its opening second was trimmed because the live system first lands on an internal test workspace."
+   ],
+   "verified": {
+    "by": "agent-browser verifier (independent replay; production checked read-only)",
+    "status": "pass",
+    "at": "2026-09-02T12:30:00Z",
+    "notes": [
+     "Steps 1,2,3,5 passed as captured. Step 4 (and the tail of step 1) show the Files card archive key: accepted as the shipped UI and disclosed in the caveats. Step 6: first 1.0 s of the clip trimmed after capture to remove frames from the default test workspace; poster regenerated from the final frame; fact-check line below the fold disclosed.",
+     "After verification the step 6 still, poster and clip were cropped to 1112x900 to leave out the conversation history rail (unrelated threads on the live system); the clip additionally lost its first 1.0 s (default test workspace before the Hybrid Computing pin). Recorded in shots/expert/manifest.json."
+    ]
+   }
+  }
+ ]
+}

@@ -1,0 +1,60 @@
+{
+  "journey": "executive",
+  "baseUrls": {
+    "replay": "http://localhost:3009"
+  },
+  "workspace": {
+    "id": "e58506de-5fdb-4663-a550-42c0c3105f04",
+    "name": "Hybrid Computing"
+  },
+  "capturedAt": "2026-09-02T10:25:30.620Z",
+  "steps": [
+    {
+      "n": 1,
+      "slug": "sign-in",
+      "file": "01-sign-in.png",
+      "video": null,
+      "poster": null,
+      "url": "http://localhost:3009/",
+      "status": 200,
+      "clipRange": null,
+      "error": null
+    },
+    {
+      "n": 2,
+      "slug": "today",
+      "file": "02-today.png",
+      "video": null,
+      "poster": null,
+      "url": "http://localhost:3009/dashboard",
+      "status": 200,
+      "clipRange": null,
+      "error": null
+    },
+    {
+      "n": 3,
+      "slug": "open-briefing",
+      "file": "03-open-briefing.png",
+      "video": "03-open-briefing.mp4",
+      "poster": "03-open-briefing-poster.png",
+      "url": "http://localhost:3009/briefing/2026-08-30",
+      "status": 200,
+      "clipRange": [
+        8.37,
+        14.26
+      ],
+      "error": null
+    },
+    {
+      "n": 4,
+      "slug": "top-paper",
+      "file": "04-top-paper.png",
+      "video": null,
+      "poster": null,
+      "url": "http://localhost:3009/papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0",
+      "status": 200,
+      "clipRange": null,
+      "error": null
+    }
+  ]
+}

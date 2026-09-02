@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analyst journey — Research Intelligence</title>
+<style>
+  body { margin:0; font:15px/1.5 -apple-system, system-ui, sans-serif; color:#18181b; background:#fafafa }
+  main { max-width:1500px; margin:0 auto; padding:36px 24px 80px }
+  h1 { font-size:24px; margin:0 0 4px }
+  p.lede { color:#6b7280; margin:0 0 8px; max-width:90ch }
+  p.who { font:600 11px/1 monospace; letter-spacing:.08em; text-transform:uppercase; color:#6b7280; margin:0 0 24px }
+  nav.top { font-size:13px; margin:0 0 24px }
+  nav.top a { color:#374151 } nav.top span { color:#d4d4d8; margin:0 8px }
+  ol.index { margin:0 0 8px; padding:0 0 0 20px; font-size:14px; max-width:90ch }
+  ol.index li { margin:2px 0 } ol.index a { color:#374151 }
+  section { margin:44px 0 0; scroll-margin-top:16px }
+  h2 { font-size:16px; margin:0 0 12px }
+  h2 .n { color:#9ca3af; font-variant-numeric:tabular-nums }
+  figure { margin:0; border:1px solid #e5e7eb; border-radius:6px; overflow:hidden; background:#fff }
+  figcaption { font:600 11px/1 monospace; letter-spacing:.08em; text-transform:uppercase; color:#6b7280; padding:8px 10px; border-bottom:1px solid #e5e7eb }
+  figure img { display:block; width:100%; height:auto }
+  figure.crop img { width:auto; max-width:100%; margin:0 auto }
+  figure.crop { background:#f4f4f5 }
+  figure.tall img { max-height:80vh; width:auto; max-width:100%; object-fit:contain; object-position:top }
+  video { max-width:100%; display:block; border:1px solid #e5e7eb; border-radius:6px; margin:14px 0 0; background:#fff }
+  p.clip { font:600 11px/1 monospace; letter-spacing:.08em; text-transform:uppercase; color:#6b7280; margin:8px 0 0 }
+  dl.sdd { display:grid; grid-template-columns:repeat(3, 1fr); gap:0 24px; margin:20px 0 0 }
+  dl.sdd dt { font:600 11px/1 monospace; letter-spacing:.08em; text-transform:uppercase; color:#6b7280; padding-bottom:8px; border-bottom:1px solid #e5e7eb; margin-bottom:10px }
+  dl.sdd dd { margin:0; font-size:14px; color:#27272a }
+  @media (max-width:900px) {
+    dl.sdd { grid-template-columns:1fr; gap:0 }
+    dl.sdd dt { margin-top:16px }
+    dl.sdd dd { margin-bottom:4px }
+  }
+  .caveats { margin:52px 0 0; border:1px solid #e5e7eb; border-radius:6px; background:#fff; padding:18px 22px 20px }
+  .caveats h2 { margin:0 0 10px }
+  .caveats ul { margin:0; padding:0 0 0 20px; max-width:100ch }
+  .caveats li { font-size:14px; color:#374151; margin:0 0 8px }
+  footer { margin:44px 0 0; padding-top:16px; border-top:1px solid #e5e7eb; font-size:13px; color:#6b7280; max-width:90ch }
+  footer nav { margin-top:10px } footer a { color:#374151 }
+</style>
+</head>
+<body>
+<main>
+
+<nav class="top"><a href="index.html">← All journeys</a><span>·</span><a href="executive.html">Executive</a><span>·</span><a href="expert.html">Domain expert</a></nav>
+
+<h1>Analyst</h1>
+<p class="lede">Triage today's feed in ten minutes: what passed, what was screened out, what deserves a second look.</p>
+<p class="who">Lives in the filters, triages the feed daily</p>
+
+<ol class="index">
+  <li><a href="#step-1">The corpus, passed papers first</a></li>
+  <li><a href="#step-2">Search by keyword</a></li>
+  <li><a href="#step-3">Widen screening to everything</a></li>
+  <li><a href="#step-4">Sort by a single dimension</a></li>
+  <li><a href="#step-5">One page into the ranking</a></li>
+  <li><a href="#step-6">What was screened out, and why</a></li>
+  <li><a href="#step-7">A second look at one rejection</a></li>
+</ol>
+
+<section id="step-1">
+  <h2><span class="n">1</span> · The corpus, passed papers first</h2>
+  <figure>
+    <figcaption>Papers — the 21 through screening</figcaption>
+    <img src="shots/analyst/01-papers.png" alt="The corpus, passed papers first" loading="lazy" width="1440" height="900">
+  </figure>
+  <dl class="sdd">
+    <dt>Sees</dt>
+    <dd>The Hybrid Computing corpus opens on the 21 papers that got through screening, strongest signal first: HybridGen at 76.4, then SolidGPT at 64, then a slide down through the forties.</dd>
+    <dt>Does</dt>
+    <dd>Reads down the cards without opening anything — screening status, source, date, the readiness level (TRL) band and the two headline dimensions are all on the card.</dd>
+    <dt>Decides</dt>
+    <dd>One clear leader and a thin middle, so the useful ten minutes are in the tail and in whatever never reached this list.</dd>
+  </dl>
+</section>
+
+<section id="step-2">
+  <h2><span class="n">2</span> · Search by keyword</h2>
+  <figure>
+    <figcaption>Papers, narrowed to “quantum”</figcaption>
+    <img src="shots/analyst/02-search.png" alt="Search by keyword" loading="lazy" width="1440" height="900">
+  </figure>
+  <video muted playsinline controls preload="metadata" poster="shots/analyst/02-search-poster.png" src="shots/analyst/02-search.mp4" width="1440" height="900"></video>
+  <p class="clip">Clip · 4 s — the passed set narrowing as the word is typed</p>
+  <dl class="sdd">
+    <dt>Sees</dt>
+    <dd>Typing quantum cuts the passed set from 21 to 16, the hit count sits in the search field, and the line above the results now reads through screening, full corpus, matching “quantum”.</dd>
+    <dt>Does</dt>
+    <dd>Searches titles, abstracts, authors and arXiv ids for the term this workspace was built around.</dd>
+    <dt>Decides</dt>
+    <dd>Quantum-classical work carries most of the passed set, so the five hybrids that are not quantum are worth reading as their own group.</dd>
+  </dl>
+</section>
+
+<section id="step-3">
+  <h2><span class="n">3</span> · Widen screening to everything</h2>
+  <figure>
+    <figcaption>Papers at all screening statuses — the full 45</figcaption>
+    <img src="shots/analyst/03-widen-screening.png" alt="Widen screening to everything" loading="lazy" width="1440" height="900">
+  </figure>
+  <video muted playsinline controls preload="metadata" poster="shots/analyst/03-widen-screening-poster.png" src="shots/analyst/03-widen-screening.mp4" width="1440" height="900"></video>
+  <p class="clip">Clip · 7 s — the screening filter widening, then the search clearing</p>
+  <dl class="sdd">
+    <dt>Sees</dt>
+    <dd>Switching screening to All statuses and clearing the search takes the list from 16 back to the whole corpus of 45 papers, with a removable All statuses filter above the results.</dd>
+    <dt>Does</dt>
+    <dd>Drops the default screening filter to see everything the run touched, not only what cleared the bar.</dd>
+    <dt>Decides</dt>
+    <dd>The top of the ranking barely moves, because the 24 papers that did not pass were never scored — they drop to the tail of the ordered view with a dash where a score would be, and the reason each was cut has to be read in the screening log.</dd>
+  </dl>
+</section>
+
+<section id="step-4">
+  <h2><span class="n">4</span> · Sort by a single dimension</h2>
+  <figure>
+    <figcaption>Papers sorted by Novelty</figcaption>
+    <img src="shots/analyst/04-sort-dimension.png" alt="Sort by a single dimension" loading="lazy" width="1440" height="900">
+  </figure>
+  <video muted playsinline controls preload="metadata" poster="shots/analyst/04-sort-dimension-poster.png" src="shots/analyst/04-sort-dimension.mp4" width="1440" height="900"></video>
+  <p class="clip">Clip · 7 s — the ranking reshuffling from signal score to Novelty</p>
+  <dl class="sdd">
+    <dt>Sees</dt>
+    <dd>Sorting by Novelty reshuffles the corpus: the Diffusion Computation order-finding paper leads on Substantial novelty while sitting at a signal score of 32.8, and HybridQC edges ahead of HybridGen. The cards show each paper's novelty band, while the order follows the underlying novelty number, which is why a 32.8 paper can lead a 76.4 one here.</dd>
+    <dt>Does</dt>
+    <dd>Swaps the sort from the headline signal score to one dimension, to see which papers the composite number is holding down.</dd>
+    <dt>Decides</dt>
+    <dd>Novelty and signal disagree at the top, and the order-finding paper is the one to read against the leader before the digest is written.</dd>
+  </dl>
+</section>
+
+<section id="step-5">
+  <h2><span class="n">5</span> · One page into the ranking</h2>
+  <figure>
+    <figcaption>Page two of the Novelty ranking</figcaption>
+    <img src="shots/analyst/05-page-2.png" alt="Into the middle of the ranking" loading="lazy" width="1440" height="900">
+  </figure>
+  <dl class="sdd">
+    <dt>Sees</dt>
+    <dd>Page two of the novelty ranking, every card marked Full text passed: the Quantum-HPC biomolecular workflow heads it at 30.4, Substantial novelty at TRL 4, then a Quantum-Centric Supercomputer reference architecture scoring 0 at TRL 2, an embedding scheme at 22.2, and a distributed K-SAT algorithm scoring 0 as well.</dd>
+    <dt>Does</dt>
+    <dd>Pages past the top of the ranking to see whether one page in changes the picture, reading the scores against the maturity bands.</dd>
+    <dt>Decides</dt>
+    <dd>The two zeroes are concept-stage work, scored rather than left blank, and the page is mixed rather than a tail — nothing here moves this week, so the remaining time goes on the exclusions.</dd>
+  </dl>
+</section>
+
+<section id="step-6">
+  <h2><span class="n">6</span> · What was screened out, and why</h2>
+  <figure>
+    <figcaption>The screening log for Sunday, 30 August</figcaption>
+    <img src="shots/analyst/06-screening-log.png" alt="What was screened out, and why" loading="lazy" width="1440" height="900">
+  </figure>
+  <dl class="sdd">
+    <dt>Sees</dt>
+    <dd>The run behind the 30 August edition: 45 screened, 21 included, 21 in the briefing, then a table of everything that did not pass, with a written reason against each title.</dd>
+    <dt>Does</dt>
+    <dd>Reads the reasons down the column — the four in view are all papers that use the word hybrid about something other than computing hardware: a numerical method, a GUI agent, an encryption scheme.</dd>
+    <dt>Decides</dt>
+    <dd>The screen is holding the line it was set to hold, and nearly every exclusion is plainly off-topic. The exception is an on-topic overview cut for being descriptive rather than empirical, one row further down the table, and that one is worth reopening.</dd>
+  </dl>
+</section>
+
+<section id="step-7">
+  <h2><span class="n">7</span> · A second look at one rejection</h2>
+  <figure>
+    <figcaption>The rejected overview, at the top of its page</figcaption>
+    <img src="shots/analyst/07-second-look.png" alt="A second look at one rejection" loading="lazy" width="1440" height="900">
+  </figure>
+  <dl class="sdd">
+    <dt>Sees</dt>
+    <dd>The rejected HPC-QC overview at the top of its page: Rejected against the title, no signal score — Not scored yet — a dash in all five dimensions, and a screening note saying the paper surveys the field without offering new architectures, benchmarks or performance evaluations.</dd>
+    <dt>Does</dt>
+    <dd>Narrows the corpus to Rejected, finds the overview by name and opens it to read the screening note, with the abstract below it on the same page.</dd>
+    <dt>Decides</dt>
+    <dd>The exclusion holds — a survey is not a signal — and the reason is specific enough to trust, so the rest of the rejected tail can be left alone today.</dd>
+  </dl>
+</section>
+
+<div class="caveats">
+  <h2>Caveats</h2>
+  <ul>
+    <li>The snapshot holds one completed run, dated 30 August 2026, so every paper in Hybrid Computing carries the same ingest date and the Ingested time windows separate nothing.</li>
+    <li>This workspace has no borderline or pending papers. The 45 split into 21 that passed full-text screening, 23 rejected and 1 withdrawn, so the second look in step 7 is at a rejected paper rather than a borderline one.</li>
+    <li>Papers that did not pass screening are never scored: no signal score, and a dash in every dimension, though they stay labelled with their screening status. Widening the screening filter therefore changes the counts and the filters shown but leaves the top of a scored ranking untouched — steps 1 and 3 open on the same three papers in the same order.</li>
+    <li>Widening to All statuses also drops the through screening clause from the line above the results, which then reads simply 45 papers, full corpus.</li>
+    <li>The screening log lists all 24 exclusions in one long table, so step 6 shows the funnel band and the first four reasons. The rejected overview that step 7 opens sits further down that table.</li>
+    <li>The log's exclusion rows are plain rows, not links, so step 7 returns to the corpus and filters to Rejected rather than clicking through from the log.</li>
+    <li>Paging forward leaves the list scrolled to its foot. Step 5's frame is at the head of page two, so the pager is out of view and no page count is on show.</li>
+    <li>Two papers on page two of the novelty ranking score 0 rather than going unscored. That is a real judgement the run made, not a missing number — and the two are not a neighbouring pair: they sit second and fourth, with a 22.2-scoring embedding scheme between them, so the four cards in frame read 30.4, 0, 22.2, 0.</li>
+    <li>Screening states appear exactly as the app words them: Full text passed, Rejected, Withdrawn.</li>
+    <li>Step 7 shows the first screenful of the paper rather than the whole page. The signal score, the five dashed dimensions and the screening note all sit above the fold; the abstract and the file links sit below it, out of frame.</li>
+    <li>The Ask panel on the paper page is shown at rest.</li>
+    <li>Selecting All statuses adds a filter row above the results and pushes the screening list down a row.</li>
+  </ul>
+</div>
+
+<footer>
+  Recorded 2026-09-02 against the production snapshot of 1 September 2026 (Hybrid Computing workspace). All seven steps were recorded against the snapshot; none touched the live system.
+  <nav><a href="index.html">← All journeys</a> · <a href="executive.html">Executive journey</a> · <a href="expert.html">Domain expert journey</a></nav>
+</footer>
+
+</main>
+</body>
+</html>
