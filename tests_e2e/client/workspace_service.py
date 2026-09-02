@@ -89,6 +89,7 @@ class WorkspaceService:
         ocr_provider: Optional[str] = None,
         reasoning_effort: str = "medium",
         skip_abstract_screening: bool = False,
+        reprocess_existing: bool = False,
         extraction_definitions: Optional[List[Dict[str, Any]]] = None,
         scrapers: Optional[List[Dict[str, Any]]] = None,
         subscribers: Optional[List[Dict[str, Any]]] = None,
@@ -112,6 +113,7 @@ class WorkspaceService:
             "ocr_provider": ocr_provider,
             "reasoning_effort": reasoning_effort,
             "skip_abstract_screening": skip_abstract_screening,
+            "reprocess_existing": reprocess_existing,
         }
         if extraction_definitions is None:
             extraction_definitions = self.get_default_e2e_extraction_definitions(prefix=f"{name}_")

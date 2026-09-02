@@ -15,10 +15,7 @@ export const dict: Record<string, string> = {
   'No paper yet': 'Noch kein Paper',
   'Change paper': 'Paper wechseln',
   'Choose a different paper': 'Ein anderes Paper wählen',
-  'One paper at a time': 'Ein Paper nach dem anderen',
-  'Every answer is read from a single paper’s full text.':
-    'Jede Antwort wird aus dem Volltext eines einzelnen Papers gelesen.',
-  'Choose the paper, then ask it anything.': 'Paper wählen, dann alles fragen.',
+  'Ask a paper.': 'Ein Paper fragen.',
   'Find a paper': 'Ein Paper finden',
   'Which paper? Type a title, author, or source…':
     'Welches Paper? Titel, Autor oder Quelle tippen…',

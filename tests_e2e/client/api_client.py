@@ -86,15 +86,15 @@ class APIClient:
                         headers["Authorization"] = f"Bearer {self.access_token}"
                         continue
 
-                # If proxy returns 431 or server is momentarily cycling (502/503/504), retry
+                # If proxy returns 431 or server is momentarily cycling (500/502/503/504), retry
                 is_transient_proxy_error = (
-                    resp.status_code in (431, 502, 503, 504) or
+                    resp.status_code in (431, 500, 502, 503, 504) or
                     (resp.status_code == 404 and "<!doctype html" in resp.text.lower() and attempt < max_attempts)
                 )
 
                 if is_transient_proxy_error and attempt < max_attempts:
                     self.session.cookies.clear()
-                    logger.warning(f"⚠️ [TRANSIENT {resp.status_code}] {method} {url} returned transient gateway response. Retrying in {attempt * 1.5}s...")
+                    logger.warning(f"⚠️ [TRANSIENT {resp.status_code}] {method} {url} returned transient gateway/server cycling response. Retrying in {attempt * 1.5}s...")
                     time.sleep(attempt * 1.5)
                     continue
 

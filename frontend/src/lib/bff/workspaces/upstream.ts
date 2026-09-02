@@ -49,7 +49,8 @@ export const workspaceDTO = z.looseObject({
   ocr_provider: z.string().nullable(),
   screening_llm_model: z.string(),
   llm_provider: z.string(),
-  digest_schedule: z.string(),
+  /** Legacy field; the backend now always sends null (serializer shim since f3942c4). */
+  digest_schedule: z.string().nullable(),
   monthly_token_limit: z.number(),
   tokens_in_consumed_this_month: z.number(),
   tokens_out_consumed_this_month: z.number(),
