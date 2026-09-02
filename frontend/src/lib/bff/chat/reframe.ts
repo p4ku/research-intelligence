@@ -91,6 +91,9 @@ export async function pumpChatStream(
           })
           return
         case 'error':
+          // Django's stated reason stays in `detail` as a debugging aid;
+          // clients render mapped copy for the slug, never this text.
+          console.error('[bff/chat] upstream error event:', event.data.error)
           writer.frame('error', problemBody('upstream-error', { detail: event.data.error }))
           return
       }
@@ -102,11 +105,9 @@ export async function pumpChatStream(
     )
   } catch (error) {
     if (signal?.aborted) return
-    writer.frame(
-      'error',
-      problemBody('upstream-error', {
-        detail: `The backend stream failed: ${String(error).slice(0, 200)}`,
-      }),
-    )
+    // The exception goes to the server log, never onto the wire — a raw
+    // `TypeError: terminated` is operator material, not an error payload.
+    console.error('[bff/chat] stream failed:', error)
+    writer.frame('error', problemBody('upstream-error'))
   }
 }

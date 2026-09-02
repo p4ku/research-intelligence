@@ -1,8 +1,10 @@
 'use client'
 
 import { Card, ErrorNote, SectionLabel } from '@/components/scanner-ui'
-import { BffClientError, bffFetch } from '@/lib/bff/client'
+import { bffFetch } from '@/lib/bff/client'
+import { errorsFromSubmit } from '@/lib/bff/problem-copy'
 import type { Preferences, Profile } from '@/lib/bff/settings/schema'
+import type { T } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { ExclamationTriangleIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
@@ -64,7 +66,12 @@ function SaveButton({ busy, children }: { busy: boolean; children: React.ReactNo
   )
 }
 
-function useSubmit() {
+/**
+ * Submit state with the never-silent invariant: a thrown error always yields
+ * a non-empty `errors` map (errorsFromSubmit partitions field errors from
+ * form-level ones), so a failed save can't grey the button and do nothing.
+ */
+function useSubmit(t: T, fieldNames: readonly string[], fallback: string) {
   const [busy, setBusy] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [done, setDone] = useState<string | null>(null)
@@ -76,16 +83,8 @@ function useSubmit() {
     try {
       setDone(await work())
     } catch (error) {
-      if (error instanceof BffClientError) {
-        const fields: Record<string, string> = {}
-        for (const [field, messages] of Object.entries(error.problem.errors ?? {})) {
-          fields[field] = messages.join(' ')
-        }
-        if (Object.keys(fields).length === 0) fields._ = error.problem.detail ?? error.problem.title
-        setErrors(fields)
-      } else {
-        setErrors({ _: String(error) })
-      }
+      console.error('[settings]', error)
+      setErrors(errorsFromSubmit(error, fieldNames, t, fallback))
     } finally {
       setBusy(false)
     }
@@ -97,7 +96,11 @@ function useSubmit() {
 export function ProfileForm({ profile }: { profile: Profile }) {
   const t = useT()
   const router = useRouter()
-  const { busy, errors, done, submit } = useSubmit()
+  const { busy, errors, done, submit } = useSubmit(
+    t,
+    ['first_name', 'last_name', 'email', 'username'],
+    t("Couldn't save your profile. Try again."),
+  )
 
   return (
     <Card>
@@ -166,7 +169,11 @@ export function ProfileForm({ profile }: { profile: Profile }) {
 /** Old / new / confirm — Django's validation messages surface per field. */
 export function PasswordForm() {
   const t = useT()
-  const { busy, errors, done, submit } = useSubmit()
+  const { busy, errors, done, submit } = useSubmit(
+    t,
+    ['old_password', 'new_password', 'confirm_password'],
+    t("Couldn't change your password. Try again."),
+  )
 
   return (
     <Card>

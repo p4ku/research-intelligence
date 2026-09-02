@@ -1,9 +1,10 @@
 import { Card, PageHeader, SectionLabel, StatBand } from '@/components/scanner-ui'
 import { SectionAnchors } from '@/components/top-bar'
+import { WorkspaceNotice } from '@/components/workspace-notice'
 import { getSessionUser } from '@/lib/auth/session'
 import { fmt } from '@/lib/i18n'
 import { getLang, getT } from '@/lib/i18n-server'
-import { getCurrentWorkspace } from '@/lib/workspace-server'
+import { getWorkspaceState } from '@/lib/workspace-server'
 import Link from 'next/link'
 import { Suspense, ViewTransition } from 'react'
 import { funnelCopy } from './data'
@@ -26,15 +27,25 @@ const anchors = [
  * quiet during every other transition, including RunPapers' sort transitions.
  */
 export default async function DashboardPage() {
-  const [user, ws, t, lang] = await Promise.all([
+  const [user, state, t, lang] = await Promise.all([
     getSessionUser(),
-    getCurrentWorkspace(),
+    getWorkspaceState(),
     getT(),
     getLang(),
   ])
   const name = user?.name.split(' ')[0] || t('there')
 
-  if (!ws) {
+  if (state.kind === 'unavailable') {
+    // An outage is not a zero-paper day: no zeroed stats, no membership copy.
+    return (
+      <div className="space-y-10">
+        <PageHeader eyebrow={t('Today')} title={fmt(t('Good morning, {name}'), { name })} />
+        <WorkspaceNotice kind="unavailable" />
+      </div>
+    )
+  }
+
+  if (state.kind === 'none') {
     // No workspace: nothing to fetch, so no boundaries — the page renders in
     // one pass with the same copy as before.
     const funnel = funnelCopy(t).map((c) => ({ value: 0, ...c }))
@@ -74,6 +85,7 @@ export default async function DashboardPage() {
       </div>
     )
   }
+  const ws = state.ws
 
   return (
     <div className="space-y-10">

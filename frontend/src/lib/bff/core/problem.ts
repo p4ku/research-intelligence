@@ -37,6 +37,9 @@ const CATALOG = {
 
 export type ProblemSlug = keyof typeof CATALOG
 
+/** Every slug in the catalogue — problem-copy.test.ts checks copy coverage against it. */
+export const PROBLEM_SLUGS = Object.keys(CATALOG) as ProblemSlug[]
+
 /** Build a problem body without throwing (the proxy uses this directly). */
 export function problemBody(slug: ProblemSlug, extra: Partial<Problem> = {}): Problem {
   const base = CATALOG[slug]

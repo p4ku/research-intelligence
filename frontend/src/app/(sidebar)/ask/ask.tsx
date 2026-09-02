@@ -3,6 +3,7 @@
 import type { ChatSession, ChatSessionDetail } from '@/lib/bff/chat/schema'
 import { bffFetch } from '@/lib/bff/client'
 import type { Page } from '@/lib/bff/core/pagination'
+import { problemMessage } from '@/lib/bff/problem-copy'
 import { useChatStream, type ChatStreamState } from '@/lib/chat/use-chat-stream'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
@@ -180,10 +181,7 @@ export function Ask({
         visualCitations: final.visualCitations,
         factCheck: final.factCheck,
         usage: final.usage,
-        error:
-          final.status === 'error'
-            ? (final.error?.detail ?? final.error?.title ?? t('The answer failed.'))
-            : null,
+        error: final.status === 'error' ? problemMessage(final.error, t) : null,
         arrived: true,
         stopped: stoppedRef.current,
       }

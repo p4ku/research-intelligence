@@ -46,9 +46,12 @@ async function djangoListAll(workspaceId: string): Promise<WorkspacePapers | nul
     if (!result.next || page >= 50) break
     page += 1
   }
-  const [ws] = await Promise.all([
-    django(`/api/workspaces/${workspaceId}/`, workspace).catch(() => null),
-  ])
+  // Only a genuine 404 (workspace gone) may become null; an outage must
+  // throw, or a fetched corpus gets presented as "no membership" (#2).
+  const ws = await django(`/api/workspaces/${workspaceId}/`, workspace).catch((error: unknown) => {
+    if (error instanceof ProblemError && error.problem.status === 404) return null
+    throw error
+  })
   return ws ? { workspace: ws, papers } : null
 }
 

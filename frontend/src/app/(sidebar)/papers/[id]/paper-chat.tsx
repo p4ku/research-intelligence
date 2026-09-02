@@ -5,6 +5,7 @@ import { ErrorNote } from '@/components/scanner-ui'
 import type { ChatSession, ChatSessionDetail, VisualCitation } from '@/lib/bff/chat/schema'
 import { bffFetch } from '@/lib/bff/client'
 import type { Page } from '@/lib/bff/core/pagination'
+import { problemMessage } from '@/lib/bff/problem-copy'
 import { useChatStream } from '@/lib/chat/use-chat-stream'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
@@ -49,9 +50,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
       ...prev,
       {
         role: 'scanner',
-        text: failed
-          ? (final.error?.detail ?? final.error?.title ?? t('The answer failed.'))
-          : final.text,
+        text: failed ? problemMessage(final.error, t) : final.text,
         visualCitations: failed ? [] : final.visualCitations,
         failed,
       },

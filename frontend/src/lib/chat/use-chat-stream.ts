@@ -14,7 +14,7 @@ import type {
   PaperCitation,
   VisualCitation,
 } from '@/lib/bff/chat/schema'
-import type { Problem } from '@/lib/bff/core/problem'
+import { problemBody, type Problem } from '@/lib/bff/core/problem'
 import { parseSse } from '@/lib/sse/parse'
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 
@@ -117,22 +117,12 @@ export function useChatStream(onFinish?: (final: ChatStreamState) => void) {
         })
       } catch {
         if (controller.signal.aborted) return
-        return fail({
-          type: '/problems/upstream-unavailable',
-          title: 'Connection failed',
-          status: 0,
-        })
+        return fail(problemBody('upstream-unavailable'))
       }
       if (!res.ok || !res.body) {
         const problem = (await res.json().catch(() => null)) as Problem | null
         if (problem?.status === 401) window.location.assign('/auth/logout?reason=expired')
-        return fail(
-          problem ?? {
-            type: '/problems/internal',
-            title: `HTTP ${res.status}`,
-            status: res.status,
-          },
-        )
+        return fail(problem ?? problemBody(res.status >= 500 ? 'upstream-error' : 'internal'))
       }
 
       try {
@@ -179,11 +169,7 @@ export function useChatStream(onFinish?: (final: ChatStreamState) => void) {
         }
       } catch {
         if (!controller.signal.aborted) {
-          return fail({
-            type: '/problems/upstream-error',
-            title: 'The stream was interrupted',
-            status: 502,
-          })
+          return fail(problemBody('upstream-error'))
         }
       }
       // Stream closed (done, abort, or cut): settle with what we have.

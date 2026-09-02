@@ -1,9 +1,10 @@
 import { Card, PageHeader } from '@/components/scanner-ui'
+import { WorkspaceNotice } from '@/components/workspace-notice'
 import { forPage } from '@/lib/bff/core/page'
 import { papers } from '@/lib/bff/papers/service'
 import { fmt } from '@/lib/i18n'
 import { getT } from '@/lib/i18n-server'
-import { getCurrentWorkspace } from '@/lib/workspace-server'
+import { getWorkspaceState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { PapersBrowser } from './papers-browser'
 
@@ -15,21 +16,14 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function PapersPage() {
-  const [t, ws] = await Promise.all([getT(), getCurrentWorkspace()])
-  const scored = ws ? await forPage(papers.listAll(ws.id)) : null
+  const [t, state] = await Promise.all([getT(), getWorkspaceState()])
+  const scored = state.kind === 'ok' ? await forPage(papers.listAll(state.ws.id)) : null
 
-  if (!ws || !scored) {
+  if (state.kind !== 'ok' || !scored) {
     return (
       <div className="space-y-8">
         <PageHeader eyebrow={t('Corpus')} title={t('Papers')} />
-        <Card>
-          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
-            {t('No workspace selected')}
-          </p>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {t('You are not a member of any workspace yet. Ask an administrator for access.')}
-          </p>
-        </Card>
+        <WorkspaceNotice kind={state.kind === 'unavailable' ? 'unavailable' : 'none'} />
       </div>
     )
   }
