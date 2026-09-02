@@ -81,6 +81,7 @@ class PipelineTestHarness:
         self,
         ocr_provider: str | None = None,
         skip_abstract_screening: bool = False,
+        reprocess_existing: bool = False,
         screening_llm_model: str = "google/gemini-3.7-flash",
         llm_provider: str = "google",
         abstract_acceptance: str = "Accept relevant research.",
@@ -93,6 +94,7 @@ class PipelineTestHarness:
             name=self.name,
             ocr_provider=ocr_provider,
             skip_abstract_screening=skip_abstract_screening,
+            reprocess_existing=reprocess_existing,
             screening_llm_model=screening_llm_model,
             llm_provider=llm_provider,
             abstract_acceptance_criteria=abstract_acceptance,
@@ -139,14 +141,15 @@ class PipelineTestHarness:
         with self.introspector.intercept():
             return tick_agent_process(str(self.agent_process.id))
 
-    def start_agent(self, name: str = "Simulated Agent") -> "PipelineTestHarness":
+    def start_agent(self, name: str = "Simulated Agent", configuration_override: dict | None = None) -> "PipelineTestHarness":
         """Initializes and kicks off the agent state machine."""
         self.agent_process = ResearchAgentProcess.objects.create(
             workspace=self.workspace,
             triggered_by=self.user,
             name=name,
             status="pending",
-            current_step="initialized"
+            current_step="initialized",
+            configuration_override=configuration_override or {}
         )
         # First tick transitions initialized -> search
         self._tick()

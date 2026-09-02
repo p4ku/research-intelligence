@@ -96,6 +96,9 @@ class PipelineRunsAPITestCase(APITestCase):
         self.assertIn('papers_count', res_detail.data)
         self.assertIn('extractions_count', res_detail.data)
         self.assertIn('component_runs', res_detail.data)
+        self.assertIn('schedule', res_detail.data)
+        self.assertIn('schedule_name', res_detail.data)
+        self.assertIn('reprocess_existing', res_detail.data)
 
         # User A retrieve Run B -> 404 Not Found (tenant isolated)
         res_cross = self.client.get(f'/api/pipeline-runs/{self.run_b.id}/')

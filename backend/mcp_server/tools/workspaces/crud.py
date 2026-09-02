@@ -125,6 +125,7 @@ def get_workspace_logic(user, workspace_id: str) -> str:
                 "is_active": sched.is_active,
                 "prevent_overlap": sched.prevent_overlap,
                 "consecutive_failures_count": sched.consecutive_failures_count,
+                "max_consecutive_failures": sched.max_consecutive_failures,
                 "success_rate_percent": sched.success_rate_percent,
                 "next_run_at": sched.next_run_at.isoformat() if sched.next_run_at else None,
                 "last_run_at": sched.last_run_at.isoformat() if sched.last_run_at else None,

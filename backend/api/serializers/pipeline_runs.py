@@ -34,6 +34,7 @@ class PipelineRunSerializer(serializers.ModelSerializer):
     execution_time_display = serializers.CharField(read_only=True)
     workspace_name = serializers.CharField(source='workspace.name', read_only=True)
     triggered_by_username = serializers.CharField(source='triggered_by.username', read_only=True, default=None)
+    schedule_name = serializers.CharField(source='schedule.name', read_only=True, default=None)
 
     class Meta:
         model = PipelineRun
@@ -41,6 +42,8 @@ class PipelineRunSerializer(serializers.ModelSerializer):
             'id',
             'workspace',
             'workspace_name',
+            'schedule',
+            'schedule_name',
             'run_date',
             'status',
             'current_stage',
@@ -68,6 +71,7 @@ class PipelineRunSerializer(serializers.ModelSerializer):
             'execution_time_display',
             'workspace_name',
             'triggered_by_username',
+            'schedule_name',
             'total_papers_fetched',
             'total_papers_passed_screening',
             'tokens_in',

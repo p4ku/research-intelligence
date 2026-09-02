@@ -17,12 +17,21 @@ from unittest.mock import patch, MagicMock
 
 class MCPPipelineRunsTestCase(BaseMCPTestCase):
     def test_pipeline_run_scraping_job_lifecycle(self):
-        pr = PipelineRun.objects.create(workspace=self.workspace)
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            reprocess_existing=True,
+            status_message="Initial ingestion pending"
+        )
         status_res = self.parse_res(get_pipeline_run_status_logic(self.admin, pipeline_run_id=str(pr.id)))
         self.assertEqual(status_res["status"], "pending")
+        self.assertTrue(status_res["reprocess_existing"])
+        self.assertEqual(status_res["status_message"], "Initial ingestion pending")
+        self.assertIsNone(status_res["schedule_id"])
 
         list_res = self.parse_res(list_pipeline_runs_logic(self.admin, workspace_id=str(self.workspace.id)))
         self.assertEqual(len(list_res), 1)
+        self.assertTrue(list_res[0]["reprocess_existing"])
+        self.assertEqual(list_res[0]["status_message"], "Initial ingestion pending")
 
     def test_abort_job(self):
         pr = PipelineRun.objects.create(workspace=self.workspace, status="running")
@@ -187,6 +196,29 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
         # 3. Test DRF API Serializer
         serializer = PipelineRunDetailSerializer(pr)
         self.assertEqual(serializer.data["duplicates_count"], 10)
+
+    def test_pipeline_run_linked_to_schedule_mcp_representation(self):
+        from research_intelligence.models import WorkflowSchedule
+        schedule = WorkflowSchedule.objects.create(
+            workspace=self.workspace,
+            name="Weekly Ingestion Schedule",
+            frequency="weekly",
+            is_active=True
+        )
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            schedule=schedule,
+            status="running",
+            current_stage="search"
+        )
+        status_res = self.parse_res(get_pipeline_run_status_logic(self.admin, pipeline_run_id=str(pr.id)))
+        self.assertEqual(status_res["schedule_id"], str(schedule.id))
+        self.assertEqual(status_res["schedule_name"], "Weekly Ingestion Schedule")
+
+        list_res = self.parse_res(list_pipeline_runs_logic(self.admin, workspace_id=str(self.workspace.id)))
+        matched = next(r for r in list_res if r["pipeline_run_id"] == str(pr.id))
+        self.assertEqual(matched["schedule_id"], str(schedule.id))
+        self.assertEqual(matched["schedule_name"], "Weekly Ingestion Schedule")
 
 
 
