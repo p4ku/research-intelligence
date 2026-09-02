@@ -22,9 +22,11 @@ import {
 } from '@/components/sidebar'
 import { SidebarLayout } from '@/components/sidebar-layout'
 import { Switch } from '@/components/switch'
+import { Spinner } from '@/components/ui/spinner'
 import { VersionStamp } from '@/components/version-stamp'
 import { WorkspaceSwitcher, type WorkspaceOption } from '@/components/workspace-switcher'
 import type { SessionUser } from '@/lib/auth/cookies'
+import { performSignOut } from '@/lib/auth/leave'
 import type { Lang } from '@/lib/i18n'
 import { LanguageProvider, useLanguage, useT } from '@/lib/i18n-client'
 import {
@@ -82,9 +84,11 @@ const AREA_BADGE: Record<ShellArea, string | null> = { core: null, studio: 'Stud
 
 function AccountDropdownMenu({
   anchor,
+  signingOut,
   onSignOut,
 }: {
   anchor: 'top start' | 'bottom end' | 'bottom start'
+  signingOut: boolean
   onSignOut: () => void
 }) {
   const { lang, toggle: toggleLanguage } = useLanguage()
@@ -122,9 +126,23 @@ function AccountDropdownMenu({
         />
       </DropdownItem>
       <DropdownDivider />
-      <DropdownItem onClick={onSignOut}>
-        <ArrowRightStartOnRectangleIcon />
-        <DropdownLabel>{t('Sign out')}</DropdownLabel>
+      <DropdownItem
+        disabled={signingOut}
+        aria-busy={signingOut || undefined}
+        onClick={(e: React.MouseEvent) => {
+          // preventDefault keeps the menu open (the language-toggle trick
+          // above), so the pending state stays visible until the sign-out
+          // navigation commits.
+          e.preventDefault()
+          onSignOut()
+        }}
+      >
+        {signingOut ? (
+          <Spinner data-slot="icon" aria-hidden="true" />
+        ) : (
+          <ArrowRightStartOnRectangleIcon />
+        )}
+        <DropdownLabel>{signingOut ? t('Signing out…') : t('Sign out')}</DropdownLabel>
       </DropdownItem>
     </DropdownMenu>
   )
@@ -186,10 +204,14 @@ function ApplicationLayoutInner({
   const userName = user.name || 'Analyst'
   const userImage = user.image
 
+  const [signingOut, setSigningOut] = useState(false)
+
   async function handleSignOut() {
-    // Drops the session cookies; a full navigation clears the server tree.
-    await fetch('/auth/logout', { method: 'POST' })
-    window.location.assign('/')
+    // performSignOut guarantees the outcome on every path (fallback GET
+    // navigation when the POST fails) and guards re-entry; the state only
+    // drives the menu's pending item.
+    setSigningOut(true)
+    await performSignOut()
   }
 
   return (
@@ -203,7 +225,11 @@ function ApplicationLayoutInner({
                 <DropdownButton as={NavbarItem}>
                   <Avatar src={userImage ?? undefined} initials={userName[0]} square />
                 </DropdownButton>
-                <AccountDropdownMenu anchor="bottom end" onSignOut={handleSignOut} />
+                <AccountDropdownMenu
+                  anchor="bottom end"
+                  signingOut={signingOut}
+                  onSignOut={handleSignOut}
+                />
               </Dropdown>
             ) : (
               <NavbarItem>
@@ -271,7 +297,11 @@ function ApplicationLayoutInner({
                   <UserMenuLabel userName={userName} userImage={userImage} />
                   <ChevronUpIcon />
                 </DropdownButton>
-                <AccountDropdownMenu anchor="top start" onSignOut={handleSignOut} />
+                <AccountDropdownMenu
+                  anchor="top start"
+                  signingOut={signingOut}
+                  onSignOut={handleSignOut}
+                />
               </Dropdown>
             ) : (
               <SidebarItem>

@@ -14,7 +14,9 @@ import { redirect } from 'next/navigation'
  */
 export default async function StudioLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser()
-  if (!user) redirect('/')
+  // Past the proxy's refresh gate with no resolvable user: the session
+  // is unusable, not absent — say so on the login page.
+  if (!user) redirect('/?reason=expired')
 
   // forPage: a 401 (Django rejected the session) becomes the logout redirect
   // instead of an uncatchable layout throw — error.tsx cannot catch its own
