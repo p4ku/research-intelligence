@@ -77,6 +77,38 @@ class SandboxSecurityTests(TestCase):
             execute_sandboxed_snippet(code, {"x": 1})
         self.assertIn("loop limit", str(ctx.exception).lower())
 
+    def test_block_huge_power(self):
+        code = "return 9 ** 999"
+        with self.assertRaises(SandboxSecurityError) as ctx:
+            execute_sandboxed_snippet(code, {"x": 1})
+        self.assertIn("exponent exceeds safety limit", str(ctx.exception).lower())
+
+    def test_block_unbounded_comprehension(self):
+        code = "return sum([i for i in range(1000000)])"
+        with self.assertRaises(SandboxSecurityError) as ctx:
+            execute_sandboxed_snippet(code, {"x": 1})
+        self.assertIn("comprehension range exceeds safety limit", str(ctx.exception).lower())
+
+    def test_block_string_replication_bomb(self):
+        code = "return len('a' * 50000)"
+        with self.assertRaises(SandboxSecurityError) as ctx:
+            execute_sandboxed_snippet(code, {"x": 1})
+        self.assertIn("string replication exceeds safety limit", str(ctx.exception).lower())
+
+    def test_execution_timeout_enforcement(self):
+        # Snippet with many iterations below loop guard (10000) that exceeds a short timeout
+        code = """
+s = 0
+for i in range(9000):
+    for j in range(9000):
+        s += 1
+return float(s)
+"""
+        with self.assertRaises(SandboxExecutionError) as ctx:
+            execute_sandboxed_snippet(code, {"x": 1}, timeout_seconds=0.2)
+        self.assertTrue("timed out" in str(ctx.exception).lower() or "loop limit" in str(ctx.exception).lower())
+
+
 
 class SandboxCalculationTests(TestCase):
     """

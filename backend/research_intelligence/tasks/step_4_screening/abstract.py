@@ -9,7 +9,7 @@ from ...llm_providers import get_llm_provider
 logger = logging.getLogger(__name__)
 
 @shared_task
-def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
+def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None, pipeline_run_id=None):
     """
     Screens a paper abstract against workspace inclusion/exclusion criteria
     using the configured screening LLM.
@@ -48,16 +48,17 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
     response_schema = workspace.get_abstract_screening_response_schema()
     exit_metric_key = workspace.get_abstract_screening_exit_metric()
 
-    try:
-        user_prompt = user_prompt_template.format(
-            title=paper.title,
-            abstract=paper.abstract or "",
-            acceptance_criteria=acceptance,
-            rejection_criteria=rejection,
-            paper_title=paper.title,
-            paper_abstract=paper.abstract or ""
-        )
-    except Exception:
+    from ...utils.prompt_formatter import safe_format_prompt
+    format_context = {
+        "title": paper.title or "",
+        "abstract": paper.abstract or "",
+        "acceptance_criteria": acceptance,
+        "rejection_criteria": rejection,
+        "paper_title": paper.title or "",
+        "paper_abstract": paper.abstract or ""
+    }
+    user_prompt = safe_format_prompt(user_prompt_template, format_context)
+    if not user_prompt:
         user_prompt = (
             f"<UNTRUSTED_DOCUMENT_CONTENT>\n"
             f"Title: {paper.title}\n"
@@ -115,12 +116,13 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
             paper.save(update_fields=['screening_status', 'screening_reasoning'])
 
             # Store dynamic output in PaperMetric if pipeline_run is present
-            if paper.pipeline_run_id:
+            target_run_id = pipeline_run_id or getattr(paper, 'pipeline_run_id', None)
+            if target_run_id:
                 try:
                     from ...models import PaperMetric
                     pm, _ = PaperMetric.objects.get_or_create(
                         paper=paper,
-                        pipeline_run_id=paper.pipeline_run_id,
+                        pipeline_run_id=target_run_id,
                         defaults={"workspace": workspace}
                     )
                     m_data = pm.metrics_data or {}
@@ -165,11 +167,14 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
                 return {"success": False, "error": str(e), "duration_seconds": duration_sec, "usage": {"tokens_in": 0, "tokens_out": 0, "total_tokens": 0}}
 
 
-def _screen_paper_task(paper, workspace_obj):
+def _screen_paper_task(paper, workspace_obj, pipeline_run_id=None):
     from django.db import close_old_connections
     close_old_connections()
-    res = screen_abstract(paper.id, workspace_obj.id, workspace_obj=workspace_obj, paper_obj=paper)
-    return paper, res
+    try:
+        res = screen_abstract(paper.id, workspace_obj.id, workspace_obj=workspace_obj, paper_obj=paper, pipeline_run_id=pipeline_run_id)
+        return paper, res
+    finally:
+        close_old_connections()
 
 
 @shared_task(bind=True)
@@ -225,7 +230,7 @@ def execute_screening_job(self, component_run_id: str, limit: int = None, max_wo
         worker_concurrency = 1
 
     try:
-        papers_qs = Paper.objects.filter(pipeline_run=pipeline_run)
+        papers_qs = pipeline_run.get_papers()
         papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
         passed_count = 0
         rejected_count = 0
@@ -313,7 +318,7 @@ def execute_screening_job(self, component_run_id: str, limit: int = None, max_wo
         if worker_concurrency <= 1:
             for paper in papers:
                 try:
-                    res = screen_abstract(paper.id, workspace.id, workspace_obj=workspace, paper_obj=paper)
+                    res = screen_abstract(paper.id, workspace.id, workspace_obj=workspace, paper_obj=paper, pipeline_run_id=str(pipeline_run.id))
                 except Exception as pe:
                     logger.error(f"Error screening paper '{paper.id}': {pe}")
                     res = {"success": False, "error": str(pe), "duration_seconds": 0.0, "usage": {}}
@@ -323,7 +328,7 @@ def execute_screening_job(self, component_run_id: str, limit: int = None, max_wo
             completed_paper_ids = set()
             with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
                 future_to_paper = {
-                    executor.submit(_screen_paper_task, paper, workspace): paper
+                    executor.submit(_screen_paper_task, paper, workspace, pipeline_run_id=str(pipeline_run.id)): paper
                     for paper in papers
                 }
                 try:

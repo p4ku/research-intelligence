@@ -59,3 +59,71 @@ def is_safe_external_url(url: str) -> bool:
     except Exception as e:
         logger.warning(f"URL security validation failed for '{url}': {e}")
         return False
+
+
+import urllib.request
+
+class SafeRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """
+    HTTP redirect handler that enforces security checks on every redirection hop,
+    preventing redirects to internal, private, loopback, or cloud metadata endpoints.
+    """
+    def __init__(self, max_redirects: int = 5):
+        self.max_redirects = max_redirects
+        self._redirects = 0
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        self._redirects += 1
+        if self._redirects > self.max_redirects:
+            raise ValueError(f"Exceeded maximum redirect limit ({self.max_redirects} hops)")
+        if not is_safe_external_url(newurl):
+            raise ValueError(f"Blocked redirect to disallowed internal or private IP endpoint: '{newurl}'")
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+def safe_download_url(
+    url: str,
+    headers: dict = None,
+    max_bytes: int = 100 * 1024 * 1024,
+    timeout: float = 15.0
+) -> bytes:
+    """
+    Safely downloads content from an external public HTTP/HTTPS URL:
+    - Enforces is_safe_external_url on initial target and every redirect hop.
+    - Limits redirect hops to 5.
+    - Limits total downloaded bytes to max_bytes (default 100 MB).
+    - Enforces socket read timeout.
+    """
+    if not is_safe_external_url(url):
+        raise ValueError(f"Disallowed private/internal IP URL: '{url}'")
+
+    default_headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'application/pdf,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+    }
+    if headers:
+        default_headers.update(headers)
+
+    req = urllib.request.Request(url, headers=default_headers)
+    opener = urllib.request.build_opener(SafeRedirectHandler(max_redirects=5))
+
+    with opener.open(req, timeout=timeout) as response:
+        # Check Content-Length if available
+        cl = response.headers.get('Content-Length')
+        if cl and cl.isdigit() and int(cl) > max_bytes:
+            raise ValueError(f"Content-Length ({int(cl)} bytes) exceeds maximum permitted download limit ({max_bytes} bytes).")
+
+        chunks = []
+        downloaded = 0
+        chunk_size = 64 * 1024
+        while True:
+            chunk = response.read(chunk_size)
+            if not chunk:
+                break
+            downloaded += len(chunk)
+            if downloaded > max_bytes:
+                raise ValueError(f"Downloaded payload exceeded maximum size limit of {max_bytes} bytes.")
+            chunks.append(chunk)
+
+        return b"".join(chunks)
+

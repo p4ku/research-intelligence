@@ -1,5 +1,6 @@
 import logging
 import json
+import concurrent.futures
 from typing import List, Dict, Any, Optional
 from pydantic import BaseModel, Field, ValidationError
 
@@ -78,16 +79,17 @@ CRITICAL INSTRUCTIONS:
         """
         Runs multiple parallel queries with high temperature, then runs a consensus resolver.
         """
-        samples = []
-        for _ in range(num_samples):
-            # We would ideally parallelize this via threading or async, but doing sequentially for now
-            raw_response = self.llm_provider.generate(
+        def _fetch_sample(_):
+            return self.llm_provider.generate(
                 prompt=user_prompt,
                 system_prompt=system_prompt,
                 context_data={"paper_text": text_chunk},
                 temperature=0.7
             )
-            samples.append(raw_response)
+
+        worker_count = max(1, min(num_samples, 5))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=worker_count) as executor:
+            samples = list(executor.map(_fetch_sample, range(num_samples)))
 
         consensus_system_prompt = """You are an expert consensus resolver.
 You are given 3 independent extraction attempts from the same source document.

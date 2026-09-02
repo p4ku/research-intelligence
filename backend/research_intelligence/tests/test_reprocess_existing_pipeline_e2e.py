@@ -273,7 +273,7 @@ class ReprocessExistingPipelineE2ETestCase(TestCase):
             self.assertIn("signal_score", comp_types)
 
             # Check extractions created
-            extractions = Extraction.objects.filter(paper__pipeline_run=proc.pipeline_run)
+            extractions = Extraction.objects.filter(paper__in=proc.pipeline_run.papers.all())
             self.assertTrue(extractions.count() >= 2)
 
             # Check signal score evaluated and PaperMetric records generated per pipeline_run

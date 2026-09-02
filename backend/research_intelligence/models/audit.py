@@ -83,7 +83,7 @@ class UserActivityLog(models.Model):
             except Exception:
                 ws_obj = None
 
-        # 2. Intelligent workspace resolution from input_params / kwargs
+        # 2. Intelligent workspace resolution from input_params / kwargs (prioritized early-exit)
         if not ws_obj and isinstance(input_params, dict):
             try:
                 ws_val = input_params.get('workspace_id') or input_params.get('workspace')
@@ -92,39 +92,32 @@ class UserActivityLog(models.Model):
                         ws_obj = ws_val
                     else:
                         ws_obj = Workspace.objects.filter(id=ws_val).first()
-
-                if not ws_obj and input_params.get('pipeline_run_id'):
+                elif input_params.get('pipeline_run_id'):
                     pr = PipelineRun.objects.filter(id=input_params['pipeline_run_id']).select_related('workspace').first()
                     if pr:
                         ws_obj = pr.workspace
-
-                if not ws_obj and (input_params.get('process_id') or input_params.get('agent_process_id')):
+                elif input_params.get('process_id') or input_params.get('agent_process_id'):
                     p_id = input_params.get('process_id') or input_params.get('agent_process_id')
                     proc = ResearchAgentProcess.objects.filter(id=p_id).select_related('workspace').first()
                     if proc:
                         ws_obj = proc.workspace
-
-                if not ws_obj and input_params.get('paper_id'):
+                elif input_params.get('paper_id'):
                     paper = Paper.objects.filter(id=input_params['paper_id']).select_related('workspace').first()
                     if paper:
                         ws_obj = paper.workspace
-
-                if not ws_obj and input_params.get('scraper_id'):
+                elif input_params.get('scraper_id'):
                     scraper = Scraper.objects.filter(id=input_params['scraper_id']).select_related('workspace').first()
                     if scraper:
                         ws_obj = scraper.workspace
-
-                if not ws_obj and input_params.get('definition_id'):
+                elif input_params.get('definition_id'):
                     ext_def = ExtractionDefinition.objects.filter(id=input_params['definition_id']).select_related('workspace').first()
                     if ext_def:
                         ws_obj = ext_def.workspace
-
-                if not ws_obj and input_params.get('extraction_id'):
+                elif input_params.get('extraction_id'):
                     ext = Extraction.objects.filter(id=input_params['extraction_id']).select_related('workspace').first()
                     if ext:
                         ws_obj = ext.workspace
-
-                if not ws_obj and input_params.get('component_run_id'):
+                elif input_params.get('component_run_id'):
                     cr = ComponentRun.objects.filter(id=input_params['component_run_id']).select_related('pipeline_run__workspace').first()
                     if cr and cr.pipeline_run:
                         ws_obj = cr.pipeline_run.workspace
@@ -142,8 +135,8 @@ class UserActivityLog(models.Model):
             except Exception:
                 pass
 
-        # 4. Intelligent workspace resolution from REST API URL path (e.g. /api/workspaces/<uuid>/)
-        if not ws_obj and action_name:
+        # 4. Intelligent workspace resolution from REST API URL path only for REST endpoints
+        if not ws_obj and action_name and ('/api/' in action_name or action_name.startswith(('GET ', 'POST ', 'PUT ', 'PATCH ', 'DELETE '))):
             try:
                 import re
                 uuid_match = re.search(r'[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}', action_name)

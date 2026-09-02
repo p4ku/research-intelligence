@@ -204,8 +204,7 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
         worker_concurrency = 1
 
     try:
-        papers_qs = Paper.objects.filter(
-            pipeline_run=pipeline_run,
+        papers_qs = pipeline_run.get_papers().filter(
             original_pdf_path__isnull=False
         ).exclude(screening_status='withdrawn')
 

@@ -306,7 +306,7 @@ class APISecurityFixesTestCase(TestCase):
 
     def test_ssrf_url_guard(self):
         """Verify that private IPs, loopback, and metadata endpoints are blocked."""
-        from research_intelligence.utils.url_guard import is_safe_external_url
+        from research_intelligence.utils.url_guard import is_safe_external_url, safe_download_url, SafeRedirectHandler
         self.assertFalse(is_safe_external_url("http://169.254.169.254/latest/meta-data/"))
         self.assertFalse(is_safe_external_url("http://127.0.0.1:8000/api/"))
         self.assertFalse(is_safe_external_url("http://localhost:6379/"))
@@ -315,6 +315,23 @@ class APISecurityFixesTestCase(TestCase):
         self.assertFalse(is_safe_external_url("file:///etc/passwd"))
         self.assertFalse(is_safe_external_url("gopher://127.0.0.1:6379"))
         self.assertTrue(is_safe_external_url("https://arxiv.org/pdf/2401.00001.pdf"))
+
+        # Verify safe_download_url rejects unsafe initial URL immediately
+        with self.assertRaises(ValueError) as ctx:
+            safe_download_url("http://169.254.169.254/latest/meta-data/")
+        self.assertIn("disallowed", str(ctx.exception).lower())
+
+        # Verify SafeRedirectHandler blocks redirects to private IP endpoints
+        handler = SafeRedirectHandler(max_redirects=3)
+        with self.assertRaises(ValueError) as red_ctx:
+            handler.redirect_request(None, None, 302, "Found", {}, "http://127.0.0.1:8000/internal")
+        self.assertIn("disallowed internal or private ip", str(red_ctx.exception).lower())
+
+        # Verify SafeRedirectHandler enforces max redirect limit
+        handler._redirects = 3
+        with self.assertRaises(ValueError) as limit_ctx:
+            handler.redirect_request(None, None, 302, "Found", {}, "https://arxiv.org/pdf/2")
+        self.assertIn("exceeded maximum redirect limit", str(limit_ctx.exception).lower())
 
     def test_indirect_prompt_injection_guard(self):
         """Verify that workspace screening templates encapsulate untrusted text in tags and directives."""
@@ -370,3 +387,42 @@ class APISecurityFixesTestCase(TestCase):
         self.assertTrue(res["success"])
         self.assertGreaterEqual(res["deleted_blacklisted"], 1)
         self.assertFalse(OutstandingToken.objects.filter(jti="expired-test-jti").exists())
+
+    def test_quota_exceeded_blocks_chat_and_triggers(self):
+        """Verify that when workspace quota is exceeded, chat engine and pipeline triggers reject execution."""
+        from chat.models import PaperChatSession, PaperChatMessage
+        from chat.engine.orchestrator import PaperChatEngine
+        from mcp_server.tools.pipeline_runs.triggers import trigger_search_job_logic, trigger_pdf_download_job_logic
+
+        # Exceed workspace tokens limit
+        self.workspace.monthly_token_limit = 1000
+        self.workspace.tokens_consumed_this_month = 5000
+        self.workspace.save(update_fields=['monthly_token_limit', 'tokens_consumed_this_month'])
+
+        # 1. Chat Engine rejection
+        session = PaperChatSession.objects.create(
+            workspace=self.workspace,
+            user=self.admin_user,
+            title="Quota Test Session"
+        )
+        msg = PaperChatMessage.objects.create(
+            session=session,
+            question="Can you summarize this?",
+            status="pending"
+        )
+        engine = PaperChatEngine()
+        result = engine.execute(msg)
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("quota exceeded", result["error"].lower())
+
+        # 2. Trigger Search Job rejection
+        search_res = trigger_search_job_logic(self.admin_user, str(self.workspace.id))
+        self.assertIn("quota exceeded", search_res.lower())
+
+        # 3. Trigger PDF Download Job rejection
+        from research_intelligence.models import PipelineRun
+        PipelineRun.objects.create(workspace=self.workspace, status='completed')
+        download_res = trigger_pdf_download_job_logic(self.admin_user, workspace_id=str(self.workspace.id))
+        self.assertIn("quota exceeded", download_res.lower())
+
+

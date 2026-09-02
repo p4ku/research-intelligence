@@ -238,8 +238,7 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
 
     # Query all papers that passed screening
     accepted_statuses = ['accepted', 'full_text_passed', 'abstract_passed']
-    papers_qs = Paper.objects.filter(
-        pipeline_run=pipeline_run,
+    papers_qs = pipeline_run.get_papers().filter(
         screening_status__in=accepted_statuses
     ).order_by('-created_at')
 

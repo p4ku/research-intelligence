@@ -260,7 +260,7 @@ def _build_stages_breakdown_and_markdown(process, paper_metrics, matrix_preview,
             elif slug == "ocr" and not getattr(process.workspace, "ocr_provider", None):
                 s_status = "skipped"
                 s_badge = "⏭️ Skipped"
-                s_summary = "Direct multimodal PDF analysis with Gemini 3.7 Flash"
+                s_summary = "Direct multimodal PDF analysis with Gemini 3.8 Flash"
             elif process.status == "running" and process.current_step == slug:
                 s_status = "in_progress"
                 s_badge = "⏳ In Progress"

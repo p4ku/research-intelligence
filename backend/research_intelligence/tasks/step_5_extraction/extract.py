@@ -24,6 +24,13 @@ class SafeFormatterDict(dict):
 
 def _run_single_extraction_worker(paper, definition, workspace):
     close_old_connections()
+    try:
+        return _run_single_extraction_impl(paper, definition, workspace)
+    finally:
+        close_old_connections()
+
+
+def _run_single_extraction_impl(paper, definition, workspace):
     t0 = time.time()
 
     # 1. Retrieve layout markdown text or PDF binary or abstract fallback
@@ -291,14 +298,15 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
             component_name__icontains='abstract'
         ).exists()
 
+        base_papers_qs = pipeline_run.get_papers()
         if has_full_text_run:
-            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=['full_text_passed', 'accepted'])
+            papers_qs = base_papers_qs.filter(screening_status__in=['full_text_passed', 'accepted'])
             logger.info(f"🔍 [EXTRACTION FILTER] Prior Full-Text Screening job detected. Targeting {papers_qs.count()} papers with status='full_text_passed'.")
         elif has_abstract_run:
-            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=['abstract_passed', 'accepted'])
+            papers_qs = base_papers_qs.filter(screening_status__in=['abstract_passed', 'accepted'])
             logger.info(f"🔍 [EXTRACTION FILTER] Prior Abstract Screening job detected. Targeting {papers_qs.count()} papers with status='abstract_passed'.")
         else:
-            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).exclude(screening_status__in=['rejected', 'withdrawn'])
+            papers_qs = base_papers_qs.exclude(screening_status__in=['rejected', 'withdrawn'])
             logger.info(f"🔍 [EXTRACTION FILTER] No prior Screening jobs found. Targeting {papers_qs.count()} papers.")
 
         papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)

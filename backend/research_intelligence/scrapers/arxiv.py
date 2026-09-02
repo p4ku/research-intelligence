@@ -412,7 +412,7 @@ class ArxivScraperProvider(BaseScraperProvider):
     def download_file(self, url: str) -> bytes:
         if not url or not url.lower().startswith(('http://', 'https://')):
             raise ValueError(f"Invalid URL scheme for download: '{url}'")
-        from ..utils.url_guard import is_safe_external_url
+        from ..utils.url_guard import is_safe_external_url, safe_download_url
         if not is_safe_external_url(url):
             raise ValueError(f"Disallowed private/internal IP URL: '{url}'")
         urls_to_try = [url]
@@ -436,17 +436,17 @@ class ArxivScraperProvider(BaseScraperProvider):
         last_exception = None
         for candidate_url in unique_urls:
             try:
-                req = urllib.request.Request(
+                data = safe_download_url(
                     candidate_url,
                     headers={
                         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                         'Accept': 'application/pdf,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-                    }
+                    },
+                    max_bytes=100 * 1024 * 1024,
+                    timeout=15.0
                 )
-                with urllib.request.urlopen(req, timeout=15) as response:
-                    data = response.read()
-                    if data and len(data) > 100:
-                        return data
+                if data and len(data) > 100:
+                    return data
             except Exception as e:
                 last_exception = e
                 logger.warning(f"Download attempt failed for {candidate_url}: {e}")

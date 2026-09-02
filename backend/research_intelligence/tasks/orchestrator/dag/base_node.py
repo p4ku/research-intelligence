@@ -3,6 +3,7 @@ import logging
 from typing import List, Dict, Any, Optional, Tuple
 
 from django.db import connection, transaction
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +90,15 @@ class BaseWorkflowNode(abc.ABC):
                 comp_run.celery_task_id = async_res.id
                 comp_run.save(update_fields=['celery_task_id'])
             except Exception as e:
-                logger.warning(f"Failed to queue {self.name} async, executing synchronously: {e}")
-                task_func(str(comp_run.id), limit=limit)
+                is_eager = getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', False)
+                if is_eager:
+                    logger.warning(f"Failed to queue {self.name} async, executing synchronously in eager mode: {e}")
+                    task_func(str(comp_run.id), limit=limit)
+                else:
+                    logger.error(f"❌ [CELERY DISPATCH FAILED] Could not enqueue {self.name} task to Celery broker: {e}")
+                    comp_run.status = 'failed'
+                    comp_run.error_message = f"Celery broker dispatch failed: {str(e)}"
+                    comp_run.save(update_fields=['status', 'error_message'])
 
         safe_dispatch_on_commit(_dispatch)
         return {"status": "dispatched"}
@@ -107,8 +115,15 @@ class BaseWorkflowNode(abc.ABC):
                     comp_run.celery_task_id = async_res.id
                     comp_run.save(update_fields=['celery_task_id'])
                 except Exception as e:
-                    logger.warning(f"Failed to queue {self.name} scraper async, executing synchronously: {e}")
-                    task_func(str(comp_run.id), limit=limit)
+                    is_eager = getattr(settings, 'CELERY_TASK_ALWAYS_EAGER', False)
+                    if is_eager:
+                        logger.warning(f"Failed to queue {self.name} scraper async, executing synchronously in eager mode: {e}")
+                        task_func(str(comp_run.id), limit=limit)
+                    else:
+                        logger.error(f"❌ [CELERY DISPATCH FAILED] Could not enqueue {self.name} scraper to Celery broker: {e}")
+                        comp_run.status = 'failed'
+                        comp_run.error_message = f"Celery broker dispatch failed: {str(e)}"
+                        comp_run.save(update_fields=['status', 'error_message'])
 
         safe_dispatch_on_commit(_dispatch_all)
         return {"status": "dispatched", "tasks_count": len(comp_runs)}

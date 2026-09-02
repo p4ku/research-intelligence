@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task
-def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None):
+def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None, pipeline_run_id=None):
     """
     Screens full paper content (OCR Markdown if present, PDF binary if available, or abstract fallback)
     against workspace inclusion/exclusion criteria using the configured screening LLM.
@@ -91,19 +91,20 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
         "return_usage": True
     }
 
+    from ...utils.prompt_formatter import safe_format_prompt
     if md_text:
         # Pass truncated Markdown document to prompt
-        try:
-            user_prompt = user_prompt_template.format(
-                title=paper.title,
-                full_text=md_text[:120000],
-                abstract=paper.abstract or "",
-                acceptance_criteria=acceptance,
-                rejection_criteria=rejection,
-                paper_title=paper.title,
-                paper_text=md_text[:120000]
-            )
-        except Exception:
+        ctx = {
+            "title": paper.title or "",
+            "full_text": md_text[:120000],
+            "abstract": paper.abstract or "",
+            "acceptance_criteria": acceptance,
+            "rejection_criteria": rejection,
+            "paper_title": paper.title or "",
+            "paper_text": md_text[:120000]
+        }
+        user_prompt = safe_format_prompt(user_prompt_template, ctx)
+        if not user_prompt:
             user_prompt = (
                 f"<UNTRUSTED_DOCUMENT_CONTENT>\n"
                 f"Title: {paper.title}\n\n"
@@ -115,17 +116,17 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
         gen_kwargs["prompt"] = user_prompt
     elif pdf_bytes:
         # Pass PDF binary directly to Google GenAI multimodal engine
-        try:
-            user_prompt = user_prompt_template.format(
-                title=paper.title,
-                full_text="Please analyze the attached PDF document for full-text screening.",
-                abstract=paper.abstract or "",
-                acceptance_criteria=acceptance,
-                rejection_criteria=rejection,
-                paper_title=paper.title,
-                paper_text="Please analyze the attached PDF document for full-text screening."
-            )
-        except Exception:
+        ctx = {
+            "title": paper.title or "",
+            "full_text": "Please analyze the attached PDF document for full-text screening.",
+            "abstract": paper.abstract or "",
+            "acceptance_criteria": acceptance,
+            "rejection_criteria": rejection,
+            "paper_title": paper.title or "",
+            "paper_text": "Please analyze the attached PDF document for full-text screening."
+        }
+        user_prompt = safe_format_prompt(user_prompt_template, ctx)
+        if not user_prompt:
             user_prompt = (
                 f"<UNTRUSTED_DOCUMENT_CONTENT>\n"
                 f"Title: {paper.title}\n\n"
@@ -201,12 +202,13 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
             paper.save(update_fields=['screening_status', 'screening_reasoning'])
 
             # Store dynamic full-text output in PaperMetric if pipeline_run is present
-            if paper.pipeline_run_id:
+            target_run_id = pipeline_run_id or getattr(paper, 'pipeline_run_id', None)
+            if target_run_id:
                 try:
                     from ...models import PaperMetric
                     pm, _ = PaperMetric.objects.get_or_create(
                         paper=paper,
-                        pipeline_run_id=paper.pipeline_run_id,
+                        pipeline_run_id=target_run_id,
                         defaults={"workspace": workspace}
                     )
                     m_data = pm.metrics_data or {}
@@ -259,10 +261,14 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None)
                 }
 
 
-def _screen_full_text_paper_task(paper, workspace_obj):
+def _screen_full_text_paper_task(paper, workspace_obj, pipeline_run_id=None):
+    from django.db import close_old_connections
     close_old_connections()
-    res = screen_full_text(paper.id, workspace_obj.id, workspace_obj=workspace_obj, paper_obj=paper)
-    return paper, res
+    try:
+        res = screen_full_text(paper.id, workspace_obj.id, workspace_obj=workspace_obj, paper_obj=paper, pipeline_run_id=pipeline_run_id)
+        return paper, res
+    finally:
+        close_old_connections()
 
 
 @shared_task(bind=True)
@@ -320,22 +326,21 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
             component_name__icontains='abstract'
         ).exists()
 
+        base_papers_qs = pipeline_run.get_papers()
         if has_abstract_screening_run:
-            papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status='abstract_passed')
+            papers_qs = base_papers_qs.filter(screening_status='abstract_passed')
             if not papers_qs.exists():
-                papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).exclude(screening_status__in=['rejected', 'withdrawn'])
+                papers_qs = base_papers_qs.exclude(screening_status__in=['rejected', 'withdrawn'])
             logger.info(f"🔍 [FULL-TEXT SCREENING FILTER] Prior Abstract Screening job detected. Targeting {papers_qs.count()} papers with status='abstract_passed'.")
         else:
             from django.db.models import Q
-            papers_qs = Paper.objects.filter(
-                pipeline_run=pipeline_run
-            ).exclude(
+            papers_qs = base_papers_qs.exclude(
                 screening_status='withdrawn'
             ).filter(
                 Q(original_pdf_path__isnull=False) | Q(converted_md_path__isnull=False)
             )
             if not papers_qs.exists():
-                papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).exclude(screening_status='withdrawn')
+                papers_qs = base_papers_qs.exclude(screening_status='withdrawn')
             logger.info(f"🔍 [FULL-TEXT SCREENING FILTER] No prior Abstract Screening job found. Targeting {papers_qs.count()} downloaded/OCR papers.")
 
         papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
@@ -427,7 +432,7 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
         if worker_concurrency <= 1:
             for paper in papers:
                 try:
-                    res = screen_full_text(paper.id, workspace.id, workspace_obj=workspace, paper_obj=paper)
+                    res = screen_full_text(paper.id, workspace.id, workspace_obj=workspace, paper_obj=paper, pipeline_run_id=str(pipeline_run.id))
                 except Exception as pe:
                     logger.error(f"Error screening paper '{paper.id}': {pe}")
                     res = {"success": False, "error": str(pe), "input_source": "error", "duration_seconds": 0.0, "usage": {}}
@@ -437,7 +442,7 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
             completed_paper_ids = set()
             with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
                 future_to_paper = {
-                    executor.submit(_screen_full_text_paper_task, paper, workspace): paper
+                    executor.submit(_screen_full_text_paper_task, paper, workspace, pipeline_run_id=str(pipeline_run.id)): paper
                     for paper in papers
                 }
                 try:

@@ -37,17 +37,33 @@ except ImportError:
 DEFAULT_INSECURE_SECRET = 'django-insecure-qrc9z6($69d3iz=jsd35l6ve+k%ljhifk4o-ph$%4-v!6ftr-x'
 SECRET_KEY = os.environ.get('SECRET_KEY', DEFAULT_INSECURE_SECRET)
 
+is_testing = 'test' in sys.argv or 'pytest' in sys.modules or bool(os.environ.get('DJANGO_TESTING'))
+
 DEBUG = os.environ.get('DEBUG', 'False').lower() in ['true', '1', 'yes']
-if 'test' in sys.argv:
+if is_testing:
     DEBUG = False
 
-if not DEBUG and 'test' not in sys.argv and SECRET_KEY == DEFAULT_INSECURE_SECRET:
-    import warnings
-    warnings.warn("SECURITY WARNING: Running in production (DEBUG=False) with default insecure SECRET_KEY. Set SECRET_KEY environment variable!", RuntimeWarning)
+if not DEBUG and not is_testing:
+    from django.core.exceptions import ImproperlyConfigured
+    if not SECRET_KEY or SECRET_KEY == DEFAULT_INSECURE_SECRET:
+        raise ImproperlyConfigured(
+            "SECURITY ERROR: Running in production (DEBUG=False) with unset or default insecure SECRET_KEY. "
+            "Please configure SECRET_KEY in your environment."
+        )
 
 ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', '').split(',') if host.strip()]
-if not ALLOWED_HOSTS or 'test' in sys.argv:
+if is_testing:
     ALLOWED_HOSTS = ['*']
+elif not DEBUG:
+    if not ALLOWED_HOSTS or '*' in ALLOWED_HOSTS:
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured(
+            "SECURITY ERROR: In production (DEBUG=False), ALLOWED_HOSTS cannot be empty or contain wildcard '*'. "
+            "Please configure explicit hostnames in your ALLOWED_HOSTS environment variable."
+        )
+elif not ALLOWED_HOSTS:
+    ALLOWED_HOSTS = ['*']
+
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if origin.strip()]
 if not CSRF_TRUSTED_ORIGINS:
     for host in ALLOWED_HOSTS:
@@ -130,7 +146,6 @@ WSGI_APPLICATION = 'django_project.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-is_testing = 'test' in sys.argv or 'pytest' in sys.modules
 
 # Boot-time Google credentials diagnostics
 if not is_testing:
@@ -346,10 +361,25 @@ if is_testing:
 
 
 # Storage Abstraction for Local Filesystem, AWS S3, MinIO, and Google Cloud Storage (GCS)
-STORAGE_BACKEND = os.environ.get('STORAGE_BACKEND', 'local').lower()
+# Modern Django STORAGES configuration (Django 4.2+, 5.x, 6.0 standard)
+if is_testing:
+    STORAGE_BACKEND = 'local'
+else:
+    STORAGE_BACKEND = os.environ.get('STORAGE_BACKEND', 'local').lower()
+
+STORAGES = {
+    "default": {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    },
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
 
 if STORAGE_BACKEND in ['s3', 'minio']:
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+    }
     AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID', os.environ.get('MINIO_ACCESS_KEY', 'minio_dev_user'))
     AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY', os.environ.get('MINIO_SECRET_KEY', 'minio_dev_password'))
     AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME', 'schwarz-research-intelligence')
@@ -357,14 +387,21 @@ if STORAGE_BACKEND in ['s3', 'minio']:
     
     endpoint_url = os.environ.get('AWS_S3_ENDPOINT_URL', os.environ.get('MINIO_ENDPOINT'))
     if endpoint_url:
+        use_ssl = os.environ.get('AWS_S3_USE_SSL', os.environ.get('MINIO_SECURE', 'False')).lower() in ['true', '1', 'yes']
         if not endpoint_url.startswith('http'):
-            endpoint_url = f"https://{endpoint_url}"
+            protocol = "https" if use_ssl else "http"
+            endpoint_url = f"{protocol}://{endpoint_url}"
         AWS_S3_ENDPOINT_URL = endpoint_url
-        AWS_S3_USE_SSL = os.environ.get('AWS_S3_USE_SSL', 'True' if endpoint_url.startswith('https') else 'False').lower() == 'true'
+        AWS_S3_USE_SSL = use_ssl
 
 elif STORAGE_BACKEND in ['gcs', 'gcp']:
-    DEFAULT_FILE_STORAGE = 'storages.backends.gcp_storage.GoogleCloudStorage'
+    STORAGES["default"] = {
+        "BACKEND": "storages.backends.gcp_storage.GoogleCloudStorage",
+    }
     GS_BUCKET_NAME = os.environ.get('GS_BUCKET_NAME', 'schwarz-research-intelligence')
+
+# Legacy alias for backward compatibility with external libraries
+DEFAULT_FILE_STORAGE = STORAGES["default"]["BACKEND"]
 
 
 # Mailgun Email Configuration
@@ -378,10 +415,7 @@ X_FRAME_OPTIONS = 'SAMEORIGIN'
 
 
 # Sentry Error Tracking & Performance Monitoring
-SENTRY_DSN = os.environ.get(
-    'SENTRY_DSN',
-    'https://155678a8610461ae7c7eecdfdd0583a4@o4511999152291840.ingest.de.sentry.io/4511999157010512'
-)
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
 
 if SENTRY_DSN and not is_testing:
     import sentry_sdk

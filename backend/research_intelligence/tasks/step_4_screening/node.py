@@ -11,12 +11,12 @@ class AbstractScreeningNode(BaseWorkflowNode):
     Title & Abstract Screening (First-Stage AI Screening).
 
     Evaluates paper titles and abstracts against Workspace abstract acceptance/rejection criteria
-    using Gemini 3.7 Flash before any PDF binary downloads occur.
+    using Gemini 3.8 Flash before any PDF binary downloads occur.
     """
     name = "abstract_screening"
     step_type = "screening"
     component_name = "abstract_screening"
-    description = "Evaluates paper titles & abstracts against Workspace criteria using Gemini 3.7 Flash."
+    description = "Evaluates paper titles & abstracts against Workspace criteria using Gemini 3.8 Flash."
     dependencies = ["search"]
 
     input_contract = {
@@ -57,19 +57,12 @@ class AbstractScreeningNode(BaseWorkflowNode):
         if not comp_run:
             return False, None
 
-        if reprocess:
-            passed_count = Paper.objects.filter(workspace=workspace, screening_status__in=['abstract_passed', 'accepted', 'full_text_passed']).count()
-            total_papers = Paper.objects.filter(workspace=workspace).count()
-        else:
-            passed_count = Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=['abstract_passed', 'accepted', 'full_text_passed']).count()
-            total_papers = Paper.objects.filter(pipeline_run=pipeline_run).count()
+        papers = pipeline_run.get_papers()
+        passed_count = papers.filter(screening_status__in=['abstract_passed', 'accepted', 'full_text_passed']).count()
+        total_papers = papers.count()
 
         if total_papers > 0 and passed_count == 0:
-            rejected_count = Paper.objects.filter(
-                workspace=workspace if reprocess else pipeline_run.workspace,
-                pipeline_run=pipeline_run,
-                screening_status='rejected'
-            ).count()
+            rejected_count = papers.filter(screening_status='rejected').count()
             return True, f"Abstract Screening: 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
 
         return False, None
@@ -146,19 +139,12 @@ class FullTextScreeningNode(BaseWorkflowNode):
         if not comp_run:
             return False, None
 
-        if reprocess:
-            passed_count = Paper.objects.filter(workspace=workspace, screening_status__in=['full_text_passed', 'accepted']).count()
-            total_papers = Paper.objects.filter(workspace=workspace).count()
-        else:
-            passed_count = Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=['full_text_passed', 'accepted']).count()
-            total_papers = Paper.objects.filter(pipeline_run=pipeline_run).count()
+        papers = pipeline_run.get_papers()
+        passed_count = papers.filter(screening_status__in=['full_text_passed', 'accepted']).count()
+        total_papers = papers.count()
 
         if total_papers > 0 and passed_count == 0:
-            rejected_count = Paper.objects.filter(
-                workspace=workspace if reprocess else pipeline_run.workspace,
-                pipeline_run=pipeline_run,
-                screening_status='rejected'
-            ).count()
+            rejected_count = papers.filter(screening_status='rejected').count()
             return True, f"Full-Text Screening: 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
 
         return False, None

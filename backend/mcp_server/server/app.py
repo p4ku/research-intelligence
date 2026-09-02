@@ -295,7 +295,9 @@ CRITICAL LANGUAGE & RENDERING CONSTRAINTS:
 mcp = FastMCP("schwarz-research-intelligence", version="1.0.0", instructions=SERVER_INSTRUCTIONS)
 
 
-SESSION_AUTH_CACHE = {}  # session_id -> (user, workspace, api_key)
+from .session_cache import FastMCPSessionCache
+
+SESSION_AUTH_CACHE = FastMCPSessionCache(max_size=1000, ttl_seconds=900.0)
 
 
 def get_auth_context():
@@ -364,7 +366,7 @@ Follow this standard 5-step operational protocol:
       full_text_acceptance_criteria="Presents architectural hardware/software benchmarks or experimental energy efficiency metrics",
       full_text_rejection_criteria="High-level opinion pieces without concrete quantitative data"
   )`
-  *(Note: OCR provider defaults to None, enabling direct multimodal PDF analysis with Gemini 3.7 Flash).*
+  *(Note: OCR provider defaults to None, enabling direct multimodal PDF analysis with Gemini 3.8 Flash).*
 
 ### 2. Configure Academic Scrapers (If New Workspace)
 - Call `create_scraper(workspace_id="<WORKSPACE_ID>", provider="arxiv", search_query='cat:cs.NE AND "neuromorphic"')`
@@ -1219,7 +1221,7 @@ def start_research_agent(
     """
     [PRIMARY SLR ORCHESTRATOR - RECOMMENDED ENTRYPOINT]
     Launch an autonomous state engine process (ResearchAgentProcess) executing the complete end-to-end SLR pipeline:
-    Search & Ingestion -> Download PDFs -> OCR (auto-skipped if None) -> Dual-Stage Screening (Abstract + Full-Text via Gemini 3.7) -> Dynamic Parameter Extraction -> Composite Signal Scoring -> Executive Narrative.
+    Search & Ingestion -> Download PDFs -> OCR (auto-skipped if None) -> Dual-Stage Screening (Abstract + Full-Text via Gemini 3.8) -> Dynamic Parameter Extraction -> Composite Signal Scoring -> Executive Narrative.
     
     WHEN TO USE:
     - Primary entrypoint to run a systematic review. Do not trigger individual manual steps unless debugging.
@@ -1493,26 +1495,35 @@ class QueryParamAuthMiddleware:
         secret_list = query_params.get("api_secret")
         secret = secret_list[0] if secret_list else headers.get(b"x-api-secret", b"").decode("utf-8")
 
+        if secret_list:
+            logger.warning(
+                "SECURITY ADVISORY: API secret was provided via URL query parameter '?api_secret=...'. "
+                "Secrets in query parameters can be logged by web servers and proxies. "
+                "Please migrate to passing credentials via HTTP header 'x-api-secret' or 'Authorization: Bearer <key_id>:<secret>'."
+            )
+
         if not key_id and auth_header.startswith("Bearer "):
             token_parts = auth_header[7:].split(":")
             if len(token_parts) == 2:
                 key_id, secret = token_parts[0], token_parts[1]
 
         # 1. Check if auth is cached for this SSE session_id
-        if session_id and session_id in SESSION_AUTH_CACHE and not (key_id and secret):
-            user, workspace, api_key = SESSION_AUTH_CACHE[session_id]
-            scope.setdefault("state", {})
-            scope["state"]["user"] = user
-            scope["state"]["workspace"] = workspace
-            scope["state"]["api_key"] = api_key
-            try:
-                return await self.app(scope, receive, wrapped_send)
-            except (asyncio.CancelledError, ClientDisconnect):
-                return
-            except Exception:
-                if response_started:
+        if session_id and not (key_id and secret):
+            cached_auth = SESSION_AUTH_CACHE.get(session_id)
+            if cached_auth:
+                user, workspace, api_key = cached_auth
+                scope.setdefault("state", {})
+                scope["state"]["user"] = user
+                scope["state"]["workspace"] = workspace
+                scope["state"]["api_key"] = api_key
+                try:
+                    return await self.app(scope, receive, wrapped_send)
+                except (asyncio.CancelledError, ClientDisconnect):
                     return
-                raise
+                except Exception:
+                    if response_started:
+                        return
+                    raise
 
         async def send_error(status_code: int, error_message: str):
             if response_started:
@@ -1560,7 +1571,7 @@ class QueryParamAuthMiddleware:
                 )
 
             if session_id:
-                SESSION_AUTH_CACHE[session_id] = (user_obj, ws_obj, api_key_obj)
+                SESSION_AUTH_CACHE.set(session_id, user_obj, ws_obj, api_key_obj)
 
             scope.setdefault("state", {})
             scope["state"]["user"] = user_obj
@@ -1642,7 +1653,7 @@ def ask_paper(
 ) -> str:
     """
     [INTERACTIVE Q&A - KNOWLEDGE EXPLORER / ASK PAPER]
-    Interrogates an ingested academic paper or whole workspace with deep scientific reasoning using the workspace LLM (Google Gemini 3.7 Flash).
+    Interrogates an ingested academic paper or whole workspace with deep scientific reasoning using the workspace LLM (Google Gemini 3.8 Flash).
     
     WHEN TO USE:
     - Use when the researcher or agent needs to examine a specific paper, verify experimental methodology, analyze claims,

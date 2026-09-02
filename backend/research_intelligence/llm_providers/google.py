@@ -359,9 +359,11 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
             meta = response.usage_metadata
             p_tok = getattr(meta, "prompt_token_count", 0) or 0
             c_tok = getattr(meta, "candidates_token_count", 0) or 0
+            cached_tok = getattr(meta, "cached_content_token_count", 0) or 0
             t_tok = getattr(meta, "total_token_count", 0) or (p_tok + c_tok)
             usage["prompt_tokens"] = p_tok
             usage["candidates_tokens"] = c_tok
+            usage["cached_tokens"] = cached_tok
             usage["total_tokens"] = t_tok
 
         # Robust fallback estimation if provider API omitted token metrics
@@ -468,9 +470,10 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                     meta = chunk.usage_metadata
                     p_tok = getattr(meta, "prompt_token_count", 0) or 0
                     c_tok = getattr(meta, "candidates_token_count", 0) or 0
+                    cached_tok = getattr(meta, "cached_content_token_count", 0) or 0
                     t_tok = getattr(meta, "total_token_count", 0) or (p_tok + c_tok)
                     if p_tok > 0 or c_tok > 0 or t_tok > 0:
-                        usage = {"prompt_tokens": p_tok, "candidates_tokens": c_tok, "total_tokens": t_tok}
+                        usage = {"prompt_tokens": p_tok, "candidates_tokens": c_tok, "cached_tokens": cached_tok, "total_tokens": t_tok}
                         final_captured_usage = usage
 
                 if chunk_thought:
@@ -485,9 +488,10 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                 meta = response_stream.usage_metadata
                 p_tok = getattr(meta, "prompt_token_count", 0) or 0
                 c_tok = getattr(meta, "candidates_token_count", 0) or 0
+                cached_tok = getattr(meta, "cached_content_token_count", 0) or 0
                 t_tok = getattr(meta, "total_token_count", 0) or (p_tok + c_tok)
                 if p_tok > 0 or c_tok > 0:
-                    final_captured_usage = {"prompt_tokens": p_tok, "candidates_tokens": c_tok, "total_tokens": t_tok}
+                    final_captured_usage = {"prompt_tokens": p_tok, "candidates_tokens": c_tok, "cached_tokens": cached_tok, "total_tokens": t_tok}
                     yield "", final_captured_usage
 
             # Fallback estimation if stream produced output but no token usage was reported

@@ -17,7 +17,7 @@ def ask_paper_logic(
     deep_thinking: bool = False
 ) -> str:
     """
-    Interrogates an ingested academic paper or whole workspace using the workspace's configured LLM (e.g. Gemini 3.7 Flash).
+    Interrogates an ingested academic paper or whole workspace using the workspace's configured LLM (e.g. Gemini 3.8 Flash).
     Injects full text (OCR Markdown or raw multimodal PDF), screening evaluations, dynamic extractions,
     and mathematical signal scoring metrics.
     Maintains multi-turn conversation session history if session_id is provided.

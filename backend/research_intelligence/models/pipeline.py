@@ -83,6 +83,17 @@ class PipelineRun(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(blank=True, null=True)
 
+    def get_papers(self):
+        """Returns all papers associated with this run (both newly ingested and reprocessed)."""
+        from django.db.models import Q
+        from .paper import Paper
+        return Paper.objects.filter(Q(pipeline_run=self) | Q(reprocessed_runs=self)).distinct()
+
+    @property
+    def papers(self):
+        """Returns all papers associated with this run (both newly ingested and reprocessed)."""
+        return self.get_papers()
+
     @property
     def duration_seconds(self):
         if self.started_at and self.completed_at:

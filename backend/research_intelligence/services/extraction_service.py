@@ -4,7 +4,7 @@ and HITL (Human-in-the-Loop) verification.
 """
 import logging
 from typing import Optional, Dict, Any, List
-from django.db.models import F
+from django.db.models import F, Q
 from research_intelligence.models import (
     Extraction,
     Workspace,
@@ -38,13 +38,13 @@ def build_paper_extractions_matrix(
         try:
             proc = ResearchAgentProcess.objects.select_related('pipeline_run', 'workspace').get(id=process_id)
             if proc.pipeline_run:
-                papers_qs = papers_qs.filter(pipeline_run=proc.pipeline_run)
+                papers_qs = papers_qs.filter(Q(pipeline_run=proc.pipeline_run) | Q(reprocessed_runs=proc.pipeline_run)).distinct()
             else:
                 papers_qs = papers_qs.filter(workspace=proc.workspace)
         except (ValueError, ResearchAgentProcess.DoesNotExist):
             return {"error": f"ResearchAgentProcess '{process_id}' not found."}
     elif pipeline_run_id:
-        papers_qs = papers_qs.filter(pipeline_run_id=pipeline_run_id)
+        papers_qs = papers_qs.filter(Q(pipeline_run_id=pipeline_run_id) | Q(reprocessed_runs=pipeline_run_id)).distinct()
     elif workspace_id:
         papers_qs = papers_qs.filter(workspace_id=workspace_id)
     elif user and not getattr(user, 'is_superuser', False):

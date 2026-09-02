@@ -142,11 +142,9 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                     with transaction.atomic():
                         existing_p = Paper.objects.filter(conds & match_q).first()
                         if existing_p:
-                            existing_p.pipeline_run = pipeline_run
-                            if existing_p.screening_status != 'withdrawn':
-                                existing_p.screening_status = 'pending'
-                                existing_p.screening_reasoning = None
-                            existing_p.save(update_fields=['pipeline_run', 'screening_status', 'screening_reasoning'])
+                            # Non-destructively associate existing paper with active pipeline run for reprocessing.
+                            # Preserves existing_p.pipeline_run as the immutable original ingestion run.
+                            existing_p.reprocessed_runs.add(pipeline_run)
                             created_count += 1
                             created_paper_ids.append(str(existing_p.id))
                             continue

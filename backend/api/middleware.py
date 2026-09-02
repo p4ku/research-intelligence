@@ -42,10 +42,6 @@ class UserActionAuditMiddleware(MiddlewareMixin):
 
     def process_request(self, request):
         request._audit_t0 = time.time()
-        try:
-            request._cached_body = request.body
-        except Exception:
-            request._cached_body = b""
 
     def process_response(self, request, response):
         path = request.path
@@ -77,19 +73,28 @@ class UserActionAuditMiddleware(MiddlewareMixin):
         else:
             status_str = "failed"
 
-        # Capture input parameters / body with strict sensitive data redaction
+        # Capture input parameters with strict sensitive data redaction
         input_params = None
+        content_type = getattr(request, 'content_type', '') or ''
         if method in ['POST', 'PUT', 'PATCH', 'DELETE']:
-            try:
-                body = getattr(request, '_cached_body', getattr(request, 'body', b""))
-                if body:
-                    raw_params = json.loads(body.decode('utf-8'))
-                    input_params = redact_sensitive_payload(raw_params)
-                elif request.POST:
-                    input_params = redact_sensitive_payload(dict(request.POST))
-            except Exception:
+            if 'multipart/form-data' in content_type:
+                # Never touch raw body stream on multipart uploads to prevent RawPostDataException
                 if request.POST:
                     input_params = redact_sensitive_payload(dict(request.POST))
+                elif hasattr(request, 'FILES') and request.FILES:
+                    input_params = {"uploaded_files": list(request.FILES.keys())}
+            else:
+                try:
+                    if hasattr(request, 'data') and isinstance(request.data, dict):
+                        input_params = redact_sensitive_payload(request.data)
+                    elif hasattr(request, 'body') and request.body:
+                        raw_params = json.loads(request.body.decode('utf-8'))
+                        input_params = redact_sensitive_payload(raw_params)
+                    elif request.POST:
+                        input_params = redact_sensitive_payload(dict(request.POST))
+                except Exception:
+                    if request.POST:
+                        input_params = redact_sensitive_payload(dict(request.POST))
 
         # Extract client IP
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')

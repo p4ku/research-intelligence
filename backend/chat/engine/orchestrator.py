@@ -51,6 +51,20 @@ class PaperChatEngine:
         paper = session.paper
         workspace = session.workspace
 
+        if workspace:
+            is_exceeded, quota_reason = workspace.is_quota_exceeded()
+            if is_exceeded:
+                message.status = 'failed'
+                message.error_message = f"Workspace monthly quota exceeded: {quota_reason}"
+                message.completed_at = timezone.now()
+                message.save(update_fields=['status', 'error_message', 'completed_at'])
+                return {
+                    "status": "failed",
+                    "message_id": str(message.id),
+                    "session_id": str(session.id),
+                    "error": f"Workspace monthly quota exceeded: {quota_reason}",
+                }
+
         try:
             message.status = 'processing'
             message.save(update_fields=['status'])
@@ -210,6 +224,16 @@ class PaperChatEngine:
         session = message.session
         paper = session.paper
         workspace = session.workspace
+
+        if workspace:
+            is_exceeded, quota_reason = workspace.is_quota_exceeded()
+            if is_exceeded:
+                message.status = 'failed'
+                message.error_message = f"Workspace monthly quota exceeded: {quota_reason}"
+                message.completed_at = timezone.now()
+                message.save(update_fields=['status', 'error_message', 'completed_at'])
+                yield f"event: error\ndata: {json.dumps({'error': f'Workspace monthly quota exceeded: {quota_reason}'})}\n\n"
+                return
 
         try:
             message.status = 'processing'

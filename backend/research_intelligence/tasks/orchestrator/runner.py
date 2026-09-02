@@ -150,16 +150,6 @@ class ResearchAgentRunner:
                 pipeline_run.save(update_fields=['usd_cost'])
 
             running_agents = list(pipeline_run.agent_processes.filter(status='running'))
-            if not running_agents and pipeline_run.workspace:
-                orphan_agents = list(ResearchAgentProcess.objects.filter(
-                    workspace=pipeline_run.workspace,
-                    status='running',
-                    pipeline_run__isnull=True
-                ))
-                for o_agent in orphan_agents:
-                    o_agent.pipeline_run = pipeline_run
-                    o_agent.save(update_fields=['pipeline_run'])
-                    running_agents.append(o_agent)
 
             if running_agents:
                 from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit

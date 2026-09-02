@@ -49,7 +49,13 @@ class Paper(models.Model):
     """
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     workspace = models.ForeignKey('Workspace', on_delete=models.CASCADE, related_name="papers")
-    pipeline_run = models.ForeignKey('PipelineRun', on_delete=models.CASCADE, related_name="papers", help_text="Ingestion run that fetched this paper")
+    pipeline_run = models.ForeignKey('PipelineRun', on_delete=models.CASCADE, related_name="ingested_papers", help_text="Ingestion run that fetched this paper")
+    reprocessed_runs = models.ManyToManyField(
+        'PipelineRun',
+        related_name="reprocessed_papers",
+        blank=True,
+        help_text="Additional pipeline runs where this paper was re-screened or re-evaluated"
+    )
     document_registry = models.ForeignKey(
         DocumentRegistry,
         on_delete=models.SET_NULL,

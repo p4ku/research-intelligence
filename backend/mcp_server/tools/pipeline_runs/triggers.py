@@ -40,6 +40,10 @@ def trigger_search_job_logic(
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
+    is_exceeded, quota_reason = workspace.is_quota_exceeded()
+    if is_exceeded:
+        return json.dumps({"status": "error", "error": f"Workspace monthly quota exceeded: {quota_reason}"}, indent=2)
+
     # Resolve active scrapers
     if scraper_id:
         try:
@@ -158,7 +162,11 @@ def trigger_pdf_download_job_logic(
     if error:
         return error
 
-    papers_count = Paper.objects.filter(pipeline_run=pipeline_run).count()
+    is_exceeded, quota_reason = workspace.is_quota_exceeded()
+    if is_exceeded:
+        return f"Error: Workspace monthly quota exceeded: {quota_reason}"
+
+    papers_count = pipeline_run.get_papers().count()
     if papers_count == 0:
         return f"Error: No papers found in PipelineRun '{pipeline_run.id}'. Please run search & ingestion (trigger_search_job) first."
 
@@ -237,7 +245,11 @@ def trigger_ocr_job_logic(
     if error:
         return error
 
-    papers_count = Paper.objects.filter(pipeline_run=pipeline_run, original_pdf_path__isnull=False).count()
+    is_exceeded, quota_reason = workspace.is_quota_exceeded()
+    if is_exceeded:
+        return f"Error: Workspace monthly quota exceeded: {quota_reason}"
+
+    papers_count = pipeline_run.get_papers().filter(original_pdf_path__isnull=False).count()
     if papers_count == 0:
         return f"Error: No papers with downloaded PDFs found in PipelineRun '{pipeline_run.id}'. Please run PDF download (trigger_pdf_download_job) first."
 
@@ -319,7 +331,11 @@ def trigger_screening_job_logic(
     if error:
         return error
 
-    papers_count = Paper.objects.filter(pipeline_run=pipeline_run).count()
+    is_exceeded, quota_reason = workspace.is_quota_exceeded()
+    if is_exceeded:
+        return f"Error: Workspace monthly quota exceeded: {quota_reason}"
+
+    papers_count = pipeline_run.get_papers().count()
     if papers_count == 0:
         return f"Error: No papers found in PipelineRun '{pipeline_run.id}'. Please run search & ingestion (trigger_search_job) first."
 
@@ -407,6 +423,10 @@ def trigger_extraction_job_logic(
     if error:
         return error
 
+    is_exceeded, quota_reason = workspace.is_quota_exceeded()
+    if is_exceeded:
+        return f"Error: Workspace monthly quota exceeded: {quota_reason}"
+
     active_definitions_count = ExtractionDefinition.objects.filter(workspace=workspace, is_active=True).count()
     if active_definitions_count == 0:
         return f"Error: No active ExtractionDefinitions configured for workspace '{workspace.name}'. Please create an extraction definition first."
@@ -479,8 +499,12 @@ def trigger_signal_score_job_logic(
     if error:
         return error
 
+    is_exceeded, quota_reason = workspace.is_quota_exceeded()
+    if is_exceeded:
+        return f"Error: Workspace monthly quota exceeded: {quota_reason}"
+
     accepted_statuses = ['accepted', 'full_text_passed', 'abstract_passed']
-    papers_qs = Paper.objects.filter(pipeline_run=pipeline_run, screening_status__in=accepted_statuses)
+    papers_qs = pipeline_run.get_papers().filter(screening_status__in=accepted_statuses)
     papers_count = papers_qs.count()
 
     if papers_count == 0:
@@ -541,6 +565,10 @@ def trigger_reporting_job_logic(
     workspace, membership, error = check_workspace_access(user, str(pipeline_run.workspace.id), required_roles=['admin', 'manager', 'researcher'])
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
+
+    is_exceeded, quota_reason = workspace.is_quota_exceeded()
+    if is_exceeded:
+        return json.dumps({"status": "error", "error": f"Workspace monthly quota exceeded: {quota_reason}"}, indent=2)
 
     from research_intelligence.tasks.auxiliary.email_digest import dispatch_pipeline_subscriber_digest
 

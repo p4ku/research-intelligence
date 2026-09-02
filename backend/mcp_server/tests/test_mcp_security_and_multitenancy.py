@@ -521,4 +521,41 @@ class MCPSecurityAndMultiTenancyTestCase(TransactionTestCase):
         self.assertEqual(UserActivityLog.objects.filter(user=josh, user_username="mallory").count(), 0)
         self.assertEqual(UserActivityLog.objects.filter(user_username="admin").count(), 0)
 
+    def test_fastmcp_session_cache_ttl_and_inactive_key_eviction(self):
+        """
+        Validates that FastMCPSessionCache:
+        1. Evicts entries when TTL expires.
+        2. Automatically evicts and denies access if an API key is deactivated.
+        """
+        from mcp_server.server.app import FastMCPSessionCache
+        cache = FastMCPSessionCache(max_size=5, ttl_seconds=0.5)
+
+        # Create dummy api_key
+        key_obj = APIKey.objects.create(
+            user=self.alice,
+            workspace=self.workspace_a,
+            name="Alice Test Key",
+            is_active=True
+        )
+
+        cache.set("session_123", self.alice, self.workspace_a, key_obj)
+        self.assertIn("session_123", cache)
+        self.assertIsNotNone(cache.get("session_123"))
+
+        # Test inactive key eviction
+        key_obj.is_active = False
+        self.assertIsNone(cache.get("session_123"))
+        self.assertNotIn("session_123", cache)
+
+        # Re-activate and test TTL expiration
+        key_obj.is_active = True
+        cache.set("session_456", self.alice, self.workspace_a, key_obj)
+        self.assertIsNotNone(cache.get("session_456"))
+
+        import time
+        time.sleep(0.6)
+        self.assertIsNone(cache.get("session_456"))
+        self.assertNotIn("session_456", cache)
+
+
 

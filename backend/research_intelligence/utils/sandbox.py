@@ -8,6 +8,7 @@ and AST loop iteration limits to safely evaluate user-supplied Python formulas o
 import ast
 import math
 import logging
+import concurrent.futures
 from typing import Dict, Any, Union, Optional
 
 logger = logging.getLogger(__name__)
@@ -78,14 +79,15 @@ class SandboxSecurityError(Exception):
 
 
 class SandboxExecutionError(Exception):
-    """Raised when safe user code fails during runtime or exceeds loop iteration limits."""
+    """Raised when safe user code fails during runtime, times out, or exceeds loop iteration limits."""
     pass
 
 
 class ASTSecurityValidator(ast.NodeVisitor):
     """
     Traverses the Python AST to statically detect dangerous operations,
-    such as imports, private/dunder attribute lookups, and forbidden builtins.
+    such as imports, private/dunder attribute lookups, forbidden builtins,
+    unbounded comprehensions, and dangerous exponentiation/replication.
     """
 
     def visit_Import(self, node):
@@ -122,6 +124,52 @@ class ASTSecurityValidator(ast.NodeVisitor):
                 raise SandboxSecurityError(
                     f"Calling function '{node.func.id}' is forbidden (line {node.lineno})."
                 )
+            if node.func.id == "pow" and len(node.args) >= 2:
+                exp_arg = node.args[1]
+                if isinstance(exp_arg, ast.Constant) and isinstance(exp_arg.value, (int, float)):
+                    if exp_arg.value > 100 or exp_arg.value < -100:
+                        raise SandboxSecurityError(f"Exponent exceeds safety limit (max +/-100) (line {node.lineno}).")
+        self.generic_visit(node)
+
+    def visit_BinOp(self, node):
+        if isinstance(node.op, ast.Pow):
+            # Check exponent if constant
+            if isinstance(node.right, ast.Constant) and isinstance(node.right.value, (int, float)):
+                if node.right.value > 100 or node.right.value < -100:
+                    raise SandboxSecurityError(f"Exponent exceeds safety limit (max +/-100) (line {node.lineno}).")
+            elif isinstance(node.left, ast.Constant) and isinstance(node.left.value, (int, float)) and node.left.value > 1000:
+                raise SandboxSecurityError(f"Base exceeds safety limit for dynamic exponentiation (line {node.lineno}).")
+        elif isinstance(node.op, ast.Mult):
+            # Check for sequence replication bombs e.g. 'a' * 10000000 or [0] * 10000000
+            if isinstance(node.left, ast.Constant) and isinstance(node.left.value, str):
+                if isinstance(node.right, ast.Constant) and isinstance(node.right.value, int) and node.right.value > 10000:
+                    raise SandboxSecurityError(f"String replication exceeds safety limit (max 10000) (line {node.lineno}).")
+            elif isinstance(node.right, ast.Constant) and isinstance(node.right.value, str):
+                if isinstance(node.left, ast.Constant) and isinstance(node.left.value, int) and node.left.value > 10000:
+                    raise SandboxSecurityError(f"String replication exceeds safety limit (max 10000) (line {node.lineno}).")
+        self.generic_visit(node)
+
+    def _validate_comprehension_generators(self, generators, lineno):
+        for gen in generators:
+            if isinstance(gen.iter, ast.Call) and isinstance(gen.iter.func, ast.Name) and gen.iter.func.id == "range":
+                for arg in gen.iter.args:
+                    if isinstance(arg, ast.Constant) and isinstance(arg.value, int) and arg.value > 10000:
+                        raise SandboxSecurityError(f"Comprehension range exceeds safety limit (max 10000) (line {lineno}).")
+
+    def visit_ListComp(self, node):
+        self._validate_comprehension_generators(node.generators, node.lineno)
+        self.generic_visit(node)
+
+    def visit_SetComp(self, node):
+        self._validate_comprehension_generators(node.generators, node.lineno)
+        self.generic_visit(node)
+
+    def visit_DictComp(self, node):
+        self._validate_comprehension_generators(node.generators, node.lineno)
+        self.generic_visit(node)
+
+    def visit_GeneratorExp(self, node):
+        self._validate_comprehension_generators(node.generators, node.lineno)
         self.generic_visit(node)
 
 
@@ -222,12 +270,12 @@ def execute_sandboxed_snippet(
     timeout_seconds: float = 2.0
 ) -> float:
     """
-    Executes user-supplied Python code in a secure sandboxed environment.
+    Executes user-supplied Python code in a secure sandboxed environment with strict timeout.
     
     Args:
         code_snippet: The user's Python code string.
         context_vars: Dictionary of variables (e.g., extracted parameters).
-        timeout_seconds: Kept for API compatibility.
+        timeout_seconds: Maximum permitted execution duration before raising SandboxExecutionError.
 
     Returns:
         float: The computed numeric signal score.
@@ -310,9 +358,18 @@ def execute_sandboxed_snippet(
     if not calc_fn or not callable(calc_fn):
         raise SandboxExecutionError("No executable function or calculation result found in snippet.")
 
-    # 7. Run function with context
+    # 7. Run function with context under strict timeout enforcement
+    def _run_calc():
+        return calc_fn(extractions=context_vars, **valid_vars)
+
     try:
-        result = calc_fn(extractions=context_vars, **valid_vars)
+        effective_timeout = max(0.1, float(timeout_seconds or 2.0))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_run_calc)
+            try:
+                result = future.result(timeout=effective_timeout)
+            except concurrent.futures.TimeoutError:
+                raise SandboxExecutionError(f"Signal score execution timed out ({effective_timeout:.1f}s limit exceeded).")
     except ZeroDivisionError:
         logger.warning("ZeroDivisionError encountered during signal score evaluation; defaulting score to 0.0.")
         return 0.0

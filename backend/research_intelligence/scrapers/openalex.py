@@ -80,16 +80,16 @@ class OpenAlexScraperProvider(BaseScraperProvider):
     def download_file(self, url: str) -> bytes:
         if not url or not url.lower().startswith(('http://', 'https://')):
             raise ValueError(f"Invalid URL scheme for download: '{url}'")
-        from ..utils.url_guard import is_safe_external_url
+        from ..utils.url_guard import is_safe_external_url, safe_download_url
         if not is_safe_external_url(url):
             raise ValueError(f"Disallowed private/internal IP URL: '{url}'")
         try:
-            req = urllib.request.Request(
-                url, 
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'}
+            return safe_download_url(
+                url,
+                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'},
+                max_bytes=100 * 1024 * 1024,
+                timeout=15.0
             )
-            with urllib.request.urlopen(req, timeout=15) as response:
-                return response.read()
         except Exception as e:
             logger.exception(f"Error downloading file from {url}: {str(e)}")
             raise e
