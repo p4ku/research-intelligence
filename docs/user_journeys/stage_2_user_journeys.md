@@ -1,6 +1,6 @@
 # Frontend User Journeys & Architecture Specification (Stage 2)
 
-**Document Version**: 2.1  
+**Document Version**: 2.2  
 **Target Roles**: Administrator, Manager (Research Lead), Researcher (Analyst)  
 **Status**: Ready for Frontend Implementation & E2E Test Scenarios  
 
@@ -223,27 +223,131 @@ sequenceDiagram
 
 ---
 
-## 7. Detailed Page & Component Specifications
+## 7. Common User Journey A: Authentication & Session Lifecycle (Login, Refresh & Logout)
 
-### 7.1 Top Navigation Bar (Context Engine)
+> **Universal Journey**: Applies to all users regardless of role (Administrator, Manager, Researcher).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as 👤 User (Any Role)
+    participant Browser as Browser Client
+    participant NextBFF as Next.js BFF (/auth)
+    participant DjangoAPI as Django Backend (/api/token/)
+
+    Note over User,DjangoAPI: 1. Login Phase
+    User->>Browser: Enters credentials (Email / Username & Password)
+    Browser->>NextBFF: POST /auth/login {username, password}
+    NextBFF->>DjangoAPI: POST /api/token/ {username, password}
+    DjangoAPI-->>NextBFF: 200 OK {access_token, refresh_token, user_id, roles}
+    NextBFF-->>Browser: 200 OK (Sets HttpOnly Cookies: sri_access, sri_refresh)
+    Browser->>User: Redirects to /dashboard (Workspace Overview)
+
+    Note over User,DjangoAPI: 2. Token Auto-Refresh Phase (Transparent)
+    Browser->>NextBFF: GET /api/papers/ (sri_access expired)
+    NextBFF->>DjangoAPI: POST /api/token/refresh/ {refresh: sri_refresh}
+    DjangoAPI-->>NextBFF: 200 OK {access: new_sri_access}
+    NextBFF-->>Browser: Responds with requested data & updates sri_access cookie
+
+    Note over User,DjangoAPI: 3. Logout Phase
+    User->>Browser: Clicks 'Sign Out' in Avatar Dropdown Menu
+    Browser->>NextBFF: POST /auth/logout
+    NextBFF-->>Browser: 200 OK (Clears sri_access & sri_refresh cookies)
+    Browser->>User: Redirects to Login Page (/?reason=logged_out)
+```
+
+### Key Lifecycle Steps:
+1. **Authentication (Login)**:
+   - User navigates to `/` and inputs credentials.
+   - Next.js BFF exchanges credentials with Django's JWT endpoint (`/api/token/`).
+   - Secure, HttpOnly cookies (`sri_access`, `sri_refresh`) are set, preventing XSS token theft.
+   - User is routed directly to the `/dashboard` of their default active workspace.
+2. **Transparent Session Refresh**:
+   - As access tokens expire (15-60 min TTL), Next.js BFF middleware transparently refreshes the access token using the refresh cookie without disrupting the user's active session or ongoing LLM streaming.
+3. **Session Invalidation (Logout)**:
+   - User triggers **Sign Out** from the user dropdown menu in the sidebar footer or top navbar.
+   - All session cookies are wiped cleanly, and the user is redirected back to the login screen.
+
+---
+
+## 8. Common User Journey B: User Profile, Security & Notification Settings (`/settings`)
+
+> **Universal Journey**: All authenticated users can manage their personal identity, credentials, and notification delivery channels.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as 👤 User (Any Role)
+    participant SettingsUI as /settings UI
+    participant NextBFF as Next.js BFF (/bff/settings)
+    participant DjangoAPI as Django Backend (/api/users/, /api/preferences/)
+
+    User->>SettingsUI: Navigates to /settings via Avatar Menu
+
+    Note over User,DjangoAPI: Action 1: Update Profile Details
+    User->>SettingsUI: Modifies First Name, Last Name, Email
+    User->>SettingsUI: Clicks 'Save Profile'
+    SettingsUI->>NextBFF: POST /bff/settings/profile {first_name, last_name, email}
+    NextBFF->>DjangoAPI: PATCH /api/users/me/
+    DjangoAPI-->>NextBFF: 200 OK {profile}
+    NextBFF-->>SettingsUI: 200 OK (Updates session cookie & displays success toast)
+
+    Note over User,DjangoAPI: Action 2: Change Password
+    User->>SettingsUI: Enters Current Password, New Password, Confirm Password
+    User->>SettingsUI: Clicks 'Update Password'
+    SettingsUI->>NextBFF: POST /bff/settings/password {current, new}
+    NextBFF->>DjangoAPI: POST /api/auth/password/change/
+    DjangoAPI-->>NextBFF: 200 OK
+    NextBFF-->>SettingsUI: 200 OK (Clears password form & displays confirmation)
+
+    Note over User,DjangoAPI: Action 3: Configure Intelligence Notifications
+    User->>SettingsUI: Toggles 'Email Notifications' ON & Selects 'Weekly Briefing Digest'
+    User->>SettingsUI: Clicks 'Save Preferences'
+    SettingsUI->>NextBFF: POST /bff/settings/preferences {email_enabled: true, frequency: 'weekly'}
+    NextBFF->>DjangoAPI: PUT /api/preferences/{workspace_id}/
+    DjangoAPI-->>NextBFF: 200 OK
+    NextBFF-->>SettingsUI: 200 OK
+```
+
+### Step-by-Step Settings Flow:
+1. **Navigating to Settings**:
+   - User clicks on their profile avatar in the navigation shell and selects **My Account** (`/settings`).
+2. **Editing Profile Information**:
+   - Updates **First Name**, **Last Name**, and **Email Address**.
+   - Submitting sends a `PATCH` request to the backend. The top bar and sidebar immediately reflect the updated user name via refreshed session state.
+3. **Updating Security Credentials**:
+   - Enters current password and chooses a new strong password with validation.
+   - On successful update, a confirmation message appears without logging out the active session.
+4. **Customizing Intelligence Notifications**:
+   - Configures how SLR intelligence briefings and pipeline completion alerts are delivered:
+     - **Channel**: Email Notifications toggle.
+     - **Cadence**: *Instant Alerts* (as soon as a run completes), *Daily Intelligence Digest*, or *Weekly Executive Briefing Digest*.
+5. **Cleaned Scope**:
+   - Workspace configuration and prompt criteria tuning are removed from user settings to keep the screen focused on personal account controls.
+
+---
+
+## 9. Detailed Page & Component Specifications
+
+### 9.1 Top Navigation Bar (Context Engine)
 - **Workspace Switcher**: Dropdown allowing the user to switch between workspaces they have membership in (Admins see all workspaces).
 - **Run Selector**: Dropdown showing the list of completed and in-progress runs for the active workspace. Displays:
   - Run number / Date (e.g., *Run #14 (Latest: Sep 2, 2026)*).
   - Badge with status (*Completed*, *Running*, *Failed*).
   - Quick summary chip (*50 papers • $0.086 USD*).
 
-### 7.2 `/dashboard` (Run Overview)
+### 9.2 `/dashboard` (Run Overview)
 - **Run Conversion Funnel**: Interactive stat band showing:
   - *Ingested Papers* $\longrightarrow$ *Abstract Passed* $\longrightarrow$ *Full-Text Passed* $\longrightarrow$ *High Signal Papers*.
 - **Top Signal Highlights**: Ranked cards of top-scoring papers in the selected run.
 - **Run Token & Cost Economics**: Total prompt/completion tokens and USD spend for this run.
 
-### 7.3 `/briefing` (Executive Narrative Briefing)
+### 9.3 `/briefing` (Executive Narrative Briefing)
 - **Report Reader**: Clean markdown rendering of the synthesized `NarrativeReport` for the active run.
 - **Export Toolbar**: Buttons to download PDF, copy LaTeX bibliography, or export raw markdown.
 - **Run Archive Selector**: Sidebar/tabs to browse historical briefings from previous runs.
 
-### 7.4 `/papers` & `/papers/[id]` (Paper Scorecard & Grounded Inspection)
+### 9.4 `/papers` & `/papers/[id]` (Paper Scorecard & Grounded Inspection)
 - **`/papers`**: Searchable, filterable table scoped to the active run. Filter by screening status (*Abstract Passed*, *Full Text Passed*, *Rejected*), minimum *Signal Score*, or *TRL Level*.
 - **`/papers/[id]`**:
   - **Header**: Paper title, authors, publication date, DOI / arXiv external link.
@@ -253,12 +357,12 @@ sequenceDiagram
   - **Screening Decision**: Pill badge and detailed markdown rationale for acceptance/rejection.
   - **Side-by-Side Paper Chat (`PaperChat`)**: Interactive chat assistant scoped to this single paper.
 
-### 7.5 `/ask` (Grounded Research Assistant)
+### 9.5 `/ask` (Grounded Research Assistant)
 - **Scope Selector**: Toggle between *Entire Run (Cross-Paper Synthesis)* and *Specific Paper*.
 - **Multi-Turn Chat Console**: Conversational interface with context caching for low latency.
 - **Clickable Citations**: Generated responses include source tags (e.g., `[Paper: 2401.xxxx, §3.2]`) that highlight evidence quotes in a slide-over panel.
 
-### 7.6 `/runs` & `/runs/[id]` (Pipeline Orchestration — Admin & Manager Only)
+### 9.6 `/runs` & `/runs/[id]` (Pipeline Orchestration — Admin & Manager Only)
 - **`/runs` Table**: List of all historical and active runs with date, status, trigger type (automated vs manual), paper counts, and total cost. *(Hidden for Researcher role)*.
 - **`+ New Pipeline Run` Modal**:
   - Radio toggle: *Full Review (New Search & Ingestion)* vs *Reprocess Existing Papers*.
@@ -267,18 +371,20 @@ sequenceDiagram
   - Visual 8-stage progress tracker.
   - Action buttons: **Pause**, **Resume**, **Abort**, **Rerun from Step**.
 
-### 7.7 `/settings` (User Account Settings)
-- **Profile Form**: Name, email, organization.
-- **Security Form**: Password change and API key management.
-- **Notification Preferences**: Toggle between instant email alerts, daily digest, and weekly executive briefing summary.
-*(Note: Workspace configuration and prompt tuning are removed from user settings).*
+### 9.7 `/settings` (User Account Settings)
+- **Profile Form**: First name, last name, email.
+- **Security Form**: Password change and credential verification.
+- **Notification Preferences**: Delivery channel toggle and cadence selection (*Instant*, *Daily*, *Weekly*).
 
 ---
 
-## 8. Role & Permissions Comparison Matrix
+## 10. Role & Permissions Comparison Matrix
 
 | Feature / UI Action | Administrator 👑 | Manager 💼 | Researcher 🔬 |
 | :--- | :---: | :---: | :---: |
+| **Authentication & Session Lifecycle (Login / Logout)** | ✅ Yes | ✅ Yes | ✅ Yes |
+| **User Profile & Password Management (`/settings`)** | ✅ Yes | ✅ Yes | ✅ Yes |
+| **Notification Preferences (`/settings`)** | ✅ Yes | ✅ Yes | ✅ Yes |
 | **Workspace Selection** | All Workspaces | Assigned Workspaces | Assigned Workspaces |
 | **Run Selector (Switch Active Run)** | ✅ Full Access | ✅ Full Access | ✅ Full Access |
 | **Run Overview (`/dashboard`)** | ✅ View | ✅ View | ✅ View |
@@ -291,14 +397,18 @@ sequenceDiagram
 | **Trigger New Review Run** | ✅ Enabled | ✅ Enabled | ❌ **Hidden / Disabled** |
 | **Trigger Reprocess Existing Run** | ✅ Enabled | ✅ Enabled | ❌ **Hidden / Disabled** |
 | **Run Actions (Pause / Abort / Rerun)** | ✅ Full Control | ✅ Workspace Control | ❌ **Hidden / Disabled** |
-| **User Settings (`/settings`)** | Profile, Security, Alerts | Profile, Security, Alerts | Profile, Security, Alerts |
 
 ---
 
-## 9. Backend Data Model & REST API Mapping Table
+## 11. Backend Data Model & REST API Mapping Table
 
 | UI Action / Component | Backend Model | REST API Endpoint | Payload / Query Parameters |
 | :--- | :--- | :--- | :--- |
+| **User Login (JWT)** | `User` | `POST /api/token/` | `{"username": "...", "password": "..."}` |
+| **Token Refresh** | `User` | `POST /api/token/refresh/` | `{"refresh": "..."}` |
+| **Update Profile** | `User` | `PATCH /api/users/me/` | `{"first_name": "...", "last_name": "...", "email": "..."}` |
+| **Change Password** | `User` | `POST /api/auth/password/change/` | `{"old_password": "...", "new_password": "..."}` |
+| **Notification Preferences** | `NotificationPreference` | `PUT /api/preferences/{workspace_id}/` | `{"email_enabled": true, "frequency": "weekly"}` |
 | **List Workspaces** | `Workspace` | `GET /api/workspaces/` | User-membership scoped |
 | **List Runs for Workspace** | `PipelineRun` | `GET /api/pipeline-runs/?workspace={ws_id}` | `ordering=-started_at` |
 | **Trigger New Pipeline Run** | `PipelineRun` | `POST /api/pipeline-runs/` | `{"workspace_id": "...", "reprocess_existing": false}` (Admin/Manager) |
