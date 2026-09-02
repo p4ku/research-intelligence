@@ -15,7 +15,7 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
             name="Quantum Computing Review",
             abstract_acceptance_criteria=["Quantum hardware", "Qubits > 50"],
             abstract_rejection_criteria=["Classical simulation only"],
-            screening_llm_model="google/gemini-3.7-flash"
+            screening_llm_model="google/gemini-3.8-flash"
         ))
         self.assertEqual(res["status"], "success")
         ws_id = res["workspace_id"]
@@ -88,7 +88,7 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
         ws_id = ws_res["workspace_id"]
         ws = Workspace.objects.get(id=ws_id)
 
-        cost1 = ws.record_token_usage(tokens_in=1000000, tokens_out=1000000, model_name="gemini-3.7-flash")
+        cost1 = ws.record_token_usage(tokens_in=1000000, tokens_out=1000000, model_name="gemini-3.8-flash")
         self.assertEqual(cost1, 4.5)
         self.assertEqual(ws.tokens_consumed_this_month, 2000000)
         self.assertEqual(float(ws.usd_spent_this_month), 4.5)
@@ -205,7 +205,7 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
             name='Test Definition',
             system_prompt='Extract metric',
             response_schema={'type': 'object'},
-            llm_model='google/gemini-3.7-flash',
+            llm_model='google/gemini-3.8-flash',
             is_active=True
         )
 

@@ -50,7 +50,7 @@ def run_pipeline_reprocessing_scenario(config: Optional[E2EConfig] = None) -> Di
         full_text_acceptance_criteria="Accept algorithmic and empirical evaluations.",
         full_text_rejection_criteria="Reject papers with zero technical discussion.",
         signal_score_code="score = 0.5 * fit_score + 0.5 * 8.0\nreturn round(score * 10.0, 2)",
-        screening_llm_model="google/gemini-3.7-flash",
+        screening_llm_model="google/gemini-3.8-flash",
     )
     workspace_id = ws_data["id"]
 

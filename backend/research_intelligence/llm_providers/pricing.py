@@ -23,7 +23,7 @@ MODEL_PRICING = {
     "gemini-1.5-flash": {"in": Decimal("0.075"), "out": Decimal("0.30")},
     "gemini-1.5-pro": {"in": Decimal("1.25"), "out": Decimal("5.00")},
 
-    # Fallback default: Gemini 3.7 Flash Standard Tier
+    # Fallback default: Gemini 3.8 Flash Standard Tier
     "default": {"in": Decimal("0.75"), "out": Decimal("3.75")},
 }
 

@@ -27,7 +27,7 @@ class ChatEngineTestCase(TestCase):
         self.user = User.objects.create_user(username="chat_scientist", email="scientist@schwarz.com", password="password")
         self.workspace = Workspace.objects.create(
             name="Photonics AI Lab",
-            screening_llm_model="google/gemini-3.7-flash",
+            screening_llm_model="google/gemini-3.8-flash",
             signal_score_code="score = 0.6 * fit_score + 0.4 * novelty_score\nreturn round(score, 2)"
         )
         self.run = PipelineRun.objects.create(workspace=self.workspace)
@@ -177,7 +177,7 @@ class ChatEngineTestCase(TestCase):
         self.assertEqual(res["thinking_process"], "Internal derivation of tensor clock rate...")
         self.assertGreater(res["usd_cost"], 0.0)
         self.assertTrue(res["deep_thinking"])
-        self.assertEqual(res["llm_model"], "google/gemini-3.7-flash")
+        self.assertEqual(res["llm_model"], "google/gemini-3.8-flash")
 
         # Check DB updates
         message.refresh_from_db()
@@ -185,7 +185,7 @@ class ChatEngineTestCase(TestCase):
         self.assertEqual(message.total_tokens, 1580)
         self.assertEqual(message.thinking_process, "Internal derivation of tensor clock rate...")
         self.assertGreater(float(message.usd_cost), 0.0)
-        self.assertEqual(message.llm_model, "google/gemini-3.7-flash")
+        self.assertEqual(message.llm_model, "google/gemini-3.8-flash")
 
         session.refresh_from_db()
         self.assertEqual(session.total_tokens, 1580)

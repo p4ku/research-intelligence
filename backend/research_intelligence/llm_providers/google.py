@@ -181,15 +181,15 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         - file_bytes / pdf_bytes or file_path / pdf_path for multimodal ingestion
         """
         # 1. Clean model name
-        model_name = model or "gemini-3.7-flash"
+        model_name = model or "gemini-3.8-flash"
         if model_name.startswith("google/"):
             model_name = model_name.replace("google/", "", 1)
         elif model_name.startswith("google-agent/"):
             model_name = model_name.replace("google-agent/", "", 1)
 
-        # Map non-existent/mock model names to target model gemini-3.7-flash
+        # Map non-existent/mock model names to target model gemini-3.8-flash
         if "mock" in model_name:
-            model_name = "gemini-3.7-flash"
+            model_name = "gemini-3.8-flash"
 
         # 2. Determine location and construct client
         f_bytes = file_bytes or pdf_bytes
@@ -198,7 +198,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         client_location = kwargs.get("location") or self.location or "eu"
 
         if not model and has_file:
-            model_name = "gemini-3.7-flash"
+            model_name = "gemini-3.8-flash"
 
         client = self._get_client(location=client_location)
 
@@ -395,11 +395,11 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         Streams response chunks from Gemini generate_content_stream.
         Yields (chunk_text, usage_dict).
         """
-        model_name = model or "gemini-3.7-flash"
+        model_name = model or "gemini-3.8-flash"
         if model_name.startswith("google/"):
             model_name = model_name.replace("google/", "", 1)
         if "mock" in model_name:
-            model_name = "gemini-3.7-flash"
+            model_name = "gemini-3.8-flash"
 
         client_location = kwargs.get("location") or self.location or "eu"
         client = self._get_client(location=client_location)
@@ -515,11 +515,11 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         Creates a server-side Gemini CachedContent resource.
         Returns the unique cached content resource name (e.g. 'cachedContents/12345') or None on failure.
         """
-        model_name = model or "gemini-3.7-flash"
+        model_name = model or "gemini-3.8-flash"
         if model_name.startswith("google/"):
             model_name = model_name.replace("google/", "", 1)
         if "mock" in model_name:
-            model_name = "gemini-3.7-flash"
+            model_name = "gemini-3.8-flash"
 
         client_location = kwargs.get("location") or self.location or "eu"
         client = self._get_client(location=client_location)

@@ -35,7 +35,7 @@ class AdminChangelistViewsTestCase(TestCase):
 
         self.workspace = Workspace.objects.create(
             name="Quantum Computing Intelligence",
-            screening_llm_model="google/gemini-3.7-flash",
+            screening_llm_model="google/gemini-3.8-flash",
             abstract_acceptance_criteria="Quantum processors",
             abstract_rejection_criteria="Classical only"
         )
@@ -330,7 +330,7 @@ class AdminChangelistViewsTestCase(TestCase):
         LLMUsageRecord.record_usage(
             tokens_in=12500,
             tokens_out=3200,
-            llm_model="google/gemini-3.7-flash",
+            llm_model="google/gemini-3.8-flash",
             operation_type="full_text_screening",
             workspace=self.workspace,
             user=self.user,
@@ -352,5 +352,5 @@ class AdminChangelistViewsTestCase(TestCase):
 
         # Check badges have nowrap
         self.assertContains(response, "white-space: nowrap;")
-        self.assertContains(response, "gemini-3.7-flash")
+        self.assertContains(response, "gemini-3.8-flash")
 

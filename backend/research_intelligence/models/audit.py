@@ -231,7 +231,7 @@ class LLMUsageRecord(models.Model):
     component_run_id = models.CharField(max_length=100, blank=True, default="", help_text="Associated ComponentRun UUID")
 
     operation_type = models.CharField(max_length=50, choices=OPERATION_CHOICES, default='other', db_index=True)
-    llm_model = models.CharField(max_length=100, default='google/gemini-3.7-flash', db_index=True)
+    llm_model = models.CharField(max_length=100, default='google/gemini-3.8-flash', db_index=True)
     llm_provider = models.CharField(max_length=50, default='google')
 
     tokens_in = models.BigIntegerField(default=0, help_text="Prompt / Input tokens consumed")
@@ -260,7 +260,7 @@ class LLMUsageRecord(models.Model):
         cls,
         tokens_in: int,
         tokens_out: int,
-        llm_model: str = "google/gemini-3.7-flash",
+        llm_model: str = "google/gemini-3.8-flash",
         llm_provider: str = "google",
         operation_type: str = "other",
         workspace=None,

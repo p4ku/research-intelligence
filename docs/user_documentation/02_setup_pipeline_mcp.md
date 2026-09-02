@@ -61,7 +61,7 @@ Creates the project with tailored dual-stage screening criteria and default repr
   "abstract_rejection_criteria": "Reject conventional liquid electrolyte lithium-ion papers, lead-acid, generic supercapacitors, and non-peer-reviewed whitepapers.",
   "full_text_acceptance_criteria": "Accept if the full PDF reports verified experimental data on ionic conductivity (S/cm), volumetric/gravimetric energy density (Wh/kg or Wh/L), capacity retention after >100 cycles, and full cell fabrication details.",
   "full_text_rejection_criteria": "Reject theoretical reviews without experimental or numerical validation, or papers missing core battery performance metrics.",
-  "screening_llm_model": "google/gemini-3.7-flash",
+  "screening_llm_model": "google/gemini-3.8-flash",
   "ocr_provider": null,
   "reprocess_existing": false
 }

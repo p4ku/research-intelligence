@@ -48,7 +48,7 @@ def run_cross_source_dedup_scenario(config: Optional[E2EConfig] = None) -> Dict[
         abstract_rejection_criteria="Reject unrelated biology papers.",
         full_text_acceptance_criteria="Accept algorithmic and empirical evaluations.",
         full_text_rejection_criteria="Reject papers with zero technical discussion.",
-        screening_llm_model="google/gemini-3.7-flash",
+        screening_llm_model="google/gemini-3.8-flash",
     )
     workspace_id = ws_data["id"]
 

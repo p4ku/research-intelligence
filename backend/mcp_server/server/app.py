@@ -528,7 +528,7 @@ def create_workspace(
     full_text_screening_response_schema: dict = None,
     full_text_screening_exit_metric: str = None,
     ocr_provider: str = None,
-    screening_llm_model: str = "google/gemini-3.7-flash",
+    screening_llm_model: str = "google/gemini-3.8-flash",
     llm_provider: str = "google",
     monthly_token_limit: int = 10000000,
     cost_limit_usd: float = 100.00,
@@ -559,8 +559,8 @@ def create_workspace(
     - full_text_screening_exit_metric: Optional field key to extract from full-text screening as primary metric (e.g. 'decision_category', 'fit_score').
     - skip_abstract_screening: Defaults to False. If True, skips Abstract Screening and downloads all candidate papers for direct Full-Text Screening.
     - reprocess_existing: Defaults to False. If True, sets default workspace policy to re-evaluate and re-screen existing papers on pipeline runs.
-    - ocr_provider: Defaults to None (skips OCR and passes native PDF binary directly to multimodal Gemini 3.7 Flash). Set to 'pypdf', 'mistral', or 'gemini' only if text layout markdown is explicitly required.
-    - screening_llm_model: Default 'google/gemini-3.7-flash'.
+    - ocr_provider: Defaults to None (skips OCR and passes native PDF binary directly to multimodal Gemini 3.8 Flash). Set to 'pypdf', 'mistral', or 'gemini' only if text layout markdown is explicitly required.
+    - screening_llm_model: Default 'google/gemini-3.8-flash'.
     - signal_score_code: Optional sandboxed Python math formula to rank papers (e.g. 'score = 0.6 * fit_score + 0.4 * novelty_score\\nreturn score').
     
     NEXT STEPS:
@@ -870,7 +870,7 @@ def create_extraction_definition(
     user_prompt_template: str,
     response_schema: dict,
     exit_metric: str = None,
-    llm_model: str = "google/gemini-3.7-flash",
+    llm_model: str = "google/gemini-3.8-flash",
     version: int = 1,
     requires_consensus: bool = False,
     is_active: bool = True
@@ -889,7 +889,7 @@ def create_extraction_definition(
     - user_prompt_template: Template with variables `{{paper_title}}`, `{{abstract}}`, `{{full_text}}`.
     - response_schema: JSON Schema dictionary defining the expected structure, field types, and constraints.
     - exit_metric: Primary key to expose in summary matrices and snake_case variable for signal scoring (e.g. 'fit_score', 'novelty_score', 'trl_level').
-    - llm_model: Default 'google/gemini-3.7-flash'.
+    - llm_model: Default 'google/gemini-3.8-flash'.
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -1598,7 +1598,7 @@ def test_google_llm(
     location: str | None = None
 ) -> str:
     """
-    Test connectivity to Google Cloud GenAI / Vertex AI models (e.g. gemini-3.7-flash) and verify current API credentials.
+    Test connectivity to Google Cloud GenAI / Vertex AI models (e.g. gemini-3.8-flash) and verify current API credentials.
     """
     try:
         user, workspace, api_key = get_auth_context()

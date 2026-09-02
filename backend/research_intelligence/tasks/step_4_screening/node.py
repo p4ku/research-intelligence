@@ -25,7 +25,7 @@ class AbstractScreeningNode(BaseWorkflowNode):
             "rejection_criteria": "workspace.get_abstract_rejection_criteria()",
             "paper_fields": "Paper.title, Paper.abstract",
         },
-        "llm_model": "google/gemini-3.7-flash",
+        "llm_model": "google/gemini-3.8-flash",
     }
 
     output_contract = {
@@ -100,12 +100,12 @@ class FullTextScreeningNode(BaseWorkflowNode):
     Full-Text Screening (Second-Stage Multimodal AI Screening).
 
     Performs deep multimodal analysis of raw PDF binaries (or OCR Markdown) against
-    Workspace full_text acceptance/rejection criteria using Gemini 3.7 Flash.
+    Workspace full_text acceptance/rejection criteria using Gemini 3.8 Flash.
     """
     name = "full_text_screening"
     step_type = "screening"
     component_name = "full_text_screening"
-    description = "Evaluates full PDF binary (or OCR Markdown) against full-text criteria using Gemini 3.7 Flash."
+    description = "Evaluates full PDF binary (or OCR Markdown) against full-text criteria using Gemini 3.8 Flash."
     dependencies = ["ocr"]
 
     input_contract = {
@@ -114,7 +114,7 @@ class FullTextScreeningNode(BaseWorkflowNode):
             "rejection_criteria": "workspace.get_full_text_rejection_criteria()",
             "document_content": "Raw binary PDF (or OCR markdown text)",
         },
-        "llm_model": "google/gemini-3.7-flash",
+        "llm_model": "google/gemini-3.8-flash",
     }
 
     output_contract = {

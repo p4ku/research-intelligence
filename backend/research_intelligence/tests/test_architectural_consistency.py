@@ -26,7 +26,7 @@ class ArchitecturalConsistencyTestCase(TestCase):
         self.workspace = Workspace.objects.create(
             name="Architecture Consistency Lab",
             ocr_provider="pypdf",
-            screening_llm_model="google/gemini-3.7-flash"
+            screening_llm_model="google/gemini-3.8-flash"
         )
         WorkspaceMember.objects.create(workspace=self.workspace, user=self.user, role="admin")
 
@@ -112,7 +112,7 @@ class ArchitecturalConsistencyTestCase(TestCase):
             workspace=self.workspace,
             name="Tensile Strength Target",
             exit_metric="tensile_strength_mpa",
-            llm_model="google/gemini-3.7-flash",
+            llm_model="google/gemini-3.8-flash",
             response_schema={"type": "object", "properties": {"tensile_strength_mpa": {"type": "number"}}}
         )
 

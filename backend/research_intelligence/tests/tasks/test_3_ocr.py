@@ -139,7 +139,7 @@ class OCRProvidersExtendedTestCase(TestCase):
     def test_gemini_ocr_provider_markdown_formatting_and_code_fence_cleaning(self, mock_reader):
         from ...ocr_providers.gemini_provider import GeminiOCRProvider
         mock_reader.return_value.pages = []
-        provider = GeminiOCRProvider(model_name="google/gemini-3.7-flash")
+        provider = GeminiOCRProvider(model_name="google/gemini-3.8-flash")
 
         mock_llm = MagicMock()
         mock_llm.generate.return_value = "```markdown\n## Introduction\nThis is paper body.\n```"
@@ -154,7 +154,7 @@ class OCRProvidersExtendedTestCase(TestCase):
     def test_gemini_ocr_provider_fallback_on_exception(self, mock_reader):
         from ...ocr_providers.gemini_provider import GeminiOCRProvider
         mock_reader.return_value.pages = []
-        provider = GeminiOCRProvider(model_name="google/gemini-3.7-flash")
+        provider = GeminiOCRProvider(model_name="google/gemini-3.8-flash")
 
         mock_llm = MagicMock()
         mock_llm.generate.side_effect = RuntimeError("Gemini Vision 503 Overloaded")

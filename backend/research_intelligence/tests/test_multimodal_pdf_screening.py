@@ -25,7 +25,7 @@ class MultimodalPDFScreeningTestCase(TestCase):
             name="Quantum Computing Review",
             ocr_provider=None,  # Direct multimodal PDF mode
             llm_provider="google",
-            screening_llm_model="google/gemini-3.7-flash",
+            screening_llm_model="google/gemini-3.8-flash",
             full_text_acceptance_criteria="Accept experimental superconducting qubit coherence measurements > 100 microseconds.",
             full_text_rejection_criteria="Reject purely theoretical or non-superconducting architectures."
         )

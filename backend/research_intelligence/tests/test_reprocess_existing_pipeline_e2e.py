@@ -42,7 +42,7 @@ class ReprocessExistingPipelineE2ETestCase(TestCase):
         self.user = User.objects.create_user(username="e2e_reprocess_user", email="reprocess@example.com", password="password123")
         self.workspace = Workspace.objects.create(
             name="Reprocess E2E Workspace",
-            screening_llm_model="google/gemini-3.7-flash",
+            screening_llm_model="google/gemini-3.8-flash",
             ocr_provider=None,  # Direct multimodal PDF screening
             skip_abstract_screening=True,  # Direct Full-Text Screening
             full_text_acceptance_criteria="Accept deep tech innovations in quantum machine learning.",

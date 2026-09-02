@@ -28,7 +28,7 @@ class WorkerCompletionAndTimeoutsTestCase(TestCase):
     def setUp(self):
         self.workspace = Workspace.objects.create(
             name="Timeout Test Workspace",
-            screening_llm_model="google/gemini-3.7-flash",
+            screening_llm_model="google/gemini-3.8-flash",
             ocr_provider="local"
         )
         self.pipeline_run = PipelineRun.objects.create(

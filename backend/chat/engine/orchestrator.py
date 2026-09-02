@@ -123,7 +123,7 @@ class PaperChatEngine:
             )
 
             # 8. Record token usage and cost accounting on Workspace & Session
-            model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash') or 'google/gemini-3.7-flash'
+            model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.8-flash') or 'google/gemini-3.8-flash'
             tokens_in = tokens_in or 0
             tokens_out = tokens_out or 0
             if not tokens_in:
@@ -238,7 +238,7 @@ class PaperChatEngine:
             )
 
             provider_name = getattr(workspace, 'llm_provider', 'google') or 'google'
-            model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash') or 'google/gemini-3.7-flash'
+            model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.8-flash') or 'google/gemini-3.8-flash'
             provider = get_llm_provider(provider_name)
 
             # 2. Context Cache
@@ -421,7 +421,7 @@ class PaperChatEngine:
         cached_content: str | None = None
     ) -> tuple[str, list, int, int, str]:
         provider_name = getattr(workspace, 'llm_provider', 'google') or 'google'
-        model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash') or 'google/gemini-3.7-flash'
+        model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.8-flash') or 'google/gemini-3.8-flash'
 
         provider = get_llm_provider(provider_name)
         llm_response = provider.generate(

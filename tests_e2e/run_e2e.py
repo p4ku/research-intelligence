@@ -150,9 +150,9 @@ def print_llm_cost_summary(c: dict, total_elapsed: float, total_papers: int = 0,
     tot_eur = tot_usd * 0.92
 
     print("\n" + "=" * 70)
-    print(f"💎  {title} (GOOGLE GEMINI 3.7 FLASH)")
+    print(f"💎  {title} (GOOGLE GEMINI 3.8 FLASH)")
     print("=" * 70)
-    print(f"  🤖 Inference Engine     : Google Vertex AI / GenAI (gemini-3.7-flash)")
+    print(f"  🤖 Inference Engine     : Google Vertex AI / GenAI (gemini-3.8-flash)")
     print(f"  ⏱️  Total Run Time       : {total_elapsed:.1f}s")
     if total_papers > 0:
         print(f"  📄 Ingested Papers      : {total_papers} papers")

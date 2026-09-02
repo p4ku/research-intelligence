@@ -511,7 +511,7 @@ def render_component_cost(obj):
     model_name = metrics.get('model_used') or output_data.get('model_used')
     if not model_name and obj.pipeline_run and obj.pipeline_run.workspace:
         model_name = obj.pipeline_run.workspace.screening_llm_model
-    model_name = model_name or "google/gemini-3.7-flash"
+    model_name = model_name or "google/gemini-3.8-flash"
 
     # 4. If only total_tokens is known, split 80% prompt / 20% completion
     if tokens > 0 and tokens_in == 0 and tokens_out == 0:
@@ -1479,7 +1479,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
         if cost == 0.0 and (obj.tokens_in or obj.tokens_out or obj.tokens_consumed):
             try:
                 from research_intelligence.llm_providers.pricing import calculate_llm_cost
-                model_name = obj.workspace.screening_llm_model if obj.workspace else "google/gemini-3.7-flash"
+                model_name = obj.workspace.screening_llm_model if obj.workspace else "google/gemini-3.8-flash"
                 cost = float(calculate_llm_cost(model_name, obj.tokens_in or 0, obj.tokens_out or 0))
             except Exception:
                 pass
@@ -1693,7 +1693,7 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
             if cost == 0.0 and (pr.tokens_in or pr.tokens_out or pr.tokens_consumed):
                 try:
                     from research_intelligence.llm_providers.pricing import calculate_llm_cost
-                    model_name = pr.workspace.screening_llm_model if pr.workspace else "google/gemini-3.7-flash"
+                    model_name = pr.workspace.screening_llm_model if pr.workspace else "google/gemini-3.8-flash"
                     cost = float(calculate_llm_cost(model_name, pr.tokens_in or 0, pr.tokens_out or 0))
                 except Exception:
                     pass

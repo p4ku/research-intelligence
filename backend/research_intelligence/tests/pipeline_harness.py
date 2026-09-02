@@ -82,7 +82,7 @@ class PipelineTestHarness:
         ocr_provider: str | None = None,
         skip_abstract_screening: bool = False,
         reprocess_existing: bool = False,
-        screening_llm_model: str = "google/gemini-3.7-flash",
+        screening_llm_model: str = "google/gemini-3.8-flash",
         llm_provider: str = "google",
         abstract_acceptance: str = "Accept relevant research.",
         abstract_rejection: str = "Reject non-relevant.",

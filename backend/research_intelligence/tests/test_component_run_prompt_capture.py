@@ -56,7 +56,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
                 },
                 "required": ["passed", "hardware_fit_score", "reasoning"]
             },
-            screening_llm_model="google/gemini-3.7-flash",
+            screening_llm_model="google/gemini-3.8-flash",
             llm_provider="google",
             reasoning_effort="high"
         )
@@ -83,7 +83,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         params = node.get_input_params(self.pipeline_run, self.workspace, {"limit": 10}, limit=10)
 
         self.assertEqual(params["stage"], "abstract")
-        self.assertEqual(params["llm_model"], "google/gemini-3.7-flash")
+        self.assertEqual(params["llm_model"], "google/gemini-3.8-flash")
         self.assertEqual(params["llm_provider"], "google")
         self.assertEqual(params["reasoning_effort"], "high")
         self.assertEqual(params["abstract_acceptance_criteria"], "Include papers discussing transformer attention optimizations.")
@@ -100,7 +100,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         params = node.get_input_params(self.pipeline_run, self.workspace, {"limit": 5}, limit=5)
 
         self.assertEqual(params["stage"], "full_text")
-        self.assertEqual(params["llm_model"], "google/gemini-3.7-flash")
+        self.assertEqual(params["llm_model"], "google/gemini-3.8-flash")
         self.assertEqual(params["llm_provider"], "google")
         self.assertEqual(params["reasoning_effort"], "high")
         self.assertEqual(params["full_text_acceptance_criteria"], "Include papers with empirical benchmark latency on NVIDIA GPUs.")
@@ -224,7 +224,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
             system_prompt="Extract research novelty score and key contributions.",
             user_prompt_template="Paper Content: {paper_text}",
             exit_metric="novelty_score",
-            llm_model="google/gemini-3.7-flash",
+            llm_model="google/gemini-3.8-flash",
             response_schema={"type": "object", "properties": {"novelty_score": {"type": "number"}}}
         )
         ExtractionDefinition.objects.create(
@@ -233,7 +233,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
             system_prompt="Assess Technology Readiness Level (1-9).",
             user_prompt_template="Full Text: {full_text}",
             exit_metric="trl_level",
-            llm_model="google/gemini-3.7-flash",
+            llm_model="google/gemini-3.8-flash",
             response_schema={"type": "object", "properties": {"trl_level": {"type": "integer"}}}
         )
 
@@ -269,7 +269,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
             system_prompt="Assess corporate fit with retail logistics.",
             user_prompt_template="Evaluate: {paper_text}",
             exit_metric="fit_score",
-            llm_model="google/gemini-3.7-flash",
+            llm_model="google/gemini-3.8-flash",
             response_schema={"type": "object", "properties": {"fit_score": {"type": "number"}}}
         )
 

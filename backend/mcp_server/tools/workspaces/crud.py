@@ -153,7 +153,7 @@ def create_workspace_logic(
     full_text_screening_response_schema: dict = None,
     full_text_screening_exit_metric: str = None,
     ocr_provider: str = None,
-    screening_llm_model: str = 'google/gemini-3.7-flash',
+    screening_llm_model: str = 'google/gemini-3.8-flash',
     llm_provider: str = 'google',
     reasoning_effort: str = 'medium',
     monthly_token_limit: int = 10000000,

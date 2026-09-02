@@ -78,7 +78,7 @@ class GoogleLLMProviderTestCase(TestCase):
         mock_client.models.generate_content.assert_called_once()
         called_kwargs = mock_client.models.generate_content.call_args.kwargs
         
-        self.assertEqual(called_kwargs["model"], "gemini-3.7-flash")
+        self.assertEqual(called_kwargs["model"], "gemini-3.8-flash")
         self.assertEqual(called_kwargs["contents"], "What is a systematic review?")
         
         config = called_kwargs["config"]
@@ -120,8 +120,8 @@ class GoogleLLMProviderTestCase(TestCase):
         mock_client.models.generate_content.assert_called_once()
         called_kwargs = mock_client.models.generate_content.call_args.kwargs
         
-        # PDF defaults model to gemini-3.7-flash
-        self.assertEqual(called_kwargs["model"], "gemini-3.7-flash")
+        # PDF defaults model to gemini-3.8-flash
+        self.assertEqual(called_kwargs["model"], "gemini-3.8-flash")
         
         contents = called_kwargs["contents"]
         self.assertEqual(len(contents), 2)
@@ -202,20 +202,20 @@ class GoogleLLMProviderTestCase(TestCase):
 
         provider = GoogleAgentAPIProvider(api_key="mock-agent-key")
 
-        # 1. Default (no reasoning_effort provided, gemini-3.7-flash -> default medium with budget 2048)
-        provider.generate(prompt="Explain quantum teleportation", model="google/gemini-3.7-flash")
+        # 1. Default (no reasoning_effort provided, gemini-3.8-flash -> default medium with budget 2048)
+        provider.generate(prompt="Explain quantum teleportation", model="google/gemini-3.8-flash")
         config = mock_client.models.generate_content.call_args.kwargs["config"]
         self.assertIsNotNone(config.thinking_config)
         self.assertEqual(config.thinking_config.thinking_budget, 2048)
 
         # 2. Explicit 'high' reasoning effort (budget 8192)
-        provider.generate(prompt="Prove quantum complexity", model="google/gemini-3.7-flash", reasoning_effort="high")
+        provider.generate(prompt="Prove quantum complexity", model="google/gemini-3.8-flash", reasoning_effort="high")
         config_high = mock_client.models.generate_content.call_args.kwargs["config"]
         self.assertIsNotNone(config_high.thinking_config)
         self.assertEqual(config_high.thinking_config.thinking_budget, 8192)
 
         # 3. Explicit 'off' reasoning effort (budget 0)
-        provider.generate(prompt="Quick summary", model="google/gemini-3.7-flash", reasoning_effort="off")
+        provider.generate(prompt="Quick summary", model="google/gemini-3.8-flash", reasoning_effort="off")
         config_off = mock_client.models.generate_content.call_args.kwargs["config"]
         self.assertIsNotNone(config_off.thinking_config)
         self.assertEqual(config_off.thinking_config.thinking_budget, 0)

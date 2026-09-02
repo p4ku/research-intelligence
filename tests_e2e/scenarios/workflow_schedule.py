@@ -61,7 +61,7 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         abstract_rejection_criteria="Reject classical distributed computing papers.",
         full_text_acceptance_criteria="Accept quantum hardware and architecture evaluations.",
         full_text_rejection_criteria="Reject non-technical position papers.",
-        screening_llm_model="google/gemini-3.7-flash",
+        screening_llm_model="google/gemini-3.8-flash",
     )
     workspace_id = ws_data["id"]
     schedule_id = None

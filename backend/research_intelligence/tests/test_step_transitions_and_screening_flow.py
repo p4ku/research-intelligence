@@ -34,7 +34,7 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
         self.workspace = Workspace.objects.create(
             name="Pipeline Flow Lab",
             ocr_provider=None,  # Direct multimodal PDF mode
-            screening_llm_model="google/gemini-3.7-flash"
+            screening_llm_model="google/gemini-3.8-flash"
         )
         WorkspaceMember.objects.create(workspace=self.workspace, user=self.user, role="admin")
 
@@ -47,7 +47,7 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
         self.ext_def = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Key Findings",
-            llm_model="google/gemini-3.7-flash",
+            llm_model="google/gemini-3.8-flash",
             system_prompt="Extract main findings.",
             response_schema={"type": "object", "properties": {"finding": {"type": "string"}}}
         )

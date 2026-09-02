@@ -11,7 +11,7 @@ older docs where they disagree.
 | Path   | `~/work/research-scanner`                                                                                                                                                                                       | `~/work/schwarz-research-intelligence`                                                      |
 | Remote | `Adder-Analytics/research-scanner`                                                                                                                                                                              | `p4ku/schwarz-research-intelligence`                                                        |
 | Branch | **`phase-2-core`** is the build-out trunk; `main` is the frozen pitch/demo archive (50 concept pages, Trends/Watchlist, MCP server, pitch docs). All three old `pitch/*` branches are fully merged into `main`. | `main`                                                                                      |
-| Stack  | Next.js 16 app router, React 19, Bun, Tailwind v4                                                                                                                                                               | Django REST + SimpleJWT + Celery/Redis + FastMCP, Google GenAI (Vertex, `gemini-3.7-flash`) |
+| Stack  | Next.js 16 app router, React 19, Bun, Tailwind v4                                                                                                                                                               | Django REST + SimpleJWT + Celery/Redis + FastMCP, Google GenAI (Vertex, `gemini-3.8-flash`) |
 
 **Hard constraint: the backend cannot be changed. We conform to it exactly as
 is.** Gaps are worked around on the frontend or listed in §8 as a handoff.

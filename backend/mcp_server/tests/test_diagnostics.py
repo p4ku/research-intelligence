@@ -22,8 +22,8 @@ class MCPDiagnosticsTestCase(BaseMCPTestCase):
 
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
     def test_google_llm_tool(self, mock_generate):
-        mock_generate.return_value = "Google LLM connectivity test successful with model gemini-3.7-flash."
-        res = self.parse_res(test_google_llm_logic(self.admin, prompt="Test prompt", model="gemini-3.7-flash"))
+        mock_generate.return_value = "Google LLM connectivity test successful with model gemini-3.8-flash."
+        res = self.parse_res(test_google_llm_logic(self.admin, prompt="Test prompt", model="gemini-3.8-flash"))
         self.assertTrue(res.get("success", False))
         self.assertIn("connectivity test", res["message"].lower())
 

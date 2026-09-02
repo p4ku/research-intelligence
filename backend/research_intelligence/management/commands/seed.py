@@ -66,7 +66,7 @@ class Command(BaseCommand):
                 "abstract_rejection_criteria": "Pure high-level software algorithms or theoretical surveys without hardware, circuit, or energy efficiency benchmarks.",
                 "full_text_acceptance_criteria": "Presents quantitative silicon fabrication data, CMOS integration results, energy-per-synaptic-operation (pJ/fJ), or latency benchmarks.",
                 "full_text_rejection_criteria": "Pure simulations without architectural validation, non-reproducible methodology, or non-peer-reviewed whitepapers.",
-                "screening_llm_model": "google/gemini-3.7-flash",
+                "screening_llm_model": "google/gemini-3.8-flash",
                 "ocr_provider": None,
                 "monthly_token_limit": 20000000,
                 "monthly_usd_limit": 250.00,

@@ -45,7 +45,7 @@ export const fixtureWorkspace: WorkspaceSummary = {
     },
   ],
   digest_schedule: '0 7 * * *',
-  screening_llm_model: 'google/gemini-3.7-flash',
+  screening_llm_model: 'google/gemini-3.8-flash',
   llm_provider: 'google',
   created_at: '2026-08-01T06:00:00Z',
 }

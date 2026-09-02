@@ -289,7 +289,7 @@ class Workspace(models.Model):
         ],
         help_text="OCR provider used for PDF layout extraction. Set to None or 'none' to skip OCR."
     )
-    screening_llm_model = models.CharField(max_length=100, default="google/gemini-3.7-flash", help_text="LLM model used for screening papers")
+    screening_llm_model = models.CharField(max_length=100, default="google/gemini-3.8-flash", help_text="LLM model used for screening papers")
     llm_provider = models.CharField(
         max_length=50,
         default="google",

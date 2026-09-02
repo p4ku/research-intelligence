@@ -89,7 +89,7 @@ Evaluated directly against the raw full-length PDF document using multimodal Gem
   ```
 
 #### C. Engine, Provider & Processing Policies
-* **Screening LLM Model**: `google/gemini-3.7-flash` *(Recommended default for ultra-fast, cost-effective multimodal analysis)*.
+* **Screening LLM Model**: `google/gemini-3.8-flash` *(Recommended default for ultra-fast, cost-effective multimodal analysis)*.
 * **OCR Provider**: `None` *(Leave as `None` to pass native PDF binaries directly into Gemini's native multimodal visual reasoning engine; select `pypdf`, `mistral`, or `gemini` only if raw Markdown text layout is required)*.
 * **Reprocess Existing**: `False` *(Default workspace policy. If checked/True, pipeline runs default to re-evaluating and re-screening existing workspace papers even if no new papers are found)*.
 * **Skip Abstract Screening**: `False` *(If checked/True, bypasses Abstract Screening and routes all ingested candidate papers directly to deep Full-Text Screening)*.

@@ -36,7 +36,7 @@ class ChatAdminTestCase(TestCase):
             session=self.session,
             sender='user',
             status='completed',
-            llm_model='google/gemini-3.7-flash',
+            llm_model='google/gemini-3.8-flash',
             tokens_in=1000,
             tokens_out=500,
             total_tokens=1500,

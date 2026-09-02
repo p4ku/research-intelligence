@@ -56,7 +56,7 @@ def run_mcp_protocol_scenario(config: Optional[E2EConfig] = None) -> Dict[str, A
         abstract_rejection_criteria="Reject unrelated biology topics.",
         full_text_acceptance_criteria="Accept algorithmic evaluations.",
         full_text_rejection_criteria="Reject papers with zero technical discussion.",
-        screening_llm_model="google/gemini-3.7-flash",
+        screening_llm_model="google/gemini-3.8-flash",
     )
     workspace_id = ws_data["id"]
 

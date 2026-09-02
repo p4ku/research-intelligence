@@ -27,7 +27,7 @@ class EmailDigestTaskTests(TestCase):
         self.user = User.objects.create_user(username="digest_admin", email="admin@soinventive.co.uk", password="pass")
         self.workspace = Workspace.objects.create(
             name="Quantum Computing Lab",
-            screening_llm_model="google/gemini-3.7-flash"
+            screening_llm_model="google/gemini-3.8-flash"
         )
         WorkspaceMember.objects.create(user=self.user, workspace=self.workspace, role="admin")
 
@@ -199,7 +199,7 @@ class EmailCompositionBuilderTests(TestCase):
     def setUp(self):
         self.workspace = Workspace.objects.create(
             name="Deep Tech & AI Materials",
-            screening_llm_model="google/gemini-3.7-flash"
+            screening_llm_model="google/gemini-3.8-flash"
         )
         self.pipeline_run = PipelineRun.objects.create(
             workspace=self.workspace,

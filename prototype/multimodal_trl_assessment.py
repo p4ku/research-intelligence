@@ -12,7 +12,7 @@ dotenv.load_dotenv()
 
 PROJECT_ID = "sit-disruption-t-wkzt-run-4sbq"
 LOCATION = "eu"   # regional endpoint for Vertex AI multimodal inputs
-MODEL = "gemini-3.7-flash"
+MODEL = "gemini-3.8-flash"
 PDF_PATH = Path(__file__).resolve().parent / "paper.pdf"
 
 SCOPES = ["https://www.googleapis.com/auth/cloud-platform"]

@@ -27,7 +27,7 @@ class PipelineTokenAccumulationTestCase(TestCase):
     def setUp(self):
         self.workspace = Workspace.objects.create(
             name="Token Accumulation Workspace",
-            screening_llm_model="google/gemini-3.7-flash",
+            screening_llm_model="google/gemini-3.8-flash",
             abstract_acceptance_criteria="Quantum algorithms",
             abstract_rejection_criteria="Classical algorithms",
             full_text_acceptance_criteria="Quantum error correction benchmarks",
@@ -291,7 +291,7 @@ class PipelineTokenAccumulationTestCase(TestCase):
             step_type="screening",
             status="completed",
             metrics={
-                "model_used": "google/gemini-3.7-flash",
+                "model_used": "google/gemini-3.8-flash",
                 "tokens_in": 10000,
                 "tokens_out": 2000,
                 "total_tokens": 12000,
@@ -356,15 +356,15 @@ class PipelineTokenAccumulationTestCase(TestCase):
         from research_intelligence.llm_providers.pricing import calculate_llm_cost
 
         # 0 tokens -> 0.0000
-        cost_zero = calculate_llm_cost("google/gemini-3.7-flash", 0, 0)
+        cost_zero = calculate_llm_cost("google/gemini-3.8-flash", 0, 0)
         self.assertEqual(cost_zero, Decimal("0.0000"))
 
         # Small tokens (e.g. 10 in, 5 out) -> should return minimum 0.0001
-        cost_micro = calculate_llm_cost("google/gemini-3.7-flash", 10, 5)
+        cost_micro = calculate_llm_cost("google/gemini-3.8-flash", 10, 5)
         self.assertGreaterEqual(cost_micro, Decimal("0.0001"))
 
-        # 1M input tokens for gemini-3.7-flash ($0.75 / 1M in) -> 0.7500
-        cost_1m = calculate_llm_cost("google/gemini-3.7-flash", 1_000_000, 0)
+        # 1M input tokens for gemini-3.8-flash ($0.75 / 1M in) -> 0.7500
+        cost_1m = calculate_llm_cost("google/gemini-3.8-flash", 1_000_000, 0)
         self.assertEqual(cost_1m, Decimal("0.7500"))
 
     def test_all_supported_llm_models_cost_calculation(self):

@@ -79,7 +79,7 @@ def create_extraction_definition_logic(
     response_schema: dict,
     exit_metric: str = None,
     exit_metric_key: str = None,
-    llm_model: str = "google/gemini-3.7-flash",
+    llm_model: str = "google/gemini-3.8-flash",
     version: int = 1,
     requires_consensus: bool = False,
     is_active: bool = True

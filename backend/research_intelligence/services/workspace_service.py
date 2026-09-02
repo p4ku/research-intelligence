@@ -81,7 +81,7 @@ def create_workspace_record(
     full_text_screening_exit_metric: Optional[str] = None,
     ocr_provider: Optional[str] = None,
     llm_provider: str = "google",
-    screening_llm_model: str = "google/gemini-3.7-flash",
+    screening_llm_model: str = "google/gemini-3.8-flash",
     reasoning_effort: str = "medium",
     signal_score_code: Optional[str] = None,
     monthly_token_limit: int = 10000000,
@@ -259,7 +259,7 @@ def import_workspace_configuration_bundle(
         name = ws_data["name"].strip()
         ws_fields = {
             "ocr_provider": ws_data.get("ocr_provider"),
-            "screening_llm_model": ws_data.get("screening_llm_model", "google/gemini-3.7-flash"),
+            "screening_llm_model": ws_data.get("screening_llm_model", "google/gemini-3.8-flash"),
             "llm_provider": ws_data.get("llm_provider", "google"),
             "reasoning_effort": ws_data.get("reasoning_effort", "medium"),
             "skip_abstract_screening": bool(ws_data.get("skip_abstract_screening", False)),
@@ -315,7 +315,7 @@ def import_workspace_configuration_bundle(
                 "user_prompt_template": ed_data.get("user_prompt_template", ""),
                 "response_schema": ed_data.get("response_schema", {}),
                 "exit_metric": ed_data.get("exit_metric"),
-                "llm_model": ed_data.get("llm_model", "google/gemini-3.7-flash"),
+                "llm_model": ed_data.get("llm_model", "google/gemini-3.8-flash"),
                 "version": ed_data.get("version", 1),
                 "requires_consensus": bool(ed_data.get("requires_consensus", False)),
                 "is_active": bool(ed_data.get("is_active", True)),

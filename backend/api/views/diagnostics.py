@@ -139,12 +139,12 @@ def probe_llm_providers() -> dict:
     try:
         from research_intelligence.llm_providers.google import GoogleAgentAPIProvider
         provider = GoogleAgentAPIProvider()
-        test_resp = provider.generate("Reply with 'OK' only.", model="gemini-3.7-flash")
+        test_resp = provider.generate("Reply with 'OK' only.", model="gemini-3.8-flash")
         latency = round((time.perf_counter() - google_start) * 1000, 2)
         llm_providers["google"] = {
             "status": "online",
             "provider_name": "Google Vertex AI / GenAI",
-            "model": "gemini-3.7-flash",
+            "model": "gemini-3.8-flash",
             "latency_ms": latency,
             "response": str(test_resp)[:100],
         }
@@ -153,7 +153,7 @@ def probe_llm_providers() -> dict:
         llm_providers["google"] = {
             "status": "offline",
             "provider_name": "Google Vertex AI / GenAI",
-            "model": "gemini-3.7-flash",
+            "model": "gemini-3.8-flash",
             "latency_ms": latency,
             "error": str(e),
         }

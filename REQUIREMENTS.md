@@ -32,7 +32,7 @@ The system must expose a unified `BaseOCRProvider` interface to extract layout-p
 
 ### FR-3: Pluggable LLM Provider Decoupling
 The system must isolate core agent logic from specific LLM vendors via `BaseLLMProvider` and `LLMProviderFactory`:
-* **Google GenAI / Vertex AI:** Primary high-performance driver (`google/gemini-3.7-flash`, `gemini-1.5-pro`) supporting multimodal PDF understanding, system instructions, and structured JSON schema enforcement.
+* **Google GenAI / Vertex AI:** Primary high-performance driver (`google/gemini-3.8-flash`, `gemini-1.5-pro`) supporting multimodal PDF understanding, system instructions, and structured JSON schema enforcement.
 * **OpenRouter:** Dynamic routing layer for alternative commercial and open-source models (Claude 3.5 Sonnet, Llama 3, Mixtral).
 * **OpenAI:** Direct API compatibility layer.
 * **Capabilities:** Pydantic/JSON schema validation, deterministic temperature controls, token budgeting, and exponential backoff retry policies.

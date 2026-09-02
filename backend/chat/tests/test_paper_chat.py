@@ -50,7 +50,7 @@ class PaperChatTestCase(TestCase):
             full_text_acceptance_criteria="Empirical benchmark or quantum circuit simulation",
             full_text_rejection_criteria="No quantitative data",
             llm_provider="google",
-            screening_llm_model="google/gemini-3.7-flash",
+            screening_llm_model="google/gemini-3.8-flash",
             signal_score_code="score = 0.5 * trl_level + 0.5 * novelty_score\nreturn round(score, 2)"
         )
         WorkspaceMember.objects.create(
@@ -245,7 +245,7 @@ class PaperChatTestCase(TestCase):
         self.assertEqual(poll_resp.data['tokens_out'], 65)
         self.assertEqual(poll_resp.data['total_tokens'], 1265)
         self.assertGreater(float(poll_resp.data['usd_cost']), 0.0)
-        self.assertEqual(poll_resp.data['llm_model'], 'google/gemini-3.7-flash')
+        self.assertEqual(poll_resp.data['llm_model'], 'google/gemini-3.8-flash')
 
         # 4. Verify Workspace & Session Token Accounting was updated
         self.workspace_a.refresh_from_db()

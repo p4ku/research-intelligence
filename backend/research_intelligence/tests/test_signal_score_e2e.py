@@ -51,7 +51,7 @@ class SignalScoreEndToEndPipelineTests(TestCase):
             abstract_rejection_criteria="Classical HPC without quantum comparison",
             full_text_acceptance_criteria="Hardware benchmarks or fault-tolerant simulation",
             full_text_rejection_criteria="Purely philosophical commentary",
-            screening_llm_model="google/gemini-3.7-flash",
+            screening_llm_model="google/gemini-3.8-flash",
             ocr_provider=None,
             signal_score_code="""
 k = fit_score + 2 * novelty_score + trl_level

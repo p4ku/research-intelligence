@@ -88,7 +88,7 @@ To prevent vendor lock-in and enable seamless failover, the core LLM execution l
     *   `LLMProviderFactory` resolves the correct driver configuration (from workspace settings).
     *   `BaseLLMProvider` acts as the interface, enforcing support for structured JSON schema outputs, system prompts, reasoning effort budgets, and temperature controls.
 3.  **Concrete Drivers**:
-    *   `GoogleLLMProvider` connects directly to Google Cloud Vertex AI / GenAI (default: `google/gemini-3.7-flash` with thinking reasoning effort support).
+    *   `GoogleLLMProvider` connects directly to Google Cloud Vertex AI / GenAI (default: `google/gemini-3.8-flash` with thinking reasoning effort support).
     *   `OpenRouterLLMProvider` handles fallback API calls through OpenRouter (allowing alternate models like Claude 3.5 Sonnet, Llama 3, etc.).
 4.  **External Endpoints**: Drivers connect securely via TLS/HTTPS to target endpoints using workspace credentials.
 

@@ -27,7 +27,7 @@ class LLMUsageRecordPersistenceTestCase(TestCase):
         self.user = User.objects.create_user(username="ledger_tester", email="ledger@example.com", password="password123")
         self.workspace = Workspace.objects.create(
             name="Persistent Billing Lab",
-            screening_llm_model="google/gemini-3.7-flash"
+            screening_llm_model="google/gemini-3.8-flash"
         )
         WorkspaceMember.objects.create(workspace=self.workspace, user=self.user, role="admin")
 
@@ -44,7 +44,7 @@ class LLMUsageRecordPersistenceTestCase(TestCase):
         cost = self.workspace.record_token_usage(
             tokens_in=1000,
             tokens_out=250,
-            model_name="google/gemini-3.7-flash",
+            model_name="google/gemini-3.8-flash",
             operation_type="abstract_screening",
             user=self.user,
             pipeline_run_id=str(self.pipeline_run.id),
@@ -74,7 +74,7 @@ class LLMUsageRecordPersistenceTestCase(TestCase):
         self.workspace.record_token_usage(
             tokens_in=5000,
             tokens_out=1500,
-            model_name="google/gemini-3.7-flash",
+            model_name="google/gemini-3.8-flash",
             operation_type="full_text_screening",
             user=self.user,
             pipeline_run_id=str(self.pipeline_run.id)
@@ -95,7 +95,7 @@ class LLMUsageRecordPersistenceTestCase(TestCase):
 
     def test_global_platform_aggregation_across_multiple_workspaces(self):
         """Verify that platform-wide totals aggregate accurately even when some workspaces are deleted."""
-        ws2 = Workspace.objects.create(name="Ephemeral Lab", screening_llm_model="google/gemini-3.7-flash")
+        ws2 = Workspace.objects.create(name="Ephemeral Lab", screening_llm_model="google/gemini-3.8-flash")
 
         # Record usage on WS1
         self.workspace.record_token_usage(1000, 200, operation_type="abstract_screening")

@@ -58,13 +58,13 @@ class ChatModelsTestCase(TestCase):
             tokens_out=100,
             total_tokens=900,
             usd_cost=Decimal('0.00150'),
-            llm_model='google/gemini-3.7-flash'
+            llm_model='google/gemini-3.8-flash'
         )
         self.assertEqual(msg.session, session)
         self.assertEqual(msg.sender, 'user')
         self.assertTrue(msg.deep_thinking)
         self.assertEqual(msg.total_tokens, 900)
-        self.assertEqual(msg.llm_model, 'google/gemini-3.7-flash')
+        self.assertEqual(msg.llm_model, 'google/gemini-3.8-flash')
         self.assertIn("user", str(msg))
 
     def test_cascading_deletion_on_paper_and_workspace(self):

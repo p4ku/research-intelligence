@@ -42,7 +42,7 @@ class AgentIdempotencyAndResumeTestCase(TestCase):
         self.workspace = Workspace.objects.create(
             name="Idempotency Workspace",
             ocr_provider="pypdf",
-            screening_llm_model="google/gemini-3.7-flash"
+            screening_llm_model="google/gemini-3.8-flash"
         )
         WorkspaceMember.objects.create(workspace=self.workspace, user=self.user, role="admin")
 

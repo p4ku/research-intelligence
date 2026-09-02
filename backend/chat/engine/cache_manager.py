@@ -41,7 +41,7 @@ class GeminiContextCacheManager:
         if total_len < 4096:
             return None
 
-        model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash') or 'google/gemini-3.7-flash'
+        model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.8-flash') or 'google/gemini-3.8-flash'
         provider = provider or get_llm_provider(provider_name)
 
         if not hasattr(provider, 'create_context_cache'):

@@ -10,7 +10,7 @@ class ContextCachingTestCase(BaseChatTestCase):
     def setUp(self):
         super().setUp()
         self.workspace.llm_provider = "google"
-        self.workspace.screening_llm_model = "google/gemini-3.7-flash"
+        self.workspace.screening_llm_model = "google/gemini-3.8-flash"
         self.workspace.save()
 
         self.large_paper = self.create_paper(
@@ -107,7 +107,7 @@ class ContextCachingTestCase(BaseChatTestCase):
         self.assertEqual(cache_name, "cachedContents/multimodal_pdf_cache_123")
         mock_provider.create_context_cache.assert_called_once()
         call_kwargs = mock_provider.create_context_cache.call_args[1]
-        self.assertEqual(call_kwargs["model"], "google/gemini-3.7-flash")
+        self.assertEqual(call_kwargs["model"], "google/gemini-3.8-flash")
         # Check that contents contains the text context and the Part
         self.assertTrue(len(call_kwargs["contents"]) >= 2)
 

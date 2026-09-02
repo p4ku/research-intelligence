@@ -27,7 +27,7 @@ class Step2DownloadResilienceTestCase(TestCase):
 
         self.workspace = Workspace.objects.create(
             name="Download Resilience Workspace",
-            screening_llm_model="google/gemini-3.7-flash"
+            screening_llm_model="google/gemini-3.8-flash"
         )
         self.pipeline_run = PipelineRun.objects.create(
             workspace=self.workspace,

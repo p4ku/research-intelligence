@@ -290,7 +290,7 @@ class AgentOrchestratorSignalScoreIntegrationTests(TestCase):
     def setUp(self):
         self.workspace = Workspace.objects.create(
             name="Autonomous Review Project",
-            screening_llm_model="google/gemini-3.7-flash",
+            screening_llm_model="google/gemini-3.8-flash",
             signal_score_code="return fit_score * 10"
         )
         self.pipeline_run = PipelineRun.objects.create(

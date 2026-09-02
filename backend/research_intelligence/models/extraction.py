@@ -16,7 +16,7 @@ class ExtractionDefinition(models.Model):
     user_prompt_template = models.TextField(help_text="User prompt with placeholders like {paper_text}")
     response_schema = models.JSONField(help_text="JSON schema describing fields to extract")
     exit_metric = models.CharField(max_length=100, blank=True, null=True, help_text="Field key to unpack from extracted data as the exit metric (e.g. 'fit_score', 'trl_score')")
-    llm_model = models.CharField(max_length=100, default="google/gemini-3.7-flash", help_text="LLM model used for this specific extraction")
+    llm_model = models.CharField(max_length=100, default="google/gemini-3.8-flash", help_text="LLM model used for this specific extraction")
     version = models.IntegerField(default=1, help_text="Tracks prompt/schema evolution")
     requires_consensus = models.BooleanField(default=False, help_text="Requires multi-sample self-consistency for difficult fields")
     is_active = models.BooleanField(default=True)

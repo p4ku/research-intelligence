@@ -22,7 +22,7 @@ class WorkspaceService:
             {
                 "name": f"{prefix}fit_score",
                 "exit_metric": "fit_score",
-                "llm_model": "google/gemini-3.7-flash",
+                "llm_model": "google/gemini-3.8-flash",
                 "system_prompt": "Evaluate strategic fit for enterprise research from 0.0 to 100.0.",
                 "user_prompt_template": "Paper Title: {title}\nAbstract/Content:\n{content}\nEvaluate strategic fit (0-100).",
                 "response_schema": {
@@ -38,7 +38,7 @@ class WorkspaceService:
             {
                 "name": f"{prefix}novelty_score",
                 "exit_metric": "novelty_score",
-                "llm_model": "google/gemini-3.7-flash",
+                "llm_model": "google/gemini-3.8-flash",
                 "system_prompt": "Evaluate scientific novelty and originality from 0.0 to 100.0.",
                 "user_prompt_template": "Paper Title: {title}\nAbstract/Content:\n{content}\nEvaluate novelty score (0-100).",
                 "response_schema": {
@@ -54,7 +54,7 @@ class WorkspaceService:
             {
                 "name": f"{prefix}trl_level",
                 "exit_metric": "trl_level",
-                "llm_model": "google/gemini-3.7-flash",
+                "llm_model": "google/gemini-3.8-flash",
                 "system_prompt": "Evaluate Technology Readiness Level from 1 to 9.",
                 "user_prompt_template": "Paper Title: {title}\nAbstract/Content:\n{content}\nEvaluate TRL level (1-9).",
                 "response_schema": {
@@ -85,7 +85,7 @@ class WorkspaceService:
         full_text_screening_response_schema: Optional[Dict[str, Any]] = None,
         full_text_screening_exit_metric: Optional[str] = None,
         signal_score_code: Optional[str] = None,
-        screening_llm_model: str = "google/gemini-3.7-flash",
+        screening_llm_model: str = "google/gemini-3.8-flash",
         ocr_provider: Optional[str] = None,
         reasoning_effort: str = "medium",
         skip_abstract_screening: bool = False,
@@ -200,7 +200,7 @@ class WorkspaceService:
         user_prompt_template: str,
         response_schema: Dict[str, Any],
         exit_metric: str,
-        llm_model: str = "google/gemini-3.7-flash",
+        llm_model: str = "google/gemini-3.8-flash",
     ) -> Optional[Dict[str, Any]]:
         payload = {
             "workspace": workspace_id,

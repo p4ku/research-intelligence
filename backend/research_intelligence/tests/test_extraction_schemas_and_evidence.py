@@ -25,7 +25,7 @@ class ExtractionSchemasAndEvidenceTestCase(TestCase):
         self.workspace = Workspace.objects.create(
             name="Extraction Target Workspace",
             llm_provider="google",
-            screening_llm_model="google/gemini-3.7-flash"
+            screening_llm_model="google/gemini-3.8-flash"
         )
         self.pipeline_run = PipelineRun.objects.create(
             workspace=self.workspace,
@@ -46,7 +46,7 @@ class ExtractionSchemasAndEvidenceTestCase(TestCase):
         self.definition = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Photovoltaic Parameters",
-            llm_model="google/gemini-3.7-flash",
+            llm_model="google/gemini-3.8-flash",
             system_prompt="Extract solar cell performance parameters.",
             user_prompt_template="Analyze paper: {title}\n{paper_text}",
             response_schema={
