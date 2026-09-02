@@ -36,6 +36,10 @@ applications:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/sse
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/messages
     command: python manage.py run_mcp --port 8000
+    env:
+      DEBUG: "False"
+      ALLOWED_HOSTS: "sri-prod.apps.01.cf.eu01.onstackit.cloud,sri.soinventive.co.uk,localhost"
+      CSRF_TRUSTED_ORIGINS: "https://sri-prod.apps.01.cf.eu01.onstackit.cloud,https://sri.soinventive.co.uk"
 
   - name: sri-worker
     docker:
@@ -52,7 +56,7 @@ applications:
       SCREENING_PARALLEL_WORKERS: "4"
       DOWNLOAD_PARALLEL_WORKERS: "4"
       OCR_PARALLEL_WORKERS: "4"
-
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
 
   - name: sri-beat
     docker:
@@ -64,6 +68,8 @@ applications:
     no-route: true
     health-check-type: process
     command: celery -A django_project beat --loglevel=info -s /tmp/celerybeat-schedule
+    env:
+      ALLOWED_HOSTS: "localhost,127.0.0.1"
 
   - name: sri-frontend
     docker:
