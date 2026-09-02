@@ -66,7 +66,8 @@ export const fixturePapers: ScoredPaper[] = [
     arxiv_id: '2608.01234',
     source: 'arxiv',
     screening_status: 'full_text_passed',
-    screening_reasoning: 'Directly on-topic: multi-agent coordination with an empirical evaluation.',
+    screening_reasoning:
+      'Directly on-topic: multi-agent coordination with an empirical evaluation.',
     signal_score: 87.5,
     signal_score_details: {
       variables: { fit_score: 92, novelty_score: 8, trl_level: 4 },

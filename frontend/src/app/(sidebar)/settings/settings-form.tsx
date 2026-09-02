@@ -1,7 +1,7 @@
 'use client'
 
 import { Card, ErrorNote, SectionLabel } from '@/components/scanner-ui'
-import { bffFetch, BffClientError } from '@/lib/bff/client'
+import { BffClientError, bffFetch } from '@/lib/bff/client'
 import type { Preferences, Profile } from '@/lib/bff/settings/schema'
 import { useT } from '@/lib/i18n-client'
 import { ExclamationTriangleIcon } from '@heroicons/react/16/solid'
@@ -29,9 +29,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-zinc-800 dark:text-zinc-200">
-        {label}
-      </label>
+      <label className="block text-sm font-medium text-zinc-800 dark:text-zinc-200">{label}</label>
       <input
         type={type}
         name={name}

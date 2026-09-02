@@ -442,7 +442,8 @@ export function toScoredPaper(
     signal_score: typeof metric?.signal_score === 'number' ? metric.signal_score : null,
     signal_score_details: hasDetails
       ? {
-          variables: (details as { variables?: Record<string, ScoreVariableValue> }).variables ?? {},
+          variables:
+            (details as { variables?: Record<string, ScoreVariableValue> }).variables ?? {},
           code_snippet: (details as { code_snippet?: string }).code_snippet ?? null,
           calculated_at: (details as { calculated_at?: string }).calculated_at ?? null,
           error: (details as { error?: string | null }).error ?? null,

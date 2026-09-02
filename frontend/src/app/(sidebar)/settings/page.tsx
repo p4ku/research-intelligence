@@ -59,9 +59,7 @@ export default async function SettingsPage() {
             <Row
               label={t('Sources')}
               value={
-                activeScrapers.length > 0
-                  ? activeScrapers.map((s) => s.provider).join(' · ')
-                  : '—'
+                activeScrapers.length > 0 ? activeScrapers.map((s) => s.provider).join(' · ') : '—'
               }
             />
             <Row

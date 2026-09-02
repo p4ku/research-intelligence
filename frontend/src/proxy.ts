@@ -59,7 +59,9 @@ export async function proxy(request: NextRequest) {
   // No rs-lang cookie yet (first visit): pick from Accept-Language so a
   // German browser gets a German first paint. The user's toggle wins from
   // then on — this runs only while the cookie is absent.
-  const newLang = request.cookies.get(LANG_COOKIE) ? null : detectLang(request.headers.get('accept-language'))
+  const newLang = request.cookies.get(LANG_COOKIE)
+    ? null
+    : detectLang(request.headers.get('accept-language'))
 
   if (PUBLIC_ROUTES.some((route) => route.test(pathname))) {
     return nextWithLang(request, newLang)
@@ -115,9 +117,10 @@ async function refreshAccess(refresh: string): Promise<RefreshResult> {
       cache: 'no-store',
     })
     if (!res.ok) return { kind: 'rejected' }
-    const data = (await res.json().catch(() => null)) as
-      | { access?: unknown; refresh?: unknown }
-      | null
+    const data = (await res.json().catch(() => null)) as {
+      access?: unknown
+      refresh?: unknown
+    } | null
     if (typeof data?.access !== 'string') return { kind: 'rejected' }
     // `refresh` is only present when the backend rotates; absent is not an error.
     return typeof data.refresh === 'string'

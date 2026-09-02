@@ -9,24 +9,21 @@
 // - `ExtractionDTO` carries `fields_data` but not the model's `exit_metric`
 //   property, so dimension values are derived in src/lib/papers/map.ts.
 
-import type * as z from 'zod'
+import type { componentRunDTO } from '@/lib/bff/component-runs/upstream'
 import type {
   extractionDTO,
   paperDTO,
   paperMetricDTO,
   signalScoreDetailsDTO,
 } from '@/lib/bff/papers/upstream'
-import type { componentRunDTO } from '@/lib/bff/component-runs/upstream'
-import type {
-  pipelineRunDTO,
-  pipelineRunDetailDTO,
-} from '@/lib/bff/pipeline-runs/upstream'
+import type { pipelineRunDTO, pipelineRunDetailDTO } from '@/lib/bff/pipeline-runs/upstream'
 import type {
   extractionDefinitionDTO,
   scraperDTO,
   subscriberDTO,
   workspaceDTO,
 } from '@/lib/bff/workspaces/upstream'
+import type * as z from 'zod'
 
 export type SignalScoreDetailsDTO = z.infer<typeof signalScoreDetailsDTO>
 export type PaperMetricDTO = z.infer<typeof paperMetricDTO>

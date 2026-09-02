@@ -127,7 +127,11 @@ export function useChatStream(onFinish?: (final: ChatStreamState) => void) {
         const problem = (await res.json().catch(() => null)) as Problem | null
         if (problem?.status === 401) window.location.assign('/auth/logout?reason=expired')
         return fail(
-          problem ?? { type: '/problems/internal', title: `HTTP ${res.status}`, status: res.status },
+          problem ?? {
+            type: '/problems/internal',
+            title: `HTTP ${res.status}`,
+            status: res.status,
+          },
         )
       }
 

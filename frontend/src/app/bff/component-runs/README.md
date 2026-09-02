@@ -8,8 +8,8 @@ failed.
 
 ## BFF routes
 
-| Route | Query | Returns |
-| --- | --- | --- |
+| Route                     | Query                                             | Returns            |
+| ------------------------- | ------------------------------------------------- | ------------------ |
 | `GET /bff/component-runs` | `pipeline_run_id` (required), `page`, `page_size` | `ComponentRunPage` |
 
 Schema: `src/lib/bff/component-runs/schema.ts` (`ComponentRun`).
@@ -33,7 +33,7 @@ type, so no component re-derives it. Two rules it holds to:
   It is not a zero. Real runs skip OCR entirely and write only
   `{"status": "skipped"}`; the UI must say "no metrics recorded", not
   "0 converted". (The Django admin renders `-` here, and renders the same `-`
-  for a *successful* OCR step, which is what prompted this.)
+  for a _successful_ OCR step, which is what prompted this.)
 - **`cost` carries measured spend only.** Every field is nullable and stays
   null when the engine did not record it. The admin estimates a cost from
   `screened × 5000 tokens` against a hardcoded model name and renders the

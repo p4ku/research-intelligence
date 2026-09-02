@@ -32,7 +32,8 @@ export const chatOperations: Operation[] = [
     kind: 'current',
     method: 'GET',
     path: '/api/chat/sessions/?workspace_id={workspace_id}',
-    summary: 'Sessions (bare array, -updated_at). Filters: ?workspace_id= / ?paper_id= (those names).',
+    summary:
+      'Sessions (bare array, -updated_at). Filters: ?workspace_id= / ?paper_id= (those names).',
     responses: { 200: z.array(chatSessionDTO) },
     probe: { requires: ['workspace_id'] },
   },
@@ -117,7 +118,8 @@ export const chatOperations: Operation[] = [
     kind: 'bff',
     method: 'GET',
     path: '/bff/chat/sessions/{session_id}',
-    summary: 'One session with its turns; DELETE removes it; PATCH renames (501 until Django saves it).',
+    summary:
+      'One session with its turns; DELETE removes it; PATCH renames (501 until Django saves it).',
     responses: { 200: chatSessionDetail },
   },
 ]

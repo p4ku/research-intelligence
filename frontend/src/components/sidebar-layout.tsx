@@ -1,8 +1,8 @@
 'use client'
 
+import { useT } from '@/lib/i18n-client'
 import * as Headless from '@headlessui/react'
 import React, { useState } from 'react'
-import { useT } from '@/lib/i18n-client'
 import { NavbarItem } from './app-navbar'
 
 function OpenMenuIcon() {

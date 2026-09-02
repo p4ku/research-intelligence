@@ -1,6 +1,6 @@
 import { ApplicationLayout } from '@/components/application-layout'
-import { forPage } from '@/lib/bff/core/page'
 import { getSessionUser } from '@/lib/auth/session'
+import { forPage } from '@/lib/bff/core/page'
 import { getLang } from '@/lib/i18n-server'
 import { getCurrentWorkspace, listWorkspaceChoices } from '@/lib/workspace-server'
 import { redirect } from 'next/navigation'

@@ -1,4 +1,4 @@
-import { encodeUserCookie, toCookieUser, USER_COOKIE, authCookieOptions } from '@/lib/auth/cookies'
+import { authCookieOptions, encodeUserCookie, toCookieUser, USER_COOKIE } from '@/lib/auth/cookies'
 import { bff } from '@/lib/bff/core/handler'
 import { parseBody } from '@/lib/bff/core/validate'
 import { profileUpdate } from '@/lib/bff/settings/schema'

@@ -13,8 +13,8 @@ LLM model.
 
 ## BFF routes
 
-| Route | Query | Returns |
-| --- | --- | --- |
+| Route                 | Query               | Returns         |
+| --------------------- | ------------------- | --------------- |
 | `GET /bff/workspaces` | `page`, `page_size` | `WorkspacePage` |
 
 Schema: `src/lib/bff/workspaces/schema.ts` (`Workspace`). The BFF derives

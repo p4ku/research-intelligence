@@ -13,14 +13,20 @@ import type { ScoredPaper } from '@/lib/papers/types'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { problem, ProblemError } from '../core/problem'
-import { assertUuid } from '../core/validate'
 import { sourceOf } from '../core/source'
+import { assertUuid } from '../core/validate'
 import { papers } from '../papers/service'
-import { runs } from '../pipeline-runs/service'
 import type { PipelineRun } from '../pipeline-runs/schema'
+import { runs } from '../pipeline-runs/service'
 import { fixtureEditions } from './fixtures'
 import { templateProse } from './prose'
-import { edition, editionPage, type Edition, type EditionsQuery, type EditionSummary } from './schema'
+import {
+  edition,
+  editionPage,
+  type Edition,
+  type EditionsQuery,
+  type EditionSummary,
+} from './schema'
 
 function editionDate(run: PipelineRun): string {
   return run.completed_at ? run.completed_at.slice(0, 10) : run.run_date
@@ -126,7 +132,10 @@ export const briefings = {
   async getByDate(workspaceId: string, date: string, lang: Lang = 'en'): Promise<Edition | null> {
     if (sourceOf('briefings') === 'django') {
       try {
-        return await django(`/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/editions/${date}/`, edition)
+        return await django(
+          `/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/editions/${date}/`,
+          edition,
+        )
       } catch (error) {
         if (error instanceof ProblemError && error.problem.status === 404) return null
         throw error

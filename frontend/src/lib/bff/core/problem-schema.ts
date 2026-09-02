@@ -12,10 +12,7 @@ export const problemSchema = z
     status: z.number().int(),
     detail: z.string().optional(),
     instance: z.string().optional(),
-    errors: z
-      .record(z.string(), z.array(z.string()))
-      .optional()
-      .describe('DRF-style field errors'),
+    errors: z.record(z.string(), z.array(z.string())).optional().describe('DRF-style field errors'),
     source: z.string().optional().describe('BFF source that produced the response'),
   })
   .meta({ id: 'Problem' })

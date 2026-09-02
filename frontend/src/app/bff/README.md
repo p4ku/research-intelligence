@@ -24,11 +24,11 @@ work list.
 
 Every resource is fed by one of three sources (`src/lib/bff/core/source.ts`):
 
-| Source     | Meaning                                                              |
-| ---------- | -------------------------------------------------------------------- |
-| `stub`     | Checked-in fixtures in the contract shape. No backend needed.        |
-| `composed` | Assembled in the BFF from the Django endpoints that exist today.     |
-| `django`   | The requested contract endpoint, as a validated pass-through.        |
+| Source     | Meaning                                                          |
+| ---------- | ---------------------------------------------------------------- |
+| `stub`     | Checked-in fixtures in the contract shape. No backend needed.    |
+| `composed` | Assembled in the BFF from the Django endpoints that exist today. |
+| `django`   | The requested contract endpoint, as a validated pass-through.    |
 
 Flip with `BFF_SOURCE_<RESOURCE>=stub|composed|django` (see `.env.example`).
 Every BFF response carries `X-BFF-Source`. `GET /bff/status` (signed in)

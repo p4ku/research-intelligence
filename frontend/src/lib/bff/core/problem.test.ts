@@ -17,8 +17,10 @@ describe('problemBody', () => {
 })
 
 describe('fromUpstream', () => {
-  test("Django {error} 400 → validation with detail", () => {
-    const p = fromUpstream(400, { error: 'Either paper_id or workspace_id must be provided.' }).problem
+  test('Django {error} 400 → validation with detail', () => {
+    const p = fromUpstream(400, {
+      error: 'Either paper_id or workspace_id must be provided.',
+    }).problem
     expect(p.type).toBe('/problems/validation')
     expect(p.detail).toContain('paper_id')
   })

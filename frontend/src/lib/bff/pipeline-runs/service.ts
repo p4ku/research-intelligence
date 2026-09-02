@@ -16,8 +16,8 @@ import {
   runStatus,
   type PipelineRun,
   type PipelineRunDetail,
-  type RunsQuery,
   type RunStatus,
+  type RunsQuery,
 } from './schema'
 import { pipelineRunDTO, pipelineRunDetailDTO } from './upstream'
 
@@ -65,7 +65,10 @@ function toRunDetail(dto: PipelineRunDetailDTO): PipelineRunDetail {
 export const runs = {
   /** One run in full. */
   get: cache(async (id: string): Promise<PipelineRunDetail> => {
-    const dto = await django(`/api/pipeline-runs/${assertUuid(id, 'run id')}/`, pipelineRunDetailDTO)
+    const dto = await django(
+      `/api/pipeline-runs/${assertUuid(id, 'run id')}/`,
+      pipelineRunDetailDTO,
+    )
     return toRunDetail(dto)
   }),
 
