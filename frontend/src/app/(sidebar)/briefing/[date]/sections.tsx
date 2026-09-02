@@ -8,7 +8,7 @@ import { fmt, type Lang, type T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { formatEditionDate } from '../format'
+import { formatEditionDate, funnelCopy } from '../format'
 
 /**
  * One edition's streamed sections. The head needs the edition; the papers
@@ -16,12 +16,9 @@ import { formatEditionDate } from '../format'
  * the two sections share one edition fetch.
  */
 
-export function funnelCopy(t: T) {
-  return [
-    { label: t('Screened'), sub: t('matched the focus fields') },
-    { label: t('Included'), sub: t('cleared the signal bar') },
-    { label: t('In the briefing'), sub: t('listed below') },
-  ]
+/** The edition's funnel: what is surfaced is listed on this very page. */
+export function editionFunnelCopy(t: T) {
+  return funnelCopy(t, t('listed below'))
 }
 
 /** Crumbs and title, the funnel, the brief. */
@@ -41,7 +38,7 @@ export async function EditionHead({
   // shell has already gone out (see docs/skeletons.md).
   if (!edition) notFound()
 
-  const copy = funnelCopy(t)
+  const copy = editionFunnelCopy(t)
   const funnel = [
     { value: edition.funnel.fetched, ...copy[0] },
     { value: edition.funnel.passed_screening, ...copy[1] },

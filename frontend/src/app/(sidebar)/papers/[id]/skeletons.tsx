@@ -17,10 +17,15 @@ import { PaperHeaderSkeleton, SignalHeading } from './paper-header'
  * crumbs, the loading.tsx shell, so both are pixel-identical. One record,
  * one Region, one sweep.
  *
- * Two deliberate reservations: the signal card takes the ledger's shape (what
- * production workspaces render; a workspace on another formula sees the card
- * shrink on load), and the dimension rows take the fixture's shape — the first
- * explains itself with a rationale and a quote, the rest are bare numbers.
+ * Three deliberate reservations, all sized to what production renders:
+ *  - the signal card takes the ledger's shape, including the compact
+ *    `ScoreVariables` line under it (a workspace on another formula sees the
+ *    card shrink on load);
+ *  - the Profile card is reserved, and the Dimensions card is 3/5 wide to
+ *    match — a paper with fewer than three scored dimensions drops the
+ *    Profile card and widens Dimensions to 5/5 on load;
+ *  - the dimension rows take the fixture's shape — the first explains itself
+ *    with a rationale and a quote, the rest are bare numbers.
  */
 
 export const DIMENSION_ROWS: { rationaleLines?: number; evidence?: number }[] = [
@@ -38,6 +43,12 @@ export function PaperRecordSkeleton({ t }: { t: T }) {
 
           <Card>
             <SignalLedgerSkeleton heading={<SignalHeading t={t} />} />
+            {/* The ledger branch always renders ScoreVariables under it:
+                any canonical-formula workspace records at least one
+                non-input variable, so the summary line is not optional. */}
+            <div className="border-line-soft mt-4 border-t pt-3 text-xs">
+              <Bone.Text widths={['22ch']} />
+            </div>
           </Card>
 
           <div className="grid gap-6 lg:grid-cols-5">
@@ -85,8 +96,12 @@ export function PaperRecordSkeleton({ t }: { t: T }) {
 
           <Card>
             <SectionLabel>{t('Files')}</SectionLabel>
+            {/* The usual record: a source link, the stored PDF, and the
+                archive note under them. */}
             <div className="mt-3 space-y-2 text-sm">
               <Bone.Text widths={['12ch']} />
+              <Bone.Text widths={['26ch']} />
+              <Bone.Text widths={['44ch']} className="text-xs" />
             </div>
           </Card>
         </div>

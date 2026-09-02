@@ -2,9 +2,7 @@ import { WorkspaceNotice } from '@/components/workspace-notice'
 import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspaceState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
 import { Suspense, ViewTransition } from 'react'
-import { isEditionDate } from '../../format'
 import { ScreeningLog } from './sections'
 import { ScreeningLogHeader, ScreeningLogSkeleton } from './skeletons'
 
@@ -30,9 +28,9 @@ export default async function ScreeningLogPage({ params }: { params: Promise<{ d
     getT(),
     getLang(),
   ])
-  // Same split as the edition page: only a date with no edition is a 404.
+  // Same split as the edition page; the date's shape is guarded by
+  // ../layout.tsx, above the loading boundary.
   if (state.kind !== 'ok') return <WorkspaceNotice state={state} />
-  if (!isEditionDate(date)) notFound()
   const ws = state.ws
 
   return (

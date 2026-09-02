@@ -260,7 +260,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
  * and whatever sits under it (the composer, an error). PaperChat and
  * PaperChatSkeleton both fill it.
  */
-export function PaperChatFrame({
+function PaperChatFrame({
   state = 'loaded',
   label,
   title,

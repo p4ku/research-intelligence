@@ -4,8 +4,9 @@ import { Breadcrumbs, SectionLabel, StatBandSkeleton } from '@/components/scanne
 import { Bone, Skeleton } from '@/components/skeleton'
 import type { Lang, T } from '@/lib/i18n'
 import Link from 'next/link'
-import { formatEditionDate } from '../format'
-import { funnelCopy } from './sections'
+// From ../format, never from ./sections: that module imports `server-only`
+// services, and a loading shell must stay importable from anywhere.
+import { formatEditionDate, funnelCopy } from '../format'
 
 /**
  * The edition page's section skeletons — the page's Suspense fallbacks and,
@@ -15,7 +16,7 @@ import { funnelCopy } from './sections'
  */
 
 export function EditionHeadSkeleton({ t, lang, date }: { t: T; lang: Lang; date?: string }) {
-  const copy = funnelCopy(t)
+  const copy = funnelCopy(t, t('listed below'))
   return (
     <Skeleton.Region status={t('Loading the briefing')} innerClassName="space-y-10">
       <div className="space-y-4">

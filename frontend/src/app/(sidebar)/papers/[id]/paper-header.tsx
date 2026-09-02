@@ -16,7 +16,7 @@ function Dot() {
   return <span className={META}>·</span>
 }
 
-export function PaperHeaderFrame({
+function PaperHeaderFrame({
   state = 'loaded',
   meta,
   title,
@@ -86,9 +86,15 @@ export function PaperHeaderSkeleton() {
           <Bone.Text widths={['5ch']} className={META} />
           <Dot />
           <Bone.Text widths={['11ch']} className={META} />
+          {/* The corpus is arXiv-sourced, so the id chip is the common case;
+              a paper without one loses a chip from a row that wraps anyway. */}
+          <Dot />
+          <Bone.Text widths={['14ch']} className="font-mono text-xs" />
         </>
       }
-      title={<Bone.Text widths={['85%']} />}
+      // Two lines: an arXiv title rarely fits one at this column width, and a
+      // one-line title only gives ~30px back where a wrap would cost the same.
+      title={<Bone.Text lines={2} widths={['100%', '58%']} />}
       authors={<Bone.Text widths={['60%']} />}
     />
   )

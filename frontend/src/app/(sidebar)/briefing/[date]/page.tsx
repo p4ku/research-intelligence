@@ -2,9 +2,7 @@ import { WorkspaceNotice } from '@/components/workspace-notice'
 import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspaceState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
 import { Suspense, ViewTransition } from 'react'
-import { isEditionDate } from '../format'
 import { EditionHead, EditionPapers } from './sections'
 import { EditionHeadSkeleton, EditionPapersSkeleton } from './skeletons'
 
@@ -40,10 +38,10 @@ export default async function BriefingEditionPage({
     getLang(),
   ])
   // A missing workspace is not a missing page: an outage gets the honest
-  // notice, a user with no membership gets the membership copy — only a
-  // date with no edition (or not a date at all) is a true 404.
+  // notice, a user with no membership gets the membership copy. The date's
+  // shape is already a 404 by here — layout.tsx guards it above the loading
+  // boundary, where notFound() still sets the status.
   if (state.kind !== 'ok') return <WorkspaceNotice state={state} />
-  if (!isEditionDate(date)) notFound()
   const ws = state.ws
 
   return (

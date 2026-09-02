@@ -550,7 +550,7 @@ const EVIDENCE_CLASS =
   'border-line-soft border-l-2 pl-2 text-xs leading-relaxed text-zinc-500 italic dark:text-zinc-400'
 
 /** One dimension row's layout: label + value line, optional track, rationale, evidence. */
-export function ScoreRowFrame({
+function ScoreRowFrame({
   label,
   value,
   track = false,
@@ -654,16 +654,20 @@ export function ScoreRow({
 }
 
 /**
- * A dimension row's bones. `rationaleLines` and `evidence` mirror what the
- * loaded row will carry — the paper skeleton uses the fixture's shape (the
- * first dimension explains itself, the rest are bare numbers).
+ * A dimension row's bones. `rationaleLines`, `evidence` and `track` mirror
+ * what the loaded row will carry — the paper skeleton uses the fixture's
+ * shape (the first dimension explains itself, the rest are bare numbers).
+ * `track` is the loaded row's own condition: a dimension with no numeric
+ * maximum draws no bar, and reserving one there is a guaranteed drift.
  */
 export function ScoreRowSkeleton({
   rationaleLines = 0,
   evidence = 0,
+  track = true,
 }: {
   rationaleLines?: number
   evidence?: number
+  track?: boolean
 }) {
   return (
     <ScoreRowFrame
@@ -673,7 +677,7 @@ export function ScoreRowSkeleton({
           <Bone.Number digits={2} />
         </span>
       }
-      track
+      track={track}
       rationale={
         rationaleLines > 0 && (
           <AnswerMarkdownSkeleton className={RATIONALE_CLASS} paragraphs={[rationaleLines]} />

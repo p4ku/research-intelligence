@@ -157,8 +157,11 @@ real strip, greeting and composer box with bones only where data would show:
 `/briefing/[date]` streams the head (crumbs, title, funnel, brief) and the
 papers separately, one fetch each; `/briefing/[date]/run` streams the funnel
 and the new `exclusions-table.tsx`. Each has `sections.tsx`, `skeletons.tsx`,
-`loading.tsx`. The date pages validate the param's shape before the shell goes
-out (`isEditionDate`), so a malformed date is still a plain 404.
+`loading.tsx`. The date pages keep a real 404 for a malformed date: the
+`isEditionDate` guard lives in `briefing/[date]/layout.tsx`, above the loading
+boundary and above `run/` with it. In the page it would have run _after_ the
+shell had streamed, which is HTTP 200 (see the pass-2 note) and, worse,
+non-deterministically so — a warm `getWorkspaceState()` could beat the flush.
 
 Things learned:
 
@@ -170,9 +173,17 @@ Things learned:
   stub fixture is _not_ on the canonical formula, so stub mode and the
   screenshot stack always show the fallback branch; the gallery pair passes
   literal inputs.
-- **Some things get no skeleton.** `ScoreVariables` renders a collapsed
-  one-line summary in the ledger branch and `null` in several others — a bone
-  that reserves space where nothing renders is a guaranteed drift finding.
+- **A `loading.tsx` moves `redirect()` too, not just `notFound()`.** `forPage`
+  sends an expired session to `/auth/logout`. Called from a `sections.tsx`
+  inside a boundary, that redirect now happens _after_ the skeleton shell has
+  gone out at HTTP 200, instead of as a clean 307 before any bytes. Accepted
+  on these routes; a route that needs the pre-flight redirect must resolve the
+  session above the boundary.
+- **Some things get no skeleton — but a branch you reserve, you reserve
+  whole.** `ScoreVariables` renders `null` in several branches, so it gets no
+  bone of its own; in the ledger branch, which the paper skeleton deliberately
+  reserves, its compact summary line always renders and is reserved with it.
+  A bone where nothing renders is a drift finding, and so is the reverse.
   `Sparkline` was already covered by `StatBandSkeleton`; `RadarChart` at a
   literal `size` is an exact `Bone.Block`. `ScoreMeter`, `QuadrantChart` and
   `HeatGrid` have no call sites.
@@ -209,3 +220,8 @@ instant. PPR is what would fix the hard-load case.
 
 Per-section error boundaries are also still missing: a failure in any section
 still replaces the whole page via `(sidebar)/error.tsx`.
+
+`paper-chat` carries `data-shape` / `data-state` but has **no gallery pair**, so
+`skeleton:drift` does not measure it. `PaperChat` fetches its history on mount,
+so a loaded pane needs either an injected-messages prop or a demo wrapper that
+stubs `bffFetch`. Until then its two states are only checked by eye.

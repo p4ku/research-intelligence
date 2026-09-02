@@ -3,14 +3,12 @@ import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import type { Lang, T } from '@/lib/i18n'
 import { notFound } from 'next/navigation'
+import { funnelCopy } from '../../format'
 import { ExclusionsTable } from './exclusions-table'
 
-export function funnelCopy(t: T) {
-  return [
-    { label: t('Screened'), sub: t('matched the focus fields') },
-    { label: t('Included'), sub: t('cleared the signal bar') },
-    { label: t('In the briefing'), sub: t('passed every gate') },
-  ]
+/** The log's funnel: here the surfaced count is the gate's own outcome. */
+export function logFunnelCopy(t: T) {
+  return funnelCopy(t, t('passed every gate'))
 }
 
 /** The run behind one edition: the funnel, and what screened out and why. */
@@ -28,7 +26,7 @@ export async function ScreeningLog({
   const edition = await forPage(briefings.getByDate(wsId, date, lang))
   if (!edition) notFound()
 
-  const copy = funnelCopy(t)
+  const copy = logFunnelCopy(t)
   const funnel = [
     { value: edition.funnel.fetched, ...copy[0] },
     { value: edition.funnel.passed_screening, ...copy[1] },
