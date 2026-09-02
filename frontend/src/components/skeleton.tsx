@@ -11,8 +11,8 @@ import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from 'react'
  * Sizing rules that keep skeletons honest (checked by scripts/skeleton-drift.ts):
  * - Bone.Text occupies exactly 1lh per line, so a paragraph is the same height
  *   loaded or not. It inherits font-size/line-height from the slot it sits in.
- * - Bone.Number reserves N digits of the mono face (width in ch) — place it
- *   inside an element carrying font-mono, like every number slot already does.
+ * - Bone.Number reserves N digits (width in ch of the inherited font). Exact
+ *   wherever digits are uniform: a font-mono slot or a tabular-nums sans cell.
  * - Percentage widths only in block contexts; inside flex rows use ch widths
  *   or Bone.Chip (a % width in a shrink-to-fit flex item resolves to 0).
  */
