@@ -25,6 +25,10 @@ export const dict: Record<string, string> = {
   // Form fallbacks (settings-form.tsx)
   "Couldn't save your profile. Try again.":
     'Ihr Profil konnte nicht gespeichert werden. Versuchen Sie es erneut.',
+  "Couldn't delete this conversation. Try again.":
+    'Das Gespräch konnte nicht gelöscht werden. Versuchen Sie es erneut.',
+  "Couldn't open this conversation. Try again.":
+    'Das Gespräch konnte nicht geöffnet werden. Versuchen Sie es erneut.',
   "Couldn't change your password. Try again.":
     'Ihr Passwort konnte nicht geändert werden. Versuchen Sie es erneut.',
 

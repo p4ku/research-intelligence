@@ -1,5 +1,17 @@
 'use client'
 
+import { ErrorNote } from '@/components/scanner-ui'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Spinner } from '@/components/ui/spinner'
 import type { ChatSession, ChatSessionDetail } from '@/lib/bff/chat/schema'
 import { bffFetch } from '@/lib/bff/client'
 import type { Page } from '@/lib/bff/core/pagination'
@@ -17,6 +29,7 @@ import {
 import clsx from 'clsx'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { toast } from 'sonner'
 import { HistoryList, HistoryRail } from './history-rail'
 import { MiniScore, PaperPicker, pickable, scoreColor } from './paper-picker'
 import { AskedHeading, FollowUps, LiveAnswer, SettledAnswer } from './scanner-turn'
@@ -97,6 +110,15 @@ export function Ask({
   const [pickQuery, setPickQuery] = useState('')
   const [cursor, setCursor] = useState(0)
   const [openingId, setOpeningId] = useState<string | null>(null)
+  const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
+  const [railStale, setRailStale] = useState(false)
+  // The delete flow: a row only nominates; the AlertDialog confirms.
+  const [pendingDelete, setPendingDelete] = useState<ChatSession | null>(null)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+  // The trash button that opened the dialog — focus returns to it on close
+  // (a controlled dialog with no Trigger would otherwise focus <body>).
+  const deleteTriggerRef = useRef<HTMLElement | null>(null)
   // Bumps per question so the anchor effect fires even for a repeated question.
   const [askSeq, setAskSeq] = useState(0)
 
@@ -157,8 +179,12 @@ export function Ask({
         `/bff/chat/sessions?workspace_id=${workspaceId}&page_size=100`,
       )
       setSessions(page.results)
-    } catch {
-      // The rail keeps its last known state; the transcript is unaffected.
+      setRailStale(false)
+    } catch (error) {
+      // The rail keeps its last known state — but says so instead of
+      // letting a just-finished conversation silently not appear.
+      console.error('[ask] session refresh failed:', error)
+      setRailStale(true)
     }
   }, [workspaceId])
 
@@ -240,6 +266,7 @@ export function Ask({
   async function openThread(session: ChatSession) {
     if (session.id === activeSessionId || openingId) return
     setOpeningId(session.id)
+    setRowError(null)
     try {
       const detail = await bffFetch<ChatSessionDetail>(`/bff/chat/sessions/${session.id}`)
       const scope: AskScope = { paper_id: detail.paper_id, title: detail.paper_title }
@@ -265,8 +292,10 @@ export function Ask({
       setPickQuery('')
       setCursor(0)
       transcriptRef.current?.scrollTo({ top: 0 })
-    } catch {
-      // Leave the console as it was.
+    } catch (error) {
+      // The console keeps its state; the row says what happened.
+      console.error('[ask] open failed:', error)
+      setRowError({ id: session.id, message: t("Couldn't open this conversation. Try again.") })
     } finally {
       setOpeningId(null)
     }
@@ -294,13 +323,31 @@ export function Ask({
     focusField()
   }
 
-  async function deleteThread(session: ChatSession) {
+  function requestDelete(session: ChatSession) {
+    deleteTriggerRef.current = document.activeElement as HTMLElement | null
+    setDeleteError(null)
+    setPendingDelete(session)
+  }
+
+  async function confirmDelete() {
+    const session = pendingDelete
+    if (!session || deleting) return
+    setDeleting(true)
+    setDeleteError(null)
     try {
       await bffFetch<void>(`/bff/chat/sessions/${session.id}`, { method: 'DELETE' })
       setSessions((prev) => prev.filter((s) => s.id !== session.id))
       if (session.id === activeSessionId) newThread()
-    } catch {
-      // Row stays; nothing else to do.
+      setPendingDelete(null)
+      // The row — the outcome's anchor — is gone, so this is the one place
+      // a toast is right (see the Toaster note in app/layout.tsx).
+      toast(t('Conversation deleted'))
+    } catch (error) {
+      // The dialog stays open: a failed destructive action is never silent.
+      console.error('[ask] delete failed:', error)
+      setDeleteError(t("Couldn't delete this conversation. Try again."))
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -434,8 +481,11 @@ export function Ask({
   const lastGroup = groups[groups.length - 1]
   const sendLive = busy || (mode === 'ask' && input.trim() !== '')
 
+  // minmax(0,…) on the mobile column too: the implicit auto track sized
+  // itself to the history rows' min-content and pushed the page wider than
+  // the viewport (pre-existing; surfaced by the touch-target work).
   return (
-    <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(17rem,1fr)] lg:grid-rows-1">
+    <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(17rem,1fr)] lg:grid-rows-1">
       {/* Console: transcript above, the composer docked below. */}
       <section
         aria-label={t('Ask console')}
@@ -692,9 +742,13 @@ export function Ask({
         <HistoryRail
           threads={sessions}
           activeId={activeSessionId}
+          openingId={openingId}
+          rowError={rowError}
+          stale={railStale}
+          onRefresh={() => void refreshSessions()}
           onOpen={openThread}
           onNew={newThread}
-          onDelete={deleteThread}
+          onDelete={requestDelete}
         />
       </aside>
 
@@ -712,11 +766,56 @@ export function Ask({
           <HistoryList
             threads={sessions}
             activeId={activeSessionId}
+            openingId={openingId}
+            rowError={rowError}
             onOpen={openThread}
-            onDelete={deleteThread}
+            onDelete={requestDelete}
           />
         </div>
       </details>
+
+      {/* One dialog serves both delete triggers (rail + mobile list). A
+          failure keeps it open — a destructive action never fails silently. */}
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleting) {
+            setPendingDelete(null)
+            setDeleteError(null)
+          }
+        }}
+      >
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            deleteTriggerRef.current?.focus()
+          }}
+        >
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Delete this conversation?')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {fmt(t('"{title}" and every answer in it will be deleted. This cannot be undone.'), {
+                title: pendingDelete ? shortTitle(pendingDelete.title) : '',
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && <ErrorNote>{deleteError}</ErrorNote>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>{t('Cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={(event) => {
+                // Radix closes on Action by default; we close only on success.
+                event.preventDefault()
+                void confirmDelete()
+              }}
+            >
+              {deleting && <Spinner className="size-3.5" aria-hidden="true" />}
+              {deleting ? t('Deleting…') : t('Delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
