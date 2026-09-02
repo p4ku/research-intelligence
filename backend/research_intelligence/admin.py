@@ -1187,8 +1187,34 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
     def last_run_display(self, obj):
         if not obj.last_run_at:
             return format_html('<span style="color: #adb5bd;">Never</span>')
-        status_color = "#198754" if obj.last_status == 'completed' else ("#dc3545" if obj.last_status == 'failed' else "#17a2b8")
-        status_badge = render_badge(obj.last_status.upper(), status_color) if obj.last_status else ''
+
+        # Observable status: reflect live state from pipeline_run/agent_process
+        status = obj.current_execution_status or obj.last_status or 'pending'
+        if obj.last_status != status:
+            WorkflowSchedule.objects.filter(id=obj.id).update(last_status=status)
+            obj.last_status = status
+
+        is_halted, halt_step = getattr(obj, 'is_last_execution_halted_early', (False, ""))
+        if is_halted:
+            status_color = "#fd7e14"
+            badge_label = f"⚠️ HALTED ({halt_step.upper()})" if halt_step else "⚠️ HALTED"
+        elif status == 'completed':
+            status_color = "#198754"
+            badge_label = "COMPLETED"
+        elif status == 'failed':
+            status_color = "#dc3545"
+            badge_label = "FAILED"
+        elif status == 'running':
+            status_color = "#17a2b8"
+            badge_label = "RUNNING"
+        elif status == 'aborted':
+            status_color = "#495057"
+            badge_label = "ABORTED"
+        else:
+            status_color = "#6c757d"
+            badge_label = status.upper()
+
+        status_badge = render_badge(badge_label, status_color)
         
         run_link = ""
         if obj.last_pipeline_run:

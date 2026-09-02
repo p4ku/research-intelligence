@@ -322,3 +322,118 @@ class WorkflowScheduleModelAndDispatcherTests(TestCase):
             self.assertTrue(connection.is_usable())
             agent.refresh_from_db()
             self.assertIsNotNone(agent.status)
+
+    def test_observer_updates_schedule_status_on_pipeline_run_completion(self):
+        """
+        Observer test: When a PipelineRun transitions status (e.g. running -> completed),
+        the post_save signal observer updates the associated WorkflowSchedule.last_status.
+        """
+        schedule = WorkflowSchedule.objects.create(
+            workspace=self.workspace,
+            name="Observer Test Schedule",
+            frequency="daily",
+            time_of_day=datetime.time(2, 0),
+            is_active=True
+        )
+        agent = schedule.trigger_run(triggered_by_user=self.user)
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.last_status, "running")
+
+        # Simulate PipelineRun finishing (e.g. completed)
+        pipeline_run = schedule.last_pipeline_run
+        pipeline_run.status = "completed"
+        pipeline_run.save(update_fields=["status"])
+
+        # Observer should have automatically updated schedule.last_status
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.last_status, "completed")
+        self.assertEqual(schedule.current_execution_status, "completed")
+
+    def test_observer_updates_schedule_status_on_agent_process_update(self):
+        """
+        Observer test: When a ResearchAgentProcess updates status, the post_save
+        observer reflects the status onto observing WorkflowSchedule.
+        """
+        schedule = WorkflowSchedule.objects.create(
+            workspace=self.workspace,
+            name="Agent Observer Schedule",
+            frequency="daily",
+            time_of_day=datetime.time(2, 0),
+            is_active=True
+        )
+        agent = schedule.trigger_run(triggered_by_user=self.user)
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.last_status, "running")
+
+        # Simulate AgentProcess failing
+        agent.status = "failed"
+        agent.save(update_fields=["status"])
+
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.last_status, "failed")
+        self.assertEqual(schedule.current_execution_status, "failed")
+
+    def test_schedule_observable_early_halt_and_admin_display(self):
+        """
+        Tests that when an agent process halts early (e.g. search stage with 0 new papers due to duplicates),
+        is_last_execution_halted_early is True and admin last_run_display renders the HALTED badge.
+        """
+        from django.contrib.admin.sites import AdminSite
+        from research_intelligence.admin import WorkflowScheduleAdmin
+
+        schedule = WorkflowSchedule.objects.create(
+            workspace=self.workspace,
+            name="Halt Schedule",
+            frequency="daily",
+            time_of_day=datetime.time(2, 0),
+            is_active=True
+        )
+        agent = schedule.trigger_run(triggered_by_user=self.user)
+        p_run = schedule.last_pipeline_run
+
+        # Mark pipeline run and agent as halted early at search
+        p_run.status = "completed"
+        p_run.save(update_fields=["status"])
+
+        agent.status = "completed"
+        agent.stopped_at_step = "search"
+        agent.stop_reason = "⚠️ Search: 0 papers were found matching criteria (0 new papers ingested - duplicates)"
+        agent.save(update_fields=["status", "stopped_at_step", "stop_reason"])
+
+        schedule.refresh_from_db()
+        is_halted, halt_step = schedule.is_last_execution_halted_early
+        self.assertTrue(is_halted)
+        self.assertEqual(halt_step, "search")
+
+        # Test admin last_run_display
+        admin_site = AdminSite()
+        model_admin = WorkflowScheduleAdmin(WorkflowSchedule, admin_site)
+        display_html = model_admin.last_run_display(schedule)
+
+        self.assertIn("HALTED (SEARCH)", display_html)
+        self.assertNotIn("RUNNING", display_html)
+
+    def test_serializer_observable_last_status(self):
+        """
+        Tests that WorkflowScheduleSerializer exposes current_execution_status as last_status.
+        """
+        from api.serializers.schedules import WorkflowScheduleSerializer
+
+        schedule = WorkflowSchedule.objects.create(
+            workspace=self.workspace,
+            name="Serializer Test Schedule",
+            frequency="daily",
+            time_of_day=datetime.time(2, 0),
+            is_active=True
+        )
+        agent = schedule.trigger_run(triggered_by_user=self.user)
+
+        # Force DB last_status to stale 'running', but pipeline run to 'completed'
+        p_run = schedule.last_pipeline_run
+        p_run.status = "completed"
+        # Use bulk update to bypass signals to test fallback observable property
+        PipelineRun.objects.filter(id=p_run.id).update(status="completed")
+
+        schedule.refresh_from_db()
+        serializer = WorkflowScheduleSerializer(schedule)
+        self.assertEqual(serializer.data["last_status"], "completed")

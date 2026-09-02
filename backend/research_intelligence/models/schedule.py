@@ -158,6 +158,37 @@ class WorkflowSchedule(models.Model):
             models.Index(fields=['workspace', 'is_active']),
         ]
 
+    @property
+    def current_execution_status(self) -> str:
+        """
+        Observable property: dynamically derives the live status from the linked PipelineRun
+        (and ResearchAgentProcess), ensuring real-time consistency without desynchronization.
+        """
+        if self.last_pipeline_run:
+            p_status = self.last_pipeline_run.status
+            if p_status in ('completed', 'failed', 'aborted'):
+                return p_status
+            agent = self.last_pipeline_run.agent_processes.first()
+            if agent and agent.status in ('completed', 'failed', 'aborted'):
+                return agent.status
+            return p_status or self.last_status or 'running'
+        return self.last_status or ''
+
+    @property
+    def is_last_execution_halted_early(self) -> tuple[bool, str]:
+        """
+        Returns (True, halt_step_name) if the last execution completed early / halted
+        (e.g. 0 new papers found due to duplicates, or 0 papers passed screening).
+        """
+        if not self.last_pipeline_run:
+            return False, ""
+        agent = self.last_pipeline_run.agent_processes.first()
+        if agent:
+            step = agent.stopped_at_step
+            if agent.status == 'completed' and step and step not in ('completed', 'reporting'):
+                return True, step
+        return False, ""
+
     def __str__(self):
         return f"{self.name} [{self.workspace.name}] ({self.schedule_description})"
 

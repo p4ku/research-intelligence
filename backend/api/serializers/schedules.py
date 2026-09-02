@@ -6,6 +6,7 @@ class WorkflowScheduleSerializer(serializers.ModelSerializer):
     workspace_name = serializers.ReadOnlyField(source='workspace.name')
     frequency_display = serializers.CharField(source='get_frequency_display', read_only=True)
     schedule_description = serializers.CharField(read_only=True)
+    last_status = serializers.CharField(source='current_execution_status', read_only=True)
 
     class Meta:
         model = WorkflowSchedule
