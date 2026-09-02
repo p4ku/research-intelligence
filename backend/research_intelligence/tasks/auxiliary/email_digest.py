@@ -51,11 +51,11 @@ def build_pipeline_run_digest_payload(
     # Determine truly accepted papers based on the terminal screening stage:
     if pipeline_run:
         if pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted']).exists():
-            accepted_papers = list(pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted']))
+            accepted_papers = list(pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted']).prefetch_related('extractions', 'extractions__extraction_definition'))
         elif pipeline_run.get_papers(screening_status='abstract_passed').exists():
-            accepted_papers = list(pipeline_run.get_papers(screening_status='abstract_passed'))
+            accepted_papers = list(pipeline_run.get_papers(screening_status='abstract_passed').prefetch_related('extractions', 'extractions__extraction_definition'))
         else:
-            accepted_papers = list(pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn', 'pending']))
+            accepted_papers = list(pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn', 'pending']).prefetch_related('extractions', 'extractions__extraction_definition'))
     else:
         accepted_papers = []
 

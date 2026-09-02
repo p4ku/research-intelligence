@@ -1,6 +1,7 @@
 import uuid
 import logging
 from django.db import models
+from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,12 @@ class Paper(models.Model):
         """Returns the initial / origin PipelineRun for this paper."""
         if hasattr(self, '_pipeline_run') and self._pipeline_run is not None:
             return self._pipeline_run
+        if hasattr(self, '_prefetched_objects_cache') and 'metrics' in self._prefetched_objects_cache:
+            m_list = list(self.metrics.all())
+            if m_list:
+                initial_metric = min(m_list, key=lambda m: (m.created_at or timezone.now(), str(m.id)))
+                return initial_metric.pipeline_run
+            return None
         initial_metric = self.metrics.order_by('created_at').first()
         return initial_metric.pipeline_run if initial_metric else None
 
@@ -171,6 +178,12 @@ class Paper(models.Model):
     @property
     def latest_pipeline_run(self):
         """Returns the most recent PipelineRun that evaluated this paper."""
+        if hasattr(self, '_prefetched_objects_cache') and 'metrics' in self._prefetched_objects_cache:
+            m_list = list(self.metrics.all())
+            if m_list:
+                latest_metric = max(m_list, key=lambda m: (m.created_at or timezone.now(), str(m.id)))
+                return latest_metric.pipeline_run
+            return None
         latest_metric = self.metrics.order_by('-created_at').first()
         return latest_metric.pipeline_run if latest_metric else None
 

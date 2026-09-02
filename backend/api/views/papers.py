@@ -45,7 +45,14 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
 
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if ws_id:
-            qs = qs.filter(workspace_id=ws_id)
+            if str(ws_id).lower() in ('undefined', 'null', ''):
+                return qs.none()
+            import uuid
+            try:
+                ws_uuid = uuid.UUID(str(ws_id))
+                qs = qs.filter(workspace_id=ws_uuid)
+            except (ValueError, TypeError):
+                return qs.none()
 
         pipeline_run_id = (
             self.request.query_params.get('pipeline_run')
@@ -161,18 +168,39 @@ class PaperMetricViewSet(viewsets.ReadOnlyModelViewSet):
 
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if ws_id:
-            qs = qs.filter(workspace_id=ws_id)
+            if str(ws_id).lower() in ('undefined', 'null', ''):
+                return qs.none()
+            import uuid
+            try:
+                ws_uuid = uuid.UUID(str(ws_id))
+                qs = qs.filter(workspace_id=ws_uuid)
+            except (ValueError, TypeError):
+                return qs.none()
 
         pr_id = (
             self.request.query_params.get('pipeline_run')
             or self.request.query_params.get('pipeline_run_id')
         )
-        if pr_id and str(pr_id).lower() not in ('undefined', 'null', ''):
-            qs = qs.filter(pipeline_run_id=pr_id)
+        if pr_id:
+            if str(pr_id).lower() in ('undefined', 'null', ''):
+                return qs.none()
+            import uuid
+            try:
+                pr_uuid = uuid.UUID(str(pr_id))
+                qs = qs.filter(pipeline_run_id=pr_uuid)
+            except (ValueError, TypeError):
+                return qs.none()
 
         paper_id = self.request.query_params.get('paper') or self.request.query_params.get('paper_id')
         if paper_id:
-            qs = qs.filter(paper_id=paper_id)
+            if str(paper_id).lower() in ('undefined', 'null', ''):
+                return qs.none()
+            import uuid
+            try:
+                p_uuid = uuid.UUID(str(paper_id))
+                qs = qs.filter(paper_id=p_uuid)
+            except (ValueError, TypeError):
+                return qs.none()
 
         screening_status = self.request.query_params.get('screening_status')
         if screening_status:

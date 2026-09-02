@@ -1,5 +1,6 @@
 import json
 from typing import Optional
+from django.core.exceptions import ValidationError
 from research_intelligence.models import Extraction, Workspace, Paper, PipelineRun, ResearchAgentProcess
 
 
@@ -32,7 +33,7 @@ def list_extractions_logic(
                 qs = qs.filter(paper__metrics__pipeline_run=proc.pipeline_run).distinct()
             else:
                 qs = qs.filter(workspace=proc.workspace)
-        except (ValueError, ResearchAgentProcess.DoesNotExist):
+        except (ValueError, TypeError, ValidationError, ResearchAgentProcess.DoesNotExist):
             return json.dumps({"error": f"ResearchAgentProcess '{process_id}' not found."})
     elif pipeline_run_id:
         try:
@@ -41,7 +42,7 @@ def list_extractions_logic(
             if error:
                 return json.dumps({"error": error})
             qs = qs.filter(paper__metrics__pipeline_run=pipeline_run).distinct()
-        except (ValueError, PipelineRun.DoesNotExist):
+        except (ValueError, TypeError, ValidationError, PipelineRun.DoesNotExist):
             return json.dumps({"error": f"PipelineRun '{pipeline_run_id}' not found."})
     elif workspace_id:
         workspace, _, error = check_workspace_access(user, workspace_id)
@@ -98,19 +99,6 @@ def get_paper_extractions_matrix_logic(
     exit metrics, justifications, and scores in a single structured response.
     Eliminates manual joining of papers and extractions.
     """
-    if workspace_id:
-        workspace, _, error = check_workspace_access(user, workspace_id)
-        if error:
-            return json.dumps({"error": error})
-    elif pipeline_run_id:
-        try:
-            pr = PipelineRun.objects.select_related('workspace').get(id=pipeline_run_id)
-            workspace, _, error = check_workspace_access(user, str(pr.workspace.id))
-            if error:
-                return json.dumps({"error": error})
-        except (ValueError, PipelineRun.DoesNotExist):
-            return json.dumps({"error": f"PipelineRun '{pipeline_run_id}' not found."})
-
     from research_intelligence.services import build_paper_extractions_matrix
     payload = build_paper_extractions_matrix(
         user=user,
@@ -129,11 +117,14 @@ def get_extraction_logic(user, extraction_id: str) -> str:
     """
     try:
         ext = Extraction.objects.select_related('workspace', 'paper', 'extraction_definition').get(pk=extraction_id)
-    except (Extraction.DoesNotExist, ValueError):
+    except (Extraction.DoesNotExist, ValueError, TypeError, ValidationError):
         from research_intelligence.models import ExtractionDefinition
-        if ExtractionDefinition.objects.filter(id=extraction_id).exists():
-            from .definitions import get_extraction_definition_logic
-            return get_extraction_definition_logic(user, extraction_id)
+        try:
+            if ExtractionDefinition.objects.filter(id=extraction_id).exists():
+                from .definitions import get_extraction_definition_logic
+                return get_extraction_definition_logic(user, extraction_id)
+        except (ValueError, TypeError, ValidationError):
+            pass
         return json.dumps({"error": f"Extraction '{extraction_id}' not found."})
 
     workspace, _, error = check_workspace_access(user, str(ext.workspace.id))

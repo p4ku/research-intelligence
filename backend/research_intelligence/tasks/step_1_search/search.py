@@ -70,7 +70,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
     try:
         start_time = time.time()
         provider = get_scraper_provider(scraper.provider)
-        final_limit = limit if limit is not None else getattr(scraper, 'limit', 50)
+        final_limit = limit if limit is not None else (getattr(scraper, 'limit', 50) or 50)
         sort_by = getattr(scraper, 'sort_by', 'relevance')
         sort_order = getattr(scraper, 'sort_order', 'desc')
 

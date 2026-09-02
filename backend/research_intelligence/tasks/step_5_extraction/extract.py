@@ -530,7 +530,7 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
                 pipeline_run.status = 'failed'
             elif has_aborted:
                 pipeline_run.status = 'aborted'
-            else:
+            elif pipeline_run.current_stage == 'completed':
                 pipeline_run.status = 'completed'
                 pipeline_run.completed_at = timezone.now()
             pipeline_run.save(update_fields=['status', 'completed_at'])

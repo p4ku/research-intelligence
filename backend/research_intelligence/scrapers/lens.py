@@ -25,7 +25,7 @@ class LensScraperProvider(BaseScraperProvider):
                     "query": query
                 }
             },
-            "size": limit
+            "size": int(limit or 10)
         }
         if sort_by == "date":
             payload["sort"] = [{"date_published": sort_order}]

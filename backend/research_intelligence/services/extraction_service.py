@@ -5,6 +5,7 @@ and HITL (Human-in-the-Loop) verification.
 import logging
 from typing import Optional, Dict, Any, List
 from django.db.models import F, Q
+from django.core.exceptions import ValidationError
 from research_intelligence.models import (
     Extraction,
     Workspace,
@@ -42,17 +43,20 @@ def build_paper_extractions_matrix(
         papers_qs = papers_qs.filter(workspace__id__in=user_ws_ids)
 
     if process_id:
-        try:
-            proc = ResearchAgentProcess.objects.select_related('pipeline_run', 'workspace').get(id=process_id)
-            if user_ws_ids is not None and proc.workspace_id not in user_ws_ids:
-                return {"error": f"You do not have access to workspace '{proc.workspace.name}'."}
-            if proc.pipeline_run:
-                target_pr_id = proc.pipeline_run.id
-                papers_qs = papers_qs.filter(metrics__pipeline_run=proc.pipeline_run).distinct()
-            else:
-                papers_qs = papers_qs.filter(workspace=proc.workspace)
-        except (ValueError, ResearchAgentProcess.DoesNotExist):
-            return {"error": f"ResearchAgentProcess '{process_id}' not found."}
+        if str(process_id).lower() in ('undefined', 'null', ''):
+            papers_qs = papers_qs.none()
+        else:
+            try:
+                proc = ResearchAgentProcess.objects.select_related('pipeline_run', 'workspace').get(id=process_id)
+                if user_ws_ids is not None and proc.workspace_id not in user_ws_ids:
+                    return {"error": f"You do not have access to workspace '{proc.workspace.name}'."}
+                if proc.pipeline_run:
+                    target_pr_id = proc.pipeline_run.id
+                    papers_qs = papers_qs.filter(metrics__pipeline_run=proc.pipeline_run).distinct()
+                else:
+                    papers_qs = papers_qs.filter(workspace=proc.workspace)
+            except (ValueError, TypeError, ValidationError, ResearchAgentProcess.DoesNotExist):
+                return {"error": f"ResearchAgentProcess '{process_id}' not found."}
     elif pipeline_run_id:
         if str(pipeline_run_id).lower() in ('undefined', 'null', ''):
             papers_qs = papers_qs.none()
@@ -61,23 +65,28 @@ def build_paper_extractions_matrix(
             try:
                 pr_uuid = uuid.UUID(str(pipeline_run_id))
                 target_pr_id = pr_uuid
-                if user_ws_ids is not None:
-                    pr = PipelineRun.objects.filter(pk=pr_uuid).values('workspace_id').first()
-                    if pr and pr['workspace_id'] not in user_ws_ids:
-                        return {"error": "You do not have access to this pipeline run."}
+                pr = PipelineRun.objects.filter(pk=pr_uuid).values('workspace_id').first()
+                if not pr:
+                    return {"error": f"PipelineRun '{pipeline_run_id}' not found."}
+                if user_ws_ids is not None and pr['workspace_id'] not in user_ws_ids:
+                    return {"error": "You do not have access to this pipeline run."}
                 papers_qs = papers_qs.filter(metrics__pipeline_run_id=pr_uuid).distinct()
-            except (ValueError, TypeError):
+            except (ValueError, TypeError, ValidationError):
                 return {"error": f"Invalid pipeline_run_id '{pipeline_run_id}'."}
     elif workspace_id:
-        if user_ws_ids is not None:
+        if str(workspace_id).lower() in ('undefined', 'null', ''):
+            papers_qs = papers_qs.none()
+        else:
             import uuid
             try:
                 ws_uuid = uuid.UUID(str(workspace_id))
-                if ws_uuid not in user_ws_ids:
+                if not Workspace.objects.filter(pk=ws_uuid).exists():
+                    return {"error": f"Workspace with ID '{workspace_id}' does not exist."}
+                if user_ws_ids is not None and ws_uuid not in user_ws_ids:
                     return {"error": f"You do not have access to workspace '{workspace_id}'."}
-            except (ValueError, TypeError):
+                papers_qs = papers_qs.filter(workspace_id=ws_uuid)
+            except (ValueError, TypeError, ValidationError):
                 return {"error": f"Invalid workspace_id '{workspace_id}'."}
-        papers_qs = papers_qs.filter(workspace_id=workspace_id)
 
     from django.db.models import Subquery, OuterRef
     from research_intelligence.models import PaperMetric

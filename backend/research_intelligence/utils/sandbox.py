@@ -233,14 +233,24 @@ def _wrap_snippet_to_callable(code_snippet: str) -> str:
     if not stripped:
         return "def __signal_calc__(extractions=None, **kwargs):\n    return 0.0"
 
-    # If the user already defined the canonical main scoring function
-    if (
-        stripped.startswith("def compute_signal_score(")
-        or stripped.startswith("def calculate_score(")
-        or stripped.startswith("def signal_score(")
-        or stripped.startswith("def calculate_signal_score(")
-    ):
-        return stripped
+    # Check if user defined top-level canonical or standalone scoring functions
+    try:
+        parsed = ast.parse(stripped)
+        top_functions = {
+            node.name: node for node in parsed.body if isinstance(node, ast.FunctionDef)
+        }
+        for candidate in ("compute_signal_score", "calculate_signal_score", "signal_score", "calculate_score"):
+            if candidate in top_functions:
+                return stripped
+
+        has_top_level_code = any(
+            not isinstance(node, (ast.FunctionDef, ast.Import, ast.ImportFrom))
+            for node in parsed.body
+        )
+        if top_functions and not has_top_level_code:
+            return stripped
+    except SyntaxError:
+        pass
 
     # Try parsing as a pure expression first (e.g. `fit_score * 2 + trl_level` or `w1 * 0.3 + w2 * 0.7`)
     try:
@@ -314,6 +324,25 @@ def execute_sandboxed_snippet(
         "__loop_iter__",
     }
 
+    # Collect locally defined names (function defs, arguments, assignments) and function calls
+    locally_defined = set()
+    called_funcs = set()
+    for node in ast.walk(ast_tree):
+        if isinstance(node, ast.FunctionDef):
+            locally_defined.add(node.name)
+            for arg in node.args.args:
+                locally_defined.add(arg.arg)
+            if node.args.vararg:
+                locally_defined.add(node.args.vararg.arg)
+            if node.args.kwarg:
+                locally_defined.add(node.args.kwarg.arg)
+            for kwonly in node.args.kwonlyargs:
+                locally_defined.add(kwonly.arg)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            locally_defined.add(node.id)
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            called_funcs.add(node.func.id)
+
     # 3.1 Safely initialize any undeclared variable names referenced in the AST snippet to 0.0 default
     for node in ast.walk(ast_tree):
         if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
@@ -321,14 +350,15 @@ def execute_sandboxed_snippet(
             if (
                 var_name not in valid_vars
                 and var_name not in EXCLUDED_NAMES
+                and var_name not in locally_defined
+                and var_name not in called_funcs
                 and not var_name.startswith("__")
                 and var_name.isidentifier()
             ):
                 valid_vars[var_name] = 0.0
 
-    # 4. Prepare execution scope with safe builtins, math, and variables in globals
-    local_scope: Dict[str, Any] = {}
-    global_scope: Dict[str, Any] = {
+    # 4. Prepare execution scope with safe builtins, math, and variables
+    exec_scope: Dict[str, Any] = {
         "__builtins__": SAFE_BUILTINS,
         "math": math,
         "SandboxExecutionError": SandboxExecutionError,
@@ -344,7 +374,7 @@ def execute_sandboxed_snippet(
 
     # 6. Execute definition and retrieve function
     try:
-        exec(compiled_code, global_scope, local_scope)
+        exec(compiled_code, exec_scope)
     except SandboxExecutionError:
         raise
     except SandboxSecurityError:
@@ -354,17 +384,17 @@ def execute_sandboxed_snippet(
 
     calc_fn = None
     # If the user snippet was wrapped into __signal_calc__, execute that wrapper
-    if "__signal_calc__" in local_scope and callable(local_scope["__signal_calc__"]):
-        calc_fn = local_scope["__signal_calc__"]
+    if "__signal_calc__" in exec_scope and callable(exec_scope["__signal_calc__"]):
+        calc_fn = exec_scope["__signal_calc__"]
     else:
         # Check for explicit canonical score function names first
-        for candidate_name in ("compute_signal_score", "calculate_signal_score", "signal_score", "score"):
-            if candidate_name in local_scope and callable(local_scope[candidate_name]):
-                calc_fn = local_scope[candidate_name]
+        for candidate_name in ("compute_signal_score", "calculate_signal_score", "signal_score", "calculate_score", "score"):
+            if candidate_name in exec_scope and callable(exec_scope[candidate_name]):
+                calc_fn = exec_scope[candidate_name]
                 break
         if not calc_fn:
-            for key, val in local_scope.items():
-                if callable(val) and not key.startswith("_"):
+            for key, val in exec_scope.items():
+                if callable(val) and not key.startswith("_") and key not in EXCLUDED_NAMES:
                     calc_fn = val
                     break
 
@@ -373,7 +403,25 @@ def execute_sandboxed_snippet(
 
     # 7. Run function with context under strict timeout enforcement
     def _run_calc():
-        return calc_fn(extractions=context_vars, **valid_vars)
+        import inspect
+        try:
+            sig = inspect.signature(calc_fn)
+            params = sig.parameters
+            has_var_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+            if has_var_kw:
+                return calc_fn(extractions=context_vars, **valid_vars)
+
+            call_kwargs = {}
+            for param_name, param in params.items():
+                if param_name == "extractions":
+                    call_kwargs["extractions"] = context_vars
+                elif param_name in valid_vars:
+                    call_kwargs[param_name] = valid_vars[param_name]
+                elif param.default is inspect.Parameter.empty:
+                    call_kwargs[param_name] = 0.0
+            return calc_fn(**call_kwargs)
+        except (ValueError, TypeError):
+            return calc_fn(extractions=context_vars, **valid_vars)
 
     try:
         effective_timeout = max(0.1, float(timeout_seconds or 2.0))

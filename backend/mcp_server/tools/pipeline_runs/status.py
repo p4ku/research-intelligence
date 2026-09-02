@@ -92,13 +92,19 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
     if comp_runs_list and not has_active and not has_active_agent:
         if has_failed and pipeline_run.status != 'aborted':
             pipeline_run.status = 'failed'
+            if not pipeline_run.completed_at:
+                pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'completed_at'])
         elif has_aborted:
             pipeline_run.status = 'aborted'
-        else:
+            if not pipeline_run.completed_at:
+                pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'completed_at'])
+        elif pipeline_run.current_stage == 'completed':
             pipeline_run.status = 'completed'
-        if not pipeline_run.completed_at:
-            pipeline_run.completed_at = timezone.now()
-        pipeline_run.save(update_fields=['status', 'completed_at'])
+            if not pipeline_run.completed_at:
+                pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'completed_at'])
 
     from django.db.models import Count, Q
     paper_stats = pipeline_run.get_papers().aggregate(

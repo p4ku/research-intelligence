@@ -69,7 +69,14 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
 
         workspace_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if workspace_id:
-            qs = qs.filter(workspace_id=workspace_id)
+            if str(workspace_id).lower() in ('undefined', 'null', ''):
+                return qs.none()
+            import uuid
+            try:
+                ws_uuid = uuid.UUID(str(workspace_id))
+                qs = qs.filter(workspace_id=ws_uuid)
+            except (ValueError, TypeError):
+                return qs.none()
 
         status_param = self.request.query_params.get('status')
         if status_param:

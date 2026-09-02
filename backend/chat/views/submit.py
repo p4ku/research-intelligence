@@ -1,4 +1,5 @@
 import logging
+from django.core.exceptions import ValidationError
 from rest_framework import permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -100,7 +101,7 @@ class ChatSubmitView(APIView):
         if session_id:
             try:
                 session = PaperChatSession.objects.get(id=session_id, workspace=target_workspace)
-            except PaperChatSession.DoesNotExist:
+            except (PaperChatSession.DoesNotExist, ValueError, ValidationError):
                 return Response(
                     {"error": f"Chat session '{session_id}' not found in workspace."},
                     status=status.HTTP_404_NOT_FOUND

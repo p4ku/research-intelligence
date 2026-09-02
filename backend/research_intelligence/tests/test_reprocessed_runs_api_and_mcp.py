@@ -281,6 +281,26 @@ class ReprocessedRunsAPIMCPTests(TestCase):
         results_corrupt = data_corrupt["results"] if isinstance(data_corrupt, dict) and "results" in data_corrupt else data_corrupt
         self.assertEqual(len(results_corrupt), 0)
 
+        # 4. Corrupt workspace, paper, or definition UUIDs across endpoints do not crash with 500:
+        for ep in [
+            "/api/papers/?workspace=invalid-uuid",
+            "/api/paper-metrics/?workspace=invalid-uuid",
+            "/api/paper-metrics/?pipeline_run=invalid-uuid",
+            "/api/paper-metrics/?paper=invalid-uuid",
+            "/api/extractions/?workspace=invalid-uuid",
+            "/api/extractions/?paper=invalid-uuid",
+            "/api/extractions/?definition=invalid-uuid",
+            "/api/pipeline-runs/?workspace=invalid-uuid",
+            "/api/agents/?workspace=invalid-uuid",
+            "/api/reports/?workspace=invalid-uuid",
+            "/api/schedules/?workspace=invalid-uuid",
+        ]:
+            resp = self.client.get(ep)
+            self.assertEqual(resp.status_code, 200, f"Endpoint {ep} should return 200 with empty list on invalid UUID")
+            res_data = resp.json()
+            items = res_data["results"] if isinstance(res_data, dict) and "results" in res_data else res_data
+            self.assertEqual(len(items), 0, f"Endpoint {ep} should return 0 items for invalid UUID")
+
     def test_mcp_tools_with_omitted_or_malformed_parameters(self):
         """
         Verifies that MCP tools handle omitted and invalid parameters gracefully.

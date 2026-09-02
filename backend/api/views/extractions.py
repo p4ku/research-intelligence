@@ -51,15 +51,36 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
 
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if ws_id:
-            qs = qs.filter(workspace_id=ws_id)
+            if str(ws_id).lower() in ('undefined', 'null', ''):
+                return qs.none()
+            import uuid
+            try:
+                ws_uuid = uuid.UUID(str(ws_id))
+                qs = qs.filter(workspace_id=ws_uuid)
+            except (ValueError, TypeError):
+                return qs.none()
 
         paper_id = self.request.query_params.get('paper') or self.request.query_params.get('paper_id')
         if paper_id:
-            qs = qs.filter(paper_id=paper_id)
+            if str(paper_id).lower() in ('undefined', 'null', ''):
+                return qs.none()
+            import uuid
+            try:
+                p_uuid = uuid.UUID(str(paper_id))
+                qs = qs.filter(paper_id=p_uuid)
+            except (ValueError, TypeError):
+                return qs.none()
 
         def_id = self.request.query_params.get('definition') or self.request.query_params.get('definition_id')
         if def_id:
-            qs = qs.filter(extraction_definition_id=def_id)
+            if str(def_id).lower() in ('undefined', 'null', ''):
+                return qs.none()
+            import uuid
+            try:
+                d_uuid = uuid.UUID(str(def_id))
+                qs = qs.filter(extraction_definition_id=d_uuid)
+            except (ValueError, TypeError):
+                return qs.none()
 
         pipeline_run_id = (
             self.request.query_params.get('pipeline_run')

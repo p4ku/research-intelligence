@@ -12,8 +12,9 @@ class OpenAlexScraperProvider(BaseScraperProvider):
     """
 
     def search(self, query: str, limit: int = 10, sort_by: str = "relevance", sort_order: str = "desc") -> list[dict]:
+        effective_limit = int(limit or 10)
         encoded_query = urllib.parse.quote(query)
-        url = f"https://api.openalex.org/works?search={encoded_query}&per_page={limit}"
+        url = f"https://api.openalex.org/works?search={encoded_query}&per_page={effective_limit}"
         if sort_by == "date":
             url += f"&sort=publication_date:{sort_order}"
         

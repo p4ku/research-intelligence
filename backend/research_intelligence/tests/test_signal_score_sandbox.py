@@ -187,6 +187,22 @@ return round(score, 1)
         res = execute_sandboxed_snippet("", {"a": 10.0, "b": 25.0})
         self.assertEqual(res, 35.0)
 
+    def test_explicit_function_with_specific_parameters(self):
+        code = """def compute_signal_score(fit_score, novelty_score):
+    return fit_score * 0.6 + novelty_score * 0.4"""
+        res = execute_sandboxed_snippet(code, {"fit_score": 10.0, "novelty_score": 5.0})
+        self.assertEqual(res, 8.0)
+
+    def test_explicit_function_preceded_by_comments_and_helpers(self):
+        code = """# Scientific scoring algorithm
+def clamp(val):
+    return max(0.0, min(10.0, val))
+
+def compute_signal_score(fit_score, trl_level):
+    return clamp(fit_score) * 2.0 + trl_level"""
+        res = execute_sandboxed_snippet(code, {"fit_score": 4.0, "trl_level": 3.0})
+        self.assertEqual(res, 11.0)
+
 
     def test_helper_numeric_parser(self):
         self.assertEqual(_parse_numeric_value("4"), 4.0)

@@ -550,6 +550,7 @@ class ResearchAgentProcessTest(TestCase):
         """
         Tests that when reprocess_existing=True, existing workspace papers are linked and the agent advances to download.
         """
+        self.mock_arxiv_search.return_value = []
         # Create an existing paper in workspace belonging to an older run
         old_run = PipelineRun.objects.create(workspace=self.workspace, status='completed', current_stage='completed')
         paper = Paper.objects.create(

@@ -1,4 +1,5 @@
 import logging
+from django.core.exceptions import ValidationError
 from rest_framework import permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -33,7 +34,7 @@ class ChatMessageDetailView(APIView):
                 'session__workspace',
                 'session__paper'
             ).get(id=message_id)
-        except (ValueError, PaperChatMessage.DoesNotExist):
+        except (ValueError, ValidationError, PaperChatMessage.DoesNotExist):
             return Response(
                 {"error": f"Chat message '{message_id}' not found."},
                 status=status.HTTP_404_NOT_FOUND

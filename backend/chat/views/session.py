@@ -59,16 +59,16 @@ class PaperChatSessionViewSet(viewsets.ModelViewSet):
         paper_id = self.request.query_params.get('paper_id')
         if paper_id:
             try:
-                qs = qs.filter(paper_id=uuid.UUID(paper_id))
-            except ValueError:
-                pass
+                qs = qs.filter(paper_id=uuid.UUID(str(paper_id)))
+            except (ValueError, TypeError):
+                return qs.none()
 
         workspace_id = self.request.query_params.get('workspace_id')
         if workspace_id:
             try:
-                qs = qs.filter(workspace_id=uuid.UUID(workspace_id))
-            except ValueError:
-                pass
+                qs = qs.filter(workspace_id=uuid.UUID(str(workspace_id)))
+            except (ValueError, TypeError):
+                return qs.none()
 
         return qs.order_by('-updated_at')
 
