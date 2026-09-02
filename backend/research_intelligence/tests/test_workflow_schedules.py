@@ -398,6 +398,35 @@ class WorkflowScheduleExecutionAndTransactionsTests(WorkflowScheduleBaseTestCase
         self.assertEqual(schedule.failed_runs_count, 0)
         self.assertEqual(schedule.success_rate_percent, 100.0)
 
+    def test_scheduled_run_tick_does_not_create_duplicate_orphaned_pipeline_run(self):
+        """
+        Regression test: When trigger_run() creates a PipelineRun and an initialized ResearchAgentProcess,
+        subsequent ResearchAgentRunner.tick() must REUSE the existing pipeline_run instead of creating
+        a duplicate orphan and leaving the schedule's last_pipeline_run in 'running' limbo.
+        """
+        schedule = self.create_schedule(name="Orphan Regression Schedule")
+        agent = schedule.trigger_run(triggered_by_user=self.user)
+        self.assertIsNotNone(agent)
+
+        initial_pipeline_run = schedule.last_pipeline_run
+        self.assertIsNotNone(initial_pipeline_run)
+        self.assertEqual(initial_pipeline_run.schedule, schedule)
+        self.assertEqual(agent.pipeline_run, initial_pipeline_run)
+        self.assertEqual(PipelineRun.objects.count(), 1)
+
+        # Execute first tick on the agent process (simulates Celery worker execution)
+        tick_result = ResearchAgentRunner.tick(str(agent.id))
+        self.assertTrue(tick_result.get("success", False))
+
+        # Assert no duplicate PipelineRun was spawned
+        self.assertEqual(PipelineRun.objects.count(), 1)
+        agent.refresh_from_db()
+        self.assertEqual(agent.pipeline_run_id, initial_pipeline_run.id)
+
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.last_pipeline_run_id, initial_pipeline_run.id)
+        self.assertEqual(schedule.pipeline_runs.count(), 1)
+
 
 # ==============================================================================
 # 4. OBSERVABILITY, SIGNALS & FAILURE GUARDRAILS
