@@ -2817,15 +2817,26 @@ class PaperMetricAdmin(admin.ModelAdmin):
             return mark_safe('<span style="color: #adb5bd; font-size: 11px;">-</span>')
 
         excluded_keys = {
-            'reasoning', 'evidence_quotes', 'dynamic_data',
-            'system_prompt', 'user_prompt', 'raw_output', 'error'
+            'reasoning', 'evidence_quotes', 'evidence_quote', 'dynamic_data',
+            'system_prompt', 'user_prompt', 'raw_output', 'error',
+            'justification', 'decision_category'
         }
 
         filtered_items = []
         for k, v in obj.metrics_data.items():
-            if str(k).lower() in excluded_keys:
+            k_lower = str(k).lower()
+            if k_lower in excluded_keys:
+                continue
+            # Hide test-prefixed alias duplicates (e.g. test_e2e_sched_..._fit_score)
+            if 'test_' in k_lower:
                 continue
             filtered_items.append((k, v))
+
+        # Fallback: if all metrics had 'test_' and filtered_items is empty, show them without excluding
+        if not filtered_items and obj.metrics_data:
+            for k, v in obj.metrics_data.items():
+                if str(k).lower() not in excluded_keys:
+                    filtered_items.append((k, v))
 
         if not filtered_items:
             return mark_safe('<span style="color: #6c757d; font-size: 11px;">(Detale w formularzu)</span>')

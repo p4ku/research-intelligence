@@ -460,7 +460,10 @@ score = clamp(trl_val) * 0.5 + 4.0
             metrics_data={
                 "is_active": True,
                 "trl_level": 7,
+                "test_e2e_sched_58705055_trl_level": 7,
                 "reasoning": "Extremely detailed rationale that must not be in list preview",
+                "justification": "Detailed explanation of result",
+                "decision_category": "ACCEPTED: Core scope",
                 "methodology": "CNN-GNN"
             }
         )
@@ -474,10 +477,13 @@ score = clamp(trl_val) * 0.5 + 4.0
         ws_html = admin.workspace_link(metric)
         self.assertIn(self.workspace_a.name, ws_html)
 
-        # Metrics preview renders badges on separate lines and skips heavy text
+        # Metrics preview renders badges on separate lines and skips heavy text / test aliases
         preview_html = admin.metrics_preview(metric)
         self.assertIn("PASS", preview_html)
         self.assertIn("7", preview_html)
         self.assertIn("CNN-GNN", preview_html)
+        self.assertNotIn("test_e2e_sched_58705055_trl_level", preview_html)
         self.assertNotIn("Extremely detailed rationale", preview_html)
+        self.assertNotIn("Detailed explanation of result", preview_html)
+        self.assertNotIn("decision_category", preview_html)
         self.assertIn("<div", preview_html)
