@@ -6,8 +6,12 @@ class WorkflowScheduleSerializer(serializers.ModelSerializer):
     workspace_name = serializers.ReadOnlyField(source='workspace.name')
     frequency_display = serializers.CharField(source='get_frequency_display', read_only=True)
     schedule_description = serializers.CharField(read_only=True)
+    cron_expression = serializers.CharField(required=False, allow_blank=True, allow_null=True, default='')
     last_status = serializers.CharField(source='current_execution_status', read_only=True)
     success_rate_percent = serializers.FloatField(read_only=True)
+
+    def validate_cron_expression(self, value):
+        return value or ''
 
     class Meta:
         model = WorkflowSchedule
