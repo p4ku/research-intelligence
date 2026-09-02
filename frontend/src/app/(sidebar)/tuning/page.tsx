@@ -1,10 +1,11 @@
 import { Card, PageHeader, SectionLabel } from '@/components/scanner-ui'
 import { InfluenceBar, TuningPanel } from '@/components/tuning-panel'
+import { WorkspaceNotice } from '@/components/workspace-notice'
 import { forPage } from '@/lib/bff/core/page'
 import { scoring } from '@/lib/bff/scoring/service'
 import { getT } from '@/lib/i18n-server'
 import { fallbackDimensions, tuningProfile } from '@/lib/papers/tuning-profile'
-import { getCurrentWorkspace } from '@/lib/workspace-server'
+import { getWorkspaceState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
@@ -22,23 +23,17 @@ export async function generateMetadata(): Promise<Metadata> {
 // claim. No proof, no numbers: the fallback names the dimensions and stops.
 
 export default async function TuningPage() {
-  const [t, ws] = await Promise.all([getT(), getCurrentWorkspace()])
+  const [t, state] = await Promise.all([getT(), getWorkspaceState()])
 
-  if (!ws) {
+  if (state.kind !== 'ok') {
     return (
       <div className="space-y-8">
         <PageHeader eyebrow={t('Controls')} title={t('Tuning')} />
-        <Card>
-          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
-            {t('No workspace selected')}
-          </p>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {t('You are not a member of any workspace yet. Ask an administrator for access.')}
-          </p>
-        </Card>
+        <WorkspaceNotice kind={state.kind} />
       </div>
     )
   }
+  const ws = state.ws
 
   const s = await forPage(scoring.get(ws.id))
   const profile = tuningProfile(s)

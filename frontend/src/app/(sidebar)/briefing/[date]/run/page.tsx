@@ -1,8 +1,9 @@
 import { Breadcrumbs, SectionLabel, StatBand } from '@/components/scanner-ui'
+import { WorkspaceNotice } from '@/components/workspace-notice'
 import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import { getLang, getT } from '@/lib/i18n-server'
-import { getCurrentWorkspace } from '@/lib/workspace-server'
+import { getWorkspaceState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { formatEditionDate } from '../../format'
@@ -19,13 +20,15 @@ export async function generateMetadata(): Promise<Metadata> {
 // means something because the exclusions are inspectable.
 
 export default async function ScreeningLogPage({ params }: { params: Promise<{ date: string }> }) {
-  const [{ date }, ws, t, lang] = await Promise.all([
+  const [{ date }, state, t, lang] = await Promise.all([
     params,
-    getCurrentWorkspace(),
+    getWorkspaceState(),
     getT(),
     getLang(),
   ])
-  if (!ws) notFound()
+  // Same split as the edition page: only a date with no edition is a 404.
+  if (state.kind !== 'ok') return <WorkspaceNotice kind={state.kind} />
+  const ws = state.ws
   const edition = await forPage(briefings.getByDate(ws.id, date, lang))
   if (!edition) notFound()
 

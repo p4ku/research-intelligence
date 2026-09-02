@@ -1,10 +1,11 @@
 import { Card, PageHeader, SectionLabel } from '@/components/scanner-ui'
+import { WorkspaceNotice } from '@/components/workspace-notice'
 import { forPage } from '@/lib/bff/core/page'
 import { sourceOf } from '@/lib/bff/core/source'
 import { settings } from '@/lib/bff/settings/service'
 import { describeCron } from '@/lib/cron'
 import { getLang, getT } from '@/lib/i18n-server'
-import { getCurrentWorkspace } from '@/lib/workspace-server'
+import { getWorkspaceState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { NotificationSettings, PasswordForm, ProfileForm } from './settings-form'
 
@@ -16,12 +17,13 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function SettingsPage() {
-  const [t, lang, ws, profile] = await Promise.all([
+  const [t, lang, state, profile] = await Promise.all([
     getT(),
     getLang(),
-    getCurrentWorkspace(),
+    getWorkspaceState(),
     forPage(settings.profile()),
   ])
+  const ws = state.kind === 'ok' ? state.ws : null
   const preferences = ws ? await forPage(settings.getPreferences(ws.id)) : null
   const role = profile.is_superuser
     ? t('Administrator')
@@ -84,6 +86,8 @@ export default async function SettingsPage() {
           </dl>
         </Card>
       )}
+
+      {state.kind === 'unavailable' && <WorkspaceNotice kind="unavailable" />}
 
       {ws && preferences && (
         <NotificationSettings

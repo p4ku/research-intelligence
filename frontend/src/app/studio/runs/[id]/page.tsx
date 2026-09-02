@@ -2,6 +2,7 @@ import { Breadcrumbs, Card, PageHeader, SectionLabel, StatBand } from '@/compone
 import { componentRuns as componentRunsService } from '@/lib/bff/component-runs/service'
 import { forPage } from '@/lib/bff/core/page'
 import { ProblemError } from '@/lib/bff/core/problem'
+import { isUuid } from '@/lib/bff/core/validate'
 import { stageLabel } from '@/lib/bff/pipeline-runs/schema'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import { getCurrentWorkspace } from '@/lib/workspace-server'
@@ -62,6 +63,7 @@ function timestampUtc(iso: string | null): string {
 
 export default async function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const [{ id }, workspace] = await Promise.all([params, getCurrentWorkspace()])
+  if (!isUuid(id)) notFound()
 
   // `forPage` sends an expired session through the logout flow; the 404 catch
   // inside it turns an unknown (or non-member) run id into a proper not-found

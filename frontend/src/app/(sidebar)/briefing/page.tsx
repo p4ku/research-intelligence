@@ -1,8 +1,9 @@
 import { Card, PageHeader } from '@/components/scanner-ui'
+import { WorkspaceNotice } from '@/components/workspace-notice'
 import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import { getLang, getT } from '@/lib/i18n-server'
-import { getCurrentWorkspace } from '@/lib/workspace-server'
+import { getWorkspaceState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { EditionBrowser, type BrowserEdition } from './edition-browser'
 
@@ -19,23 +20,25 @@ export async function generateMetadata(): Promise<Metadata> {
 // pipeline run; each has a permalink at /briefing/[date].
 
 export default async function BriefingPage() {
-  const [t, lang, ws] = await Promise.all([getT(), getLang(), getCurrentWorkspace()])
-  const editions = ws ? await forPage(briefings.listAll(ws.id, lang)) : []
+  const [t, lang, state] = await Promise.all([getT(), getLang(), getWorkspaceState()])
+  const editions = state.kind === 'ok' ? await forPage(briefings.listAll(state.ws.id, lang)) : []
 
-  if (!ws || editions.length === 0) {
+  if (state.kind !== 'ok' || editions.length === 0) {
     return (
       <div className="space-y-8">
         <PageHeader eyebrow={t('Daily briefings')} title={t('Briefings')} />
-        <Card>
-          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
-            {ws ? t('No completed runs yet.') : t('No workspace selected')}
-          </p>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {ws
-              ? t('Once a pipeline run completes in this workspace, its briefing appears here.')
-              : t('You are not a member of any workspace yet. Ask an administrator for access.')}
-          </p>
-        </Card>
+        {state.kind !== 'ok' ? (
+          <WorkspaceNotice kind={state.kind} />
+        ) : (
+          <Card>
+            <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+              {t('No completed runs yet.')}
+            </p>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              {t('Once a pipeline run completes in this workspace, its briefing appears here.')}
+            </p>
+          </Card>
+        )}
       </div>
     )
   }

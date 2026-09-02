@@ -4,7 +4,7 @@
  * Client-safe (no server imports); server components import services
  * directly instead of fetching over loopback HTTP.
  */
-import type { Problem } from './core/problem'
+import { problemBody, type Problem } from './core/problem'
 
 export class BffClientError extends Error {
   readonly problem: Problem
@@ -21,7 +21,14 @@ export async function bffFetch<T>(path: string, init: RequestInit = {}): Promise
   headers.set('accept', 'application/json')
   if (init.body && !headers.has('content-type')) headers.set('content-type', 'application/json')
 
-  const res = await fetch(path, { ...init, headers })
+  let res: Response
+  try {
+    res = await fetch(path, { ...init, headers })
+  } catch (error) {
+    // Network failure (offline, DNS, aborted): typed, never a raw TypeError.
+    console.error('[bff] fetch failed:', path, error)
+    throw new BffClientError(problemBody('upstream-unavailable', { instance: path }))
+  }
   const contentType = res.headers.get('content-type') ?? ''
 
   if (contentType.includes('application/problem+json')) {
@@ -33,12 +40,9 @@ export async function bffFetch<T>(path: string, init: RequestInit = {}): Promise
   }
   if (res.status === 204) return undefined as T
   if (!res.ok || !contentType.includes('json')) {
-    throw new BffClientError({
-      type: '/problems/internal',
-      title: `Unexpected response (${res.status})`,
-      status: res.status,
-      instance: path,
-    })
+    throw new BffClientError(
+      problemBody(res.status >= 500 ? 'upstream-error' : 'internal', { instance: path }),
+    )
   }
   return (await res.json()) as T
 }

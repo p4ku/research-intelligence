@@ -18,12 +18,13 @@ import { dict as briefing } from '../locales/de/briefing'
 import { dict as chrome } from '../locales/de/chrome'
 import { dict as components } from '../locales/de/components'
 import { dict as dashboard } from '../locales/de/dashboard'
+import { dict as errors } from '../locales/de/errors'
 import { dict as login } from '../locales/de/login'
 import { dict as papers } from '../locales/de/papers'
 import { dict as settings } from '../locales/de/settings'
 
 const SRC = join(import.meta.dir, '..')
-const AREAS = { ask, briefing, chrome, components, dashboard, login, papers, settings }
+const AREAS = { ask, briefing, chrome, components, dashboard, errors, login, papers, settings }
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {

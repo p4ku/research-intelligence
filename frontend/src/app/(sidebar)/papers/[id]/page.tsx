@@ -13,6 +13,7 @@ import {
 import { ScoreVariables } from '@/components/score-variables'
 import { SignalLedger } from '@/components/signal-ledger'
 import { forPage } from '@/lib/bff/core/page'
+import { isUuid } from '@/lib/bff/core/validate'
 import { papers } from '@/lib/bff/papers/service'
 import { formatDate } from '@/lib/i18n'
 import { getLang, getT } from '@/lib/i18n-server'
@@ -31,12 +32,13 @@ export async function generateMetadata({
   params: Promise<{ id: string }>
 }): Promise<Metadata> {
   const { id } = await params
-  const result = await forPage(papers.get(id))
+  const result = isUuid(id) ? await forPage(papers.get(id)) : null
   return { title: result ? result.paper.title : 'Paper' }
 }
 
 export default async function PaperDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  if (!isUuid(id)) notFound()
   const result = await forPage(papers.get(id))
   if (!result) notFound()
   const { paper } = result

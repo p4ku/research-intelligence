@@ -42,7 +42,8 @@ export interface BffStatus {
 async function probeContext(): Promise<Partial<Record<ProbeParam, string>>> {
   const ctx: Partial<Record<ProbeParam, string>> = {}
   try {
-    const all = await workspaces.listAllSafe()
+    const result = await workspaces.listAllResult()
+    const all = result.ok ? result.workspaces : []
     if (all[0]) {
       ctx.workspace_id = all[0].id
       const [wsPapers, wsRuns] = await Promise.all([

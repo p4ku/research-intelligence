@@ -1,9 +1,10 @@
 import { Card, PageHeader, StatBand } from '@/components/scanner-ui'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
+import { WorkspaceNotice } from '@/components/workspace-notice'
 import { forPage } from '@/lib/bff/core/page'
 import { stageLabel, type PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
-import { getCurrentWorkspace } from '@/lib/workspace-server'
+import { getWorkspaceState } from '@/lib/workspace-server'
 import clsx from 'clsx'
 import type { Metadata } from 'next'
 import Link from 'next/link'
@@ -60,24 +61,29 @@ export default async function RunsPage({
 }: {
   searchParams: Promise<{ status?: string }>
 }) {
-  const [{ status }, ws] = await Promise.all([searchParams, getCurrentWorkspace()])
+  const [{ status }, state] = await Promise.all([searchParams, getWorkspaceState()])
   const tab: Tab = TABS.some((candidate) => candidate.key === status) ? (status as Tab) : 'all'
 
-  if (!ws) {
+  if (state.kind !== 'ok') {
     return (
       <div className="space-y-8">
         <PageHeader eyebrow="Studio" title="Runs" />
-        <Card>
-          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
-            No workspace selected
-          </p>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            Pick a workspace to review its pipeline runs.
-          </p>
-        </Card>
+        {state.kind === 'unavailable' ? (
+          <WorkspaceNotice kind="unavailable" english />
+        ) : (
+          <Card>
+            <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+              No workspace selected
+            </p>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+              Pick a workspace to review its pipeline runs.
+            </p>
+          </Card>
+        )}
       </div>
     )
   }
+  const ws = state.ws
 
   const all = await forPage(runsService.listAll(ws.id))
   const shown = all.filter((run) => matches(run, tab))

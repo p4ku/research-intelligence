@@ -29,7 +29,8 @@ export async function django<T extends z.ZodType>(
   let res: Response
   try {
     res = await apiFetch(path, init)
-  } catch {
+  } catch (error) {
+    console.error('[bff] Django fetch failed:', path, error)
     throw problem('upstream-unavailable', { detail: `Django did not respond (${path}).` })
   }
   if (!res.ok) throw fromUpstream(res.status, await readBody(res))
@@ -42,7 +43,8 @@ export async function djangoVoid(path: string, init: ApiInit = {}): Promise<void
   let res: Response
   try {
     res = await apiFetch(path, init)
-  } catch {
+  } catch (error) {
+    console.error('[bff] Django fetch failed:', path, error)
     throw problem('upstream-unavailable', { detail: `Django did not respond (${path}).` })
   }
   if (!res.ok) throw fromUpstream(res.status, await readBody(res))

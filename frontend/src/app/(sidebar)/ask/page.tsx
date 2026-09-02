@@ -1,10 +1,11 @@
-import { Card, PageHeader } from '@/components/scanner-ui'
+import { PageHeader } from '@/components/scanner-ui'
+import { WorkspaceNotice } from '@/components/workspace-notice'
 import { chat } from '@/lib/bff/chat/service'
 import { forPage } from '@/lib/bff/core/page'
 import { papers } from '@/lib/bff/papers/service'
 import { getT } from '@/lib/i18n-server'
 import { byValueDesc } from '@/lib/papers/select'
-import { getCurrentWorkspace } from '@/lib/workspace-server'
+import { getWorkspaceState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { Ask } from './ask'
 import type { PaletteEntry } from './types'
@@ -21,27 +22,21 @@ export default async function AskPage({
 }: {
   searchParams: Promise<{ paper?: string; session?: string }>
 }) {
-  const [t, ws, { paper, session }] = await Promise.all([
+  const [t, state, { paper, session }] = await Promise.all([
     getT(),
-    getCurrentWorkspace(),
+    getWorkspaceState(),
     searchParams,
   ])
 
-  if (!ws) {
+  if (state.kind !== 'ok') {
     return (
       <div className="space-y-8">
         <PageHeader eyebrow={t('Assistant')} title={t('Ask Research Intelligence')} />
-        <Card>
-          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
-            {t('No workspace selected')}
-          </p>
-          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {t('You are not a member of any workspace yet. Ask an administrator for access.')}
-          </p>
-        </Card>
+        <WorkspaceNotice kind={state.kind} />
       </div>
     )
   }
+  const ws = state.ws
 
   const [scored, sessions] = await forPage(
     Promise.all([

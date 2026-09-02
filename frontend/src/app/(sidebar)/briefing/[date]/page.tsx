@@ -1,13 +1,14 @@
 import { AnswerMarkdown } from '@/components/answer-markdown'
 import { PaperCard } from '@/components/paper-card'
 import { Breadcrumbs, SectionLabel, StatBand } from '@/components/scanner-ui'
+import { WorkspaceNotice } from '@/components/workspace-notice'
 import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import { papers as papersService } from '@/lib/bff/papers/service'
 import { fmt } from '@/lib/i18n'
 import { getLang, getT } from '@/lib/i18n-server'
 import type { ScoredPaper } from '@/lib/papers/types'
-import { getCurrentWorkspace } from '@/lib/workspace-server'
+import { getWorkspaceState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
@@ -34,13 +35,17 @@ export default async function BriefingEditionPage({
 }: {
   params: Promise<{ date: string }>
 }) {
-  const [{ date }, ws, t, lang] = await Promise.all([
+  const [{ date }, state, t, lang] = await Promise.all([
     params,
-    getCurrentWorkspace(),
+    getWorkspaceState(),
     getT(),
     getLang(),
   ])
-  if (!ws) notFound()
+  // A missing workspace is not a missing page: an outage gets the honest
+  // notice, a user with no membership gets the membership copy — only a
+  // date with no edition is a true 404.
+  if (state.kind !== 'ok') return <WorkspaceNotice kind={state.kind} />
+  const ws = state.ws
   const [edition, scored] = await forPage(
     Promise.all([briefings.getByDate(ws.id, date, lang), papersService.listAll(ws.id)]),
   )

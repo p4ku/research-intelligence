@@ -41,6 +41,11 @@ export function parseQuery<T extends z.ZodType>(schema: T, url: URL): z.output<T
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+/** Pages guard permalink params with this so `/papers/abc123` is a 404, not an error card. */
+export function isUuid(value: string): boolean {
+  return UUID_RE.test(value)
+}
+
 /**
  * Guard for values interpolated into upstream URL paths. Route params arrive
  * percent-decoded, so without this a crafted id ('../workspaces/<uuid>')

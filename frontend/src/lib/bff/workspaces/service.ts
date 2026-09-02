@@ -12,7 +12,8 @@ import { cache } from 'react'
 import * as z from 'zod'
 import { django } from '../core/http'
 import { paginate, type ListQuery, type Page } from '../core/pagination'
-import { ProblemError } from '../core/problem'
+import type { Problem } from '../core/problem'
+import { problemResult } from '../core/result'
 import type { WorkspaceSummary } from './schema'
 import { workspaceDTO } from './upstream'
 
@@ -22,6 +23,10 @@ import { workspaceDTO } from './upstream'
  */
 export const listWorkspacesRaw = cache(() => django('/api/workspaces/', z.array(workspaceDTO)))
 
+export type WorkspacesResult =
+  | { ok: true; workspaces: WorkspaceSummary[] }
+  | { ok: false; problem: Problem }
+
 export const workspaces = {
   /** Every workspace the user belongs to, in the contract shape. Throws problems. */
   listAll: cache(async (): Promise<WorkspaceSummary[]> => {
@@ -30,16 +35,13 @@ export const workspaces = {
   }),
 
   /**
-   * Like listAll, but backend/network failures resolve to [] so the shell
-   * still renders; a 401 still propagates (→ logout via forPage).
+   * listAll with the failure made explicit: `{ok: false, problem}` instead of
+   * an empty list, so callers can tell an outage from a user with no
+   * memberships. A 401 still propagates (→ logout via forPage).
    */
-  async listAllSafe(): Promise<WorkspaceSummary[]> {
-    try {
-      return await workspaces.listAll()
-    } catch (error) {
-      if (error instanceof ProblemError && error.problem.status !== 401) return []
-      throw error
-    }
+  async listAllResult(): Promise<WorkspacesResult> {
+    const result = await problemResult(workspaces.listAll())
+    return result.ok ? { ok: true, workspaces: result.value } : result
   },
 
   async list(query: ListQuery): Promise<Page<WorkspaceSummary>> {
