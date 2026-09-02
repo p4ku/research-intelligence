@@ -49,24 +49,29 @@ Every overview metric, paper list, extraction score, executive briefing, and cha
 
 ## 3. Role Separation & Architectural Boundaries
 
-To ensure operational stability and prevent unauthorized background resource consumption:
-1. **Administrators & Managers** possess full orchestration privileges:
-   - Starting new literature search runs (`POST /api/pipeline-runs/`).
-   - Triggering reprocessing of existing papers (`reprocess_existing=True`).
-   - Live pipeline control (Pause, Resume, Abort, Mid-Step Rerun).
-2. **Researchers (Domain Scientists & Analysts)** operate in a **pure consumption & interrogation mode**:
-   - Can freely navigate all workspaces they are assigned to.
+### 3.1 Stage 2 Operational Scope (Current Release)
+In **Stage 2**, the platform explicitly distinguishes between **Privileged Pipeline Orchestrators** and **Intelligence Consumers**:
+
+1. **Administrators 👑 & Managers 💼 (Identical Capabilities in Stage 2 UI)**:
+   - Full pipeline execution privileges: starting new literature search runs (`POST /api/pipeline-runs/`).
+   - Triggering re-analysis of the existing corpus (`reprocess_existing=True`).
+   - Live pipeline lifecycle control (Pause, Resume, Abort, Mid-Step Rerun).
+   - Full access to all intelligence views, dashboards, briefings, paper scorecards, and Ask AI assistant.
+   - *Note on Future Roadmap (Stage 3+)*: Administrator will eventually gain dedicated UI for global User & Role Management, Workspace Member provisioning, and Organization Budget Ceilings. In Stage 2, these administrative configurations are managed via Django Admin and backend environment settings.
+
+2. **Researchers 🔬 (Domain Scientists & Analysts — Pure Consumption & Interrogation)**:
+   - Can freely navigate all assigned workspaces.
    - Can inspect any historical or latest completed pipeline run.
    - Can explore papers, scorecards, mathematical formula audits, and radar profiles.
    - Can read and download Executive Briefings (Markdown / PDF).
-   - Can engage in multi-turn grounded conversations with the **Ask Paper Assistant**.
+   - Can engage in multi-turn grounded conversations with the **Ask Paper Assistant** (scoped to a paper or entire run).
    - **CANNOT** start, stop, rerun, or configure pipeline runs (`/runs` tab and trigger buttons are hidden/disabled).
 
 ---
 
 ## 4. Persona 1: Administrator (Platform & Multi-Workspace Pipeline Orchestrator)
 
-> **Persona Profile**: The Administrator oversees platform infrastructure, computational budgets, multi-workspace operations, and system-wide re-evaluations.
+> **Persona Profile**: The Administrator oversees platform infrastructure, computational budgets, multi-workspace operations, and system-wide re-evaluations. *(In Stage 2, shares identical operational run & synthesis capabilities with the Manager role; user/budget management UI is scheduled for Stage 3).*
 
 ```mermaid
 sequenceDiagram
