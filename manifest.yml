@@ -9,21 +9,32 @@ applications:
     disk_quota: 1G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/api
+      - route: forschungsintelligenz.com/api
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/mcp
+      - route: forschungsintelligenz.com/mcp
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/metrics
+      - route: forschungsintelligenz.com/metrics
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/health
+      - route: forschungsintelligenz.com/health
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/admin
+      - route: forschungsintelligenz.com/admin
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/docs
+      - route: forschungsintelligenz.com/docs
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/swagger
+      - route: forschungsintelligenz.com/swagger
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/redoc
+      - route: forschungsintelligenz.com/redoc
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/schema
+      - route: forschungsintelligenz.com/schema
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/static
+      - route: forschungsintelligenz.com/static
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/media
+      - route: forschungsintelligenz.com/media
 
     env:
       DEBUG: "False"
-      ALLOWED_HOSTS: "sri-prod.apps.01.cf.eu01.onstackit.cloud,sri.soinventive.co.uk,localhost"
-      CSRF_TRUSTED_ORIGINS: "https://sri-prod.apps.01.cf.eu01.onstackit.cloud,https://sri.soinventive.co.uk"
+      ALLOWED_HOSTS: "sri-prod.apps.01.cf.eu01.onstackit.cloud,forschungsintelligenz.com,sri.soinventive.co.uk,localhost"
+      CSRF_TRUSTED_ORIGINS: "https://sri-prod.apps.01.cf.eu01.onstackit.cloud,https://forschungsintelligenz.com,https://sri.soinventive.co.uk"
 
   - name: sri-mcp
     docker:
@@ -34,7 +45,9 @@ applications:
     disk_quota: 1G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/sse
+      - route: forschungsintelligenz.com/sse
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/messages
+      - route: forschungsintelligenz.com/messages
     command: python manage.py run_mcp --port 8000
 
   - name: sri-worker
@@ -74,9 +87,10 @@ applications:
     disk_quota: 1G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud
+      - route: forschungsintelligenz.com
     env:
       BACKEND_INTERNAL_URL: https://sri-prod.apps.01.cf.eu01.onstackit.cloud
-      SITE_URL: https://sri-prod.apps.01.cf.eu01.onstackit.cloud
+      SITE_URL: https://forschungsintelligenz.com
 
 
 
