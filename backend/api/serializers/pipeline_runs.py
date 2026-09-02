@@ -107,7 +107,7 @@ class PipelineRunDetailSerializer(PipelineRunSerializer):
             return {"total_bytes": 0, "total_files": 0, "size_formatted": "0 B"}
 
     def get_papers_count(self, obj):
-        return Paper.objects.filter(pipeline_run=obj).count()
+        return obj.get_papers().count()
 
     def get_duplicates_count(self, obj):
         search_runs = obj.component_runs.filter(step_type='search')
@@ -117,7 +117,7 @@ class PipelineRunDetailSerializer(PipelineRunSerializer):
         )
 
     def get_extractions_count(self, obj):
-        return Extraction.objects.filter(paper__pipeline_run=obj).count()
+        return Extraction.objects.filter(paper__in=obj.get_papers()).count()
 
 
 class TriggerStepSerializer(serializers.Serializer):

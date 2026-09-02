@@ -12,6 +12,7 @@ from .rbac_data_isolation import run_rbac_data_isolation_scenario
 from .mid_step_rerun import run_mid_step_rerun_scenario
 from .chat_hallucination_guard import run_chat_hallucination_guard_scenario
 from .concurrent_agents_load import run_concurrent_agents_load_scenario
+from .concurrent_runs_in_workspace import run_concurrent_runs_in_workspace_scenario
 from .workflow_schedule import run_workflow_schedule_scenario
 
 __all__ = [
@@ -26,5 +27,6 @@ __all__ = [
     "run_mid_step_rerun_scenario",
     "run_chat_hallucination_guard_scenario",
     "run_concurrent_agents_load_scenario",
+    "run_concurrent_runs_in_workspace_scenario",
     "run_workflow_schedule_scenario",
 ]

@@ -120,6 +120,9 @@ npx playwright test specs/ask.spec.ts         # Paper Chat / Ask interface
 # 10. Workflow Scheduling & Observability:
 ./tests_e2e/run_e2e.sh --scenario=schedule
 
+# 11. Concurrent Pipeline Runs in Single Workspace:
+./tests_e2e/run_e2e.sh --scenario=parallel
+
 # Run ALL Scenarios Sequentially:
 ./tests_e2e/run_e2e.sh --scenario=all
 ```

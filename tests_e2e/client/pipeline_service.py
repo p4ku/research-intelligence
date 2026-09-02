@@ -22,10 +22,14 @@ class PipelineService:
         data = resp.json()
         return data.get("results", data) if isinstance(data, dict) else data
 
-    def list_papers(self, workspace_id: str, screening_status: str = None) -> List[Dict[str, Any]]:
-        params = {"workspace": workspace_id}
+    def list_papers(self, workspace_id: str = None, screening_status: str = None, pipeline_run: str = None) -> List[Dict[str, Any]]:
+        params = {}
+        if workspace_id:
+            params["workspace"] = workspace_id
         if screening_status:
             params["screening_status"] = screening_status
+        if pipeline_run:
+            params["pipeline_run"] = pipeline_run
         resp = self.client.get("/api/papers/", params=params, expected_status=200)
         data = resp.json()
         return data.get("results", data) if isinstance(data, dict) else data

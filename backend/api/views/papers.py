@@ -48,7 +48,8 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
 
         pipeline_run_id = self.request.query_params.get('pipeline_run') or self.request.query_params.get('pipeline_run_id')
         if pipeline_run_id:
-            qs = qs.filter(pipeline_run_id=pipeline_run_id)
+            from django.db.models import Q
+            qs = qs.filter(Q(pipeline_run_id=pipeline_run_id) | Q(reprocessed_runs__id=pipeline_run_id)).distinct()
 
         return qs.order_by('-created_at', '-id')
 
