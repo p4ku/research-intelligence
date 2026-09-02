@@ -35,6 +35,7 @@ from tests_e2e.scenarios import (
     run_mid_step_rerun_scenario,
     run_chat_hallucination_guard_scenario,
     run_concurrent_agents_load_scenario,
+    run_workflow_schedule_scenario,
 )
 
 # Configure rich colored terminal logging
@@ -58,9 +59,9 @@ def parse_args():
     )
     parser.add_argument(
         "--scenario",
-        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard", "concurrent", "all"],
+        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard", "concurrent", "schedule", "all"],
         default="slr",
-        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Multi-Source Deduplication, quota: Quota Guard, mcp: FastMCP SSE Tools, isolation: RBAC Multi-Tenancy, rerun: Mid-Step Rerun, guard: Hallucination Guard, concurrent: Parallel Agents Load, all: Run all)",
+        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Multi-Source Deduplication, quota: Quota Guard, mcp: FastMCP SSE Tools, isolation: RBAC Multi-Tenancy, rerun: Mid-Step Rerun, guard: Hallucination Guard, concurrent: Parallel Agents Load, schedule: Workflow Schedule & Observability, all: Run all)",
     )
     parser.add_argument(
         "--provider",
@@ -399,6 +400,11 @@ def main():
             total_elapsed = time.time() - t0
             print(f"\n✅ CONCURRENT AGENTS LOAD SCENARIO COMPLETED in {total_elapsed:.1f}s (Agents: {res.get('agents_count')})\n")
 
+        elif args.scenario == "schedule":
+            res = run_workflow_schedule_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ WORKFLOW SCHEDULE & OBSERVABILITY SCENARIO COMPLETED in {total_elapsed:.1f}s (Status: {res.get('schedule_status')})\n")
+
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")
             suite_results = []
@@ -467,6 +473,9 @@ def main():
 
             # 11. Concurrent Agents Load
             _run_and_track("Concurrent Agents Load", run_concurrent_agents_load_scenario, config, num_agents=2)
+
+            # 12. Workflow Schedule & Observability
+            _run_and_track("Workflow Schedule & Observability", run_workflow_schedule_scenario, config)
 
             total_elapsed = time.time() - t0
             print_suite_summary(suite_results, total_elapsed, config=config)
