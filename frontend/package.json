@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "check": "bun run format:check && bun run typecheck && bun run lint && bun test && bun run scope:check",
     "lint": "eslint . && bun run scripts/contract-spec.ts --check",
     "lint:file": "eslint",
     "lint:claude": "claude -p 'you are a linter. please look at the changes vs. main and report any issues related to typos, bugs, type safety, or security concerns.\n\nReport the filename and line number on one line, and a description of the issue on the second line. Do not return any other text. Use context7 and webfetch if you are unsure about the latest use of a particular package in your linting'",
@@ -19,6 +20,7 @@
     "contract:check": "bun run scripts/contract-check.ts",
     "snapshot:pull": "bun run scripts/snapshot-pull.ts",
     "snapshot:serve": "bun run scripts/snapshot-serve.ts",
+    "scope:check": "bun run scripts/scope-check.ts",
     "screenshots": "bun run scripts/screenshots.ts",
     "skeleton:drift": "bun run scripts/skeleton-drift.ts"
   },
