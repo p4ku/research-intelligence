@@ -3,7 +3,7 @@ import { componentRuns as componentRunsService } from '@/lib/bff/component-runs/
 import { forPage } from '@/lib/bff/core/page'
 import { ProblemError } from '@/lib/bff/core/problem'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
-import type { WorkspaceSummary } from '@/lib/bff/workspaces/schema'
+import { getCurrentWorkspace } from '@/lib/workspace-server'
 import { notFound } from 'next/navigation'
 import { formatUsd, RunStatus, shortId } from '../../run-presentation'
 import { RunFacts } from './run-facts'
@@ -35,14 +35,11 @@ function getSteps(id: string) {
 }
 
 /** Header, workspace notice, funnel band and the facts card — everything the run record alone gives. */
-export async function RunHead({
-  id,
-  workspace,
-}: {
-  id: string
-  workspace: WorkspaceSummary | null
-}) {
-  const run = await forPage(getRun(id))
+export async function RunHead({ id }: { id: string }) {
+  // The workspace is fetched here, in parallel with the run, rather than by
+  // the page: this is the one section that reads it, and awaiting it above
+  // the Suspense boundaries kept the whole shell behind loading.tsx.
+  const [run, workspace] = await Promise.all([forPage(getRun(id)), getCurrentWorkspace()])
 
   // Any run id is reachable by URL, so it can belong to a workspace other than
   // the one the sidebar is showing. Say so rather than letting the chrome imply
