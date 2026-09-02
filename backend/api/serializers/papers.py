@@ -67,7 +67,9 @@ class PaperSerializer(serializers.ModelSerializer):
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_screening_reasoning(self, obj):
         m = self._get_target_metric(obj)
-        return m.screening_reasoning if m else None
+        if not m:
+            return None
+        return m.full_text_screening_reasoning or m.abstract_screening_reasoning or m.screening_reasoning
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_abstract_screening_reasoning(self, obj):

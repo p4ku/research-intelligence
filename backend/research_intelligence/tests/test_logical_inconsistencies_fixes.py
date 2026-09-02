@@ -496,13 +496,12 @@ score = clamp(trl_val) * 0.5 + 4.0
     # 14. Abstract & Full-Text Screening reasoning preservation across stages, Admin, and API
     # -------------------------------------------------------------------------
     def test_abstract_and_full_text_screening_reasoning_preservation_and_api(self):
-        # 1. Abstract Screening records abstract_screening_reasoning
+        # 1. Abstract Screening records abstract_screening_reasoning without duplicate writes
         pm = PaperMetric.objects.create(
             paper=self.paper_1,
             pipeline_run=self.run_a1,
             workspace=self.workspace_a,
             screening_status="abstract_passed",
-            screening_reasoning="Abstract clearly addresses fault-tolerant syndrome decoding.",
             abstract_screening_reasoning="Abstract clearly addresses fault-tolerant syndrome decoding.",
             metrics_data={
                 "abstract_screening": {
@@ -511,10 +510,10 @@ score = clamp(trl_val) * 0.5 + 4.0
                 }
             }
         )
+        self.assertEqual(pm.latest_screening_reasoning, "Abstract clearly addresses fault-tolerant syndrome decoding.")
 
         # 2. Full-Text Screening records full_text_screening_reasoning without overwriting abstract
         pm.screening_status = "full_text_passed"
-        pm.screening_reasoning = "Full text proves physical threshold p < 1.2% on simulated grid."
         pm.full_text_screening_reasoning = "Full text proves physical threshold p < 1.2% on simulated grid."
         pm.metrics_data["full_text_screening"] = {
             "passed": True,
@@ -522,11 +521,11 @@ score = clamp(trl_val) * 0.5 + 4.0
         }
         pm.save()
 
-        # Reload from DB and verify both reasonings are preserved
+        # Reload from DB and verify both reasonings are preserved independently
         pm.refresh_from_db()
         self.assertEqual(pm.abstract_screening_reasoning, "Abstract clearly addresses fault-tolerant syndrome decoding.")
         self.assertEqual(pm.full_text_screening_reasoning, "Full text proves physical threshold p < 1.2% on simulated grid.")
-        self.assertEqual(pm.screening_reasoning, "Full text proves physical threshold p < 1.2% on simulated grid.")
+        self.assertEqual(pm.latest_screening_reasoning, "Full text proves physical threshold p < 1.2% on simulated grid.")
 
         # 3. Step 6 (compute_paper_signal_score) does not wipe out screening dicts in metrics_data
         self.workspace_a.signal_score_code = "score = 85.0"

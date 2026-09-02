@@ -343,6 +343,10 @@ class PaperMetric(models.Model):
         ]
         ordering = ['-created_at', '-id']
 
+    @property
+    def latest_screening_reasoning(self):
+        return self.full_text_screening_reasoning or self.abstract_screening_reasoning or self.screening_reasoning
+
     def __str__(self):
         score_str = f"{self.signal_score:.2f}" if self.signal_score is not None else "-"
         pr_str = str(self.pipeline_run_id)[:8] if self.pipeline_run_id else "global"
