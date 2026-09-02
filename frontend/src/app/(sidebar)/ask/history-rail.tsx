@@ -29,7 +29,7 @@ function dayLabel(iso: string, lang: string, t: (s: string) => string): string {
 /* ---------------------------------- Frames --------------------------------- */
 
 const NEW_BUTTON =
-  'bg-foreground text-background hover:bg-foreground/85 inline-flex items-center gap-1 rounded-sm px-2.5 py-1.5 text-xs font-medium'
+  'border-line bg-surface text-foreground hover:border-line-strong hover:bg-foreground/5 focus-visible:outline-accent mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-sm border px-3 py-2 text-xs font-medium whitespace-nowrap transition-[background-color,border-color,transform] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.99]'
 
 // Separated from the open target by a divider; on touch it is visible at
 // rest and grows real padding to a ~44px target (a positioned ::after
@@ -46,12 +46,17 @@ function RailHeader({
   count: ReactNode
   action: ReactNode
 }) {
+  // Two rows, not one: the label/count line and the action line each own
+  // their width, so neither the count nor the button label can wrap when
+  // the rail narrows. Mirrors the day-group headers below.
   return (
-    <div className="flex items-center gap-2 px-3">
-      <SectionLabel className="!text-[11px]">{label}</SectionLabel>
-      <span className="text-muted-foreground ml-auto font-mono text-[11px] tabular-nums">
-        {count}
-      </span>
+    <div className="px-3">
+      <div className="flex items-baseline gap-2">
+        <SectionLabel className="!text-[11px]">{label}</SectionLabel>
+        <span className="text-muted-foreground ml-auto shrink-0 font-mono text-[11px] tabular-nums">
+          {count}
+        </span>
+      </div>
       {action}
     </div>
   )
@@ -294,7 +299,7 @@ export function HistoryRail({
         }
         action={
           <button type="button" onClick={onNew} className={NEW_BUTTON}>
-            <PlusIcon className="size-3.5" />
+            <PlusIcon className="size-3.5 shrink-0" />
             {t('New conversation')}
           </button>
         }
@@ -349,7 +354,7 @@ export function HistoryRailSkeleton({
         count={<Bone.Text widths={['11ch']} />}
         action={
           <span className={NEW_BUTTON}>
-            <PlusIcon className="size-3.5" />
+            <PlusIcon className="size-3.5 shrink-0" />
             {t('New conversation')}
           </span>
         }

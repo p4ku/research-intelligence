@@ -40,11 +40,7 @@ export function AskConsoleSkeleton({ t }: { t: T }) {
           >
             <div className={clsx(BODY_CLASS, EMPTY_BODY_PAD)}>
               <div className={GREETING_WRAP}>
-                <Greeting
-                  kicker={t('One paper at a time')}
-                  lead={t('Every answer is read from a single paper’s full text.')}
-                  sub={t('Choose the paper, then ask it anything.')}
-                />
+                <Greeting lead={t('Ask a paper.')} />
               </div>
               <div className={DOCK_WRAP}>
                 <ComposerFrame

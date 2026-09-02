@@ -78,8 +78,8 @@ class ResearchAgentRunner:
             limit = config.get("limit", 50)
             history = list(process.step_history or [])
 
-            # 1. State: INITIALIZED -> Initialize PipelineRun
-            if process.current_step == 'initialized' or not process.pipeline_run:
+            # 1. State: INITIALIZED -> Initialize PipelineRun if not already attached
+            if not process.pipeline_run:
                 reprocess_existing = config.get("reprocess_existing", getattr(workspace, "reprocess_existing", False))
                 pipeline_run = PipelineRun.objects.create(
                     workspace=workspace,
@@ -100,6 +100,17 @@ class ResearchAgentRunner:
                 })
                 process.step_history = history
                 process.save(update_fields=['pipeline_run', 'status', 'current_step', 'step_history', 'updated_at'])
+            elif process.current_step == 'initialized':
+                process.status = 'running'
+                process.current_step = 'search'
+                history.append({
+                    "step": "search",
+                    "event": "started",
+                    "pipeline_run_id": str(process.pipeline_run.id),
+                    "timestamp": timezone.now().isoformat()
+                })
+                process.step_history = history
+                process.save(update_fields=['status', 'current_step', 'step_history', 'updated_at'])
 
             pipeline_run = process.pipeline_run
 

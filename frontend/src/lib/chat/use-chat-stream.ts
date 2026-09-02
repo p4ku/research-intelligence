@@ -10,6 +10,7 @@
  * settle-with-what-we-have. Delta text is batched through rAF so chunky
  * streams don't render per token.
  */
+import { sessionExpired } from '@/lib/auth/leave'
 import type { ChatStreamRequest } from '@/lib/bff/chat/schema'
 import { problemBody, type Problem } from '@/lib/bff/core/problem'
 import { useCallback, useEffect, useReducer, useRef } from 'react'
@@ -125,7 +126,7 @@ export function useChatStream(onFinish?: (final: ChatStreamState) => void) {
         const problem = (await res.json().catch(() => null)) as Problem | null
         // A stop() can race the body read; it already settled — say nothing.
         if (controller.signal.aborted) return
-        if (problem?.status === 401) window.location.assign('/auth/logout?reason=expired')
+        if (problem?.status === 401) sessionExpired()
         return fail(problem ?? problemBody(res.status >= 500 ? 'upstream-error' : 'internal'))
       }
 

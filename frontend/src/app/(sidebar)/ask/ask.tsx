@@ -613,11 +613,7 @@ export function Ask({
                   transition={{ duration: reduceMotion ? 0 : 0.15 }}
                   className={GREETING_WRAP}
                 >
-                  <Greeting
-                    kicker={t('One paper at a time')}
-                    lead={t('Every answer is read from a single paper’s full text.')}
-                    sub={t('Choose the paper, then ask it anything.')}
-                  />
+                  <Greeting lead={t('Ask a paper.')} />
                 </motion.div>
               )}
             </AnimatePresence>

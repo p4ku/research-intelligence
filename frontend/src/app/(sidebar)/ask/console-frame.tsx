@@ -110,26 +110,9 @@ export function ConsoleNote({ children }: { children: ReactNode }) {
   )
 }
 
-/** The empty console's welcome, above the dock. */
-export function Greeting({
-  kicker,
-  lead,
-  sub,
-}: {
-  kicker: ReactNode
-  lead: ReactNode
-  sub: ReactNode
-}) {
-  return (
-    <>
-      <p className="text-muted-foreground font-mono text-[10px] font-medium tracking-[0.18em] uppercase">
-        {kicker}
-      </p>
-      <p className="text-foreground mt-1.5 text-[15px] text-balance">
-        {lead} <span className="text-muted-foreground">{sub}</span>
-      </p>
-    </>
-  )
+/** The empty console's one-line welcome, above the dock. */
+export function Greeting({ lead }: { lead: ReactNode }) {
+  return <p className="text-foreground text-[15px] text-balance">{lead}</p>
 }
 
 /** The composer box: the field on top, the chip/send row under it. */
