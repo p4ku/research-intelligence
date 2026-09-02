@@ -198,17 +198,24 @@ export function HistoryRail({
   const t = useT()
   return (
     <div>
-      <div className="flex items-center gap-2 px-3">
-        <SectionLabel className="!text-[11px]">{t('History')}</SectionLabel>
-        <span className="text-muted-foreground ml-auto font-mono text-[11px] tabular-nums">
-          {threads.length === 1 ? t('1 question') : fmt(t('{n} questions'), { n: threads.length })}
-        </span>
+      {/* Two rows, not one: the label/count line and the action line each own
+          their width, so neither the count nor the button label can wrap when
+          the rail narrows. Mirrors the day-group headers below. */}
+      <div className="px-3">
+        <div className="flex items-baseline gap-2">
+          <SectionLabel className="!text-[11px]">{t('History')}</SectionLabel>
+          <span className="text-muted-foreground ml-auto shrink-0 font-mono text-[11px] tabular-nums">
+            {threads.length === 1
+              ? t('1 question')
+              : fmt(t('{n} questions'), { n: threads.length })}
+          </span>
+        </div>
         <button
           type="button"
           onClick={onNew}
-          className="bg-foreground text-background hover:bg-foreground/85 inline-flex items-center gap-1 rounded-sm px-2.5 py-1.5 text-xs font-medium"
+          className="border-line bg-surface text-foreground hover:border-line-strong hover:bg-foreground/5 focus-visible:outline-accent mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-sm border px-3 py-2 text-xs font-medium whitespace-nowrap transition-[background-color,border-color,transform] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.99]"
         >
-          <PlusIcon className="size-3.5" />
+          <PlusIcon className="size-3.5 shrink-0" />
           {t('New conversation')}
         </button>
       </div>

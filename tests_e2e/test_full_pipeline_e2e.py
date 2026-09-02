@@ -20,6 +20,7 @@ from tests_e2e.scenarios import (
     run_mid_step_rerun_scenario,
     run_chat_hallucination_guard_scenario,
     run_concurrent_agents_load_scenario,
+    run_workflow_schedule_scenario,
 )
 
 
@@ -125,3 +126,11 @@ class TestFullPipelineE2E:
                 chat_res = run_chat_multiturn_scenario(ws_id, target_paper_id, config)
                 assert chat_res["status"] == "completed"
                 assert chat_res["session_id"] != ""
+
+    @pytest.mark.e2e
+    def test_workflow_schedule_execution_and_observability(self):
+        config = E2EConfig.from_env()
+        results = run_workflow_schedule_scenario(config)
+        assert results["status"] == "passed"
+        assert results["schedule_status"] == "completed"
+        assert results["schedule_id"] is not None

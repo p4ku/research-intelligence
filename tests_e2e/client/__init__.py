@@ -7,6 +7,7 @@ from .workspace_service import WorkspaceService
 from .agent_service import AgentService
 from .pipeline_service import PipelineService
 from .chat_service import ChatService
+from .schedule_service import ScheduleService
 
 __all__ = [
     "APIClient",
@@ -15,4 +16,5 @@ __all__ = [
     "AgentService",
     "PipelineService",
     "ChatService",
+    "ScheduleService",
 ]

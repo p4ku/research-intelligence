@@ -117,6 +117,9 @@ npx playwright test specs/ask.spec.ts         # Paper Chat / Ask interface
 # 9. FastMCP SSE Protocol & AI Tools:
 ./tests_e2e/run_e2e.sh --scenario=mcp
 
+# 10. Workflow Scheduling & Observability:
+./tests_e2e/run_e2e.sh --scenario=schedule
+
 # Run ALL Scenarios Sequentially:
 ./tests_e2e/run_e2e.sh --scenario=all
 ```

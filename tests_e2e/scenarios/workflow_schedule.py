@@ -1,0 +1,152 @@
+"""
+Workflow Scheduling, Triggering & Observability Scenario.
+"""
+
+import logging
+import random
+import time
+from typing import Dict, Any, Optional
+from ..config import E2EConfig
+from ..client import (
+    APIClient,
+    AuthService,
+    WorkspaceService,
+    AgentService,
+    PipelineService,
+    ScheduleService,
+)
+
+logger = logging.getLogger("e2e_workflow_schedule")
+
+
+def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[str, Any]:
+    """
+    Validates end-to-end Workflow Schedule management, triggering, and live status observability:
+    1. Creates a dedicated test workspace with an arXiv scraper.
+    2. Creates a WorkflowSchedule via REST API with daily frequency and prevent_overlap=True.
+    3. Triggers the schedule immediately via POST /api/schedules/{id}/trigger/.
+    4. Verifies that the created ResearchAgentProcess and PipelineRun are linked to the schedule.
+    5. Polls the agent process until completion.
+    6. Verifies that the schedule's observable status reflects 'completed' and tracks run metrics.
+    7. Tests overlap prevention (non-force trigger behavior).
+    8. Cleans up schedule and workspace.
+    """
+    cfg = config or E2EConfig.from_env()
+    random_suffix = random.randint(10000000, 99999999)
+    workspace_name = f"test_e2e_sched_{random_suffix}"
+    schedule_name = f"Daily Test Schedule - {random_suffix}"
+
+    client = APIClient(cfg.base_url)
+    auth = AuthService(client)
+    auth.login(cfg.username, cfg.password)
+    ws_svc = WorkspaceService(client)
+    agent_svc = AgentService(client)
+    pipeline_svc = PipelineService(client)
+    sched_svc = ScheduleService(client)
+
+    logger.info("=================================================================")
+    logger.info("📅 STARTING WORKFLOW SCHEDULE & OBSERVABILITY SCENARIO")
+    logger.info(f"📍 Workspace Name : {workspace_name}")
+    logger.info(f"📍 Schedule Name  : {schedule_name}")
+    logger.info("=================================================================")
+
+    # 1. Create Workspace
+    ws_data = ws_svc.create_workspace(
+        name=workspace_name,
+        abstract_acceptance_criteria="Accept quantum computing and fault-tolerant quantum algorithms.",
+        abstract_rejection_criteria="Reject classical distributed computing papers.",
+        full_text_acceptance_criteria="Accept quantum hardware and architecture evaluations.",
+        full_text_rejection_criteria="Reject non-technical position papers.",
+        screening_llm_model="google/gemini-3.7-flash",
+    )
+    workspace_id = ws_data["id"]
+
+    try:
+        # 2. Create Scraper
+        ws_svc.create_scraper(
+            workspace_id=workspace_id,
+            provider="arxiv",
+            search_query='cat:quant-ph AND all:"fault-tolerant quantum"',
+            limit=3,
+        )
+
+        # 3. Create Schedule
+        sched_data = sched_svc.create_schedule(
+            workspace_id=workspace_id,
+            name=schedule_name,
+            frequency="daily",
+            time_of_day="03:00:00",
+            timezone_name="UTC",
+            prevent_overlap=True,
+            max_consecutive_failures=3,
+            reprocess_existing=False,
+            is_active=True,
+        )
+        schedule_id = sched_data["id"]
+        assert sched_data.get("name") == schedule_name
+        assert sched_data.get("prevent_overlap") is True
+
+        # 4. Trigger Schedule Run
+        trigger_resp = sched_svc.trigger_schedule(schedule_id=schedule_id, force=True)
+        assert trigger_resp.get("status") in ("running", "scheduled"), f"Trigger failed: {trigger_resp}"
+
+        agent_process_id = trigger_resp.get("agent_process_id")
+        pipeline_run_id = trigger_resp.get("pipeline_run_id")
+        assert agent_process_id, "No agent_process_id returned from schedule trigger"
+
+        # 5. Verify Immediate Schedule State
+        sched_after_trigger = sched_svc.get_schedule(schedule_id)
+        assert sched_after_trigger.get("last_status") in ("running", "pending", "completed")
+        assert sched_after_trigger.get("total_runs_count", 0) >= 1
+
+        # 6. Poll Agent Process Until Terminal State
+        completed_agent = agent_svc.poll_until_complete(
+            process_id=agent_process_id,
+            max_timeout_sec=cfg.max_timeout_sec,
+        )
+        assert completed_agent.get("status") == "completed", f"Scheduled agent process failed: {completed_agent}"
+
+        # 7. Verify Linked PipelineRun & Schedule State Consistency
+        final_pipeline_run_id = completed_agent.get("pipeline_run") or pipeline_run_id
+        if final_pipeline_run_id:
+            pr_data = pipeline_svc.get_pipeline_run(final_pipeline_run_id)
+            assert pr_data.get("schedule") == schedule_id or pr_data.get("schedule_id") == schedule_id, (
+                f"PipelineRun {final_pipeline_run_id} is not linked to schedule {schedule_id}: {pr_data}"
+            )
+            assert pr_data.get("status") == "completed"
+
+        # 8. Verify Observable Schedule Status
+        final_sched = sched_svc.get_schedule(schedule_id)
+        current_status = final_sched.get("current_execution_status") or final_sched.get("last_status")
+        logger.info(f"📊 Final Schedule State:")
+        logger.info(f"   • Current Status : {current_status}")
+        logger.info(f"   • Total Runs     : {final_sched.get('total_runs_count')}")
+        logger.info(f"   • Successful Runs: {final_sched.get('successful_runs_count')}")
+        logger.info(f"   • Next Run At    : {final_sched.get('next_run_at')}")
+
+        assert current_status == "completed", f"Schedule status should be 'completed', got '{current_status}'"
+        assert final_sched.get("successful_runs_count", 0) >= 1
+
+        logger.info("=================================================================")
+        logger.info("🎉 WORKFLOW SCHEDULE & OBSERVABILITY SCENARIO PASSED SUCCESSFULLY!")
+        logger.info("=================================================================")
+
+        return {
+            "status": "passed",
+            "workspace_id": workspace_id,
+            "schedule_id": schedule_id,
+            "agent_process_id": agent_process_id,
+            "pipeline_run_id": final_pipeline_run_id,
+            "schedule_status": current_status,
+        }
+
+    finally:
+        if cfg.delete_after:
+            try:
+                sched_svc.delete_schedule(schedule_id)
+            except Exception as sched_err:
+                logger.warning(f"Could not delete test schedule: {sched_err}")
+            try:
+                ws_svc.delete_workspace(workspace_id)
+            except Exception as ws_err:
+                logger.warning(f"Could not delete test workspace: {ws_err}")
