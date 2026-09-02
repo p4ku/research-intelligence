@@ -10,3 +10,8 @@ export function formatEditionDate(iso: string, lang: Lang): string {
     timeZone: 'UTC',
   })
 }
+
+/** The shape a permalink date must have before it is looked up (YYYY-MM-DD). */
+export function isEditionDate(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value)
+}

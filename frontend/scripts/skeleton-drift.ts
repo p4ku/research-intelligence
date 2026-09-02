@@ -10,6 +10,9 @@
  *   bun run skeleton:drift --url http://localhost:3006
  *   bun run skeleton:drift --viewports desktop,mobile   # mobile is report-only
  *   bun run skeleton:drift --stream /dashboard   # also assert the fallback streams first
+ *   bun run skeleton:drift --not-found /papers/00000000-0000-4000-8000-0000000000ff
+ *                                                # a dead permalink on a route with loading.tsx:
+ *                                                # HTTP 200 with the not-found page in-stream
  *
  * Env: SCREENSHOT_URL, SCREENSHOT_USER, SCREENSHOT_PASSWORD (shared with
  * scripts/screenshots.ts; any password works against the replay server).
@@ -21,6 +24,7 @@ interface Options extends BrowserOptions {
   viewports: string[]
   tolerance: number
   stream: string | null
+  notFound: string | null
   headed: boolean
 }
 
@@ -52,6 +56,7 @@ function parseArgs(argv: string[]): Options {
     viewports: ['desktop'],
     tolerance: 4,
     stream: null,
+    notFound: null,
     headed: false,
   }
   const next = (i: number, flag: string): string => {
@@ -85,6 +90,9 @@ function parseArgs(argv: string[]): Options {
         break
       case '--stream':
         opts.stream = next(i++, a)
+        break
+      case '--not-found':
+        opts.notFound = next(i++, a)
         break
       case '--headed':
         opts.headed = true
@@ -223,6 +231,32 @@ async function checkStream(
   return ok
 }
 
+/**
+ * Pin the documented trade of a loading.tsx on a dynamic segment: a dead id
+ * streams the shell with HTTP 200 and renders the segment's not-found page
+ * in place (docs/skeletons.md, pass 2). Asserts the status and the not-found
+ * copy; reports whether Next added the noindex robots meta as well.
+ */
+async function checkNotFound(
+  opts: Options,
+  cookies: Awaited<ReturnType<typeof login>>,
+  path: string,
+): Promise<boolean> {
+  const cookie = cookies.map((c) => `${c.name}=${c.value}`).join('; ')
+  const res = await fetch(opts.url + path, { headers: { cookie } })
+  const body = await res.text()
+  // React escapes the apostrophe in the streamed HTML.
+  const copy =
+    body.includes('We couldn&#x27;t find that.') || body.includes("We couldn't find that.")
+  const noindex = /<meta name="robots" content="noindex/.test(body)
+  const ok = res.status === 200 && copy
+  console.log(
+    `not-found ${path}: HTTP ${res.status}, not-found copy ${copy ? 'present' : 'missing'}, ` +
+      `noindex ${noindex ? 'present' : 'absent'} → ${ok ? 'OK' : 'FAIL'}`,
+  )
+  return ok
+}
+
 async function main() {
   const opts = parseArgs(process.argv.slice(2))
   const browser = await chromium.launch({ headless: !opts.headed })
@@ -256,6 +290,9 @@ async function main() {
     }
     if (opts.stream) {
       if (!(await checkStream(opts, cookies, opts.stream))) failed = true
+    }
+    if (opts.notFound) {
+      if (!(await checkNotFound(opts, cookies, opts.notFound))) failed = true
     }
   } catch (err) {
     console.error((err as Error).message)
