@@ -1,8 +1,8 @@
 # Frontend User Journeys & Architecture Specification (Stage 2)
 
-**Document Version**: 2.2  
+**Document Version**: 2.3  
 **Target Roles**: Administrator, Manager (Research Lead), Researcher (Analyst)  
-**Status**: Ready for Frontend Implementation & E2E Test Scenarios  
+**Scope**: Pure Frontend User Journeys, UI Views, Screen Transitions & Interactive States  
 
 ---
 
@@ -47,15 +47,15 @@ Every overview metric, paper list, extraction score, executive briefing, and cha
 
 ---
 
-## 3. Role Separation & Architectural Boundaries
+## 3. Role Separation & Operational Boundaries
 
 ### 3.1 Stage 2 Operational Scope (Current Release)
 In **Stage 2**, the platform explicitly distinguishes between **Privileged Pipeline Orchestrators** and **Intelligence Consumers**:
 
 1. **Administrators 👑 & Managers 💼 (Identical Capabilities in Stage 2 UI)**:
-   - Full pipeline execution privileges: starting new literature search runs (`POST /api/pipeline-runs/`).
-   - Triggering re-analysis of the existing corpus (`reprocess_existing=True`).
-   - Live pipeline lifecycle control (Pause, Resume, Abort, Mid-Step Rerun).
+   - Full pipeline execution privileges: starting new literature search runs (`+ New Pipeline Run`).
+   - Triggering re-analysis of the existing corpus (`Reprocess Existing Papers`).
+   - Live pipeline lifecycle control on `/runs/[id]` (Pause, Resume, Abort, Mid-Step Rerun).
    - Full access to all intelligence views, dashboards, briefings, paper scorecards, and Ask AI assistant.
    - *Note on Future Roadmap (Stage 3+)*: Administrator will eventually gain dedicated UI for global User & Role Management, Workspace Member provisioning, and Organization Budget Ceilings. In Stage 2, these administrative configurations are managed via Django Admin and backend environment settings.
 
@@ -77,25 +77,26 @@ In **Stage 2**, the platform explicitly distinguishes between **Privileged Pipel
 sequenceDiagram
     autonumber
     actor Admin as 👑 Administrator
-    participant TopBar as Top Navigation Bar
-    participant RunsUI as /runs (Run Management)
-    participant Stepper as /runs/[id] (Live Stepper)
-    participant Backend as Backend API & Celery Worker
-    participant AskUI as /ask (Paper Assistant)
+    participant TopBar as 🧭 Top Navigation & Workspace Switcher
+    participant RunsPage as 🚀 Runs Dashboard (/runs)
+    participant Modal as 🪟 New Run Modal
+    participant Stepper as ⏱️ Live Stepper & Controls (/runs/[id])
+    participant AskUI as 💬 Ask Paper Assistant (/ask)
 
     Admin->>TopBar: Selects Workspace ('Quantum Computing')
-    Admin->>RunsUI: Navigates to /runs
-    Admin->>RunsUI: Clicks '+ New Pipeline Run'
-    RunsUI->>Admin: Displays Trigger Modal (Full Ingestion vs Reprocess Existing)
-    Admin->>RunsUI: Selects 'Reprocess Existing Papers' (New extraction model)
-    RunsUI->>Backend: POST /api/pipeline-runs/ {workspace_id, reprocess_existing: true}
-    Backend-->>RunsUI: Returns 201 Created (PipelineRun ID & Agent ID)
-    RunsUI->>Stepper: Redirects to /runs/[id]
-    loop Real-time Polling / SSE
-        Backend-->>Stepper: Live stage updates (Screening ➔ Extraction ➔ Signal ➔ Report)
+    Admin->>RunsPage: Clicks 'Runs' in navigation
+    Admin->>RunsPage: Clicks '+ New Pipeline Run' button
+    RunsPage->>Modal: Opens Run Initiation Modal
+    Admin->>Modal: Selects 'Reprocess Existing Papers' (New extraction model)
+    Admin->>Modal: Clicks 'Launch Pipeline'
+    Modal->>RunsPage: Closes modal & registers running job
+    RunsPage->>Stepper: Automatically navigates to /runs/[id]
+    loop Live Progress Monitoring
+        Stepper-->>Admin: Animates stage transitions (Screening ➔ Extraction ➔ Signal ➔ Report)
     end
+    Stepper-->>Admin: Shows 'Run Completed' status & execution metrics ($0.044 USD, 26s)
     Admin->>TopBar: Switches active Run context to newly completed Run
-    Admin->>AskUI: Opens /ask and interrogates cross-paper findings with citations
+    Admin->>AskUI: Navigates to /ask and interrogates cross-paper findings with citations
 ```
 
 ### End-to-End User Journey Steps:
@@ -108,7 +109,7 @@ sequenceDiagram
    - Clicks **`+ New Pipeline Run`**.
    - Selects between:
      - **A) Full Review Run**: Scrapes fresh articles from arXiv / OpenAlex using the workspace query with a custom limit.
-     - **B) Reprocess Existing Papers**: Sets `reprocess_existing=True`. Re-runs abstract screening, full-text screening, parameter extraction, and signal scoring across existing cached PDFs without re-scraping.
+     - **B) Reprocess Existing Papers**: Re-runs abstract screening, full-text screening, parameter extraction, and signal scoring across existing cached PDFs without re-scraping.
 3. **Execution Monitoring & Intervention (`/runs/[id]`)**:
    - Follows real-time step transitions on the interactive Stepper:
      $$\text{Search} \longrightarrow \text{Abstract Screening} \longrightarrow \text{PDF Download} \longrightarrow \text{Full-Text} \longrightarrow \text{Extraction} \longrightarrow \text{Signal Scoring} \longrightarrow \text{Executive Report}$$
@@ -128,19 +129,24 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     actor Mgr as 💼 Manager / Research Lead
-    participant TopBar as Top Navigation Bar (Run Selector)
-    participant Overview as /dashboard (Run Overview)
-    participant Briefing as /briefing (Executive Report)
-    participant PapersUI as /papers (Papers & Metrics)
-    participant RunsUI as /runs (Runs Management)
+    participant TopBar as 🧭 Top Navigation & Run Selector
+    participant Overview as 📊 Overview Dashboard (/dashboard)
+    participant Briefing as 📰 Executive Briefing (/briefing)
+    participant PapersUI as 📄 Papers Catalog (/papers)
+    participant RunsPage as 🚀 Runs Dashboard (/runs)
+    participant Modal as 🪟 New Run Modal
 
-    Mgr->>TopBar: Selects Workspace & Run ('Run #12 - Q3 Deep Review')
+    Mgr->>TopBar: Selects Workspace ('Quantum Computing') & Run ('Run #12')
     Mgr->>Overview: Reviews Run Funnel (Passed: 14/50 papers, Avg Fit: 88%)
-    Mgr->>Briefing: Reads Executive Narrative Report & Downloads PDF
-    Mgr->>PapersUI: Filters papers by 'Signal Score > 80' and 'TRL >= 4'
-    PapersUI->>Mgr: Opens Paper Detail Sheet (Extracted parameters & screening rationale)
-    Mgr->>RunsUI: Navigates to /runs and clicks '+ New Pipeline Run'
-    RunsUI->>Mgr: Triggers on-demand review for new emerging technology topic
+    Mgr->>Briefing: Reads Executive Narrative Report & Clicks 'Export PDF'
+    Briefing-->>Mgr: Downloads compiled PDF briefing
+    Mgr->>PapersUI: Navigates to /papers and filters by 'Signal Score > 80'
+    PapersUI-->>Mgr: Displays filtered list of high-impact papers
+    Mgr->>RunsPage: Navigates to /runs
+    Mgr->>RunsPage: Clicks '+ New Pipeline Run'
+    RunsPage->>Modal: Opens Run Modal (Enters new search query & limit: 20)
+    Mgr->>Modal: Clicks 'Launch Review'
+    Modal->>RunsPage: Shows active running indicator for new review
 ```
 
 ### End-to-End User Journey Steps:
@@ -153,7 +159,7 @@ sequenceDiagram
      - Acceptance rate after dual-stage screening (Abstract + Multimodal Full-Text).
      - Signal score distribution of accepted papers.
 3. **Reading & Exporting Executive Briefings (`/briefing`)**:
-   - Navigates to **Briefings** to read the generated `NarrativeReport` for the active run.
+   - Navigates to **Briefings** to read the generated executive report for the active run.
    - Reviews key sections: *Executive Summary*, *Methodological Breakthroughs*, *Technological Bottlenecks*, and *Identified Market Signals*.
    - Clicks **`Export PDF`** to generate an executive-ready document for steering committees.
 4. **Drilling Down into Papers & Extracted Metrics (`/papers`)**:
@@ -176,21 +182,22 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     actor Res as 🔬 Researcher / Analyst
-    participant TopBar as Top Navigation Bar (Run Selector)
-    participant Overview as /dashboard (Run Overview)
-    participant PapersUI as /papers (Papers & Filters)
-    participant DetailUI as /papers/[id] (Scorecard & Evidence)
-    participant AskUI as /ask (Interactive Chat & Citations)
+    participant TopBar as 🧭 Top Navigation & Run Selector
+    participant Overview as 📊 Overview Dashboard (/dashboard)
+    participant PapersUI as 📄 Papers Catalog (/papers)
+    participant DetailUI as 📑 Paper Scorecard (/papers/[id])
+    participant AskUI as 💬 Ask Assistant & Side Chat
 
     Res->>TopBar: Selects Workspace ('Quantum Computing') & Run ('Run #14')
     Res->>Overview: Inspects Top Signal papers and Funnel acceptance rate
     Res->>PapersUI: Filters papers by 'Accepted' and 'TRL >= 4'
     Res->>DetailUI: Clicks top paper to open Scorecard & Radar profile
-    DetailUI->>Res: Reviews extracted variables (Fidelity: 99.9%, Overhead: 1000:1)
+    DetailUI-->>Res: Displays extracted variables (Fidelity: 99.9%, Overhead: 1000:1)
     Res->>DetailUI: Clicks 'Evidence Quote' -> Highlights exact snippet from PDF
     Res->>AskUI: Opens Ask Assistant scoped to this Paper & Run
     Res->>AskUI: Asks: "How does this error correction scheme compare to surface codes?"
-    AskUI-->>Res: Returns synthesized answer with clickable grounded citations
+    AskUI-->>Res: Streams synthesized answer with clickable citation tags
+    Res->>AskUI: Clicks citation tag -> Opens document source preview panel
 ```
 
 ### End-to-End User Journey Steps:
@@ -223,7 +230,7 @@ sequenceDiagram
 
 ---
 
-## 7. Common User Journey A: Authentication & Session Lifecycle (Login, Refresh & Logout)
+## 7. Common User Journey A: Authentication & Session Lifecycle (Login & Logout)
 
 > **Universal Journey**: Applies to all users regardless of role (Administrator, Manager, Researcher).
 
@@ -231,42 +238,39 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     actor User as 👤 User (Any Role)
-    participant Browser as Browser Client
-    participant NextBFF as Next.js BFF (/auth)
-    participant DjangoAPI as Django Backend (/api/token/)
+    participant LoginScreen as 🔑 Login Screen (/)
+    participant Dashboard as 📊 Overview Dashboard (/dashboard)
+    participant AvatarMenu as 🧭 Top Navbar & Avatar Menu
 
-    Note over User,DjangoAPI: 1. Login Phase
-    User->>Browser: Enters credentials (Email / Username & Password)
-    Browser->>NextBFF: POST /auth/login {username, password}
-    NextBFF->>DjangoAPI: POST /api/token/ {username, password}
-    DjangoAPI-->>NextBFF: 200 OK {access_token, refresh_token, user_id, roles}
-    NextBFF-->>Browser: 200 OK (Sets HttpOnly Cookies: sri_access, sri_refresh)
-    Browser->>User: Redirects to /dashboard (Workspace Overview)
+    Note over User,Dashboard: 1. Sign In
+    User->>LoginScreen: Enters Email / Username & Password
+    User->>LoginScreen: Clicks 'Sign In'
+    LoginScreen->>LoginScreen: Displays loading spinner & validates credentials
+    LoginScreen->>Dashboard: Transitions to Workspace Overview Dashboard
+    Dashboard-->>User: Displays 'Good morning / afternoon' welcome header
 
-    Note over User,DjangoAPI: 2. Token Auto-Refresh Phase (Transparent)
-    Browser->>NextBFF: GET /api/papers/ (sri_access expired)
-    NextBFF->>DjangoAPI: POST /api/token/refresh/ {refresh: sri_refresh}
-    DjangoAPI-->>NextBFF: 200 OK {access: new_sri_access}
-    NextBFF-->>Browser: Responds with requested data & updates sri_access cookie
+    Note over User,LoginScreen: 2. Active Session & Navigation
+    User->>Dashboard: Navigates across Overview, Briefings, Papers, Ask AI
 
-    Note over User,DjangoAPI: 3. Logout Phase
-    User->>Browser: Clicks 'Sign Out' in Avatar Dropdown Menu
-    Browser->>NextBFF: POST /auth/logout
-    NextBFF-->>Browser: 200 OK (Clears sri_access & sri_refresh cookies)
-    Browser->>User: Redirects to Login Page (/?reason=logged_out)
+    Note over User,LoginScreen: 3. Sign Out
+    User->>AvatarMenu: Clicks profile avatar in top navbar / sidebar footer
+    AvatarMenu-->>User: Expands account dropdown menu
+    User->>AvatarMenu: Clicks 'Sign Out'
+    AvatarMenu->>LoginScreen: Clears local session and redirects to Login Screen
+    LoginScreen-->>User: Displays login form with 'You have been signed out' banner
 ```
 
-### Key Lifecycle Steps:
-1. **Authentication (Login)**:
+### Key UI Steps:
+1. **Sign In**:
    - User navigates to `/` and inputs credentials.
-   - Next.js BFF exchanges credentials with Django's JWT endpoint (`/api/token/`).
-   - Secure, HttpOnly cookies (`sri_access`, `sri_refresh`) are set, preventing XSS token theft.
-   - User is routed directly to the `/dashboard` of their default active workspace.
-2. **Transparent Session Refresh**:
-   - As access tokens expire (15-60 min TTL), Next.js BFF middleware transparently refreshes the access token using the refresh cookie without disrupting the user's active session or ongoing LLM streaming.
-3. **Session Invalidation (Logout)**:
-   - User triggers **Sign Out** from the user dropdown menu in the sidebar footer or top navbar.
-   - All session cookies are wiped cleanly, and the user is redirected back to the login screen.
+   - Button transitions to active spinner state.
+   - On success, the UI transitions smoothly to `/dashboard` with the user's default active workspace pre-selected.
+2. **Session Navigation**:
+   - User navigates through the platform; session state is maintained across page switches.
+3. **Sign Out**:
+   - User clicks the avatar in the navbar or sidebar footer.
+   - Selects **Sign Out** from the dropdown menu.
+   - UI instantly resets session context and redirects to `/` with a clean logout notification.
 
 ---
 
@@ -278,35 +282,30 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     actor User as 👤 User (Any Role)
-    participant SettingsUI as /settings UI
-    participant NextBFF as Next.js BFF (/bff/settings)
-    participant DjangoAPI as Django Backend (/api/users/, /api/preferences/)
+    participant AvatarMenu as 🧭 Top Navbar & Avatar Menu
+    participant SettingsPage as ⚙️ Settings Page (/settings)
+    participant Toast as 🔔 Notification Toast & Form Feedback
 
-    User->>SettingsUI: Navigates to /settings via Avatar Menu
+    User->>AvatarMenu: Clicks avatar dropdown -> Selects 'My Account'
+    AvatarMenu->>SettingsPage: Navigates to /settings
 
-    Note over User,DjangoAPI: Action 1: Update Profile Details
-    User->>SettingsUI: Modifies First Name, Last Name, Email
-    User->>SettingsUI: Clicks 'Save Profile'
-    SettingsUI->>NextBFF: POST /bff/settings/profile {first_name, last_name, email}
-    NextBFF->>DjangoAPI: PATCH /api/users/me/
-    DjangoAPI-->>NextBFF: 200 OK {profile}
-    NextBFF-->>SettingsUI: 200 OK (Updates session cookie & displays success toast)
+    Note over User,Toast: Action 1: Update Profile Details
+    User->>SettingsPage: Modifies First Name, Last Name, Email
+    User->>SettingsPage: Clicks 'Save Profile'
+    SettingsPage->>Toast: Displays green confirmation toast ('Profile updated')
+    SettingsPage-->>User: Updates avatar initials and displayed name in top bar
 
-    Note over User,DjangoAPI: Action 2: Change Password
-    User->>SettingsUI: Enters Current Password, New Password, Confirm Password
-    User->>SettingsUI: Clicks 'Update Password'
-    SettingsUI->>NextBFF: POST /bff/settings/password {current, new}
-    NextBFF->>DjangoAPI: POST /api/auth/password/change/
-    DjangoAPI-->>NextBFF: 200 OK
-    NextBFF-->>SettingsUI: 200 OK (Clears password form & displays confirmation)
+    Note over User,Toast: Action 2: Change Password
+    User->>SettingsPage: Enters Current Password, New Password, Confirm Password
+    User->>SettingsPage: Clicks 'Update Password'
+    SettingsPage->>Toast: Displays 'Password changed successfully'
+    SettingsPage-->>User: Resets password input fields
 
-    Note over User,DjangoAPI: Action 3: Configure Intelligence Notifications
-    User->>SettingsUI: Toggles 'Email Notifications' ON & Selects 'Weekly Briefing Digest'
-    User->>SettingsUI: Clicks 'Save Preferences'
-    SettingsUI->>NextBFF: POST /bff/settings/preferences {email_enabled: true, frequency: 'weekly'}
-    NextBFF->>DjangoAPI: PUT /api/preferences/{workspace_id}/
-    DjangoAPI-->>NextBFF: 200 OK
-    NextBFF-->>SettingsUI: 200 OK
+    Note over User,Toast: Action 3: Configure Notification Cadence
+    User->>SettingsPage: Toggles 'Email Notifications' ON
+    User->>SettingsPage: Selects 'Weekly Executive Briefing' radio option
+    User->>SettingsPage: Clicks 'Save Preferences'
+    SettingsPage->>Toast: Displays 'Notification preferences saved'
 ```
 
 ### Step-by-Step Settings Flow:
@@ -314,13 +313,13 @@ sequenceDiagram
    - User clicks on their profile avatar in the navigation shell and selects **My Account** (`/settings`).
 2. **Editing Profile Information**:
    - Updates **First Name**, **Last Name**, and **Email Address**.
-   - Submitting sends a `PATCH` request to the backend. The top bar and sidebar immediately reflect the updated user name via refreshed session state.
+   - Submitting updates the UI immediately: the top bar and sidebar reflect the updated name in real time.
 3. **Updating Security Credentials**:
-   - Enters current password and chooses a new strong password with validation.
-   - On successful update, a confirmation message appears without logging out the active session.
+   - Enters current password and chooses a new strong password with confirmation validation.
+   - On successful save, inputs are cleared and a confirmation note is presented.
 4. **Customizing Intelligence Notifications**:
    - Configures how SLR intelligence briefings and pipeline completion alerts are delivered:
-     - **Channel**: Email Notifications toggle.
+     - **Channel**: Email Notifications toggle switch.
      - **Cadence**: *Instant Alerts* (as soon as a run completes), *Daily Intelligence Digest*, or *Weekly Executive Briefing Digest*.
 5. **Cleaned Scope**:
    - Workspace configuration and prompt criteria tuning are removed from user settings to keep the screen focused on personal account controls.
@@ -397,27 +396,3 @@ sequenceDiagram
 | **Trigger New Review Run** | ✅ Enabled | ✅ Enabled | ❌ **Hidden / Disabled** |
 | **Trigger Reprocess Existing Run** | ✅ Enabled | ✅ Enabled | ❌ **Hidden / Disabled** |
 | **Run Actions (Pause / Abort / Rerun)** | ✅ Full Control | ✅ Workspace Control | ❌ **Hidden / Disabled** |
-
----
-
-## 11. Backend Data Model & REST API Mapping Table
-
-| UI Action / Component | Backend Model | REST API Endpoint | Payload / Query Parameters |
-| :--- | :--- | :--- | :--- |
-| **User Login (JWT)** | `User` | `POST /api/token/` | `{"username": "...", "password": "..."}` |
-| **Token Refresh** | `User` | `POST /api/token/refresh/` | `{"refresh": "..."}` |
-| **Update Profile** | `User` | `PATCH /api/users/me/` | `{"first_name": "...", "last_name": "...", "email": "..."}` |
-| **Change Password** | `User` | `POST /api/auth/password/change/` | `{"old_password": "...", "new_password": "..."}` |
-| **Notification Preferences** | `NotificationPreference` | `PUT /api/preferences/{workspace_id}/` | `{"email_enabled": true, "frequency": "weekly"}` |
-| **List Workspaces** | `Workspace` | `GET /api/workspaces/` | User-membership scoped |
-| **List Runs for Workspace** | `PipelineRun` | `GET /api/pipeline-runs/?workspace={ws_id}` | `ordering=-started_at` |
-| **Trigger New Pipeline Run** | `PipelineRun` | `POST /api/pipeline-runs/` | `{"workspace_id": "...", "reprocess_existing": false}` (Admin/Manager) |
-| **Trigger Reprocess Run** | `PipelineRun` | `POST /api/pipeline-runs/` | `{"workspace_id": "...", "reprocess_existing": true}` (Admin/Manager) |
-| **Get Run Details & Steps** | `ComponentRun` | `GET /api/pipeline-runs/{id}/` | Full step trace, token breakdown, USD cost |
-| **Abort Running Pipeline** | `PipelineRun` | `POST /api/pipeline-runs/{id}/abort/` | `{}` (Admin/Manager) |
-| **Mid-Step Pipeline Rerun** | `PipelineRun` | `POST /api/pipeline-runs/{id}/rerun_from_node/` | `{"node_name": "step_4_screening"}` (Admin/Manager) |
-| **Get Narrative Briefing** | `NarrativeReport` | `GET /api/reports/?workspace={ws_id}&pipeline_run={run_id}` | Markdown, LaTeX, S3 PDF key |
-| **Get Run Papers & Metrics** | `Paper` + `PaperMetric` | `GET /api/papers/?workspace={ws_id}&pipeline_run={run_id}` | Filter by `screening_status`, `signal_score` |
-| **Get Paper Scorecard** | `Paper` + `PaperMetric` | `GET /api/papers/{id}/` | Extracted parameters, signal ledger, screening reasoning |
-| **Create Chat Session** | `PaperChatSession` | `POST /api/chat/sessions/` | `{"workspace_id": "...", "paper_id": "..."}` |
-| **Submit Question to Assistant** | `ChatMessage` | `POST /api/chat/submit/`<br>`GET /api/chat/sessions/{id}/stream/` | `{"session_id": "...", "message": "..."}` (SSE Stream) |
