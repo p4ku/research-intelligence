@@ -8,7 +8,7 @@
 import { describe, expect, test } from 'bun:test'
 import { de } from '../../locales/de'
 import { makeT } from '../i18n'
-import { problem, PROBLEM_SLUGS, problemBody } from './core/problem'
+import { problem, PROBLEM_SLUGS, problemBody, type Problem } from './core/problem'
 import { errorsFromSubmit, PROBLEM_COPY, problemMessage } from './problem-copy'
 
 const tEn = makeT('en')
@@ -25,10 +25,9 @@ describe('problemMessage', () => {
       expect(en).not.toMatch(FORBIDDEN)
       // The de entry must exist (dynamic t() calls escape the static i18n scan).
       const source = PROBLEM_COPY[slug]
-      expect(source).toBeDefined()
-      expect(de[source!]).toBeDefined()
-      expect(de[source!]).not.toMatch(FORBIDDEN)
-      expect(problemMessage(problemBody(slug), tDe)).toBe(de[source!]!)
+      expect(de[source]).toBeDefined()
+      expect(de[source]).not.toMatch(FORBIDDEN)
+      expect(problemMessage(problemBody(slug), tDe)).toBe(de[source])
     }
   })
 
@@ -50,6 +49,15 @@ describe('problemMessage', () => {
       'Something went wrong. Try again.',
     )
     expect(problemMessage(null, tEn)).toBe('Something went wrong. Try again.')
+  })
+
+  test('a wire body that is not a problem falls back instead of throwing', () => {
+    // What a proxy or CDN error page looks like once `res.json()` succeeds.
+    const proxyBody = { error: 'bad gateway', status: 502 } as unknown as Problem
+    expect(problemMessage(proxyBody, tEn)).toBe('Something went wrong. Try again.')
+    expect(problemMessage('upstream error' as unknown as Problem, tEn)).toBe(
+      'Something went wrong. Try again.',
+    )
   })
 })
 

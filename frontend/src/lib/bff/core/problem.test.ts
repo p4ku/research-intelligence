@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { asProblem, fromUpstream, problem, problemBody, upstreamFieldErrors } from './problem'
+import {
+  asProblem,
+  fromUpstream,
+  isProblem,
+  problem,
+  problemBody,
+  upstreamFieldErrors,
+} from './problem'
 
 describe('problemBody', () => {
   test('builds the slug catalogue shape', () => {
@@ -63,5 +70,20 @@ describe('asProblem', () => {
   })
   test('wraps unknown errors as internal', () => {
     expect(asProblem(new Error('boom')).status).toBe(500)
+  })
+})
+
+describe('isProblem', () => {
+  test('accepts a catalogue body and a wire body with extras', () => {
+    expect(isProblem(problemBody('conflict'))).toBe(true)
+    expect(isProblem({ type: '/problems/x', status: 418, title: 'x', extra: 1 })).toBe(true)
+  })
+  test('rejects proxy-shaped JSON, primitives, and null', () => {
+    expect(isProblem({ error: 'bad gateway', status: 502 })).toBe(false)
+    expect(isProblem({ type: 42, status: 500 })).toBe(false)
+    expect(isProblem({ type: '/problems/x', status: '500' })).toBe(false)
+    expect(isProblem('upstream error')).toBe(false)
+    expect(isProblem(null)).toBe(false)
+    expect(isProblem(undefined)).toBe(false)
   })
 })

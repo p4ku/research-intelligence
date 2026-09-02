@@ -6,15 +6,16 @@
  * human-written (Django's own validation prose).
  * Client-safe: types only, no server imports.
  */
-import type { Problem } from '@/lib/bff/core/problem'
+import { isProblem, type Problem, type ProblemSlug } from '@/lib/bff/core/problem'
 import type { T } from '@/lib/i18n'
 
 /**
- * English source sentence per problem slug (translated through `t`, so every
- * value needs a `de/errors.ts` entry — problem-copy.test.ts enforces both
- * directions against the CATALOG in core/problem.ts).
+ * English source sentence per problem slug. Keyed by `ProblemSlug`, so adding
+ * a slug to the CATALOG in core/problem.ts fails to compile until it has copy
+ * here; every value also needs a `de/errors.ts` entry, which
+ * problem-copy.test.ts enforces.
  */
-export const PROBLEM_COPY: Record<string, string> = {
+export const PROBLEM_COPY: Record<ProblemSlug, string> = {
   validation: 'Check your input and try again.',
   unauthenticated: 'Your session has ended. Sign in again.',
   forbidden: "You don't have access to this.",
@@ -32,11 +33,17 @@ const FALLBACK = 'Something went wrong. Try again.'
 
 /** The sentence a user should read for this problem, in the current language. */
 export function problemMessage(problem: Problem | null | undefined, t: T): string {
-  if (!problem) return t(FALLBACK)
+  // `isProblem` rather than a null check: the value may have come off the
+  // wire as `Problem` in name only (no `type`), and a copy lookup must never
+  // be the thing that throws.
+  if (!isProblem(problem)) return t(FALLBACK)
   const slug = problem.type.startsWith('/problems/') ? problem.type.slice('/problems/'.length) : ''
   if (slug === 'validation' && problem.detail) return problem.detail
-  const copy = PROBLEM_COPY[slug]
-  return t(copy ?? FALLBACK)
+  return t(hasCopy(slug) ? PROBLEM_COPY[slug] : FALLBACK)
+}
+
+function hasCopy(slug: string): slug is ProblemSlug {
+  return Object.hasOwn(PROBLEM_COPY, slug)
 }
 
 /**
@@ -76,11 +83,5 @@ export function errorsFromSubmit(
 /** Structural check so BffClientError works across module instances. */
 function isProblemCarrier(error: unknown): error is { problem: Problem } {
   if (!error || typeof error !== 'object' || !('problem' in error)) return false
-  const p = (error as { problem: unknown }).problem
-  return (
-    !!p &&
-    typeof p === 'object' &&
-    typeof (p as Problem).type === 'string' &&
-    typeof (p as Problem).status === 'number'
-  )
+  return isProblem((error as { problem: unknown }).problem)
 }

@@ -14,7 +14,7 @@ import type {
   PaperCitation,
   VisualCitation,
 } from '@/lib/bff/chat/schema'
-import { problemBody, type Problem } from '@/lib/bff/core/problem'
+import { isProblem, problemBody, type Problem } from '@/lib/bff/core/problem'
 import { parseSse } from '@/lib/sse/parse'
 import { useCallback, useEffect, useReducer, useRef } from 'react'
 
@@ -120,7 +120,11 @@ export function useChatStream(onFinish?: (final: ChatStreamState) => void) {
         return fail(problemBody('upstream-unavailable'))
       }
       if (!res.ok || !res.body) {
-        const problem = (await res.json().catch(() => null)) as Problem | null
+        // The body is a problem only if it is shaped like one — a proxy or
+        // CDN error page is JSON often enough that the cast used to let a
+        // `{"error": …}` body reach the copy layer and throw there.
+        const body: unknown = await res.json().catch(() => null)
+        const problem = isProblem(body) ? body : null
         if (problem?.status === 401) window.location.assign('/auth/logout?reason=expired')
         return fail(problem ?? problemBody(res.status >= 500 ? 'upstream-error' : 'internal'))
       }
@@ -164,7 +168,9 @@ export function useChatStream(onFinish?: (final: ChatStreamState) => void) {
               patch({ status: 'done', text: textRef.current })
               break
             case 'error':
-              return fail(record as unknown as Problem)
+              // Our BFF emits catalogue bodies here; anything else on the
+              // wire still settles as a typed upstream error, not a crash.
+              return fail(isProblem(record) ? record : problemBody('upstream-error'))
           }
         }
       } catch {

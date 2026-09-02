@@ -61,6 +61,20 @@ export function problem(slug: ProblemSlug, extra: Partial<Problem> = {}): Proble
   return new ProblemError(problemBody(slug, extra))
 }
 
+/**
+ * Structural guard for JSON that claims to be a problem body. Anything that
+ * crossed a wire (a fetch body, an SSE frame, an error thrown by another
+ * module instance) must pass this before it is handed to the copy layer —
+ * a proxy's `{"error": "bad gateway"}` has a status code but no `type`, and
+ * dereferencing `type` on it is how a render path turns an outage into a
+ * TypeError.
+ */
+export function isProblem(value: unknown): value is Problem {
+  if (!value || typeof value !== 'object') return false
+  const p = value as Record<string, unknown>
+  return typeof p.type === 'string' && typeof p.status === 'number'
+}
+
 /** Any thrown value → a problem body (unknown errors become opaque 500s). */
 export function asProblem(error: unknown, instance?: string): Problem {
   if (error instanceof ProblemError) {

@@ -23,10 +23,8 @@ export async function WorkspaceNotice({
   if (kind === 'none') {
     return (
       <Card>
-        <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
-          {t('No workspace selected')}
-        </p>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-foreground text-sm font-medium">{t('No workspace selected')}</p>
+        <p className="text-muted-foreground mt-1 text-sm">
           {t('You are not a member of any workspace yet. Ask an administrator for access.')}
         </p>
       </Card>
