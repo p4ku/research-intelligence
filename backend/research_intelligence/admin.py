@@ -1047,15 +1047,15 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
             'fields': ('frequency', 'one_off_datetime', 'time_of_day', 'days_of_week', 'day_of_month', 'interval_hours', 'cron_expression', 'timezone_name')
         }),
         ('Execution Parameters & Overrides', {
-            'fields': ('reprocess_existing', 'configuration_override'),
+            'fields': ('reprocess_existing', 'prevent_overlap', 'configuration_override'),
             'classes': ('collapse',)
         }),
         ('Telemetry & Run History', {
-            'fields': ('next_run_at', 'last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'created_at', 'updated_at'),
+            'fields': ('next_run_at', 'last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'consecutive_failures_count', 'max_consecutive_failures', 'created_at', 'updated_at'),
             'classes': ('collapse',)
         }),
     )
-    readonly_fields = ('next_run_at', 'last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'created_at', 'updated_at')
+    readonly_fields = ('next_run_at', 'last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'consecutive_failures_count', 'created_at', 'updated_at')
 
     def changelist_view(self, request, extra_context=None):
         extra_context = extra_context or {}
@@ -1272,11 +1272,27 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
     last_run_display.admin_order_field = "last_run_at"
 
     def total_runs_display(self, obj):
+        sr = obj.success_rate_percent
+        if sr is not None:
+            sr_color = "#198754" if sr >= 90 else ("#fd7e14" if sr >= 70 else "#dc3545")
+            rate_badge = f'<div style="font-size: 10px; color: {sr_color}; font-weight: 600; margin-top: 2px;">{sr}% success</div>'
+        else:
+            rate_badge = ''
+
+        runs_url = reverse('admin:research_intelligence_pipelinerun_changelist') + f"?schedule__id__exact={obj.id}"
+
         return format_html(
-            '<span style="background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; padding: 3px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; white-space: nowrap;">🚀 {} runs</span>',
-            obj.total_runs_count
+            '<div style="display: flex; flex-direction: column; align-items: flex-start;">'
+            '<a href="{}" style="background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; padding: 2px 7px; border-radius: 12px; font-weight: 600; font-size: 11px; white-space: nowrap; text-decoration: none;" title="View all pipeline runs triggered by this schedule">'
+            '🚀 {} runs'
+            '</a>'
+            '{}'
+            '</div>',
+            runs_url,
+            obj.total_runs_count,
+            mark_safe(rate_badge)
         )
-    total_runs_display.short_description = "Runs"
+    total_runs_display.short_description = "Runs & SLA"
     total_runs_display.admin_order_field = "total_runs_count"
 
     def trigger_actions_column(self, obj):
@@ -1302,7 +1318,7 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
         from django.shortcuts import get_object_or_404, redirect
         from django.contrib import messages
         schedule = get_object_or_404(WorkflowSchedule, id=schedule_id)
-        agent = schedule.trigger_run(triggered_by_user=request.user)
+        agent = schedule.trigger_run(triggered_by_user=request.user, force=True)
         messages.success(request, f"Successfully triggered scheduled workflow '{schedule.name}' (Agent Process: {agent.id}).")
         return redirect('admin:research_intelligence_workflowschedule_changelist')
 
@@ -1324,7 +1340,7 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
     def trigger_now_action(self, request, queryset):
         count = 0
         for sched in queryset:
-            sched.trigger_run(triggered_by_user=request.user)
+            sched.trigger_run(triggered_by_user=request.user, force=True)
             count += 1
         self.message_user(request, f"Successfully triggered {count} scheduled workflow run(s).")
 
@@ -1347,6 +1363,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
     list_display = (
         'id',
         'workspace',
+        'schedule_display',
         'run_date',
         'status_badge',
         'current_stage_badge',
@@ -1361,15 +1378,15 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'triggered_by_display'
     )
     ordering = ('-started_at', '-id')
-    list_select_related = ('workspace', 'triggered_by')
-    list_filter = ('status', 'current_stage', 'reprocess_existing', 'run_date', 'workspace', 'triggered_by')
-    search_fields = ('id', 'workspace__name', 'status_message', 'triggered_by__username', 'triggered_by__email')
+    list_select_related = ('workspace', 'triggered_by', 'schedule')
+    list_filter = ('status', 'current_stage', 'reprocess_existing', 'schedule', 'run_date', 'workspace', 'triggered_by')
+    search_fields = ('id', 'workspace__name', 'status_message', 'schedule__name', 'triggered_by__username', 'triggered_by__email')
     readonly_fields = ('started_at', 'completed_at', 'execution_time')
     inlines = [ComponentRunInline]
 
     fieldsets = (
         ('Execution Info', {
-            'fields': ('workspace', 'status', 'current_stage', 'status_message', 'triggered_by')
+            'fields': ('workspace', 'schedule', 'status', 'current_stage', 'status_message', 'triggered_by')
         }),
         ('Reprocessing & Ingestion Options', {
             'fields': ('reprocess_existing',),
@@ -1381,6 +1398,18 @@ class PipelineRunAdmin(admin.ModelAdmin):
     )
 
     actions = ['run_full_pipeline', 'rerun_with_reprocessing']
+
+    def schedule_display(self, obj):
+        if not obj.schedule:
+            return format_html('<span style="color: #adb5bd; font-size: 11px;">Manual</span>')
+        sched_url = reverse('admin:research_intelligence_workflowschedule_change', args=[obj.schedule.id])
+        return format_html(
+            '<a href="{}" style="font-size: 11px; color: #0d6efd; text-decoration: none; font-weight: 500;" title="View trigger schedule">⏰ {}</a>',
+            sched_url,
+            obj.schedule.name
+        )
+    schedule_display.short_description = "Schedule"
+    schedule_display.admin_order_field = "schedule__name"
 
     def save_model(self, request, obj, form, change):
         if not obj.triggered_by and request.user.is_authenticated:

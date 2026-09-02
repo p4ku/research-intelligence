@@ -63,6 +63,14 @@ class PipelineRun(models.Model):
         related_name="pipeline_runs",
         help_text="User who launched this pipeline run"
     )
+    schedule = models.ForeignKey(
+        'WorkflowSchedule',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="pipeline_runs",
+        help_text="The WorkflowSchedule that triggered this run (if automated)"
+    )
     reprocess_existing = models.BooleanField(
         default=False,
         help_text="If True, re-evaluates and links existing workspace papers through screening, extraction, and signal scoring even if no new papers were scraped."

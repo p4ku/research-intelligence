@@ -36,9 +36,10 @@ def dispatch_due_workflow_schedules(dry_run: bool = False) -> Dict[str, Any]:
     ).select_related('workspace', 'created_by')
 
     dispatched = []
+    skipped_overlap = []
     errors = []
 
-    for schedule in due_schedules:
+    for idx, schedule in enumerate(due_schedules):
         try:
             if not dry_run:
                 with transaction.atomic():
@@ -52,14 +53,37 @@ def dispatch_due_workflow_schedules(dry_run: bool = False) -> Dict[str, Any]:
                     if not locked_sched:
                         continue
 
-                    agent = locked_sched.trigger_run()
-                    dispatched.append({
-                        "schedule_id": str(locked_sched.id),
-                        "schedule_name": locked_sched.name,
-                        "workspace_name": locked_sched.workspace.name,
-                        "agent_id": str(agent.id),
-                        "next_run_at": locked_sched.next_run_at.isoformat() if locked_sched.next_run_at else None
-                    })
+                    # Overlap Guard: Skip if previous run is still active
+                    if locked_sched.prevent_overlap and locked_sched.last_pipeline_run:
+                        current_status = locked_sched.current_execution_status
+                        if current_status in ('running', 'pending'):
+                            logger.warning(
+                                f"⚠️ [SCHEDULE OVERLAP PREVENTED] Schedule '{locked_sched.name}' ({locked_sched.id}) "
+                                f"skipped: previous PipelineRun '{locked_sched.last_pipeline_run.id}' is still in status '{current_status}'."
+                            )
+                            # Advance next_run_at to next cycle to avoid busy-spin
+                            locked_sched.next_run_at = locked_sched.compute_next_run(base_time=now)
+                            locked_sched.save(update_fields=['next_run_at', 'updated_at'])
+                            skipped_overlap.append({
+                                "schedule_id": str(locked_sched.id),
+                                "schedule_name": locked_sched.name,
+                                "previous_run_status": current_status,
+                                "next_run_at": locked_sched.next_run_at.isoformat() if locked_sched.next_run_at else None
+                            })
+                            continue
+
+                    # Stagger multiple simultaneous dispatches by 0s, 5s, 10s... up to max 45s
+                    jitter_sec = min(45, idx * 5)
+                    agent = locked_sched.trigger_run(jitter_seconds=jitter_sec)
+                    if agent:
+                        dispatched.append({
+                            "schedule_id": str(locked_sched.id),
+                            "schedule_name": locked_sched.name,
+                            "workspace_name": locked_sched.workspace.name,
+                            "agent_id": str(agent.id),
+                            "jitter_seconds": jitter_sec,
+                            "next_run_at": locked_sched.next_run_at.isoformat() if locked_sched.next_run_at else None
+                        })
             else:
                 dispatched.append({
                     "schedule_id": str(schedule.id),
@@ -79,6 +103,8 @@ def dispatch_due_workflow_schedules(dry_run: bool = False) -> Dict[str, Any]:
     return {
         "dispatched_count": len(dispatched),
         "dispatched": dispatched,
+        "skipped_overlap_count": len(skipped_overlap),
+        "skipped_overlap": skipped_overlap,
         "errors_count": len(errors),
         "errors": errors,
         "checked_at": now.isoformat()

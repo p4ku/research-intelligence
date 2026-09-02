@@ -437,3 +437,145 @@ class WorkflowScheduleModelAndDispatcherTests(TestCase):
         schedule.refresh_from_db()
         serializer = WorkflowScheduleSerializer(schedule)
         self.assertEqual(serializer.data["last_status"], "completed")
+
+    def test_prevent_overlap_skips_when_previous_run_active(self):
+        """
+        Tests that prevent_overlap=True prevents triggering a new run when previous run is still active.
+        """
+        schedule = WorkflowSchedule.objects.create(
+            workspace=self.workspace,
+            name="Overlap Test Schedule",
+            frequency="daily",
+            time_of_day=datetime.time(2, 0),
+            prevent_overlap=True,
+            is_active=True
+        )
+        agent1 = schedule.trigger_run(triggered_by_user=self.user)
+        self.assertIsNotNone(agent1)
+        self.assertEqual(schedule.total_runs_count, 1)
+
+        # Attempt to trigger again while first run is in 'running' status
+        agent2 = schedule.trigger_run(triggered_by_user=self.user, force=False)
+        self.assertIsNone(agent2)
+        self.assertEqual(schedule.total_runs_count, 1)
+
+        # Force run overrides overlap guard
+        agent3 = schedule.trigger_run(triggered_by_user=self.user, force=True)
+        self.assertIsNotNone(agent3)
+        self.assertEqual(schedule.total_runs_count, 2)
+
+    def test_dispatcher_skips_overlap_and_advances_next_run(self):
+        """
+        Tests that dispatch_due_workflow_schedules skips overlapping active runs and advances next_run_at.
+        """
+        past_time = timezone.now() - datetime.timedelta(minutes=5)
+        schedule = WorkflowSchedule.objects.create(
+            workspace=self.workspace,
+            name="Dispatcher Overlap Test",
+            frequency="daily",
+            time_of_day=datetime.time(2, 0),
+            prevent_overlap=True,
+            is_active=True
+        )
+        # Create an active run for this schedule
+        p_run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            schedule=schedule,
+            status='running'
+        )
+        schedule.last_pipeline_run = p_run
+        schedule.last_status = 'running'
+        schedule.next_run_at = past_time
+        schedule.save()
+
+        summary = dispatch_due_workflow_schedules(dry_run=False)
+        self.assertEqual(summary["dispatched_count"], 0)
+        self.assertEqual(summary["skipped_overlap_count"], 1)
+
+        schedule.refresh_from_db()
+        # next_run_at should be advanced into the future
+        self.assertGreater(schedule.next_run_at, timezone.now())
+
+    def test_consecutive_failures_tracking_and_auto_pause(self):
+        """
+        Tests that consecutive execution failures are tracked and schedule auto-pauses when reaching threshold.
+        """
+        schedule = WorkflowSchedule.objects.create(
+            workspace=self.workspace,
+            name="Failure Tracking Schedule",
+            frequency="daily",
+            time_of_day=datetime.time(2, 0),
+            max_consecutive_failures=2,
+            is_active=True
+        )
+        agent1 = schedule.trigger_run(triggered_by_user=self.user, force=True)
+        run1 = schedule.last_pipeline_run
+        run1.status = 'failed'
+        run1.save()
+
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.consecutive_failures_count, 1)
+        self.assertTrue(schedule.is_active)
+
+        # Second failure triggers auto-pause
+        agent2 = schedule.trigger_run(triggered_by_user=self.user, force=True)
+        run2 = schedule.last_pipeline_run
+        run2.status = 'failed'
+        run2.save()
+
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.consecutive_failures_count, 2)
+        self.assertFalse(schedule.is_active)
+        self.assertIsNone(schedule.next_run_at)
+
+    def test_zoneinfo_dst_aware_next_run_calculation(self):
+        """
+        Tests that compute_next_run correctly handles Daylight Saving Time (DST) with ZoneInfo.
+        """
+        from zoneinfo import ZoneInfo
+        schedule = WorkflowSchedule.objects.create(
+            workspace=self.workspace,
+            name="Berlin Schedule",
+            frequency="daily",
+            time_of_day=datetime.time(2, 0),
+            timezone_name="Europe/Berlin",
+            is_active=True
+        )
+
+        # In Winter (CET = UTC+1): 02:00 Berlin is 01:00 UTC
+        winter_base = datetime.datetime(2026, 1, 15, 12, 0, tzinfo=datetime.timezone.utc)
+        next_winter = schedule.compute_next_run(base_time=winter_base)
+        self.assertEqual(next_winter.hour, 1)  # 01:00 UTC = 02:00 CET
+
+        # In Summer (CEST = UTC+2): 02:00 Berlin is 00:00 UTC
+        summer_base = datetime.datetime(2026, 7, 15, 12, 0, tzinfo=datetime.timezone.utc)
+        next_summer = schedule.compute_next_run(base_time=summer_base)
+        self.assertEqual(next_summer.hour, 0)  # 00:00 UTC = 02:00 CEST
+
+    def test_pipelinerun_schedule_link_and_history(self):
+        """
+        Tests that PipelineRun is explicitly linked to WorkflowSchedule and history properties work.
+        """
+        schedule = WorkflowSchedule.objects.create(
+            workspace=self.workspace,
+            name="History Link Schedule",
+            frequency="daily",
+            time_of_day=datetime.time(2, 0),
+            is_active=True
+        )
+        agent = schedule.trigger_run(triggered_by_user=self.user, force=True)
+        run = schedule.last_pipeline_run
+
+        self.assertEqual(run.schedule, schedule)
+        self.assertEqual(schedule.pipeline_runs.count(), 1)
+        self.assertIn(run, schedule.runs_history)
+
+        # Mark run as completed
+        run.status = 'completed'
+        run.save()
+
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.successful_runs_count, 1)
+        self.assertEqual(schedule.failed_runs_count, 0)
+        self.assertEqual(schedule.success_rate_percent, 100.0)
+
