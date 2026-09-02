@@ -115,6 +115,75 @@ describe('AnswerMarkdown', () => {
   })
 })
 
+describe('AnswerMarkdown math', () => {
+  // KaTeX keeps the TeX source in a hidden MathML <annotation>; the visible
+  // half is .katex-html, so "rendered" means the source is out of the text.
+  const visible = (out: string) => out.replace(/<annotation[^>]*>[\s\S]*?<\/annotation>/g, '')
+
+  test('typesets the inline LaTeX the OCR step leaves in the text', () => {
+    const out = html('no defined state space $\\mathcal{S}$ or reward function $\\mathcal{R}$')
+    expect(out.match(/class="katex"/g)).toHaveLength(2)
+    expect(visible(out)).not.toContain('\\mathcal')
+    expect(visible(out)).not.toContain('$')
+  })
+
+  test('gives a formula on its own line a display block', () => {
+    for (const src of [
+      'The objective:\n\n$$\\alpha_1 = 0.63$$\n',
+      'The objective:\n\n$$\n\\alpha_1 = 0.63\n$$\n',
+      'The objective:\n\n\\[\\alpha_1 = 0.63\\]\n',
+    ]) {
+      const out = html(src)
+      expect(out).toContain('katex-display')
+      expect(visible(out)).not.toContain('$')
+    }
+  })
+
+  test('reads the \\( \\) delimiter inline and leaves an unclosed one alone', () => {
+    const out = html('fixed weights \\(\\alpha_1 = 0.63\\) with no ablation')
+    expect(out).toContain('class="katex"')
+    expect(out).not.toContain('katex-display')
+    // Unclosed, so it stays prose — markdown eats the escaping backslash.
+    expect(html('a \\(b')).toContain('a (b')
+  })
+
+  test('leaves LaTeX quoted as code as source', () => {
+    const fenced = html('```\n\\[x\\]\n```')
+    expect(fenced).toContain('<pre')
+    expect(fenced).not.toContain('class="katex"')
+    expect(fenced).toContain('\\[x\\]')
+    expect(html('`$x$`')).not.toContain('class="katex"')
+  })
+
+  test('an unparseable or half-streamed formula degrades to text', () => {
+    const bad = html('$\\frac{1}{$')
+    expect(bad).toContain('katex-error')
+    expect(bad).toContain('\\frac{1}{')
+    expect(bad).toContain('var(--negative)')
+
+    // A formula still being written is held back rather than shown as source
+    // and swapped for math a moment later; the caret waits with it.
+    const open = html('routing over $\\mathcal{S', true)
+    expect(open).not.toContain('mathcal')
+    expect(open).toContain('routing over')
+    expect(open).toContain(CARET)
+    expect(html('routing over $\\mathcal{S}$ and', true)).toContain('class="katex"')
+  })
+
+  test('holds back an open display block too', () => {
+    const open = html('The objective:\n\n$$\n\\alpha_1 = 0.63', true)
+    expect(open).toContain('The objective:')
+    expect(open).not.toContain('alpha')
+    expect(html('The objective:\n\n$$\n\\alpha_1 = 0.63\n$$\n', true)).toContain('katex-display')
+  })
+
+  test('a lone $ in prose is not mistaken for an open formula', () => {
+    const price = html('a run costs about $5 and the next', true)
+    expect(price).toContain('the next')
+    expect(price).toContain('$5')
+  })
+})
+
 describe('AnswerMarkdown citation chips', () => {
   const chips = (
     text: string,
