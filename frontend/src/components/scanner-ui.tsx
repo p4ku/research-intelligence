@@ -15,7 +15,8 @@ export function Breadcrumbs({
   items,
   t = (s) => s,
 }: {
-  items: { label: string; href?: string }[]
+  /** `label` is a node so a loading shell can bone the crumb it does not know yet. */
+  items: { label: React.ReactNode; href?: string }[]
   t?: T
 }) {
   return (
@@ -67,8 +68,9 @@ export function PageHeader({
   actions,
 }: {
   eyebrow?: React.ReactNode
-  title: string
-  description?: string
+  /** Nodes, not strings, so a loading shell can bone what it does not know yet. */
+  title: React.ReactNode
+  description?: React.ReactNode
   actions?: React.ReactNode
 }) {
   return (
@@ -363,7 +365,9 @@ export function StatBand({
 /**
  * The band's loading state. Pass the real `labels`/`subs` when the copy is
  * static (e.g. the dashboard funnel) so only the numbers are bones; `digits`
- * sizes the number bones in mono ch.
+ * sizes the number bones in mono ch. A `subs` entry of `null` means that cell
+ * has no sub row at all (the loaded band omits the div), `undefined` means a
+ * bone — so a band whose cells differ can still match row for row.
  */
 export function StatBandSkeleton({
   count = 4,
@@ -378,7 +382,7 @@ export function StatBandSkeleton({
 }: {
   count?: number
   labels?: string[]
-  subs?: string[]
+  subs?: (string | null | undefined)[]
   digits?: number
   withDelta?: boolean
   below?: 'sub' | 'spark' | 'none'
@@ -400,7 +404,9 @@ export function StatBandSkeleton({
         <Bone.Text widths={['3ch']} className="font-mono text-[11px]" />
       ) : undefined,
       below:
-        below === 'none' || (vertical && below === 'spark') ? undefined : below === 'spark' ? (
+        below === 'none' ||
+        (vertical && below === 'spark') ||
+        subs?.[i] === null ? undefined : below === 'spark' ? (
           <Bone.Block className="mt-2 h-6 w-24" />
         ) : (
           <div className={subWrap}>{subs?.[i] ?? <Bone.Text widths={['60%']} />}</div>

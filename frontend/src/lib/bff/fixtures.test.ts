@@ -5,8 +5,12 @@ import { fixtureEditions } from './briefings/fixtures'
 import { edition } from './briefings/schema'
 import { fixtureSessionDetails, fixtureSessions, fixtureStreamFrames } from './chat/fixtures'
 import { chatEvent, chatSession, chatSessionDetail } from './chat/schema'
+import { fixtureSteps } from './component-runs/fixtures'
+import { componentRun } from './component-runs/schema'
 import { fixturePapers, fixtureWorkspace } from './papers/fixtures'
 import { scoredPaper } from './papers/schema'
+import { fixtureRunDetail, fixtureRuns } from './pipeline-runs/fixtures'
+import { pipelineRun, pipelineRunDetail } from './pipeline-runs/schema'
 import { workspace } from './workspaces/schema'
 
 describe('fixtures match their contract schemas', () => {
@@ -40,6 +44,18 @@ describe('fixtures match their contract schemas', () => {
   test('briefing editions', () => {
     for (const f of fixtureEditions) {
       const parsed = edition.safeParse(f)
+      expect(parsed.success ? null : parsed.error.issues).toBeNull()
+    }
+  })
+  test('pipeline runs and their steps', () => {
+    for (const f of fixtureRuns) {
+      const parsed = pipelineRun.safeParse(f)
+      expect(parsed.success ? null : parsed.error.issues).toBeNull()
+    }
+    const detail = pipelineRunDetail.safeParse(fixtureRunDetail)
+    expect(detail.success ? null : detail.error.issues).toBeNull()
+    for (const f of fixtureSteps) {
+      const parsed = componentRun.safeParse(f)
       expect(parsed.success ? null : parsed.error.issues).toBeNull()
     }
   })

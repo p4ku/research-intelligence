@@ -20,8 +20,6 @@ const KNOWN_UNCOVERED = new Set([
   '(sidebar)/papers/[id]/page.tsx',
   '(sidebar)/settings/page.tsx',
   '(sidebar)/tuning/page.tsx',
-  'studio/runs/page.tsx',
-  'studio/runs/[id]/page.tsx',
 ])
 
 describe('loading convention', () => {
