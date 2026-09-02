@@ -34,7 +34,7 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
     cfg = config or E2EConfig.from_env()
     random_suffix = random.randint(10000000, 99999999)
     workspace_name = f"test_e2e_sched_{random_suffix}"
-    schedule_name = f"Daily Test Schedule - {random_suffix}"
+    schedule_name = f"One-Off Test Schedule - {random_suffix}"
 
     client = APIClient(cfg.base_url)
     auth = AuthService(client)
@@ -47,8 +47,12 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
     logger.info("=================================================================")
     logger.info("📅 STARTING WORKFLOW SCHEDULE & OBSERVABILITY SCENARIO")
     logger.info(f"📍 Workspace Name : {workspace_name}")
-    logger.info(f"📍 Schedule Name  : {schedule_name}")
+    logger.info(f"📍 Schedule Name  : {schedule_name} (freq: one_off)")
     logger.info("=================================================================")
+
+    # Step 0: Pre-clean any lingering test schedules from previous test runs
+    if cfg.cleanup_before:
+        sched_svc.cleanup_old_test_schedules()
 
     # 1. Create Workspace
     ws_data = ws_svc.create_workspace(
@@ -60,6 +64,7 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         screening_llm_model="google/gemini-3.7-flash",
     )
     workspace_id = ws_data["id"]
+    schedule_id = None
 
     try:
         # 2. Create Scraper
@@ -70,12 +75,11 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             limit=3,
         )
 
-        # 3. Create Schedule
+        # 3. Create One-Off Schedule (auto-deactivates upon execution to prevent recurring Celery Beat runs)
         sched_data = sched_svc.create_schedule(
             workspace_id=workspace_id,
             name=schedule_name,
-            frequency="daily",
-            time_of_day="03:00:00",
+            frequency="one_off",
             timezone_name="UTC",
             prevent_overlap=True,
             max_consecutive_failures=3,
@@ -114,20 +118,23 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             )
             assert pr_data.get("status") == "completed"
 
-        # 8. Verify Observable Schedule Status
+        # 8. Verify Observable Schedule Status & Guaranteed Auto-Deactivation
         final_sched = sched_svc.get_schedule(schedule_id)
         current_status = final_sched.get("current_execution_status") or final_sched.get("last_status")
         logger.info(f"📊 Final Schedule State:")
         logger.info(f"   • Current Status : {current_status}")
         logger.info(f"   • Total Runs     : {final_sched.get('total_runs_count')}")
         logger.info(f"   • Successful Runs: {final_sched.get('successful_runs_count')}")
+        logger.info(f"   • Is Active      : {final_sched.get('is_active')} (PAUSED/COMPLETED)")
         logger.info(f"   • Next Run At    : {final_sched.get('next_run_at')}")
 
         assert current_status == "completed", f"Schedule status should be 'completed', got '{current_status}'"
         assert final_sched.get("successful_runs_count", 0) >= 1
+        assert final_sched.get("is_active") is False, "One-off schedule must auto-deactivate after execution"
+        assert final_sched.get("next_run_at") is None, "One-off schedule must have next_run_at=None"
 
         logger.info("=================================================================")
-        logger.info("🎉 WORKFLOW SCHEDULE & OBSERVABILITY SCENARIO PASSED SUCCESSFULLY!")
+        logger.info("🎉 WORKFLOW SCHEDULE & OBSERVABILITY SCENARIO PASSED (SAFELY DEACTIVATED)!")
         logger.info("=================================================================")
 
         return {
@@ -140,11 +147,18 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         }
 
     finally:
-        if cfg.delete_after:
+        if schedule_id:
             try:
-                sched_svc.delete_schedule(schedule_id)
-            except Exception as sched_err:
-                logger.warning(f"Could not delete test schedule: {sched_err}")
+                # Guaranteed safety: ensure schedule is deactivated under all circumstances
+                sched_svc.deactivate_schedule(schedule_id)
+            except Exception:
+                pass
+        if cfg.delete_after:
+            if schedule_id:
+                try:
+                    sched_svc.delete_schedule(schedule_id)
+                except Exception as sched_err:
+                    logger.warning(f"Could not delete test schedule: {sched_err}")
             try:
                 ws_svc.delete_workspace(workspace_id)
             except Exception as ws_err:

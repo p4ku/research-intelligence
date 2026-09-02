@@ -32,6 +32,7 @@ from ..client import (
     AgentService,
     PipelineService,
     ChatService,
+    ScheduleService,
 )
 
 logger = logging.getLogger("e2e_slr_scenario")
@@ -56,6 +57,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
     agent_svc = AgentService(client)
     pipeline_svc = PipelineService(client)
     chat_svc = ChatService(client)
+    sched_svc = ScheduleService(client)
 
     scenario_results = {
         "workspace_id": None,
@@ -73,10 +75,11 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         auth_data = auth.login(cfg.username, cfg.password)
         scenario_results["user_id"] = auth_data.get("user_id")
 
-        # Step 1b: Pre-clean any old test workspaces and test extraction definitions
+        # Step 1b: Pre-clean any old test workspaces, extraction definitions & lingering test schedules
         if cfg.cleanup_before:
             ws_svc.cleanup_old_test_workspaces(prefix="test_e2e_")
             ws_svc.cleanup_old_extraction_definitions(prefix="test_e2e_")
+            sched_svc.cleanup_old_test_schedules()
 
         # Step 2: Create Workspace with Complete Dual-Stage Dynamic Criteria, Schemas, Prompts & Python Signal Score
         abstract_acceptance = (
