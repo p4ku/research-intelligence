@@ -114,15 +114,23 @@ export const Bone = { Text, Number, Chip, Block, Dot, Ring }
 function Region({
   status,
   className,
+  innerClassName,
   children,
   ...props
-}: { status: string; children?: ReactNode } & ComponentPropsWithoutRef<'div'>) {
+}: {
+  status: string
+  /** Classes for the wrapper the bones sit in — for a region that must fill its parent (a flex column). */
+  innerClassName?: string
+  children?: ReactNode
+} & ComponentPropsWithoutRef<'div'>) {
   return (
     <div {...props} data-skeleton="" aria-busy="true" className={clsx('relative', className)}>
       <span role="status" className="sr-only">
         {status}
       </span>
-      <div aria-hidden="true">{children}</div>
+      <div aria-hidden="true" className={innerClassName}>
+        {children}
+      </div>
     </div>
   )
 }

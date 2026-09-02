@@ -30,6 +30,19 @@ import clsx from 'clsx'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+import {
+  AskLayout,
+  BODY_CLASS,
+  ComposerFrame,
+  ConsoleFrame,
+  ConsoleNote,
+  DOCK_WRAP,
+  EMPTY_BODY_PAD,
+  FIELD_CLASS,
+  GREETING_WRAP,
+  Greeting,
+  RAISED,
+} from './console-frame'
 import { HistoryList, HistoryRail } from './history-rail'
 import { MiniScore, PaperPicker, pickable, scoreColor } from './paper-picker'
 import { AskedHeading, FollowUps, LiveAnswer, SettledAnswer } from './scanner-turn'
@@ -48,8 +61,6 @@ const nowTime = () => timeOf(new Date().toISOString())
 const EASE_OUT = [0.23, 1, 0.32, 1] as const
 const EASE_IN_OUT = [0.77, 0, 0.175, 1] as const
 const FIELD_MAX_PX = 176
-const RAISED =
-  'shadow-[0_1px_2px_rgba(19,19,17,0.05),0_5px_14px_-4px_rgba(19,19,17,0.10)] dark:shadow-none'
 
 /** The transcript as question/answer pairs, with target changes between. */
 type Group =
@@ -481,25 +492,16 @@ export function Ask({
   const lastGroup = groups[groups.length - 1]
   const sendLive = busy || (mode === 'ask' && input.trim() !== '')
 
-  // minmax(0,…) on the mobile column too: the implicit auto track sized
-  // itself to the history rows' min-content and pushed the page wider than
-  // the viewport (pre-existing; surfaced by the touch-target work).
+  // The chrome lives in ./console-frame so the loading skeleton shares it.
   return (
-    <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[minmax(0,1fr)_auto] gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(17rem,1fr)] lg:grid-rows-1">
-      {/* Console: transcript above, the composer docked below. */}
-      <section
-        aria-label={t('Ask console')}
-        className={clsx(
-          'border-line-strong bg-surface relative isolate flex min-h-0 min-w-0 flex-col rounded-sm border',
-          RAISED,
-        )}
-      >
-        <div className="border-line-soft flex shrink-0 items-center gap-3 border-b px-4 py-2.5">
-          <span className="text-foreground font-mono text-[11px] font-medium tracking-[0.18em] uppercase">
-            {t('Ask', 'console')}
-          </span>
-          <div className="ml-auto flex min-w-0 items-center">
-            {target ? (
+    <AskLayout
+      railLabel={t('Conversation history')}
+      console={
+        <ConsoleFrame
+          label={t('Ask console')}
+          eyebrow={t('Ask', 'console')}
+          aside={
+            target ? (
               <button
                 type="button"
                 onClick={unpick}
@@ -514,223 +516,215 @@ export function Ask({
                 <ChevronUpDownIcon className="text-muted-foreground size-3 shrink-0" />
               </button>
             ) : (
-              <span className="text-muted-foreground font-mono text-[10px] tracking-[0.07em] uppercase">
-                {t('No paper yet')}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Transitions only — never a live region on the streamed markdown,
-            which re-renders every animation frame. */}
-        <p role="status" className="sr-only">
-          {busy
-            ? t('Reading the full text…')
-            : lastGroup?.kind === 'qa' && lastGroup.answer
-              ? lastGroup.answer.error
-                ? t('The answer failed.')
-                : t('Answer ready')
-              : ''}
-        </p>
-
-        <div
-          ref={bodyRef}
-          className={clsx(
-            'relative flex min-h-0 flex-1 flex-col',
-            !hasConversation && 'pt-[clamp(2rem,10vh,7rem)]',
-          )}
+              <ConsoleNote>{t('No paper yet')}</ConsoleNote>
+            )
+          }
         >
-          {hasConversation && (
-            <div
-              ref={transcriptRef}
-              onScroll={onScroll}
-              className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-2 lg:px-8"
-            >
-              <div ref={listRef} className="mx-auto max-w-[800px]">
-                {groups.map((g) =>
-                  g.kind === 'target' ? (
-                    <TargetLine key={g.key} scope={g.scope} />
-                  ) : (
-                    <article
-                      key={g.key}
-                      data-live={!g.answer && busy ? '' : undefined}
-                      className={clsx(
-                        'border-line-soft border-t pt-[18px] pb-2 first:border-t-0 last:min-h-(--turn-min)',
-                        !g.answer && busy && 'animate-rise-in motion-reduce:animate-none',
-                      )}
-                    >
-                      <AskedHeading turn={g.question} />
-                      {g.answer ? (
-                        <>
-                          <SettledAnswer
-                            turn={g.answer}
-                            anchor={`vc-${g.key}`}
-                            onRetry={
-                              g === lastGroup && g.answer.error && !busy
-                                ? () => retryFrom(g.key)
-                                : undefined
-                            }
+          {/* Transitions only — never a live region on the streamed markdown,
+            which re-renders every animation frame. */}
+          <p role="status" className="sr-only">
+            {busy
+              ? t('Reading the full text…')
+              : lastGroup?.kind === 'qa' && lastGroup.answer
+                ? lastGroup.answer.error
+                  ? t('The answer failed.')
+                  : t('Answer ready')
+                : ''}
+          </p>
+
+          <div ref={bodyRef} className={clsx(BODY_CLASS, !hasConversation && EMPTY_BODY_PAD)}>
+            {hasConversation && (
+              <div
+                ref={transcriptRef}
+                onScroll={onScroll}
+                className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-2 lg:px-8"
+              >
+                <div ref={listRef} className="mx-auto max-w-[800px]">
+                  {groups.map((g) =>
+                    g.kind === 'target' ? (
+                      <TargetLine key={g.key} scope={g.scope} />
+                    ) : (
+                      <article
+                        key={g.key}
+                        data-live={!g.answer && busy ? '' : undefined}
+                        className={clsx(
+                          'border-line-soft border-t pt-[18px] pb-2 first:border-t-0 last:min-h-(--turn-min)',
+                          !g.answer && busy && 'animate-rise-in motion-reduce:animate-none',
+                        )}
+                      >
+                        <AskedHeading turn={g.question} />
+                        {g.answer ? (
+                          <>
+                            <SettledAnswer
+                              turn={g.answer}
+                              anchor={`vc-${g.key}`}
+                              onRetry={
+                                g === lastGroup && g.answer.error && !busy
+                                  ? () => retryFrom(g.key)
+                                  : undefined
+                              }
+                            />
+                            {g === lastGroup && !busy && !g.answer.error && target && (
+                              <FollowUps exclude={g.question.text} onAsk={ask} />
+                            )}
+                          </>
+                        ) : busy ? (
+                          <LiveAnswer
+                            key={askSeq}
+                            state={live}
+                            scopeTitle={target ? shortTitle(target.title) : null}
+                            onGrow={follow}
+                            onRevealed={onRevealed}
                           />
-                          {g === lastGroup && !busy && !g.answer.error && target && (
-                            <FollowUps exclude={g.question.text} onAsk={ask} />
-                          )}
-                        </>
-                      ) : busy ? (
-                        <LiveAnswer
-                          key={askSeq}
-                          state={live}
-                          scopeTitle={target ? shortTitle(target.title) : null}
-                          onGrow={follow}
-                          onRevealed={onRevealed}
-                        />
-                      ) : null}
-                    </article>
-                  ),
-                )}
+                        ) : null}
+                      </article>
+                    ),
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-
-          <AnimatePresence>
-            {jump && (
-              <motion.button
-                key="jump"
-                type="button"
-                onClick={jumpToLatest}
-                initial={{ opacity: 0, y: 6, scale: 0.94 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 6, scale: 0.94 }}
-                transition={{ duration: reduceMotion ? 0 : 0.2, ease: EASE_OUT }}
-                className={clsx(
-                  'border-line-strong bg-surface text-foreground absolute bottom-[calc(var(--dock-h,6rem)+0.75rem)] left-1/2 z-[6] flex -translate-x-1/2 items-center gap-1.5 rounded-sm border py-1.5 pr-2.5 pl-2 text-xs font-medium',
-                  RAISED,
-                )}
-              >
-                <ArrowDownIcon className="size-3" />
-                {t('Jump to latest')}
-              </motion.button>
             )}
-          </AnimatePresence>
 
-          <AnimatePresence initial={false} mode="popLayout">
-            {!hasConversation && (
-              <motion.div
-                key="greeting"
-                exit={{ opacity: 0 }}
-                transition={{ duration: reduceMotion ? 0 : 0.15 }}
-                className="mx-auto mb-[18px] w-[min(100%-3rem,800px)] shrink-0"
-              >
-                <p className="text-foreground text-[15px] text-balance">{t('Ask a paper.')}</p>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* The dock: composer + picker. Same element before and after the first question — it travels. */}
-          <motion.div
-            ref={dockRef}
-            layout="position"
-            transition={{ layout: { duration: reduceMotion ? 0 : 0.42, ease: EASE_IN_OUT } }}
-            className={clsx(
-              'relative z-[4] mx-auto w-[min(100%-3rem,800px)] shrink-0 pb-5',
-              hasConversation &&
-                'before:to-surface pt-3 before:pointer-events-none before:absolute before:-top-7 before:-right-6 before:-left-6 before:h-10 before:bg-gradient-to-b before:from-transparent',
-            )}
-          >
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                submit()
-              }}
-              className="border-line bg-surface focus-within:border-accent/60 focus-within:ring-accent/15 relative flex flex-col rounded-sm border transition focus-within:ring-4"
-            >
-              <textarea
-                ref={fieldRef}
-                name="question"
-                rows={1}
-                value={mode === 'pick' ? pickQuery : input}
-                onChange={onFieldChange}
-                onKeyDown={onFieldKeyDown}
-                role={mode === 'pick' ? 'combobox' : undefined}
-                aria-expanded={mode === 'pick' ? true : undefined}
-                aria-controls={mode === 'pick' ? 'paper-picker' : undefined}
-                aria-autocomplete={mode === 'pick' ? 'list' : undefined}
-                aria-label={mode === 'pick' ? t('Find a paper') : t('Ask a question')}
-                placeholder={
-                  mode === 'pick'
-                    ? t('Which paper? Type a title, author, or source…')
-                    : t('Ask about this paper…')
-                }
-                autoComplete="off"
-                spellCheck={false}
-                className="text-foreground placeholder:text-muted-foreground block max-h-44 w-full resize-none bg-transparent px-4 pt-3.5 pb-1.5 text-[15px] leading-relaxed focus:outline-none"
-              />
-              <div className="flex min-h-10 items-center gap-2 py-1.5 pr-2 pb-2 pl-3">
-                {target && (
-                  <motion.span
-                    initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.18, ease: EASE_OUT }}
-                    className="bg-foreground/5 flex max-w-[70%] items-center gap-1.5 rounded-sm py-[3px] pr-1 pl-2"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="size-1.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: scoreColor(target.signal_score) }}
-                    />
-                    <span className="text-foreground truncate text-xs font-medium">
-                      {shortTitle(target.title)}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={unpick}
-                      disabled={busy}
-                      aria-label={t('Choose a different paper')}
-                      className="text-muted-foreground hover:bg-foreground/10 hover:text-foreground grid size-[18px] shrink-0 place-items-center rounded-full transition-colors duration-100 ease-out disabled:opacity-50"
-                    >
-                      <XMarkIcon className="size-3" />
-                    </button>
-                  </motion.span>
-                )}
-                <span className="flex-1" />
-                <button
-                  type={busy ? 'button' : 'submit'}
-                  onClick={busy ? stop : undefined}
-                  aria-label={busy ? t('Stop') : t('Send')}
+            <AnimatePresence>
+              {jump && (
+                <motion.button
+                  key="jump"
+                  type="button"
+                  onClick={jumpToLatest}
+                  initial={{ opacity: 0, y: 6, scale: 0.94 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 6, scale: 0.94 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.2, ease: EASE_OUT }}
                   className={clsx(
-                    'focus-visible:outline-accent relative flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.94]',
-                    sendLive
-                      ? 'bg-foreground text-background hover:bg-foreground/85'
-                      : 'bg-foreground/10 text-muted-foreground',
+                    'border-line-strong bg-surface text-foreground absolute bottom-[calc(var(--dock-h,6rem)+0.75rem)] left-1/2 z-[6] flex -translate-x-1/2 items-center gap-1.5 rounded-sm border py-1.5 pr-2.5 pl-2 text-xs font-medium',
+                    RAISED,
                   )}
                 >
-                  {busy ? (
-                    <StopIcon className="size-3.5" />
-                  ) : (
-                    <PaperAirplaneIcon className="size-4" />
-                  )}
-                </button>
-              </div>
-            </form>
+                  <ArrowDownIcon className="size-3" />
+                  {t('Jump to latest')}
+                </motion.button>
+              )}
+            </AnimatePresence>
 
-            {mode === 'pick' && (
-              <PaperPicker
-                entries={entries}
-                query={pickQuery}
-                cursor={cursor}
-                placement={hasConversation ? 'above' : 'below'}
-                onCursor={setCursor}
-                onPick={pick}
+            <AnimatePresence initial={false} mode="popLayout">
+              {!hasConversation && (
+                <motion.div
+                  key="greeting"
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: reduceMotion ? 0 : 0.15 }}
+                  className={GREETING_WRAP}
+                >
+                  <Greeting lead={t('Ask a paper.')} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* The dock: composer + picker. Same element before and after the first question — it travels. */}
+            <motion.div
+              ref={dockRef}
+              layout="position"
+              transition={{ layout: { duration: reduceMotion ? 0 : 0.42, ease: EASE_IN_OUT } }}
+              className={clsx(
+                DOCK_WRAP,
+                hasConversation &&
+                  'before:to-surface pt-3 before:pointer-events-none before:absolute before:-top-7 before:-right-6 before:-left-6 before:h-10 before:bg-gradient-to-b before:from-transparent',
+              )}
+            >
+              <ComposerFrame
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  submit()
+                }}
+                field={
+                  <textarea
+                    ref={fieldRef}
+                    name="question"
+                    rows={1}
+                    value={mode === 'pick' ? pickQuery : input}
+                    onChange={onFieldChange}
+                    onKeyDown={onFieldKeyDown}
+                    role={mode === 'pick' ? 'combobox' : undefined}
+                    aria-expanded={mode === 'pick' ? true : undefined}
+                    aria-controls={mode === 'pick' ? 'paper-picker' : undefined}
+                    aria-autocomplete={mode === 'pick' ? 'list' : undefined}
+                    aria-label={mode === 'pick' ? t('Find a paper') : t('Ask a question')}
+                    placeholder={
+                      mode === 'pick'
+                        ? t('Which paper? Type a title, author, or source…')
+                        : t('Ask about this paper…')
+                    }
+                    autoComplete="off"
+                    spellCheck={false}
+                    className={clsx(
+                      FIELD_CLASS,
+                      'text-foreground placeholder:text-muted-foreground focus:outline-none',
+                    )}
+                  />
+                }
+                footer={
+                  <>
+                    {target && (
+                      <motion.span
+                        initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.18, ease: EASE_OUT }}
+                        className="bg-foreground/5 flex max-w-[70%] items-center gap-1.5 rounded-sm py-[3px] pr-1 pl-2"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="size-1.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: scoreColor(target.signal_score) }}
+                        />
+                        <span className="text-foreground truncate text-xs font-medium">
+                          {shortTitle(target.title)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={unpick}
+                          disabled={busy}
+                          aria-label={t('Choose a different paper')}
+                          className="text-muted-foreground hover:bg-foreground/10 hover:text-foreground grid size-[18px] shrink-0 place-items-center rounded-full transition-colors duration-100 ease-out disabled:opacity-50"
+                        >
+                          <XMarkIcon className="size-3" />
+                        </button>
+                      </motion.span>
+                    )}
+                    <span className="flex-1" />
+                    <button
+                      type={busy ? 'button' : 'submit'}
+                      onClick={busy ? stop : undefined}
+                      aria-label={busy ? t('Stop') : t('Send')}
+                      className={clsx(
+                        'focus-visible:outline-accent relative flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.94]',
+                        sendLive
+                          ? 'bg-foreground text-background hover:bg-foreground/85'
+                          : 'bg-foreground/10 text-muted-foreground',
+                      )}
+                    >
+                      {busy ? (
+                        <StopIcon className="size-3.5" />
+                      ) : (
+                        <PaperAirplaneIcon className="size-4" />
+                      )}
+                    </button>
+                  </>
+                }
               />
-            )}
-          </motion.div>
-        </div>
-      </section>
 
-      {/* History rail: always to the right. */}
-      <aside
-        aria-label={t('Conversation history')}
-        className="min-h-0 overflow-y-auto pb-6 max-lg:hidden"
-      >
+              {mode === 'pick' && (
+                <PaperPicker
+                  entries={entries}
+                  query={pickQuery}
+                  cursor={cursor}
+                  placement={hasConversation ? 'above' : 'below'}
+                  onCursor={setCursor}
+                  onPick={pick}
+                />
+              )}
+            </motion.div>
+          </div>
+        </ConsoleFrame>
+      }
+      rail={
         <HistoryRail
           threads={sessions}
           activeId={activeSessionId}
@@ -742,73 +736,69 @@ export function Ask({
           onNew={newThread}
           onDelete={requestDelete}
         />
-      </aside>
-
-      <details className="border-line bg-surface rounded-sm border px-4 py-3 lg:hidden">
-        <summary className="text-foreground cursor-default text-xs font-semibold tracking-[0.18em] uppercase">
-          {t('History')}{' '}
-          <span className="text-muted-foreground font-mono font-normal normal-case tabular-nums">
-            ·{' '}
-            {sessions.length === 1
-              ? t('1 question')
-              : fmt(t('{n} questions'), { n: sessions.length })}
-          </span>
-        </summary>
-        <div className="mt-3 max-h-72 overflow-y-auto">
-          <HistoryList
-            threads={sessions}
-            activeId={activeSessionId}
-            openingId={openingId}
-            rowError={rowError}
-            onOpen={openThread}
-            onDelete={requestDelete}
-          />
-        </div>
-      </details>
-
-      {/* One dialog serves both delete triggers (rail + mobile list). A
-          failure keeps it open — a destructive action never fails silently. */}
-      <AlertDialog
-        open={pendingDelete !== null}
-        onOpenChange={(open) => {
-          if (!open && !deleting) {
-            setPendingDelete(null)
-            setDeleteError(null)
-          }
-        }}
-      >
-        <AlertDialogContent
-          onCloseAutoFocus={(event) => {
-            event.preventDefault()
-            deleteTriggerRef.current?.focus()
+      }
+      mobileTitle={t('History')}
+      mobileCount={
+        sessions.length === 1 ? t('1 question') : fmt(t('{n} questions'), { n: sessions.length })
+      }
+      mobileList={
+        <HistoryList
+          threads={sessions}
+          activeId={activeSessionId}
+          openingId={openingId}
+          rowError={rowError}
+          onOpen={openThread}
+          onDelete={requestDelete}
+        />
+      }
+      after={
+        // One dialog serves both delete triggers (rail + mobile list). A
+        // failure keeps it open — a destructive action never fails silently.
+        <AlertDialog
+          open={pendingDelete !== null}
+          onOpenChange={(open) => {
+            if (!open && !deleting) {
+              setPendingDelete(null)
+              setDeleteError(null)
+            }
           }}
         >
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('Delete this conversation?')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {fmt(t('"{title}" and every answer in it will be deleted. This cannot be undone.'), {
-                title: pendingDelete ? shortTitle(pendingDelete.title) : '',
-              })}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          {deleteError && <ErrorNote>{deleteError}</ErrorNote>}
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>{t('Cancel')}</AlertDialogCancel>
-            <AlertDialogAction
-              disabled={deleting}
-              onClick={(event) => {
-                // Radix closes on Action by default; we close only on success.
-                event.preventDefault()
-                void confirmDelete()
-              }}
-            >
-              {deleting && <Spinner className="size-3.5" aria-hidden="true" />}
-              {deleting ? t('Deleting…') : t('Delete')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+          <AlertDialogContent
+            onCloseAutoFocus={(event) => {
+              event.preventDefault()
+              deleteTriggerRef.current?.focus()
+            }}
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle>{t('Delete this conversation?')}</AlertDialogTitle>
+              <AlertDialogDescription>
+                {fmt(
+                  t('"{title}" and every answer in it will be deleted. This cannot be undone.'),
+                  {
+                    title: pendingDelete ? shortTitle(pendingDelete.title) : '',
+                  },
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {deleteError && <ErrorNote>{deleteError}</ErrorNote>}
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>{t('Cancel')}</AlertDialogCancel>
+              <AlertDialogAction
+                disabled={deleting}
+                onClick={(event) => {
+                  // Radix closes on Action by default; we close only on success.
+                  event.preventDefault()
+                  void confirmDelete()
+                }}
+              >
+                {deleting && <Spinner className="size-3.5" aria-hidden="true" />}
+                {deleting ? t('Deleting…') : t('Delete')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      }
+    />
   )
 }
 

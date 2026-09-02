@@ -12,6 +12,7 @@
 import 'server-only'
 
 import { byValueAsc, byValueDesc, dimensionByKey } from '@/lib/papers/select'
+import { cache } from 'react'
 import * as z from 'zod'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
@@ -86,8 +87,11 @@ function order(papers: ScoredPaper[], ordering: string): ScoredPaper[] {
 }
 
 export const papers = {
-  /** The whole workspace corpus + its workspace summary; null when not visible. */
-  async listAll(workspaceId: string): Promise<WorkspacePapers | null> {
+  /**
+   * The whole workspace corpus + its workspace summary; null when not visible.
+   * React-cached per request so sibling streamed sections share one fetch.
+   */
+  listAll: cache(async (workspaceId: string): Promise<WorkspacePapers | null> => {
     switch (sourceOf('papers')) {
       case 'stub':
         return stubListAll(workspaceId)
@@ -96,7 +100,7 @@ export const papers = {
       default:
         return composeListAll(workspaceId)
     }
-  },
+  }),
 
   /** The paginated HTTP face: screening filter, ordering, search. */
   async list(query: PapersQuery): Promise<Page<ScoredPaper>> {
@@ -121,25 +125,30 @@ export const papers = {
     return paginate(rows, query, '/bff/papers', extra)
   },
 
-  /** One paper with its workspace; null when missing or not visible. */
-  async get(id: string): Promise<{ workspace: WorkspaceSummary; paper: ScoredPaper } | null> {
-    switch (sourceOf('papers')) {
-      case 'stub': {
-        const paper = fixturePapers.find((p) => p.id === id) ?? null
-        return paper ? { workspace: fixtureWorkspace, paper } : null
-      }
-      case 'django':
-        try {
-          return await django(
-            `/api/papers/${assertUuid(id, 'paper id')}/scorecard/`,
-            detailResponse,
-          )
-        } catch (error) {
-          if (error instanceof ProblemError && error.problem.status === 404) return null
-          throw error
+  /**
+   * One paper with its workspace; null when missing or not visible. Cached per
+   * request: generateMetadata and the page's streamed sections share the call.
+   */
+  get: cache(
+    async (id: string): Promise<{ workspace: WorkspaceSummary; paper: ScoredPaper } | null> => {
+      switch (sourceOf('papers')) {
+        case 'stub': {
+          const paper = fixturePapers.find((p) => p.id === id) ?? null
+          return paper ? { workspace: fixtureWorkspace, paper } : null
         }
-      default:
-        return composeGet(id)
-    }
-  },
+        case 'django':
+          try {
+            return await django(
+              `/api/papers/${assertUuid(id, 'paper id')}/scorecard/`,
+              detailResponse,
+            )
+          } catch (error) {
+            if (error instanceof ProblemError && error.problem.status === 404) return null
+            throw error
+          }
+        default:
+          return composeGet(id)
+      }
+    },
+  ),
 }

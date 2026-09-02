@@ -6,9 +6,9 @@ slowest call landed, so a navigation froze on the previous page. The fix is not 
 skeleton component — it is **boundaries**: each section awaits only what it
 renders, and shows a placeholder shaped like the thing that is coming.
 
-Pass 1 (the dashboard) is done and establishes the conventions below. Passes 2
-and 3 are the same recipe applied to the remaining shapes; they are listed at the
-bottom with the specifics you need.
+Pass 1 (the dashboard) established the conventions below; passes 2 (Studio) and
+3 (paper detail, the assistant, the briefings) applied the same recipe. What is
+covered, what was learned, and the short debt list are at the bottom.
 
 ## The four rules
 
@@ -71,6 +71,7 @@ Needs a running app (see `local-docs/snapshot-replay.md` for the replay stack).
 ```bash
 bun run skeleton:drift                      # loaded vs skeleton geometry, desktop gates at 4px
 bun run skeleton:drift --stream /dashboard  # fallback must precede the first boundary completion
+bun run skeleton:drift --not-found /papers/00000000-0000-4000-8000-0000000000ff  # see pass 2 notes
 bun run screenshots --routes skeletons      # the gallery, sweep frozen, in the usual review loop
 bun test                                    # incl. the loading-convention ratchet
 ```
@@ -130,20 +131,73 @@ Things learned:
   shows), decided 2026-09-02. Any route that must keep a genuine 404 must call
   `notFound()` in a layout above the loading boundary, or skip `loading.tsx`.
 
-## Pass 3 — paper detail and the ask rails
+## Done (pass 3) — paper detail, the assistant, the briefings
 
-| Shape           | File                                                     | Skeleton                                                                                                                                                                                                           |
-| --------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Signal ledger   | `components/signal-ledger.tsx`                           | 34px mono score (`Bone.Number`), segmented bar as a `Bone.Block`, three labelled slider rows. It animates the score with `useMotionValue`/`useSpring` — the skeleton must not, or the spring will fight the sweep. |
-| Score variables | `components/score-variables.tsx`                         | Scalar grid / variable list; rows are uniform.                                                                                                                                                                     |
-| Charts          | `components/charts.tsx`                                  | `RadarChart`, `QuadrantChart`, `HeatGrid`, `ScoreMeter`, `Sparkline` have fixed viewBoxes, so an exact-size `Bone.Block` lands the chart with no shift.                                                            |
-| Ask rails       | `app/(sidebar)/ask/history-rail.tsx`, `paper-picker.tsx` | Session rows (title + timestamp); picker rows (title, author, source, score).                                                                                                                                      |
+`/papers/[id]` streams the whole record — header, signal card, dimensions and
+profile, screening, abstract, files, and the chat rail — behind **one**
+boundary, because every card reads the one `papers.get` (now React-cached, so
+the title crumb, `generateMetadata` and the record share the call). Files:
+`papers/[id]/paper-header.tsx`, `sections.tsx`, `skeletons.tsx`, `loading.tsx`;
+`PaperChatFrame` / `PaperChatSkeleton` in `paper-chat.tsx`; `ScoreRowFrame` /
+`ScoreRowSkeleton` and `DimensionsFrame` in `components/scanner-ui.tsx`;
+`SignalLedgerSkeleton` in `components/signal-ledger.tsx`. It has a
+`loading.tsx`, so a dead paper permalink now answers HTTP 200 with the
+not-found page in-stream — the same trade as the run page, decided 2026-09-02
+and pinned by `skeleton:drift --not-found`.
 
-`papers/[id]` and `ask` load their whole corpus server-side and hand it to a
-client browser component, so they want one whole-list skeleton rather than
-per-row streaming.
+`/ask` streams the console behind one boundary (the corpus feeds the picker,
+the sessions feed the rail; both block it). The console's chrome moved to
+`ask/console-frame.tsx` (no directive, no hooks) so `loading.tsx` renders the
+real strip, greeting and composer box with bones only where data would show:
+`PaperPickerSkeleton` under the composer and `HistoryRailSkeleton` in the rail.
+`ask/sections.tsx`, `ask/skeletons.tsx`, `ask/loading.tsx`.
+
+`/briefing` streams the reading room behind one boundary
+(`briefing/edition-browser.tsx` is now a frame with `EditionBrowserSkeleton`);
+`/briefing/[date]` streams the head (crumbs, title, funnel, brief) and the
+papers separately, one fetch each; `/briefing/[date]/run` streams the funnel
+and the new `exclusions-table.tsx`. Each has `sections.tsx`, `skeletons.tsx`,
+`loading.tsx`. The date pages validate the param's shape before the shell goes
+out (`isEditionDate`), so a malformed date is still a plain 404.
+
+Things learned:
+
+- **One fetch, one boundary.** Splitting the paper page per card would have
+  streamed nothing separately; the split follows the data, not the layout.
+- **Reserve the branch production takes.** The signal card is a ledger only
+  when the workspace runs the canonical formula; the skeleton reserves that
+  shape, and a workspace on another formula sees the card shrink on load. The
+  stub fixture is _not_ on the canonical formula, so stub mode and the
+  screenshot stack always show the fallback branch; the gallery pair passes
+  literal inputs.
+- **Some things get no skeleton.** `ScoreVariables` renders a collapsed
+  one-line summary in the ledger branch and `null` in several others — a bone
+  that reserves space where nothing renders is a guaranteed drift finding.
+  `Sparkline` was already covered by `StatBandSkeleton`; `RadarChart` at a
+  literal `size` is an exact `Bone.Block`. `ScoreMeter`, `QuadrantChart` and
+  `HeatGrid` have no call sites.
+- **A skeleton for the first paint only, even for a popover.** The paper
+  picker is client state and never blocks paint, so `PaperPickerSkeleton`
+  exists for `loading.tsx` and the gallery (`placement="static"` puts it in
+  flow so the drift check can measure rows); the live picker is never replaced.
+- **Refs and motion stay in the client file.** `ask.tsx` keeps `bodyRef`,
+  `dockRef`, the `motion.div`s and the textarea; the frame module exports the
+  class constants those elements use, so the skeleton still shares every class.
+- **A region that must fill its parent** takes `innerClassName` — the console
+  is a fixed-height flex column and the bones inside have to inherit it.
+- **The gallery page is a Server Component**, so loaded panes for components
+  that take callbacks (`HistoryRail`, `PaperPicker`) come from a `'use client'`
+  demo wrapper (`studio/skeletons/gallery-clients.tsx`).
+- **Per-request `cache()` on the services** (`papers.get`, `papers.listAll`,
+  `briefings.listAll`, `briefings.getByDate`) is what makes sibling sections
+  cheap; without it, `source=django` would fetch once per section.
 
 ## Later, not now
+
+Still on `KNOWN_UNCOVERED`: `/papers` (the `--stream` negative control above —
+covering it means naming a different boundary-free route), `/settings` (two
+forms, mostly static chrome) and `/tuning` (one fetch; an `InfluenceBar` bone
+would do it).
 
 `cacheComponents` (Partial Prerendering) would make each route's shell static, so
 the skeletons ship with the HTML and the server does no work before first paint.

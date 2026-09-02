@@ -2,6 +2,7 @@
 
 import { AnswerMarkdown } from '@/components/answer-markdown'
 import { ErrorNote } from '@/components/scanner-ui'
+import { Bone } from '@/components/skeleton'
 import type { ChatSession, ChatSessionDetail, VisualCitation } from '@/lib/bff/chat/schema'
 import { bffFetch } from '@/lib/bff/client'
 import type { Page } from '@/lib/bff/core/pagination'
@@ -12,7 +13,7 @@ import { useT } from '@/lib/i18n-client'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { PaperAirplaneIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 interface Msg {
   role: 'user' | 'scanner'
@@ -122,19 +123,11 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
   }
 
   return (
-    <section
-      aria-label={fmt(t('Ask about {title}'), { title: paper.title })}
-      className="border-line bg-surface flex flex-col overflow-hidden rounded-sm border shadow-xs max-lg:max-h-[32rem] lg:sticky lg:top-8 lg:h-[28rem]"
-    >
-      <div className="border-line-soft flex items-center gap-2 border-b px-4 py-2.5">
-        <span aria-hidden="true" className="bg-accent size-1.5 shrink-0 rounded-full" />
-        <span className="text-foreground font-mono text-[11px] font-medium tracking-[0.18em] uppercase">
-          {t('Ask this paper')}
-        </span>
-      </div>
-
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-        {msgs.length === 0 && !asking && historyState !== 'failed' ? (
+    <PaperChatFrame
+      label={fmt(t('Ask about {title}'), { title: paper.title })}
+      title={t('Ask this paper')}
+      body={
+        msgs.length === 0 && !asking && historyState !== 'failed' ? (
           <p className="text-muted-foreground text-sm leading-relaxed text-balance">
             {t('Questions here are answered from this paper alone.')}
           </p>
@@ -186,62 +179,130 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
               ))}
             <div ref={endRef} aria-hidden="true" />
           </div>
-        )}
+        )
+      }
+      footer={
+        <>
+          {historyState === 'failed' && msgs.length === 0 && (
+            <div className="border-line-soft border-t px-4 py-3">
+              <ErrorNote
+                action={
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHistoryState('loading')
+                      setReloadKey((k) => k + 1)
+                    }}
+                    className="bg-foreground text-background hover:bg-foreground/85 rounded-sm px-2.5 py-1 text-xs font-medium transition-colors"
+                  >
+                    {t('Retry')}
+                  </button>
+                }
+              >
+                {t("Couldn't load this paper's earlier questions.")}{' '}
+                {t('A new thread will start if you ask now.')}
+              </ErrorNote>
+            </div>
+          )}
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (input.trim()) ask(input.trim())
+            }}
+            className="border-line-soft focus-within:border-foreground/20 border-t transition-colors"
+          >
+            <div className="flex items-center gap-2 p-1.5 pl-4">
+              <input
+                name="question"
+                aria-label={t('Ask a question about this paper')}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={t('Ask about this paper…')}
+                className="text-foreground placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm focus:outline-none max-sm:text-base"
+              />
+              <button
+                type="submit"
+                aria-label={t('Send')}
+                disabled={asking}
+                className={clsx(
+                  'focus-visible:outline-accent flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
+                  input.trim() && !asking
+                    ? 'bg-foreground text-background hover:bg-foreground/85'
+                    : 'bg-foreground/10 text-muted-foreground',
+                )}
+              >
+                <PaperAirplaneIcon className="size-4" />
+              </button>
+            </div>
+          </form>
+        </>
+      }
+    />
+  )
+}
+
+/**
+ * The rail's chrome — the sticky card, its header strip, the scrolling body
+ * and whatever sits under it (the composer, an error). PaperChat and
+ * PaperChatSkeleton both fill it.
+ */
+export function PaperChatFrame({
+  state = 'loaded',
+  label,
+  title,
+  body,
+  footer,
+}: {
+  state?: 'loaded' | 'skeleton'
+  label: string
+  title: string
+  body: ReactNode
+  footer: ReactNode
+}) {
+  return (
+    <section
+      aria-label={label}
+      data-shape="paper-chat"
+      data-state={state}
+      className="border-line bg-surface flex flex-col overflow-hidden rounded-sm border shadow-xs max-lg:max-h-[32rem] lg:sticky lg:top-8 lg:h-[28rem]"
+    >
+      <div className="border-line-soft flex items-center gap-2 border-b px-4 py-2.5">
+        <span aria-hidden="true" className="bg-accent size-1.5 shrink-0 rounded-full" />
+        <span className="text-foreground font-mono text-[11px] font-medium tracking-[0.18em] uppercase">
+          {title}
+        </span>
       </div>
 
-      {historyState === 'failed' && msgs.length === 0 && (
-        <div className="border-line-soft border-t px-4 py-3">
-          <ErrorNote
-            action={
-              <button
-                type="button"
-                onClick={() => {
-                  setHistoryState('loading')
-                  setReloadKey((k) => k + 1)
-                }}
-                className="bg-foreground text-background hover:bg-foreground/85 rounded-sm px-2.5 py-1 text-xs font-medium transition-colors"
-              >
-                {t('Retry')}
-              </button>
-            }
-          >
-            {t("Couldn't load this paper's earlier questions.")}{' '}
-            {t('A new thread will start if you ask now.')}
-          </ErrorNote>
-        </div>
-      )}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{body}</div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (input.trim()) ask(input.trim())
-        }}
-        className="border-line-soft focus-within:border-foreground/20 border-t transition-colors"
-      >
-        <div className="flex items-center gap-2 p-1.5 pl-4">
-          <input
-            name="question"
-            aria-label={t('Ask a question about this paper')}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder={t('Ask about this paper…')}
-            className="text-foreground placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm focus:outline-none max-sm:text-base"
-          />
-          <button
-            type="submit"
-            aria-label={t('Send')}
-            disabled={asking}
-            className={clsx(
-              'focus-visible:outline-accent flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
-              input.trim() && !asking
-                ? 'bg-foreground text-background hover:bg-foreground/85'
-                : 'bg-foreground/10 text-muted-foreground',
-            )}
-          >
-            <PaperAirplaneIcon className="size-4" />
-          </button>
-        </div>
-      </form>
+      {footer}
     </section>
+  )
+}
+
+/** The rail before the record arrives: the hint line and an empty composer. */
+export function PaperChatSkeleton({ label, title }: { label: string; title: string }) {
+  return (
+    <PaperChatFrame
+      state="skeleton"
+      label={label}
+      title={title}
+      body={
+        <p className="text-muted-foreground text-sm leading-relaxed">
+          <Bone.Text lines={2} widths={['92%', '48%']} />
+        </p>
+      }
+      footer={
+        <div className="border-line-soft border-t">
+          <div className="flex items-center gap-2 p-1.5 pl-4">
+            <span className="min-w-0 flex-1 text-sm max-sm:text-base">
+              <Bone.Text widths={['20ch']} />
+            </span>
+            <Bone.Block className="size-8" round />
+          </div>
+        </div>
+      }
+    />
   )
 }

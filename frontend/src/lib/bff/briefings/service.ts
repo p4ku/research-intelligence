@@ -10,6 +10,7 @@ import type { Lang } from '@/lib/i18n'
 import { isPassed } from '@/lib/papers/map'
 import { byValueDesc } from '@/lib/papers/select'
 import type { ScoredPaper } from '@/lib/papers/types'
+import { cache } from 'react'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { problem, ProblemError } from '../core/problem'
@@ -104,8 +105,12 @@ async function composeAll(workspaceId: string, lang: Lang): Promise<Edition[]> {
 }
 
 export const briefings = {
-  /** Every edition for a workspace, newest first, with exclusions. `lang` only affects composed template prose. */
-  async listAll(workspaceId: string, lang: Lang = 'en'): Promise<Edition[]> {
+  /**
+   * Every edition for a workspace, newest first, with exclusions. `lang` only
+   * affects composed template prose. React-cached per request so the streamed
+   * sections of one page share a single fetch.
+   */
+  listAll: cache(async (workspaceId: string, lang: Lang = 'en'): Promise<Edition[]> => {
     switch (sourceOf('briefings')) {
       case 'stub':
         return fixtureEditions.map((e) => ({ ...e, workspace_id: workspaceId }))
@@ -120,7 +125,7 @@ export const briefings = {
       default:
         return composeAll(workspaceId, lang)
     }
-  },
+  }),
 
   async list(query: EditionsQuery, lang: Lang = 'en'): Promise<Page<Omit<Edition, 'exclusions'>>> {
     const all = await briefings.listAll(query.workspace_id, lang)
@@ -128,21 +133,23 @@ export const briefings = {
     return paginate(summaries, query, '/bff/briefings', { workspace_id: query.workspace_id })
   },
 
-  /** One edition by date; null when no completed run produced one. */
-  async getByDate(workspaceId: string, date: string, lang: Lang = 'en'): Promise<Edition | null> {
-    if (sourceOf('briefings') === 'django') {
-      try {
-        return await django(
-          `/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/editions/${date}/`,
-          edition,
-        )
-      } catch (error) {
-        if (error instanceof ProblemError && error.problem.status === 404) return null
-        throw error
+  /** One edition by date; null when no completed run produced one. Cached per request. */
+  getByDate: cache(
+    async (workspaceId: string, date: string, lang: Lang = 'en'): Promise<Edition | null> => {
+      if (sourceOf('briefings') === 'django') {
+        try {
+          return await django(
+            `/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/editions/${date}/`,
+            edition,
+          )
+        } catch (error) {
+          if (error instanceof ProblemError && error.problem.status === 404) return null
+          throw error
+        }
       }
-    }
-    return (await briefings.listAll(workspaceId, lang)).find((e) => e.date === date) ?? null
-  },
+      return (await briefings.listAll(workspaceId, lang)).find((e) => e.date === date) ?? null
+    },
+  ),
 }
 
 export function assertDate(value: string): string {

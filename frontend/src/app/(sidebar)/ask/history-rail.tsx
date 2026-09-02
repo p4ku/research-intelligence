@@ -1,12 +1,14 @@
 'use client'
 
 import { SectionLabel } from '@/components/scanner-ui'
+import { Bone } from '@/components/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import type { ChatSession } from '@/lib/bff/chat/schema'
 import { fmt } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
 import { PlusIcon, TrashIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
+import type { ReactNode } from 'react'
 import { shortTitle, timeOf } from './types'
 
 /** 'Today', 'Yesterday', or a short local date — the rail's group label. */
@@ -24,6 +26,113 @@ function dayLabel(iso: string, lang: string, t: (s: string) => string): string {
   })
 }
 
+/* ---------------------------------- Frames --------------------------------- */
+
+const NEW_BUTTON =
+  'border-line bg-surface text-foreground hover:border-line-strong hover:bg-foreground/5 focus-visible:outline-accent mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-sm border px-3 py-2 text-xs font-medium whitespace-nowrap transition-[background-color,border-color,transform] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.99]'
+
+// Separated from the open target by a divider; on touch it is visible at
+// rest and grows real padding to a ~44px target (a positioned ::after
+// overhang widened the page on mobile — don't reintroduce).
+const TRASH =
+  'text-muted-foreground hover:text-negative border-line-soft ml-1 flex items-center self-stretch border-l py-1 pr-1 pl-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:py-4 pointer-coarse:pr-3.5 pointer-coarse:pl-4 pointer-coarse:opacity-100'
+
+function RailHeader({
+  label,
+  count,
+  action,
+}: {
+  label: ReactNode
+  count: ReactNode
+  action: ReactNode
+}) {
+  // Two rows, not one: the label/count line and the action line each own
+  // their width, so neither the count nor the button label can wrap when
+  // the rail narrows. Mirrors the day-group headers below.
+  return (
+    <div className="px-3">
+      <div className="flex items-baseline gap-2">
+        <SectionLabel className="!text-[11px]">{label}</SectionLabel>
+        <span className="text-muted-foreground ml-auto shrink-0 font-mono text-[11px] tabular-nums">
+          {count}
+        </span>
+      </div>
+      {action}
+    </div>
+  )
+}
+
+function DayLabel({ day, count }: { day: ReactNode; count: ReactNode }) {
+  return (
+    <p
+      data-row="day"
+      className="bg-background text-muted-foreground sticky top-0 z-10 flex items-baseline px-3 py-1 font-mono text-[10px] tracking-[0.14em] uppercase"
+    >
+      {day}
+      <span className="ml-auto tabular-nums">{count}</span>
+    </p>
+  )
+}
+
+/** A session row: the scope spine, the open target, the delete affordance. */
+function HistoryRowFrame({
+  active = false,
+  busy = false,
+  spine,
+  body,
+  trash,
+}: {
+  active?: boolean
+  busy?: boolean
+  /** The spine's colour class. */
+  spine: string
+  body: ReactNode
+  trash: ReactNode
+}) {
+  return (
+    <div
+      data-row="session"
+      aria-busy={busy || undefined}
+      className={clsx(
+        'group flex w-full items-stretch gap-2.5 rounded-sm py-2 pr-2 pl-2',
+        active ? 'border-line bg-surface border shadow-xs' : 'hover:bg-foreground/5',
+      )}
+    >
+      <span aria-hidden="true" className={clsx('w-[3px] shrink-0 rounded-full', spine)} />
+      {body}
+      {trash}
+    </div>
+  )
+}
+
+function RowBody({
+  active = false,
+  title,
+  meta,
+}: {
+  active?: boolean
+  title: ReactNode
+  meta: ReactNode
+}) {
+  return (
+    <>
+      <span
+        className={clsx(
+          'block text-xs',
+          active ? 'text-foreground font-medium' : 'text-muted-foreground',
+        )}
+      >
+        {title}
+      </span>
+      <span className="text-muted-foreground mt-1 flex min-w-0 items-center gap-1.5 font-mono text-[10px] tabular-nums">
+        {meta}
+      </span>
+    </>
+  )
+}
+
+/* ---------------------------------- Loaded --------------------------------- */
+
 function HistoryRow({
   session,
   active,
@@ -39,66 +148,55 @@ function HistoryRow({
 }) {
   const t = useT()
   return (
-    <div
-      aria-busy={opening || undefined}
-      className={clsx(
-        'group flex w-full items-stretch gap-2.5 rounded-sm py-2 pr-2 pl-2',
-        active ? 'border-line bg-surface border shadow-xs' : 'hover:bg-foreground/5',
-      )}
-    >
-      {/* Scope spine: accent for a single paper, neutral for the whole corpus. */}
-      <span
-        aria-hidden="true"
-        className={clsx(
-          'w-[3px] shrink-0 rounded-full',
-          session.paper_id ? 'bg-accent/70' : 'bg-line-strong',
-        )}
-      />
-      <button
-        type="button"
-        onClick={onOpen}
-        aria-current={active || undefined}
-        className="min-w-0 flex-1 text-left"
-      >
-        <span
-          className={clsx(
-            'line-clamp-2 block text-xs',
-            active ? 'text-foreground font-medium' : 'text-muted-foreground',
-          )}
+    <HistoryRowFrame
+      active={active}
+      busy={opening}
+      // Scope spine: accent for a single paper, neutral for the whole corpus.
+      spine={session.paper_id ? 'bg-accent/70' : 'bg-line-strong'}
+      body={
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-current={active || undefined}
+          className="min-w-0 flex-1 text-left"
         >
-          {session.title}
-        </span>
-        <span className="text-muted-foreground mt-1 flex min-w-0 items-center gap-1.5 font-mono text-[10px] tabular-nums">
-          {opening && <Spinner aria-hidden="true" className="size-3 shrink-0" />}
-          {active && <span className="bg-accent size-1.5 shrink-0 rounded-full" />}
-          <span className="shrink-0">{timeOf(session.updated_at)}</span>
-          <span aria-hidden="true">·</span>
-          {session.paper_title ? (
-            <span className="truncate">{shortTitle(session.paper_title)}</span>
-          ) : (
-            <span className="truncate">{t('All papers')}</span>
-          )}
-          <span aria-hidden="true">·</span>
-          <span className="shrink-0">
-            {session.turns_count === 1
-              ? t('1 question')
-              : fmt(t('{n} questions'), { n: session.turns_count })}
-          </span>
-        </span>
-      </button>
-      {/* Separated from the open target by a divider; on touch it is visible
-          at rest and grows real padding to a ~44px target (a positioned
-          ::after overhang widened the page on mobile — don't reintroduce). */}
-      <button
-        type="button"
-        onClick={onDelete}
-        title={t('Delete conversation')}
-        aria-label={t('Delete conversation')}
-        className="text-muted-foreground hover:text-negative border-line-soft ml-1 flex items-center self-stretch border-l py-1 pr-1 pl-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:py-4 pointer-coarse:pr-3.5 pointer-coarse:pl-4 pointer-coarse:opacity-100"
-      >
-        <TrashIcon className="size-3.5" />
-      </button>
-    </div>
+          <RowBody
+            active={active}
+            title={<span className="line-clamp-2 block">{session.title}</span>}
+            meta={
+              <>
+                {opening && <Spinner aria-hidden="true" className="size-3 shrink-0" />}
+                {active && <span className="bg-accent size-1.5 shrink-0 rounded-full" />}
+                <span className="shrink-0">{timeOf(session.updated_at)}</span>
+                <span aria-hidden="true">·</span>
+                {session.paper_title ? (
+                  <span className="truncate">{shortTitle(session.paper_title)}</span>
+                ) : (
+                  <span className="truncate">{t('All papers')}</span>
+                )}
+                <span aria-hidden="true">·</span>
+                <span className="shrink-0">
+                  {session.turns_count === 1
+                    ? t('1 question')
+                    : fmt(t('{n} questions'), { n: session.turns_count })}
+                </span>
+              </>
+            }
+          />
+        </button>
+      }
+      trash={
+        <button
+          type="button"
+          onClick={onDelete}
+          title={t('Delete conversation')}
+          aria-label={t('Delete conversation')}
+          className={TRASH}
+        >
+          <TrashIcon className="size-3.5" />
+        </button>
+      }
+    />
   )
 }
 
@@ -140,10 +238,7 @@ export function HistoryList({
     <div className="space-y-5">
       {groups.map((g) => (
         <div key={g.day}>
-          <p className="bg-background text-muted-foreground sticky top-0 z-10 flex items-baseline px-3 py-1 font-mono text-[10px] tracking-[0.14em] uppercase">
-            {g.day}
-            <span className="ml-auto tabular-nums">{g.items.length}</span>
-          </p>
+          <DayLabel day={g.day} count={g.items.length} />
           <div className="mt-1 space-y-0.5">
             {g.items.map((session) => (
               <div key={session.id}>
@@ -196,28 +291,19 @@ export function HistoryRail({
 }) {
   const t = useT()
   return (
-    <div>
-      {/* Two rows, not one: the label/count line and the action line each own
-          their width, so neither the count nor the button label can wrap when
-          the rail narrows. Mirrors the day-group headers below. */}
-      <div className="px-3">
-        <div className="flex items-baseline gap-2">
-          <SectionLabel className="!text-[11px]">{t('History')}</SectionLabel>
-          <span className="text-muted-foreground ml-auto shrink-0 font-mono text-[11px] tabular-nums">
-            {threads.length === 1
-              ? t('1 question')
-              : fmt(t('{n} questions'), { n: threads.length })}
-          </span>
-        </div>
-        <button
-          type="button"
-          onClick={onNew}
-          className="border-line bg-surface text-foreground hover:border-line-strong hover:bg-foreground/5 focus-visible:outline-accent mt-2.5 flex w-full items-center justify-center gap-1.5 rounded-sm border px-3 py-2 text-xs font-medium whitespace-nowrap transition-[background-color,border-color,transform] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.99]"
-        >
-          <PlusIcon className="size-3.5 shrink-0" />
-          {t('New conversation')}
-        </button>
-      </div>
+    <div data-shape="history-rail" data-state="loaded">
+      <RailHeader
+        label={t('History')}
+        count={
+          threads.length === 1 ? t('1 question') : fmt(t('{n} questions'), { n: threads.length })
+        }
+        action={
+          <button type="button" onClick={onNew} className={NEW_BUTTON}>
+            <PlusIcon className="size-3.5 shrink-0" />
+            {t('New conversation')}
+          </button>
+        }
+      />
       {stale && (
         <p role="status" className="text-muted-foreground mt-2 px-3 text-[11px]">
           {t('History may be out of date.')}{' '}
@@ -241,6 +327,76 @@ export function HistoryRail({
           onOpen={onOpen}
           onDelete={onDelete}
         />
+      </div>
+    </div>
+  )
+}
+
+/* --------------------------------- Skeleton -------------------------------- */
+
+/**
+ * The rail's bones. `groups` is the row count per day label; `lines` cycles
+ * the title height per row (questions wrap to two lines about half the time).
+ * The gallery passes the fixture's shape; loading.tsx a generic one.
+ */
+export function HistoryRailSkeleton({
+  groups = [6],
+  lines = [1, 2],
+}: {
+  groups?: number[]
+  lines?: number[]
+}) {
+  const t = useT()
+  return (
+    <div data-shape="history-rail" data-state="skeleton">
+      <RailHeader
+        label={t('History')}
+        count={<Bone.Text widths={['11ch']} />}
+        action={
+          <span className={NEW_BUTTON}>
+            <PlusIcon className="size-3.5 shrink-0" />
+            {t('New conversation')}
+          </span>
+        }
+      />
+      <div className="mt-3">
+        <div className="space-y-5">
+          {groups.map((count, g) => {
+            const before = groups.slice(0, g).reduce((a, b) => a + b, 0)
+            return (
+              <div key={g}>
+                <DayLabel day={<Bone.Text widths={['6ch']} />} count={<Bone.Number digits={1} />} />
+                <div className="mt-1 space-y-0.5">
+                  {Array.from({ length: count }, (_, i) => (
+                    <div key={i}>
+                      <HistoryRowFrame
+                        spine="bg-foreground/8"
+                        body={
+                          <div className="min-w-0 flex-1 text-left">
+                            <RowBody
+                              title={
+                                <Bone.Text
+                                  lines={lines[(before + i) % lines.length]}
+                                  widths={['100%', '64%']}
+                                />
+                              }
+                              meta={<Bone.Text widths={['22ch']} />}
+                            />
+                          </div>
+                        }
+                        trash={
+                          <span className={clsx(TRASH, 'invisible')}>
+                            <TrashIcon className="size-3.5" />
+                          </span>
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
+        </div>
       </div>
     </div>
   )

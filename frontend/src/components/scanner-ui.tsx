@@ -1,4 +1,4 @@
-import { AnswerMarkdown } from '@/components/answer-markdown'
+import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { Sparkline } from '@/components/charts'
 import { Bone } from '@/components/skeleton'
 import type { T } from '@/lib/i18n'
@@ -528,6 +528,60 @@ export function SignalScore({
 
 /* ------------------------------ Score bar row ------------------------------- */
 
+/** The list a paper's dimension rows sit in; ScoreRow and ScoreRowSkeleton both fill it. */
+export function DimensionsFrame({
+  state = 'loaded',
+  className,
+  children,
+}: {
+  state?: 'loaded' | 'skeleton'
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div data-shape="dimensions" data-state={state} className={clsx('space-y-5', className)}>
+      {children}
+    </div>
+  )
+}
+
+const RATIONALE_CLASS = 'mt-1.5 text-xs text-zinc-500 dark:text-zinc-400'
+const EVIDENCE_CLASS =
+  'border-line-soft border-l-2 pl-2 text-xs leading-relaxed text-zinc-500 italic dark:text-zinc-400'
+
+/** One dimension row's layout: label + value line, optional track, rationale, evidence. */
+export function ScoreRowFrame({
+  label,
+  value,
+  track = false,
+  fill,
+  rationale,
+  evidence,
+}: {
+  label: React.ReactNode
+  value: React.ReactNode
+  /** Render the 3px track under the label line. */
+  track?: boolean
+  /** The track's fill (loaded); the skeleton leaves it empty. */
+  fill?: React.ReactNode
+  rationale?: React.ReactNode
+  evidence?: React.ReactNode
+}) {
+  return (
+    <div data-row="dimension">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="min-w-0 truncate text-sm font-medium text-zinc-700 dark:text-zinc-200">
+          {label}
+        </span>
+        <span className="flex shrink-0 items-baseline gap-2">{value}</span>
+      </div>
+      {track && <div className="bg-line-soft mt-1.5 h-[3px] w-full overflow-hidden">{fill}</div>}
+      {rationale}
+      {evidence}
+    </div>
+  )
+}
+
 export function ScoreRow({
   label,
   value,
@@ -558,12 +612,10 @@ export function ScoreRow({
         ? String(value)
         : (Math.round(value * 100) / 100).toString()
   return (
-    <div>
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="min-w-0 truncate text-sm font-medium text-zinc-700 dark:text-zinc-200">
-          {label}
-        </span>
-        <span className="flex shrink-0 items-baseline gap-2">
+    <ScoreRowFrame
+      label={label}
+      value={
+        <>
           {meta}
           <span
             className={clsx(
@@ -574,36 +626,71 @@ export function ScoreRow({
             {shown}
             {hasBar && max !== 100 ? `/${max}` : ''}
           </span>
-        </span>
-      </div>
-      {hasBar && (
-        <div className="bg-line-soft mt-1.5 h-[3px] w-full overflow-hidden">
-          {/* scaleX rather than width so the glide runs off the main thread */}
-          <div
-            className="h-full w-full origin-left transition-transform duration-[250ms] ease-out"
-            style={{ transform: `scaleX(${pct / 100})`, backgroundColor: color }}
-          />
-        </div>
-      )}
-      {rationale && (
-        <AnswerMarkdown
-          text={rationale}
-          className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400"
+        </>
+      }
+      track={hasBar}
+      fill={
+        // scaleX rather than width so the glide runs off the main thread
+        <div
+          className="h-full w-full origin-left transition-transform duration-[250ms] ease-out"
+          style={{ transform: `scaleX(${pct / 100})`, backgroundColor: color }}
         />
-      )}
-      {evidence && evidence.length > 0 && (
-        <ul className="mt-1.5 space-y-1">
-          {evidence.map((quote, i) => (
-            <li
-              key={i}
-              className="border-line-soft border-l-2 pl-2 text-xs leading-relaxed text-zinc-500 italic dark:text-zinc-400"
-            >
-              “{quote}”
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+      }
+      rationale={rationale && <AnswerMarkdown text={rationale} className={RATIONALE_CLASS} />}
+      evidence={
+        evidence &&
+        evidence.length > 0 && (
+          <ul className="mt-1.5 space-y-1">
+            {evidence.map((quote, i) => (
+              <li key={i} className={EVIDENCE_CLASS}>
+                “{quote}”
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    />
+  )
+}
+
+/**
+ * A dimension row's bones. `rationaleLines` and `evidence` mirror what the
+ * loaded row will carry — the paper skeleton uses the fixture's shape (the
+ * first dimension explains itself, the rest are bare numbers).
+ */
+export function ScoreRowSkeleton({
+  rationaleLines = 0,
+  evidence = 0,
+}: {
+  rationaleLines?: number
+  evidence?: number
+}) {
+  return (
+    <ScoreRowFrame
+      label={<Bone.Text widths={['14ch']} />}
+      value={
+        <span className="font-mono text-sm font-medium tabular-nums">
+          <Bone.Number digits={2} />
+        </span>
+      }
+      track
+      rationale={
+        rationaleLines > 0 && (
+          <AnswerMarkdownSkeleton className={RATIONALE_CLASS} paragraphs={[rationaleLines]} />
+        )
+      }
+      evidence={
+        evidence > 0 && (
+          <ul className="mt-1.5 space-y-1">
+            {Array.from({ length: evidence }, (_, i) => (
+              <li key={i} className={EVIDENCE_CLASS}>
+                <Bone.Text widths={['88%']} />
+              </li>
+            ))}
+          </ul>
+        )
+      }
+    />
   )
 }
 
