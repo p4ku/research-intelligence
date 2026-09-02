@@ -101,7 +101,7 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
         pipeline_run.save(update_fields=['status', 'completed_at'])
 
     from django.db.models import Count, Q
-    paper_stats = Paper.objects.filter(pipeline_run=pipeline_run).aggregate(
+    paper_stats = pipeline_run.get_papers().aggregate(
         total_fetched=Count('id'),
         downloaded_count=Count('id', filter=Q(original_pdf_path__isnull=False) & ~Q(original_pdf_path='')),
         ocr_count=Count('id', filter=Q(converted_md_path__isnull=False) & ~Q(converted_md_path='')),
@@ -129,8 +129,8 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
     full_text_passed = full_text_metrics.get("passed", paper_stats['full_text_passed']) if full_text_run else 0
     full_text_rejected = full_text_metrics.get("rejected", paper_stats['rejected_count']) if full_text_run else 0
 
-    extractions_count = Extraction.objects.filter(paper__pipeline_run=pipeline_run).count()
-    paper_metrics_count = PaperMetric.objects.filter(Q(pipeline_run=pipeline_run) | Q(paper__pipeline_run=pipeline_run)).distinct().count()
+    extractions_count = Extraction.objects.filter(paper__in=pipeline_run.get_papers()).count()
+    paper_metrics_count = PaperMetric.objects.filter(Q(pipeline_run=pipeline_run) | Q(paper__in=pipeline_run.get_papers())).distinct().count()
 
     # Calculate physical storage footprint for run directory
     run_storage_dir = f"workspaces/{pipeline_run.workspace.id}/runs/{pipeline_run.id}"
@@ -163,7 +163,7 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
         })
 
     # Fetched papers previews
-    papers_qs = Paper.objects.filter(pipeline_run=pipeline_run)
+    papers_qs = pipeline_run.get_papers()
     papers_preview = []
     for p in papers_qs[:20]:
         papers_preview.append({

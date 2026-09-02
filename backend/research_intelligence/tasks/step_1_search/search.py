@@ -246,7 +246,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                 pipeline_run.completed_at = timezone.now()
             pipeline_run.save(update_fields=['status', 'completed_at'])
 
-        pipeline_run.total_papers_fetched = Paper.objects.filter(pipeline_run_id=pipeline_run.id).count()
+        pipeline_run.total_papers_fetched = pipeline_run.get_papers().count()
         pipeline_run.save(update_fields=['total_papers_fetched'])
 
         logger.info(f"Completed ComponentRun '{component_run_id}'. Fetched: {len(results)}, Created: {created_count}, Duplicates: {skipped_count}.")
@@ -268,7 +268,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
         sibling_runs = ComponentRun.objects.filter(pipeline_run_id=pipeline_run.id, step_type='search')
         has_pending = sibling_runs.filter(status__in=['pending', 'running']).exists()
         has_succeeded = sibling_runs.filter(status='completed').exists()
-        total_ingested = Paper.objects.filter(pipeline_run_id=pipeline_run.id).count()
+        total_ingested = pipeline_run.get_papers().count()
 
         # Only mark entire pipeline_run as failed if all sibling scrapers finished without ingesting any papers
         if not has_pending and not has_succeeded and total_ingested == 0:

@@ -44,9 +44,8 @@ class PipelineStatusReporter(BaseSubscriptionReporter):
                 })
 
 
-        total_papers = Paper.objects.filter(pipeline_run=pipeline_run).count() if pipeline_run else 0
-        passed_papers = Paper.objects.filter(
-            pipeline_run=pipeline_run,
+        total_papers = pipeline_run.get_papers().count() if pipeline_run else 0
+        passed_papers = pipeline_run.get_papers().filter(
             screening_status__in=['full_text_passed', 'accepted', 'abstract_passed']
         ).count() if pipeline_run else 0
 

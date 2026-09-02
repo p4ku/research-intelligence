@@ -498,7 +498,7 @@ def check_run_status_logic(
                 "completed_at": cr.completed_at.isoformat() if cr.completed_at else None
             })
 
-        papers_qs = Paper.objects.filter(pipeline_run=process.pipeline_run)
+        papers_qs = process.pipeline_run.get_papers()
         paper_stats = papers_qs.aggregate(
             total_fetched=Count('id'),
             downloaded_count=Count('id', filter=Q(original_pdf_path__isnull=False) & ~Q(original_pdf_path='')),
@@ -523,7 +523,7 @@ def check_run_status_logic(
         full_text_passed = full_text_metrics.get("passed", paper_stats['full_text_passed']) if full_text_run else 0
         full_text_rejected = full_text_metrics.get("rejected", max(0, full_text_screened - full_text_passed)) if full_text_run else 0
 
-        total_screened_papers = abstract_screened or full_text_screened or PaperMetric.objects.filter(Q(pipeline_run=process.pipeline_run) | Q(paper__pipeline_run=process.pipeline_run)).distinct().count()
+        total_screened_papers = abstract_screened or full_text_screened or PaperMetric.objects.filter(Q(pipeline_run=process.pipeline_run) | Q(paper__in=process.pipeline_run.get_papers())).distinct().count()
 
         search_runs = [cr for cr in comp_runs_list if cr.step_type == 'search']
         duplicates_count = sum(
@@ -548,7 +548,7 @@ def check_run_status_logic(
                 "rejected": full_text_rejected
             } if full_text_run else None,
             "total_papers_passed_screening": process.pipeline_run.total_papers_passed_screening or full_text_passed or abstract_passed,
-            "extractions_count": Extraction.objects.filter(paper__pipeline_run=process.pipeline_run).count(),
+            "extractions_count": Extraction.objects.filter(paper__in=process.pipeline_run.get_papers()).count(),
             "tokens_in": process.pipeline_run.tokens_in,
             "tokens_out": process.pipeline_run.tokens_out,
             "tokens_consumed": process.pipeline_run.tokens_consumed,

@@ -29,7 +29,7 @@ def list_extractions_logic(
             if error:
                 return json.dumps({"error": error})
             if proc.pipeline_run:
-                qs = qs.filter(paper__pipeline_run=proc.pipeline_run)
+                qs = qs.filter(paper__in=proc.pipeline_run.get_papers())
             else:
                 qs = qs.filter(workspace=proc.workspace)
         except (ValueError, ResearchAgentProcess.DoesNotExist):
@@ -40,7 +40,7 @@ def list_extractions_logic(
             workspace, _, error = check_workspace_access(user, str(pipeline_run.workspace.id))
             if error:
                 return json.dumps({"error": error})
-            qs = qs.filter(paper__pipeline_run=pipeline_run)
+            qs = qs.filter(paper__in=pipeline_run.get_papers())
         except (ValueError, PipelineRun.DoesNotExist):
             return json.dumps({"error": f"PipelineRun '{pipeline_run_id}' not found."})
     elif workspace_id:

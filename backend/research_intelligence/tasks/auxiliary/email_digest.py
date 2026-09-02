@@ -38,7 +38,7 @@ def build_pipeline_run_digest_payload(
 
     # 1. Fetch papers and extractions
     if pipeline_run:
-        papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).prefetch_related(
+        papers_qs = pipeline_run.get_papers().prefetch_related(
             'extractions', 'extractions__extraction_definition'
         ).order_by('-created_at')
     elif workspace:
@@ -82,7 +82,7 @@ def build_pipeline_run_digest_payload(
         all_extractions.extend(list(p.extractions.all()))
     total_extractions = len(all_extractions)
     if total_extractions == 0 and pipeline_run:
-        total_extractions = Extraction.objects.filter(paper__pipeline_run=pipeline_run).count()
+        total_extractions = Extraction.objects.filter(paper__in=pipeline_run.get_papers()).count()
 
     cost_val = float(pipeline_run.usd_cost or 0.0) if pipeline_run else 0.0
     tokens_val = int(pipeline_run.tokens_consumed or 0) if pipeline_run else 0

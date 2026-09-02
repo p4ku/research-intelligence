@@ -175,11 +175,11 @@ def delete_pipeline_run(user, pipeline_run_id: Union[str, uuid.UUID]) -> Tuple[b
         return False, {}, error
 
     from django.db.models import Q
-    papers_qs = Paper.objects.filter(pipeline_run=pipeline_run)
+    papers_qs = pipeline_run.get_papers()
     papers_count = papers_qs.count()
     comp_runs_count = pipeline_run.component_runs.count()
-    extractions_count = Extraction.objects.filter(paper__pipeline_run=pipeline_run).count()
-    metrics_count = PaperMetric.objects.filter(Q(pipeline_run=pipeline_run) | Q(paper__pipeline_run=pipeline_run)).distinct().count()
+    extractions_count = Extraction.objects.filter(paper__in=pipeline_run.get_papers()).count()
+    metrics_count = PaperMetric.objects.filter(Q(pipeline_run=pipeline_run) | Q(paper__in=pipeline_run.get_papers())).distinct().count()
     reports_count = NarrativeReport.objects.filter(pipeline_run=pipeline_run).count()
 
     run_storage_dir = f"workspaces/{ws_id_str}/runs/{str(pipeline_run.id)}"

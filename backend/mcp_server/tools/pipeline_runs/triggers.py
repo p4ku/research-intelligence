@@ -431,7 +431,7 @@ def trigger_extraction_job_logic(
     if active_definitions_count == 0:
         return f"Error: No active ExtractionDefinitions configured for workspace '{workspace.name}'. Please create an extraction definition first."
 
-    papers_count = Paper.objects.filter(pipeline_run=pipeline_run).count()
+    papers_count = pipeline_run.get_papers().count()
     if papers_count == 0:
         return f"Error: No papers found in PipelineRun '{pipeline_run.id}'. Please run search & ingestion (trigger_search_job) first."
 
