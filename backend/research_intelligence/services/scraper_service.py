@@ -59,6 +59,8 @@ def list_workspace_papers(
         annotated_pipeline_run_id=Subquery(metric_sub.values('pipeline_run_id')[:1]),
         annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
         annotated_screening_reasoning=Subquery(metric_sub.values('screening_reasoning')[:1]),
+        annotated_abstract_screening_reasoning=Subquery(metric_sub.values('abstract_screening_reasoning')[:1]),
+        annotated_full_text_screening_reasoning=Subquery(metric_sub.values('full_text_screening_reasoning')[:1]),
         annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
     )
 
@@ -86,6 +88,8 @@ def list_workspace_papers(
             "arxiv_id": p.arxiv_id,
             "screening_status": getattr(p, 'annotated_screening_status', None) or 'pending',
             "screening_reasoning": getattr(p, 'annotated_screening_reasoning', None),
+            "abstract_screening_reasoning": getattr(p, 'annotated_abstract_screening_reasoning', None),
+            "full_text_screening_reasoning": getattr(p, 'annotated_full_text_screening_reasoning', None),
             "signal_score": getattr(p, 'annotated_signal_score', None),
             "created_at": p.created_at.isoformat()
         })

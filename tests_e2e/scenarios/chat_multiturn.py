@@ -11,6 +11,7 @@ from ..client import (
     WorkspaceService,
     PipelineService,
     ChatService,
+    DataConsistencyValidator,
 )
 
 logger = logging.getLogger("e2e_chat_multiturn")
@@ -73,10 +74,28 @@ def run_chat_multiturn_scenario(
     citations2 = turn2_resp.get("citations") or turn2_resp.get("visual_citations") or []
     tokens2 = turn2_resp.get("total_tokens") or (turn2_resp.get("tokens_in", 0) + turn2_resp.get("tokens_out", 0))
 
+    # Deep Type & UUID Validation
+    DataConsistencyValidator.validate_uuid(session_id, "session_id")
+    DataConsistencyValidator.validate_uuid(workspace_id, "workspace_id")
+    DataConsistencyValidator.validate_uuid(paper_id, "paper_id")
+
     assert len(ans2) > 20, f"Turn 2 returned empty answer: {ans2}"
     logger.info(f"🤖 [Turn 2 Answer]: {ans2[:160]}...")
     logger.info(f"   • Citations  : {len(citations2)} grounded")
     logger.info(f"   • Tokens     : {tokens2:,}")
+
+    # Validate Round-Trip Session Persistence over REST API
+    sess_resp = client.get(f"/api/chat/sessions/{session_id}/", expected_status=200)
+    sess_data = sess_resp.json()
+    DataConsistencyValidator.validate_uuid(sess_data["id"], "session.id")
+    assert str(sess_data.get("workspace")) == str(workspace_id) or str(sess_data.get("workspace_id")) == str(workspace_id)
+    messages_list = sess_data.get("messages", [])
+    assert len(messages_list) >= 2, f"Expected at least 2 chat turns in session history, got {len(messages_list)}"
+    for m in messages_list:
+        DataConsistencyValidator.validate_uuid(m["id"], "message.id")
+        assert m.get("sender") in ("user", "assistant"), f"Invalid sender: {m.get('sender')}"
+        if m.get("created_at"):
+            DataConsistencyValidator.validate_iso_timestamp(m["created_at"], "message.created_at")
 
     total_tokens = tokens1 + tokens2
     total_cost = float(turn1_resp.get("usd_cost", 0.0)) + float(turn2_resp.get("usd_cost", 0.0))

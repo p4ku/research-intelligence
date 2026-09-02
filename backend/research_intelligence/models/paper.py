@@ -68,6 +68,10 @@ class PaperQuerySet(models.QuerySet):
                 new_kwargs['metrics__screening_status__in'] = v
             elif k == 'screening_reasoning':
                 new_kwargs['metrics__screening_reasoning'] = v
+            elif k == 'abstract_screening_reasoning':
+                new_kwargs['metrics__abstract_screening_reasoning'] = v
+            elif k == 'full_text_screening_reasoning':
+                new_kwargs['metrics__full_text_screening_reasoning'] = v
             elif k == 'signal_score':
                 new_kwargs['metrics__signal_score'] = v
             elif k == 'signal_score__isnull':
@@ -87,6 +91,8 @@ class PaperManager(models.Manager.from_queryset(PaperQuerySet)):
         reprocessed_runs = kwargs.pop('reprocessed_runs', None)
         screening_status = kwargs.pop('screening_status', None)
         screening_reasoning = kwargs.pop('screening_reasoning', None)
+        abstract_screening_reasoning = kwargs.pop('abstract_screening_reasoning', None)
+        full_text_screening_reasoning = kwargs.pop('full_text_screening_reasoning', None)
         signal_score = kwargs.pop('signal_score', None)
         signal_score_details = kwargs.pop('signal_score_details', None)
         is_evaluation_benchmark = kwargs.pop('is_evaluation_benchmark', None)
@@ -101,6 +107,8 @@ class PaperManager(models.Manager.from_queryset(PaperQuerySet)):
                 'workspace': paper.workspace,
                 'screening_status': screening_status or 'pending',
                 'screening_reasoning': screening_reasoning,
+                'abstract_screening_reasoning': abstract_screening_reasoning,
+                'full_text_screening_reasoning': full_text_screening_reasoning,
                 'signal_score': signal_score,
                 'signal_score_details': signal_score_details or {},
                 'is_evaluation_benchmark': bool(is_evaluation_benchmark) if is_evaluation_benchmark is not None else False,
@@ -305,6 +313,8 @@ class PaperMetric(models.Model):
         help_text="Review decision for this paper within this pipeline run"
     )
     screening_reasoning = models.TextField(blank=True, null=True, help_text="Agent justification for screening action in this run")
+    abstract_screening_reasoning = models.TextField(blank=True, null=True, help_text="Agent justification for abstract screening decision in this run")
+    full_text_screening_reasoning = models.TextField(blank=True, null=True, help_text="Agent justification for full-text screening decision in this run")
     is_evaluation_benchmark = models.BooleanField(default=False, help_text="Flags whether this paper evaluation is part of the benchmark set for this run")
     evaluation_label = models.CharField(
         max_length=50,

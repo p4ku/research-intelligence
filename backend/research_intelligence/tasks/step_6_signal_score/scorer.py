@@ -175,16 +175,18 @@ def compute_paper_signal_score(
 
     # Persist on PaperMetric per pipeline run (Single Source of Truth)
     with transaction.atomic():
-        metric, _ = PaperMetric.objects.get_or_create(
+        metric, created = PaperMetric.objects.get_or_create(
             paper=paper,
             pipeline_run=pipeline_run,
             workspace=workspace,
             defaults={"signal_score": score, "signal_score_details": details, "metrics_data": context_vars}
         )
-        if metric.signal_score != score or metric.signal_score_details != details or metric.metrics_data != context_vars:
+        merged_metrics = dict(metric.metrics_data or {})
+        merged_metrics.update(context_vars)
+        if metric.signal_score != score or metric.signal_score_details != details or metric.metrics_data != merged_metrics:
             metric.signal_score = score
             metric.signal_score_details = details
-            metric.metrics_data = context_vars
+            metric.metrics_data = merged_metrics
             metric.save(update_fields=['signal_score', 'signal_score_details', 'metrics_data'])
 
     return score, details

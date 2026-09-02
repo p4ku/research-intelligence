@@ -13,6 +13,7 @@ from ..client import (
     WorkspaceService,
     AgentService,
     PipelineService,
+    DataConsistencyValidator,
 )
 
 logger = logging.getLogger("e2e_dedup")
@@ -84,6 +85,24 @@ def run_cross_source_dedup_scenario(config: Optional[E2EConfig] = None) -> Dict[
         pipeline_run_id = completed_proc.get("pipeline_run")
         pr_detail = pipeline_svc.get_pipeline_run(pipeline_run_id) if pipeline_run_id else {}
         papers = pipeline_svc.list_papers(workspace_id=workspace_id)
+        paper_metrics = pipeline_svc.list_paper_metrics(workspace_id=workspace_id, pipeline_run=pipeline_run_id)
+
+        # Deep Validation: UUIDs & Schemas
+        DataConsistencyValidator.validate_uuid(workspace_id, "workspace_id")
+        DataConsistencyValidator.validate_uuid(process_id, "process_id")
+        if pipeline_run_id:
+            DataConsistencyValidator.validate_uuid(pipeline_run_id, "pipeline_run_id")
+
+        for p in papers:
+            DataConsistencyValidator.validate_paper_schema(p)
+        for m in paper_metrics:
+            DataConsistencyValidator.validate_paper_metric_schema(m)
+
+        # Strict Cross-Source Deduplication Check (No identical DOIs or arXiv IDs)
+        DataConsistencyValidator.validate_cross_endpoint_consistency(papers, paper_metrics)
+
+        # Token and cost integrity
+        DataConsistencyValidator.validate_token_and_cost_integrity(pr_detail)
 
         cost_metrics = {
             "pipeline_tokens_in": pr_detail.get("tokens_in", 0),

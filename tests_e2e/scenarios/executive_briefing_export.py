@@ -17,6 +17,7 @@ from ..client import (
     WorkspaceService,
     AgentService,
     PipelineService,
+    DataConsistencyValidator,
 )
 
 logger = logging.getLogger("e2e_briefing_export")
@@ -91,12 +92,19 @@ def run_executive_briefing_export_scenario(config: Optional[E2EConfig] = None) -
         assert len(reports_list) > 0, f"Expected at least one NarrativeReport for pipeline_run '{pr_id}', got 0"
         report = reports_list[0]
 
+        # Deep Validation: UUID, ISO Timestamps, and Types
+        DataConsistencyValidator.validate_uuid(report.get("id"), "report.id")
+        DataConsistencyValidator.validate_uuid(workspace_id, "workspace_id")
+        DataConsistencyValidator.validate_uuid(pr_id, "pipeline_run_id")
+        if report.get("created_at"):
+            DataConsistencyValidator.validate_iso_timestamp(report.get("created_at"), "report.created_at")
+
         logger.info(f"   • Report Title : {report.get('title')}")
         logger.info(f"   • Created At   : {report.get('created_at')}")
 
         # 4. Validate Structured Markdown Sections
         content = report.get("content_markdown", "")
-        assert len(content) > 100, f"Report content appears too short ({len(content)} chars)"
+        assert isinstance(content, str) and len(content) > 100, f"Report content appears too short ({len(content)} chars)"
 
         # Check required architectural sections
         has_header = "Executive Research Briefing" in content or "Briefing" in content

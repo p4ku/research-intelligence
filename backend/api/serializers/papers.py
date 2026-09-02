@@ -14,6 +14,8 @@ class PaperSerializer(serializers.ModelSerializer):
     signal_score_details = serializers.SerializerMethodField()
     screening_status = serializers.SerializerMethodField()
     screening_reasoning = serializers.SerializerMethodField()
+    abstract_screening_reasoning = serializers.SerializerMethodField()
+    full_text_screening_reasoning = serializers.SerializerMethodField()
     is_evaluation_benchmark = serializers.SerializerMethodField()
     evaluation_label = serializers.SerializerMethodField()
 
@@ -67,6 +69,16 @@ class PaperSerializer(serializers.ModelSerializer):
         m = self._get_target_metric(obj)
         return m.screening_reasoning if m else None
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_abstract_screening_reasoning(self, obj):
+        m = self._get_target_metric(obj)
+        return m.abstract_screening_reasoning if m else None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_full_text_screening_reasoning(self, obj):
+        m = self._get_target_metric(obj)
+        return m.full_text_screening_reasoning if m else None
+
     @extend_schema_field(serializers.FloatField(allow_null=True))
     def get_signal_score(self, obj):
         m = self._get_target_metric(obj)
@@ -93,7 +105,8 @@ class PaperSerializer(serializers.ModelSerializer):
             'id', 'workspace', 'pipeline_run',
             'hash_id', 'doi', 'arxiv_id', 'title', 'authors', 'abstract',
             'source_database', 'original_pdf_path', 'converted_md_path',
-            'screening_status', 'screening_reasoning', 'is_evaluation_benchmark',
-            'evaluation_label', 'signal_score', 'signal_score_details',
+            'screening_status', 'screening_reasoning',
+            'abstract_screening_reasoning', 'full_text_screening_reasoning',
+            'is_evaluation_benchmark', 'evaluation_label', 'signal_score', 'signal_score_details',
             'metrics', 'created_at'
         ]

@@ -211,10 +211,16 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None,
                     pm, _ = PaperMetric.objects.get_or_create(
                         paper=paper,
                         pipeline_run_id=target_run_id,
-                        defaults={"workspace": workspace, "screening_status": status_val, "screening_reasoning": reasoning}
+                        defaults={
+                            "workspace": workspace,
+                            "screening_status": status_val,
+                            "screening_reasoning": reasoning,
+                            "full_text_screening_reasoning": reasoning
+                        }
                     )
                     pm.screening_status = status_val
                     pm.screening_reasoning = reasoning
+                    pm.full_text_screening_reasoning = reasoning
                     m_data = pm.metrics_data or {}
                     m_data["full_text_screening"] = {
                         "passed": passed,
@@ -227,7 +233,7 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None,
                         "dynamic_data": parsed
                     }
                     pm.metrics_data = m_data
-                    pm.save(update_fields=['screening_status', 'screening_reasoning', 'metrics_data'])
+                    pm.save(update_fields=['screening_status', 'screening_reasoning', 'full_text_screening_reasoning', 'metrics_data'])
                 except Exception as pm_err:
                     logger.warning(f"Could not record PaperMetric for paper {paper.id}: {pm_err}")
 

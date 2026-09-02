@@ -20,7 +20,11 @@ from tests_e2e.scenarios import (
     run_mid_step_rerun_scenario,
     run_chat_hallucination_guard_scenario,
     run_concurrent_agents_load_scenario,
+    run_concurrent_runs_in_workspace_scenario,
     run_workflow_schedule_scenario,
+    run_paper_evidence_and_pdf_scenario,
+    run_researcher_rbac_guard_scenario,
+    run_executive_briefing_export_scenario,
 )
 
 
@@ -45,6 +49,18 @@ class TestFullPipelineE2E:
         assert results["stage_checks"]["signal_score"].startswith("PASSED")
         assert results["stage_checks"]["reporting"].startswith("PASSED")
         assert results["total_papers_fetched"] > 0
+        assert results["accepted_papers_count"] >= 0
+        assert results["extractions_count"] >= 0
+
+        # Cost and token invariants
+        cost_m = results.get("cost_metrics", {})
+        assert cost_m.get("total_tokens_consumed", 0) >= 0
+        assert cost_m.get("total_usd_spent", 0.0) >= 0.0
+
+        # Verify sorted invariant for top_papers:
+        top_papers = results.get("top_papers", [])
+        scores = [p["signal_score"] for p in top_papers if p.get("signal_score") is not None]
+        assert scores == sorted(scores, reverse=True), f"Top papers must be strictly sorted by signal_score descending: {scores}"
 
     @pytest.mark.e2e
     def test_agent_lifecycle_pause_resume(self):
@@ -134,3 +150,30 @@ class TestFullPipelineE2E:
         assert results["status"] == "passed"
         assert results["schedule_status"] == "completed"
         assert results["schedule_id"] is not None
+
+    @pytest.mark.e2e
+    def test_paper_evidence_and_pdf(self):
+        config = E2EConfig.from_env()
+        results = run_paper_evidence_and_pdf_scenario(config)
+        assert results["status"] == "passed"
+        assert results["inspected_paper_id"] is not None
+
+    @pytest.mark.e2e
+    def test_executive_briefing_export(self):
+        config = E2EConfig.from_env()
+        results = run_executive_briefing_export_scenario(config)
+        assert results["status"] == "passed"
+        assert results["report_id"] is not None
+        assert len(results["report_title"]) > 0
+
+    @pytest.mark.e2e
+    def test_researcher_rbac_guard(self):
+        config = E2EConfig.from_env()
+        results = run_researcher_rbac_guard_scenario(config)
+        assert results["status"] == "passed"
+
+    @pytest.mark.e2e
+    def test_concurrent_runs_in_workspace(self):
+        config = E2EConfig.from_env()
+        results = run_concurrent_runs_in_workspace_scenario(config)
+        assert results["status"] == "passed"

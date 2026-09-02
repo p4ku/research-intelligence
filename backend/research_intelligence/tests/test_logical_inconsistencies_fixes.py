@@ -491,3 +491,100 @@ score = clamp(trl_val) * 0.5 + 4.0
         self.assertNotIn("Detailed explanation of result", preview_html)
         self.assertNotIn("decision_category", preview_html)
         self.assertIn("<div", preview_html)
+
+    # -------------------------------------------------------------------------
+    # 14. Abstract & Full-Text Screening reasoning preservation across stages, Admin, and API
+    # -------------------------------------------------------------------------
+    def test_abstract_and_full_text_screening_reasoning_preservation_and_api(self):
+        # 1. Abstract Screening records abstract_screening_reasoning
+        pm = PaperMetric.objects.create(
+            paper=self.paper_1,
+            pipeline_run=self.run_a1,
+            workspace=self.workspace_a,
+            screening_status="abstract_passed",
+            screening_reasoning="Abstract clearly addresses fault-tolerant syndrome decoding.",
+            abstract_screening_reasoning="Abstract clearly addresses fault-tolerant syndrome decoding.",
+            metrics_data={
+                "abstract_screening": {
+                    "passed": True,
+                    "reasoning": "Abstract clearly addresses fault-tolerant syndrome decoding.",
+                }
+            }
+        )
+
+        # 2. Full-Text Screening records full_text_screening_reasoning without overwriting abstract
+        pm.screening_status = "full_text_passed"
+        pm.screening_reasoning = "Full text proves physical threshold p < 1.2% on simulated grid."
+        pm.full_text_screening_reasoning = "Full text proves physical threshold p < 1.2% on simulated grid."
+        pm.metrics_data["full_text_screening"] = {
+            "passed": True,
+            "reasoning": "Full text proves physical threshold p < 1.2% on simulated grid."
+        }
+        pm.save()
+
+        # Reload from DB and verify both reasonings are preserved
+        pm.refresh_from_db()
+        self.assertEqual(pm.abstract_screening_reasoning, "Abstract clearly addresses fault-tolerant syndrome decoding.")
+        self.assertEqual(pm.full_text_screening_reasoning, "Full text proves physical threshold p < 1.2% on simulated grid.")
+        self.assertEqual(pm.screening_reasoning, "Full text proves physical threshold p < 1.2% on simulated grid.")
+
+        # 3. Step 6 (compute_paper_signal_score) does not wipe out screening dicts in metrics_data
+        self.workspace_a.signal_score_code = "score = 85.0"
+        self.workspace_a.save()
+        compute_paper_signal_score(self.paper_1, pipeline_run=self.run_a1)
+
+        pm.refresh_from_db()
+        self.assertEqual(pm.signal_score, 85.0)
+        self.assertIn("abstract_screening", pm.metrics_data)
+        self.assertIn("full_text_screening", pm.metrics_data)
+
+        # 4. REST API Serializer returns both reasonings
+        from api.serializers.papers import PaperSerializer, PaperMetricSerializer
+        ser = PaperSerializer(self.paper_1, context={"pipeline_run": str(self.run_a1.id)})
+        data = ser.data
+        self.assertEqual(data["abstract_screening_reasoning"], "Abstract clearly addresses fault-tolerant syndrome decoding.")
+        self.assertEqual(data["full_text_screening_reasoning"], "Full text proves physical threshold p < 1.2% on simulated grid.")
+
+        metric_ser = PaperMetricSerializer(pm)
+        self.assertEqual(metric_ser.data["abstract_screening_reasoning"], "Abstract clearly addresses fault-tolerant syndrome decoding.")
+        self.assertEqual(metric_ser.data["full_text_screening_reasoning"], "Full text proves physical threshold p < 1.2% on simulated grid.")
+
+        # 5. PaperMetricAdmin renders both reasonings in detail displays
+        admin = PaperMetricAdmin(PaperMetric, AdminSite())
+        abs_html = admin.abstract_screening_reasoning_display(pm)
+        self.assertIn("Abstract clearly addresses fault-tolerant syndrome decoding.", abs_html)
+        ft_html = admin.full_text_screening_reasoning_display(pm)
+        self.assertIn("Full text proves physical threshold", ft_html)
+        self.assertIn("&lt; 1.2% on simulated grid.", ft_html)
+
+        # 6. Fallback test: when abstract_screening_reasoning column is None, it falls back to ComponentRun
+        paper_legacy = Paper.objects.create(
+            workspace=self.workspace_a,
+            title="Legacy Paper",
+            hash_id="legacy_hash_123"
+        )
+        pm_legacy = PaperMetric.objects.create(
+            paper=paper_legacy,
+            pipeline_run=self.run_a1,
+            workspace=self.workspace_a,
+            screening_status="full_text_passed",
+            screening_reasoning="Legacy full text reasoning",
+            abstract_screening_reasoning=None,
+            full_text_screening_reasoning=None
+        )
+        ComponentRun.objects.create(
+            pipeline_run=self.run_a1,
+            step_type="abstract_screening",
+            component_name="abstract_screening",
+            status="completed",
+            output_data={
+                "screened_papers": [
+                    {
+                        "paper_id": str(paper_legacy.id),
+                        "reasoning": "Recovered abstract reasoning from component run audit!"
+                    }
+                ]
+            }
+        )
+        fallback_html = admin.abstract_screening_reasoning_display(pm_legacy)
+        self.assertIn("Recovered abstract reasoning from component run audit!", fallback_html)

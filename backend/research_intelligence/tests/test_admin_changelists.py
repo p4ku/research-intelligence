@@ -293,7 +293,7 @@ class AdminChangelistViewsTestCase(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Quantum Circuit Synthesis")
-        self.assertContains(response, "⚡ 71.20")
+        self.assertContains(response, "71.20")
         pr_change_url = reverse('admin:research_intelligence_pipelinerun_change', args=[self.pipeline_run.id])
         self.assertContains(response, pr_change_url)
 

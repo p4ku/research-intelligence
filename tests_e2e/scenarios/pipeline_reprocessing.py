@@ -13,6 +13,7 @@ from ..client import (
     WorkspaceService,
     AgentService,
     PipelineService,
+    DataConsistencyValidator,
 )
 
 logger = logging.getLogger("e2e_reprocessing")
@@ -76,9 +77,13 @@ def run_pipeline_reprocessing_scenario(config: Optional[E2EConfig] = None) -> Di
         completed1 = agent_svc.poll_until_complete(run1_proc["id"], max_timeout_sec=cfg.max_timeout_sec)
         assert completed1.get("status") == "completed", f"Run 1 failed: {completed1}"
 
-        papers_after_run1 = pipeline_svc.list_papers(workspace_id=workspace_id)
+        pr1_id = completed1.get("pipeline_run")
+        papers_after_run1 = pipeline_svc.list_papers(workspace_id=workspace_id, pipeline_run=pr1_id)
         assert len(papers_after_run1) > 0, "No papers ingested during Run 1"
         logger.info(f"✅ Phase 1 Finished: {len(papers_after_run1)} papers ingested in workspace.")
+
+        for p in papers_after_run1:
+            DataConsistencyValidator.validate_paper_schema(p)
 
         # -------------------------------------------------------------
         # Phase 2: Run 2 (Reprocess Existing Papers with Updated Rule)
@@ -93,11 +98,27 @@ def run_pipeline_reprocessing_scenario(config: Optional[E2EConfig] = None) -> Di
         completed2 = agent_svc.poll_until_complete(run2_proc["id"], max_timeout_sec=cfg.max_timeout_sec)
         assert completed2.get("status") == "completed", f"Run 2 failed: {completed2}"
 
-        papers_after_run2 = pipeline_svc.list_papers(workspace_id=workspace_id)
+        pr2_id = completed2.get("pipeline_run")
+        papers_after_run2 = pipeline_svc.list_papers(workspace_id=workspace_id, pipeline_run=pr2_id)
         logger.info(f"✅ Phase 2 Finished: {len(papers_after_run2)} papers re-evaluated across workspace.")
 
-        pr1 = pipeline_svc.get_pipeline_run(completed1.get("pipeline_run")) if completed1.get("pipeline_run") else {}
-        pr2 = pipeline_svc.get_pipeline_run(completed2.get("pipeline_run")) if completed2.get("pipeline_run") else {}
+        # Data Invariant: Run 2 must contain all papers that existed in Run 1
+        assert len(papers_after_run2) >= len(papers_after_run1), (
+            f"Reprocessing must retain all previous papers: Run 1 had {len(papers_after_run1)}, Run 2 has {len(papers_after_run2)}"
+        )
+        for p in papers_after_run2:
+            DataConsistencyValidator.validate_paper_schema(p)
+
+        # Cross-validate PaperMetrics isolation between Run 1 and Run 2
+        metrics_run1 = pipeline_svc.list_paper_metrics(workspace_id=workspace_id, pipeline_run=pr1_id)
+        metrics_run2 = pipeline_svc.list_paper_metrics(workspace_id=workspace_id, pipeline_run=pr2_id)
+        for m in metrics_run1 + metrics_run2:
+            DataConsistencyValidator.validate_paper_metric_schema(m)
+
+        pr1 = pipeline_svc.get_pipeline_run(pr1_id) if pr1_id else {}
+        pr2 = pipeline_svc.get_pipeline_run(pr2_id) if pr2_id else {}
+        DataConsistencyValidator.validate_token_and_cost_integrity(pr1)
+        DataConsistencyValidator.validate_token_and_cost_integrity(pr2)
 
         tok1 = pr1.get("tokens_consumed", 0) or 0
         tok2 = pr2.get("tokens_consumed", 0) or 0

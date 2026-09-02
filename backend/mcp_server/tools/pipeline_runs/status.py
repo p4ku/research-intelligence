@@ -186,6 +186,9 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
             "original_pdf_path": p.original_pdf_path,
             "converted_md_path": p.converted_md_path,
             "screening_status": pm.screening_status if pm else 'pending',
+            "screening_reasoning": pm.screening_reasoning if pm else None,
+            "abstract_screening_reasoning": pm.abstract_screening_reasoning if pm else None,
+            "full_text_screening_reasoning": pm.full_text_screening_reasoning if pm else None,
             "signal_score": pm.signal_score if pm else None,
             "created_at": p.created_at.isoformat()
         })
@@ -238,6 +241,9 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
                 "paper_id": str(p.id),
                 "title": p.title,
                 "screening_status": (next(iter(p.metrics.all()), None).screening_status if p.metrics.all() else 'pending'),
+                "screening_reasoning": (next(iter(p.metrics.all()), None).screening_reasoning if p.metrics.all() else None),
+                "abstract_screening_reasoning": (next(iter(p.metrics.all()), None).abstract_screening_reasoning if p.metrics.all() else None),
+                "full_text_screening_reasoning": (next(iter(p.metrics.all()), None).full_text_screening_reasoning if p.metrics.all() else None),
                 "signal_score": (next(iter(p.metrics.all()), None).signal_score if p.metrics.all() else None),
                 "metrics": {
                     (e.extraction_definition.name if e.extraction_definition else e.category): (e.exit_metric or e.get_exit_metric())
