@@ -8,7 +8,7 @@ from django.db import connection, close_old_connections
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
-from ...models import Workspace, Paper, PipelineRun, ComponentRun
+from ...models import Workspace, Paper, PipelineRun, ComponentRun, PaperMetric
 from ...scrapers import get_scraper_provider
 from .pdf_cache import try_reuse_cached_pdf, register_document_pdf
 
@@ -31,8 +31,9 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
     title_snippet = paper.title[:50] if paper.title else "Untitled"
 
     # Check if paper is already marked as withdrawn
-    if paper.screening_status == 'withdrawn':
-        reason = paper.screening_reasoning or "Paper has been withdrawn by authors."
+    pm = PaperMetric.objects.filter(paper=paper, pipeline_run=pipeline_run_obj).first()
+    if pm and pm.screening_status == 'withdrawn':
+        reason = pm.screening_reasoning or "Paper has been withdrawn by authors."
         logger.info(f"⏭️ [WITHDRAWN] Skipped paper '{title_snippet}...' ({reason})")
         return {
             "status": "withdrawn",
@@ -127,15 +128,23 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
         except Exception as e:
             err_msg = str(e).lower()
             if "404" in err_msg or "withdrawn" in err_msg:
-                paper.screening_status = 'withdrawn'
-                paper.screening_reasoning = f"Paper withdrawn by authors or unavailable at source ({e})."
-                paper.save(update_fields=['screening_status', 'screening_reasoning'])
+                target_pr = (pipeline_run_obj.id if pipeline_run_obj else None) or getattr(paper, 'pipeline_run_id', None)
+                if target_pr:
+                    PaperMetric.objects.update_or_create(
+                        paper=paper,
+                        pipeline_run_id=target_pr,
+                        defaults={
+                            'workspace_id': getattr(paper, 'workspace_id', None),
+                            'screening_status': 'withdrawn',
+                            'screening_reasoning': f"Paper withdrawn by authors or unavailable at source ({e})."
+                        }
+                    )
                 logger.info(f"⏭️ [WITHDRAWN 404] Paper '{title_snippet}...' marked as withdrawn ({e})")
                 return {
                     "status": "withdrawn",
                     "paper_id": str(paper.id),
                     "title": paper.title,
-                    "reason": paper.screening_reasoning
+                    "reason": f"Paper withdrawn by authors or unavailable at source ({e})."
                 }
 
             last_error = e
@@ -194,12 +203,11 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
             status='completed'
         ).first()
 
-        base_papers_qs = pipeline_run.get_papers()
         if abstract_run:
-            papers_qs = base_papers_qs.filter(screening_status='abstract_passed')
+            papers_qs = pipeline_run.get_papers(screening_status='abstract_passed')
             logger.info(f"🔍 [PDF DOWNLOAD FILTER] Prior Abstract Screening job completed. Targeting {papers_qs.count()} papers with status='abstract_passed'.")
         else:
-            papers_qs = base_papers_qs.exclude(screening_status__in=['rejected', 'withdrawn'])
+            papers_qs = pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn'])
             logger.info(f"🔍 [PDF DOWNLOAD FILTER] Abstract Screening was skipped or absent. Targeting {papers_qs.count()} total candidate papers.")
 
         papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)

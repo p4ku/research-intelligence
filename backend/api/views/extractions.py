@@ -28,6 +28,8 @@ class ExtractionSerializer(serializers.ModelSerializer):
         OpenApiParameter(name='definition', type=str, location=OpenApiParameter.QUERY, description='Filter extractions by definition UUID'),
         OpenApiParameter(name='definition_id', type=str, location=OpenApiParameter.QUERY, description='Alias for definition filter'),
         OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Filter extractions by PipelineRun UUID (including reprocessed papers)'),
+        OpenApiParameter(name='pipeline_run_id', type=str, location=OpenApiParameter.QUERY, description='Alias for pipeline_run filter'),
+        OpenApiParameter(name='run_id', type=str, location=OpenApiParameter.QUERY, description='Alias for pipeline_run filter'),
     ]
 )
 class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -62,13 +64,16 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
         if def_id:
             qs = qs.filter(extraction_definition_id=def_id)
 
-        pipeline_run_id = self.request.query_params.get('pipeline_run') or self.request.query_params.get('pipeline_run_id')
+        pipeline_run_id = (
+            self.request.query_params.get('pipeline_run')
+            or self.request.query_params.get('pipeline_run_id')
+            or self.request.query_params.get('run_id')
+        )
         if pipeline_run_id and str(pipeline_run_id).lower() not in ('undefined', 'null', ''):
             import uuid
-            from django.db.models import Q
             try:
                 pr_uuid = uuid.UUID(str(pipeline_run_id))
-                qs = qs.filter(Q(paper__pipeline_run_id=pr_uuid) | Q(paper__reprocessed_runs__id=pr_uuid)).distinct()
+                qs = qs.filter(paper__metrics__pipeline_run_id=pr_uuid).distinct()
             except (ValueError, TypeError):
                 qs = qs.none()
 

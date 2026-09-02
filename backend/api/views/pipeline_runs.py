@@ -10,8 +10,6 @@ from research_intelligence.models import (
     ComponentRun,
     Workspace,
     WorkspaceMember,
-    Paper,
-    Extraction,
 )
 from ..serializers.pipeline_runs import (
     PipelineRunSerializer,
@@ -29,7 +27,6 @@ from mcp_server.tools.pipeline_runs.triggers import (
     trigger_signal_score_job_logic,
     trigger_reporting_job_logic,
 )
-from research_intelligence.tasks.step_6_signal_score.scorer import execute_signal_score_job
 from mcp_server.tools.pipeline_runs.lifecycle import (
     abort_job_logic,
     delete_pipeline_run_logic,

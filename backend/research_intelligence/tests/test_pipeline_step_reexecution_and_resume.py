@@ -138,7 +138,12 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
             pipeline_run=pipeline_run,
             hash_id="screen_paper_001",
             title="Solid-State Polymer Electrolytes",
-            abstract="We investigate solid-state polymer electrolyte batteries.",
+            abstract="We investigate solid-state polymer electrolyte batteries."
+        )
+        PaperMetric.objects.create(
+            paper=paper,
+            pipeline_run=pipeline_run,
+            workspace=self.workspace,
             screening_status="pending"
         )
 
@@ -148,8 +153,8 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
             {"prompt_tokens": 100, "candidates_tokens": 50}
         )
         trigger_screening_job_logic(self.user, pipeline_run_id=str(pipeline_run.id))
-        paper.refresh_from_db()
-        self.assertEqual(paper.screening_status, "abstract_passed")
+        pm = PaperMetric.objects.get(paper=paper, pipeline_run=pipeline_run)
+        self.assertEqual(pm.screening_status, "abstract_passed")
 
         # Now user updates workspace rejection criteria to strictly reject polymer electrolytes
         self.workspace.abstract_rejection_criteria = ["Reject any polymer electrolytes."]
@@ -161,9 +166,9 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
             {"prompt_tokens": 100, "candidates_tokens": 50}
         )
         trigger_screening_job_logic(self.user, pipeline_run_id=str(pipeline_run.id))
-        paper.refresh_from_db()
-        self.assertEqual(paper.screening_status, "rejected")
-        self.assertIn("polymer electrolyte exclusion", paper.screening_reasoning)
+        pm.refresh_from_db()
+        self.assertEqual(pm.screening_status, "rejected")
+        self.assertIn("polymer electrolyte exclusion", pm.screening_reasoning)
 
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
     def test_rerun_step_5_extraction_and_step_6_signal_scoring(self, mock_llm):
@@ -173,7 +178,12 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
             pipeline_run=pipeline_run,
             hash_id="ext_score_paper_001",
             title="High Energy Density Solid State Battery",
-            abstract="500 Wh/kg solid state battery with 1000 cycles.",
+            abstract="500 Wh/kg solid state battery with 1000 cycles."
+        )
+        PaperMetric.objects.create(
+            paper=paper,
+            pipeline_run=pipeline_run,
+            workspace=self.workspace,
             screening_status="accepted"
         )
 
@@ -195,8 +205,8 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
         # formula: 0.5 * energy_density + 0.5 * cycle_life = 0.5*500 + 0.5*1000 = 750.0
         res_score1 = trigger_signal_score_job_logic(self.user, pipeline_run_id=str(pipeline_run.id))
         self.assertTrue(json.loads(res_score1)["success"])
-        paper.refresh_from_db()
-        self.assertEqual(paper.signal_score, 750.0)
+        pm = PaperMetric.objects.get(paper=paper, pipeline_run=pipeline_run)
+        self.assertEqual(pm.signal_score, 750.0)
 
         # 3. Change signal score formula in workspace and re-run Step 6
         # new formula: 0.8 * energy_density + 0.2 * cycle_life = 0.8*500 + 0.2*1000 = 400 + 200 = 600.0
@@ -205,8 +215,8 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
 
         res_score2 = trigger_signal_score_job_logic(self.user, pipeline_run_id=str(pipeline_run.id))
         self.assertTrue(json.loads(res_score2)["success"])
-        paper.refresh_from_db()
-        self.assertEqual(paper.signal_score, 600.0)
+        pm.refresh_from_db()
+        self.assertEqual(pm.signal_score, 600.0)
 
     @patch("research_intelligence.tasks.step_4_screening.abstract.execute_screening_job")
     @patch("research_intelligence.tasks.step_2_download.fetch.execute_pdf_download_job")
@@ -234,12 +244,17 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
             component_name="workspace_search",
             status="completed"
         )
-        Paper.objects.create(
+        p_res = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=pipeline_run,
             hash_id="resume_paper_001",
             title="Chalcogenide Solid Battery",
-            abstract="Chalcogenide battery.",
+            abstract="Chalcogenide battery."
+        )
+        PaperMetric.objects.create(
+            paper=p_res,
+            pipeline_run=pipeline_run,
+            workspace=self.workspace,
             screening_status="pending"
         )
 
@@ -254,7 +269,7 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
 
         def _finish_comp_run(cid, **kw):
             ComponentRun.objects.filter(id=cid).update(status="completed")
-            Paper.objects.filter(pipeline_run=pipeline_run).update(screening_status="abstract_passed")
+            PaperMetric.objects.filter(pipeline_run=pipeline_run).update(screening_status="abstract_passed")
             res = MagicMock()
             res.id = "task-mock-id"
             return res

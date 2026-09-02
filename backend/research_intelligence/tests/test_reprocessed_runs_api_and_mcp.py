@@ -17,6 +17,7 @@ from research_intelligence.models import (
     PipelineRun,
     ComponentRun,
     Paper,
+    PaperMetric,
     ExtractionDefinition,
     Extraction,
     ResearchAgentProcess,
@@ -81,10 +82,18 @@ class ReprocessedRunsAPIMCPTests(TestCase):
             hash_id="sha256_quantum_topological_paper",
             title="Fault-Tolerant Topological Quantum Computation",
             authors="Kitaev et al.",
-            source_database="arxiv",
+            source_database="arxiv"
+        )
+
+        # PaperMetric for Run 1 (original score)
+        self.metric_run_1 = PaperMetric.objects.create(
+            paper=self.paper,
+            pipeline_run=self.run_1,
+            workspace=self.workspace,
             screening_status="full_text_passed",
-            signal_score=94.5,
-            screening_reasoning="Breakthrough topological error threshold."
+            screening_reasoning="Breakthrough topological error threshold.",
+            signal_score=80.0,
+            signal_score_details={"formula": "base"}
         )
 
         self.extraction = Extraction.objects.create(
@@ -112,18 +121,26 @@ class ReprocessedRunsAPIMCPTests(TestCase):
         # Link Paper 1 as reprocessed in Run 2
         self.paper.reprocessed_runs.add(self.run_2)
 
+        # PaperMetric for Run 2 (reprocessed higher score)
+        self.metric_run_2 = PaperMetric.objects.create(
+            paper=self.paper,
+            pipeline_run=self.run_2,
+            workspace=self.workspace,
+            screening_status="full_text_passed",
+            screening_reasoning="Reprocessed with newer topological models.",
+            signal_score=94.5,
+            signal_score_details={"formula": "reprocessed"}
+        )
+
         # API Client setup
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
     def test_model_get_papers_resolves_both_initial_and_reprocessed(self):
         """
-        Paper.objects.filter(pipeline_run=run_2) must be EMPTY, but
-        run_2.get_papers() must return the reprocessed paper.
+        Both run_1 and run_2 associate with the paper via PaperMetric,
+        so get_papers() on each run returns the paper.
         """
-        raw_filter_count = Paper.objects.filter(pipeline_run=self.run_2).count()
-        self.assertEqual(raw_filter_count, 0, "Direct FK filter on run_2 should be 0 because paper was created in run_1")
-
         papers_run_1 = list(self.run_1.get_papers())
         papers_run_2 = list(self.run_2.get_papers())
 
@@ -134,15 +151,24 @@ class ReprocessedRunsAPIMCPTests(TestCase):
 
     def test_rest_api_papers_endpoint_filters_reprocessed_run(self):
         """
-        GET /api/papers/?pipeline_run={run_2.id} must return the reprocessed paper.
+        GET /api/papers/?pipeline_run={run_2.id} must return the reprocessed paper with run 2's score,
+        while GET /api/papers/?pipeline_run={run_1.id} must return run 1's score.
         """
-        resp = self.client.get(f"/api/papers/?pipeline_run={self.run_2.id}")
-        self.assertEqual(resp.status_code, 200)
-        data = resp.json()
-        results = data["results"] if isinstance(data, dict) and "results" in data else data
-        self.assertEqual(len(results), 1, "Reprocessed run must return its reprocessed papers in /api/papers/")
-        self.assertEqual(results[0]["id"], str(self.paper.id))
-        self.assertEqual(results[0]["title"], self.paper.title)
+        resp_2 = self.client.get(f"/api/papers/?pipeline_run={self.run_2.id}")
+        self.assertEqual(resp_2.status_code, 200)
+        data_2 = resp_2.json()
+        results_2 = data_2["results"] if isinstance(data_2, dict) and "results" in data_2 else data_2
+        self.assertEqual(len(results_2), 1)
+        self.assertEqual(results_2[0]["id"], str(self.paper.id))
+        self.assertEqual(results_2[0]["signal_score"], 94.5, "Run 2 must see its own reprocessed signal score 94.5")
+
+        resp_1 = self.client.get(f"/api/papers/?pipeline_run={self.run_1.id}")
+        self.assertEqual(resp_1.status_code, 200)
+        data_1 = resp_1.json()
+        results_1 = data_1["results"] if isinstance(data_1, dict) and "results" in data_1 else data_1
+        self.assertEqual(len(results_1), 1)
+        self.assertEqual(results_1[0]["id"], str(self.paper.id))
+        self.assertEqual(results_1[0]["signal_score"], 80.0, "Run 1 must preserve its original signal score 80.0 without corruption")
 
     def test_rest_api_extractions_endpoint_filters_reprocessed_run(self):
         """
@@ -275,6 +301,91 @@ class ReprocessedRunsAPIMCPTests(TestCase):
         data = json.loads(res_str)
         self.assertIn("error", data)
 
+    def test_per_run_screening_and_benchmark_evaluations_isolation(self):
+        """
+        Validates that evaluations (screening_status, reasoning, benchmark flags, and labels)
+        are completely isolated per pipeline run on PaperMetric, eliminating run-overwriting.
+        """
+        # Run 1: Rejected
+        self.metric_run_1.screening_status = "rejected"
+        self.metric_run_1.screening_reasoning = "Insufficient sample size in trial"
+        self.metric_run_1.is_evaluation_benchmark = True
+        self.metric_run_1.evaluation_label = "rejected"
+        self.metric_run_1.save()
+
+        # Run 2: Full text passed with new benchmark label
+        self.metric_run_2.screening_status = "full_text_passed"
+        self.metric_run_2.screening_reasoning = "Passed after methodology expansion"
+        self.metric_run_2.is_evaluation_benchmark = True
+        self.metric_run_2.evaluation_label = "passed"
+        self.metric_run_2.save()
+
+        # 1. Query Run 1 API: Must reflect Run 1 evaluations
+        resp_1 = self.client.get(f"/api/papers/?pipeline_run={self.run_1.id}")
+        self.assertEqual(resp_1.status_code, 200)
+        data_1 = resp_1.json()
+        results_1 = data_1["results"] if "results" in data_1 else data_1
+        self.assertEqual(len(results_1), 1)
+        p1 = results_1[0]
+        self.assertEqual(p1["screening_status"], "rejected")
+        self.assertEqual(p1["screening_reasoning"], "Insufficient sample size in trial")
+        self.assertTrue(p1["is_evaluation_benchmark"])
+        self.assertEqual(p1["evaluation_label"], "rejected")
+        self.assertEqual(p1["signal_score"], 80.0)
+
+        # 2. Query Run 2 API: Must reflect Run 2 evaluations on the SAME paper
+        resp_2 = self.client.get(f"/api/papers/?pipeline_run={self.run_2.id}")
+        self.assertEqual(resp_2.status_code, 200)
+        data_2 = resp_2.json()
+        results_2 = data_2["results"] if "results" in data_2 else data_2
+        self.assertEqual(len(results_2), 1)
+        p2 = results_2[0]
+        self.assertEqual(p2["screening_status"], "full_text_passed")
+        self.assertEqual(p2["screening_reasoning"], "Passed after methodology expansion")
+        self.assertTrue(p2["is_evaluation_benchmark"])
+        self.assertEqual(p2["evaluation_label"], "passed")
+        self.assertEqual(p2["signal_score"], 94.5)
+
+        # 3. Filter by screening_status per run
+        resp_rej_1 = self.client.get(f"/api/papers/?pipeline_run={self.run_1.id}&screening_status=rejected")
+        res_rej_1 = resp_rej_1.json()["results"] if "results" in resp_rej_1.json() else resp_rej_1.json()
+        self.assertEqual(len(res_rej_1), 1)
+
+        resp_rej_2 = self.client.get(f"/api/papers/?pipeline_run={self.run_2.id}&screening_status=rejected")
+        res_rej_2 = resp_rej_2.json()["results"] if "results" in resp_rej_2.json() else resp_rej_2.json()
+        self.assertEqual(len(res_rej_2), 0)
+
+        resp_pass_2 = self.client.get(f"/api/papers/?pipeline_run={self.run_2.id}&screening_status=full_text_passed")
+        res_pass_2 = resp_pass_2.json()["results"] if "results" in resp_pass_2.json() else resp_pass_2.json()
+        self.assertEqual(len(res_pass_2), 1)
+
         # get_pipeline_run_status_logic with invalid UUID
         err_msg = get_pipeline_run_status_logic(self.user, "bad-uuid")
         self.assertIn("not a valid UUID format", err_msg)
+
+    def test_rest_api_papers_endpoint_includes_run_id_and_supports_run_id_param(self):
+        """
+        GET /api/papers/?run_id={run_2.id} returns paper with pipeline_run_id and run_id.
+        """
+        resp = self.client.get(f"/api/papers/?run_id={self.run_2.id}")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        results = data["results"] if "results" in data else data
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["pipeline_run_id"], str(self.run_2.id))
+        self.assertEqual(results[0]["run_id"], str(self.run_2.id))
+        self.assertEqual(results[0]["signal_score"], 94.5)
+
+    def test_rest_api_paper_metrics_dedicated_endpoint(self):
+        """
+        GET /api/paper-metrics/ exposes standalone PaperMetric items filtered by pipeline_run or run_id.
+        """
+        resp = self.client.get(f"/api/paper-metrics/?pipeline_run={self.run_2.id}")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        results = data["results"] if "results" in data else data
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["paper"], str(self.paper.id))
+        self.assertEqual(results[0]["pipeline_run"], str(self.run_2.id))
+        self.assertEqual(results[0]["signal_score"], 94.5)
+        self.assertEqual(results[0]["screening_status"], "full_text_passed")

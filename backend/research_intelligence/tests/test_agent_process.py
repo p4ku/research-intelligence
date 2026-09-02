@@ -11,6 +11,7 @@ from research_intelligence.models import (
     PipelineRun,
     ComponentRun,
     Paper,
+    PaperMetric,
     ResearchAgentProcess,
     Subscriber,
 )
@@ -138,7 +139,7 @@ class ResearchAgentProcessTest(TestCase):
         comp_abstract.metrics = {"total_screened": 10, "passed": 5, "rejected": 5}
         comp_abstract.status = "completed"
         comp_abstract.save()
-        Paper.objects.filter(pipeline_run=pr).update(screening_status="abstract_passed")
+        PaperMetric.objects.filter(pipeline_run=pr).update(screening_status="abstract_passed")
 
         # Step 3: Abstract Screening -> Download
         res3 = tick_agent_process(str(agent.id))
@@ -170,7 +171,7 @@ class ResearchAgentProcessTest(TestCase):
         comp_ft.metrics = {"total_screened": 5, "passed": 4, "rejected": 1}
         comp_ft.status = "completed"
         comp_ft.save()
-        Paper.objects.filter(pipeline_run=pr).update(screening_status="full_text_passed")
+        PaperMetric.objects.filter(pipeline_run=pr).update(screening_status="full_text_passed")
 
         # Step 6: Full-Text Screening -> Extraction
         res6 = tick_agent_process(str(agent.id))
@@ -250,13 +251,13 @@ class ResearchAgentProcessTest(TestCase):
             status="completed"
         )
 
-        Paper.objects.create(
+        p_ocr = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=agent.pipeline_run,
             hash_id="ocr_skip_p1",
-            title="Test Paper",
-            screening_status="abstract_passed"
+            title="Test Paper"
         )
+        PaperMetric.objects.create(paper=p_ocr, pipeline_run=agent.pipeline_run, workspace=self.workspace, screening_status="abstract_passed")
 
         # Tick download completion
         tick_res = tick_agent_process(str(agent.id))

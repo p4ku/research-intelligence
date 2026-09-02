@@ -255,9 +255,9 @@ else:
             hash_id=uuid.uuid4().hex,
             title="High Temperature Superconducting Thin Films",
             authors="Alice Doe",
-            screening_status="full_text_passed",
             abstract="Study on high temp superconductivity."
         )
+        PaperMetric.objects.create(paper=self.paper, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="full_text_passed")
 
         Extraction.objects.create(
             workspace=self.workspace,
@@ -288,14 +288,12 @@ else:
         score, details = compute_paper_signal_score(self.paper)
         # k = 4 + (2*4) + 4 = 16 > 10 -> returns 100.0
         self.assertEqual(score, 100.0)
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.signal_score, 100.0)
-        self.assertIn("fit_score", self.paper.signal_score_details["variables"])
 
-        # Also verify PaperMetric updated per pipeline_run
+        # Verify PaperMetric updated per pipeline_run
         metric = PaperMetric.objects.get(paper=self.paper, pipeline_run=self.pipeline_run)
         self.assertEqual(metric.signal_score, 100.0)
         self.assertEqual(metric.pipeline_run, self.pipeline_run)
+        self.assertIn("fit_score", metric.signal_score_details["variables"])
 
     def test_execute_signal_score_job(self):
         comp_run = ComponentRun.objects.create(
@@ -341,9 +339,9 @@ class AgentOrchestratorSignalScoreIntegrationTests(TestCase):
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id=uuid.uuid4().hex,
-            title="Quantum Dots",
-            screening_status="full_text_passed"
+            title="Quantum Dots"
         )
+        PaperMetric.objects.create(paper=self.paper, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="full_text_passed")
         self.def_fit = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Fit Score",
@@ -381,6 +379,6 @@ class AgentOrchestratorSignalScoreIntegrationTests(TestCase):
         self.assertIsNotNone(sig_run)
         self.assertEqual(sig_run.status, "completed")
 
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.signal_score, 80.0)
-        self.assertIn("fit_score", self.paper.signal_score_details["variables"])
+        metric = PaperMetric.objects.get(paper=self.paper, pipeline_run=self.pipeline_run)
+        self.assertEqual(metric.signal_score, 80.0)
+        self.assertIn("fit_score", metric.signal_score_details["variables"])

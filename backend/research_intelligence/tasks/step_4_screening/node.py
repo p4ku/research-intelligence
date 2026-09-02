@@ -30,9 +30,9 @@ class AbstractScreeningNode(BaseWorkflowNode):
 
     output_contract = {
         "updated_models": {
-            "Paper.screening_status": "'abstract_passed' | 'rejected' | 'pending'",
-            "Paper.screening_reason": "Detailed markdown explanation with criteria evaluation",
-            "Paper.screening_history": "JSON audit trail with timestamps and LLM confidence",
+            "PaperMetric.screening_status": "'abstract_passed' | 'rejected' | 'pending'",
+            "PaperMetric.screening_reasoning": "Detailed markdown explanation with criteria evaluation",
+            "PaperMetric.metrics_data": "JSON audit trail with timestamps and LLM confidence",
         },
         "component_run_metrics": {
             "total_screened": "int",
@@ -58,11 +58,11 @@ class AbstractScreeningNode(BaseWorkflowNode):
             return False, None
 
         papers = pipeline_run.get_papers()
-        passed_count = papers.filter(screening_status__in=['abstract_passed', 'accepted', 'full_text_passed']).count()
+        passed_count = pipeline_run.get_papers(screening_status=['abstract_passed', 'accepted', 'full_text_passed']).count()
         total_papers = papers.count()
 
         if total_papers > 0 and passed_count == 0:
-            rejected_count = papers.filter(screening_status='rejected').count()
+            rejected_count = pipeline_run.get_papers(screening_status='rejected').count()
             return True, f"Abstract Screening: 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
 
         return False, None
@@ -112,9 +112,9 @@ class FullTextScreeningNode(BaseWorkflowNode):
 
     output_contract = {
         "updated_models": {
-            "Paper.screening_status": "'full_text_passed' | 'accepted' | 'rejected' | 'pending'",
-            "Paper.screening_reason": "Detailed markdown explanation with criteria evaluation",
-            "Paper.screening_history": "JSON audit trail with timestamps and LLM confidence",
+            "PaperMetric.screening_status": "'full_text_passed' | 'accepted' | 'rejected' | 'pending'",
+            "PaperMetric.screening_reasoning": "Detailed markdown explanation with criteria evaluation",
+            "PaperMetric.metrics_data": "JSON audit trail with timestamps and LLM confidence",
         },
         "component_run_metrics": {
             "total_screened": "int",
@@ -140,11 +140,11 @@ class FullTextScreeningNode(BaseWorkflowNode):
             return False, None
 
         papers = pipeline_run.get_papers()
-        passed_count = papers.filter(screening_status__in=['full_text_passed', 'accepted']).count()
+        passed_count = pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted']).count()
         total_papers = papers.count()
 
         if total_papers > 0 and passed_count == 0:
-            rejected_count = papers.filter(screening_status='rejected').count()
+            rejected_count = pipeline_run.get_papers(screening_status='rejected').count()
             return True, f"Full-Text Screening: 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
 
         return False, None

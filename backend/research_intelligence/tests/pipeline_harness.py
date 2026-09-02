@@ -13,6 +13,7 @@ from research_intelligence.models import (
     PipelineRun,
     ComponentRun,
     Paper,
+    PaperMetric,
     Extraction,
     ExtractionDefinition,
     ResearchAgentProcess,
@@ -136,6 +137,16 @@ class PipelineTestHarness:
         self.extraction_definitions.append(definition)
         return self
 
+    def get_metric(self, paper_or_idx):
+        """Retrieves PaperMetric for a given paper or index within the current run."""
+        paper = self.papers[paper_or_idx] if isinstance(paper_or_idx, int) else paper_or_idx
+        return PaperMetric.objects.filter(paper=paper, pipeline_run=self.pipeline_run).first()
+
+    def get_paper_status(self, paper_or_idx):
+        """Retrieves screening_status from PaperMetric for a given paper or index."""
+        m = self.get_metric(paper_or_idx)
+        return m.screening_status if m else 'pending'
+
     def _tick(self):
         """Executes tick_agent_process with dynamic Celery task introspection."""
         with self.introspector.intercept():
@@ -178,9 +189,9 @@ class PipelineTestHarness:
                 doi=item.get("doi"),
                 arxiv_id=item.get("arxiv_id"),
                 source_database=item.get("source_database", "arxiv"),
-                original_pdf_path=item.get("original_pdf_path", f"https://arxiv.org/pdf/{hash_id}.pdf"),
-                screening_status="pending"
+                original_pdf_path=item.get("original_pdf_path", f"https://arxiv.org/pdf/{hash_id}.pdf")
             )
+            PaperMetric.objects.create(paper=paper, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="pending")
             self.papers.append(paper)
 
         # Trigger tick to advance
@@ -203,9 +214,15 @@ class PipelineTestHarness:
 
         for idx, p in enumerate(self.papers):
             if idx in failed_indices:
-                p.screening_status = 'withdrawn'
-                p.screening_reasoning = "Failed to download PDF: 404 Not Found at source."
-                p.save(update_fields=['screening_status', 'screening_reasoning'])
+                PaperMetric.objects.update_or_create(
+                    paper=p,
+                    pipeline_run=self.pipeline_run,
+                    defaults={
+                        'workspace': self.workspace,
+                        'screening_status': 'withdrawn',
+                        'screening_reasoning': "Failed to download PDF: 404 Not Found at source."
+                    }
+                )
             else:
                 pdf_bytes = b"%PDF-1.4 Mock Binary Data for Harness Testing"
                 pdf_path = f"workspaces/{self.workspace.id}/runs/{self.pipeline_run.id}/documents/{p.hash_id}/original.pdf"
@@ -228,7 +245,8 @@ class PipelineTestHarness:
         failed_indices = set(failed_paper_indices or [])
         if self.workspace.ocr_provider and str(self.workspace.ocr_provider).lower() != 'none':
             ocr_runs = ComponentRun.objects.filter(pipeline_run=self.pipeline_run, step_type='ocr')
-            active_papers = [p for idx, p in enumerate(self.papers) if idx not in failed_indices and p.screening_status != 'withdrawn']
+            metrics_map = {pm.paper_id: pm.screening_status for pm in PaperMetric.objects.filter(paper__in=self.papers, pipeline_run=self.pipeline_run)}
+            active_papers = [p for idx, p in enumerate(self.papers) if idx not in failed_indices and metrics_map.get(p.id) != 'withdrawn']
 
             for run in ocr_runs:
                 run.status = 'completed'
@@ -237,7 +255,7 @@ class PipelineTestHarness:
                 run.save()
 
             for idx, p in enumerate(self.papers):
-                if idx not in failed_indices and p.screening_status != 'withdrawn':
+                if idx not in failed_indices and metrics_map.get(p.id) != 'withdrawn':
                     md_bytes = b"# Extracted Markdown Content from Harness"
                     md_path = f"workspaces/{self.workspace.id}/runs/{self.pipeline_run.id}/documents/{p.hash_id}/ocr.md"
                     default_storage.save(md_path, ContentFile(md_bytes))
@@ -290,11 +308,12 @@ class PipelineTestHarness:
             self.pipeline_run.save(update_fields=['tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost'])
 
         for idx, p in enumerate(self.papers):
-            if idx in passed_paper_indices:
-                p.screening_status = 'abstract_passed'
-            else:
-                p.screening_status = 'rejected'
-            p.save(update_fields=['screening_status'])
+            status = 'abstract_passed' if idx in passed_paper_indices else 'rejected'
+            PaperMetric.objects.update_or_create(
+                paper=p,
+                pipeline_run=self.pipeline_run,
+                defaults={'workspace': self.workspace, 'screening_status': status}
+            )
 
         # Trigger tick to advance
         self._tick()
@@ -329,11 +348,12 @@ class PipelineTestHarness:
             self.pipeline_run.save(update_fields=['tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost'])
 
         for idx, p in enumerate(self.papers):
-            if idx in passed_paper_indices:
-                p.screening_status = 'full_text_passed'
-            else:
-                p.screening_status = 'rejected'
-            p.save(update_fields=['screening_status'])
+            status = 'full_text_passed' if idx in passed_paper_indices else 'rejected'
+            PaperMetric.objects.update_or_create(
+                paper=p,
+                pipeline_run=self.pipeline_run,
+                defaults={'workspace': self.workspace, 'screening_status': status}
+            )
 
         # Trigger tick to advance
         self._tick()
@@ -350,7 +370,8 @@ class PipelineTestHarness:
     ) -> "PipelineTestHarness":
         """Simulates completing Step 5 (Parameter Extraction) for all passed papers."""
         ext_runs = ComponentRun.objects.filter(pipeline_run=self.pipeline_run, step_type='extraction')
-        passed_papers = [p for p in self.papers if p.screening_status in ['full_text_passed', 'abstract_passed', 'accepted']]
+        metrics_map = {pm.paper_id: pm.screening_status for pm in PaperMetric.objects.filter(paper__in=self.papers, pipeline_run=self.pipeline_run)}
+        passed_papers = [p for p in self.papers if metrics_map.get(p.id) in ['full_text_passed', 'abstract_passed', 'accepted']]
 
         for run in ext_runs:
             run.status = 'completed'

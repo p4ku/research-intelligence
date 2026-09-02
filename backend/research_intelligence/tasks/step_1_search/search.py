@@ -10,7 +10,7 @@ from django.db import connection, close_old_connections, transaction
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
-from ...models import Workspace, Paper, PipelineRun, ComponentRun, Scraper
+from ...models import Workspace, Paper, PaperMetric, PipelineRun, ComponentRun, Scraper
 from ...scrapers import get_scraper_provider
 
 logger = logging.getLogger(__name__)
@@ -142,9 +142,12 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                     with transaction.atomic():
                         existing_p = Paper.objects.filter(conds & match_q).first()
                         if existing_p:
-                            # Non-destructively associate existing paper with active pipeline run for reprocessing.
-                            # Preserves existing_p.pipeline_run as the immutable original ingestion run.
-                            existing_p.reprocessed_runs.add(pipeline_run)
+                            # Associate existing paper with active pipeline run for reprocessing via PaperMetric.
+                            PaperMetric.objects.get_or_create(
+                                paper=existing_p,
+                                pipeline_run=pipeline_run,
+                                defaults={'workspace': workspace, 'screening_status': 'pending'}
+                            )
                             created_count += 1
                             created_paper_ids.append(str(existing_p.id))
                             continue
@@ -164,16 +167,22 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                     workspace=workspace,
                     hash_id=unique_hash,
                     defaults={
-                        "pipeline_run": pipeline_run,
                         "arxiv_id": clean_arxiv,
                         "doi": clean_doi,
                         "title": title,
                         "authors": item.get('authors', ''),
                         "abstract": item.get('abstract', ''),
                         "source_database": item.get('source_database', 'arxiv'),
-                        "original_pdf_path": item.get('pdf_url', '') or item.get('original_pdf_path', ''),
-                        "screening_status": screening_status,
-                        "screening_reasoning": screening_reasoning
+                        "original_pdf_path": item.get('pdf_url', '') or item.get('original_pdf_path', '')
+                    }
+                )
+                PaperMetric.objects.get_or_create(
+                    paper=paper,
+                    pipeline_run=pipeline_run,
+                    defaults={
+                        'workspace': workspace,
+                        'screening_status': screening_status,
+                        'screening_reasoning': screening_reasoning
                     }
                 )
 

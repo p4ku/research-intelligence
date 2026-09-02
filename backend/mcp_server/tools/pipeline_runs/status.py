@@ -105,10 +105,10 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
         total_fetched=Count('id'),
         downloaded_count=Count('id', filter=Q(original_pdf_path__isnull=False) & ~Q(original_pdf_path='')),
         ocr_count=Count('id', filter=Q(converted_md_path__isnull=False) & ~Q(converted_md_path='')),
-        abstract_passed=Count('id', filter=Q(screening_status__in=['abstract_passed', 'full_text_passed'])),
-        abstract_screened=Count('id', filter=Q(screening_status__in=['abstract_passed', 'full_text_passed', 'rejected'])),
-        full_text_passed=Count('id', filter=Q(screening_status='full_text_passed')),
-        rejected_count=Count('id', filter=Q(screening_status='rejected')),
+        abstract_passed=Count('id', filter=Q(metrics__pipeline_run=pipeline_run, metrics__screening_status__in=['abstract_passed', 'full_text_passed'])),
+        abstract_screened=Count('id', filter=Q(metrics__pipeline_run=pipeline_run, metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'rejected'])),
+        full_text_passed=Count('id', filter=Q(metrics__pipeline_run=pipeline_run, metrics__screening_status='full_text_passed')),
+        rejected_count=Count('id', filter=Q(metrics__pipeline_run=pipeline_run, metrics__screening_status='rejected')),
     )
 
     total_papers_fetched = pipeline_run.total_papers_fetched or paper_stats['total_fetched']
@@ -130,7 +130,7 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
     full_text_rejected = full_text_metrics.get("rejected", paper_stats['rejected_count']) if full_text_run else 0
 
     extractions_count = Extraction.objects.filter(paper__in=pipeline_run.get_papers()).count()
-    paper_metrics_count = PaperMetric.objects.filter(Q(pipeline_run=pipeline_run) | Q(paper__in=pipeline_run.get_papers())).distinct().count()
+    paper_metrics_count = PaperMetric.objects.filter(pipeline_run=pipeline_run).count()
 
     # Calculate physical storage footprint for run directory
     run_storage_dir = f"workspaces/{pipeline_run.workspace.id}/runs/{pipeline_run.id}"
@@ -163,9 +163,13 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
         })
 
     # Fetched papers previews
-    papers_qs = pipeline_run.get_papers()
+    from django.db.models import Prefetch
+    papers_qs = pipeline_run.get_papers().prefetch_related(
+        Prefetch('metrics', queryset=PaperMetric.objects.filter(pipeline_run=pipeline_run))
+    )
     papers_preview = []
     for p in papers_qs[:20]:
+        pm = next(iter(p.metrics.all()), None)
         papers_preview.append({
             "id": str(p.id),
             "title": p.title,
@@ -175,8 +179,8 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
             "source_database": p.source_database,
             "original_pdf_path": p.original_pdf_path,
             "converted_md_path": p.converted_md_path,
-            "screening_status": p.screening_status,
-            "signal_score": p.signal_score,
+            "screening_status": pm.screening_status if pm else 'pending',
+            "signal_score": pm.signal_score if pm else None,
             "created_at": p.created_at.isoformat()
         })
 
@@ -227,18 +231,21 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
             {
                 "paper_id": str(p.id),
                 "title": p.title,
-                "screening_status": p.screening_status,
-                "signal_score": p.signal_score,
+                "screening_status": (next(iter(p.metrics.all()), None).screening_status if p.metrics.all() else 'pending'),
+                "signal_score": (next(iter(p.metrics.all()), None).signal_score if p.metrics.all() else None),
                 "metrics": {
                     (e.extraction_definition.name if e.extraction_definition else e.category): (e.exit_metric or e.get_exit_metric())
                     for e in p.extractions.all()
                     if (e.extraction_definition or e.category)
                 }
             }
-            for p in Paper.objects.filter(
-                pipeline_run=pipeline_run,
-                screening_status__in=['full_text_passed', 'abstract_passed', 'accepted']
-            ).order_by(F('signal_score').desc(nulls_last=True), '-created_at').prefetch_related('extractions', 'extractions__extraction_definition')[:30]
+            for p in pipeline_run.get_papers(
+                screening_status=['full_text_passed', 'abstract_passed', 'accepted']
+            ).order_by('-metrics__signal_score', '-created_at').prefetch_related(
+                Prefetch('metrics', queryset=PaperMetric.objects.filter(pipeline_run=pipeline_run)),
+                'extractions',
+                'extractions__extraction_definition'
+            )[:30]
         ],
         "component_runs": runs_list
     }

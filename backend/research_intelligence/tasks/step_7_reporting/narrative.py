@@ -30,24 +30,42 @@ def generate_executive_narrative_report(pipeline_run: PipelineRun) -> Dict[str, 
         else timezone.now().strftime("%B %d, %Y %H:%M UTC")
     )
 
-    # 1. Fetch papers
-    papers_qs = pipeline_run.get_papers().prefetch_related(
+    # 1. Fetch papers with run-specific signal scores
+    from django.db.models import Subquery, OuterRef
+    from research_intelligence.models import PaperMetric
+    metric_sub = PaperMetric.objects.filter(paper=OuterRef('pk'), pipeline_run=pipeline_run)
+    papers_qs = pipeline_run.get_papers().annotate(
+        annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
+        annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1])
+    ).prefetch_related(
         'extractions', 'extractions__extraction_definition'
     ).order_by('-created_at')
 
     # Determine truly accepted papers based on terminal screening status
-    if papers_qs.filter(screening_status__in=['full_text_passed', 'accepted']).exists():
-        accepted_papers = list(papers_qs.filter(screening_status__in=['full_text_passed', 'accepted']))
-    elif papers_qs.filter(screening_status='abstract_passed').exists():
-        accepted_papers = list(papers_qs.filter(screening_status='abstract_passed'))
+    if pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted']).exists():
+        accepted_papers = list(pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted']).annotate(
+            annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
+            annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
+            annotated_screening_reasoning=Subquery(metric_sub.values('screening_reasoning')[:1]),
+        ).prefetch_related('extractions', 'extractions__extraction_definition').order_by('-created_at'))
+    elif pipeline_run.get_papers(screening_status='abstract_passed').exists():
+        accepted_papers = list(pipeline_run.get_papers(screening_status='abstract_passed').annotate(
+            annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
+            annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
+            annotated_screening_reasoning=Subquery(metric_sub.values('screening_reasoning')[:1]),
+        ).prefetch_related('extractions', 'extractions__extraction_definition').order_by('-created_at'))
     else:
-        accepted_papers = list(papers_qs.exclude(screening_status__in=['rejected', 'withdrawn', 'pending']))
+        accepted_papers = list(pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn', 'pending']).annotate(
+            annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
+            annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
+            annotated_screening_reasoning=Subquery(metric_sub.values('screening_reasoning')[:1]),
+        ).prefetch_related('extractions', 'extractions__extraction_definition').order_by('-created_at'))
 
     # Sort: highest signal_score first
     accepted_papers.sort(
         key=lambda p: (
-            p.signal_score is not None,
-            p.signal_score if p.signal_score is not None else -1.0,
+            getattr(p, 'annotated_signal_score', None) is not None,
+            getattr(p, 'annotated_signal_score', None) if getattr(p, 'annotated_signal_score', None) is not None else -1.0,
             p.created_at
         ),
         reverse=True
@@ -55,8 +73,8 @@ def generate_executive_narrative_report(pipeline_run: PipelineRun) -> Dict[str, 
 
     total_papers = papers_qs.count() or (pipeline_run.total_papers_fetched or len(accepted_papers))
     rejected_count = max(0, total_papers - len(accepted_papers))
-    scored_papers = [p for p in accepted_papers if p.signal_score is not None]
-    avg_signal_score = (sum(p.signal_score for p in scored_papers) / len(scored_papers)) if scored_papers else 0.0
+    scored_papers = [p for p in accepted_papers if getattr(p, 'annotated_signal_score', None) is not None]
+    avg_signal_score = (sum(getattr(p, 'annotated_signal_score', 0.0) for p in scored_papers) / len(scored_papers)) if scored_papers else 0.0
 
     # 2. Build Markdown Document
     lines = [
@@ -78,7 +96,8 @@ def generate_executive_narrative_report(pipeline_run: PipelineRun) -> Dict[str, 
 
     if accepted_papers:
         for idx, paper in enumerate(accepted_papers[:10], 1):
-            score_badge = f"`Signal Score: {paper.signal_score:.2f}`" if paper.signal_score is not None else "`Unscored`"
+            s_score = getattr(paper, 'annotated_signal_score', None)
+            score_badge = f"`Signal Score: {s_score:.2f}`" if s_score is not None else "`Unscored`"
             lines.append(f"### {idx}. {paper.title}")
             lines.append(f"- **Authors**: {paper.authors or 'N/A'}")
             lines.append(f"- **Source**: {paper.source_database.upper() if paper.source_database else 'ArXiv'} | {score_badge}")
@@ -87,9 +106,11 @@ def generate_executive_narrative_report(pipeline_run: PipelineRun) -> Dict[str, 
             if paper.arxiv_id:
                 lines.append(f"- **arXiv**: [{paper.arxiv_id}](https://arxiv.org/abs/{paper.arxiv_id})")
             
-            lines.append(f"- **Screening Decision**: `{paper.screening_status}`")
-            if paper.screening_reasoning:
-                lines.append(f"- **Assessment Rationale**: {paper.screening_reasoning}")
+            status_display = getattr(paper, 'annotated_screening_status', None) or 'pending'
+            lines.append(f"- **Screening Decision**: `{status_display}`")
+            reasoning_display = getattr(paper, 'annotated_screening_reasoning', None)
+            if reasoning_display:
+                lines.append(f"- **Assessment Rationale**: {reasoning_display}")
 
             # Include parameter extractions
             extractions = list(paper.extractions.all())

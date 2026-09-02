@@ -9,6 +9,7 @@ from research_intelligence.models import (
     PipelineRun,
     ComponentRun,
     Paper,
+    PaperMetric,
     ResearchAgentProcess,
     ExtractionDefinition,
 )
@@ -51,9 +52,9 @@ class WorkerCompletionAndTimeoutsTestCase(TestCase):
             doi="10.1000/182.paper1",
             hash_id="hash_test_paper_1",
             abstract="Paper 1 abstract",
-            screening_status="abstract_passed",
             original_pdf_path="workspaces/test/paper1.pdf"
         )
+        PaperMetric.objects.create(paper=self.paper1, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="abstract_passed")
         self.paper2 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
@@ -61,9 +62,9 @@ class WorkerCompletionAndTimeoutsTestCase(TestCase):
             doi="10.1000/182.paper2",
             hash_id="hash_test_paper_2",
             abstract="Paper 2 abstract",
-            screening_status="abstract_passed",
             original_pdf_path="workspaces/test/paper2.pdf"
         )
+        PaperMetric.objects.create(paper=self.paper2, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="abstract_passed")
         self.paper3 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
@@ -71,9 +72,9 @@ class WorkerCompletionAndTimeoutsTestCase(TestCase):
             doi="10.1000/182.paper3",
             hash_id="hash_test_paper_3",
             abstract="Paper 3 abstract",
-            screening_status="abstract_passed",
             original_pdf_path="workspaces/test/paper3.pdf"
         )
+        PaperMetric.objects.create(paper=self.paper3, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="abstract_passed")
 
     @patch("research_intelligence.tasks.step_4_screening.full_text.screen_full_text")
     def test_full_text_screening_completes_and_transitions_status(self, mock_screen):

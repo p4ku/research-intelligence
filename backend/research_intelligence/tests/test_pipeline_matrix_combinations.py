@@ -98,15 +98,15 @@ class PipelineMatrixCombinationsTestCase(TestCase):
 
         # Step 2: PDF Download (Index 2 fails download -> withdrawn)
         harness.complete_step_2_download(failed_paper_indices=[2])
-        self.assertEqual(harness.papers[2].screening_status, "withdrawn")
+        self.assertEqual(harness.get_paper_status(2), "withdrawn")
         # Direct multimodal skips OCR -> goes directly to full_text_screening
         self.assertEqual(harness.agent_process.current_step, "full_text_screening")
 
         # Step 4: Full-Text Screening (papers 0 and 5 pass, papers 1, 3, 4 rejected)
         harness.complete_step_4b_full_text_screening(passed_paper_indices=[0, 5])
         self.assertEqual(harness.agent_process.current_step, "extraction")
-        self.assertEqual(harness.papers[0].screening_status, "full_text_passed")
-        self.assertEqual(harness.papers[1].screening_status, "rejected")
+        self.assertEqual(harness.get_paper_status(0), "full_text_passed")
+        self.assertEqual(harness.get_paper_status(1), "rejected")
 
         # Step 5: Parameter Extraction
         harness.complete_step_5_extraction(sample_extracted_fields={"fidelity": 0.998})
@@ -160,7 +160,7 @@ class PipelineMatrixCombinationsTestCase(TestCase):
         # Stage 2: Abstract Screening (0, 3, 5 pass; 1, 4 rejected)
         harness.complete_step_4a_abstract_screening(passed_paper_indices=[0, 3, 5])
         self.assertEqual(harness.agent_process.current_step, "download")
-        self.assertEqual(harness.papers[1].screening_status, "rejected")
+        self.assertEqual(harness.get_paper_status(1), "rejected")
 
         # Stage 3: PDF Download (only for abstract_passed papers 0, 3, 5)
         harness.complete_step_2_download(failed_paper_indices=[2])
@@ -173,7 +173,7 @@ class PipelineMatrixCombinationsTestCase(TestCase):
         # Stage 5: Full-Text Screening (0, 5 pass; 3 rejected)
         harness.complete_step_4b_full_text_screening(passed_paper_indices=[0, 5])
         self.assertEqual(harness.agent_process.current_step, "extraction")
-        self.assertEqual(harness.papers[3].screening_status, "rejected")
+        self.assertEqual(harness.get_paper_status(3), "rejected")
 
         # Stage 6: Extraction
         harness.complete_step_5_extraction(sample_extracted_fields={"qubit_count": 127})

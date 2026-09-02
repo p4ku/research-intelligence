@@ -8,6 +8,7 @@ from research_intelligence.models import (
     WorkspaceMember,
     PipelineRun,
     Paper,
+    PaperMetric,
     UserActivityLog,
     ExtractionDefinition,
     Extraction,
@@ -247,9 +248,13 @@ class APISecurityFixesTestCase(TestCase):
         self.client.force_authenticate(user=self.admin_user)
         run = PipelineRun.objects.create(workspace=self.workspace, status="completed")
 
-        Paper.objects.create(workspace=self.workspace, pipeline_run=run, title="Alpha Paper", hash_id="h_alpha", signal_score=10.0)
-        Paper.objects.create(workspace=self.workspace, pipeline_run=run, title="Zeta Paper", hash_id="h_zeta", signal_score=90.0)
-        Paper.objects.create(workspace=self.workspace, pipeline_run=run, title="Beta Paper", hash_id="h_beta", signal_score=50.0)
+        p_alpha = Paper.objects.create(workspace=self.workspace, pipeline_run=run, title="Alpha Paper", hash_id="h_alpha")
+        p_zeta = Paper.objects.create(workspace=self.workspace, pipeline_run=run, title="Zeta Paper", hash_id="h_zeta")
+        p_beta = Paper.objects.create(workspace=self.workspace, pipeline_run=run, title="Beta Paper", hash_id="h_beta")
+
+        PaperMetric.objects.create(workspace=self.workspace, pipeline_run=run, paper=p_alpha, signal_score=10.0)
+        PaperMetric.objects.create(workspace=self.workspace, pipeline_run=run, paper=p_zeta, signal_score=90.0)
+        PaperMetric.objects.create(workspace=self.workspace, pipeline_run=run, paper=p_beta, signal_score=50.0)
 
         # Ascending title ordering
         res_asc = self.client.get(f"/api/papers/?workspace={self.workspace.id}&ordering=title")

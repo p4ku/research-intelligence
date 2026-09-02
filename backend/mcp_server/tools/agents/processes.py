@@ -498,15 +498,19 @@ def check_run_status_logic(
                 "completed_at": cr.completed_at.isoformat() if cr.completed_at else None
             })
 
-        papers_qs = process.pipeline_run.get_papers()
+        from django.db.models import Count, Q, Subquery, OuterRef, F
+        from research_intelligence.models import PaperMetric
+        papers_qs = process.pipeline_run.get_papers().annotate(
+            annotated_signal_score=Subquery(PaperMetric.objects.filter(paper=OuterRef('pk'), pipeline_run=process.pipeline_run).values('signal_score')[:1])
+        )
         paper_stats = papers_qs.aggregate(
             total_fetched=Count('id'),
             downloaded_count=Count('id', filter=Q(original_pdf_path__isnull=False) & ~Q(original_pdf_path='')),
             ocr_count=Count('id', filter=Q(converted_md_path__isnull=False) & ~Q(converted_md_path='')),
-            abstract_passed=Count('id', filter=Q(screening_status__in=['abstract_passed', 'full_text_passed'])),
-            abstract_screened=Count('id', filter=Q(screening_status__in=['abstract_passed', 'full_text_passed', 'rejected'])),
-            full_text_passed=Count('id', filter=Q(screening_status='full_text_passed')),
-            rejected_count=Count('id', filter=Q(screening_status='rejected')),
+            abstract_passed=Count('id', filter=Q(metrics__pipeline_run=process.pipeline_run, metrics__screening_status__in=['abstract_passed', 'full_text_passed'])),
+            abstract_screened=Count('id', filter=Q(metrics__pipeline_run=process.pipeline_run, metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'rejected'])),
+            full_text_passed=Count('id', filter=Q(metrics__pipeline_run=process.pipeline_run, metrics__screening_status='full_text_passed')),
+            rejected_count=Count('id', filter=Q(metrics__pipeline_run=process.pipeline_run, metrics__screening_status='rejected')),
         )
 
         abstract_run = next((cr for cr in comp_runs_list if cr.step_type == 'screening' and 'abstract' in (cr.component_name or '').lower()), None)
@@ -523,7 +527,7 @@ def check_run_status_logic(
         full_text_passed = full_text_metrics.get("passed", paper_stats['full_text_passed']) if full_text_run else 0
         full_text_rejected = full_text_metrics.get("rejected", max(0, full_text_screened - full_text_passed)) if full_text_run else 0
 
-        total_screened_papers = abstract_screened or full_text_screened or PaperMetric.objects.filter(Q(pipeline_run=process.pipeline_run) | Q(paper__in=process.pipeline_run.get_papers())).distinct().count()
+        total_screened_papers = abstract_screened or full_text_screened or PaperMetric.objects.filter(pipeline_run=process.pipeline_run).count()
 
         search_runs = [cr for cr in comp_runs_list if cr.step_type == 'search']
         duplicates_count = sum(
@@ -558,18 +562,26 @@ def check_run_status_logic(
         storage_metrics = _get_run_storage_stats(run_storage_dir)
 
         # Build extractions matrix preview for accepted papers
-        accepted_papers = papers_qs.filter(screening_status__in=['full_text_passed', 'abstract_passed', 'accepted']).order_by(F('signal_score').desc(nulls_last=True), '-created_at').prefetch_related('extractions', 'extractions__extraction_definition')
+        from django.db.models import Prefetch
+        accepted_papers = process.pipeline_run.get_papers(
+            screening_status=['full_text_passed', 'abstract_passed', 'accepted']
+        ).order_by('-metrics__signal_score', '-created_at').prefetch_related(
+            Prefetch('metrics', queryset=PaperMetric.objects.filter(pipeline_run=process.pipeline_run)),
+            'extractions',
+            'extractions__extraction_definition'
+        )
         for ap in accepted_papers[:30]:
             ext_map = {}
             for ext in ap.extractions.all():
                 dname = ext.extraction_definition.name if ext.extraction_definition else ext.category
                 if dname:
                     ext_map[dname] = ext.exit_metric or ext.get_exit_metric()
+            pm = next(iter(ap.metrics.all()), None)
             matrix_preview.append({
                 "paper_id": str(ap.id),
                 "title": ap.title,
-                "screening_status": ap.screening_status,
-                "signal_score": ap.signal_score,
+                "screening_status": pm.screening_status if pm else 'pending',
+                "signal_score": pm.signal_score if pm else None,
                 "metrics": ext_map
             })
 

@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
-from research_intelligence.models import Workspace, PipelineRun, ComponentRun, Paper
+from research_intelligence.models import Workspace, PipelineRun, ComponentRun, Paper, PaperMetric
 from research_intelligence.tasks.step_4_screening.full_text import screen_full_text, execute_full_text_screening_job
 
 User = get_user_model()
@@ -40,7 +40,12 @@ class MultimodalPDFScreeningTestCase(TestCase):
             pipeline_run=self.pipeline_run,
             hash_id="paper_quantum_001",
             title="Coherence Time Extension in 3D Cavity Superconducting Qubits",
-            abstract="We report 120 us T1 coherence times in 3D transmon qubits.",
+            abstract="We report 120 us T1 coherence times in 3D transmon qubits."
+        )
+        PaperMetric.objects.create(
+            paper=self.paper,
+            pipeline_run=self.pipeline_run,
+            workspace=self.workspace,
             screening_status="pending"
         )
 
@@ -130,7 +135,12 @@ class MultimodalPDFScreeningTestCase(TestCase):
             hash_id="paper_no_pdf_002",
             title="Abstract Only Quantum Study",
             abstract="Short abstract about quantum gates.",
-            original_pdf_path=None,
+            original_pdf_path=None
+        )
+        PaperMetric.objects.create(
+            paper=paper_no_pdf,
+            pipeline_run=self.pipeline_run,
+            workspace=self.workspace,
             screening_status="pending"
         )
 

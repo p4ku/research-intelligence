@@ -29,16 +29,19 @@ def build_paper_extractions_matrix(
     Computes an aggregated matrix of accepted/screened papers with all their extracted parameters,
     exit metrics, justifications, and scores in a structured dictionary.
     """
-    papers_qs = Paper.objects.select_related('workspace', 'pipeline_run').prefetch_related(
+    papers_qs = Paper.objects.select_related('workspace').prefetch_related(
         'extractions',
-        'extractions__extraction_definition'
+        'extractions__extraction_definition',
+        'metrics'
     ).all()
 
+    target_pr_id = None
     if process_id:
         try:
             proc = ResearchAgentProcess.objects.select_related('pipeline_run', 'workspace').get(id=process_id)
             if proc.pipeline_run:
-                papers_qs = papers_qs.filter(Q(pipeline_run=proc.pipeline_run) | Q(reprocessed_runs=proc.pipeline_run)).distinct()
+                target_pr_id = proc.pipeline_run.id
+                papers_qs = papers_qs.filter(metrics__pipeline_run=proc.pipeline_run).distinct()
             else:
                 papers_qs = papers_qs.filter(workspace=proc.workspace)
         except (ValueError, ResearchAgentProcess.DoesNotExist):
@@ -50,7 +53,8 @@ def build_paper_extractions_matrix(
             import uuid
             try:
                 pr_uuid = uuid.UUID(str(pipeline_run_id))
-                papers_qs = papers_qs.filter(Q(pipeline_run_id=pr_uuid) | Q(reprocessed_runs=pr_uuid)).distinct()
+                target_pr_id = pr_uuid
+                papers_qs = papers_qs.filter(metrics__pipeline_run_id=pr_uuid).distinct()
             except (ValueError, TypeError):
                 return {"error": f"Invalid pipeline_run_id '{pipeline_run_id}'."}
     elif workspace_id:
@@ -59,15 +63,40 @@ def build_paper_extractions_matrix(
         user_ws_ids = Workspace.objects.filter(memberships__user=user).values_list('id', flat=True)
         papers_qs = papers_qs.filter(workspace__id__in=user_ws_ids)
 
-    if screening_status and screening_status != 'all':
-        if screening_status == 'all_screened':
-            papers_qs = papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'accepted', 'rejected'])
-        elif screening_status in ['all_passed', 'accepted', 'passed', 'full_text_passed']:
-            papers_qs = papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'accepted'])
-        else:
-            papers_qs = papers_qs.filter(screening_status=screening_status)
+    from django.db.models import Subquery, OuterRef
+    from research_intelligence.models import PaperMetric
+    if target_pr_id:
+        metric_sub = PaperMetric.objects.filter(paper=OuterRef('pk'), pipeline_run_id=target_pr_id)
+        papers_qs = papers_qs.annotate(
+            annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
+            annotated_signal_score_details=Subquery(metric_sub.values('signal_score_details')[:1]),
+            annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1])
+        )
+    else:
+        metric_sub = PaperMetric.objects.filter(paper=OuterRef('pk')).order_by('-created_at')
+        papers_qs = papers_qs.annotate(
+            annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
+            annotated_signal_score_details=Subquery(metric_sub.values('signal_score_details')[:1]),
+            annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1])
+        )
 
-    papers = list(papers_qs.order_by(F('signal_score').desc(nulls_last=True), '-created_at')[:limit])
+    if screening_status and screening_status != 'all':
+        if target_pr_id:
+            if screening_status == 'all_screened':
+                papers_qs = papers_qs.filter(metrics__pipeline_run_id=target_pr_id, metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'accepted', 'rejected'])
+            elif screening_status in ['all_passed', 'accepted', 'passed', 'full_text_passed']:
+                papers_qs = papers_qs.filter(metrics__pipeline_run_id=target_pr_id, metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'accepted'])
+            else:
+                papers_qs = papers_qs.filter(metrics__pipeline_run_id=target_pr_id, metrics__screening_status=screening_status)
+        else:
+            if screening_status == 'all_screened':
+                papers_qs = papers_qs.filter(metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'accepted', 'rejected'])
+            elif screening_status in ['all_passed', 'accepted', 'passed', 'full_text_passed']:
+                papers_qs = papers_qs.filter(metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'accepted'])
+            else:
+                papers_qs = papers_qs.filter(metrics__screening_status=screening_status)
+
+    papers = list(papers_qs.order_by(F('annotated_signal_score').desc(nulls_last=True), '-created_at')[:limit])
     results = []
 
     for idx, paper in enumerate(papers, 1):
@@ -92,6 +121,24 @@ def build_paper_extractions_matrix(
                 "fields_data": ext.fields_data
             })
 
+        score_val = getattr(paper, 'annotated_signal_score', None)
+        details_val = getattr(paper, 'annotated_signal_score_details', None)
+        status_val = getattr(paper, 'annotated_screening_status', None)
+        if score_val is None or details_val is None or status_val is None:
+            all_m = list(paper.metrics.all())
+            pm = None
+            if target_pr_id and all_m:
+                pm = next((m for m in all_m if str(m.pipeline_run_id) == str(target_pr_id)), None)
+            if not pm and all_m:
+                pm = sorted(all_m, key=lambda x: x.created_at, reverse=True)[0]
+            if pm:
+                if score_val is None:
+                    score_val = pm.signal_score
+                if details_val is None:
+                    details_val = pm.signal_score_details
+                if status_val is None:
+                    status_val = pm.screening_status
+
         results.append({
             "index": idx,
             "paper_id": str(paper.id),
@@ -99,9 +146,9 @@ def build_paper_extractions_matrix(
             "authors": paper.authors,
             "doi": paper.doi,
             "arxiv_id": paper.arxiv_id,
-            "screening_status": paper.screening_status,
-            "signal_score": paper.signal_score,
-            "signal_score_details": paper.signal_score_details,
+            "screening_status": status_val or 'pending',
+            "signal_score": score_val,
+            "signal_score_details": details_val or {},
             "pdf_url": (f"https://arxiv.org/pdf/{paper.arxiv_id}.pdf" if paper.arxiv_id else None) or paper.original_pdf_path,
             "original_pdf_path": paper.original_pdf_path,
             "abstract": paper.abstract,

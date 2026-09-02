@@ -173,12 +173,8 @@ def compute_paper_signal_score(
         "error": error_msg
     }
 
-    # Persist on Paper and PaperMetric atomically per pipeline run
+    # Persist on PaperMetric per pipeline run (Single Source of Truth)
     with transaction.atomic():
-        paper.signal_score = score
-        paper.signal_score_details = details
-        paper.save(update_fields=['signal_score', 'signal_score_details'])
-
         metric, _ = PaperMetric.objects.get_or_create(
             paper=paper,
             pipeline_run=pipeline_run,
@@ -238,9 +234,7 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
 
     # Query all papers that passed screening
     accepted_statuses = ['accepted', 'full_text_passed', 'abstract_passed']
-    papers_qs = pipeline_run.get_papers().filter(
-        screening_status__in=accepted_statuses
-    ).order_by('-created_at')
+    papers_qs = pipeline_run.get_papers(screening_status=accepted_statuses).order_by('-created_at')
 
     if limit and limit > 0:
         papers = list(papers_qs[:limit])
@@ -264,18 +258,16 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
                 details = {"variables": {}, "score": score, "calculated_at": timezone.now().isoformat(), "error": None}
 
             with transaction.atomic():
-                paper.signal_score = score
-                paper.signal_score_details = details if isinstance(details, dict) else {}
-                paper.save(update_fields=['signal_score', 'signal_score_details'])
+                details_dict = details if isinstance(details, dict) else {}
                 metric, _ = PaperMetric.objects.get_or_create(
                     paper=paper,
                     pipeline_run=pipeline_run,
                     workspace=workspace,
-                    defaults={"signal_score": score, "signal_score_details": paper.signal_score_details, "metrics_data": {}}
+                    defaults={"signal_score": score, "signal_score_details": details_dict, "metrics_data": {}}
                 )
-                if metric.signal_score != score or metric.signal_score_details != paper.signal_score_details:
+                if metric.signal_score != score or metric.signal_score_details != details_dict:
                     metric.signal_score = score
-                    metric.signal_score_details = paper.signal_score_details
+                    metric.signal_score_details = details_dict
                     metric.save(update_fields=['signal_score', 'signal_score_details'])
 
             scores_list.append(score)
@@ -287,7 +279,7 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
                 "authors": paper.authors,
                 "doi": paper.doi,
                 "arxiv_id": paper.arxiv_id,
-                "screening_status": paper.screening_status,
+                "screening_status": metric.screening_status if metric else "pending",
                 "signal_score": score,
                 "variables": details.get("variables", {}),
                 "error": details.get("error")

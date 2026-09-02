@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
-from research_intelligence.models import Workspace, Paper, PipelineRun, ComponentRun
+from research_intelligence.models import Workspace, Paper, PaperMetric, PipelineRun, ComponentRun
 from research_intelligence.tasks.step_2_download.fetch import execute_pdf_download_job, _download_paper_task
 
 User = get_user_model()
@@ -50,9 +50,9 @@ class Step2DownloadResilienceTestCase(TestCase):
             hash_id="resilient_pdf_001",
             title="Transformer Scaling Laws in Deep Learning",
             original_pdf_path="https://arxiv.org/pdf/2401.12345.pdf",
-            source_database="arxiv",
-            screening_status="pending"
+            source_database="arxiv"
         )
+        PaperMetric.objects.create(paper=paper, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="pending")
 
         mock_pdf_binary = b"%PDF-1.5 %binary pdf stream content..." * 50
 
@@ -77,17 +77,17 @@ class Step2DownloadResilienceTestCase(TestCase):
             hash_id="resilient_pdf_404",
             title="Unavailable 404 Document",
             original_pdf_path="https://arxiv.org/pdf/2401.99999.pdf",
-            source_database="arxiv",
-            screening_status="pending"
+            source_database="arxiv"
         )
+        PaperMetric.objects.create(paper=paper, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="pending")
 
         with patch("research_intelligence.scrapers.arxiv.ArxivScraperProvider.download_file", side_effect=ValueError("HTTP 404: Not Found")):
             result = _download_paper_task(paper, self.workspace, self.pipeline_run)
             self.assertEqual(result["status"], "withdrawn")
             self.assertIn("withdrawn", result["reason"])
 
-        paper.refresh_from_db()
-        self.assertEqual(paper.screening_status, "withdrawn")
+        pm = PaperMetric.objects.get(paper=paper, pipeline_run=self.pipeline_run)
+        self.assertEqual(pm.screening_status, "withdrawn")
         self.assertFalse(default_storage.exists(f"workspaces/{self.workspace.id}/runs/{self.pipeline_run.id}/documents/{paper.hash_id}/original.pdf"))
 
     def test_network_failure_and_retry_exhaustion(self):
@@ -100,9 +100,9 @@ class Step2DownloadResilienceTestCase(TestCase):
             hash_id="resilient_pdf_dropped",
             title="Connection Reset Document",
             original_pdf_path="https://arxiv.org/pdf/2401.88888.pdf",
-            source_database="arxiv",
-            screening_status="pending"
+            source_database="arxiv"
         )
+        PaperMetric.objects.create(paper=paper, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="pending")
 
         with patch("research_intelligence.scrapers.arxiv.ArxivScraperProvider.download_file", side_effect=ConnectionResetError("Connection dropped by remote peer")), \
              patch("time.sleep"):
@@ -123,7 +123,12 @@ class Step2DownloadResilienceTestCase(TestCase):
             hash_id="resilient_pdf_withdrawn",
             title="Withdrawn Quantum Paper",
             original_pdf_path="https://arxiv.org/pdf/2401.11111.pdf",
-            source_database="arxiv",
+            source_database="arxiv"
+        )
+        PaperMetric.objects.create(
+            paper=paper,
+            pipeline_run=self.pipeline_run,
+            workspace=self.workspace,
             screening_status="withdrawn",
             screening_reasoning="Paper withdrawn by author due to experimental flaw."
         )
@@ -145,9 +150,9 @@ class Step2DownloadResilienceTestCase(TestCase):
             title="Paper Without Any Source Link",
             original_pdf_path=None,
             arxiv_id=None,
-            source_database="arxiv",
-            screening_status="pending"
+            source_database="arxiv"
         )
+        PaperMetric.objects.create(paper=paper, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="pending")
 
         result = _download_paper_task(paper, self.workspace, self.pipeline_run)
         self.assertEqual(result["status"], "failed")
@@ -164,18 +169,18 @@ class Step2DownloadResilienceTestCase(TestCase):
             hash_id="batch_001",
             title="Batch Paper 1",
             original_pdf_path="https://arxiv.org/pdf/2401.00001.pdf",
-            source_database="arxiv",
-            screening_status="pending"
+            source_database="arxiv"
         )
+        PaperMetric.objects.create(paper=p1, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="pending")
         p2 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id="batch_002",
             title="Batch Paper 2",
             original_pdf_path="https://arxiv.org/pdf/2401.00002.pdf",
-            source_database="arxiv",
-            screening_status="pending"
+            source_database="arxiv"
         )
+        PaperMetric.objects.create(paper=p2, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="pending")
 
         mock_bytes = b"%PDF-1.5 batch content"
 

@@ -38,7 +38,12 @@ class ChatEngineTestCase(TestCase):
             title="Integrated Photonic Tensor Core Architecture",
             abstract="We present an optical compute engine operating at 100 GHz with sub-picojoule energy efficiency.",
             authors="Dr. Light, Prof. Laser",
-            doi="10.1038/s41566-025-0001-z",
+            doi="10.1038/s41566-025-0001-z"
+        )
+        PaperMetric.objects.create(
+            paper=self.paper,
+            pipeline_run=self.run,
+            workspace=self.workspace,
             screening_status="abstract_passed",
             screening_reasoning="High throughput optical compute engine matches domain scope",
             signal_score=9.2,

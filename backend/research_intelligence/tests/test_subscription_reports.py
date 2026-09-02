@@ -9,6 +9,7 @@ from research_intelligence.models import (
     PipelineRun,
     ComponentRun,
     Paper,
+    PaperMetric,
     ExtractionDefinition,
     Extraction,
     ResearchAgentProcess
@@ -89,7 +90,12 @@ class SubscriptionReportsTestCase(TestCase):
             pipeline_run=self.pipeline_run,
             hash_id="paper_rep_001",
             title="Scalable Superconducting Qubits",
-            authors="Dr. Alice Smith",
+            authors="Dr. Alice Smith"
+        )
+        PaperMetric.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            paper=self.paper1,
             screening_status="full_text_passed",
             signal_score=88.5
         )
@@ -264,7 +270,12 @@ class SubscriptionReportsTestCase(TestCase):
             pipeline_run=self.pipeline_run,
             hash_id="paper_rep_002",
             title="Fluxonium Qubits with Millisecond Coherence Times",
-            authors="Bob Johnson, Carol Danvers",
+            authors="Bob Johnson, Carol Danvers"
+        )
+        PaperMetric.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            paper=paper2,
             screening_status="accepted",
             signal_score=94.2
         )
@@ -288,12 +299,17 @@ class SubscriptionReportsTestCase(TestCase):
         )
 
         # Rejected paper should be excluded from scorecard
-        Paper.objects.create(
+        p_rej = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id="paper_rep_003",
             title="Non-Quantum Classical Compiler",
-            authors="Out of Scope Author",
+            authors="Out of Scope Author"
+        )
+        PaperMetric.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            paper=p_rej,
             screening_status="rejected",
             signal_score=12.0
         )
@@ -326,7 +342,12 @@ class SubscriptionReportsTestCase(TestCase):
             pipeline_run=self.pipeline_run,
             hash_id="paper_broken_999",
             title="A" * 5000,
-            authors="",
+            authors=""
+        )
+        PaperMetric.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            paper=broken_paper,
             screening_status="accepted",
             signal_score=None
         )

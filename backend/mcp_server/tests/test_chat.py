@@ -1,5 +1,5 @@
 from unittest.mock import patch, MagicMock
-from research_intelligence.models import Paper, PipelineRun, Workspace, WorkspaceMember
+from research_intelligence.models import Paper, PaperMetric, PipelineRun, Workspace, WorkspaceMember
 from chat.models import PaperChatSession, PaperChatMessage
 from mcp_server.tools import ask_paper_logic
 from .base import BaseMCPTestCase
@@ -14,7 +14,12 @@ class MCPChatTestCase(BaseMCPTestCase):
             pipeline_run=self.run,
             hash_id="sha256_photonic_mcp_01",
             title="Photonic Processing Unit Architecture",
-            abstract="High performance photonic tensor processing unit.",
+            abstract="High performance photonic tensor processing unit."
+        )
+        PaperMetric.objects.create(
+            paper=self.paper,
+            pipeline_run=self.run,
+            workspace=self.workspace,
             screening_status="accepted",
             signal_score=9.4
         )

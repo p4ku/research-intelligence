@@ -23,11 +23,12 @@ class HITLViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        base_qs = HITLCorrection.objects.select_related('extraction', 'extraction__workspace')
         if getattr(user, 'is_superuser', False):
-            qs = HITLCorrection.objects.all().order_by('-timestamp')
+            qs = base_qs.all().order_by('-timestamp')
         else:
             user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-            qs = HITLCorrection.objects.filter(extraction__workspace_id__in=user_ws_ids).order_by('-timestamp')
+            qs = base_qs.filter(extraction__workspace_id__in=user_ws_ids).order_by('-timestamp')
 
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if ws_id:
@@ -45,7 +46,7 @@ class HITLViewSet(viewsets.ModelViewSet):
                 ).exists()
                 if not has_access:
                     raise PermissionDenied("You do not have access to this workspace.")
-        serializer.save(verified_by=self.request.user)
+        serializer.save(human_operator=self.request.user.email or self.request.user.username)
 
     def perform_update(self, serializer):
         hitl = self.get_object()
@@ -56,7 +57,7 @@ class HITLViewSet(viewsets.ModelViewSet):
             ).exists()
             if not has_access:
                 raise PermissionDenied("You do not have access to this workspace.")
-        serializer.save(verified_by=self.request.user)
+        serializer.save(human_operator=self.request.user.email or self.request.user.username)
 
     def perform_destroy(self, instance):
         user = self.request.user

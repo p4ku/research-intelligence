@@ -43,19 +43,96 @@ class DocumentRegistry(models.Model):
         return f"{self.title[:50]} (Hits: {self.access_count})"
 
 
+class PaperQuerySet(models.QuerySet):
+    """
+    QuerySet that transparently maps legacy filter parameters (pipeline_run, reprocessed_runs,
+    screening_status) to the PaperMetric association table.
+    """
+    def _filter_or_exclude(self, negate, args, kwargs):
+        new_kwargs = {}
+        for k, v in kwargs.items():
+            if k == 'pipeline_run':
+                new_kwargs['metrics__pipeline_run'] = v
+            elif k == 'pipeline_run_id':
+                new_kwargs['metrics__pipeline_run_id'] = v
+            elif k.startswith('pipeline_run__'):
+                new_kwargs['metrics__' + k] = v
+            elif k in ('reprocessed_runs', 'reprocessed_runs__id'):
+                new_kwargs['metrics__pipeline_run_id'] = getattr(v, 'id', v)
+            elif k.startswith('reprocessed_runs__'):
+                new_kwargs['metrics__pipeline_run__' + k[len('reprocessed_runs__'):]] = v
+            elif k == 'screening_status':
+                new_kwargs['metrics__screening_status'] = v
+            elif k == 'screening_status__in':
+                new_kwargs['metrics__screening_status__in'] = v
+            elif k == 'screening_reasoning':
+                new_kwargs['metrics__screening_reasoning'] = v
+            elif k == 'signal_score':
+                new_kwargs['metrics__signal_score'] = v
+            elif k == 'signal_score__isnull':
+                new_kwargs['metrics__signal_score__isnull'] = v
+            else:
+                new_kwargs[k] = v
+        return super()._filter_or_exclude(negate, args, new_kwargs)
+
+
+class PaperManager(models.Manager.from_queryset(PaperQuerySet)):
+    """
+    Paper manager supporting graceful creation with optional pipeline_run
+    and screening parameters, automatically maintaining PaperMetric.
+    """
+    def create(self, **kwargs):
+        pipeline_run = kwargs.pop('pipeline_run', None) or kwargs.pop('pipeline_run_id', None)
+        reprocessed_runs = kwargs.pop('reprocessed_runs', None)
+        screening_status = kwargs.pop('screening_status', None)
+        screening_reasoning = kwargs.pop('screening_reasoning', None)
+        signal_score = kwargs.pop('signal_score', None)
+        signal_score_details = kwargs.pop('signal_score_details', None)
+        is_evaluation_benchmark = kwargs.pop('is_evaluation_benchmark', None)
+        evaluation_label = kwargs.pop('evaluation_label', None)
+        metrics_data = kwargs.pop('metrics_data', None)
+
+        paper = super().create(**kwargs)
+
+        if pipeline_run is not None:
+            pr_id = getattr(pipeline_run, 'id', pipeline_run)
+            defaults = {
+                'workspace': paper.workspace,
+                'screening_status': screening_status or 'pending',
+                'screening_reasoning': screening_reasoning,
+                'signal_score': signal_score,
+                'signal_score_details': signal_score_details or {},
+                'is_evaluation_benchmark': bool(is_evaluation_benchmark) if is_evaluation_benchmark is not None else False,
+                'evaluation_label': evaluation_label,
+                'metrics_data': metrics_data or {}
+            }
+            PaperMetric.objects.update_or_create(
+                paper=paper,
+                pipeline_run_id=pr_id,
+                defaults=defaults
+            )
+
+        if reprocessed_runs:
+            for r_run in reprocessed_runs:
+                r_id = getattr(r_run, 'id', r_run)
+                PaperMetric.objects.get_or_create(
+                    paper=paper,
+                    pipeline_run_id=r_id,
+                    defaults={'workspace': paper.workspace, 'screening_status': 'pending'}
+                )
+
+        return paper
+
+
 class Paper(models.Model):
     """
-    Holds metadata, file references, and screening states for articles ingested during a specific run.
+    Holds metadata, file references, and canonical identifiers for articles ingested in a workspace.
+    Pipeline-specific screening states, evaluations, and composite signal scores are maintained per-run in PaperMetric.
     """
+    objects = PaperManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     workspace = models.ForeignKey('Workspace', on_delete=models.CASCADE, related_name="papers")
-    pipeline_run = models.ForeignKey('PipelineRun', on_delete=models.CASCADE, related_name="ingested_papers", help_text="Ingestion run that fetched this paper")
-    reprocessed_runs = models.ManyToManyField(
-        'PipelineRun',
-        related_name="reprocessed_papers",
-        blank=True,
-        help_text="Additional pipeline runs where this paper was re-screened or re-evaluated"
-    )
     document_registry = models.ForeignKey(
         DocumentRegistry,
         on_delete=models.SET_NULL,
@@ -77,56 +154,52 @@ class Paper(models.Model):
     original_pdf_path = models.CharField(max_length=512, blank=True, null=True, help_text="S3 key of original PDF")
     converted_md_path = models.CharField(max_length=512, blank=True, null=True, help_text="S3 key of layout Markdown")
     
-    screening_status = models.CharField(
-        max_length=50,
-        choices=[
-            ('pending', 'Pending'),
-            ('abstract_passed', 'Abstract Passed'),
-            ('full_text_passed', 'Full Text Passed'),
-            ('accepted', 'Accepted'),
-            ('borderline', 'Borderline (Human Review)'),
-            ('rejected', 'Rejected'),
-            ('withdrawn', 'Withdrawn by Authors')
-        ],
-        default='pending',
-        db_index=True
-    )
-    screening_reasoning = models.TextField(blank=True, null=True, help_text="Agent justification for screening action")
-    
-    # Evaluation Bootstrap Benchmark
-    is_evaluation_benchmark = models.BooleanField(default=False, help_text="Flags whether a paper is part of the frozen labelled benchmark set")
-    evaluation_label = models.CharField(
-        max_length=50,
-        choices=[('passed', 'Passed'), ('rejected', 'Rejected')],
-        null=True,
-        blank=True,
-        help_text="Stores the ground-truth review decision made by the human analyst lead"
-    )
-
-    # Signal Score
-    signal_score = models.FloatField(
-        blank=True,
-        null=True,
-        db_index=True,
-        help_text="Computed composite signal score from extraction parameters"
-    )
-    signal_score_details = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text="Detailed variable values and calculation audit for the signal score"
-    )
-    
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def pipeline_run(self):
+        if hasattr(self, '_pipeline_run') and self._pipeline_run is not None:
+            return self._pipeline_run
+        initial_metric = self.metrics.order_by('created_at').first()
+        return initial_metric.pipeline_run if initial_metric else None
+
+    @pipeline_run.setter
+    def pipeline_run(self, val):
+        self._pipeline_run = val
+
+    @property
+    def pipeline_run_id(self):
+        if hasattr(self, 'annotated_pipeline_run_id') and self.annotated_pipeline_run_id is not None:
+            return self.annotated_pipeline_run_id
+        pr = self.pipeline_run
+        return pr.id if pr else None
+
+    @property
+    def reprocessed_runs(self):
+        class _ReprocessedRunsShim:
+            def __init__(self, paper):
+                self.paper = paper
+            def all(self):
+                from .pipeline import PipelineRun
+                return PipelineRun.objects.filter(paper_metrics__paper=self.paper).distinct()
+            def add(self, *runs):
+                for run in runs:
+                    r_id = getattr(run, 'id', run)
+                    PaperMetric.objects.get_or_create(
+                        paper=self.paper,
+                        pipeline_run_id=r_id,
+                        defaults={'workspace': self.paper.workspace, 'screening_status': 'pending'}
+                    )
+            def filter(self, *args, **kwargs):
+                return self.all().filter(*args, **kwargs)
+        return _ReprocessedRunsShim(self)
 
     class Meta:
         app_label = 'research_intelligence'
         ordering = ['-created_at', '-id']
         unique_together = ('workspace', 'hash_id')
         indexes = [
-            models.Index(fields=['workspace', 'screening_status']),
-            models.Index(fields=['pipeline_run', 'screening_status']),
             models.Index(fields=['workspace', '-created_at']),
-            models.Index(fields=['pipeline_run', '-created_at']),
             models.Index(fields=['workspace', 'hash_id']),
             models.Index(fields=['doi']),
             models.Index(fields=['arxiv_id']),
@@ -137,11 +210,34 @@ class Paper(models.Model):
         return self.title
 
 
+class PaperMetricManager(models.Manager):
+    """
+    Ensures that calls to PaperMetric.objects.create(paper=..., pipeline_run=...)
+    safely update or create the metric record without violating the unique constraint.
+    """
+    def create(self, **kwargs):
+        paper = kwargs.get('paper') or kwargs.get('paper_id')
+        pipeline_run = kwargs.get('pipeline_run') or kwargs.get('pipeline_run_id')
+        if paper and pipeline_run:
+            paper_id = getattr(paper, 'id', paper)
+            pipeline_run_id = getattr(pipeline_run, 'id', pipeline_run)
+            clean_kwargs = {k: v for k, v in kwargs.items() if k not in ('paper', 'paper_id', 'pipeline_run', 'pipeline_run_id')}
+            obj, _ = self.update_or_create(
+                paper_id=paper_id,
+                pipeline_run_id=pipeline_run_id,
+                defaults=clean_kwargs
+            )
+            return obj
+        return super().create(**kwargs)
+
+
 class PaperMetric(models.Model):
     """
-    Stores paper-level evaluations, dynamic metric dictionaries, and composite signal scores
-    evaluated per pipeline run.
+    Stores paper-level evaluations, screening statuses, dynamic metric dictionaries,
+    and composite signal scores evaluated per pipeline run.
     """
+    objects = PaperMetricManager()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     paper = models.ForeignKey(Paper, on_delete=models.CASCADE, related_name="metrics")
     pipeline_run = models.ForeignKey(
@@ -154,27 +250,51 @@ class PaperMetric(models.Model):
     )
     workspace = models.ForeignKey('Workspace', on_delete=models.CASCADE, related_name="metrics")
     
+    # Screening and Review Decisions (Scoped strictly per pipeline_run)
+    screening_status = models.CharField(
+        max_length=50,
+        choices=[
+            ('pending', 'Pending'),
+            ('abstract_passed', 'Abstract Passed'),
+            ('full_text_passed', 'Full Text Passed'),
+            ('accepted', 'Accepted'),
+            ('borderline', 'Borderline (Human Review)'),
+            ('rejected', 'Rejected'),
+            ('withdrawn', 'Withdrawn by Authors')
+        ],
+        default='pending',
+        db_index=True,
+        help_text="Review decision for this paper within this pipeline run"
+    )
+    screening_reasoning = models.TextField(blank=True, null=True, help_text="Agent justification for screening action in this run")
+    is_evaluation_benchmark = models.BooleanField(default=False, help_text="Flags whether this paper evaluation is part of the benchmark set for this run")
+    evaluation_label = models.CharField(
+        max_length=50,
+        choices=[('passed', 'Passed'), ('rejected', 'Rejected')],
+        null=True,
+        blank=True,
+        help_text="Ground-truth review decision"
+    )
+
     # Composite Signal Score
     signal_score = models.FloatField(blank=True, null=True, db_index=True, help_text="Calculated composite signal score")
     signal_score_details = models.JSONField(default=dict, blank=True, help_text="Calculation audit for signal score")
+    metrics_data = models.JSONField(default=dict, blank=True, help_text="Dictionary of extracted and calculated variables used for scoring")
     
-    # Dynamic Metrics Payload (all extracted parameters e.g. trl, fit_score, novelty, custom criteria)
-    metrics_data = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text="Dynamic dictionary of computed metrics, extracted parameters, and evaluation attributes"
-    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         app_label = 'research_intelligence'
-        ordering = ['-created_at', '-id']
         unique_together = ('paper', 'pipeline_run')
         indexes = [
-            models.Index(fields=['workspace', '-signal_score']),
-            models.Index(fields=['pipeline_run', '-signal_score']),
+            models.Index(fields=['pipeline_run', 'screening_status']),
+            models.Index(fields=['workspace', 'screening_status']),
+            models.Index(fields=['paper', 'pipeline_run']),
             models.Index(fields=['paper', '-created_at']),
+            models.Index(fields=['pipeline_run', '-signal_score']),
+            models.Index(fields=['workspace', '-signal_score']),
         ]
+        ordering = ['-created_at', '-id']
 
     def __str__(self):
         score_str = f"{self.signal_score:.2f}" if self.signal_score is not None else "-"

@@ -73,7 +73,12 @@ class PaperChatTestCase(TestCase):
             title="Scalable Quantum Circuit Compilation on 128-Qubit Processor",
             authors="A. Lovelace, C. Babbage",
             abstract="We present a scalable compiler for 128-qubit quantum architectures with sub-microsecond latency.",
-            source_database="arxiv",
+            source_database="arxiv"
+        )
+        PaperMetric.objects.create(
+            paper=self.paper_a,
+            pipeline_run=self.run_a,
+            workspace=self.workspace_a,
             screening_status="full_text_passed",
             screening_reasoning="Demonstrates empirical 128-qubit compilation meeting full-text criteria.",
             signal_score=8.5,

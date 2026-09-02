@@ -406,7 +406,8 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
     @patch("research_intelligence.tasks.orchestrator.dag.nodes.DownloadNode.execute")
     @patch("research_intelligence.tasks.orchestrator.agent_engine.tick_agent_process")
     def test_component_run_rerun_from_step_forward(self, mock_tick, mock_download_exec):
-        Paper.objects.create(workspace=self.workspace, pipeline_run=self.pipeline_run, hash_id="p1", title="Paper 1", screening_status="abstract_passed")
+        p1 = Paper.objects.create(workspace=self.workspace, pipeline_run=self.pipeline_run, hash_id="p1", title="Paper 1")
+        PaperMetric.objects.create(paper=p1, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="abstract_passed")
         comp_search = ComponentRun.objects.create(
             pipeline_run=self.pipeline_run,
             step_type="search",

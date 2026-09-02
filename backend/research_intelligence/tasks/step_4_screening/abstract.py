@@ -3,7 +3,7 @@ import time
 import logging
 from django.utils import timezone
 from celery import shared_task
-from ...models import Workspace, Paper
+from ...models import Workspace, Paper, PaperMetric
 from ...llm_providers import get_llm_provider
 
 logger = logging.getLogger(__name__)
@@ -26,13 +26,20 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None, 
     t0 = time.time()
 
     # Check if paper is marked as withdrawn
-    if paper.screening_status == 'withdrawn':
+    target_pr_id = pipeline_run_id or getattr(paper, 'pipeline_run_id', None)
+    pm = None
+    if target_pr_id:
+        pm = PaperMetric.objects.filter(paper=paper, pipeline_run_id=target_pr_id).first()
+    else:
+        pm = PaperMetric.objects.filter(paper=paper).order_by('-created_at').first()
+
+    if pm and pm.screening_status == 'withdrawn':
         duration_sec = round(time.time() - t0, 3)
         return {
             "success": True,
             "passed": False,
             "screening_status": "withdrawn",
-            "reasoning": paper.screening_reasoning or "Paper has been withdrawn by authors.",
+            "reasoning": pm.screening_reasoning or "Paper has been withdrawn by authors.",
             "evidence_quotes": [],
             "decision_category": "WITHDRAWN",
             "duration_seconds": duration_sec,
@@ -111,20 +118,17 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None, 
             if exit_metric_val is None:
                 exit_metric_val = decision_category
 
-            paper.screening_status = "abstract_passed" if passed else "rejected"
-            paper.screening_reasoning = reasoning
-            paper.save(update_fields=['screening_status', 'screening_reasoning'])
-
-            # Store dynamic output in PaperMetric if pipeline_run is present
+            status_val = "abstract_passed" if passed else "rejected"
             target_run_id = pipeline_run_id or getattr(paper, 'pipeline_run_id', None)
             if target_run_id:
                 try:
-                    from ...models import PaperMetric
                     pm, _ = PaperMetric.objects.get_or_create(
                         paper=paper,
                         pipeline_run_id=target_run_id,
-                        defaults={"workspace": workspace}
+                        defaults={"workspace": workspace, "screening_status": status_val, "screening_reasoning": reasoning}
                     )
+                    pm.screening_status = status_val
+                    pm.screening_reasoning = reasoning
                     m_data = pm.metrics_data or {}
                     m_data["abstract_screening"] = {
                         "passed": passed,
@@ -136,7 +140,7 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None, 
                         "dynamic_data": parsed
                     }
                     pm.metrics_data = m_data
-                    pm.save(update_fields=['metrics_data'])
+                    pm.save(update_fields=['screening_status', 'screening_reasoning', 'metrics_data'])
                 except Exception as pm_err:
                     logger.warning(f"Could not record PaperMetric for paper {paper.id}: {pm_err}")
 
@@ -145,7 +149,7 @@ def screen_abstract(paper_id, workspace_id, workspace_obj=None, paper_obj=None, 
             return {
                 "success": True,
                 "passed": passed,
-                "screening_status": paper.screening_status,
+                "screening_status": status_val,
                 "reasoning": reasoning,
                 "evidence_quotes": evidence_quotes,
                 "decision_category": decision_category,

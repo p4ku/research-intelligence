@@ -9,6 +9,7 @@ from research_intelligence.models import (
     PipelineRun,
     ComponentRun,
     Paper,
+    PaperMetric,
     ExtractionDefinition,
     Extraction
 )
@@ -42,17 +43,17 @@ class PipelineTokenAccumulationTestCase(TestCase):
             pipeline_run=self.pipeline_run,
             hash_id="hash_tok_001",
             title="Scalable Quantum Error Correction with Surface Codes",
-            abstract="We present a scalable architecture for surface code error correction.",
-            screening_status="pending"
+            abstract="We present a scalable architecture for surface code error correction."
         )
+        PaperMetric.objects.create(paper=self.paper1, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="pending")
         self.paper2 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id="hash_tok_002",
             title="Fault-Tolerant Quantum Computing Architectures",
-            abstract="Analysis of logical qubits and threshold theorems.",
-            screening_status="pending"
+            abstract="Analysis of logical qubits and threshold theorems."
         )
+        PaperMetric.objects.create(paper=self.paper2, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="pending")
         self.extraction_def = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Threshold Extraction",
@@ -103,8 +104,11 @@ class PipelineTokenAccumulationTestCase(TestCase):
 
         def mock_4a_side_effect(paper_id, workspace_id, **kwargs):
             p = Paper.objects.get(id=paper_id)
-            p.screening_status = "abstract_passed"
-            p.save(update_fields=['screening_status'])
+            PaperMetric.objects.update_or_create(
+                paper=p,
+                pipeline_run=self.pipeline_run,
+                defaults={'workspace': self.workspace, 'screening_status': 'abstract_passed'}
+            )
             return mock_4a_response
 
         with patch("research_intelligence.tasks.step_4_screening.abstract.screen_abstract", side_effect=mock_4a_side_effect):
@@ -152,8 +156,11 @@ class PipelineTokenAccumulationTestCase(TestCase):
 
         def mock_4b_side_effect(paper_id, workspace_id, **kwargs):
             p = Paper.objects.get(id=paper_id)
-            p.screening_status = "full_text_passed"
-            p.save(update_fields=['screening_status'])
+            PaperMetric.objects.update_or_create(
+                paper=p,
+                pipeline_run=self.pipeline_run,
+                defaults={'workspace': self.workspace, 'screening_status': 'full_text_passed'}
+            )
             return mock_4b_response
 
         with patch("research_intelligence.tasks.step_4_screening.full_text.screen_full_text", side_effect=mock_4b_side_effect):

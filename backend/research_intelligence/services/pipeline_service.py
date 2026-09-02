@@ -174,13 +174,18 @@ def delete_pipeline_run(user, pipeline_run_id: Union[str, uuid.UUID]) -> Tuple[b
     if error:
         return False, {}, error
 
-    from django.db.models import Q
+    from django.db.models import Q, Count
     papers_qs = pipeline_run.get_papers()
     papers_count = papers_qs.count()
     comp_runs_count = pipeline_run.component_runs.count()
     extractions_count = Extraction.objects.filter(paper__in=pipeline_run.get_papers()).count()
     metrics_count = PaperMetric.objects.filter(Q(pipeline_run=pipeline_run) | Q(paper__in=pipeline_run.get_papers())).distinct().count()
     reports_count = NarrativeReport.objects.filter(pipeline_run=pipeline_run).count()
+
+    orphan_papers = list(Paper.objects.filter(metrics__pipeline_run=pipeline_run).annotate(
+        total_runs=Count('metrics__pipeline_run', distinct=True)
+    ).filter(total_runs__lte=1))
+    orphan_paper_ids = [p.id for p in orphan_papers]
 
     run_storage_dir = f"workspaces/{ws_id_str}/runs/{str(pipeline_run.id)}"
     files_purged = recursive_delete_run_storage(run_storage_dir)
@@ -197,6 +202,8 @@ def delete_pipeline_run(user, pipeline_run_id: Union[str, uuid.UUID]) -> Tuple[b
 
     pr_id_str = str(pipeline_run.id)
     pipeline_run.delete()
+    if orphan_paper_ids:
+        Paper.objects.filter(id__in=orphan_paper_ids).delete()
 
     return True, {
         "success": True,

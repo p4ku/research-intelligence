@@ -29,11 +29,12 @@ class UserActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
         user = self.request.user
         if not user or not getattr(user, 'is_authenticated', False) or not getattr(user, 'pk', None):
             return UserActivityLog.objects.none()
+        base_qs = UserActivityLog.objects.select_related('user', 'workspace')
         if getattr(user, 'is_superuser', False):
-            qs = UserActivityLog.objects.all().order_by('-timestamp')
+            qs = base_qs.all().order_by('-timestamp')
         else:
             user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-            qs = (UserActivityLog.objects.filter(workspace_id__in=user_ws_ids) | UserActivityLog.objects.filter(user=user)).order_by('-timestamp')
+            qs = (base_qs.filter(workspace_id__in=user_ws_ids) | base_qs.filter(user=user)).order_by('-timestamp')
 
         workspace_id = self.request.query_params.get('workspace')
         if workspace_id:

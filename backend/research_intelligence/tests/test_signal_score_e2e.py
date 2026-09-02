@@ -125,9 +125,9 @@ else:
             title="Fault-Tolerant Surface Code Architecture on Transmon Qubits",
             authors="Alice Quantum et al.",
             arxiv_id="2402.11111",
-            screening_status="full_text_passed",
             abstract="Experimental realization of distance-3 surface codes."
         )
+        PaperMetric.objects.create(paper=paper_high, pipeline_run=pipeline_run, workspace=self.workspace, screening_status="full_text_passed")
         Extraction.objects.create(
             workspace=self.workspace,
             paper=paper_high,
@@ -155,9 +155,9 @@ else:
             title="Introductory Review of Qubit Gates",
             authors="Bob Beginner",
             arxiv_id="2402.22222",
-            screening_status="full_text_passed",
             abstract="Textbook tutorial on Hadamard and CNOT gates."
         )
+        PaperMetric.objects.create(paper=paper_low, pipeline_run=pipeline_run, workspace=self.workspace, screening_status="full_text_passed")
         Extraction.objects.create(
             workspace=self.workspace,
             paper=paper_low,
@@ -203,14 +203,11 @@ else:
         self.assertAlmostEqual(sig_comp_run.metrics["avg_signal_score"], (95.5 + 12.0) / 2.0, places=2)
 
         # 2. Verify Paper Models & PaperMetric Records
-        paper_high.refresh_from_db()
-        paper_low.refresh_from_db()
-        self.assertEqual(paper_high.signal_score, 95.5)
-        self.assertEqual(paper_low.signal_score, 12.0)
-        self.assertIn("fit_score", paper_high.signal_score_details["variables"])
-
         metric_high = PaperMetric.objects.get(paper=paper_high, pipeline_run=pipeline_run)
+        metric_low = PaperMetric.objects.get(paper=paper_low, pipeline_run=pipeline_run)
         self.assertEqual(metric_high.signal_score, 95.5)
+        self.assertEqual(metric_low.signal_score, 12.0)
+        self.assertIn("fit_score", metric_high.signal_score_details["variables"])
         self.assertEqual(metric_high.pipeline_run, pipeline_run)
 
         # 3. Verify MCP Matrix Tool: get_paper_extractions_matrix
@@ -286,9 +283,9 @@ else:
             workspace=self.workspace,
             pipeline_run=pipeline_run,
             hash_id=uuid.uuid4().hex,
-            title="Quantum Annealing Benchmark",
-            screening_status="accepted"
+            title="Quantum Annealing Benchmark"
         )
+        PaperMetric.objects.create(paper=paper, pipeline_run=pipeline_run, workspace=self.workspace, screening_status="accepted")
         Extraction.objects.create(
             workspace=self.workspace,
             paper=paper,
@@ -302,10 +299,6 @@ else:
         ))
         self.assertTrue(res_json["success"])
         self.assertIn("Successfully launched Signal Score", res_json["message"])
-
-        paper.refresh_from_db()
-        # With fit_score=8, novelty=0, trl=0 -> k=8 <= 10 -> score=12.0
-        self.assertEqual(paper.signal_score, 12.0)
 
         metric = PaperMetric.objects.get(paper=paper, pipeline_run=pipeline_run)
         self.assertEqual(metric.signal_score, 12.0)
@@ -331,9 +324,9 @@ else:
             workspace=self.workspace,
             pipeline_run=run1,
             hash_id="multi_run_paper_hash_12345",
-            title="Neuromorphic Vision Transformers",
-            screening_status="accepted"
+            title="Neuromorphic Vision Transformers"
         )
+        PaperMetric.objects.create(paper=paper, pipeline_run=run1, workspace=self.workspace, screening_status="accepted")
 
         # Run 1 Extractions & Evaluation
         ext1 = Extraction.objects.create(

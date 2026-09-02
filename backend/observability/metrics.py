@@ -14,6 +14,7 @@ from django.utils import timezone
 from research_intelligence.models import (
     Workspace,
     Paper,
+    PaperMetric,
     PipelineRun,
     ComponentRun,
     ResearchAgentProcess,
@@ -35,7 +36,7 @@ def collect_telemetry_snapshot() -> Dict[str, Any]:
     # 1. Paper Funnel & Conversion Rates
     # --------------------------------------------------------------------------
     total_papers = Paper.objects.count()
-    status_counts = dict(Paper.objects.values('screening_status').annotate(count=Count('id')).values_list('screening_status', 'count'))
+    status_counts = dict(PaperMetric.objects.values('screening_status').annotate(count=Count('id')).values_list('screening_status', 'count'))
     provider_counts = dict(Paper.objects.values('source_database').annotate(count=Count('id')).values_list('source_database', 'count'))
 
     accepted_count = status_counts.get('accepted', 0)

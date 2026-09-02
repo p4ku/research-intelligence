@@ -2232,49 +2232,21 @@ class ComponentRunAdmin(admin.ModelAdmin):
         self.message_user(request, f"Successfully stopped and aborted {count} component task(s).")
 
 
-@admin.register(Paper)
-class PaperAdmin(admin.ModelAdmin):
-    formfield_overrides = {
-        models.JSONField: {'widget': PrettyJSONWidget},
-    }
-    list_display = (
-        'title',
-        'workspace',
-        'pipeline_run_link',
-        'signal_score_badge',
-        'source_database',
-        'screening_status_badge',
-        'is_evaluation_benchmark',
-        'created_at'
-    )
-    ordering = ('-created_at', '-id')
-    list_select_related = ('workspace', 'pipeline_run')
-    list_filter = ('source_database', 'screening_status', 'is_evaluation_benchmark', 'workspace')
-    search_fields = ('title', 'authors', 'doi', 'arxiv_id', 'hash_id')
+class PaperMetricInline(admin.TabularInline):
+    model = PaperMetric
+    extra = 0
+    fields = ('pipeline_run_link', 'screening_status_badge', 'signal_score_badge', 'metrics_preview', 'created_at')
+    readonly_fields = ('pipeline_run_link', 'screening_status_badge', 'signal_score_badge', 'metrics_preview', 'created_at')
+    can_delete = False
+    show_change_link = True
 
     def pipeline_run_link(self, obj):
-        if not obj.pipeline_run:
+        pr = obj.pipeline_run
+        if not pr:
             return "-"
-        url = reverse("admin:research_intelligence_pipelinerun_change", args=[obj.pipeline_run.id])
-        return format_html('<a href="{}" title="Pipeline Run: {}"><code>{}</code></a>', url, str(obj.pipeline_run.id), str(obj.pipeline_run.id)[:8] + '...')
+        url = reverse("admin:research_intelligence_pipelinerun_change", args=[pr.id])
+        return format_html('<a href="{}" title="Pipeline Run: {}"><code>{}</code></a>', url, str(pr.id), str(pr.id)[:8] + '...')
     pipeline_run_link.short_description = "Pipeline Run"
-    pipeline_run_link.admin_order_field = "pipeline_run"
-
-    def signal_score_badge(self, obj):
-        if obj.signal_score is None:
-            return mark_safe('<span style="color: #6c757d; font-size: 0.85em;">-</span>')
-        try:
-            score_str = f"{float(obj.signal_score):.2f}"
-        except Exception:
-            score_str = str(obj.signal_score)
-        return format_html(
-            '<span style="background-color: #0d6efd; color: #ffffff; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 0.9em;">'
-            '⚡ {}'
-            '</span>',
-            score_str
-        )
-    signal_score_badge.short_description = "Signal Score"
-    signal_score_badge.admin_order_field = 'signal_score'
 
     def screening_status_badge(self, obj):
         colors = {
@@ -2286,10 +2258,101 @@ class PaperAdmin(admin.ModelAdmin):
             'rejected': '#dc3545',
             'withdrawn': '#6c757d',
         }
-        bg = colors.get(obj.screening_status, '#6c757d')
+        labels = {
+            'pending': 'Pending',
+            'abstract_passed': 'Abstract Passed',
+            'full_text_passed': 'Full Text Passed',
+            'accepted': 'Accepted',
+            'borderline': 'Borderline',
+            'rejected': 'Rejected',
+            'withdrawn': 'Withdrawn'
+        }
+        status = obj.screening_status or 'pending'
+        bg = colors.get(status, '#6c757d')
         text_color = '#000000' if bg in ['#ffc107', '#0dcaf0'] else '#ffffff'
-        return render_badge(obj.get_screening_status_display(), bg, text_color)
+        return render_badge(labels.get(status, status), bg, text_color)
     screening_status_badge.short_description = "Screening Status"
+
+    def signal_score_badge(self, obj):
+        if obj.signal_score is None:
+            return mark_safe('<span style="color: #6c757d;">-</span>')
+        try:
+            score_str = f"{float(obj.signal_score):.2f}"
+        except Exception:
+            score_str = str(obj.signal_score)
+        return format_html(
+            '<span style="background-color: #0d6efd; color: #ffffff; padding: 2px 7px; border-radius: 4px; font-weight: bold; font-size: 11px;">⚡ {}</span>',
+            score_str
+        )
+    signal_score_badge.short_description = "Signal Score"
+
+    def metrics_preview(self, obj):
+        if not obj.metrics_data:
+            return mark_safe('<span style="color: #6c757d;">-</span>')
+        items = []
+        for k, v in list(obj.metrics_data.items())[:3]:
+            items.append(f"<strong>{escape(str(k))}</strong>: {escape(str(v))}")
+        preview_str = " | ".join(items)
+        if len(obj.metrics_data) > 3:
+            preview_str += " ..."
+        return mark_safe(f'<span style="font-size: 11px; color: #495057;">{preview_str}</span>')
+    metrics_preview.short_description = "Extracted Metrics"
+
+
+@admin.register(Paper)
+class PaperAdmin(admin.ModelAdmin):
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
+    inlines = [PaperMetricInline]
+    list_display = (
+        'title',
+        'workspace',
+        'pipeline_run_link',
+        'source_database_badge',
+        'created_at'
+    )
+    ordering = ('-created_at', '-id')
+    list_select_related = ('workspace',)
+    list_filter = ('source_database', 'workspace')
+    search_fields = ('title', 'authors', 'doi', 'arxiv_id', 'hash_id')
+    readonly_fields = ('id', 'hash_id', 'created_at')
+
+    fieldsets = (
+        ('Paper Metadata', {
+            'fields': ('workspace', 'title', 'authors', 'abstract')
+        }),
+        ('Identifiers & Source Repository', {
+            'fields': ('source_database', 'doi', 'arxiv_id', 'hash_id')
+        }),
+        ('Canonical Document Registry & Local Storage', {
+            'fields': ('document_registry', 'original_pdf_path', 'converted_md_path', 'created_at')
+        }),
+    )
+
+    def pipeline_run_link(self, obj):
+        pr = obj.pipeline_run
+        if not pr:
+            return "-"
+        url = reverse("admin:research_intelligence_pipelinerun_change", args=[pr.id])
+        return format_html('<a href="{}" title="Pipeline Run: {}"><code>{}</code></a>', url, str(pr.id), str(pr.id)[:8] + '...')
+    pipeline_run_link.short_description = "Latest Pipeline Run"
+
+    def source_database_badge(self, obj):
+        colors = {
+            'arxiv': '#b31b1b',
+            'openalex': '#5c3d99',
+            'lens': '#0d6efd',
+            'pubmed': '#198754'
+        }
+        src = (obj.source_database or 'unknown').lower()
+        bg = colors.get(src, '#6c757d')
+        return format_html(
+            '<span style="background-color: {}; color: #ffffff; padding: 2px 7px; border-radius: 4px; font-weight: 600; font-size: 11px; text-transform: uppercase;">{}</span>',
+            bg, src
+        )
+    source_database_badge.short_description = "Source"
+    source_database_badge.admin_order_field = "source_database"
 
 
 @admin.register(ExtractionDefinition)
@@ -2332,14 +2395,12 @@ class ExtractionAdmin(admin.ModelAdmin):
     )
     list_select_related = (
         'paper',
-        'paper__pipeline_run',
-        'paper__pipeline_run__workspace',
         'extraction_definition',
         'workspace'
     )
     ordering = ('-created_at', '-id')
     list_filter = ('validation_status', 'workspace')
-    search_fields = ('paper__title', 'category', 'extraction_definition__name', 'paper__pipeline_run__id')
+    search_fields = ('paper__title', 'category', 'extraction_definition__name')
     readonly_fields = ('exit_metric_preview', 'extraction_system_prompt', 'extraction_user_prompt_template', 'created_at')
 
     fieldsets = (
@@ -2422,7 +2483,6 @@ class ExtractionAdmin(admin.ModelAdmin):
         url = reverse("admin:research_intelligence_pipelinerun_change", args=[pr.id])
         return format_html('<a href="{}" title="Pipeline Run: {}"><code>{}</code></a>', url, str(pr.id), str(pr.id)[:8] + '...')
     pipeline_run_link.short_description = "Pipeline Run"
-    pipeline_run_link.admin_order_field = "paper__pipeline_run"
 
     def component_run_link(self, obj):
         cr = None
@@ -2514,15 +2574,97 @@ class PaperMetricAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.JSONField: {'widget': PrettyJSONWidget},
     }
-    list_display = ('paper', 'pipeline_run_link', 'workspace', 'signal_score_badge', 'metrics_preview', 'created_at')
+    list_display = (
+        'paper_display',
+        'pipeline_run_link',
+        'workspace',
+        'screening_status_badge',
+        'benchmark_badge',
+        'signal_score_badge',
+        'metrics_preview',
+        'created_at'
+    )
     ordering = ('-created_at', '-id')
     list_select_related = ('paper', 'pipeline_run', 'workspace')
-    list_filter = ('workspace', 'pipeline_run')
-    search_fields = ('paper__title', 'pipeline_run__id')
+    list_filter = ('screening_status', 'is_evaluation_benchmark', 'workspace', 'pipeline_run')
+    search_fields = ('paper__title', 'paper__authors', 'paper__doi', 'paper__arxiv_id', 'pipeline_run__id', 'screening_reasoning')
+    readonly_fields = ('id', 'created_at', 'paper_detail_link', 'pipeline_run_detail_link')
+
+    fieldsets = (
+        ('Review & Ingestion Context', {
+            'fields': (
+                'workspace',
+                'pipeline_run',
+                'pipeline_run_detail_link',
+                'paper',
+                'paper_detail_link',
+                'created_at'
+            )
+        }),
+        ('Screening Decision & Verification', {
+            'fields': (
+                'screening_status',
+                'screening_reasoning',
+                'is_evaluation_benchmark',
+                'evaluation_label'
+            )
+        }),
+        ('Composite Signal Score Evaluation', {
+            'fields': (
+                'signal_score',
+                'signal_score_details'
+            ),
+            'description': 'Composite score evaluated by sandboxed Python AST formula.'
+        }),
+        ('Dynamic Extracted Variables Matrix', {
+            'fields': ('metrics_data',),
+            'description': 'Dictionary of all normalized parameters and scores extracted across pipeline stages.'
+        }),
+    )
+
+    def paper_display(self, obj):
+        if not obj.paper:
+            return "-"
+        url = reverse("admin:research_intelligence_paper_change", args=[obj.paper.id])
+        src_tag = f" <span style='font-size: 10px; color: #6c757d; text-transform: uppercase;'>[{obj.paper.source_database}]</span>" if getattr(obj.paper, 'source_database', None) else ""
+        return format_html(
+            '<a href="{}" style="font-weight: 600; color: #0d6efd;" title="View Paper Details">{}</a>{}',
+            url,
+            obj.paper.title[:65] + ("..." if len(obj.paper.title) > 65 else ""),
+            mark_safe(src_tag)
+        )
+    paper_display.short_description = "Paper"
+    paper_display.admin_order_field = "paper__title"
+
+    def benchmark_badge(self, obj):
+        if not obj.is_evaluation_benchmark:
+            return format_html('<span style="color: #adb5bd; font-size: 11px;">-</span>')
+        label = f" ({obj.evaluation_label.upper()})" if obj.evaluation_label else ""
+        return format_html(
+            '<span style="background-color: #6f42c1; color: white; padding: 2px 7px; border-radius: 10px; font-size: 11px; font-weight: 600;">🎯 Benchmark{}</span>',
+            label
+        )
+    benchmark_badge.short_description = "Benchmark"
+    benchmark_badge.admin_order_field = "is_evaluation_benchmark"
+
+    def paper_detail_link(self, obj):
+        if not obj.paper:
+            return "-"
+        url = reverse("admin:research_intelligence_paper_change", args=[obj.paper.id])
+        return format_html('<a href="{}" class="button" target="_blank" style="margin-top: 4px;">📖 Open Paper Detail Form</a>', url)
+    paper_detail_link.short_description = "Open Paper in Admin"
+
+    def pipeline_run_detail_link(self, obj):
+        pr = obj.pipeline_run or (obj.paper.pipeline_run if obj.paper else None)
+        if not pr:
+            return "-"
+        url = reverse("admin:research_intelligence_pipelinerun_change", args=[pr.id])
+        return format_html('<a href="{}" class="button" target="_blank" style="margin-top: 4px;">⚡ Open PipelineRun Change Form</a>', url)
+    pipeline_run_detail_link.short_description = "Open Pipeline Run in Admin"
 
     def pipeline_run_link(self, obj):
         pr = obj.pipeline_run
-        if not pr and obj.paper and obj.paper.pipeline_run:
+        if not pr and obj.paper:
             pr = obj.paper.pipeline_run
         if not pr:
             return "-"
@@ -2531,16 +2673,54 @@ class PaperMetricAdmin(admin.ModelAdmin):
     pipeline_run_link.short_description = "Pipeline Run"
     pipeline_run_link.admin_order_field = "pipeline_run"
 
+    def screening_status_badge(self, obj):
+        colors = {
+            'pending': '#6c757d',
+            'abstract_passed': '#0dcaf0',
+            'full_text_passed': '#198754',
+            'accepted': '#198754',
+            'borderline': '#ffc107',
+            'rejected': '#dc3545',
+            'withdrawn': '#6c757d',
+        }
+        labels = {
+            'pending': 'Pending',
+            'abstract_passed': 'Abstract Passed',
+            'full_text_passed': 'Full Text Passed',
+            'accepted': 'Accepted',
+            'borderline': 'Borderline (Human Review)',
+            'rejected': 'Rejected',
+            'withdrawn': 'Withdrawn by Authors'
+        }
+        status = obj.screening_status or 'pending'
+        bg = colors.get(status, '#6c757d')
+        text_color = '#000000' if bg in ['#ffc107', '#0dcaf0'] else '#ffffff'
+        return render_badge(labels.get(status, status), bg, text_color)
+    screening_status_badge.short_description = "Screening Status"
+    screening_status_badge.admin_order_field = "screening_status"
+
     def signal_score_badge(self, obj):
         if obj.signal_score is None:
             return mark_safe('<span style="color: #6c757d;">-</span>')
         try:
-            score_str = f"{float(obj.signal_score):.2f}"
+            score = float(obj.signal_score)
+            score_str = f"{score:.2f}"
         except Exception:
             score_str = str(obj.signal_score)
+            score = 0.0
+
+        if score >= 75.0:
+            bg = "#198754"  # emerald green
+        elif score >= 50.0:
+            bg = "#0d6efd"  # primary blue
+        elif score >= 25.0:
+            bg = "#fd7e14"  # orange
+        else:
+            bg = "#6c757d"  # gray
+
         return format_html(
-            '<span style="background-color: #0d6efd; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px;">⚡ {}</span>',
-            score_str
+            '<span style="background-color: {}; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px;">⚡ {}</span>',
+            bg, score_str
         )
     signal_score_badge.short_description = "Signal Score"
     signal_score_badge.admin_order_field = "signal_score"

@@ -5,6 +5,7 @@ from research_intelligence.models import (
     Workspace,
     PipelineRun,
     Paper,
+    PaperMetric,
     ComponentRun,
     Subscriber,
 )
@@ -29,7 +30,12 @@ class ReportingTaskTestCase(TestCase):
             hash_id="report_paper_1",
             title="Next Gen Robotics",
             authors="John Doe",
-            abstract="Robotics in manufacturing.",
+            abstract="Robotics in manufacturing."
+        )
+        PaperMetric.objects.create(
+            paper=self.paper,
+            pipeline_run=self.pipeline_run,
+            workspace=self.workspace,
             screening_status="full_text_passed",
             signal_score=8.5
         )

@@ -8,6 +8,7 @@ from research_intelligence.models import (
     Workspace,
     WorkspaceMember,
     Paper,
+    PaperMetric,
     PipelineRun,
     ComponentRun,
     Extraction,
@@ -41,25 +42,25 @@ class ObservabilityTelemetryTestCase(TestCase):
             pipeline_run=self.pipeline_run,
             title="Accepted Quantum Paper",
             source_database="arxiv",
-            screening_status="accepted",
             hash_id="hash_telemetry_1"
         )
+        PaperMetric.objects.create(paper=self.paper_1, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="accepted")
         self.paper_2 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             title="Rejected Paper",
             source_database="openalex",
-            screening_status="rejected",
             hash_id="hash_telemetry_2"
         )
+        PaperMetric.objects.create(paper=self.paper_2, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="rejected")
         self.paper_3 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             title="Abstract Passed Paper",
             source_database="lens",
-            screening_status="abstract_passed",
             hash_id="hash_telemetry_3"
         )
+        PaperMetric.objects.create(paper=self.paper_3, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="abstract_passed")
 
         # Component run latency
         ComponentRun.objects.create(

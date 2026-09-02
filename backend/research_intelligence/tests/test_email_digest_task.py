@@ -8,6 +8,7 @@ from research_intelligence.models import (
     Subscriber,
     PipelineRun,
     Paper,
+    PaperMetric,
     Extraction,
     ExtractionDefinition,
 )
@@ -76,9 +77,9 @@ class EmailDigestTaskTests(TestCase):
             title="Scalable Surface Codes with 100 Qubits",
             authors="Alice Smith, Bob Jones",
             arxiv_id="2401.00001",
-            screening_status="accepted",
             abstract="We present a scalable surface code architecture achieving 100 physical qubits."
         )
+        PaperMetric.objects.create(paper=self.paper, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="accepted")
 
         self.extraction = Extraction.objects.create(
             workspace=self.workspace,
@@ -239,9 +240,9 @@ class EmailCompositionBuilderTests(TestCase):
             title="Graphene Superconductors at High Pressure",
             authors="John Doe, Jane Miller",
             arxiv_id="2402.12345",
-            screening_status="full_text_passed",
             abstract="Study on high pressure graphene superconductivity."
         )
+        PaperMetric.objects.create(paper=p1, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="full_text_passed")
         Extraction.objects.create(
             workspace=self.workspace,
             paper=p1,
@@ -269,9 +270,9 @@ class EmailCompositionBuilderTests(TestCase):
             title="Room-Temperature Superconducting Hydrides",
             authors="Arthur Pendelton",
             doi="10.1038/s41586-024-00123-x",
-            screening_status="accepted",
             abstract="Hydride synthesis and characterization."
         )
+        PaperMetric.objects.create(paper=p2, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="accepted")
         Extraction.objects.create(
             workspace=self.workspace,
             paper=p2,
@@ -283,16 +284,16 @@ class EmailCompositionBuilderTests(TestCase):
         )
 
         # Paper 3: Rejected paper (should not appear in scorecard blocks)
-        Paper.objects.create(
+        p3 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id=uuid.uuid4().hex,
             title="Unrelated Battery Optimization",
             authors="Sam Battery",
             arxiv_id="2402.99999",
-            screening_status="rejected",
             abstract="Battery chemical composition."
         )
+        PaperMetric.objects.create(paper=p3, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="rejected")
 
         payload = build_pipeline_run_digest_payload(self.pipeline_run)
 
@@ -339,24 +340,24 @@ class EmailCompositionBuilderTests(TestCase):
 
     def test_composition_with_all_papers_rejected(self):
         import uuid
-        Paper.objects.create(
+        p_rej1 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id=uuid.uuid4().hex,
             title="Rejected Paper 1",
             authors="Author 1",
-            screening_status="rejected",
             abstract="Out of scope"
         )
-        Paper.objects.create(
+        PaperMetric.objects.create(paper=p_rej1, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="rejected")
+        p_rej2 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id=uuid.uuid4().hex,
             title="Rejected Paper 2",
             authors="Author 2",
-            screening_status="rejected",
             abstract="Out of scope"
         )
+        PaperMetric.objects.create(paper=p_rej2, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="rejected")
 
         payload = build_pipeline_run_digest_payload(self.pipeline_run)
         html = payload["html_content"]
@@ -386,9 +387,9 @@ class EmailCompositionBuilderTests(TestCase):
             hash_id=uuid.uuid4().hex,
             title="Scalable <10nm> FinFETs & Nanoribbons: \"Novelty\"",
             authors="Dr. Jack & Jill <jack@tech.com>",
-            screening_status="accepted",
             abstract="Test abstract with <script>alert(1)</script> special characters."
         )
+        PaperMetric.objects.create(paper=p, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="accepted")
         Extraction.objects.create(
             workspace=self.workspace,
             paper=p,
@@ -438,8 +439,6 @@ class EmailCompositionBuilderTests(TestCase):
             title="Top Superconducting Topological Qubit",
             authors="Alice Quantum, Bob Qubit",
             arxiv_id="2403.11111",
-            screening_status="accepted",
-            signal_score=94.50,
             abstract="Detailed breakthrough abstract on Majorana zero modes and topological protection."
         )
         Extraction.objects.create(
@@ -475,8 +474,6 @@ class EmailCompositionBuilderTests(TestCase):
             title="Gated Optical Transceiver",
             authors="Charlie Optics",
             doi="10.1038/s41586-gated",
-            screening_status="accepted",
-            signal_score=0.00,
             abstract="Optical transceiver without sufficient TRL maturity."
         )
         Extraction.objects.create(
@@ -486,6 +483,23 @@ class EmailCompositionBuilderTests(TestCase):
             category="TRL Level",
             confidence_score=0.95,
             fields_data={"trl": "TRL 2"}
+        )
+
+        PaperMetric.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            paper=p1,
+            screening_status="accepted",
+            signal_score=94.50,
+            signal_score_details={"formula": "base"}
+        )
+        PaperMetric.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            paper=p2,
+            screening_status="accepted",
+            signal_score=0.00,
+            signal_score_details={"error": "gated to 0.00 based on the workspace"}
         )
 
         payload = build_pipeline_run_digest_payload(self.pipeline_run)
@@ -538,9 +552,9 @@ class EmailCompositionBuilderTests(TestCase):
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id=uuid.uuid4().hex,
-            title="Unpacking Test Paper",
-            screening_status="accepted"
+            title="Unpacking Test Paper"
         )
+        PaperMetric.objects.create(paper=paper, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="accepted")
         def_test = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Commercial Viability",
@@ -623,9 +637,14 @@ class EmailCompositionBuilderTests(TestCase):
                 hash_id=uuid.uuid4().hex,
                 title=f"Accepted Hybrid Quantum Paper #{i+1}",
                 authors=f"Author {i+1}",
-                screening_status="full_text_passed",
-                signal_score=40.24 + i * 5.0,
                 abstract=f"Abstract for paper {i+1}"
+            )
+            PaperMetric.objects.create(
+                paper=p,
+                pipeline_run=pr,
+                workspace=self.workspace,
+                screening_status="full_text_passed",
+                signal_score=40.24 + i * 5.0
             )
             Extraction.objects.create(
                 workspace=self.workspace,
@@ -654,15 +673,15 @@ class EmailCompositionBuilderTests(TestCase):
 
         # 5 papers rejected
         for i in range(5):
-            Paper.objects.create(
+            p_rej = Paper.objects.create(
                 workspace=self.workspace,
                 pipeline_run=pr,
                 hash_id=uuid.uuid4().hex,
                 title=f"Rejected Paper #{i+1}",
                 authors=f"Rejected Author {i+1}",
-                screening_status="rejected",
                 abstract=f"Rejected abstract {i+1}"
             )
+            PaperMetric.objects.create(paper=p_rej, pipeline_run=pr, workspace=self.workspace, screening_status="rejected")
 
         payload = build_pipeline_run_digest_payload(pr)
         html = payload["html_content"]

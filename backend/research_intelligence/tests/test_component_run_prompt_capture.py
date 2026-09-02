@@ -9,6 +9,7 @@ from research_intelligence.models import (
     PipelineRun,
     ComponentRun,
     Paper,
+    PaperMetric,
 )
 from research_intelligence.tasks.step_4_screening.node import AbstractScreeningNode, FullTextScreeningNode
 from research_intelligence.tasks.step_4_screening.abstract import execute_screening_job
@@ -73,7 +74,12 @@ class ComponentRunPromptCaptureTestCase(TestCase):
             pipeline_run=self.pipeline_run,
             hash_id="prompt_test_p1",
             title="Fast Attention Kernel Optimization",
-            abstract="We present FlashKernel for reducing GPU latency in transformer inference.",
+            abstract="We present FlashKernel for reducing GPU latency in transformer inference."
+        )
+        PaperMetric.objects.create(
+            paper=self.paper,
+            pipeline_run=self.pipeline_run,
+            workspace=self.workspace,
             screening_status="pending"
         )
 
@@ -342,8 +348,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         self.workspace.signal_score_code = "score = fit_score * 100.0"
         self.workspace.save()
 
-        self.paper.screening_status = "accepted"
-        self.paper.save()
+        PaperMetric.objects.filter(paper=self.paper, pipeline_run=self.pipeline_run).update(screening_status="accepted")
 
         raw_res = trigger_signal_score_job_logic(
             user=self.user,
@@ -419,7 +424,8 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         score, details = compute_paper_signal_score(self.paper)
         self.assertEqual(score, 0.0)
         self.assertIsNone(details.get("error"))
-        self.assertEqual(self.paper.signal_score, 0.0)
+        metric = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
+        self.assertEqual(metric.signal_score, 0.0)
 
 
 

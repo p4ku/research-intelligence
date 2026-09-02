@@ -1,9 +1,33 @@
 import logging
-from django.db.models.signals import post_delete, post_save
+from django.db.models.signals import post_delete, post_save, pre_delete
+from django.db.models import Count, Q
 from django.dispatch import receiver
 from .models import Paper, DocumentRegistry, PipelineRun, ResearchAgentProcess, WorkflowSchedule
 
 logger = logging.getLogger(__name__)
+
+
+@receiver(pre_delete, sender=PipelineRun)
+def on_pipeline_run_pre_delete_cleanup_orphan_papers(sender, instance, **kwargs):
+    """
+    When a PipelineRun is deleted directly, clean up any papers that were only associated
+    with this pipeline run (via PaperMetric) and have no other runs evaluating them.
+    If the deletion was triggered by a parent Workspace cascade, skip to avoid double deletion.
+    """
+    origin = kwargs.get('origin')
+    if origin is not None:
+        origin_model = getattr(origin, '_meta', None)
+        if origin_model and origin_model.model_name != 'pipelinerun':
+            return
+
+    try:
+        orphan_papers = list(Paper.objects.filter(metrics__pipeline_run=instance).annotate(
+            total_runs=Count('metrics__pipeline_run', distinct=True)
+        ).filter(total_runs__lte=1))
+        for p in orphan_papers:
+            p.delete()
+    except Exception as e:
+        logger.warning(f"Error cleaning up orphan papers during PipelineRun '{instance.id}' deletion: {e}")
 
 
 @receiver(post_delete, sender=Paper)

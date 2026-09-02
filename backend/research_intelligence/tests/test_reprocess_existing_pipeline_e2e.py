@@ -284,9 +284,10 @@ class ReprocessExistingPipelineE2ETestCase(TestCase):
                 self.assertEqual(m.pipeline_run, proc.pipeline_run)
 
             for paper in proc.pipeline_run.papers.all():
-                self.assertIsNotNone(paper.signal_score)
+                pm = PaperMetric.objects.get(paper=paper, pipeline_run=proc.pipeline_run)
+                self.assertIsNotNone(pm.signal_score)
                 # TRL=6, Novelty=8.5 -> score = 0.5 * 6 + 0.5 * 8.5 = 7.25
-                self.assertEqual(float(paper.signal_score), 7.25)
+                self.assertEqual(float(pm.signal_score), 7.25)
 
             # Verify extractions matrix via MCP
             matrix_json = get_paper_extractions_matrix_logic(user=self.user, workspace_id=str(self.workspace.id), pipeline_run_id=str(proc.pipeline_run.id))

@@ -39,14 +39,19 @@ class PaperContextBuilder:
                 f"Workspace: {target_workspace.name}",
                 f"Description: {getattr(target_workspace, 'description', '') or 'Systematic Literature Review Workspace'}"
             ]
+            from django.db.models import Subquery, OuterRef, F
+            metric_sub = PaperMetric.objects.filter(paper=OuterRef('pk')).order_by('-created_at')
             accepted_papers = Paper.objects.filter(
                 workspace=target_workspace,
-                screening_status__in=['full_text_passed', 'accepted']
-            ).order_by('-signal_score', '-created_at')[:10]
+                metrics__screening_status__in=['full_text_passed', 'accepted']
+            ).distinct().annotate(
+                annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1])
+            ).order_by(F('annotated_signal_score').desc(nulls_last=True), '-created_at')[:10]
             if accepted_papers.exists():
                 ws_lines.append("\nTop Accepted Papers:")
                 for p in accepted_papers:
-                    score_str = f" (Signal Score: {p.signal_score})" if p.signal_score is not None else ""
+                    score_val = getattr(p, 'annotated_signal_score', None)
+                    score_str = f" (Signal Score: {score_val})" if score_val is not None else ""
                     ws_lines.append(f"- {p.title}{score_str}")
             context_parts.append("### Workspace Overview\n" + "\n".join(ws_lines))
             return "\n\n".join(context_parts), None, None
@@ -94,14 +99,14 @@ class PaperContextBuilder:
                 except Exception as e:
                     logger.warning(f"Failed to read original PDF from {paper.original_pdf_path}: {e}")
 
-        # 3. Systematic Literature Review (SLR) Screening Rationale
+        # 3. Systematic Literature Review (SLR) Screening Rationale (from PaperMetric)
+        latest_metric = PaperMetric.objects.filter(paper=paper).order_by('-created_at').first()
         screening_lines = []
-        status_val = getattr(paper, 'screening_status', None)
-        reason_val = getattr(paper, 'screening_reasoning', None)
-        if status_val and status_val != 'pending':
-            screening_lines.append(f"- Screening Status: {status_val}")
-        if reason_val:
-            screening_lines.append(f"  Reason: {reason_val}")
+        if latest_metric:
+            if latest_metric.screening_status and latest_metric.screening_status != 'pending':
+                screening_lines.append(f"- Screening Status: {latest_metric.screening_status}")
+            if latest_metric.screening_reasoning:
+                screening_lines.append(f"  Reason: {latest_metric.screening_reasoning}")
 
         if screening_lines:
             context_parts.append("### SLR Screening Evaluation\n" + "\n".join(screening_lines))
@@ -118,18 +123,16 @@ class PaperContextBuilder:
                     ext_lines.append(f"  Confidence: {ext.confidence_score:.2f}")
             context_parts.append("### Extracted Research Parameters\n" + "\n".join(ext_lines))
 
-        # 5. Computed Quality & Signal Metrics
-        metrics = PaperMetric.objects.filter(paper=paper)
-        has_signal_score = paper.signal_score is not None
-        if metrics.exists() or has_signal_score:
+        # 5. Computed Quality & Signal Metrics (from PaperMetric)
+        metrics = list(PaperMetric.objects.filter(paper=paper).order_by('-created_at'))
+        if metrics:
             metric_lines = []
-            if has_signal_score:
-                metric_lines.append(f"- Composite Signal Score: {paper.signal_score}")
-                if paper.signal_score_details:
-                    metric_lines.append(f"  Score Computation Details: {paper.signal_score_details}")
+            primary_metric = metrics[0]
+            if primary_metric.signal_score is not None:
+                metric_lines.append(f"- Composite Signal Score: {primary_metric.signal_score}")
+                if primary_metric.signal_score_details:
+                    metric_lines.append(f"  Score Computation Details: {primary_metric.signal_score_details}")
             for m in metrics:
-                if m.signal_score is not None and not has_signal_score:
-                    metric_lines.append(f"- Signal Score: {m.signal_score}")
                 if m.metrics_data and isinstance(m.metrics_data, dict):
                     for k, v in m.metrics_data.items():
                         metric_lines.append(f"- {k}: {v}")
@@ -137,7 +140,8 @@ class PaperContextBuilder:
             if target_workspace and getattr(target_workspace, 'signal_score_code', None):
                 metric_lines.append(f"\nSignal Score Formula (Python AST):\n```python\n{target_workspace.signal_score_code.strip()}\n```")
 
-            context_parts.append("### Computed Quality & Signal Metrics\n" + "\n".join(metric_lines))
+            if metric_lines:
+                context_parts.append("### Computed Quality & Signal Metrics\n" + "\n".join(metric_lines))
 
         context_text = "\n\n".join(context_parts)
         return context_text, pdf_bytes, mime_type

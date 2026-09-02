@@ -6,6 +6,7 @@ from research_intelligence.models import (
     Workspace,
     PipelineRun,
     Paper,
+    PaperMetric,
     ComponentRun,
     ExtractionDefinition,
     Extraction,
@@ -47,7 +48,12 @@ class ExtractionTaskTestCase(TestCase):
             hash_id="paper_accepted_101",
             title="Field Testing Autonomous Rovers in Antarctic Conditions",
             authors="Dr. Scott",
-            abstract="We deployed autonomous rovers in Antarctica for 30 days.",
+            abstract="We deployed autonomous rovers in Antarctica for 30 days."
+        )
+        PaperMetric.objects.create(
+            paper=self.paper,
+            pipeline_run=self.pipeline_run,
+            workspace=self.workspace,
             screening_status="full_text_passed"
         )
         self.component_run = ComponentRun.objects.create(

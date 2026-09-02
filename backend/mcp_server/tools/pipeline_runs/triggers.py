@@ -504,7 +504,7 @@ def trigger_signal_score_job_logic(
         return f"Error: Workspace monthly quota exceeded: {quota_reason}"
 
     accepted_statuses = ['accepted', 'full_text_passed', 'abstract_passed']
-    papers_qs = pipeline_run.get_papers().filter(screening_status__in=accepted_statuses)
+    papers_qs = pipeline_run.get_papers(screening_status=accepted_statuses)
     papers_count = papers_qs.count()
 
     if papers_count == 0:

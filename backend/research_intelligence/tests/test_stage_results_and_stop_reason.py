@@ -10,6 +10,7 @@ from research_intelligence.models import (
     ResearchAgentProcess,
     ComponentRun,
     Paper,
+    PaperMetric,
     Scraper,
 )
 from research_intelligence.tasks.orchestrator.dag import build_default_slr_dag
@@ -206,9 +207,9 @@ class StageResultsAndStopReasonTestCase(TestCase):
         p1 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=pr,
-            title="Complete Paper",
-            screening_status="accepted"
+            title="Complete Paper"
         )
+        PaperMetric.objects.create(paper=p1, pipeline_run=pr, workspace=self.workspace, screening_status="accepted")
         ComponentRun.objects.create(pipeline_run=pr, step_type="search", status="completed", metrics={"total_found": 1, "ingested_new": 1})
         ComponentRun.objects.create(pipeline_run=pr, step_type="screening", component_name="abstract_screening", status="completed", metrics={"passed": 1, "total_screened": 1})
         ComponentRun.objects.create(pipeline_run=pr, step_type="download", status="completed", metrics={"downloaded": 1})
@@ -402,9 +403,9 @@ class StageResultsAndStopReasonTestCase(TestCase):
         paper = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=pr,
-            title="Quantum Matrix Synthesis",
-            screening_status="accepted"
+            title="Quantum Matrix Synthesis"
         )
+        PaperMetric.objects.create(paper=paper, pipeline_run=pr, workspace=self.workspace, screening_status="accepted")
         ext_def = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Methodology",

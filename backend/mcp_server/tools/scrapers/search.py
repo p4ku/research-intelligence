@@ -1,7 +1,7 @@
 import json
 import uuid
 from django.core.serializers.json import DjangoJSONEncoder
-from research_intelligence.models import Scraper, Paper
+from research_intelligence.models import Scraper
 from research_intelligence.services import (
     check_workspace_access,
     preview_search_query,

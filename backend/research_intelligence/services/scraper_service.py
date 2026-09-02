@@ -45,13 +45,39 @@ def list_workspace_papers(
     """
     qs = Paper.objects.filter(workspace_id=workspace_id)
     if pipeline_run_id:
-        qs = qs.filter(pipeline_run_id=pipeline_run_id)
+        qs = qs.filter(metrics__pipeline_run_id=pipeline_run_id)
+
+    from django.db.models import Subquery, OuterRef
+    from ..models import PaperMetric
+
+    if pipeline_run_id:
+        metric_sub = PaperMetric.objects.filter(paper=OuterRef('pk'), pipeline_run_id=pipeline_run_id)
+    else:
+        metric_sub = PaperMetric.objects.filter(paper=OuterRef('pk')).order_by('-created_at')
+
+    qs = qs.annotate(
+        annotated_pipeline_run_id=Subquery(metric_sub.values('pipeline_run_id')[:1]),
+        annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
+        annotated_screening_reasoning=Subquery(metric_sub.values('screening_reasoning')[:1]),
+        annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
+    )
 
     papers = list(qs.order_by('-created_at')[:limit])
     results = []
+    import uuid as _uuid
     for p in papers:
+        raw_pr = getattr(p, 'annotated_pipeline_run_id', None) or pipeline_run_id
+        if raw_pr:
+            try:
+                pr_id = str(_uuid.UUID(str(raw_pr)))
+            except Exception:
+                pr_id = str(raw_pr)
+        else:
+            pr_id = None
         results.append({
             "paper_id": str(p.id),
+            "pipeline_run_id": pr_id,
+            "run_id": pr_id,
             "title": p.title,
             "authors": p.authors,
             "abstract": p.abstract,
@@ -59,9 +85,9 @@ def list_workspace_papers(
             "pdf_url": p.original_pdf_path,
             "doi": p.doi,
             "arxiv_id": p.arxiv_id,
-            "screening_status": p.screening_status,
-            "screening_reasoning": p.screening_reasoning,
-            "signal_score": p.signal_score,
+            "screening_status": getattr(p, 'annotated_screening_status', None) or 'pending',
+            "screening_reasoning": getattr(p, 'annotated_screening_reasoning', None),
+            "signal_score": getattr(p, 'annotated_signal_score', None),
             "created_at": p.created_at.isoformat()
         })
     return results

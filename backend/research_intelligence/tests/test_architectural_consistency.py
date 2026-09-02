@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
-from research_intelligence.models import Workspace, WorkspaceMember, PipelineRun, Paper, Extraction, ExtractionDefinition
+from research_intelligence.models import Workspace, WorkspaceMember, PipelineRun, Paper, PaperMetric, Extraction, ExtractionDefinition
 from research_intelligence.tasks.step_2_download.fetch import download_pdf_to_s3
 from research_intelligence.tasks.step_3_ocr.convert import run_ocr_conversion
 from mcp_server.tools.extractions import get_paper_extractions_matrix_logic
@@ -47,9 +47,9 @@ class ArchitecturalConsistencyTestCase(TestCase):
             hash_id="canonical_hash_007",
             title="Consistent Storage Architectures in SLR Systems",
             original_pdf_path="https://arxiv.org/pdf/2401.77777.pdf",
-            source_database="arxiv",
-            screening_status="pending"
+            source_database="arxiv"
         )
+        PaperMetric.objects.create(paper=paper, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="pending")
 
         mock_pdf_binary = b"%PDF-1.4 Canonical PDF Stream Content"
 
@@ -120,9 +120,9 @@ class ArchitecturalConsistencyTestCase(TestCase):
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id="paper_metric_test",
-            title="Graphene Enhanced Titanium Alloy",
-            screening_status="full_text_passed"
+            title="Graphene Enhanced Titanium Alloy"
         )
+        PaperMetric.objects.create(paper=paper, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="full_text_passed")
 
         # 1. Flat dictionary
         ext_flat = Extraction.objects.create(
@@ -175,30 +175,30 @@ class ArchitecturalConsistencyTestCase(TestCase):
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id="p_ft_passed",
-            title="Full Text Accepted Paper",
-            screening_status="full_text_passed"
+            title="Full Text Accepted Paper"
         )
+        PaperMetric.objects.create(paper=p_ft_passed, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="full_text_passed")
         p_abs_passed = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id="p_abs_passed",
-            title="Abstract Accepted Paper",
-            screening_status="abstract_passed"
+            title="Abstract Accepted Paper"
         )
+        PaperMetric.objects.create(paper=p_abs_passed, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="abstract_passed")
         p_rejected = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id="p_rejected",
-            title="Rejected Paper",
-            screening_status="rejected"
+            title="Rejected Paper"
         )
+        PaperMetric.objects.create(paper=p_rejected, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="rejected")
         p_pending = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id="p_pending",
-            title="Pending Paper",
-            screening_status="pending"
+            title="Pending Paper"
         )
+        PaperMetric.objects.create(paper=p_pending, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="pending")
 
         # 1. Filter: 'accepted'
         matrix_accepted = json.loads(get_paper_extractions_matrix_logic(

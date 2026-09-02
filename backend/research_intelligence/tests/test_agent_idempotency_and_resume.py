@@ -10,6 +10,7 @@ from research_intelligence.models import (
     Workspace,
     WorkspaceMember,
     Paper,
+    PaperMetric,
     PipelineRun,
     ComponentRun,
     ResearchAgentProcess
@@ -73,9 +74,9 @@ class AgentIdempotencyAndResumeTestCase(TestCase):
             hash_id="paper_idem_001",
             title="Idempotent State Machines in Autonomous Agents",
             abstract="We explore fault recovery in distributed agent state engines.",
-            original_pdf_path="https://arxiv.org/pdf/2401.00001.pdf",
-            screening_status="pending"
+            original_pdf_path="https://arxiv.org/pdf/2401.00001.pdf"
         )
+        PaperMetric.objects.create(paper=self.paper, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="pending")
 
     def test_pause_resume_abort_state_engine_transitions(self):
         """

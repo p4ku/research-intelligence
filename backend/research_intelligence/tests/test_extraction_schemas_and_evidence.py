@@ -5,7 +5,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 
-from research_intelligence.models import Workspace, PipelineRun, ComponentRun, Paper, Extraction, ExtractionDefinition
+from research_intelligence.models import Workspace, PipelineRun, ComponentRun, Paper, PaperMetric, Extraction, ExtractionDefinition
 from research_intelligence.tasks.step_5_extraction.extract import _run_single_extraction_worker, execute_extraction_job
 
 User = get_user_model()
@@ -38,9 +38,9 @@ class ExtractionSchemasAndEvidenceTestCase(TestCase):
             pipeline_run=self.pipeline_run,
             hash_id="paper_ext_001",
             title="High-Efficiency Perovskite Solar Cells with 25.8% Certified Efficiency",
-            abstract="We report 25.8% power conversion efficiency using a novel passivation layer.",
-            screening_status="accepted"
+            abstract="We report 25.8% power conversion efficiency using a novel passivation layer."
         )
+        PaperMetric.objects.create(paper=self.paper, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="accepted")
 
         # Dynamic Extraction Definition with strict JSON Schema
         self.definition = ExtractionDefinition.objects.create(

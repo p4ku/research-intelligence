@@ -10,6 +10,7 @@ from research_intelligence.models import (
     ResearchAgentProcess,
     DocumentRegistry,
     Paper,
+    PaperMetric,
     ExtractionDefinition,
     Extraction,
     UserActivityLog,
@@ -154,9 +155,15 @@ class AdminChangelistViewsTestCase(TestCase):
             pipeline_run=self.pipeline_run,
             hash_id="paper_hash_001",
             title="Quantum Circuit Synthesis",
-            abstract="We present optimal synthesis for Clifford+T circuits.",
+            abstract="We present optimal synthesis for Clifford+T circuits."
+        )
+
+        self.paper_metric = PaperMetric.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            paper=self.paper,
             screening_status="accepted",
-            signal_score=Decimal("71.20")
+            signal_score=71.20
         )
 
         self.ext_def = ExtractionDefinition.objects.create(
@@ -270,9 +277,33 @@ class AdminChangelistViewsTestCase(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Quantum Circuit Synthesis")
+        pr_change_url = reverse('admin:research_intelligence_pipelinerun_change', args=[self.pipeline_run.id])
+        self.assertContains(response, pr_change_url)
+        self.assertNotContains(response, "⚡ 71.20")
+
+    def test_paper_changeform_renders_with_metrics_inline(self):
+        url = reverse('admin:research_intelligence_paper_change', args=[self.paper.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Quantum Circuit Synthesis")
+        self.assertContains(response, "Paper metrics")
+
+    def test_papermetric_changelist_renders(self):
+        url = reverse('admin:research_intelligence_papermetric_changelist')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Quantum Circuit Synthesis")
         self.assertContains(response, "⚡ 71.20")
         pr_change_url = reverse('admin:research_intelligence_pipelinerun_change', args=[self.pipeline_run.id])
         self.assertContains(response, pr_change_url)
+
+    def test_papermetric_changeform_renders(self):
+        url = reverse('admin:research_intelligence_papermetric_change', args=[self.paper_metric.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Review &amp; Ingestion Context")
+        self.assertContains(response, "Screening Decision &amp; Verification")
+        self.assertContains(response, "Composite Signal Score Evaluation")
 
     def test_extraction_changelist_renders(self):
         url = reverse('admin:research_intelligence_extraction_changelist')

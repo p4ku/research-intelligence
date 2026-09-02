@@ -83,11 +83,38 @@ class PipelineRun(models.Model):
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(blank=True, null=True)
 
-    def get_papers(self):
-        """Returns all papers associated with this run (both newly ingested and reprocessed)."""
-        from django.db.models import Q
+    def get_papers(self, screening_status=None, exclude_status=None):
+        """
+        Returns all papers associated with this run (both newly ingested and reprocessed)
+        evaluated via PaperMetric.
+        Filters evaluate metrics__pipeline_run and status in the same filter expression
+        to guarantee evaluation against the single, run-specific PaperMetric row.
+        """
         from .paper import Paper
-        return Paper.objects.filter(Q(pipeline_run=self) | Q(reprocessed_runs=self)).distinct()
+
+        if screening_status is not None:
+            if isinstance(screening_status, (list, tuple, set)):
+                return Paper.objects.filter(
+                    metrics__pipeline_run=self,
+                    metrics__screening_status__in=screening_status
+                ).distinct()
+            return Paper.objects.filter(
+                metrics__pipeline_run=self,
+                metrics__screening_status=screening_status
+            ).distinct()
+
+        if exclude_status is not None:
+            if isinstance(exclude_status, (list, tuple, set)):
+                return Paper.objects.filter(metrics__pipeline_run=self).exclude(
+                    metrics__pipeline_run=self,
+                    metrics__screening_status__in=exclude_status
+                ).distinct()
+            return Paper.objects.filter(metrics__pipeline_run=self).exclude(
+                metrics__pipeline_run=self,
+                metrics__screening_status=exclude_status
+            ).distinct()
+
+        return Paper.objects.filter(metrics__pipeline_run=self).distinct()
 
     @property
     def papers(self):

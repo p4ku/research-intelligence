@@ -15,8 +15,7 @@ class SignalScoreNode(BaseWorkflowNode):
         - Workspace.signal_score_code (sandboxed Python math formula).
         - Extracted variables mapped to snake_case (e.g. `fit_score`, `novelty_score`, `trl_level`).
     Outputs:
-        - Updated Paper.signal_score (float).
-        - Created/updated PaperMetric records with composite and sub-scores.
+        - Created/updated PaperMetric.signal_score (float) and signal_score_details.
         - ComponentRun.metrics: papers_scored, avg_signal_score, top_score.
     """
     name = "signal_score"
@@ -33,8 +32,8 @@ class SignalScoreNode(BaseWorkflowNode):
 
     output_contract = {
         "updated_models": {
-            "Paper.signal_score": "float (composite calculated score, e.g. 0.0 - 100.0)",
-            "PaperMetric.signal_score": "float",
+            "PaperMetric.signal_score": "float (composite calculated score, e.g. 0.0 - 100.0)",
+            "PaperMetric.signal_score_details": "dict (variable audit)",
         },
         "component_run_metrics": {
             "papers_scored": "int",

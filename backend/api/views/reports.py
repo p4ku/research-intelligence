@@ -11,6 +11,8 @@ from ..pagination import StandardResultsSetPagination
         OpenApiParameter(name='workspace', type=str, location=OpenApiParameter.QUERY, description='Filter reports by workspace UUID'),
         OpenApiParameter(name='workspace_id', type=str, location=OpenApiParameter.QUERY, description='Alias for workspace filter'),
         OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Filter reports by PipelineRun UUID'),
+        OpenApiParameter(name='pipeline_run_id', type=str, location=OpenApiParameter.QUERY, description='Alias for pipeline_run filter'),
+        OpenApiParameter(name='run_id', type=str, location=OpenApiParameter.QUERY, description='Alias for pipeline_run filter'),
     ]
 )
 class ReportViewSet(viewsets.ReadOnlyModelViewSet):
@@ -38,7 +40,11 @@ class ReportViewSet(viewsets.ReadOnlyModelViewSet):
         if ws_id:
             qs = qs.filter(workspace_id=ws_id)
 
-        pipeline_run_id = self.request.query_params.get('pipeline_run') or self.request.query_params.get('pipeline_run_id')
+        pipeline_run_id = (
+            self.request.query_params.get('pipeline_run')
+            or self.request.query_params.get('pipeline_run_id')
+            or self.request.query_params.get('run_id')
+        )
         if pipeline_run_id and str(pipeline_run_id).lower() not in ('undefined', 'null', ''):
             import uuid
             try:

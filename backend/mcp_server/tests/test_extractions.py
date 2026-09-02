@@ -1,4 +1,4 @@
-from research_intelligence.models import Paper, Extraction, ExtractionDefinition, PipelineRun
+from research_intelligence.models import Paper, PaperMetric, Extraction, ExtractionDefinition, PipelineRun
 from mcp_server.tools import (
     create_extraction_definition_logic,
     get_extraction_definition_logic,
@@ -44,9 +44,9 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
             pipeline_run=run,
             hash_id="sha256_ext_p1",
             title="Extraction Target Paper",
-            abstract="Target abstract",
-            screening_status="full_text_passed"
+            abstract="Target abstract"
         )
+        PaperMetric.objects.create(paper=p, pipeline_run=run, workspace=self.workspace, screening_status="full_text_passed")
 
         defn = ExtractionDefinition.objects.create(
             workspace=self.workspace,
@@ -80,30 +80,30 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
             workspace=self.workspace,
             pipeline_run=run,
             hash_id="sha256_p1_abs",
-            title="Abstract Passed Paper",
-            screening_status="abstract_passed"
+            title="Abstract Passed Paper"
         )
+        PaperMetric.objects.create(paper=p1, pipeline_run=run, workspace=self.workspace, screening_status="abstract_passed")
         p2 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=run,
             hash_id="sha256_p2_ft",
-            title="Full-Text Passed Paper",
-            screening_status="full_text_passed"
+            title="Full-Text Passed Paper"
         )
+        PaperMetric.objects.create(paper=p2, pipeline_run=run, workspace=self.workspace, screening_status="full_text_passed")
         p3 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=run,
             hash_id="sha256_p3_acc",
-            title="Accepted Paper",
-            screening_status="accepted"
+            title="Accepted Paper"
         )
+        PaperMetric.objects.create(paper=p3, pipeline_run=run, workspace=self.workspace, screening_status="accepted")
         p4 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=run,
             hash_id="sha256_p4_rej",
-            title="Rejected Paper",
-            screening_status="rejected"
+            title="Rejected Paper"
         )
+        PaperMetric.objects.create(paper=p4, pipeline_run=run, workspace=self.workspace, screening_status="rejected")
 
         # Default filter ("full_text_passed") includes abstract_passed, full_text_passed, accepted (3 papers)
         matrix_res = self.parse_res(get_paper_extractions_matrix_logic(self.admin, workspace_id=str(self.workspace.id)))

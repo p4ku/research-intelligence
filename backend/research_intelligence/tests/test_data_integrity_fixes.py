@@ -49,14 +49,14 @@ class DataIntegrityRemediationTestCase(TestCase):
             arxiv_id="2101.00001",
             title="Transformer Scaling Laws",
             authors="Vaswani et al.",
-            abstract="Study on transformer scaling.",
-            screening_status="abstract_passed",
-            screening_reasoning="Passed in Run 1"
+            abstract="Study on transformer scaling."
         )
         PaperMetric.objects.create(
             paper=paper_1,
             pipeline_run=run_1,
             workspace=self.workspace,
+            screening_status="abstract_passed",
+            screening_reasoning="Passed in Run 1",
             signal_score=0.85
         )
 
@@ -109,9 +109,10 @@ class DataIntegrityRemediationTestCase(TestCase):
         self.assertEqual(paper_1.pipeline_run, run_1)
         # 2. Run 1 still has paper_1 in its reverse relation
         self.assertEqual(run_1.papers.count(), 1)
-        # 3. Screening status was not prematurely wiped
-        self.assertEqual(paper_1.screening_status, "abstract_passed")
-        self.assertEqual(paper_1.screening_reasoning, "Passed in Run 1")
+        # 3. Screening status on Run 1 was not prematurely wiped
+        pm_1 = PaperMetric.objects.get(paper=paper_1, pipeline_run=run_1)
+        self.assertEqual(pm_1.screening_status, "abstract_passed")
+        self.assertEqual(pm_1.screening_reasoning, "Passed in Run 1")
         # 4. Run 2 is linked via reprocessed_runs ManyToMany
         self.assertIn(run_2, paper_1.reprocessed_runs.all())
         # 5. run_2.get_papers() includes paper_1

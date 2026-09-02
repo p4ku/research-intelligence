@@ -1,5 +1,5 @@
 from unittest.mock import patch, MagicMock
-from research_intelligence.models import Scraper, Paper, PipelineRun
+from research_intelligence.models import Scraper, Paper, PaperMetric, PipelineRun
 from mcp_server.tools import (
     create_scraper_logic,
     list_scrapers_logic,
@@ -50,22 +50,22 @@ class MCPScrapersTestCase(BaseMCPTestCase):
 
     def test_list_papers_and_optional_params(self):
         run = PipelineRun.objects.create(workspace=self.workspace)
-        Paper.objects.create(
+        p1 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=run,
             hash_id="sha256_p1",
             title="Listed Paper 1",
-            abstract="Abstract 1",
-            screening_status="passed"
+            abstract="Abstract 1"
         )
-        Paper.objects.create(
+        PaperMetric.objects.create(paper=p1, pipeline_run=run, workspace=self.workspace, screening_status="abstract_passed")
+        p2 = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=run,
             hash_id="sha256_p2",
             title="Listed Paper 2",
-            abstract="Abstract 2",
-            screening_status="rejected"
+            abstract="Abstract 2"
         )
+        PaperMetric.objects.create(paper=p2, pipeline_run=run, workspace=self.workspace, screening_status="rejected")
 
         res = self.parse_res(list_papers_logic(self.admin, workspace_id=str(self.workspace.id)))
         self.assertEqual(len(res), 2)

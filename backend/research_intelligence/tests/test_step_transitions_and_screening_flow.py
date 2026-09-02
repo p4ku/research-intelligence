@@ -9,6 +9,7 @@ from research_intelligence.models import (
     PipelineRun,
     ComponentRun,
     Paper,
+    PaperMetric,
     Extraction,
     ExtractionDefinition,
     ResearchAgentProcess
@@ -71,9 +72,9 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
             pipeline_run=self.pipeline_run,
             hash_id="flow_p1",
             title="Full Text Passed Paper",
-            abstract="Study on deep learning.",
-            screening_status="full_text_passed"
+            abstract="Study on deep learning."
         )
+        PaperMetric.objects.create(paper=p1, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="full_text_passed")
 
         # Paper 2 with alias 'accepted'
         p2 = Paper.objects.create(
@@ -81,9 +82,9 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
             pipeline_run=self.pipeline_run,
             hash_id="flow_p2",
             title="Accepted Alias Paper",
-            abstract="Study on reinforcement learning.",
-            screening_status="accepted"
+            abstract="Study on reinforcement learning."
         )
+        PaperMetric.objects.create(paper=p2, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="accepted")
 
         # Paper 3 rejected (should be excluded)
         p3 = Paper.objects.create(
@@ -91,9 +92,9 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
             pipeline_run=self.pipeline_run,
             hash_id="flow_p3",
             title="Rejected Paper",
-            abstract="Out of domain.",
-            screening_status="rejected"
+            abstract="Out of domain."
         )
+        PaperMetric.objects.create(paper=p3, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="rejected")
 
         comp_run_extract = ComponentRun.objects.create(
             pipeline_run=self.pipeline_run,
@@ -168,13 +169,13 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
             component_name="pdf_downloader",
             status="completed"
         )
-        Paper.objects.create(
+        p_direct = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id="direct_mm_p1",
-            title="Direct Multimodal Paper",
-            screening_status="abstract_passed"
+            title="Direct Multimodal Paper"
         )
+        PaperMetric.objects.create(paper=p_direct, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="abstract_passed")
 
         with patch("research_intelligence.tasks.step_4_screening.full_text.execute_full_text_screening_job") as mock_screening:
             mock_res = MagicMock()
@@ -201,14 +202,14 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
             component_name="workspace_search",
             status="completed"
         )
-        Paper.objects.create(
+        p_zero = Paper.objects.create(
             workspace=self.workspace,
             pipeline_run=self.pipeline_run,
             hash_id="zero_pass_p1",
             title="Irrelevant Paper",
-            abstract="Irrelevant abstract",
-            screening_status="rejected"
+            abstract="Irrelevant abstract"
         )
+        PaperMetric.objects.create(paper=p_zero, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="rejected")
 
         agent = ResearchAgentProcess.objects.create(
             workspace=self.workspace,
@@ -281,8 +282,8 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
             self.assertTrue(abs_res["passed"])
             self.assertEqual(abs_res["exit_metric_value"], 9.2)
 
-            paper.refresh_from_db()
-            self.assertEqual(paper.screening_status, "abstract_passed")
+            pm = PaperMetric.objects.get(paper=paper, pipeline_run=self.pipeline_run)
+            self.assertEqual(pm.screening_status, "abstract_passed")
 
             # 2. Full-Text screening passes with custom rigour score
             mock_generate.return_value = {
@@ -294,8 +295,8 @@ class StepTransitionsAndScreeningFlowTestCase(TestCase):
             self.assertTrue(ft_res["passed"])
             self.assertEqual(ft_res["exit_metric_value"], 8.7)
 
-            paper.refresh_from_db()
-            self.assertEqual(paper.screening_status, "full_text_passed")
+            pm.refresh_from_db()
+            self.assertEqual(pm.screening_status, "full_text_passed")
 
             # Check that PaperMetric recorded both stages cleanly
             pm = PaperMetric.objects.get(paper=paper, pipeline_run=self.pipeline_run)

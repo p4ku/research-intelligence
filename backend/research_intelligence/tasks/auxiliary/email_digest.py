@@ -49,18 +49,33 @@ def build_pipeline_run_digest_payload(
         papers_qs = Paper.objects.none()
 
     # Determine truly accepted papers based on the terminal screening stage:
-    if papers_qs.filter(screening_status__in=['full_text_passed', 'accepted']).exists():
-        accepted_papers = list(papers_qs.filter(screening_status__in=['full_text_passed', 'accepted']))
-    elif papers_qs.filter(screening_status='abstract_passed').exists():
-        accepted_papers = list(papers_qs.filter(screening_status='abstract_passed'))
+    if pipeline_run:
+        if pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted']).exists():
+            accepted_papers = list(pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted']))
+        elif pipeline_run.get_papers(screening_status='abstract_passed').exists():
+            accepted_papers = list(pipeline_run.get_papers(screening_status='abstract_passed'))
+        else:
+            accepted_papers = list(pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn', 'pending']))
     else:
-        accepted_papers = list(papers_qs.exclude(screening_status__in=['rejected', 'withdrawn', 'pending']))
+        accepted_papers = []
+
+    from research_intelligence.models import PaperMetric
+    if pipeline_run and accepted_papers:
+        metrics_by_paper = {
+            pm.paper_id: pm for pm in PaperMetric.objects.filter(paper__in=accepted_papers, pipeline_run=pipeline_run)
+        }
+    elif accepted_papers:
+        metrics_by_paper = {
+            pm.paper_id: pm for pm in PaperMetric.objects.filter(paper__in=accepted_papers).order_by('-created_at')
+        }
+    else:
+        metrics_by_paper = {}
 
     # Sort accepted papers: scored papers with highest signal_score first, then unscored by creation date
     accepted_papers.sort(
         key=lambda p: (
-            p.signal_score is not None,
-            p.signal_score if p.signal_score is not None else -1.0,
+            metrics_by_paper.get(p.id).signal_score is not None if metrics_by_paper.get(p.id) else False,
+            metrics_by_paper.get(p.id).signal_score if (metrics_by_paper.get(p.id) and metrics_by_paper.get(p.id).signal_score is not None) else -1.0,
             p.created_at
         ),
         reverse=True
@@ -72,9 +87,13 @@ def build_pipeline_run_digest_payload(
     rejected_count = max(0, total_papers - len(accepted_papers))
 
     # Calculate signal score summary
-    scored_papers = [p for p in accepted_papers if p.signal_score is not None]
-    avg_signal_score = (sum(p.signal_score for p in scored_papers) / len(scored_papers)) if scored_papers else None
-    top_signal_score = max((p.signal_score for p in scored_papers), default=None)
+    scored_metrics = [
+        metrics_by_paper[p.id].signal_score
+        for p in accepted_papers
+        if p.id in metrics_by_paper and metrics_by_paper[p.id].signal_score is not None
+    ]
+    avg_signal_score = (sum(scored_metrics) / len(scored_metrics)) if scored_metrics else None
+    top_signal_score = max(scored_metrics, default=None)
 
     # 2. Gather extractions across accepted papers
     all_extractions = []
@@ -162,13 +181,18 @@ def build_pipeline_run_digest_payload(
             else (f"https://doi.org/{p.doi}" if p.doi else p.original_pdf_path)
         )
 
+        pm = metrics_by_paper.get(p.id)
+        pm_status = (pm.screening_status if pm else 'pending').replace('_', ' ')
+        pm_reason = (pm.screening_reasoning if pm else '') or ''
+        pm_score = pm.signal_score if pm else None
+
         is_gated_paper = False
-        if p.signal_score == 0.0 and len(scored_papers) > 0 and (top_signal_score or 0.0) > 0.0:
+        if pm_score == 0.0 and len(scored_metrics) > 0 and (top_signal_score or 0.0) > 0.0:
             is_gated_paper = True
             has_gated = True
 
-        if p.signal_score is not None:
-            score_formatted = f"{p.signal_score:.2f}"
+        if pm_score is not None:
+            score_formatted = f"{pm_score:.2f}"
             if is_gated_paper:
                 score_formatted += "*"
         else:
@@ -182,9 +206,9 @@ def build_pipeline_run_digest_payload(
             "arxiv_id": p.arxiv_id,
             "pdf_link": pdf_link,
             "abstract": p.abstract or "",
-            "screening_status": p.screening_status.replace('_', ' '),
-            "screening_reason": p.screening_reasoning or "",
-            "signal_score": round(p.signal_score, 2) if p.signal_score is not None else None,
+            "screening_status": pm_status,
+            "screening_reason": pm_reason,
+            "signal_score": round(pm_score, 2) if pm_score is not None else None,
             "signal_score_formatted": score_formatted,
             "is_gated": is_gated_paper,
             "matrix_entries": matrix_entries,

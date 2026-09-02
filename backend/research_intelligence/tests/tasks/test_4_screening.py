@@ -1,6 +1,6 @@
 from django.test import TestCase
 from unittest.mock import patch
-from ...models import Workspace, PipelineRun, Paper, Scraper
+from ...models import Workspace, PipelineRun, Paper, PaperMetric, Scraper
 from ...tasks.step_4_screening.abstract import screen_abstract
 from ...tasks.step_4_screening.full_text import screen_full_text
 
@@ -45,9 +45,10 @@ class ScreeningTasksTestCase(TestCase):
         result = screen_abstract(self.paper.id, self.workspace.id)
 
         self.assertTrue(result)
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.screening_status, "abstract_passed")
-        self.assertEqual(self.paper.screening_reasoning, "Contains agentic keywords.")
+        metric = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
+        self.assertIsNotNone(metric)
+        self.assertEqual(metric.screening_status, "abstract_passed")
+        self.assertEqual(metric.screening_reasoning, "Contains agentic keywords.")
 
         # Ensure correct model and reasoning_effort parameters were passed
         mock_generate.assert_called_once()
@@ -67,9 +68,10 @@ class ScreeningTasksTestCase(TestCase):
         result = screen_full_text(self.paper.id, self.workspace.id)
 
         self.assertTrue(result)
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.screening_status, "full_text_passed")
-        self.assertEqual(self.paper.screening_reasoning, "Full text details reasoning workflows.")
+        metric = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
+        self.assertIsNotNone(metric)
+        self.assertEqual(metric.screening_status, "full_text_passed")
+        self.assertEqual(metric.screening_reasoning, "Full text details reasoning workflows.")
 
         # Ensure correct model and reasoning_effort parameters were passed
         mock_generate.assert_called_once()
@@ -97,9 +99,9 @@ class ScreeningTasksTestCase(TestCase):
         }
         res_pass = screen_abstract(self.paper.id, self.workspace.id)
         self.assertTrue(res_pass)
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.screening_status, "abstract_passed")
-        self.assertEqual(self.paper.screening_reasoning, "Abstract satisfies inclusion criteria.")
+        metric_pass = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
+        self.assertEqual(metric_pass.screening_status, "abstract_passed")
+        self.assertEqual(metric_pass.screening_reasoning, "Abstract satisfies inclusion criteria.")
         
         # Verify prompt contained abstract_acceptance_criteria
         prompt_text = mock_generate.call_args.kwargs.get("prompt", "")
@@ -115,9 +117,9 @@ class ScreeningTasksTestCase(TestCase):
         }
         res_reject = screen_abstract(self.paper.id, self.workspace.id)
         self.assertTrue(res_reject)
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.screening_status, "rejected")
-        self.assertEqual(self.paper.screening_reasoning, "Abstract matches rejection criteria (robotics hardware).")
+        metric_rej = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
+        self.assertEqual(metric_rej.screening_status, "rejected")
+        self.assertEqual(metric_rej.screening_reasoning, "Abstract matches rejection criteria (robotics hardware).")
 
     @patch("django.core.files.storage.default_storage.open")
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
@@ -134,8 +136,8 @@ class ScreeningTasksTestCase(TestCase):
         }
         abs_res = screen_abstract(self.paper.id, self.workspace.id)
         self.assertTrue(abs_res)
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.screening_status, "abstract_passed")
+        m_abs = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
+        self.assertEqual(m_abs.screening_status, "abstract_passed")
 
         # Stage 2: Full-Text Screening
         mock_generate.reset_mock()
@@ -146,9 +148,9 @@ class ScreeningTasksTestCase(TestCase):
         }
         ft_res = screen_full_text(self.paper.id, self.workspace.id)
         self.assertTrue(ft_res)
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.screening_status, "full_text_passed")
-        self.assertEqual(self.paper.screening_reasoning, "Full text confirms technical feasibility and agentic architecture.")
+        m_ft = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
+        self.assertEqual(m_ft.screening_status, "full_text_passed")
+        self.assertEqual(m_ft.screening_reasoning, "Full text confirms technical feasibility and agentic architecture.")
 
     @patch("django.core.files.storage.default_storage.open")
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
@@ -160,8 +162,8 @@ class ScreeningTasksTestCase(TestCase):
         # Stage 1: Abstract Screening passes
         mock_generate.return_value = {"passed": True, "reasoning": "Abstract sounds relevant."}
         screen_abstract(self.paper.id, self.workspace.id)
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.screening_status, "abstract_passed")
+        m1 = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
+        self.assertEqual(m1.screening_status, "abstract_passed")
 
         # Stage 2: Full-Text Screening fails
         mock_generate.reset_mock()
@@ -171,9 +173,9 @@ class ScreeningTasksTestCase(TestCase):
             "evidence_quotes": ["physical robotics"]
         }
         screen_full_text(self.paper.id, self.workspace.id)
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.screening_status, "rejected")
-        self.assertEqual(self.paper.screening_reasoning, "Full text analysis reveals physical robotics hardware constraint.")
+        m2 = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
+        self.assertEqual(m2.screening_status, "rejected")
+        self.assertEqual(m2.screening_reasoning, "Full text analysis reveals physical robotics hardware constraint.")
 
     @patch("django.core.files.storage.default_storage.open")
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
@@ -193,8 +195,8 @@ class ScreeningTasksTestCase(TestCase):
         # Direct Full-Text Screening without abstract step
         result = screen_full_text(self.paper.id, self.workspace.id)
         self.assertTrue(result)
-        self.paper.refresh_from_db()
-        self.assertEqual(self.paper.screening_status, "full_text_passed")
+        m_skip = PaperMetric.objects.filter(paper=self.paper).order_by('-created_at').first()
+        self.assertEqual(m_skip.screening_status, "full_text_passed")
 
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
     def test_dynamic_abstract_screening_custom_prompt_and_schema(self, mock_generate):
@@ -288,13 +290,16 @@ class ScreeningTasksTestCase(TestCase):
     def test_screening_node_should_halt_pipeline(self):
         """Test ScreeningNode halts cleanly when 0 papers are accepted (even with withdrawn/rejected mix)."""
         from ...tasks.step_4_screening.node import AbstractScreeningNode, FullTextScreeningNode
-        from ...models import ComponentRun
+        from ...models import ComponentRun, PaperMetric
         abs_node = AbstractScreeningNode()
         ft_node = FullTextScreeningNode()
 
         # Create paper 2 as withdrawn, paper 1 as rejected
-        self.paper.screening_status = "rejected"
-        self.paper.save()
+        PaperMetric.objects.update_or_create(
+            paper=self.paper,
+            pipeline_run=self.pipeline_run,
+            defaults={"workspace": self.workspace, "screening_status": "rejected"}
+        )
 
         p2 = Paper.objects.create(
             workspace=self.workspace,
@@ -302,7 +307,12 @@ class ScreeningTasksTestCase(TestCase):
             hash_id="paper_withdrawn",
             title="Withdrawn Study",
             authors="Bob",
-            abstract="Withdrawn",
+            abstract="Withdrawn"
+        )
+        PaperMetric.objects.create(
+            paper=p2,
+            pipeline_run=self.pipeline_run,
+            workspace=self.workspace,
             screening_status="withdrawn"
         )
 
@@ -316,7 +326,7 @@ class ScreeningTasksTestCase(TestCase):
             step_type="screening",
             component_name="abstract_screening",
             status="completed",
-            metrics={"total_screened": 2, "passed": 0, "rejected": 1, "withdrawn": 1}
+            metrics={"total_screened": 2, "passed": 0, "rejected": 2}
         )
 
         should_halt, msg = abs_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
@@ -336,11 +346,8 @@ class ScreeningTasksTestCase(TestCase):
         self.assertIn("0 papers accepted", msg_ft)
 
         # If one paper passes, it should not halt
-        p2.screening_status = "accepted"
-        p2.save()
+        PaperMetric.objects.filter(paper=p2, pipeline_run=self.pipeline_run).update(screening_status="accepted")
         should_halt, msg = abs_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
         self.assertFalse(should_halt)
         should_halt_ft, msg_ft = ft_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
         self.assertFalse(should_halt_ft)
-
-

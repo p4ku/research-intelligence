@@ -12,7 +12,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
-from research_intelligence.models import Paper, Workspace
+from research_intelligence.models import Workspace
 from research_intelligence.tasks.auxiliary.health import health_ping_task
 
 logger = logging.getLogger(__name__)

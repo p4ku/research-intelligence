@@ -206,7 +206,7 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
     try:
         papers_qs = pipeline_run.get_papers().filter(
             original_pdf_path__isnull=False
-        ).exclude(screening_status='withdrawn')
+        ).exclude(metrics__pipeline_run=pipeline_run, metrics__screening_status='withdrawn')
 
         papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
         converted_count = 0

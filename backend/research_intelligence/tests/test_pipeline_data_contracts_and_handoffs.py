@@ -213,10 +213,10 @@ return round(min(base, 10.0), 2)
         abstract_res = execute_screening_job(str(screening_comp_run.id))
         self.assertTrue(abstract_res)
 
-        paper_1.refresh_from_db()
-        paper_2.refresh_from_db()
-        self.assertEqual(paper_1.screening_status, "abstract_passed")
-        self.assertEqual(paper_2.screening_status, "rejected")
+        pm1 = PaperMetric.objects.get(paper=paper_1, pipeline_run=self.pipeline_run)
+        pm2 = PaperMetric.objects.get(paper=paper_2, pipeline_run=self.pipeline_run)
+        self.assertEqual(pm1.screening_status, "abstract_passed")
+        self.assertEqual(pm2.screening_status, "rejected")
 
         # 3. STEP 3 (Download Contract Handoff - Targets ONLY abstract_passed papers):
         download_comp_run = ComponentRun.objects.create(
@@ -258,8 +258,8 @@ return round(min(base, 10.0), 2)
         fulltext_res = execute_full_text_screening_job(str(fulltext_comp_run.id))
         self.assertTrue(fulltext_res)
 
-        paper_1.refresh_from_db()
-        self.assertEqual(paper_1.screening_status, "full_text_passed")
+        pm1.refresh_from_db()
+        self.assertEqual(pm1.screening_status, "full_text_passed")
 
         # 6. STEP 6 (Dynamic Extraction Contract Handoff):
         extraction_comp_run = ComponentRun.objects.create(
@@ -285,9 +285,6 @@ return round(min(base, 10.0), 2)
         )
         signal_res = execute_signal_score_job(str(signal_comp_run.id))
         self.assertTrue(signal_res["success"])
-
-        paper_1.refresh_from_db()
-        self.assertEqual(paper_1.signal_score, 8.75)
 
         metric = PaperMetric.objects.filter(paper=paper_1, pipeline_run=self.pipeline_run).first()
         self.assertIsNotNone(metric)
@@ -339,9 +336,9 @@ return round(min(base, 10.0), 2)
             authors="Charlie",
             abstract="This paper was withdrawn by the authors.",
             arxiv_id="2402.00003",
-            screening_status="withdrawn",
             source_database="arxiv"
         )
+        PaperMetric.objects.create(paper=paper_withdrawn, pipeline_run=run, workspace=self.workspace, screening_status="withdrawn")
 
         # Mock Abstract Screening LLM
         mock_llm = MagicMock()
@@ -395,13 +392,13 @@ return round(min(base, 10.0), 2)
         self.assertFalse(screened_map[str(paper_reject.id)]["passed"])
         self.assertEqual(screened_map[str(paper_reject.id)]["screening_status"], "rejected")
 
-        # Verify Paper model status
-        paper_pass.refresh_from_db()
-        paper_reject.refresh_from_db()
-        paper_withdrawn.refresh_from_db()
-        self.assertEqual(paper_pass.screening_status, "abstract_passed")
-        self.assertEqual(paper_reject.screening_status, "rejected")
-        self.assertEqual(paper_withdrawn.screening_status, "withdrawn")
+        # Verify PaperMetric status
+        pm_p = PaperMetric.objects.get(paper=paper_pass, pipeline_run=run)
+        pm_r = PaperMetric.objects.get(paper=paper_reject, pipeline_run=run)
+        pm_w = PaperMetric.objects.get(paper=paper_withdrawn, pipeline_run=run)
+        self.assertEqual(pm_p.screening_status, "abstract_passed")
+        self.assertEqual(pm_r.screening_status, "rejected")
+        self.assertEqual(pm_w.screening_status, "withdrawn")
 
         # 2. Execute Step 3 (Download)
         mock_arxiv_download_file.return_value = b"%PDF-1.4 Fake Topological Braiding PDF Content"

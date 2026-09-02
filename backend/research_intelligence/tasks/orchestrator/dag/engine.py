@@ -431,9 +431,9 @@ class WorkflowDAG:
             all_done = all(st in ("completed", "skipped") for st in status_map.values())
             if all_done:
                 from research_intelligence.models import Extraction
-                accepted_count = pipeline_run.papers.filter(screening_status__in=['accepted', 'full_text_passed']).count()
-                extracted_count = Extraction.objects.filter(paper__in=pipeline_run.papers.all()).count()
-                total_fetched = pipeline_run.papers.count()
+                accepted_count = pipeline_run.get_papers(screening_status=['accepted', 'full_text_passed']).count()
+                extracted_count = Extraction.objects.filter(paper__in=pipeline_run.get_papers()).count()
+                total_fetched = pipeline_run.get_papers().count()
                 summary_msg = (
                     f"Full SLR pipeline finished successfully. "
                     f"Papers: {total_fetched} fetched, {accepted_count} passed screening, "
