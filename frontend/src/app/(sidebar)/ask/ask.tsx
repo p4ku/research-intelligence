@@ -631,15 +631,7 @@ export function Ask({
                 transition={{ duration: reduceMotion ? 0 : 0.15 }}
                 className="mx-auto mb-[18px] w-[min(100%-3rem,800px)] shrink-0"
               >
-                <p className="text-muted-foreground font-mono text-[10px] font-medium tracking-[0.18em] uppercase">
-                  {t('One paper at a time')}
-                </p>
-                <p className="text-foreground mt-1.5 text-[15px] text-balance">
-                  {t('Every answer is read from a single paper’s full text.')}{' '}
-                  <span className="text-muted-foreground">
-                    {t('Choose the paper, then ask it anything.')}
-                  </span>
-                </p>
+                <p className="text-foreground text-[15px] text-balance">{t('Ask a paper.')}</p>
               </motion.div>
             )}
           </AnimatePresence>
