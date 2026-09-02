@@ -2,36 +2,20 @@
 
 /**
  * The client half of the chat contract: POSTs to /bff/chat/stream and reduces
- * our SSE frames (src/lib/bff/chat/schema.ts) into render state. Replaces the
- * old use-simulated-stream. Delta text is batched through rAF so chunky
+ * our SSE frames into render state. The frame loop and the terminal decision
+ * live in consume-stream.ts (pure, unit-tested); this hook maps the ending
+ * onto state: `done` settles, an error frame or a cut stream fails with the
+ * partial text kept, and an abort says nothing at all — `reset()` and unmount
+ * are silent by construction, while `stop()` is the one deliberate
+ * settle-with-what-we-have. Delta text is batched through rAF so chunky
  * streams don't render per token.
  */
-import type {
-  ChatScope,
-  ChatStreamRequest,
-  ChatUsage,
-  FactCheck,
-  PaperCitation,
-  VisualCitation,
-} from '@/lib/bff/chat/schema'
+import type { ChatStreamRequest } from '@/lib/bff/chat/schema'
 import { problemBody, type Problem } from '@/lib/bff/core/problem'
-import { parseSse } from '@/lib/sse/parse'
 import { useCallback, useEffect, useReducer, useRef } from 'react'
+import { consumeChatStream, type ChatStreamState } from './consume-stream'
 
-export type ChatStreamStatus = 'idle' | 'connecting' | 'streaming' | 'done' | 'error'
-
-export interface ChatStreamState {
-  status: ChatStreamStatus
-  text: string
-  sessionId: string | null
-  messageId: string | null
-  scope: ChatScope | null
-  citations: PaperCitation[]
-  visualCitations: VisualCitation[]
-  factCheck: FactCheck | null
-  usage: ChatUsage | null
-  error: Problem | null
-}
+export type { ChatStreamState, ChatStreamStatus } from './consume-stream'
 
 const INITIAL: ChatStreamState = {
   status: 'idle',
@@ -71,7 +55,9 @@ export function useChatStream(onFinish?: (final: ChatStreamState) => void) {
   // snapshot to onFinish without waiting for a render.
   const snapshotRef = useRef<ChatStreamState>(INITIAL)
   const onFinishRef = useRef(onFinish)
-  onFinishRef.current = onFinish
+  useEffect(() => {
+    onFinishRef.current = onFinish
+  })
 
   const patch = useCallback((patch: Partial<ChatStreamState>) => {
     snapshotRef.current = { ...snapshotRef.current, ...patch }
@@ -86,10 +72,26 @@ export function useChatStream(onFinish?: (final: ChatStreamState) => void) {
     })
   }, [patch])
 
-  const abort = useCallback(() => {
+  const cancelFlush = useCallback(() => {
+    if (flushRef.current) cancelAnimationFrame(flushRef.current)
+    flushRef.current = 0
+  }, [])
+
+  /**
+   * Reader-initiated stop: file what has arrived as a done turn. The status
+   * guard makes it idempotent — a stop after settle must not re-fire
+   * onFinish. The rAF cancel matters: a queued flush re-patching `streaming`
+   * after the done-patch would hang the consumers' reveal handshake.
+   */
+  const stop = useCallback(() => {
+    const status = snapshotRef.current.status
+    if (status !== 'connecting' && status !== 'streaming') return
     abortRef.current?.abort()
     abortRef.current = null
-  }, [])
+    cancelFlush()
+    patch({ status: 'done', text: textRef.current })
+    onFinishRef.current?.(snapshotRef.current)
+  }, [cancelFlush, patch])
 
   useEffect(() => () => abortRef.current?.abort(), [])
 
@@ -121,73 +123,43 @@ export function useChatStream(onFinish?: (final: ChatStreamState) => void) {
       }
       if (!res.ok || !res.body) {
         const problem = (await res.json().catch(() => null)) as Problem | null
+        // A stop() can race the body read; it already settled — say nothing.
+        if (controller.signal.aborted) return
         if (problem?.status === 401) window.location.assign('/auth/logout?reason=expired')
         return fail(problem ?? problemBody(res.status >= 500 ? 'upstream-error' : 'internal'))
       }
 
-      try {
-        for await (const frame of parseSse(res.body, controller.signal)) {
-          let data: unknown
-          try {
-            data = JSON.parse(frame.data)
-          } catch {
-            continue
-          }
-          const record = data as Record<string, unknown>
-          switch (frame.event) {
-            case 'metadata':
-              patch({
-                sessionId: (record.session_id as string) ?? null,
-                messageId: (record.message_id as string) ?? null,
-                scope: (record.scope as ChatScope) ?? null,
-              })
-              break
-            case 'delta':
-              textRef.current += (record.text as string) ?? ''
-              flushText()
-              break
-            case 'citations':
-              patch({ citations: (record.items as PaperCitation[]) ?? [] })
-              break
-            case 'visual_citations':
-              patch({ visualCitations: (record.items as VisualCitation[]) ?? [] })
-              break
-            case 'fact_check':
-              patch({ factCheck: record as unknown as FactCheck })
-              break
-            case 'usage':
-              patch({ usage: record as unknown as ChatUsage })
-              break
-            case 'done':
-              if (flushRef.current) cancelAnimationFrame(flushRef.current)
-              flushRef.current = 0
-              patch({ status: 'done', text: textRef.current })
-              break
-            case 'error':
-              return fail(record as unknown as Problem)
-          }
-        }
-      } catch {
-        if (!controller.signal.aborted) {
-          return fail(problemBody('upstream-error'))
-        }
+      const end = await consumeChatStream(res.body, controller.signal, {
+        patch,
+        delta: (text) => {
+          textRef.current += text
+          flushText()
+        },
+      })
+      cancelFlush()
+      switch (end.kind) {
+        case 'aborted':
+          return // reset(), unmount, re-send preemption, or a settled stop(): say nothing
+        case 'error':
+          return fail(end.problem)
+        case 'cut':
+          return fail(problemBody('upstream-error')) // no done frame: a truncation, not an ending
+        case 'done':
+          patch({ status: 'done', text: textRef.current })
+          onFinishRef.current?.(snapshotRef.current)
       }
-      // Stream closed (done, abort, or cut): settle with what we have.
-      if (flushRef.current) cancelAnimationFrame(flushRef.current)
-      flushRef.current = 0
-      patch({ status: 'done', text: textRef.current })
-      onFinishRef.current?.(snapshotRef.current)
     },
-    [flushText, patch],
+    [cancelFlush, flushText, patch],
   )
 
   const reset = useCallback(() => {
     abortRef.current?.abort()
     abortRef.current = null
+    cancelFlush()
     textRef.current = ''
     snapshotRef.current = INITIAL
     dispatch({ type: 'reset' })
-  }, [])
+  }, [cancelFlush])
 
-  return { state, send, abort, reset }
+  return { state, send, stop, reset }
 }

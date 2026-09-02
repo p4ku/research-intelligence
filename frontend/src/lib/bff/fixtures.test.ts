@@ -33,6 +33,9 @@ describe('fixtures match their contract schemas', () => {
       const parsed = chatEvent.safeParse(f)
       expect(parsed.success ? null : parsed.error.issues).toBeNull()
     }
+    // The stream must terminate: without a final done frame, every stubbed
+    // answer would settle as a cut (consume-stream.ts treats no-done as failure).
+    expect(fixtureStreamFrames.at(-1)?.event).toBe('done')
   })
   test('briefing editions', () => {
     for (const f of fixtureEditions) {

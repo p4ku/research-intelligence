@@ -187,6 +187,12 @@ export function Ask({
       }
       stoppedRef.current = false
       setTurns((prev) => [...prev, answer])
+      // A failure before the first token restores the question to the composer
+      // (never clobbering anything typed since) so it isn't lost to a blip.
+      if (answer.error && final.text === '') {
+        const q = liveQuestionRef.current
+        setInput((cur) => (cur === '' && q ? q : cur))
+      }
       setLiveQuestion(null)
       if (final.sessionId) setActiveSessionId(final.sessionId)
       void refreshSessions()
@@ -208,7 +214,7 @@ export function Ask({
   const {
     state: live,
     send,
-    abort,
+    stop: stopStream,
     reset,
   } = useChatStream((final) => {
     if (liveQuestionRef.current === null) return
@@ -342,6 +348,21 @@ export function Ask({
     })
   }
 
+  /**
+   * Regenerate the transcript's last, failed answer: drop the trailing QA
+   * pair and re-ask the same question. Only offered on the last group — a
+   * target switch inserts a TargetTurn and retires the affordance, so the
+   * question's scope is always the current target and truncation can never
+   * eat a good turn below it.
+   */
+  function retryFrom(key: number) {
+    if (busy) return
+    const q = turns[key]
+    if (q?.kind !== 'question') return
+    setTurns((prev) => prev.slice(0, key))
+    ask(q.text)
+  }
+
   // A new question rises to the top of the transcript.
   useLayoutEffect(() => {
     if (askSeq === 0) return
@@ -352,14 +373,9 @@ export function Ask({
   function stop() {
     if (!busy) return
     stoppedRef.current = true
-    const connecting = live.status === 'connecting'
-    abort()
-    // Before the first byte the hook has nothing to settle; file the empty turn ourselves.
-    if (connecting) {
-      revealedRef.current = true
-      finalRef.current = { ...live, status: 'done' }
-      trySettle()
-    }
+    // The hook files what has arrived as a done turn (connecting included:
+    // an empty done settles through the reveal handshake like any other).
+    stopStream()
   }
 
   function submit() {
@@ -455,6 +471,18 @@ export function Ask({
           </div>
         </div>
 
+        {/* Transitions only — never a live region on the streamed markdown,
+            which re-renders every animation frame. */}
+        <p role="status" className="sr-only">
+          {busy
+            ? t('Reading the full text…')
+            : lastGroup?.kind === 'qa' && lastGroup.answer
+              ? lastGroup.answer.error
+                ? t('The answer failed.')
+                : t('Answer ready')
+              : ''}
+        </p>
+
         <div
           ref={bodyRef}
           className={clsx(
@@ -484,7 +512,15 @@ export function Ask({
                       <AskedHeading turn={g.question} />
                       {g.answer ? (
                         <>
-                          <SettledAnswer turn={g.answer} anchor={`vc-${g.key}`} />
+                          <SettledAnswer
+                            turn={g.answer}
+                            anchor={`vc-${g.key}`}
+                            onRetry={
+                              g === lastGroup && g.answer.error && !busy
+                                ? () => retryFrom(g.key)
+                                : undefined
+                            }
+                          />
                           {g === lastGroup && !busy && !g.answer.error && target && (
                             <FollowUps exclude={g.question.text} onAsk={ask} />
                           )}
