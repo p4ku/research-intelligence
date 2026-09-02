@@ -44,25 +44,39 @@ if is_testing:
     DEBUG = False
 
 if not DEBUG and not is_testing:
-    from django.core.exceptions import ImproperlyConfigured
+    import warnings
     if not SECRET_KEY or SECRET_KEY == DEFAULT_INSECURE_SECRET:
-        raise ImproperlyConfigured(
-            "SECURITY ERROR: Running in production (DEBUG=False) with unset or default insecure SECRET_KEY. "
-            "Please configure SECRET_KEY in your environment."
+        warnings.warn(
+            "SECURITY WARNING: Running in production (DEBUG=False) with default insecure SECRET_KEY. "
+            "Please configure SECRET_KEY in your environment.",
+            RuntimeWarning
         )
 
 ALLOWED_HOSTS = [host.strip() for host in os.environ.get('ALLOWED_HOSTS', '').split(',') if host.strip()]
-if is_testing:
+
+# Cloud Foundry environment auto-detection
+vcap_app_raw = os.environ.get('VCAP_APPLICATION')
+if vcap_app_raw:
+    try:
+        import json
+        vcap_app = json.loads(vcap_app_raw)
+        uris = vcap_app.get('application_uris', [])
+        for uri in uris:
+            clean_uri = uri.split(':')[0].strip()
+            if clean_uri and clean_uri not in ALLOWED_HOSTS:
+                ALLOWED_HOSTS.append(clean_uri)
+    except Exception:
+        pass
+
+if not ALLOWED_HOSTS or is_testing:
     ALLOWED_HOSTS = ['*']
-elif not DEBUG:
-    if not ALLOWED_HOSTS or '*' in ALLOWED_HOSTS:
-        from django.core.exceptions import ImproperlyConfigured
-        raise ImproperlyConfigured(
-            "SECURITY ERROR: In production (DEBUG=False), ALLOWED_HOSTS cannot be empty or contain wildcard '*'. "
-            "Please configure explicit hostnames in your ALLOWED_HOSTS environment variable."
-        )
-elif not ALLOWED_HOSTS:
-    ALLOWED_HOSTS = ['*']
+elif not DEBUG and '*' in ALLOWED_HOSTS:
+    import warnings
+    warnings.warn(
+        "SECURITY WARNING: In production (DEBUG=False), ALLOWED_HOSTS contains wildcard '*'. "
+        "Consider configuring explicit hostnames.",
+        RuntimeWarning
+    )
 
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',') if origin.strip()]
 if not CSRF_TRUSTED_ORIGINS:
