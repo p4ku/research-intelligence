@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deferred by the Audit</title>
+<style>
+  :root {
+    --ivory:    #FAF9F5;
+    --paper:    #FFFFFF;
+    --slate:    #141413;
+    --clay:     #D97757;
+    --clay-d:   #B85C3E;
+    --oat:      #E3DACC;
+    --olive:    #788C5D;
+    --rust:     #B04A3F;
+    --gray-100: #F0EEE6;
+    --gray-300: #D1CFC5;
+    --gray-500: #87867F;
+    --gray-700: #3D3D3A;
+
+    --serif: ui-serif, Georgia, "Times New Roman", serif;
+    --sans:  system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono:  ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+    --border: 1.5px solid var(--gray-300);
+    --shadow-md: 0 4px 10px rgba(20,20,19,0.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 56px 24px 140px;
+    background: var(--ivory);
+    color: var(--slate);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1060px; margin: 0 auto; }
+
+  header h1 { font-family: var(--serif); font-weight: 500; font-size: clamp(32px, 5vw, 46px); letter-spacing: -0.01em; margin: 0 0 8px; }
+  header .sub { color: var(--gray-500); margin: 0; max-width: 720px; }
+  .eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: 0.10em; text-transform: uppercase; color: var(--gray-500); margin: 0 0 6px; }
+
+  section { margin-top: 52px; }
+  section > h2 { font-family: var(--serif); font-weight: 500; font-size: 24px; letter-spacing: -0.01em; margin: 0 0 4px; }
+  section > .section-note { color: var(--gray-500); font-size: 13.5px; margin: 0 0 18px; max-width: 720px; }
+
+  .item {
+    background: var(--paper);
+    border: var(--border);
+    border-radius: 12px;
+    padding: 18px 20px;
+    margin-bottom: 14px;
+    transition: border-color 0.12s ease, background 0.12s ease;
+  }
+  .item.checked { border-color: var(--clay); background: #FFFDFA; }
+  .item-head { display: flex; align-items: flex-start; gap: 12px; }
+  .item-head input[type="checkbox"] {
+    width: 17px; height: 17px; margin-top: 3px; flex: none;
+    accent-color: var(--clay); cursor: pointer;
+  }
+  .item-title { font-weight: 600; font-size: 15px; cursor: pointer; }
+  .item-id { font-family: var(--mono); font-size: 11px; color: var(--gray-500); margin-right: 6px; }
+  .item-desc { color: var(--gray-700); font-size: 13.5px; margin: 4px 0 0; }
+  .item-desc code { font-family: var(--mono); font-size: 12px; background: var(--gray-100); padding: 1px 4px; border-radius: 4px; }
+  .chips { margin-left: auto; display: flex; gap: 6px; flex: none; padding-top: 2px; }
+  .chip {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.04em;
+    padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+  }
+  .chip.effort  { background: var(--gray-100); color: var(--gray-700); }
+  .chip.partial { background: var(--oat); color: #6b5636; }
+  .chip.done    { background: #E9EDE2; color: var(--olive); }
+  .chip.blocked { background: #F3E3E0; color: var(--rust); }
+  .chip.kind    { background: transparent; border: 1px solid var(--gray-300); color: var(--gray-500); }
+
+  /* ---------- product mock frames ---------- */
+  .mock {
+    margin: 14px 0 2px 29px;
+    border: 1.5px solid var(--gray-300);
+    border-radius: 8px;
+    background: #ffffff;
+    overflow: hidden;
+    max-width: 560px;
+    box-shadow: var(--shadow-md);
+  }
+  .mock-cap { font-family: var(--mono); font-size: 10.5px; color: var(--gray-500); letter-spacing: 0.06em; text-transform: uppercase; padding: 6px 12px; background: #fafafa; border-bottom: 1px solid #ececec; }
+  .mock-body { padding: 14px 16px; font-size: 13px; color: #18181b; line-height: 1.5; }
+  .mock-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 14px 0 2px 29px; max-width: 720px; }
+  .mock-pair .mock { margin: 0; max-width: none; }
+
+  /* product-ish atoms used inside mocks */
+  .p-btn { display: inline-flex; align-items: center; gap: 7px; background: #18181b; color: #fff; border: none; border-radius: 6px; padding: 7px 14px; font-size: 12.5px; font-weight: 500; }
+  .p-btn.secondary { background: #fff; color: #18181b; border: 1px solid #d4d4d8; }
+  .p-btn.ok { background: #fff; color: #3f6212; border: 1px solid #d4d4d8; }
+  .p-alert { border-left: 3px solid #b91c1c; background: #fef2f2; color: #991b1b; padding: 8px 12px; border-radius: 4px; font-size: 12.5px; }
+  .p-notice { background: #fefce8; color: #854d0e; padding: 8px 12px; border-radius: 4px; font-size: 12.5px; }
+  .p-muted { color: #71717a; font-size: 12px; }
+  .p-field label { display: block; font-size: 12px; font-weight: 600; margin-bottom: 4px; }
+  .p-field input { width: 100%; border: 1px solid #d4d4d8; border-radius: 6px; padding: 7px 10px; font-size: 13px; background: #fff; color: #18181b; }
+  .p-field.invalid input { border-color: #b91c1c; box-shadow: 0 0 0 1px #b91c1c inset; }
+  .p-field.invalid .p-err { color: #b91c1c; font-size: 12px; margin-top: 4px; }
+  .p-row { display: flex; align-items: center; gap: 10px; }
+  .p-spin {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 2px solid #d4d4d8; border-top-color: #18181b;
+    animation: spin 0.8s linear infinite; flex: none;
+  }
+  .p-skel { height: 11px; border-radius: 4px; background: #ececec; position: relative; overflow: hidden; margin: 7px 0; }
+  .p-skel::after {
+    content: ""; position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.85), transparent);
+    transform: translateX(-100%);
+    animation: sweep 1.6s ease-in-out infinite;
+  }
+  @keyframes spin  { to { transform: rotate(360deg); } }
+  @keyframes sweep { to { transform: translateX(100%); } }
+  @media (prefers-reduced-motion: reduce) {
+    .p-spin { animation: none; }
+    .p-skel::after { animation: none; }
+  }
+  .p-toggle { width: 34px; height: 20px; border-radius: 999px; background: #18181b; position: relative; flex: none; }
+  .p-toggle::after { content: ""; position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; }
+  .p-menu-item { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 6px; font-size: 13px; }
+  .p-menu-item.dead { color: #a1a1aa; text-decoration: line-through; }
+  .p-tealdot { width: 7px; height: 7px; border-radius: 50%; background: #00c3cd; flex: none; }
+  .p-funnel { display: inline-block; font-family: var(--mono); font-size: 11px; background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 999px; padding: 2px 9px; }
+
+  /* ---------- resolved section ---------- */
+  .resolved .item { opacity: 0.75; }
+
+  /* ---------- sticky action bar ---------- */
+  .bar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 20;
+    background: var(--paper); border-top: var(--border);
+    padding: 14px 24px;
+  }
+  .bar-inner { max-width: 1060px; margin: 0 auto; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .bar-count { font-family: var(--mono); font-size: 12.5px; color: var(--gray-700); }
+  .bar-hint { color: var(--gray-500); font-size: 12.5px; }
+  .copy-btn {
+    margin-left: auto;
+    background: var(--clay); color: #fff; border: none; border-radius: 8px;
+    padding: 10px 20px; font-size: 14px; font-weight: 600; font-family: var(--sans);
+    cursor: pointer; transition: background 0.12s ease;
+  }
+  .copy-btn:hover { background: var(--clay-d); }
+  .copy-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(217,119,87,0.25); }
+  .copy-btn:disabled { background: var(--gray-300); cursor: default; }
+  #copy-out {
+    display: none; max-width: 1060px; margin: 10px auto 0;
+    font-family: var(--mono); font-size: 12px; background: var(--gray-100);
+    border: 1px solid var(--gray-300); border-radius: 8px; padding: 10px 14px;
+    white-space: pre-wrap; max-height: 160px; overflow: auto;
+  }
+  @media (max-width: 720px) { .mock-pair { grid-template-columns: 1fr; } .chips { flex-wrap: wrap; } }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <p class="eyebrow">Error-UX audit · 1 Sep 2026 · below-the-line items</p>
+    <h1>Deferred by the Audit</h1>
+    <p class="sub">All 32 findings ranked below the 12 that shipped in batches 1–5. Where an item is visual, the mock shows the <em>proposed</em> state (or today-vs-proposed side by side), in English — the shipped copy would be German-first like the rest of the product. Tick what you want done and copy the selection at the bottom — three items were already resolved by later work and can't be ticked.</p>
+  </header>
+
+  <!-- ============ FRONT DOOR ============ -->
+  <section>
+    <h2>The front door</h2>
+    <p class="section-note">Login is the one screen every outage funnels people to.</p>
+
+    <div class="item" data-id="D10" data-title="Login stops blaming the user for an outage (login-panel.tsx)">
+      <div class="item-head">
+        <input type="checkbox" id="D10">
+        <div>
+          <label class="item-title" for="D10"><span class="item-id">D10</span>Login blames the user for an outage</label>
+          <p class="item-desc">A non-JSON error body or transport failure shows the credentials sentence — or the browser's raw <code>Failed to fetch</code> — during a platform outage.</p>
+        </div>
+        <div class="chips"><span class="chip effort">S</span><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock-pair">
+        <div class="mock"><div class="mock-cap">Today, backend down</div><div class="mock-body">
+          <div class="p-alert">Those credentials did not match. Please try again.</div>
+          <p class="p-muted" style="margin:8px 0 0">…but their password was fine. The service was down.</p>
+        </div></div>
+        <div class="mock"><div class="mock-cap">Proposed</div><div class="mock-body">
+          <div class="p-notice">The service cannot be reached right now. Your credentials were not checked — please try again shortly.</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="item" data-id="D31" data-title="Login form a11y: id/htmlFor, aria-describedby, alert inside form (login-panel.tsx)">
+      <div class="item-head">
+        <input type="checkbox" id="D31">
+        <div>
+          <label class="item-title" for="D31"><span class="item-id">D31</span>Login fields have no <code>id</code>/<code>htmlFor</code> pairing</label>
+          <p class="item-desc">No <code>aria-describedby</code>, and the <code>role="alert"</code> sits after <code>&lt;/form&gt;</code> where screen-reader users won't associate it. Invisible fix — no visual change.</p>
+        </div>
+        <div class="chips"><span class="chip kind">a11y</span></div>
+      </div>
+    </div>
+
+    <div class="item" data-id="D09" data-title="In-place re-auth panel instead of the 401 hard redirect (bffFetch)">
+      <div class="item-head">
+        <input type="checkbox" id="D09">
+        <div>
+          <label class="item-title" for="D09"><span class="item-id">D09</span>The 401 hard-navigation destroys typed work</label>
+          <p class="item-desc">A session expiring mid-draft still navigates away (batch 5 at least brings you <em>back to the page</em> now). The canon fix is an in-place re-auth panel — big lift: every 401 call site must then handle it.</p>
+        </div>
+        <div class="chips"><span class="chip effort">L</span><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed — inline, draft preserved</div><div class="mock-body">
+        <div class="p-notice" style="margin-bottom:10px">Your session expired. Sign in to continue — your draft is kept.</div>
+        <div class="p-field"><label>Password</label><input type="password" value="••••••••" readonly></div>
+        <div class="p-row" style="margin-top:10px"><span class="p-btn">Sign in</span><span class="p-muted">Draft question: “Which method does paper 42 use for…”</span></div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ============ ASK & PAPER CHAT ============ -->
+  <section>
+    <h2>Ask &amp; paper chat</h2>
+
+    <div class="item" data-id="D07" data-title="Stop control for the paper-chat rail (paper-chat.tsx)">
+      <div class="item-head">
+        <input type="checkbox" id="D07">
+        <div>
+          <label class="item-title" for="D07"><span class="item-id">D07</span>No Stop control on a streaming answer — paper rail</label>
+          <p class="item-desc">Batch 3 gave the Ask console a real <code>stop()</code>; the paper-detail chat still has only destructive exits (navigate away, close).</p>
+        </div>
+        <div class="chips"><span class="chip partial">partial — Ask ✓</span><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed — paper rail while streaming</div><div class="mock-body">
+        <div class="p-row" style="margin-bottom:8px"><span class="p-tealdot"></span><span class="p-muted">Reading the full text…</span><span class="p-spin" style="margin-left:auto"></span></div>
+        <p style="margin:0 0 10px">The authors use contrastive pre-training on 1.2&nbsp;M pairs, with negatives drawn from…▌</p>
+        <span class="p-btn secondary">Stop</span>
+      </div></div>
+    </div>
+
+    <div class="item" data-id="D08" data-title="Confirm before discarding a live answer on thread switch (ask.tsx)">
+      <div class="item-head">
+        <input type="checkbox" id="D08">
+        <div>
+          <label class="item-title" for="D08"><span class="item-id">D08</span>Opening a thread mid-stream silently discards the live answer</label>
+          <p class="item-desc"><code>newThread()</code> does the same, and both clear the composer. Batch 3 made the abort structurally clean — the UX question of <em>asking first</em> remains.</p>
+        </div>
+        <div class="chips"><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed — on switching threads mid-stream</div><div class="mock-body">
+        <p style="margin:0 0 10px; font-weight:600">An answer is still streaming</p>
+        <p class="p-muted" style="margin:0 0 12px">Switching threads will discard the answer in progress.</p>
+        <div class="p-row"><span class="p-btn secondary">Cancel</span><span class="p-btn">Switch anyway</span></div>
+      </div></div>
+    </div>
+
+    <div class="item" data-id="D01" data-title="Split the coarse Promise.all so a failing rail can't remove the composer (ask/dashboard/briefing pages)">
+      <div class="item-head">
+        <input type="checkbox" id="D01">
+        <div>
+          <label class="item-title" for="D01"><span class="item-id">D01</span>Coarse <code>Promise.all</code> takes the whole page</label>
+          <p class="item-desc">On <code>/ask</code>, a failing <em>history rail</em> removes the composer. Split per-section with error fallbacks; do <code>/ask</code> first as a small slice.</p>
+        </div>
+        <div class="chips"><span class="chip effort">L</span><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed — rail failed, composer alive</div><div class="mock-body">
+        <div class="p-alert" style="margin-bottom:10px">The history could not be loaded. <u>Retry</u></div>
+        <div class="p-field"><input placeholder="Ask a question about the corpus…"></div>
+        <div class="p-row" style="margin-top:8px; justify-content:flex-end"><span class="p-btn">Ask</span></div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ============ SETTINGS & FORMS ============ -->
+  <section>
+    <h2>Settings &amp; forms</h2>
+
+    <div class="item" data-id="D04" data-title="Settings a11y: GOV.UK error-summary pass (settings-form.tsx, own PR)">
+      <div class="item-head">
+        <input type="checkbox" id="D04">
+        <div>
+          <label class="item-title" for="D04"><span class="item-id">D04</span>Settings has no error summary, labels, or focus management</label>
+          <p class="item-desc">No <code>htmlFor</code>/<code>id</code> pairing, no <code>aria-invalid</code>/<code>aria-describedby</code>, no focus move on failure. The audit's pick for highest-value a11y follow-up.</p>
+        </div>
+        <div class="chips"><span class="chip effort">own PR</span><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed — error summary, focus lands here</div><div class="mock-body">
+        <div style="border:2px solid #b91c1c; border-radius:6px; padding:10px 14px; margin-bottom:12px">
+          <p style="margin:0 0 6px; font-weight:700; color:#b91c1c">There is a problem</p>
+          <p style="margin:0"><u style="color:#b91c1c">The password needs at least 8 characters</u></p>
+        </div>
+        <div class="p-field invalid"><label>New password</label><input type="password" value="abc" readonly><p class="p-err">The password needs at least 8 characters.</p></div>
+      </div></div>
+    </div>
+
+    <div class="item" data-id="D05" data-title="Digest toggle: accessible name + visible rollback error (settings-form.tsx)">
+      <div class="item-head">
+        <input type="checkbox" id="D05">
+        <div>
+          <label class="item-title" for="D05"><span class="item-id">D05</span>Digest toggle: silent rollback, no accessible name</label>
+          <p class="item-desc">The WCAG 4.1.2 failure is live today; the silent-rollback path is latent behind <code>BFF_SOURCE_PREFERENCES=django</code>.</p>
+        </div>
+        <div class="chips"><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed — labelled, failure spoken</div><div class="mock-body">
+        <div class="p-row"><span class="p-toggle" role="img" aria-label="toggle on"></span><span style="font-weight:600">Weekly digest</span></div>
+        <div class="p-alert" style="margin-top:10px">The setting could not be saved — the switch has been reset.</div>
+      </div></div>
+    </div>
+
+    <div class="item" data-id="D06" data-title="Digest scope disclosure line (workspace-wide under personal framing)">
+      <div class="item-head">
+        <input type="checkbox" id="D06">
+        <div>
+          <label class="item-title" for="D06"><span class="item-id">D06</span>Digest toggle writes a <em>workspace-wide</em> preference under personal framing</label>
+          <p class="item-desc">The honest caveat is gated on <code>stubbed</code>, so it vanishes exactly when it starts mattering. Minimum fix is a scope line; the real answer is Piotr's (per-user vs per-workspace).</p>
+        </div>
+        <div class="chips"><span class="chip blocked">needs Piotr</span><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed — minimum disclosure</div><div class="mock-body">
+        <div class="p-row"><span class="p-toggle" role="img" aria-label="toggle on"></span><span style="font-weight:600">Weekly digest</span></div>
+        <p class="p-muted" style="margin:6px 0 0">Applies to every member of this workspace.</p>
+      </div></div>
+    </div>
+
+    <div class="item" data-id="D14" data-title="Written validation messages + hint text instead of raw Zod diagnostics (bff/settings/schema.ts)">
+      <div class="item-head">
+        <input type="checkbox" id="D14">
+        <div>
+          <label class="item-title" for="D14"><span class="item-id">D14</span>Raw Zod diagnostics shown to users</label>
+          <p class="item-desc">Write real messages in the schema and add hint text <em>before</em> submission so the rule isn't a surprise.</p>
+        </div>
+        <div class="chips"><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock-pair">
+        <div class="mock"><div class="mock-cap">Today</div><div class="mock-body">
+          <div class="p-field invalid"><label>New password</label><input type="password" value="abc" readonly><p class="p-err">Too small: expected string to have &gt;=8 characters</p></div>
+        </div></div>
+        <div class="mock"><div class="mock-cap">Proposed</div><div class="mock-body">
+          <div class="p-field invalid"><label>New password</label><p class="p-muted" style="margin:0 0 4px">At least 8 characters.</p><input type="password" value="abc" readonly><p class="p-err">The password needs at least 8 characters.</p></div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="item" data-id="D23" data-title="Save buttons: real pending + announced, expiring success (settings-form.tsx)">
+      <div class="item-head">
+        <input type="checkbox" id="D23">
+        <div>
+          <label class="item-title" for="D23"><span class="item-id">D23</span>Save buttons signal pending by colour alone</label>
+          <p class="item-desc">Success is an unannounced 12px span that never expires — while the login button in the same repo already does this correctly.</p>
+        </div>
+        <div class="chips"><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed — the three states</div><div class="mock-body">
+        <div class="p-row" style="gap:14px; flex-wrap:wrap">
+          <span class="p-btn">Save</span>
+          <span class="p-btn" style="opacity:0.85"><span class="p-spin" style="border-top-color:#fff; border-color:rgba(255,255,255,0.35); border-top-color:#fff"></span>Saving…</span>
+          <span class="p-btn ok">✓ Saved</span>
+        </div>
+        <p class="p-muted" style="margin:8px 0 0">Success announced via <code>role="status"</code>, fades after a few seconds.</p>
+      </div></div>
+    </div>
+
+    <div class="item" data-id="D25" data-title="Confirm + consequence when changing the sign-in email/username (settings-form.tsx)">
+      <div class="item-head">
+        <input type="checkbox" id="D25">
+        <div>
+          <label class="item-title" for="D25"><span class="item-id">D25</span>Changing the sign-in identifier is an ordinary field save</label>
+          <p class="item-desc">It changes how you get back in; it deserves the consequence named — same AlertDialog primitive batch 4 built.</p>
+        </div>
+        <div class="chips"><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed</div><div class="mock-body">
+        <p style="margin:0 0 6px; font-weight:600">Change your sign-in email?</p>
+        <p class="p-muted" style="margin:0 0 12px">You will sign in with <strong>j.lawman@schwarz-digits.cloud</strong> from now on. The old address will no longer work.</p>
+        <div class="p-row"><span class="p-btn secondary">Cancel</span><span class="p-btn">Change</span></div>
+      </div></div>
+    </div>
+
+    <div class="item" data-id="D26" data-title="Password-changed copy: say what happens to other sessions (blocked on backend)">
+      <div class="item-head">
+        <input type="checkbox" id="D26">
+        <div>
+          <label class="item-title" for="D26"><span class="item-id">D26</span>"Password changed." says nothing about other sessions</label>
+          <p class="item-desc">Django has no token blacklist, so other sessions likely survive — verify with the backend before wording it either way.</p>
+        </div>
+        <div class="chips"><span class="chip blocked">needs Piotr</span><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed — if sessions survive (to be confirmed)</div><div class="mock-body">
+        <div class="p-notice">Password changed. Existing sign-ins on other devices stay active for up to 24&nbsp;hours.</div>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ============ LISTS & PAGES ============ -->
+  <section>
+    <h2>Lists &amp; pages</h2>
+
+    <div class="item" data-id="D02" data-title="Finish the loading.tsx / Suspense coverage (skeleton track pass 3+)">
+      <div class="item-head">
+        <input type="checkbox" id="D02">
+        <div>
+          <label class="item-title" for="D02"><span class="item-id">D02</span>No <code>loading.tsx</code>, no Suspense — dead clicks on a slow backend</label>
+          <p class="item-desc">The separate skeleton track owns this now: dashboard + both Studio runs pages are covered (passes 1–2), the rest is a ratcheted debt list in <code>loading-convention.test.ts</code>; pass 3 (paper detail + ask rails) has a branch cut.</p>
+        </div>
+        <div class="chips"><span class="chip partial">partial — 3 pages ✓</span><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">The house skeleton — scan sweep, not pulse</div><div class="mock-body">
+        <div class="p-skel" style="width:45%"></div>
+        <div class="p-skel" style="width:88%"></div>
+        <div class="p-skel" style="width:72%"></div>
+        <div class="p-skel" style="width:80%"></div>
+      </div></div>
+    </div>
+
+    <div class="item" data-id="D03" data-title="Element-wise list parsing with a visible drop count (compose.ts / validate.ts)">
+      <div class="item-head">
+        <input type="checkbox" id="D03">
+        <div>
+          <label class="item-title" for="D03"><span class="item-id">D03</span>One malformed row takes down six screens</label>
+          <p class="item-desc">Strict list parsing fails the whole response. Element-wise <code>safeParse</code> with a counted, <em>visible</em> drop — as <code>chat/service.ts</code> already does. Highest type-churn of the set.</p>
+        </div>
+        <div class="chips"><span class="chip effort">L</span><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed — list survives, drop disclosed</div><div class="mock-body">
+        <div class="p-row" style="margin-bottom:6px"><span class="p-tealdot"></span><span>Contrastive pre-training for tabular…</span></div>
+        <div class="p-row" style="margin-bottom:6px"><span class="p-tealdot"></span><span>Sparse retrieval under domain shift</span></div>
+        <div class="p-row" style="margin-bottom:10px"><span class="p-tealdot"></span><span>LLM-assisted literature triage at…</span></div>
+        <p class="p-muted" style="margin:0">2 entries could not be read.</p>
+      </div></div>
+    </div>
+
+    <div class="item" data-id="D15" data-title="Briefing permalink: reconcile funnel count vs rendered list (briefing/[date])">
+      <div class="item-head">
+        <input type="checkbox" id="D15">
+        <div>
+          <label class="item-title" for="D15"><span class="item-id">D15</span>Briefing permalink contradicts itself</label>
+          <p class="item-desc">The funnel says 7, the list renders 0 — unmatched ids are filtered into nothing with no explanation.</p>
+        </div>
+        <div class="chips"><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock-pair">
+        <div class="mock"><div class="mock-cap">Today</div><div class="mock-body">
+          <p style="margin:0 0 8px"><span class="p-funnel">7 Papers</span></p>
+          <p class="p-muted" style="margin:0">No papers in this briefing.</p>
+        </div></div>
+        <div class="mock"><div class="mock-cap">Proposed</div><div class="mock-body">
+          <p style="margin:0 0 8px"><span class="p-funnel">7 Papers</span></p>
+          <p class="p-muted" style="margin:0">7 papers from this briefing are no longer available in the corpus.</p>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="item" data-id="D24" data-title="Filtered-to-empty lists get an in-place reset (papers/edition/run-papers browsers)">
+      <div class="item-head">
+        <input type="checkbox" id="D24">
+        <div>
+          <label class="item-title" for="D24"><span class="item-id">D24</span>Filtered-to-empty lists have no in-place recovery</label>
+          <p class="item-desc">Three browsers show a bare empty state with the filters still applied and no way back but fiddling each control.</p>
+        </div>
+        <div class="chips"><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed</div><div class="mock-body">
+        <p style="margin:0 0 4px; font-weight:600">No matches for these filters</p>
+        <p class="p-muted" style="margin:0 0 12px">3 filters active · 128 papers total</p>
+        <span class="p-btn secondary">Reset filters</span>
+      </div></div>
+    </div>
+
+    <div class="item" data-id="D12" data-title="Studio run detail: third state for a failed steps load (studio/runs/[id])">
+      <div class="item-head">
+        <input type="checkbox" id="D12">
+        <div>
+          <label class="item-title" for="D12"><span class="item-id">D12</span>A 404 on the steps endpoint reads "No steps recorded for this run."</label>
+          <p class="item-desc">Return <code>null</code>, not <code>[]</code>, and render a distinct failed state. (Studio is the English operator surface.)</p>
+        </div>
+        <div class="chips"><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock-pair">
+        <div class="mock"><div class="mock-cap">Today, endpoint failed</div><div class="mock-body">
+          <p class="p-muted" style="margin:0">No steps recorded for this run.</p>
+        </div></div>
+        <div class="mock"><div class="mock-cap">Proposed</div><div class="mock-body">
+          <div class="p-alert">The steps for this run couldn't be loaded. <u>Retry</u></div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="item" data-id="D13" data-title="Map raw step.error_message in the Studio timeline (step-timeline.tsx)">
+      <div class="item-head">
+        <input type="checkbox" id="D13">
+        <div>
+          <label class="item-title" for="D13"><span class="item-id">D13</span>Studio prints <code>step.error_message</code> raw</label>
+          <p class="item-desc">The "is Studio an English operator surface?" half is settled de facto (it is, recorded in batch 2's not-found work) — the raw backend string in the timeline remains.</p>
+        </div>
+        <div class="chips"><span class="chip partial">half-decided</span><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock-pair">
+        <div class="mock"><div class="mock-cap">Today</div><div class="mock-body">
+          <p style="margin:0; font-family:var(--mono); font-size:11px; color:#b91c1c">KeyError: 'embedding_batch' in worker.tasks.embed_papers line 214</p>
+        </div></div>
+        <div class="mock"><div class="mock-cap">Proposed</div><div class="mock-body">
+          <div class="p-alert">This step failed in the pipeline worker.</div>
+          <p class="p-muted" style="margin:6px 0 0"><u>Show technical detail</u></p>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="item" data-id="D30" data-title="Root app/not-found.tsx for URLs outside both route groups">
+      <div class="item-head">
+        <input type="checkbox" id="D30">
+        <div>
+          <label class="item-title" for="D30"><span class="item-id">D30</span>No root <code>not-found.tsx</code></label>
+          <p class="item-desc">Batch 2 added the two in-shell 404 pages; a URL outside both groups still gets Next's default. Cheap.</p>
+        </div>
+        <div class="chips"><span class="chip effort">S</span><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed — bare-shell 404</div><div class="mock-body" style="text-align:center; padding:22px 16px">
+        <p style="margin:0 0 4px; font-family:var(--mono); font-size:11px; color:#71717a">404</p>
+        <p style="margin:0 0 10px; font-weight:600">This page does not exist.</p>
+        <span class="p-btn secondary">Go to the dashboard</span>
+      </div></div>
+    </div>
+  </section>
+
+  <!-- ============ SHELL & NAVIGATION ============ -->
+  <section>
+    <h2>Shell &amp; navigation</h2>
+
+    <div class="item" data-id="D16" data-title="Workspace switch pending state (workspace-switcher.tsx)">
+      <div class="item-head">
+        <input type="checkbox" id="D16">
+        <div>
+          <label class="item-title" for="D16"><span class="item-id">D16</span>Workspace switch has no pending state</label>
+          <p class="item-desc"><code>useTransition</code> around <code>router.refresh()</code>. (The claimed cross-workspace data leak was refuted — Ask remounts on workspace id.)</p>
+        </div>
+        <div class="chips"><span class="chip effort">S</span><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">Proposed — while the tree re-renders</div><div class="mock-body">
+        <div class="p-row"><span style="font-weight:600">Robotics Scouting</span><span class="p-spin" style="margin-left:auto"></span></div>
+        <p class="p-muted" style="margin:6px 0 0">Switching workspace…</p>
+      </div></div>
+    </div>
+
+    <div class="item" data-id="D17" data-title="Remove or implement the dead 'Privacy &amp; access' menu item (application-layout.tsx)">
+      <div class="item-head">
+        <input type="checkbox" id="D17">
+        <div>
+          <label class="item-title" for="D17"><span class="item-id">D17</span>Dead <code>href="#"</code> "Privacy &amp; access" in both account menus</label>
+          <p class="item-desc">Clicking it scrolls to top and closes the menu. Remove it, or point it somewhere real.</p>
+        </div>
+        <div class="chips"><span class="chip effort">S</span><span class="chip kind">visual</span></div>
+      </div>
+      <div class="mock"><div class="mock-cap">The menu today — one item goes nowhere</div><div class="mock-body" style="max-width:240px">
+        <div class="p-menu-item">My account</div>
+        <div class="p-menu-item">Settings</div>
+        <div class="p-menu-item dead">Privacy &amp; access&nbsp;&nbsp;→ #</div>
+        <div class="p-menu-item">Sign out</div>
+      </div></div>
+    </div>
+
+    <div class="item" data-id="D22" data-title="Accessible names for the paper palette + mobile nav drawer dialogs">
+      <div class="item-head">
+        <input type="checkbox" id="D22">
+        <div>
+          <label class="item-title" for="D22"><span class="item-id">D22</span>Two modal dialogs with no accessible name</label>
+          <p class="item-desc">The paper palette and the mobile nav drawer announce as unnamed dialogs. Invisible fix.</p>
+        </div>
+        <div class="chips"><span class="chip effort">S</span><span class="chip kind">a11y</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ MOTION & ANNOUNCEMENTS ============ -->
+  <section>
+    <h2>Motion &amp; announcements</h2>
+    <p class="section-note">Nothing to mock — these change how things move and how they're announced, not how they look at rest.</p>
+
+    <div class="item" data-id="D18" data-title="Consolidate to one motion library so MotionConfig reducedMotion can exist">
+      <div class="item-head">
+        <input type="checkbox" id="D18">
+        <div>
+          <label class="item-title" for="D18"><span class="item-id">D18</span>Two motion libraries installed and both used</label>
+          <p class="item-desc"><code>framer-motion</code> + <code>motion</code> — so no single <code>MotionConfig reducedMotion="user"</code> can cover the app. Only two files import framer-motion.</p>
+        </div>
+        <div class="chips"><span class="chip kind">plumbing</span></div>
+      </div>
+    </div>
+
+    <div class="item" data-id="D19" data-title="A prefers-reduced-motion policy for indefinite loops + entrances">
+      <div class="item-head">
+        <input type="checkbox" id="D19">
+        <div>
+          <label class="item-title" for="D19"><span class="item-id">D19</span>No <code>prefers-reduced-motion</code> policy</label>
+          <p class="item-desc">Indefinite loops (scanner pulse, markdown shimmer, timeline) and the staggered entrance under text being read. Batch 3 spot-checked the Ask entrance honours it — the repo-wide policy doesn't exist.</p>
+        </div>
+        <div class="chips"><span class="chip kind">a11y</span></div>
+      </div>
+    </div>
+
+    <div class="item" data-id="D20" data-title="Remove aria-live from the spring-animated ledger number (signal-ledger.tsx)">
+      <div class="item-head">
+        <input type="checkbox" id="D20">
+        <div>
+          <label class="item-title" for="D20"><span class="item-id">D20</span><code>aria-live</code> on a spring-animated number</label>
+          <p class="item-desc">Announcement storm on every drag frame in the tuning ledger — announce the settled value once instead.</p>
+        </div>
+        <div class="chips"><span class="chip effort">S</span><span class="chip kind">a11y</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PLUMBING ============ -->
+  <section>
+    <h2>Plumbing &amp; dev honesty</h2>
+
+    <div class="item" data-id="D21" data-title="Clean up the dead dialog layers (components/dialog.tsx, alert.tsx, ui/command.tsx title bug)">
+      <div class="item-head">
+        <input type="checkbox" id="D21">
+        <div>
+          <label class="item-title" for="D21"><span class="item-id">D21</span>Dead dialog layers</label>
+          <p class="item-desc">Batch 4 settled the direction (new dialogs = radix <code>ui/*</code>, first live consumer shipped). Unused <code>components/dialog.tsx</code>/<code>alert.tsx</code> and the <code>ui/command.tsx</code> title-outside-Content trap still await cleanup.</p>
+        </div>
+        <div class="chips"><span class="chip partial">direction ✓</span><span class="chip kind">plumbing</span></div>
+      </div>
+    </div>
+
+    <div class="item" data-id="D27" data-title="Make the stub chat delete honest (bff/chat/service.ts)">
+      <div class="item-head">
+        <input type="checkbox" id="D27">
+        <div>
+          <label class="item-title" for="D27"><span class="item-id">D27</span>The stub chat source reports a successful delete while deleting nothing</label>
+          <p class="item-desc">Dev-only (<code>BFF_SOURCE_CHAT=stub</code>): the row returns on the next refresh. Batch 4 leaned on it for testing — worth making honest either way.</p>
+        </div>
+        <div class="chips"><span class="chip effort">S</span><span class="chip kind">plumbing</span></div>
+      </div>
+    </div>
+
+    <div class="item" data-id="D28" data-title="Client-side timeouts on BFF/API requests (api/server.ts, client.ts)">
+      <div class="item-head">
+        <input type="checkbox" id="D28">
+        <div>
+          <label class="item-title" for="D28"><span class="item-id">D28</span>No client-side timeout on any request</label>
+          <p class="item-desc">A hung backend has no deadline. Batch 5 gave the sign-out POST an <code>AbortSignal.timeout</code> — everything else still waits forever.</p>
+        </div>
+        <div class="chips"><span class="chip partial">sign-out ✓</span><span class="chip kind">plumbing</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RESOLVED ============ -->
+  <section class="resolved">
+    <h2>Already resolved since the audit</h2>
+    <p class="section-note">Listed for completeness — nothing to tick.</p>
+
+    <div class="item">
+      <div class="item-head">
+        <div>
+          <p class="item-title" style="cursor:default"><span class="item-id">D11</span>The sign-in surface is English-only</p>
+          <p class="item-desc">Fixed by the i18n audit — <code>de/login.ts</code> exists and the panel renders through <code>t()</code>.</p>
+        </div>
+        <div class="chips"><span class="chip done">done · i18n audit</span></div>
+      </div>
+    </div>
+    <div class="item">
+      <div class="item-head">
+        <div>
+          <p class="item-title" style="cursor:default"><span class="item-id">D29</span><code>toLogin</code> drops the query for /dashboard</p>
+          <p class="item-desc">Fixed by batch 5's <code>URLSearchParams</code> rewrite (PR #34).</p>
+        </div>
+        <div class="chips"><span class="chip done">done · #34</span></div>
+      </div>
+    </div>
+    <div class="item">
+      <div class="item-head">
+        <div>
+          <p class="item-title" style="cursor:default"><span class="item-id">D32</span>The chat stream's synthesised English titles</p>
+          <p class="item-desc">Fixed by batch 2's producer cleanup (PR #24) — no synthesised titles on the wire.</p>
+        </div>
+        <div class="chips"><span class="chip done">done · #24</span></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="bar">
+  <div class="bar-inner">
+    <span class="bar-count" id="count">0 selected</span>
+    <span class="bar-hint">Tick items above, copy, and paste the list back to me.</span>
+    <button class="copy-btn" id="copy" disabled>Copy selection</button>
+  </div>
+  <pre id="copy-out" aria-live="polite"></pre>
+</div>
+
+<script>
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('.item input[type="checkbox"]'));
+  var countEl = document.getElementById('count');
+  var btn = document.getElementById('copy');
+  var out = document.getElementById('copy-out');
+
+  function selection() {
+    return boxes.filter(function (b) { return b.checked; }).map(function (b) {
+      var item = b.closest('.item');
+      return '- ' + item.dataset.id + ' · ' + item.dataset.title;
+    });
+  }
+  function refresh() {
+    boxes.forEach(function (b) { b.closest('.item').classList.toggle('checked', b.checked); });
+    var n = selection().length;
+    countEl.textContent = n + ' selected';
+    btn.disabled = n === 0;
+    btn.textContent = 'Copy selection';
+  }
+  boxes.forEach(function (b) { b.addEventListener('change', refresh); });
+
+  btn.addEventListener('click', function () {
+    var text = 'Error-UX deferred items — please do these:\n' + selection().join('\n');
+    out.textContent = text;
+    out.style.display = 'block';
+    function ok()   { btn.textContent = 'Copied ✓'; }
+    function fail() { btn.textContent = 'Select & copy below'; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok, fail);
+    } else {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy') ? ok() : fail();
+        document.body.removeChild(ta);
+      } catch (e) { fail(); }
+    }
+  });
+  refresh();
+</script>
+</body>
+</html>
