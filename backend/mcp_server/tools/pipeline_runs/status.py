@@ -241,7 +241,7 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
             }
             for p in pipeline_run.get_papers(
                 screening_status=['full_text_passed', 'abstract_passed', 'accepted']
-            ).order_by('-metrics__signal_score', '-created_at').prefetch_related(
+            ).order_by(F('metrics__signal_score').desc(nulls_last=True), '-created_at').prefetch_related(
                 Prefetch('metrics', queryset=PaperMetric.objects.filter(pipeline_run=pipeline_run)),
                 'extractions',
                 'extractions__extraction_definition'

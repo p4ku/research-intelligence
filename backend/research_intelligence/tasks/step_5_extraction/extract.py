@@ -197,6 +197,7 @@ def _run_single_extraction_impl(paper, definition, workspace):
                 "confidence_score": avg_confidence,
                 "duration_seconds": duration_sec,
                 "usage": usage,
+                "llm_model": getattr(definition, 'llm_model', None) or getattr(workspace, 'screening_llm_model', None),
                 "extracted_fields_count": len(fields_dict) if isinstance(fields_dict, dict) else 0
             }
         except Exception as e:
@@ -319,6 +320,7 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
         total_prompt_tokens = 0
         total_candidates_tokens = 0
         total_tokens = 0
+        tokens_by_model = {}
         extractions_summary = []
 
         def _record_result(res):
@@ -336,6 +338,12 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
                 total_prompt_tokens += p_tok
                 total_candidates_tokens += c_tok
                 total_tokens += t_tok
+
+                used_model = res.get("llm_model") or getattr(workspace, 'screening_llm_model', 'google/gemini-3.8-flash')
+                if used_model not in tokens_by_model:
+                    tokens_by_model[used_model] = {"tokens_in": 0, "tokens_out": 0}
+                tokens_by_model[used_model]["tokens_in"] += p_tok
+                tokens_by_model[used_model]["tokens_out"] += c_tok
 
                 extractions_summary.append({
                     "paper_id": res.get("paper_id"),
@@ -487,15 +495,27 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
         pipeline_run.save(update_fields=['tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost'])
 
         # Record monthly quota usage on Workspace and persist into global LLM usage ledger
-        workspace.record_token_usage(
-            tokens_in=total_prompt_tokens,
-            tokens_out=total_candidates_tokens,
-            model_name=workspace.screening_llm_model,
-            operation_type="extraction",
-            user=pipeline_run.triggered_by,
-            pipeline_run_id=str(pipeline_run.id),
-            component_run_id=str(component_run.id)
-        )
+        if tokens_by_model:
+            for m_name, m_usage in tokens_by_model.items():
+                workspace.record_token_usage(
+                    tokens_in=m_usage["tokens_in"],
+                    tokens_out=m_usage["tokens_out"],
+                    model_name=m_name,
+                    operation_type="extraction",
+                    user=pipeline_run.triggered_by,
+                    pipeline_run_id=str(pipeline_run.id),
+                    component_run_id=str(component_run.id)
+                )
+        else:
+            workspace.record_token_usage(
+                tokens_in=total_prompt_tokens,
+                tokens_out=total_candidates_tokens,
+                model_name=workspace.screening_llm_model,
+                operation_type="extraction",
+                user=pipeline_run.triggered_by,
+                pipeline_run_id=str(pipeline_run.id),
+                component_run_id=str(component_run.id)
+            )
 
         logger.info(f"📊 [EXTRACTION JOB COMPLETED] Total Extractions: {succeeded_count} | Time: {job_duration_sec}s | Tokens: {total_tokens} (In: {total_prompt_tokens}, Out: {total_candidates_tokens}) | Cost: ${cost}")
 

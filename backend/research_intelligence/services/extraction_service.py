@@ -36,9 +36,16 @@ def build_paper_extractions_matrix(
     ).all()
 
     target_pr_id = None
+    user_ws_ids = None
+    if user and not getattr(user, 'is_superuser', False):
+        user_ws_ids = set(Workspace.objects.filter(memberships__user=user).values_list('id', flat=True))
+        papers_qs = papers_qs.filter(workspace__id__in=user_ws_ids)
+
     if process_id:
         try:
             proc = ResearchAgentProcess.objects.select_related('pipeline_run', 'workspace').get(id=process_id)
+            if user_ws_ids is not None and proc.workspace_id not in user_ws_ids:
+                return {"error": f"You do not have access to workspace '{proc.workspace.name}'."}
             if proc.pipeline_run:
                 target_pr_id = proc.pipeline_run.id
                 papers_qs = papers_qs.filter(metrics__pipeline_run=proc.pipeline_run).distinct()
@@ -54,14 +61,23 @@ def build_paper_extractions_matrix(
             try:
                 pr_uuid = uuid.UUID(str(pipeline_run_id))
                 target_pr_id = pr_uuid
+                if user_ws_ids is not None:
+                    pr = PipelineRun.objects.filter(pk=pr_uuid).values('workspace_id').first()
+                    if pr and pr['workspace_id'] not in user_ws_ids:
+                        return {"error": "You do not have access to this pipeline run."}
                 papers_qs = papers_qs.filter(metrics__pipeline_run_id=pr_uuid).distinct()
             except (ValueError, TypeError):
                 return {"error": f"Invalid pipeline_run_id '{pipeline_run_id}'."}
     elif workspace_id:
+        if user_ws_ids is not None:
+            import uuid
+            try:
+                ws_uuid = uuid.UUID(str(workspace_id))
+                if ws_uuid not in user_ws_ids:
+                    return {"error": f"You do not have access to workspace '{workspace_id}'."}
+            except (ValueError, TypeError):
+                return {"error": f"Invalid workspace_id '{workspace_id}'."}
         papers_qs = papers_qs.filter(workspace_id=workspace_id)
-    elif user and not getattr(user, 'is_superuser', False):
-        user_ws_ids = Workspace.objects.filter(memberships__user=user).values_list('id', flat=True)
-        papers_qs = papers_qs.filter(workspace__id__in=user_ws_ids)
 
     from django.db.models import Subquery, OuterRef
     from research_intelligence.models import PaperMetric

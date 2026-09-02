@@ -118,22 +118,47 @@ def reap_zombie_tasks(
             new_message = ""
 
             if not has_active_comps and has_comps:
-                # All components are completed, failed, or skipped
-                has_failed = pr.component_runs.filter(status='failed').exists()
-                has_aborted = pr.component_runs.filter(status='aborted').exists()
-                if has_failed:
-                    should_reap = True
-                    new_status = 'failed'
-                    new_message = "Pipeline marked failed: One or more component steps failed."
-                elif has_aborted:
-                    should_reap = True
-                    new_status = 'aborted'
-                    new_message = "Pipeline marked aborted: Component execution was cancelled."
+                # Check if pipeline has legitimately completed all stages
+                if pr.current_stage == 'completed':
+                    has_failed = pr.component_runs.filter(status='failed').exists()
+                    has_aborted = pr.component_runs.filter(status='aborted').exists()
+                    if has_failed:
+                        should_reap = True
+                        new_status = 'failed'
+                        new_message = "Pipeline marked failed: One or more component steps failed."
+                    elif has_aborted:
+                        should_reap = True
+                        new_status = 'aborted'
+                        new_message = "Pipeline marked aborted: Component execution was cancelled."
+                    else:
+                        should_reap = True
+                        new_status = 'completed'
+                        new_message = "Pipeline marked completed: All component steps finished successfully."
                 else:
-                    # All succeeded but pipeline status wasn't synchronized
-                    should_reap = True
-                    new_status = 'completed'
-                    new_message = "Pipeline marked completed: All component steps finished successfully."
+                    # Pipeline is in-flight (current_stage != 'completed').
+                    # Only reap as zombie if it has been stalled/inactive beyond the timeout cutoff, or if force=True.
+                    last_comp = pr.component_runs.order_by('-completed_at').first()
+                    is_stalled = False
+                    if force:
+                        is_stalled = True
+                    elif pr.started_at and pr.started_at < pipe_cutoff:
+                        is_stalled = True
+                    elif last_comp and last_comp.completed_at and last_comp.completed_at < comp_cutoff:
+                        is_stalled = True
+
+                    if is_stalled:
+                        has_failed = pr.component_runs.filter(status='failed').exists()
+                        has_aborted = pr.component_runs.filter(status='aborted').exists()
+                        should_reap = True
+                        if has_failed:
+                            new_status = 'failed'
+                            new_message = f"Zombie pipeline reaped: Step failed and inactive for {pr_age_min}m."
+                        elif has_aborted:
+                            new_status = 'aborted'
+                            new_message = "Pipeline marked aborted: Component execution was cancelled."
+                        else:
+                            new_status = 'failed'
+                            new_message = f"Zombie pipeline reaped: Inactive for {pr_age_min}m without completing final stage."
             elif force or (pr.started_at and pr.started_at < pipe_cutoff and not has_active_comps):
                 should_reap = True
                 new_status = 'failed'

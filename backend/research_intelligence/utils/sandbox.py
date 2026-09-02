@@ -233,8 +233,13 @@ def _wrap_snippet_to_callable(code_snippet: str) -> str:
     if not stripped:
         return "def __signal_calc__(extractions=None, **kwargs):\n    return 0.0"
 
-    # If the user already defined a function
-    if stripped.startswith("def "):
+    # If the user already defined the canonical main scoring function
+    if (
+        stripped.startswith("def compute_signal_score(")
+        or stripped.startswith("def calculate_score(")
+        or stripped.startswith("def signal_score(")
+        or stripped.startswith("def calculate_signal_score(")
+    ):
         return stripped
 
     # Try parsing as a pure expression first (e.g. `fit_score * 2 + trl_level` or `w1 * 0.3 + w2 * 0.7`)
@@ -348,12 +353,20 @@ def execute_sandboxed_snippet(
         raise SandboxExecutionError(f"Error during signal score definition: {e}")
 
     calc_fn = None
-    for key, val in local_scope.items():
-        if callable(val) and not key.startswith("_"):
-            calc_fn = val
-            break
-    if not calc_fn and "__signal_calc__" in local_scope:
+    # If the user snippet was wrapped into __signal_calc__, execute that wrapper
+    if "__signal_calc__" in local_scope and callable(local_scope["__signal_calc__"]):
         calc_fn = local_scope["__signal_calc__"]
+    else:
+        # Check for explicit canonical score function names first
+        for candidate_name in ("compute_signal_score", "calculate_signal_score", "signal_score", "score"):
+            if candidate_name in local_scope and callable(local_scope[candidate_name]):
+                calc_fn = local_scope[candidate_name]
+                break
+        if not calc_fn:
+            for key, val in local_scope.items():
+                if callable(val) and not key.startswith("_"):
+                    calc_fn = val
+                    break
 
     if not calc_fn or not callable(calc_fn):
         raise SandboxExecutionError("No executable function or calculation result found in snippet.")

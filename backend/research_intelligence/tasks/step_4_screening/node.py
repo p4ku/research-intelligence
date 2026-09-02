@@ -59,9 +59,10 @@ class AbstractScreeningNode(BaseWorkflowNode):
 
         papers = pipeline_run.get_papers()
         passed_count = pipeline_run.get_papers(screening_status=['abstract_passed', 'accepted', 'full_text_passed']).count()
+        borderline_count = pipeline_run.get_papers(screening_status='borderline').count()
         total_papers = papers.count()
 
-        if total_papers > 0 and passed_count == 0:
+        if total_papers > 0 and passed_count == 0 and borderline_count == 0:
             rejected_count = pipeline_run.get_papers(screening_status='rejected').count()
             return True, f"Abstract Screening: 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
 
@@ -141,9 +142,10 @@ class FullTextScreeningNode(BaseWorkflowNode):
 
         papers = pipeline_run.get_papers()
         passed_count = pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted']).count()
+        borderline_count = pipeline_run.get_papers(screening_status='borderline').count()
         total_papers = papers.count()
 
-        if total_papers > 0 and passed_count == 0:
+        if total_papers > 0 and passed_count == 0 and borderline_count == 0:
             rejected_count = pipeline_run.get_papers(screening_status='rejected').count()
             return True, f"Full-Text Screening: 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
 

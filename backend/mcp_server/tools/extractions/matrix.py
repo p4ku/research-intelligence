@@ -98,6 +98,19 @@ def get_paper_extractions_matrix_logic(
     exit metrics, justifications, and scores in a single structured response.
     Eliminates manual joining of papers and extractions.
     """
+    if workspace_id:
+        workspace, _, error = check_workspace_access(user, workspace_id)
+        if error:
+            return json.dumps({"error": error})
+    elif pipeline_run_id:
+        try:
+            pr = PipelineRun.objects.select_related('workspace').get(id=pipeline_run_id)
+            workspace, _, error = check_workspace_access(user, str(pr.workspace.id))
+            if error:
+                return json.dumps({"error": error})
+        except (ValueError, PipelineRun.DoesNotExist):
+            return json.dumps({"error": f"PipelineRun '{pipeline_run_id}' not found."})
+
     from research_intelligence.services import build_paper_extractions_matrix
     payload = build_paper_extractions_matrix(
         user=user,

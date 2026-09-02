@@ -2331,7 +2331,7 @@ class PaperAdmin(admin.ModelAdmin):
     )
 
     def pipeline_run_link(self, obj):
-        pr = obj.pipeline_run
+        pr = getattr(obj, 'latest_pipeline_run', None) or obj.pipeline_run
         if not pr:
             return "-"
         url = reverse("admin:research_intelligence_pipelinerun_change", args=[pr.id])

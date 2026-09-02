@@ -158,6 +158,7 @@ class Paper(models.Model):
 
     @property
     def pipeline_run(self):
+        """Returns the initial / origin PipelineRun for this paper."""
         if hasattr(self, '_pipeline_run') and self._pipeline_run is not None:
             return self._pipeline_run
         initial_metric = self.metrics.order_by('created_at').first()
@@ -166,6 +167,12 @@ class Paper(models.Model):
     @pipeline_run.setter
     def pipeline_run(self, val):
         self._pipeline_run = val
+
+    @property
+    def latest_pipeline_run(self):
+        """Returns the most recent PipelineRun that evaluated this paper."""
+        latest_metric = self.metrics.order_by('-created_at').first()
+        return latest_metric.pipeline_run if latest_metric else None
 
     @property
     def pipeline_run_id(self):
@@ -213,21 +220,39 @@ class Paper(models.Model):
 class PaperMetricManager(models.Manager):
     """
     Ensures that calls to PaperMetric.objects.create(paper=..., pipeline_run=...)
-    safely update or create the metric record without violating the unique constraint.
+    safely update or create the metric record without violating the unique constraint,
+    and automatically infers workspace from paper or pipeline_run if not provided.
     """
     def create(self, **kwargs):
         paper = kwargs.get('paper') or kwargs.get('paper_id')
         pipeline_run = kwargs.get('pipeline_run') or kwargs.get('pipeline_run_id')
+        workspace = kwargs.get('workspace') or kwargs.get('workspace_id')
+        if not workspace:
+            if hasattr(paper, 'workspace'):
+                workspace = paper.workspace
+            elif hasattr(pipeline_run, 'workspace'):
+                workspace = pipeline_run.workspace
+            elif paper:
+                from .paper import Paper
+                ws_id = Paper.objects.filter(pk=getattr(paper, 'id', paper)).values_list('workspace_id', flat=True).first()
+                if ws_id:
+                    workspace = ws_id
+
         if paper and pipeline_run:
             paper_id = getattr(paper, 'id', paper)
             pipeline_run_id = getattr(pipeline_run, 'id', pipeline_run)
             clean_kwargs = {k: v for k, v in kwargs.items() if k not in ('paper', 'paper_id', 'pipeline_run', 'pipeline_run_id')}
+            if 'workspace' not in clean_kwargs and 'workspace_id' not in clean_kwargs and workspace:
+                clean_kwargs['workspace'] = workspace
             obj, _ = self.update_or_create(
                 paper_id=paper_id,
                 pipeline_run_id=pipeline_run_id,
                 defaults=clean_kwargs
             )
             return obj
+
+        if 'workspace' not in kwargs and 'workspace_id' not in kwargs and workspace:
+            kwargs['workspace'] = workspace
         return super().create(**kwargs)
 
 
@@ -289,7 +314,6 @@ class PaperMetric(models.Model):
         indexes = [
             models.Index(fields=['pipeline_run', 'screening_status']),
             models.Index(fields=['workspace', 'screening_status']),
-            models.Index(fields=['paper', 'pipeline_run']),
             models.Index(fields=['paper', '-created_at']),
             models.Index(fields=['pipeline_run', '-signal_score']),
             models.Index(fields=['workspace', '-signal_score']),

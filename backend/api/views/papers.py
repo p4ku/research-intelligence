@@ -71,17 +71,18 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
                 Prefetch('metrics', queryset=PaperMetric.objects.filter(pipeline_run_id=pr_uuid))
             )
 
+            from django.db.models import F
             if ordering in ('signal_score', '+signal_score'):
                 return qs.order_by('metrics__signal_score', '-created_at', '-id')
             elif ordering == '-signal_score':
-                return qs.order_by('-metrics__signal_score', '-created_at', '-id')
+                return qs.order_by(F('metrics__signal_score').desc(nulls_last=True), '-created_at', '-id')
 
             return qs.order_by('-created_at', '-id')
 
         # Workspace-level queries (no specific pipeline run):
         qs = qs.prefetch_related('metrics')
 
-        from django.db.models import Subquery, OuterRef
+        from django.db.models import Subquery, OuterRef, F
         if screening_status:
             latest_status = Subquery(
                 PaperMetric.objects.filter(paper=OuterRef('pk')).order_by('-created_at').values('screening_status')[:1]
@@ -94,7 +95,7 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
             )
             qs = qs.annotate(_latest_score=latest_score)
             if ordering == '-signal_score':
-                return qs.order_by('-_latest_score', '-created_at', '-id')
+                return qs.order_by(F('_latest_score').desc(nulls_last=True), '-created_at', '-id')
             return qs.order_by('_latest_score', '-created_at', '-id')
 
         return qs.order_by('-created_at', '-id')
@@ -141,6 +142,13 @@ class PaperMetricViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = StandardResultsSetPagination
     ordering_fields = ['created_at', 'signal_score', 'screening_status']
     ordering = ['-signal_score', '-created_at', '-id']
+
+    def filter_queryset(self, queryset):
+        ordering = self.request.query_params.get('ordering')
+        if ordering == '-signal_score' or not ordering:
+            from django.db.models import F
+            return queryset.order_by(F('signal_score').desc(nulls_last=True), '-created_at', '-id')
+        return super().filter_queryset(queryset)
 
     def get_queryset(self):
         user = self.request.user

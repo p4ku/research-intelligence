@@ -143,7 +143,7 @@ def compute_paper_signal_score(
     if isinstance(paper_id_or_obj, Paper):
         paper = paper_id_or_obj
     else:
-        paper = Paper.objects.select_related('workspace', 'pipeline_run').get(pk=paper_id_or_obj)
+        paper = Paper.objects.select_related('workspace').get(pk=paper_id_or_obj)
 
     workspace = paper.workspace
     if pipeline_run is None:

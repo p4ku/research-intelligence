@@ -201,6 +201,19 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
             if (idx + 1) % 25 == 0 or (idx + 1) == total_items:
                 logger.info(f"💾 [INGESTION PROGRESS] Processed {idx + 1}/{total_items} papers ({created_count} new, {skipped_count} duplicates/skipped)...")
 
+        # If reprocess_existing is True, ensure ALL existing workspace papers are linked to this active run
+        if getattr(pipeline_run, 'reprocess_existing', False):
+            existing_ws_papers = Paper.objects.filter(workspace=workspace)
+            for ws_p in existing_ws_papers:
+                pm, pm_created = PaperMetric.objects.get_or_create(
+                    paper=ws_p,
+                    pipeline_run=pipeline_run,
+                    defaults={'workspace': workspace, 'screening_status': 'pending'}
+                )
+                if pm_created:
+                    created_count += 1
+                    created_paper_ids.append(str(ws_p.id))
+
         # Build complete list of all fetched papers for output_data
         fetched_papers_sample = []
         for r in results:

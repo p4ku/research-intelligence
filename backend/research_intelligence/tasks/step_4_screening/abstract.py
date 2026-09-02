@@ -397,8 +397,9 @@ def execute_screening_job(self, component_run_id: str, limit: int = None, max_wo
         pipeline_run.tokens_out = (pipeline_run.tokens_out or 0) + total_candidates_tokens
         pipeline_run.tokens_consumed = (pipeline_run.tokens_consumed or 0) + total_tokens
         pipeline_run.usd_cost = (pipeline_run.usd_cost or Decimal('0.0000')) + cost
-        if passed_count > 0:
-            pipeline_run.total_papers_passed_screening = (pipeline_run.total_papers_passed_screening or 0) + passed_count
+        pipeline_run.total_papers_passed_screening = pipeline_run.get_papers(
+            screening_status=['abstract_passed', 'accepted', 'full_text_passed']
+        ).count()
         pipeline_run.save(update_fields=['tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost', 'total_papers_passed_screening'])
 
         # Record monthly quota usage on Workspace and persist into global LLM usage ledger

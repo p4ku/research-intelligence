@@ -65,9 +65,10 @@ def build_pipeline_run_digest_payload(
             pm.paper_id: pm for pm in PaperMetric.objects.filter(paper__in=accepted_papers, pipeline_run=pipeline_run)
         }
     elif accepted_papers:
-        metrics_by_paper = {
-            pm.paper_id: pm for pm in PaperMetric.objects.filter(paper__in=accepted_papers).order_by('-created_at')
-        }
+        metrics_by_paper = {}
+        for pm in PaperMetric.objects.filter(paper__in=accepted_papers).order_by('-created_at'):
+            if pm.paper_id not in metrics_by_paper:
+                metrics_by_paper[pm.paper_id] = pm
     else:
         metrics_by_paper = {}
 
