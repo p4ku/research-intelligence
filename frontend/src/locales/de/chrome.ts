@@ -14,6 +14,7 @@ export const dict: Record<string, string> = {
   'Hide core concepts': 'Kernkonzepte ausblenden',
   'Hide extra concepts': 'Zusatzkonzepte ausblenden',
   'Sign out': 'Abmelden',
+  'Signing out…': 'Abmeldung läuft…',
   'Future Phase Concepts': 'Konzepte für zukünftige Phasen',
   'Phase 3a Concepts · Trends': 'Phase-3a-Konzepte · Trends',
   'Phase 3b Concepts · Author Intelligence': 'Phase-3b-Konzepte · Autoren-Intelligenz',
