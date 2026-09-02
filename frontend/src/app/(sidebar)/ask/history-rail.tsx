@@ -1,6 +1,7 @@
 'use client'
 
 import { SectionLabel } from '@/components/scanner-ui'
+import { Spinner } from '@/components/ui/spinner'
 import type { ChatSession } from '@/lib/bff/chat/schema'
 import { fmt } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
@@ -26,17 +27,20 @@ function dayLabel(iso: string, lang: string, t: (s: string) => string): string {
 function HistoryRow({
   session,
   active,
+  opening,
   onOpen,
   onDelete,
 }: {
   session: ChatSession
   active: boolean
+  opening: boolean
   onOpen: () => void
   onDelete: () => void
 }) {
   const t = useT()
   return (
     <div
+      aria-busy={opening || undefined}
       className={clsx(
         'group flex w-full items-stretch gap-2.5 rounded-sm py-2 pr-2 pl-2',
         active ? 'border-line bg-surface border shadow-xs' : 'hover:bg-foreground/5',
@@ -65,6 +69,7 @@ function HistoryRow({
           {session.title}
         </span>
         <span className="text-muted-foreground mt-1 flex min-w-0 items-center gap-1.5 font-mono text-[10px] tabular-nums">
+          {opening && <Spinner aria-hidden="true" className="size-3 shrink-0" />}
           {active && <span className="bg-accent size-1.5 shrink-0 rounded-full" />}
           <span className="shrink-0">{timeOf(session.updated_at)}</span>
           <span aria-hidden="true">·</span>
@@ -81,12 +86,15 @@ function HistoryRow({
           </span>
         </span>
       </button>
+      {/* Separated from the open target by a divider; on touch it is visible
+          at rest and grows real padding to a ~44px target (a positioned
+          ::after overhang widened the page on mobile — don't reintroduce). */}
       <button
         type="button"
         onClick={onDelete}
         title={t('Delete conversation')}
         aria-label={t('Delete conversation')}
-        className="text-muted-foreground hover:text-foreground self-center rounded-sm p-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+        className="text-muted-foreground hover:text-negative border-line-soft ml-1 flex items-center self-stretch border-l py-1 pr-1 pl-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:py-4 pointer-coarse:pr-3.5 pointer-coarse:pl-4 pointer-coarse:opacity-100"
       >
         <TrashIcon className="size-3.5" />
       </button>
@@ -97,11 +105,15 @@ function HistoryRow({
 export function HistoryList({
   threads,
   activeId,
+  openingId = null,
+  rowError = null,
   onOpen,
   onDelete,
 }: {
   threads: ChatSession[]
   activeId: string | null
+  openingId?: string | null
+  rowError?: { id: string; message: string } | null
   onOpen: (session: ChatSession) => void
   onDelete: (session: ChatSession) => void
 }) {
@@ -134,13 +146,20 @@ export function HistoryList({
           </p>
           <div className="mt-1 space-y-0.5">
             {g.items.map((session) => (
-              <HistoryRow
-                key={session.id}
-                session={session}
-                active={session.id === activeId}
-                onOpen={() => onOpen(session)}
-                onDelete={() => onDelete(session)}
-              />
+              <div key={session.id}>
+                <HistoryRow
+                  session={session}
+                  active={session.id === activeId}
+                  opening={session.id === openingId}
+                  onOpen={() => onOpen(session)}
+                  onDelete={() => onDelete(session)}
+                />
+                {rowError?.id === session.id && (
+                  <p role="alert" className="text-negative px-2 pt-1 pb-0.5 text-[11px]">
+                    {rowError.message}
+                  </p>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -157,12 +176,20 @@ export function HistoryList({
 export function HistoryRail({
   threads,
   activeId,
+  openingId = null,
+  rowError = null,
+  stale = false,
+  onRefresh,
   onOpen,
   onNew,
   onDelete,
 }: {
   threads: ChatSession[]
   activeId: string | null
+  openingId?: string | null
+  rowError?: { id: string; message: string } | null
+  stale?: boolean
+  onRefresh?: () => void
   onOpen: (session: ChatSession) => void
   onNew: () => void
   onDelete: (session: ChatSession) => void
@@ -184,8 +211,29 @@ export function HistoryRail({
           {t('New conversation')}
         </button>
       </div>
+      {stale && (
+        <p role="status" className="text-muted-foreground mt-2 px-3 text-[11px]">
+          {t('History may be out of date.')}{' '}
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="text-foreground font-medium hover:underline"
+            >
+              {t('Refresh')}
+            </button>
+          )}
+        </p>
+      )}
       <div className="mt-3">
-        <HistoryList threads={threads} activeId={activeId} onOpen={onOpen} onDelete={onDelete} />
+        <HistoryList
+          threads={threads}
+          activeId={activeId}
+          openingId={openingId}
+          rowError={rowError}
+          onOpen={onOpen}
+          onDelete={onDelete}
+        />
       </div>
     </div>
   )

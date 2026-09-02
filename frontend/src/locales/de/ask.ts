@@ -52,6 +52,15 @@ export const dict: Record<string, string> = {
   Yesterday: 'Gestern',
   'New conversation': 'Neues Gespräch',
   'Delete conversation': 'Gespräch löschen',
+  'Delete this conversation?': 'Dieses Gespräch löschen?',
+  '"{title}" and every answer in it will be deleted. This cannot be undone.':
+    '„{title}“ und alle darin enthaltenen Antworten werden gelöscht. Dies kann nicht rückgängig gemacht werden.',
+  Cancel: 'Abbrechen',
+  Delete: 'Löschen',
+  'Deleting…': 'Wird gelöscht …',
+  'Conversation deleted': 'Gespräch gelöscht',
+  'History may be out of date.': 'Der Verlauf ist möglicherweise nicht aktuell.',
+  Refresh: 'Aktualisieren',
   'Questions you ask are filed here.': 'Gestellte Fragen werden hier abgelegt.',
 
   // scanner-turn.tsx
