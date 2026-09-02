@@ -1491,7 +1491,7 @@
     "/bff/pipeline-runs": {
       "get": {
         "operationId": "pipeline-runs.list.bff",
-        "summary": "Paginated runs for a workspace in the contract shape.",
+        "summary": "Paginated runs in the contract shape; omit workspace_id for every workspace the caller can see.",
         "tags": [
           "pipeline-runs"
         ],
@@ -1520,7 +1520,7 @@
           {
             "name": "workspace_id",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string",
               "format": "uuid",
@@ -1581,6 +1581,202 @@
                     "next",
                     "previous",
                     "results"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error (RFC 9457)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bff/pipeline-runs/overview": {
+      "get": {
+        "operationId": "pipeline-runs.overview.bff",
+        "summary": "Runs across every workspace plus the workspaces themselves, in one payload for the Studio overview (newest 500 runs).",
+        "tags": [
+          "pipeline-runs"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "runs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/PipelineRun"
+                      }
+                    },
+                    "workspaces": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/Workspace"
+                      }
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    },
+                    "generated_at": {
+                      "type": "string",
+                      "format": "date-time",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                    }
+                  },
+                  "required": [
+                    "runs",
+                    "workspaces",
+                    "truncated",
+                    "generated_at"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error (RFC 9457)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bff/pipeline-runs/{run_id}/edition": {
+      "get": {
+        "operationId": "pipeline-runs.edition.bff",
+        "summary": "The edition a completed run produced (composed from its papers); 404 for runs that have none.",
+        "tags": [
+          "pipeline-runs"
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "run_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "workspace_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "date": {
+                      "type": "string",
+                      "format": "date",
+                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))$"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "in_brief": {
+                      "type": "string"
+                    },
+                    "in_brief_source": {
+                      "type": "string",
+                      "enum": [
+                        "model",
+                        "template"
+                      ]
+                    },
+                    "funnel": {
+                      "type": "object",
+                      "properties": {
+                        "fetched": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "passed_screening": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        },
+                        "surfaced": {
+                          "type": "integer",
+                          "minimum": -9007199254740991,
+                          "maximum": 9007199254740991
+                        }
+                      },
+                      "required": [
+                        "fetched",
+                        "passed_screening",
+                        "surfaced"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "papers": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/EditionPaper"
+                      }
+                    },
+                    "generated_at": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "exclusions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/$defs/EditionExclusion"
+                      }
+                    }
+                  },
+                  "required": [
+                    "run_id",
+                    "workspace_id",
+                    "date",
+                    "title",
+                    "in_brief",
+                    "in_brief_source",
+                    "funnel",
+                    "papers",
+                    "generated_at",
+                    "exclusions"
                   ],
                   "additionalProperties": false
                 }
@@ -3479,6 +3675,59 @@
                 "type": "null"
               }
             ]
+          },
+          "workspace_name": {
+            "type": "string"
+          },
+          "triggered_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schedule_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reprocess_existing": {
+            "type": "boolean"
+          },
+          "tokens_in": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "tokens_out": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "total_tokens": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -3493,7 +3742,15 @@
           "duration_seconds",
           "usd_cost",
           "started_at",
-          "completed_at"
+          "completed_at",
+          "workspace_name",
+          "triggered_by",
+          "schedule_id",
+          "schedule_name",
+          "reprocess_existing",
+          "tokens_in",
+          "tokens_out",
+          "total_tokens"
         ],
         "additionalProperties": false
       },
@@ -3599,6 +3856,28 @@
               }
             ]
           },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schedule_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "reprocess_existing": {
             "type": "boolean"
           },
@@ -3673,6 +3952,8 @@
           "completed_at",
           "workspace_name",
           "triggered_by",
+          "schedule_id",
+          "schedule_name",
           "reprocess_existing",
           "tokens_in",
           "tokens_out",
@@ -3725,6 +4006,39 @@
           "next",
           "previous",
           "results"
+        ],
+        "additionalProperties": false
+      },
+      "PipelineRunsOverview": {
+        "$id": "#/components/schemas/PipelineRunsOverview",
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineRun"
+            }
+          },
+          "workspaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Workspace"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "runs",
+          "workspaces",
+          "truncated",
+          "generated_at"
         ],
         "additionalProperties": false
       },
@@ -4374,6 +4688,36 @@
             "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "monthly_usd_limit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usd_spent": {
+            "type": "number"
+          },
+          "monthly_token_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tokens_consumed": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -4385,7 +4729,11 @@
           "digest_schedule",
           "screening_llm_model",
           "llm_provider",
-          "created_at"
+          "created_at",
+          "monthly_usd_limit",
+          "usd_spent",
+          "monthly_token_limit",
+          "tokens_consumed"
         ],
         "additionalProperties": false
       },

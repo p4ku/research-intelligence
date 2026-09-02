@@ -42,6 +42,17 @@ export const workspace = z
     screening_llm_model: z.string().nullable(),
     llm_provider: z.string().nullable(),
     created_at: z.iso.datetime({ offset: true }),
+    /**
+     * Budget, straight off the workspace row. The limits are null when the
+     * workspace sets none (0 on the model). The counters are what the
+     * backend has recorded against the workspace — every LLM call, not only
+     * pipeline runs — and nothing resets them on the first of the month
+     * today, so copy calls them "used", never "this month".
+     */
+    monthly_usd_limit: z.number().nullable(),
+    usd_spent: z.number(),
+    monthly_token_limit: z.number().int().nullable(),
+    tokens_consumed: z.number().int(),
   })
   .meta({ id: 'Workspace' })
 

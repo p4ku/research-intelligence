@@ -23,6 +23,13 @@ export const pipelineRunDTO = z.looseObject({
   triggered_by: z.number().nullable(),
   triggered_by_username: z.string().nullable(),
   reprocess_existing: z.boolean(),
+  /**
+   * The WorkflowSchedule that started the run, and its name. Added to the
+   * serializer in 02aa420; optional because snapshots pulled before it have
+   * neither key, and `looseObject` tolerates extra keys, not missing ones.
+   */
+  schedule: z.string().nullable().optional(),
+  schedule_name: z.string().nullable().optional(),
   status_message: z.string().nullable(),
   started_at: z.string().nullable(),
   completed_at: z.string().nullable(),

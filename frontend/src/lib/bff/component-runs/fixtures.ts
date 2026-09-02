@@ -6,10 +6,11 @@
  * skeleton mirrors exactly that pattern, so this fixture is its drift
  * contract. Labels are what `labelFor` resolves for each component. Pure.
  */
-import { fixtureRuns } from '../pipeline-runs/fixtures'
+import { fixtureOverviewRuns, fixtureRuns } from '../pipeline-runs/fixtures'
 import type { ComponentCost, ComponentRun } from './schema'
 
 const RUN_ID = fixtureRuns[0].id
+const FAILED_RUN_ID = fixtureOverviewRuns[5].id
 
 const unmeasured: ComponentCost = {
   usd: null,
@@ -126,6 +127,46 @@ export const fixtureSteps: ComponentRun[] = [
     started_at: '2026-08-31T08:28:53.000000Z',
     completed_at: '2026-08-31T08:29:05.600000Z',
     error_message: null,
+    storage_path: null,
+  },
+]
+
+/**
+ * The steps of the overview fixture's failed run: search and download ran,
+ * download failed with the message the run carries. The Studio overview's
+ * detail pane marks the failed stage from this row, never from the run's
+ * `current_stage`.
+ */
+export const fixtureStepsFailed: ComponentRun[] = [
+  {
+    id: '00000000-0000-4000-8000-000000000211',
+    pipeline_run_id: FAILED_RUN_ID,
+    step_type: 'search',
+    component_name: 'arxiv_scraper',
+    label: 'arXiv search',
+    status: 'completed',
+    summary: { kind: 'search', created: 41, fetched: 41, duplicates: 0 },
+    cost: unmeasured,
+    duration_seconds: 29,
+    started_at: '2026-09-01T07:30:14.000000Z',
+    completed_at: '2026-09-01T07:30:43.000000Z',
+    error_message: null,
+    storage_path: null,
+  },
+  {
+    id: '00000000-0000-4000-8000-000000000212',
+    pipeline_run_id: FAILED_RUN_ID,
+    step_type: 'download',
+    component_name: 'document_download',
+    label: 'Download',
+    status: 'failed',
+    summary: { kind: 'download', downloaded: 15, cached: 0, failed: 7 },
+    cost: unmeasured,
+    duration_seconds: 524,
+    started_at: '2026-09-01T07:32:24.000000Z',
+    completed_at: '2026-09-01T07:41:08.000000Z',
+    error_message:
+      'HTTP 429 Too Many Requests from export.arxiv.org for 7 of 22 PDFs after 3 retries; step halted by operator',
     storage_path: null,
   },
 ]

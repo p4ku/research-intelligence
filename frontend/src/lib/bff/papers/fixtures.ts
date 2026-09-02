@@ -10,6 +10,10 @@ export const fixtureWorkspace: WorkspaceSummary = {
   id: '00000000-0000-4000-8000-000000000001',
   name: 'Agentic AI Scan (fixture)',
   user_role: 'researcher',
+  monthly_usd_limit: 100,
+  usd_spent: 12.46,
+  monthly_token_limit: 25_000_000,
+  tokens_consumed: 3_412_880,
   definitions: [
     {
       id: '00000000-0000-4000-8000-000000000011',

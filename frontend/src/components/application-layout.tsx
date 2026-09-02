@@ -44,6 +44,7 @@ import {
   HomeIcon,
   NewspaperIcon,
   PlayCircleIcon,
+  RectangleGroupIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -65,6 +66,7 @@ const coreNav: ShellNavItem[] = [
 ]
 
 const studioNav: ShellNavItem[] = [
+  { href: '/studio/overview', label: 'Overview', Icon: RectangleGroupIcon },
   { href: '/studio/runs', label: 'Runs', Icon: PlayCircleIcon },
   { href: '/dashboard', label: 'Briefings app', Icon: HomeIcon, exact: true },
 ]

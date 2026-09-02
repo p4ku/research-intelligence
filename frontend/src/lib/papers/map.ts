@@ -459,6 +459,18 @@ export function toScoredPaper(
   }
 }
 
+/** DRF Decimal → string; a malformed value reads as 0 rather than NaN. */
+function decimalToNumber(value: string | number): number {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : 0
+}
+
+/** A limit of 0 on the model means "no limit set". */
+function positiveOrNull(value: string | number): number | null {
+  const n = decimalToNumber(value)
+  return n > 0 ? n : null
+}
+
 export function toWorkspaceSummary(
   ws: WorkspaceDTO,
   maxima: Map<string, number | null>,
@@ -477,6 +489,10 @@ export function toWorkspaceSummary(
     screening_llm_model: ws.screening_llm_model || null,
     llm_provider: ws.llm_provider || null,
     created_at: ws.created_at,
+    monthly_usd_limit: positiveOrNull(ws.monthly_usd_limit),
+    usd_spent: decimalToNumber(ws.usd_spent_this_month),
+    monthly_token_limit: positiveOrNull(ws.monthly_token_limit),
+    tokens_consumed: ws.tokens_consumed_this_month,
     definitions: ws.extraction_definitions.map(
       (d): DefinitionSummary => ({
         id: d.id,

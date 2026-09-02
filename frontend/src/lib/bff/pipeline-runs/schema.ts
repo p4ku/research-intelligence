@@ -5,6 +5,7 @@
  */
 import * as z from 'zod'
 import { listQuery, pageSchema } from '../core/pagination'
+import { workspace } from '../workspaces/schema'
 
 export const runStatus = z
   .enum(['pending', 'running', 'completed', 'failed', 'aborted'])
@@ -29,12 +30,23 @@ export const pipelineRun = z
     usd_cost: z.number(),
     started_at: z.iso.datetime({ offset: true }).nullable(),
     completed_at: z.iso.datetime({ offset: true }).nullable(),
+    workspace_name: z.string(),
+    /** Username, or null for a scheduled/system run. */
+    triggered_by: z.string().nullable(),
+    /** The WorkflowSchedule that started the run; null for a manual run. */
+    schedule_id: z.uuid().nullable(),
+    schedule_name: z.string().nullable(),
+    reprocess_existing: z.boolean(),
+    tokens_in: z.number().int(),
+    tokens_out: z.number().int(),
+    total_tokens: z.number().int(),
   })
   .meta({ id: 'PipelineRun' })
 export type PipelineRun = z.infer<typeof pipelineRun>
 
 export const runsQuery = listQuery.extend({
-  workspace_id: z.uuid(),
+  /** Omit for every run the caller can see, across workspaces. */
+  workspace_id: z.uuid().optional(),
   status: runStatus.optional(),
 })
 export type RunsQuery = z.infer<typeof runsQuery>
@@ -47,13 +59,6 @@ export const runPage = pageSchema(pipelineRun).meta({ id: 'PipelineRunPage' })
  */
 export const pipelineRunDetail = pipelineRun
   .extend({
-    workspace_name: z.string(),
-    /** Username, or null for a scheduled/system run. */
-    triggered_by: z.string().nullable(),
-    reprocess_existing: z.boolean(),
-    tokens_in: z.number().int(),
-    tokens_out: z.number().int(),
-    total_tokens: z.number().int(),
     papers_count: z.number().int(),
     duplicates_count: z.number().int(),
     extractions_count: z.number().int(),
@@ -61,6 +66,40 @@ export const pipelineRunDetail = pipelineRun
   })
   .meta({ id: 'PipelineRunDetail' })
 export type PipelineRunDetail = z.infer<typeof pipelineRunDetail>
+
+/**
+ * Every run the caller can see plus every workspace they belong to, in one
+ * payload: what the Studio overview renders on first paint and polls for
+ * afterwards. `truncated` says the newest `runs` were cut at the cap.
+ */
+export const runsOverview = z
+  .object({
+    runs: z.array(pipelineRun),
+    workspaces: z.array(workspace),
+    truncated: z.boolean(),
+    generated_at: z.iso.datetime({ offset: true }),
+  })
+  .meta({ id: 'PipelineRunsOverview' })
+export type RunsOverview = z.infer<typeof runsOverview>
+
+/**
+ * The stages a run passes through, in the order the engine dispatches them
+ * (the component-run timeline of a production run: search, download, OCR,
+ * then screening), as the overview draws them. `PipelineRun.current_stage`
+ * also takes `screening`, `metrics`, `deep_research` and `completed`; those
+ * are labelled but never lit.
+ */
+export const STAGES = [
+  'search',
+  'download',
+  'ocr',
+  'abstract_screening',
+  'full_text_screening',
+  'extraction',
+  'signal_score',
+  'reporting',
+] as const
+export type Stage = (typeof STAGES)[number]
 
 /**
  * `full_text_screening` → `Full-text screening`; `ocr` → `OCR`.

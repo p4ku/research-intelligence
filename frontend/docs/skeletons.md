@@ -192,6 +192,30 @@ Things learned:
   `briefings.listAll`, `briefings.getByDate`) is what makes sibling sections
   cheap; without it, `source=django` would fetch once per section.
 
+## Studio overview (`/studio/overview`)
+
+The three-pane console streams behind one boundary: `overview/skeletons.tsx`
+composes `RailSkeleton`, `RunListSkeleton` and `DetailPaneSkeleton` inside a
+single `Skeleton.Region` (`innerClassName="contents"` so the grid rows keep
+their height). Pairs `ws-rail`, `run-list` and `run-pane` sit in the gallery on
+`fixtureOverviewRuns` / `fixtureWorkspaces`, with loaded panes from
+`studio/skeletons/overview-demos.tsx`.
+
+Things learned:
+
+- **Control-shaped bones.** Filter chips and the pane's head controls keep their
+  real button classes around a `Bone.Text`, so a strip of buttons and a strip of
+  bones are the same height; a plain `Bone.Chip` (20px) drifts against a
+  bordered 11.5px button.
+- **Reserve what real data occupies at pane width.** A status message is a
+  sentence (two lines at 400px), a uuid wraps to two, and every real run ends
+  with a two-line "Not reached" row; the skeleton draws those, not idealised
+  one-liners.
+- **Range-scoped breakpoints.** The console's two-pane rules are
+  `lg:max-wide:` and the three-pane rules `wide:` (a custom `--breakpoint-wide`).
+  Tailwind emits the custom breakpoint's rules before `lg:`, so an unscoped
+  `lg:` rule would win at 1440; scoping the ranges makes order irrelevant.
+
 ## Later, not now
 
 Still on `KNOWN_UNCOVERED`: `/papers` (the `--stream` negative control above —

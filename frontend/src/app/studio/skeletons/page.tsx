@@ -40,10 +40,14 @@ import {
   SignalHeading,
 } from '../../(sidebar)/papers/[id]/paper-header'
 import { DIMENSION_ROWS } from '../../(sidebar)/papers/[id]/skeletons'
+import { DetailPaneSkeleton } from '../overview/detail-pane'
+import { RailSkeleton } from '../overview/rail'
+import { RunListSkeleton } from '../overview/run-list'
 import { RunFacts, RunFactsSkeleton } from '../runs/[id]/run-facts'
 import { StepTimeline, StepTimelineSkeleton } from '../runs/[id]/step-timeline'
 import { RunsTable, RunsTableSkeleton } from '../runs/runs-table'
 import { HistoryRailDemo, PaperPickerDemo } from './gallery-clients'
+import { DetailPaneDemo, RailDemo, RunListDemo } from './overview-demos'
 
 /**
  * The skeleton gallery: every data shape next to its loading state, on fixture
@@ -282,6 +286,46 @@ export default async function SkeletonsPage({
         status="Loading the runs"
         loaded={<RunsTable runs={fixtureRuns} />}
         skeleton={<RunsTableSkeleton rows={fixtureRuns.length} />}
+      />
+
+      <Pair
+        shape="ws-rail"
+        title="Overview · workspaces rail"
+        status="Loading the overview"
+        loaded={
+          <div className="max-w-sm">
+            <RailDemo />
+          </div>
+        }
+        skeleton={
+          <div className="max-w-sm">
+            <RailSkeleton items={4} />
+          </div>
+        }
+      />
+
+      <Pair
+        shape="run-list"
+        title="Overview · run list"
+        status="Loading the overview"
+        loaded={<RunListDemo />}
+        skeleton={<RunListSkeleton rows={1} />}
+      />
+
+      <Pair
+        shape="run-pane"
+        title="Overview · run pane"
+        status="Loading the overview"
+        loaded={
+          <div className="max-w-md">
+            <DetailPaneDemo />
+          </div>
+        }
+        skeleton={
+          <div className="max-w-md">
+            <DetailPaneSkeleton steps={7} />
+          </div>
+        }
       />
 
       <Pair

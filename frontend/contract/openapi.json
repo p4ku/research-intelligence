@@ -3221,6 +3221,59 @@
                 "type": "null"
               }
             ]
+          },
+          "workspace_name": {
+            "type": "string"
+          },
+          "triggered_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schedule_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reprocess_existing": {
+            "type": "boolean"
+          },
+          "tokens_in": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "tokens_out": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "total_tokens": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -3235,7 +3288,15 @@
           "duration_seconds",
           "usd_cost",
           "started_at",
-          "completed_at"
+          "completed_at",
+          "workspace_name",
+          "triggered_by",
+          "schedule_id",
+          "schedule_name",
+          "reprocess_existing",
+          "tokens_in",
+          "tokens_out",
+          "total_tokens"
         ],
         "additionalProperties": false
       },
@@ -3341,6 +3402,28 @@
               }
             ]
           },
+          "schedule_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schedule_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "reprocess_existing": {
             "type": "boolean"
           },
@@ -3415,6 +3498,8 @@
           "completed_at",
           "workspace_name",
           "triggered_by",
+          "schedule_id",
+          "schedule_name",
           "reprocess_existing",
           "tokens_in",
           "tokens_out",
@@ -3467,6 +3552,39 @@
           "next",
           "previous",
           "results"
+        ],
+        "additionalProperties": false
+      },
+      "PipelineRunsOverview": {
+        "$id": "#/components/schemas/PipelineRunsOverview",
+        "type": "object",
+        "properties": {
+          "runs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PipelineRun"
+            }
+          },
+          "workspaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Workspace"
+            }
+          },
+          "truncated": {
+            "type": "boolean"
+          },
+          "generated_at": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "runs",
+          "workspaces",
+          "truncated",
+          "generated_at"
         ],
         "additionalProperties": false
       },
@@ -4116,6 +4234,36 @@
             "type": "string",
             "format": "date-time",
             "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "monthly_usd_limit": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "usd_spent": {
+            "type": "number"
+          },
+          "monthly_token_limit": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "tokens_consumed": {
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
           }
         },
         "required": [
@@ -4127,7 +4275,11 @@
           "digest_schedule",
           "screening_llm_model",
           "llm_provider",
-          "created_at"
+          "created_at",
+          "monthly_usd_limit",
+          "usd_spent",
+          "monthly_token_limit",
+          "tokens_consumed"
         ],
         "additionalProperties": false
       },

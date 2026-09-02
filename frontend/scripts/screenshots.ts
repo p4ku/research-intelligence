@@ -201,6 +201,7 @@ const SCREENS: Screen[] = [
   { name: 'settings', route: '/settings', auth: true },
   // The skeleton gallery (loaded and skeleton panes side by side, sweep frozen)
   // so loading states ride the same review loop as every other screen.
+  { name: 'studio-overview', route: '/studio/overview', auth: true },
   { name: 'studio-runs', route: '/studio/runs', auth: true },
   { name: 'studio-run', route: '/studio/runs/[run]', auth: true },
   { name: 'skeletons', route: '/studio/skeletons?motion=static', auth: true },

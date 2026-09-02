@@ -133,6 +133,26 @@ export const briefings = {
     return paginate(summaries, query, '/bff/briefings', { workspace_id: query.workspace_id })
   },
 
+  /**
+   * The edition one run produced, keyed by run rather than by day, so a
+   * same-day rerun's older sibling resolves to its own papers instead of the
+   * newest run's. Composed only: null unless the run completed. Costs the
+   * workspace's scored corpus, so callers fetch it on demand, not in lists.
+   */
+  async forRun(runId: string, lang: Lang = 'en'): Promise<Edition | null> {
+    // The list shape carries everything an edition needs; the detail
+    // endpoint would add per-run COUNT queries (and the replay has no details).
+    const run = (await runs.listAcross()).find((r) => r.id === runId) ?? (await runs.get(runId))
+    if (run.status !== 'completed') return null
+    if (sourceOf('briefings') === 'stub') {
+      const first = fixtureEditions[0]
+      return first ? { ...first, run_id: run.id, workspace_id: run.workspace_id } : null
+    }
+    const scored = await papers.listAll(run.workspace_id)
+    if (!scored) return null
+    return composeEdition(run, run.workspace_name, scored.papers, lang)
+  },
+
   /** One edition by date; null when no completed run produced one. Cached per request. */
   getByDate: cache(
     async (workspaceId: string, date: string, lang: Lang = 'en'): Promise<Edition | null> => {

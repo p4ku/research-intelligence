@@ -8,6 +8,10 @@
   --font-sans: var(--font-switzer), Switzer, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
+  /* Where the Studio overview fits three panes beside the 256px sidebar
+     inside the shell card: 1400 − 256 − 88 of chrome ≈ 1056px of content. */
+  --breakpoint-wide: 1400px;
+
   /* The built-in CSS easings are too weak. One strong ease-out for anything
      entering or responding, one strong ease-in-out for on-screen movement —
      every transition in the app draws from these two so the motion stays in tune. */
@@ -90,6 +94,7 @@
   --color-muted: var(--line-soft);
   --color-muted-foreground: var(--muted);
   --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
   --color-accent-foreground: var(--foreground);
   --color-destructive: var(--negative);
   --color-border: var(--border);
@@ -194,6 +199,8 @@
   /* Skeleton scan-sweep highlight (see [data-skeleton] rules below) */
   --bone-sheen: rgba(255, 255, 255, 0.65);
   --accent: #00c3cd;
+  /* The accent as text: the fill is 2.1:1 on white, this is 4.6:1 */
+  --accent-ink: #00767e;
   --positive: #1e7b44;
   --negative: #b5402c;
   --warn: #e3c230;
@@ -226,6 +233,7 @@
   /* Dark surfaces take only a whisper of sheen */
   --bone-sheen: rgba(255, 255, 255, 0.05);
   --accent: #00c3cd;
+  --accent-ink: #6fd8de;
   --positive: #53c783;
   --negative: #e5654f;
   --warn: #e3c230;
