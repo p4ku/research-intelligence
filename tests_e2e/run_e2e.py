@@ -37,6 +37,9 @@ from tests_e2e.scenarios import (
     run_concurrent_agents_load_scenario,
     run_concurrent_runs_in_workspace_scenario,
     run_workflow_schedule_scenario,
+    run_paper_evidence_and_pdf_scenario,
+    run_researcher_rbac_guard_scenario,
+    run_executive_briefing_export_scenario,
 )
 
 # Configure rich colored terminal logging
@@ -60,9 +63,9 @@ def parse_args():
     )
     parser.add_argument(
         "--scenario",
-        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard", "concurrent", "parallel", "schedule", "all"],
+        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard", "concurrent", "parallel", "schedule", "evidence", "researcher", "briefing", "all"],
         default="slr",
-        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Multi-Source Deduplication, quota: Quota Guard, mcp: FastMCP SSE Tools, isolation: RBAC Multi-Tenancy, rerun: Mid-Step Rerun, guard: Hallucination Guard, concurrent: Parallel Agents Load, parallel: Concurrent Runs in Single Workspace, schedule: Workflow Schedule & Observability, all: Run all)",
+        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Multi-Source Deduplication, quota: Quota Guard, mcp: FastMCP SSE Tools, isolation: RBAC Multi-Tenancy, rerun: Mid-Step Rerun, guard: Hallucination Guard, concurrent: Parallel Agents Load, parallel: Concurrent Runs in Single Workspace, schedule: Workflow Schedule, evidence: Paper Scorecard & PDF, researcher: Researcher RBAC Safety, briefing: Executive Briefing Export, all: Run all)",
     )
     parser.add_argument(
         "--provider",
@@ -410,6 +413,21 @@ def main():
             res = run_workflow_schedule_scenario(config)
             total_elapsed = time.time() - t0
             print(f"\n✅ WORKFLOW SCHEDULE & OBSERVABILITY SCENARIO COMPLETED in {total_elapsed:.1f}s (Status: {res.get('schedule_status')})\n")
+
+        elif args.scenario == "evidence":
+            res = run_paper_evidence_and_pdf_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ PAPER SCORECARD & EVIDENCE QUOTES SCENARIO COMPLETED in {total_elapsed:.1f}s (Signal: {res.get('signal_score')}, PDF Status: {res.get('pdf_status_code')})\n")
+
+        elif args.scenario == "researcher":
+            res = run_researcher_rbac_guard_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ RESEARCHER RBAC & READ-ONLY SAFETY SCENARIO COMPLETED in {total_elapsed:.1f}s (Security: PASS)\n")
+
+        elif args.scenario == "briefing":
+            res = run_executive_briefing_export_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ EXECUTIVE BRIEFING GENERATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Report: '{res.get('report_title')}')\n")
 
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")

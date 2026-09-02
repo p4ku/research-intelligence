@@ -31,7 +31,7 @@ def generate_executive_narrative_report(pipeline_run: PipelineRun) -> Dict[str, 
     )
 
     # 1. Fetch papers
-    papers_qs = Paper.objects.filter(pipeline_run=pipeline_run).prefetch_related(
+    papers_qs = pipeline_run.get_papers().prefetch_related(
         'extractions', 'extractions__extraction_definition'
     ).order_by('-created_at')
 

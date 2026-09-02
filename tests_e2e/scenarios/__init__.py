@@ -14,6 +14,9 @@ from .chat_hallucination_guard import run_chat_hallucination_guard_scenario
 from .concurrent_agents_load import run_concurrent_agents_load_scenario
 from .concurrent_runs_in_workspace import run_concurrent_runs_in_workspace_scenario
 from .workflow_schedule import run_workflow_schedule_scenario
+from .paper_evidence_and_pdf import run_paper_evidence_and_pdf_scenario
+from .researcher_rbac_guard import run_researcher_rbac_guard_scenario
+from .executive_briefing_export import run_executive_briefing_export_scenario
 
 __all__ = [
     "run_full_slr_pipeline_scenario",
@@ -29,4 +32,7 @@ __all__ = [
     "run_concurrent_agents_load_scenario",
     "run_concurrent_runs_in_workspace_scenario",
     "run_workflow_schedule_scenario",
+    "run_paper_evidence_and_pdf_scenario",
+    "run_researcher_rbac_guard_scenario",
+    "run_executive_briefing_export_scenario",
 ]

@@ -123,6 +123,15 @@ npx playwright test specs/ask.spec.ts         # Paper Chat / Ask interface
 # 11. Concurrent Pipeline Runs in Single Workspace:
 ./tests_e2e/run_e2e.sh --scenario=parallel
 
+# 12. Paper Evidence Quotes, Scorecard & PDF Streaming:
+./tests_e2e/run_e2e.sh --scenario=evidence
+
+# 13. Researcher RBAC Guard & Read-Only Safety:
+./tests_e2e/run_e2e.sh --scenario=researcher
+
+# 14. Executive Briefing Generation & Structured Sections:
+./tests_e2e/run_e2e.sh --scenario=briefing
+
 # Run ALL Scenarios Sequentially:
 ./tests_e2e/run_e2e.sh --scenario=all
 ```
