@@ -36,6 +36,9 @@ def on_paper_deleted_decrement_registry(sender, instance, **kwargs):
         logger.warning(f"Error decrementing DocumentRegistry access_count for deleted paper '{getattr(instance, 'id', 'unknown')}': {e}")
 
 
+from django.db.models import Q
+
+
 @receiver(post_save, sender=PipelineRun)
 def on_pipeline_run_status_changed_update_schedules(sender, instance, **kwargs):
     """
@@ -44,8 +47,12 @@ def on_pipeline_run_status_changed_update_schedules(sender, instance, **kwargs):
     know about WorkflowSchedule. Tracks consecutive failures and auto-pauses if threshold is exceeded.
     """
     try:
-        schedules = WorkflowSchedule.objects.filter(last_pipeline_run_id=instance.id)
-        if not schedules.exists():
+        query = Q(last_pipeline_run_id=instance.id)
+        if getattr(instance, 'schedule_id', None):
+            query |= Q(id=instance.schedule_id)
+
+        schedules = list(WorkflowSchedule.objects.filter(query).distinct())
+        if not schedules:
             return
 
         target_status = instance.status
@@ -90,8 +97,13 @@ def on_agent_process_status_changed_update_schedules(sender, instance, **kwargs)
     if not instance.pipeline_run_id:
         return
     try:
-        schedules = WorkflowSchedule.objects.filter(last_pipeline_run_id=instance.pipeline_run_id)
-        if not schedules.exists():
+        p_run = PipelineRun.objects.filter(id=instance.pipeline_run_id).only('id', 'schedule_id').first()
+        query = Q(last_pipeline_run_id=instance.pipeline_run_id)
+        if p_run and p_run.schedule_id:
+            query |= Q(id=p_run.schedule_id)
+
+        schedules = list(WorkflowSchedule.objects.filter(query).distinct())
+        if not schedules:
             return
 
         target_status = instance.status
@@ -104,3 +116,4 @@ def on_agent_process_status_changed_update_schedules(sender, instance, **kwargs)
                 )
     except Exception as e:
         logger.warning(f"Error updating WorkflowSchedule from ResearchAgentProcess observer: {e}")
+
