@@ -25,7 +25,11 @@ export default async function LoginPage({
           next={next}
           lang={lang}
           notice={
-            reason === 'expired' ? t('Your session expired. Please sign in again.') : undefined
+            reason === 'expired'
+              ? t('Your session expired. Please sign in again.')
+              : reason === 'signed-out'
+                ? t('You have been signed out.')
+                : undefined
           }
         />
       </div>

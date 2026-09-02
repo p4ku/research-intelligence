@@ -4,7 +4,9 @@ export function safeNext(next: string | undefined | null): string {
     typeof next === 'string' &&
     next.startsWith('/') &&
     !next.startsWith('//') &&
-    !next.startsWith('/\\') &&
+    // The WHATWG URL parser strips tab/CR/LF anywhere and treats \ as /, so
+    // '/\t/evil.com' or '/\evil.com' would resolve off-origin at the sink.
+    !/[\t\n\r\\]/.test(next) &&
     !next.startsWith('/auth')
   ) {
     return next

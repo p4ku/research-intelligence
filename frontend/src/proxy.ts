@@ -73,7 +73,14 @@ export async function proxy(request: NextRequest) {
 
   const access = request.cookies.get(ACCESS_COOKIE)?.value
   const refresh = request.cookies.get(REFRESH_COOKIE)?.value
-  if (!refresh) return isBff ? bffUnauthorized(request, false) : withLang(toLogin(request), newLang)
+  if (!refresh) {
+    // An access cookie without its refresh partner means a session that ran
+    // out (refresh maxAge passed); no cookies at all is just a signed-out
+    // visitor, who must not be told their session expired.
+    return isBff
+      ? bffUnauthorized(request, false)
+      : withLang(toLogin(request, access ? 'expired' : undefined), newLang)
+  }
   if (access && secondsUntilExpiry(access) > REFRESH_SKEW_SECONDS) {
     return nextWithLang(request, newLang)
   }
@@ -84,7 +91,9 @@ export async function proxy(request: NextRequest) {
     return nextWithLang(request, newLang)
   }
   if (result.kind === 'rejected') {
-    const res = isBff ? bffUnauthorized(request, true) : withLang(toLogin(request), newLang)
+    const res = isBff
+      ? bffUnauthorized(request, true)
+      : withLang(toLogin(request, 'expired'), newLang)
     if (!isBff) clearAuthCookies(res.cookies)
     return res
   }
@@ -116,6 +125,11 @@ async function refreshAccess(refresh: string): Promise<RefreshResult> {
       body: JSON.stringify({ refresh }),
       cache: 'no-store',
     })
+    // 'rejected' signs the user out with "your session expired", so only a
+    // verdict on the token counts. A 5xx is Django ailing, not the session
+    // ending — treat it like a network failure and let the page's own API
+    // call decide (a truly dead token still 401s there and signs out).
+    if (res.status >= 500) return { kind: 'unreachable' }
     if (!res.ok) return { kind: 'rejected' }
     const data = (await res.json().catch(() => null)) as {
       access?: unknown
@@ -162,12 +176,18 @@ function bffUnauthorized(request: NextRequest, clear: boolean): NextResponse {
   return res
 }
 
-/** Redirect to the login page, remembering where the user was headed. */
-function toLogin(request: NextRequest) {
+/**
+ * Redirect to the login page, remembering where the user was headed and —
+ * when the session demonstrably ended, rather than never existing — why.
+ */
+function toLogin(request: NextRequest, reason?: 'expired') {
   const { pathname, search } = request.nextUrl
   const target = pathname + search
-  const query = target === '/dashboard' ? '' : `?next=${encodeURIComponent(target)}`
-  return NextResponse.redirect(absoluteUrl(request, `/${query}`), 307)
+  const query = new URLSearchParams()
+  if (reason) query.set('reason', reason)
+  if (target !== '/dashboard') query.set('next', target)
+  const qs = query.toString()
+  return NextResponse.redirect(absoluteUrl(request, qs ? `/?${qs}` : '/'), 307)
 }
 
 /**

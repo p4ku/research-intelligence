@@ -10,7 +10,9 @@ export default async function SidebarRootLayout({ children }: { children: React.
   // access token; this resolves who is signed in for the chrome. Django
   // validates the token itself on every data call.
   const user = await getSessionUser()
-  if (!user) redirect('/')
+  // Past the proxy's refresh gate with no resolvable user: the session
+  // is unusable, not absent — say so on the login page.
+  if (!user) redirect('/?reason=expired')
 
   // forPage: a 401 (Django rejected the session) becomes the logout redirect
   // instead of an uncatchable layout throw — error.tsx cannot catch its own
