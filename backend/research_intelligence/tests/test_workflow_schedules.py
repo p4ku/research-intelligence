@@ -1,3 +1,5 @@
+from django.db import connection, transaction
+from research_intelligence.tasks.orchestrator.runner import ResearchAgentRunner
 import datetime
 from django.test import TestCase
 from django.urls import reverse
@@ -266,3 +268,57 @@ class WorkflowScheduleModelAndDispatcherTests(TestCase):
         self.assertEqual(toggle_resp.status_code, 200)
         self.assertFalse(toggle_resp.data["is_active"])
         self.assertIsNone(toggle_resp.data["next_run_at"])
+
+    def test_trigger_run_atomic_transaction_resilience_and_on_commit(self):
+        """
+        Regression test: Verifies that trigger_run() executed inside an active transaction.atomic()
+        does not close the connection and executes on_commit callbacks cleanly.
+        """
+        schedule = WorkflowSchedule.objects.create(
+            workspace=self.workspace,
+            name="Transaction Resilience Schedule",
+            frequency="daily",
+            time_of_day=datetime.time(3, 0),
+            is_active=True
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            with transaction.atomic():
+                agent = schedule.trigger_run(triggered_by_user=self.user)
+                self.assertIsNotNone(agent)
+                # Verify DB connection is still active and queries work in same transaction
+                self.assertTrue(connection.is_usable())
+                agent_count = ResearchAgentProcess.objects.filter(id=agent.id).count()
+                self.assertEqual(agent_count, 1)
+
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.total_runs_count, 1)
+        self.assertEqual(schedule.last_status, "running")
+        self.assertTrue(connection.is_usable())
+
+    def test_runner_tick_inside_active_atomic_transaction_preserves_connection(self):
+        """
+        Regression test: Directly calling ResearchAgentRunner.tick inside an active transaction.atomic()
+        must NOT close the database connection (guard: if not connection.in_atomic_block).
+        """
+        pipeline_run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status='running',
+            current_stage='search'
+        )
+        agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            pipeline_run=pipeline_run,
+            name="Atomic Tick Test Agent",
+            status='running',
+            current_step='initialized'
+        )
+
+        with transaction.atomic():
+            self.assertTrue(connection.in_atomic_block)
+            tick_result = ResearchAgentRunner.tick(str(agent.id))
+            self.assertTrue(tick_result.get("success", False))
+            # Verify that connection was not closed and subsequent queries succeed
+            self.assertTrue(connection.is_usable())
+            agent.refresh_from_db()
+            self.assertIsNotNone(agent.status)

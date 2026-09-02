@@ -51,7 +51,8 @@ class ResearchAgentRunner:
             Dict[str, Any]: Result dictionary containing success status, current step,
                             and state transition details.
         """
-        close_old_connections()
+        if not connection.in_atomic_block:
+            close_old_connections()
         with transaction.atomic():
             try:
                 if connection.vendor == 'postgresql':

@@ -2,7 +2,7 @@ import uuid
 import logging
 import datetime
 from typing import Optional, List, Dict, Any
-from django.db import models
+from django.db import models, transaction
 from django.conf import settings
 from django.utils import timezone
 from django.core.exceptions import ValidationError
@@ -298,7 +298,7 @@ class WorkflowSchedule(models.Model):
         For One-Off schedules, automatically marks is_active=False and next_run_at=None.
         """
         from research_intelligence.models import PipelineRun, ResearchAgentProcess
-        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+        from research_intelligence.tasks.orchestrator.agent_engine import run_agent_process_tick, tick_agent_process
 
         now = timezone.now()
         config_override = dict(self.configuration_override or {})
@@ -336,8 +336,17 @@ class WorkflowSchedule(models.Model):
 
         logger.info(f"⏰ [SCHEDULE DISPATCHED] Triggered scheduled workflow '{self.name}' (Agent: {agent.id}, PipelineRun: {pipeline_run.id})")
         
-        # Start execution
-        tick_agent_process(str(agent.id))
+        # Start execution asynchronously via Celery after transaction commit (with sync fallback)
+        agent_id_str = str(agent.id)
+
+        def _dispatch_execution():
+            try:
+                run_agent_process_tick.delay(agent_id_str)
+            except Exception as e_celery:
+                logger.warning(f"⚠️ Celery dispatch failed, falling back to direct execution: {e_celery}")
+                tick_agent_process(agent_id_str)
+
+        transaction.on_commit(_dispatch_execution)
         return agent
 
     def save(self, *args, **kwargs):
