@@ -138,8 +138,9 @@ def reap_zombie_tasks(
                     # Pipeline is in-flight (current_stage != 'completed').
                     # Only reap as zombie if it has been stalled/inactive beyond the timeout cutoff, or if force=True.
                     last_comp = pr.component_runs.order_by('-completed_at').first()
+                    all_failed_or_aborted = pr.component_runs.exclude(status__in=['failed', 'aborted']).count() == 0
                     is_stalled = False
-                    if force:
+                    if force or all_failed_or_aborted:
                         is_stalled = True
                     elif pr.started_at and pr.started_at < pipe_cutoff:
                         is_stalled = True

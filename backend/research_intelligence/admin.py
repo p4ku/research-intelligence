@@ -2575,15 +2575,16 @@ class PaperMetricAdmin(admin.ModelAdmin):
         models.JSONField: {'widget': PrettyJSONWidget},
     }
     list_display = (
+        'metric_detail_link',
         'paper_display',
+        'workspace_link',
         'pipeline_run_link',
-        'workspace',
         'screening_status_badge',
-        'benchmark_badge',
         'signal_score_badge',
         'metrics_preview',
         'created_at'
     )
+    list_display_links = ('metric_detail_link',)
     ordering = ('-created_at', '-id')
     list_select_related = ('paper', 'pipeline_run', 'workspace')
     list_filter = ('screening_status', 'is_evaluation_benchmark', 'workspace', 'pipeline_run')
@@ -2621,6 +2622,35 @@ class PaperMetricAdmin(admin.ModelAdmin):
             'description': 'Dictionary of all normalized parameters and scores extracted across pipeline stages.'
         }),
     )
+
+    def metric_detail_link(self, obj):
+        url = reverse("admin:research_intelligence_papermetric_change", args=[obj.id])
+        return format_html(
+            '<a href="{}" style="font-weight: 700; color: #0d6efd; display: inline-flex; align-items: center; gap: 4px; text-decoration: none;" title="Open Metric Details (ID: {})">'
+            '<span style="background: #e7f1ff; color: #0d6efd; border: 1px solid #b6d4fe; padding: 2px 7px; border-radius: 4px; font-size: 11px; white-space: nowrap;">📊 Detal ({})</span>'
+            '</a>',
+            url,
+            str(obj.id),
+            str(obj.id)[:8]
+        )
+    metric_detail_link.short_description = "Metric Detail"
+    metric_detail_link.admin_order_field = "id"
+
+    def workspace_link(self, obj):
+        ws = obj.workspace or (obj.paper.workspace if obj.paper else None)
+        if not ws:
+            return mark_safe('<span style="color: #adb5bd; font-size: 11px;">-</span>')
+        url = reverse("admin:research_intelligence_workspace_change", args=[ws.id])
+        return format_html(
+            '<a href="{}" style="font-weight: 600; color: #212529; text-decoration: none;" title="Workspace: {}">'
+            '🏢 {}'
+            '</a>',
+            url,
+            ws.name,
+            ws.name[:25] + ("..." if len(ws.name) > 25 else "")
+        )
+    workspace_link.short_description = "Workspace"
+    workspace_link.admin_order_field = "workspace__name"
 
     def paper_display(self, obj):
         if not obj.paper:
@@ -2725,16 +2755,96 @@ class PaperMetricAdmin(admin.ModelAdmin):
     signal_score_badge.short_description = "Signal Score"
     signal_score_badge.admin_order_field = "signal_score"
 
+    def _format_metric_badge(self, val):
+        if val is None:
+            return '<span style="color: #adb5bd; font-size: 11px;">-</span>'
+
+        if isinstance(val, bool):
+            if val:
+                return '<span style="background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 10px;">✅ PASS</span>'
+            return '<span style="background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 10px;">❌ FAIL</span>'
+
+        if isinstance(val, (int, float)):
+            if isinstance(val, float) and val.is_integer():
+                val_str = str(int(val))
+            elif isinstance(val, float):
+                val_str = f"{val:.2f}"
+            else:
+                val_str = str(val)
+            return format_html(
+                '<span style="background-color: #cff4fc; color: #055160; border: 1px solid #b6effb; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 11px; font-family: monospace;">🔢 {}</span>',
+                val_str
+            )
+
+        if isinstance(val, dict):
+            for sub_key in ('passed', 'success', 'status', 'decision_category', 'score', 'value'):
+                if sub_key in val:
+                    return self._format_metric_badge(val[sub_key])
+            return '<span style="background-color: #e2e3e5; color: #41464b; border: 1px solid #d3d6d8; padding: 1px 5px; border-radius: 3px; font-size: 10px;">[Obiekt]</span>'
+
+        if isinstance(val, list):
+            return format_html(
+                '<span style="background-color: #e2e3e5; color: #41464b; border: 1px solid #d3d6d8; padding: 1px 5px; border-radius: 3px; font-size: 10px;">{} poz.</span>',
+                len(val)
+            )
+
+        val_lower = str(val).strip().lower()
+        if val_lower in ('true', 'passed', 'pass', 'accepted', 'yes'):
+            return '<span style="background-color: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 10px;">✅ PASS</span>'
+        elif val_lower in ('false', 'failed', 'fail', 'rejected', 'no'):
+            return '<span style="background-color: #f8d7da; color: #842029; border: 1px solid #f5c2c7; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 10px;">❌ FAIL</span>'
+        elif val_lower in ('borderline', 'hitl', 'review'):
+            return '<span style="background-color: #fff3cd; color: #664d03; border: 1px solid #ffecb5; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 10px;">⚠️ BORDERLINE</span>'
+
+        try:
+            num = float(val_lower)
+            formatted_num = str(int(num)) if num.is_integer() else f"{num:.2f}"
+            return format_html(
+                '<span style="background-color: #cff4fc; color: #055160; border: 1px solid #b6effb; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 11px; font-family: monospace;">🔢 {}</span>',
+                formatted_num
+            )
+        except (ValueError, TypeError):
+            pass
+
+        short_val = str(val)[:20] + ("..." if len(str(val)) > 20 else "")
+        return format_html(
+            '<span style="background-color: #f8f9fa; color: #495057; border: 1px solid #dee2e6; padding: 1px 6px; border-radius: 4px; font-weight: 600; font-size: 11px;">{}</span>',
+            short_val
+        )
+
     def metrics_preview(self, obj):
         if not obj.metrics_data:
-            return mark_safe('<span style="color: #6c757d;">-</span>')
-        items = []
-        for k, v in list(obj.metrics_data.items())[:4]:
-            items.append(f"<strong>{escape(str(k))}</strong>: {escape(str(v))}")
-        preview_str = " | ".join(items)
-        if len(obj.metrics_data) > 4:
-            preview_str += " ..."
-        return mark_safe(f'<span style="font-size: 12px; color: #495057;">{preview_str}</span>')
+            return mark_safe('<span style="color: #adb5bd; font-size: 11px;">-</span>')
+
+        excluded_keys = {
+            'reasoning', 'evidence_quotes', 'dynamic_data',
+            'system_prompt', 'user_prompt', 'raw_output', 'error'
+        }
+
+        filtered_items = []
+        for k, v in obj.metrics_data.items():
+            if str(k).lower() in excluded_keys:
+                continue
+            filtered_items.append((k, v))
+
+        if not filtered_items:
+            return mark_safe('<span style="color: #6c757d; font-size: 11px;">(Detale w formularzu)</span>')
+
+        rendered_lines = []
+        for k, v in filtered_items[:6]:
+            badge_html = self._format_metric_badge(v)
+            clean_key = escape(str(k))
+            rendered_lines.append(
+                f'<div style="margin: 2px 0; display: flex; align-items: center; gap: 5px; font-size: 11px; white-space: nowrap;">'
+                f'<strong style="color: #495057;">{clean_key}:</strong> {badge_html}'
+                f'</div>'
+            )
+
+        if len(filtered_items) > 6:
+            more_count = len(filtered_items) - 6
+            rendered_lines.append(f'<div style="color: #6c757d; font-size: 10px; margin-top: 1px;">+ {more_count} więcej w detalu...</div>')
+
+        return mark_safe("".join(rendered_lines))
     metrics_preview.short_description = "Extracted Metrics"
 
 

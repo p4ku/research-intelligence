@@ -35,7 +35,7 @@ from research_intelligence.models import (
     Extraction,
     LLMUsageRecord,
 )
-from research_intelligence.admin import PaperAdmin
+from research_intelligence.admin import PaperAdmin, PaperMetricAdmin
 from research_intelligence.tasks.step_6_signal_score.scorer import compute_paper_signal_score
 from research_intelligence.tasks.auxiliary.zombie_watchdog import reap_zombie_tasks
 from research_intelligence.tasks.step_1_search.node import SearchNode
@@ -438,3 +438,46 @@ score = clamp(trl_val) * 0.5 + 4.0
         context = {"trl_val": 8.0}
         score = execute_sandboxed_snippet(code, context)
         self.assertEqual(score, 8.0)
+
+    # -------------------------------------------------------------------------
+    # 13. PaperMetricAdmin configuration: no benchmark, metric detail link, workspace link, badges
+    # -------------------------------------------------------------------------
+    def test_paper_metric_admin_configuration_and_formatting(self):
+        admin = PaperMetricAdmin(PaperMetric, AdminSite())
+
+        # 1. Column structure checks
+        self.assertNotIn("benchmark_badge", admin.list_display)
+        self.assertIn("metric_detail_link", admin.list_display)
+        self.assertIn("workspace_link", admin.list_display)
+        self.assertEqual(admin.list_display_links, ("metric_detail_link",))
+
+        # 2. Metric instance rendering
+        metric = PaperMetric.objects.create(
+            paper=self.paper_1,
+            pipeline_run=self.run_a1,
+            workspace=self.workspace_a,
+            screening_status="accepted",
+            metrics_data={
+                "is_active": True,
+                "trl_level": 7,
+                "reasoning": "Extremely detailed rationale that must not be in list preview",
+                "methodology": "CNN-GNN"
+            }
+        )
+
+        # Detail link contains link to papermetric change form
+        detail_html = admin.metric_detail_link(metric)
+        self.assertIn(str(metric.id), detail_html)
+        self.assertIn("Detal", detail_html)
+
+        # Workspace link contains workspace name and URL
+        ws_html = admin.workspace_link(metric)
+        self.assertIn(self.workspace_a.name, ws_html)
+
+        # Metrics preview renders badges on separate lines and skips heavy text
+        preview_html = admin.metrics_preview(metric)
+        self.assertIn("PASS", preview_html)
+        self.assertIn("7", preview_html)
+        self.assertIn("CNN-GNN", preview_html)
+        self.assertNotIn("Extremely detailed rationale", preview_html)
+        self.assertIn("<div", preview_html)
