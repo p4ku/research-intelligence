@@ -72,7 +72,7 @@ export function problem(slug: ProblemSlug, extra: Partial<Problem> = {}): Proble
 export function isProblem(value: unknown): value is Problem {
   if (!value || typeof value !== 'object') return false
   const p = value as Record<string, unknown>
-  return typeof p.type === 'string' && typeof p.status === 'number'
+  return typeof p.type === 'string' && typeof p.status === 'number' && typeof p.title === 'string'
 }
 
 /** Any thrown value → a problem body (unknown errors become opaque 500s). */

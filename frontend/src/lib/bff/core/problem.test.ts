@@ -80,8 +80,9 @@ describe('isProblem', () => {
   })
   test('rejects proxy-shaped JSON, primitives, and null', () => {
     expect(isProblem({ error: 'bad gateway', status: 502 })).toBe(false)
-    expect(isProblem({ type: 42, status: 500 })).toBe(false)
-    expect(isProblem({ type: '/problems/x', status: '500' })).toBe(false)
+    expect(isProblem({ type: 42, status: 500, title: 'x' })).toBe(false)
+    expect(isProblem({ type: '/problems/x', status: '500', title: 'x' })).toBe(false)
+    expect(isProblem({ type: '/problems/x', status: 500 })).toBe(false)
     expect(isProblem('upstream error')).toBe(false)
     expect(isProblem(null)).toBe(false)
     expect(isProblem(undefined)).toBe(false)

@@ -2,6 +2,7 @@
 
 import { AnswerMarkdown } from '@/components/answer-markdown'
 import { ErrorNote } from '@/components/scanner-ui'
+import { Bone, Skeleton } from '@/components/skeleton'
 import type { ChatSession, ChatSessionDetail, VisualCitation } from '@/lib/bff/chat/schema'
 import { bffFetch } from '@/lib/bff/client'
 import type { Page } from '@/lib/bff/core/pagination'
@@ -136,11 +137,18 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
         {/* The empty copy is a fact about the paper, so it waits for the
             history load to say so — showing it during `loading` flashed it
-            in front of every paper that did have a thread. */}
-        {msgs.length === 0 && !asking && (historyState === 'empty' || historyState === 'ready') ? (
-          <p className="text-muted-foreground text-sm leading-relaxed text-balance">
-            {t('Questions here are answered from this paper alone.')}
-          </p>
+            in front of every paper that did have a thread. While loading,
+            two bone lines hold the place; a failed load says so below. */}
+        {msgs.length === 0 && !asking ? (
+          historyState === 'loading' ? (
+            <Skeleton.Region status={t('Loading earlier questions')}>
+              <Bone.Text widths={['72%', '48%']} className="text-sm leading-relaxed" />
+            </Skeleton.Region>
+          ) : historyState === 'failed' ? null : (
+            <p className="text-muted-foreground text-sm leading-relaxed text-balance">
+              {t('Questions here are answered from this paper alone.')}
+            </p>
+          )
         ) : (
           <div className="space-y-4">
             {msgs.map((m, i) =>

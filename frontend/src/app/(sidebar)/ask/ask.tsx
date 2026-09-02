@@ -337,7 +337,7 @@ export function Ask({
 
   async function confirmDelete() {
     const session = pendingDelete
-    if (!session || !deleteOpen || deleting) return
+    if (!session || deleting) return
     setDeleting(true)
     setDeleteError(null)
     try {
@@ -575,7 +575,9 @@ export function Ask({
                             turn={g.answer}
                             anchor={`vc-${g.key}`}
                             onRetry={
-                              g === lastGroup && g.answer.error && !busy
+                              // `target` too: unpick() clears the paper without a
+                              // TargetTurn, and ask() sends nothing without one.
+                              g === lastGroup && g.answer.error && !busy && target
                                 ? () => retryFrom(g.key)
                                 : undefined
                             }
@@ -798,10 +800,13 @@ export function Ask({
           onCloseAutoFocus={(event) => {
             event.preventDefault()
             // After a successful delete the trash button is gone with its
-            // row; the composer is the next sensible place, not <body>.
+            // row. On a keyboard the composer is the next sensible place;
+            // on touch a programmatic focus raises the keyboard or scrolls
+            // the pane, so there focus is simply released.
             const trigger = deleteTriggerRef.current
             if (trigger?.isConnected) trigger.focus()
-            else focusField()
+            else if (!window.matchMedia('(pointer: coarse)').matches)
+              fieldRef.current?.focus({ preventScroll: true })
           }}
         >
           <AlertDialogHeader>

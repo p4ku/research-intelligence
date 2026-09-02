@@ -32,7 +32,12 @@ describe('error copy convention', () => {
     for (const root of roots) {
       for (const rel of new Bun.Glob('**/*.{ts,tsx}').scanSync(root)) {
         if (rel.includes('.test.') || EXCLUDED.test(rel)) continue
-        const src = await Bun.file(join(root, rel)).text()
+        // Comments and console.* lines are not render sites: a producer may
+        // log `${error}`, and prose may mention `problem.detail` by name.
+        const src = (await Bun.file(join(root, rel)).text())
+          .split('\n')
+          .filter((line) => !/^\s*(\/\/|\/?\*)/.test(line) && !/\bconsole\.\w+\(/.test(line))
+          .join('\n')
         for (const pattern of BANNED) {
           if (pattern.test(src)) offenders.push(`${rel}: ${String(pattern)}`)
         }
