@@ -328,14 +328,14 @@ class ReprocessedRunsAPIMCPTests(TestCase):
         """
         # Run 1: Rejected
         self.metric_run_1.screening_status = "rejected"
-        self.metric_run_1.screening_reasoning = "Insufficient sample size in trial"
+        self.metric_run_1.abstract_screening_reasoning = "Insufficient sample size in trial"
         self.metric_run_1.is_evaluation_benchmark = True
         self.metric_run_1.evaluation_label = "rejected"
         self.metric_run_1.save()
 
         # Run 2: Full text passed with new benchmark label
         self.metric_run_2.screening_status = "full_text_passed"
-        self.metric_run_2.screening_reasoning = "Passed after methodology expansion"
+        self.metric_run_2.full_text_screening_reasoning = "Passed after methodology expansion"
         self.metric_run_2.is_evaluation_benchmark = True
         self.metric_run_2.evaluation_label = "passed"
         self.metric_run_2.save()
@@ -348,7 +348,7 @@ class ReprocessedRunsAPIMCPTests(TestCase):
         self.assertEqual(len(results_1), 1)
         p1 = results_1[0]
         self.assertEqual(p1["screening_status"], "rejected")
-        self.assertEqual(p1["screening_reasoning"], "Insufficient sample size in trial")
+        self.assertEqual(p1["abstract_screening_reasoning"], "Insufficient sample size in trial")
         self.assertTrue(p1["is_evaluation_benchmark"])
         self.assertEqual(p1["evaluation_label"], "rejected")
         self.assertEqual(p1["signal_score"], 80.0)
@@ -361,7 +361,7 @@ class ReprocessedRunsAPIMCPTests(TestCase):
         self.assertEqual(len(results_2), 1)
         p2 = results_2[0]
         self.assertEqual(p2["screening_status"], "full_text_passed")
-        self.assertEqual(p2["screening_reasoning"], "Passed after methodology expansion")
+        self.assertEqual(p2["full_text_screening_reasoning"], "Passed after methodology expansion")
         self.assertTrue(p2["is_evaluation_benchmark"])
         self.assertEqual(p2["evaluation_label"], "passed")
         self.assertEqual(p2["signal_score"], 94.5)

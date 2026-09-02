@@ -13,7 +13,6 @@ class PaperSerializer(serializers.ModelSerializer):
     signal_score = serializers.SerializerMethodField()
     signal_score_details = serializers.SerializerMethodField()
     screening_status = serializers.SerializerMethodField()
-    screening_reasoning = serializers.SerializerMethodField()
     abstract_screening_reasoning = serializers.SerializerMethodField()
     full_text_screening_reasoning = serializers.SerializerMethodField()
     is_evaluation_benchmark = serializers.SerializerMethodField()
@@ -65,13 +64,6 @@ class PaperSerializer(serializers.ModelSerializer):
         return m.screening_status if m else 'pending'
 
     @extend_schema_field(serializers.CharField(allow_null=True))
-    def get_screening_reasoning(self, obj):
-        m = self._get_target_metric(obj)
-        if not m:
-            return None
-        return m.full_text_screening_reasoning or m.abstract_screening_reasoning or m.screening_reasoning
-
-    @extend_schema_field(serializers.CharField(allow_null=True))
     def get_abstract_screening_reasoning(self, obj):
         m = self._get_target_metric(obj)
         return m.abstract_screening_reasoning if m else None
@@ -107,7 +99,7 @@ class PaperSerializer(serializers.ModelSerializer):
             'id', 'workspace', 'pipeline_run',
             'hash_id', 'doi', 'arxiv_id', 'title', 'authors', 'abstract',
             'source_database', 'original_pdf_path', 'converted_md_path',
-            'screening_status', 'screening_reasoning',
+            'screening_status',
             'abstract_screening_reasoning', 'full_text_screening_reasoning',
             'is_evaluation_benchmark', 'evaluation_label', 'signal_score', 'signal_score_details',
             'metrics', 'created_at'

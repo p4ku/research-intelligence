@@ -277,8 +277,7 @@ class AdminChangelistViewsTestCase(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Quantum Circuit Synthesis")
-        pr_change_url = reverse('admin:research_intelligence_pipelinerun_change', args=[self.pipeline_run.id])
-        self.assertContains(response, pr_change_url)
+        self.assertContains(response, "1 run")
         self.assertNotContains(response, "⚡ 71.20")
 
     def test_paper_changeform_renders_with_metrics_inline(self):
