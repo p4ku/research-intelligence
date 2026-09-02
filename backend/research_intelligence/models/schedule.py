@@ -189,6 +189,20 @@ class WorkflowSchedule(models.Model):
                 return True, step
         return False, ""
 
+    @property
+    def last_execution_stop_reason(self) -> str:
+        """
+        Returns the stop reason or status message of the last execution if available.
+        """
+        if not self.last_pipeline_run:
+            return ""
+        agent = self.last_pipeline_run.agent_processes.first()
+        if agent and agent.stop_reason:
+            return agent.stop_reason
+        if self.last_pipeline_run.status_message:
+            return self.last_pipeline_run.status_message
+        return ""
+
     def __str__(self):
         return f"{self.name} [{self.workspace.name}] ({self.schedule_description})"
 
