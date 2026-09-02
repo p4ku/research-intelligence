@@ -224,3 +224,57 @@ class ReprocessedRunsAPIMCPTests(TestCase):
         report = NarrativeReport.objects.get(pipeline_run=self.run_2)
         self.assertIn("Fault-Tolerant Topological Quantum Computation", report.content_markdown)
         self.assertIn("Signal Score: 94.50", report.content_markdown)
+
+    def test_omitted_and_malformed_query_params_do_not_crash(self):
+        """
+        Verifies that omitting pipeline_run or passing 'undefined'/'null'/invalid-uuid
+        does not crash with 500 error and handles cleanly.
+        """
+        # 1. Completely omitted:
+        resp = self.client.get("/api/papers/")
+        self.assertEqual(resp.status_code, 200)
+
+        resp = self.client.get("/api/extractions/")
+        self.assertEqual(resp.status_code, 200)
+
+        # 2. Frontend unselected states ('undefined', 'null', '') should be gracefully ignored (return all papers):
+        for unselected in ["undefined", "null", ""]:
+            resp = self.client.get(f"/api/papers/?pipeline_run={unselected}")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            results = data["results"] if isinstance(data, dict) and "results" in data else data
+            self.assertEqual(len(results), 1)
+
+            resp_ext = self.client.get(f"/api/extractions/?pipeline_run={unselected}")
+            self.assertEqual(resp_ext.status_code, 200)
+
+        # 3. Explicit corrupt/invalid UUID string returns 0 results instead of crashing with 500:
+        resp_corrupt = self.client.get("/api/papers/?pipeline_run=corrupt-bad-uuid-format")
+        self.assertEqual(resp_corrupt.status_code, 200)
+        data_corrupt = resp_corrupt.json()
+        results_corrupt = data_corrupt["results"] if isinstance(data_corrupt, dict) and "results" in data_corrupt else data_corrupt
+        self.assertEqual(len(results_corrupt), 0)
+
+    def test_mcp_tools_with_omitted_or_malformed_parameters(self):
+        """
+        Verifies that MCP tools handle omitted and invalid parameters gracefully.
+        """
+        # list_extractions_logic without pipeline_run_id (only workspace_id)
+        res_str = list_extractions_logic(self.user, workspace_id=str(self.workspace.id))
+        data = json.loads(res_str)
+        self.assertIsInstance(data, list)
+        self.assertEqual(len(data), 1)
+
+        # get_paper_extractions_matrix_logic without pipeline_run_id (only workspace_id)
+        res_str = get_paper_extractions_matrix_logic(self.user, workspace_id=str(self.workspace.id))
+        data = json.loads(res_str)
+        self.assertIn("papers", data)
+
+        # get_paper_extractions_matrix_logic with invalid pipeline_run_id
+        res_str = get_paper_extractions_matrix_logic(self.user, pipeline_run_id="invalid-uuid")
+        data = json.loads(res_str)
+        self.assertIn("error", data)
+
+        # get_pipeline_run_status_logic with invalid UUID
+        err_msg = get_pipeline_run_status_logic(self.user, "bad-uuid")
+        self.assertIn("not a valid UUID format", err_msg)

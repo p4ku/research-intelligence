@@ -63,8 +63,13 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(extraction_definition_id=def_id)
 
         pipeline_run_id = self.request.query_params.get('pipeline_run') or self.request.query_params.get('pipeline_run_id')
-        if pipeline_run_id:
+        if pipeline_run_id and str(pipeline_run_id).lower() not in ('undefined', 'null', ''):
+            import uuid
             from django.db.models import Q
-            qs = qs.filter(Q(paper__pipeline_run_id=pipeline_run_id) | Q(paper__reprocessed_runs__id=pipeline_run_id)).distinct()
+            try:
+                pr_uuid = uuid.UUID(str(pipeline_run_id))
+                qs = qs.filter(Q(paper__pipeline_run_id=pr_uuid) | Q(paper__reprocessed_runs__id=pr_uuid)).distinct()
+            except (ValueError, TypeError):
+                qs = qs.none()
 
         return qs.order_by('-created_at')

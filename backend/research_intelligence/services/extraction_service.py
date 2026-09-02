@@ -44,7 +44,15 @@ def build_paper_extractions_matrix(
         except (ValueError, ResearchAgentProcess.DoesNotExist):
             return {"error": f"ResearchAgentProcess '{process_id}' not found."}
     elif pipeline_run_id:
-        papers_qs = papers_qs.filter(Q(pipeline_run_id=pipeline_run_id) | Q(reprocessed_runs=pipeline_run_id)).distinct()
+        if str(pipeline_run_id).lower() in ('undefined', 'null', ''):
+            papers_qs = papers_qs.none()
+        else:
+            import uuid
+            try:
+                pr_uuid = uuid.UUID(str(pipeline_run_id))
+                papers_qs = papers_qs.filter(Q(pipeline_run_id=pr_uuid) | Q(reprocessed_runs=pr_uuid)).distinct()
+            except (ValueError, TypeError):
+                return {"error": f"Invalid pipeline_run_id '{pipeline_run_id}'."}
     elif workspace_id:
         papers_qs = papers_qs.filter(workspace_id=workspace_id)
     elif user and not getattr(user, 'is_superuser', False):

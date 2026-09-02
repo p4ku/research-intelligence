@@ -39,7 +39,12 @@ class ReportViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(workspace_id=ws_id)
 
         pipeline_run_id = self.request.query_params.get('pipeline_run') or self.request.query_params.get('pipeline_run_id')
-        if pipeline_run_id:
-            qs = qs.filter(pipeline_run_id=pipeline_run_id)
+        if pipeline_run_id and str(pipeline_run_id).lower() not in ('undefined', 'null', ''):
+            import uuid
+            try:
+                pr_uuid = uuid.UUID(str(pipeline_run_id))
+                qs = qs.filter(pipeline_run_id=pr_uuid)
+            except (ValueError, TypeError):
+                qs = qs.none()
 
         return qs
