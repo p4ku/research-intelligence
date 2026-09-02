@@ -11,7 +11,7 @@ from research_intelligence.models import (
     ExtractionDefinition,
     Extraction,
 )
-from research_intelligence.tasks.step_5_extraction.extract import execute_extraction_job
+from research_intelligence.tasks.step_5_extraction.extract import execute_extraction_job, _run_single_extraction_worker
 from research_intelligence.tasks.step_5_extraction.node import ExtractionNode
 
 
@@ -135,4 +135,51 @@ class ExtractionTaskTestCase(TestCase):
         self.assertEqual(self.component_run.status, "completed")
         self.assertEqual(self.component_run.metrics.get("total_definitions"), 0)
         mock_notify.assert_called_once_with(self.pipeline_run)
+
+    def test_schema_validated_extraction_with_evidence(self):
+        mock_llm_output = {
+            "trl_level": 8,
+            "reasoning": "Flight-proven operational system.",
+            "evidence_quote": "Flight-proven operational system over 12 months.",
+            "confidence_score": 0.95
+        }
+        mock_usage = {"prompt_tokens": 1200, "candidates_tokens": 180, "total_tokens": 1380}
+
+        with patch("research_intelligence.tasks.step_5_extraction.extract.get_llm_provider") as mock_provider_factory:
+            mock_provider = MagicMock()
+            mock_provider.generate.return_value = (mock_llm_output, mock_usage)
+            mock_provider_factory.return_value = mock_provider
+
+            result = _run_single_extraction_worker(self.paper, self.definition, self.workspace)
+            self.assertTrue(result["success"])
+            self.assertEqual(result["validation_status"], "pass")
+            self.assertEqual(result["confidence_score"], 0.95)
+
+        extraction = Extraction.objects.get(paper=self.paper, extraction_definition=self.definition)
+        self.assertEqual(extraction.fields_data["trl_level"], 8)
+        self.assertEqual(extraction.validation_status, "pass")
+        self.assertFalse(extraction.review_required)
+
+    def test_low_confidence_extraction_flags_warn(self):
+        mock_low_conf_output = {
+            "trl_level": 3,
+            "reasoning": "Preliminary concept only.",
+            "evidence_quote": "Analytical proof.",
+            "confidence_score": 0.45
+        }
+        mock_usage = {"prompt_tokens": 900, "candidates_tokens": 90, "total_tokens": 990}
+
+        with patch("research_intelligence.tasks.step_5_extraction.extract.get_llm_provider") as mock_provider_factory:
+            mock_provider = MagicMock()
+            mock_provider.generate.return_value = (mock_low_conf_output, mock_usage)
+            mock_provider_factory.return_value = mock_provider
+
+            result = _run_single_extraction_worker(self.paper, self.definition, self.workspace)
+            self.assertTrue(result["success"])
+            self.assertEqual(result["validation_status"], "warn")
+            self.assertEqual(result["confidence_score"], 0.45)
+
+        extraction = Extraction.objects.get(paper=self.paper, extraction_definition=self.definition)
+        self.assertEqual(extraction.validation_status, "warn")
+        self.assertTrue(extraction.review_required)
 

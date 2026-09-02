@@ -1,6 +1,8 @@
 from django.test import TestCase
-from unittest.mock import patch
-from ...models import Workspace, PipelineRun, Paper, PaperMetric, Scraper
+from unittest.mock import patch, MagicMock
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+from ...models import Workspace, PipelineRun, Paper, PaperMetric, Scraper, ComponentRun
 from ...tasks.step_4_screening.abstract import screen_abstract
 from ...tasks.step_4_screening.full_text import screen_full_text
 
@@ -351,3 +353,227 @@ class ScreeningTasksTestCase(TestCase):
         self.assertFalse(should_halt)
         should_halt_ft, msg_ft = ft_node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
         self.assertFalse(should_halt_ft)
+
+    def test_direct_multimodal_pdf_screening_passed(self):
+        pdf_path = f"workspaces/{self.workspace.id}/runs/{self.pipeline_run.id}/documents/{self.paper.hash_id}/original.pdf"
+        mock_pdf_binary = b"%PDF-1.7 Simulated PDF document binary stream for Gemini Multimodal"
+        default_storage.save(pdf_path, ContentFile(mock_pdf_binary))
+        self.paper.original_pdf_path = pdf_path
+        self.paper.save(update_fields=['original_pdf_path'])
+
+        mock_llm_response = {
+            "passed": True,
+            "reasoning": "Paper demonstrates 120 us T1 coherence time exceeding the 100 us acceptance threshold.",
+            "evidence_quotes": [
+                "measured relaxation time T1 = 120.4 +/- 3.2 us across 10 sample runs"
+            ],
+            "decision_category": "ACCEPTED: Coherence criterion met"
+        }
+        mock_usage = {"prompt_tokens": 4500, "candidates_tokens": 120, "total_tokens": 4620}
+
+        with patch("research_intelligence.tasks.step_4_screening.full_text.get_llm_provider") as mock_provider_factory:
+            mock_provider = MagicMock()
+            mock_provider.generate.return_value = (mock_llm_response, mock_usage)
+            mock_provider_factory.return_value = mock_provider
+
+            result = screen_full_text(
+                str(self.paper.id),
+                str(self.workspace.id),
+                workspace_obj=self.workspace,
+                paper_obj=self.paper
+            )
+
+            self.assertTrue(result["success"])
+            self.assertTrue(result["passed"])
+            self.assertEqual(result["input_source"], "multimodal_pdf")
+            self.assertEqual(result["screening_status"], "full_text_passed")
+            self.assertEqual(len(result["evidence_quotes"]), 1)
+
+            call_kwargs = mock_provider.generate.call_args[1]
+            self.assertEqual(call_kwargs.get("mime_type"), "application/pdf")
+            self.assertEqual(call_kwargs.get("pdf_bytes"), mock_pdf_binary)
+
+    def test_direct_multimodal_pdf_screening_rejected(self):
+        pdf_path = f"workspaces/{self.workspace.id}/runs/{self.pipeline_run.id}/documents/{self.paper.hash_id}/original.pdf"
+        mock_pdf_binary = b"%PDF-1.7 Simulated PDF document binary stream for Gemini Multimodal"
+        default_storage.save(pdf_path, ContentFile(mock_pdf_binary))
+        self.paper.original_pdf_path = pdf_path
+        self.paper.save(update_fields=['original_pdf_path'])
+
+        mock_llm_response = {
+            "passed": False,
+            "reasoning": "Study is purely numerical simulation without experimental device measurements.",
+            "evidence_quotes": [
+                "We perform numerical master equation simulations of idealized transmons"
+            ],
+            "decision_category": "REJECTED: Purely theoretical simulation"
+        }
+        mock_usage = {"prompt_tokens": 3800, "candidates_tokens": 90, "total_tokens": 3890}
+
+        with patch("research_intelligence.tasks.step_4_screening.full_text.get_llm_provider") as mock_provider_factory:
+            mock_provider = MagicMock()
+            mock_provider.generate.return_value = (mock_llm_response, mock_usage)
+            mock_provider_factory.return_value = mock_provider
+
+            result = screen_full_text(
+                str(self.paper.id),
+                str(self.workspace.id),
+                workspace_obj=self.workspace,
+                paper_obj=self.paper
+            )
+
+            self.assertTrue(result["success"])
+            self.assertFalse(result["passed"])
+            self.assertEqual(result["screening_status"], "rejected")
+
+    def test_fallback_to_abstract_when_pdf_missing(self):
+        paper_no_pdf = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="paper_no_pdf_002",
+            title="Abstract Only Quantum Study",
+            abstract="Short abstract about quantum gates.",
+            original_pdf_path=None
+        )
+        PaperMetric.objects.create(
+            paper=paper_no_pdf,
+            pipeline_run=self.pipeline_run,
+            workspace=self.workspace,
+            screening_status="pending"
+        )
+
+        mock_llm_response = {
+            "passed": True,
+            "reasoning": "Passed on abstract evaluation fallback.",
+            "evidence_quotes": ["quantum gates"],
+            "decision_category": "ACCEPTED: Abstract fallback"
+        }
+        mock_usage = {"prompt_tokens": 350, "candidates_tokens": 40, "total_tokens": 390}
+
+        with patch("research_intelligence.tasks.step_4_screening.full_text.get_llm_provider") as mock_provider_factory:
+            mock_provider = MagicMock()
+            mock_provider.generate.return_value = (mock_llm_response, mock_usage)
+            mock_provider_factory.return_value = mock_provider
+
+            result = screen_full_text(
+                str(paper_no_pdf.id),
+                str(self.workspace.id),
+                workspace_obj=self.workspace,
+                paper_obj=paper_no_pdf
+            )
+
+            self.assertTrue(result["success"])
+            self.assertEqual(result["input_source"], "abstract_fallback")
+
+    def test_multimodal_pdf_screening_with_custom_dynamic_schema_and_exit_metric(self):
+        custom_schema = {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean"},
+                "fidelity_score": {"type": "number"},
+                "reasoning": {"type": "string"}
+            },
+            "required": ["passed", "fidelity_score"]
+        }
+        self.workspace.full_text_screening_system_prompt = "Custom Multimodal Quantum Screener System Prompt"
+        self.workspace.full_text_screening_user_prompt_template = "Analyze PDF: {full_text} for criteria: {acceptance_criteria}"
+        self.workspace.full_text_screening_response_schema = custom_schema
+        self.workspace.full_text_screening_exit_metric = "fidelity_score"
+        self.workspace.save()
+
+        pdf_path = f"workspaces/{self.workspace.id}/runs/{self.pipeline_run.id}/documents/{self.paper.hash_id}/original.pdf"
+        mock_pdf_binary = b"%PDF-1.7 Simulated PDF document binary stream for Gemini Multimodal"
+        default_storage.save(pdf_path, ContentFile(mock_pdf_binary))
+        self.paper.original_pdf_path = pdf_path
+        self.paper.save(update_fields=['original_pdf_path'])
+
+        mock_llm_response = {
+            "passed": True,
+            "fidelity_score": 99.8,
+            "reasoning": "High fidelity state preparation achieved in 3D cavity.",
+            "decision_category": "ACCEPTED: High Fidelity"
+        }
+        mock_usage = {"prompt_tokens": 5200, "candidates_tokens": 80, "total_tokens": 5280}
+
+        with patch("research_intelligence.tasks.step_4_screening.full_text.get_llm_provider") as mock_provider_factory:
+            mock_provider = MagicMock()
+            mock_provider.generate.return_value = (mock_llm_response, mock_usage)
+            mock_provider_factory.return_value = mock_provider
+
+            result = screen_full_text(
+                str(self.paper.id),
+                str(self.workspace.id),
+                workspace_obj=self.workspace,
+                paper_obj=self.paper
+            )
+
+            self.assertTrue(result["success"])
+            self.assertTrue(result["passed"])
+            self.assertEqual(result["exit_metric_key"], "fidelity_score")
+            self.assertEqual(result["exit_metric_value"], 99.8)
+
+            call_kwargs = mock_provider.generate.call_args[1]
+            self.assertEqual(call_kwargs.get("system_instruction"), "Custom Multimodal Quantum Screener System Prompt")
+            self.assertEqual(call_kwargs.get("response_schema"), custom_schema)
+            self.assertEqual(call_kwargs.get("pdf_bytes"), mock_pdf_binary)
+            self.assertEqual(call_kwargs.get("mime_type"), "application/pdf")
+
+            pm = PaperMetric.objects.get(paper=self.paper, pipeline_run=self.pipeline_run)
+            self.assertIn("full_text_screening", pm.metrics_data)
+            self.assertEqual(pm.metrics_data["full_text_screening"]["exit_metric_value"], 99.8)
+            self.assertEqual(pm.metrics_data["full_text_screening"]["dynamic_data"]["fidelity_score"], 99.8)
+
+    def test_screen_abstract_with_json_in_prompt_template_succeeds(self):
+        self.workspace.abstract_screening_user_prompt_template = (
+            "Review paper: {title}\n"
+            "Schema: {\"format\": \"json\", \"accepted\": true}\n"
+            "Criteria: {acceptance_criteria}\n"
+            "LaTeX Math: \\mathcal{O}(n)"
+        )
+        self.workspace.abstract_acceptance_criteria = "Study on LLM agents"
+        self.workspace.save()
+
+        run = PipelineRun.objects.create(workspace=self.workspace, status='running')
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="p_test_json_template",
+            title="Agentic Coding Workflows",
+            authors="DeepMind",
+            abstract="Study on autonomous programming agents."
+        )
+
+        mock_llm_response = {
+            "decision": "PASSED",
+            "passed": True,
+            "reasoning": "Fits criteria well",
+            "evidence_quotes": ["autonomous programming agents"]
+        }
+
+        with patch('research_intelligence.tasks.step_4_screening.abstract.get_llm_provider') as mock_get_provider:
+            mock_prov = MagicMock()
+            mock_prov.generate.return_value = (mock_llm_response, {"tokens_in": 50, "tokens_out": 20, "total_tokens": 70})
+            mock_get_provider.return_value = mock_prov
+
+            res = screen_abstract(
+                str(paper.id),
+                str(self.workspace.id),
+                workspace_obj=self.workspace,
+                paper_obj=paper,
+                pipeline_run_id=str(run.id)
+            )
+
+            self.assertTrue(res.get("success"))
+            self.assertTrue(res.get("passed"))
+
+            call_kwargs = mock_prov.generate.call_args[1]
+            prompt_sent = call_kwargs["prompt"]
+            self.assertIn("Review paper: Agentic Coding Workflows", prompt_sent)
+            self.assertIn("Criteria: Study on LLM agents", prompt_sent)
+            self.assertIn("Schema: {\"format\": \"json\", \"accepted\": true}", prompt_sent)
+            self.assertIn("\\mathcal{O}(n)", prompt_sent)
+
+            pm = PaperMetric.objects.filter(paper=paper, pipeline_run=run).first()
+            self.assertIsNotNone(pm)
+            self.assertTrue(pm.metrics_data["abstract_screening"]["passed"])
+            self.assertEqual(pm.metrics_data["abstract_screening"]["reasoning"], "Fits criteria well")

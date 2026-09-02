@@ -428,5 +428,52 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         self.assertEqual(metric.signal_score, 0.0)
 
 
+class PromptFormatterTestCase(TestCase):
+    """Unit tests for safe_format_prompt utility and curly-brace escaping."""
+
+    def test_standard_placeholders(self):
+        from research_intelligence.utils.prompt_formatter import safe_format_prompt
+        tmpl = "Title: {title}\nCriteria: {acceptance_criteria}\nAbstract: {abstract}"
+        ctx = {
+            "title": "Quantum Attention",
+            "acceptance_criteria": "Must study QPU",
+            "abstract": "We evaluate quantum circuits."
+        }
+        res = safe_format_prompt(tmpl, ctx)
+        self.assertIn("Title: Quantum Attention", res)
+        self.assertIn("Criteria: Must study QPU", res)
+        self.assertIn("Abstract: We evaluate quantum circuits.", res)
+
+    def test_double_curlies_normalized(self):
+        from research_intelligence.utils.prompt_formatter import safe_format_prompt
+        tmpl = "Paper: {{title}} with abstract: {{abstract}}"
+        ctx = {"title": "Fast Inference", "abstract": "Speeding up LLMs."}
+        res = safe_format_prompt(tmpl, ctx)
+        self.assertEqual(res, "Paper: Fast Inference with abstract: Speeding up LLMs.")
+
+    def test_json_and_latex_braces_do_not_crash_or_corrupt(self):
+        from research_intelligence.utils.prompt_formatter import safe_format_prompt
+        tmpl = (
+            "Evaluate document: {title}\n"
+            "Return JSON matching: {\"decision\": true, \"complexity\": \"\\mathcal{O}(n)\", \"score\": 0.95}\n"
+            "Criteria: {acceptance_criteria}\n"
+            "Extra unescaped: {} and {not_in_ctx}"
+        )
+        ctx = {
+            "title": "Scaling Law Paper",
+            "acceptance_criteria": "LLM scaling experiments"
+        }
+        res = safe_format_prompt(tmpl, ctx)
+        self.assertIn("Evaluate document: Scaling Law Paper", res)
+        self.assertIn("Criteria: LLM scaling experiments", res)
+        self.assertIn("{\"decision\": true, \"complexity\": \"\\mathcal{O}(n)\", \"score\": 0.95}", res)
+        self.assertIn("Extra unescaped: {} and {not_in_ctx}", res)
+
+    def test_empty_and_none_templates(self):
+        from research_intelligence.utils.prompt_formatter import safe_format_prompt
+        self.assertEqual(safe_format_prompt("", {"title": "X"}), "")
+        self.assertEqual(safe_format_prompt(None, {"title": "X"}), "")
+
+
 
 

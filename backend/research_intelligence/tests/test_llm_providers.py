@@ -220,3 +220,67 @@ class GoogleLLMProviderTestCase(TestCase):
         self.assertIsNotNone(config_off.thinking_config)
         self.assertEqual(config_off.thinking_config.thinking_budget, 0)
 
+    @patch("research_intelligence.llm_providers.google.time.sleep")
+    @patch("research_intelligence.llm_providers.google.Path.exists")
+    @patch("research_intelligence.llm_providers.google.genai.Client")
+    def test_generate_retry_on_429_resource_exhausted_and_recovery(self, mock_client_cls, mock_exists, mock_sleep):
+        mock_exists.return_value = False
+        mock_client = mock_client_cls.return_value
+        success_response = MagicMock()
+        success_response.text = "Recovered after rate limit backoff"
+
+        # First call fails with 429 RESOURCE_EXHAUSTED, second succeeds
+        mock_client.models.generate_content.side_effect = [
+            RuntimeError("429 RESOURCE_EXHAUSTED: Quota exceeded for quota metric"),
+            success_response
+        ]
+
+        provider = GoogleAgentAPIProvider(api_key="mock-key")
+        result = provider.generate(prompt="Retry test", max_retries=3)
+
+        self.assertEqual(result, "Recovered after rate limit backoff")
+        self.assertEqual(mock_client.models.generate_content.call_count, 2)
+        mock_sleep.assert_called_once()
+
+    @patch("research_intelligence.llm_providers.google.time.sleep")
+    @patch("research_intelligence.llm_providers.google.Path.exists")
+    @patch("research_intelligence.llm_providers.google.genai.Client")
+    def test_generate_retry_exhaustion_on_503_raises(self, mock_client_cls, mock_exists, mock_sleep):
+        mock_exists.return_value = False
+        mock_client = mock_client_cls.return_value
+
+        mock_client.models.generate_content.side_effect = RuntimeError("503 Service Unavailable: Model is overloaded")
+
+        provider = GoogleAgentAPIProvider(api_key="mock-key")
+        with self.assertRaises(RuntimeError):
+            provider.generate(prompt="Failing call", max_retries=2)
+
+        self.assertEqual(mock_client.models.generate_content.call_count, 2)
+        self.assertEqual(mock_sleep.call_count, 1)
+
+    @patch("research_intelligence.llm_providers.google.Path.exists")
+    @patch("research_intelligence.llm_providers.google.genai.Client")
+    def test_generate_stream_yields_chunks_and_usage(self, mock_client_cls, mock_exists):
+        mock_exists.return_value = False
+        mock_client = mock_client_cls.return_value
+
+        chunk1 = MagicMock()
+        chunk1.text = "First chunk "
+        chunk1.usage_metadata = None
+
+        chunk2 = MagicMock()
+        chunk2.text = "second chunk."
+        chunk2.usage_metadata = MagicMock(prompt_token_count=100, candidates_token_count=20, total_token_count=120)
+
+        mock_client.models.generate_content_stream.return_value = iter([chunk1, chunk2])
+
+        provider = GoogleAgentAPIProvider(api_key="mock-key")
+        stream_results = list(provider.generate_stream(prompt="Stream test"))
+
+        self.assertEqual(len(stream_results), 2)
+        self.assertEqual(stream_results[0][0], "First chunk ")
+        self.assertEqual(stream_results[1][0], "second chunk.")
+        self.assertIsNotNone(stream_results[1][1])
+        self.assertEqual(stream_results[1][1]["prompt_tokens"], 100)
+        self.assertEqual(stream_results[1][1]["candidates_tokens"], 20)
+

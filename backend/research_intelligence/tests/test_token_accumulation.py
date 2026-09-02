@@ -497,4 +497,54 @@ class PipelineTokenAccumulationTestCase(TestCase):
         rendered_empty = str(admin_obj.usd_cost(empty_agent))
         self.assertIn("$0.0000", rendered_empty)
 
+    def test_workspace_quota_exceeded_by_usd_limit(self):
+        ws = Workspace.objects.create(
+            name="Budget Limit WS",
+            monthly_usd_limit=Decimal("5.00"),
+            usd_spent_this_month=Decimal("4.50")
+        )
+        is_exceeded, reason = ws.is_quota_exceeded()
+        self.assertFalse(is_exceeded)
+        self.assertIsNone(reason)
+
+        # Increment spent beyond budget
+        ws.usd_spent_this_month = Decimal("5.10")
+        ws.save(update_fields=['usd_spent_this_month'])
+        is_exceeded, reason = ws.is_quota_exceeded()
+        self.assertTrue(is_exceeded)
+        self.assertIn("Monthly budget limit exceeded", reason)
+
+    def test_workspace_quota_exceeded_by_token_limit(self):
+        ws = Workspace.objects.create(
+            name="Token Limit WS",
+            monthly_token_limit=100000,
+            tokens_consumed_this_month=95000
+        )
+        is_exceeded, reason = ws.is_quota_exceeded()
+        self.assertFalse(is_exceeded)
+
+        ws.tokens_consumed_this_month = 105000
+        ws.save(update_fields=['tokens_consumed_this_month'])
+        is_exceeded, reason = ws.is_quota_exceeded()
+        self.assertTrue(is_exceeded)
+        self.assertIn("Monthly token limit exceeded", reason)
+
+    def test_pipeline_screening_trigger_rejects_when_quota_exceeded(self):
+        from mcp_server.tools.pipeline_runs.triggers import trigger_screening_job_logic
+        ws = Workspace.objects.create(
+            name="Exceeded Trigger WS",
+            monthly_usd_limit=Decimal("1.00"),
+            usd_spent_this_month=Decimal("1.50")
+        )
+        from research_intelligence.models import WorkspaceMember
+        user = self.workspace.memberships.first().user if self.workspace.memberships.exists() else None
+        if not user:
+            from django.contrib.auth import get_user_model
+            user = get_user_model().objects.create_user(username="quota_user", email="q@test.com")
+        WorkspaceMember.objects.create(workspace=ws, user=user, role="admin")
+
+        pr = PipelineRun.objects.create(workspace=ws, status="running")
+        res = trigger_screening_job_logic(user, pipeline_run_id=str(pr.id), stage="abstract")
+        self.assertIn("Error: Workspace monthly quota exceeded", res)
+
 

@@ -5,6 +5,7 @@ from mcp_server.tools import (
     trigger_ocr_job_logic,
     trigger_screening_job_logic,
     trigger_extraction_job_logic,
+    send_pipeline_run_digest_email_logic,
     list_pipeline_runs_logic,
     get_pipeline_run_status_logic,
     get_component_run_status_logic,
@@ -219,6 +220,68 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
         matched = next(r for r in list_res if r["pipeline_run_id"] == str(pr.id))
         self.assertEqual(matched["schedule_id"], str(schedule.id))
         self.assertEqual(matched["schedule_name"], "Weekly Ingestion Schedule")
+
+    @patch("mcp_server.tools.pipeline_runs.triggers.execute_pdf_download_job.delay")
+    def test_trigger_pdf_download_job(self, mock_dl_task):
+        mock_dl_task.return_value = MagicMock(id="celery_dl_task_01")
+        pr = PipelineRun.objects.create(workspace=self.workspace, status="running")
+        Paper.objects.create(workspace=self.workspace, pipeline_run=pr, hash_id="h_dl_1", title="DL Paper", original_pdf_path="https://example.com/p.pdf")
+
+        res = self.parse_res(trigger_pdf_download_job_logic(self.admin, pipeline_run_id=str(pr.id), limit=10))
+        self.assertTrue(res["success"])
+        self.assertEqual(res["celery_task_id"], "celery_dl_task_01")
+        mock_dl_task.assert_called_once()
+
+    @patch("mcp_server.tools.pipeline_runs.triggers.execute_ocr_job.delay")
+    def test_trigger_ocr_job(self, mock_ocr_task):
+        mock_ocr_task.return_value = MagicMock(id="celery_ocr_task_01")
+        pr = PipelineRun.objects.create(workspace=self.workspace, status="running")
+        Paper.objects.create(workspace=self.workspace, pipeline_run=pr, hash_id="h_ocr_1", title="OCR Paper", original_pdf_path="workspaces/1/runs/1/doc.pdf")
+
+        res = self.parse_res(trigger_ocr_job_logic(self.admin, pipeline_run_id=str(pr.id), limit=5))
+        self.assertTrue(res["success"])
+        self.assertEqual(res["celery_task_id"], "celery_ocr_task_01")
+        mock_ocr_task.assert_called_once()
+
+    @patch("mcp_server.tools.pipeline_runs.triggers.execute_extraction_job.delay")
+    def test_trigger_extraction_job(self, mock_ext_task):
+        from research_intelligence.models import ExtractionDefinition
+        mock_ext_task.return_value = MagicMock(id="celery_ext_task_01")
+        ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Test Extraction Def",
+            system_prompt="Extract parameters",
+            user_prompt_template="{paper_text}",
+            response_schema={"type": "object"},
+            is_active=True
+        )
+        pr = PipelineRun.objects.create(workspace=self.workspace, status="running")
+        Paper.objects.create(workspace=self.workspace, pipeline_run=pr, hash_id="h_ext_1", title="Extraction Paper")
+
+        res = self.parse_res(trigger_extraction_job_logic(self.admin, pipeline_run_id=str(pr.id), limit=15))
+        self.assertTrue(res["success"])
+        self.assertEqual(res["celery_task_id"], "celery_ext_task_01")
+        mock_ext_task.assert_called_once()
+
+    @patch("mcp_server.tools.diagnostics.email.send_pipeline_subscriber_digest_task.delay")
+    def test_send_pipeline_run_digest_email_with_recipient_override(self, mock_email_task):
+        mock_email_task.return_value = MagicMock(id="celery_email_task_01")
+        pr = PipelineRun.objects.create(workspace=self.workspace, status="completed")
+
+        res = self.parse_res(send_pipeline_run_digest_email_logic(
+            self.admin,
+            workspace_id=str(self.workspace.id),
+            pipeline_run_id=str(pr.id),
+            recipient_override=["lead@corp.com", "analyst@corp.com"],
+            async_dispatch=True
+        ))
+        self.assertEqual(res["status"], "queued")
+        self.assertEqual(res["celery_task_id"], "celery_email_task_01")
+        mock_email_task.assert_called_once_with(
+            workspace_id=str(self.workspace.id),
+            pipeline_run_id=str(pr.id),
+            recipient_override=["lead@corp.com", "analyst@corp.com"]
+        )
 
 
 

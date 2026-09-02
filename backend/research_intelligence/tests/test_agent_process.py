@@ -672,6 +672,23 @@ class ResearchAgentProcessTest(TestCase):
         self.workspace.refresh_from_db()
         self.assertTrue(self.workspace.skip_abstract_screening)
 
+    def test_orphan_agent_processes_are_not_hijacked(self):
+        """
+        Verify that handle_component_completion does NOT hijack unattached
+        ResearchAgentProcess records in the workspace.
+        """
+        from research_intelligence.tasks.orchestrator.runner import ResearchAgentRunner
+        run_a = PipelineRun.objects.create(workspace=self.workspace, status='running')
+        orphan_agent = ResearchAgentProcess.objects.create(
+            workspace=self.workspace,
+            name="Independent Agent",
+            status='running',
+            pipeline_run=None
+        )
+        ResearchAgentRunner.handle_component_completion(str(run_a.id))
+        orphan_agent.refresh_from_db()
+        self.assertIsNone(orphan_agent.pipeline_run)
+
 
 
 

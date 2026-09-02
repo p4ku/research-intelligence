@@ -93,6 +93,35 @@ class OCRConversionTaskTestCase(TestCase):
         else:
             self.assertFalse(result)
 
+    @patch("research_intelligence.tasks.step_3_ocr.convert.time.sleep")
+    @patch("django.core.files.storage.default_storage.open")
+    @patch("research_intelligence.tasks.step_3_ocr.convert.get_ocr_provider")
+    def test_run_ocr_conversion_corrupt_file_graceful_failure(self, mock_get_provider, mock_open, mock_sleep):
+        from unittest.mock import mock_open as django_mock_open
+        mock_open.side_effect = django_mock_open(read_data=b"<html>Cloudflare Block</html>")
+
+        mock_provider = MagicMock()
+        mock_provider.convert.side_effect = ValueError("File is not a valid PDF")
+        mock_get_provider.return_value = mock_provider
+
+        result = run_ocr_conversion(self.paper.id)
+        self.assertFalse(result["success"])
+        self.assertIn("File is not a valid PDF", result["error"])
+
+    @patch("django.core.files.storage.default_storage.open")
+    @patch("research_intelligence.tasks.step_3_ocr.convert.get_ocr_provider")
+    def test_run_ocr_conversion_empty_output_graceful_failure(self, mock_get_provider, mock_open):
+        from unittest.mock import mock_open as django_mock_open
+        mock_open.side_effect = django_mock_open(read_data=b"%PDF-1.4 empty")
+
+        mock_provider = MagicMock()
+        mock_provider.convert.return_value = ""
+        mock_get_provider.return_value = mock_provider
+
+        result = run_ocr_conversion(self.paper.id)
+        self.assertFalse(result["success"])
+        self.assertIn("Empty OCR output", result["error"])
+
     def test_gemini_ocr_provider_factory(self):
         from ...ocr_providers.factory import get_ocr_provider
         from ...ocr_providers.gemini_provider import GeminiOCRProvider
