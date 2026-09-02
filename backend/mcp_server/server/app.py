@@ -822,7 +822,22 @@ def preview_search_query(provider: str, search_query: str, limit: int = 10) -> s
 def list_papers(workspace_id: str, pipeline_run_id: str | None = None, limit: int = 50) -> str:
     """
     [PAPERS INSPECTION]
-    List fetched papers, authors, abstracts, DOIs, and screening statuses for a workspace or pipeline run.
+    List fetched papers, metadata, PDF/Markdown paths, and independent screening evaluations for a workspace or pipeline run.
+
+    RETURNS:
+    - JSON list of papers with:
+      • paper_id, workspace_id, pipeline_run
+      • title, authors, abstract, doi, arxiv_id, source_database
+      • pdf_url, original_pdf_path, converted_md_path
+      • screening_status: Review decision ('abstract_passed', 'full_text_passed', 'accepted', 'rejected', 'withdrawn', 'pending')
+      • abstract_screening_reasoning: LLM justification from Stage 1 Abstract Screening
+      • full_text_screening_reasoning: LLM justification from Stage 2 Full-Text Screening
+      • is_evaluation_benchmark: Boolean flag if paper is marked as ground-truth benchmark
+      • evaluation_label: Benchmark evaluation ('passed' | 'rejected' | null)
+      • signal_score: Evaluated composite signal score (float)
+      • signal_score_details: Audit dictionary showing individual metric variables and formula weights
+      • metrics_data: Extracted parameter dictionaries from screening and extraction stages
+      • created_at: Ingestion timestamp
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -1020,7 +1035,23 @@ def trigger_ocr_job(pipeline_run_id: str = None, workspace_id: str = None, limit
 @mcp.tool()
 @with_db_connection
 def trigger_screening_job(pipeline_run_id: str = None, workspace_id: str = None, limit: int = None, stage: str = "abstract") -> str:
-    """[MANUAL COMPONENT ONLY] Trigger Abstract or Full-Text Screening. If limit is None, screens all candidate papers. Supports stage='abstract' or stage='full_text'. Note: To run the full end-to-end pipeline automatically, use start_research_agent instead."""
+    """
+    [MANUAL COMPONENT ONLY] Trigger Abstract or Full-Text Screening.
+    
+    PARAMETERS:
+    - pipeline_run_id: Target PipelineRun UUID
+    - workspace_id: Target Workspace UUID (if pipeline_run_id omitted, uses latest run)
+    - stage: Screening stage to execute:
+      • 'abstract' (default): Evaluates paper title & abstract against abstract criteria.
+        Sets screening_status to 'abstract_passed' or 'rejected'.
+        Writes justification strictly to `abstract_screening_reasoning`.
+      • 'full_text': Evaluates OCR markdown or multimodal PDF against full-text criteria.
+        Sets screening_status to 'full_text_passed' or 'rejected'.
+        Writes justification strictly to `full_text_screening_reasoning`.
+    - limit: Maximum number of candidate papers to screen (default None = all candidates).
+    
+    Note: To run the full end-to-end pipeline automatically, use start_research_agent instead.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "runs:write")
@@ -1112,7 +1143,17 @@ def get_paper_extractions_matrix(
       • "What papers passed screening and what were their scores?"
     
     RETURNS:
-    - Aggregated list of papers with titles, authors, DOI, arXiv ID, PDF paths, abstracts, screening reasons, and all extracted definitions (e.g. Schwarz Fit, Novelty, TRL, Rigour) with evidence quotes and composite signal scores.
+    - Aggregated list of papers with:
+      • paper_id, title, authors, doi, arxiv_id, pdf_url, original_pdf_path, converted_md_path, abstract
+      • screening_status: Stage decision ('abstract_passed', 'full_text_passed', 'accepted', 'rejected')
+      • abstract_screening_reasoning: LLM justification from Stage 1 Abstract Screening
+      • full_text_screening_reasoning: LLM justification from Stage 2 Full-Text Screening
+      • is_evaluation_benchmark: Benchmark evaluation flag (bool)
+      • evaluation_label: Benchmark ground-truth label ('passed' | 'rejected' | null)
+      • signal_score: Evaluated composite score (float)
+      • signal_score_details: Mathematical formula inputs and metric breakdown
+      • metrics_summary: Quick key-value dictionary of primary exit metrics (e.g. fit_score, trl_level)
+      • extractions: Full array of dynamic parameter extractions with quotes, confidence, and HITL flags
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -1140,7 +1181,13 @@ def get_extraction(extraction_id: str) -> str:
 @with_db_connection
 def get_pipeline_run_status(pipeline_run_id: str) -> str:
     """
-    Retrieve execution state, active component step, paper count metrics, and storage footprint for a PipelineRun.
+    Retrieve execution state, active component step, paper count metrics, storage footprint, and result previews for a PipelineRun.
+
+    RETURNS:
+    - Execution state: status ('pending', 'running', 'completed', 'failed', 'paused', 'aborted'), current_stage, token usage, cost
+    - Component runs breakdown: status and runtime of search, download, ocr, screening, extraction, scoring, reporting
+    - fetched_papers_preview: List of papers with status, abstract_screening_reasoning, full_text_screening_reasoning, signal_score, and benchmark flags
+    - extractions_matrix_preview: Quick scorecard table of top-scored papers and their extracted exit metrics
     """
     try:
         user, workspace, api_key = get_auth_context()

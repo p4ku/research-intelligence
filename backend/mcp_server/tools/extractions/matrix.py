@@ -96,7 +96,8 @@ def get_paper_extractions_matrix_logic(
 ) -> str:
     """
     Returns an aggregated matrix of accepted/screened papers with all their extracted parameters,
-    exit metrics, justifications, and scores in a single structured response.
+    exit metrics, independent stage reasonings (abstract_screening_reasoning, full_text_screening_reasoning),
+    benchmark flags, and scores in a single structured response.
     Eliminates manual joining of papers and extractions.
     """
     from research_intelligence.services import build_paper_extractions_matrix

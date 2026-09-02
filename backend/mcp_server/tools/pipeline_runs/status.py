@@ -66,7 +66,11 @@ def _get_run_storage_stats(dir_path: str) -> dict:
 
 
 def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
-    """Retrieve full status, metrics, downloaded paper counts, storage footprint, and component run states for a PipelineRun."""
+    """
+    Retrieve full status, metrics, downloaded paper counts, storage footprint, component run states,
+    and paper previews with dual screening reasonings (abstract_screening_reasoning, full_text_screening_reasoning)
+    for a PipelineRun.
+    """
     try:
         pr_uuid = uuid.UUID(pipeline_run_id)
     except ValueError:

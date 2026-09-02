@@ -26,7 +26,10 @@ def preview_search_query_logic(user, provider: str, search_query: str, limit: in
 
 
 def list_papers_logic(user, workspace_id: str, pipeline_run_id: str = None, limit: int = 50) -> str:
-    """List fetched paper records for a workspace (optionally filtered by pipeline_run_id) without downloading PDFs."""
+    """
+    List fetched paper records for a workspace (optionally filtered by pipeline_run_id).
+    Returns title, authors, DOI, abstract, paths, dual screening reasonings (abstract_screening_reasoning, full_text_screening_reasoning), benchmark flags, and signal score.
+    """
     workspace, membership, error = check_workspace_access(user, workspace_id)
     if error:
         return error
