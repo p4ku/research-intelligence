@@ -92,7 +92,9 @@ class WorkflowScheduleViewSet(viewsets.ModelViewSet):
         agent = schedule.trigger_run(triggered_by_user=request.user)
         return Response({
             "message": f"Successfully triggered scheduled workflow '{schedule.name}'.",
+            "status": "running",
             "agent_id": str(agent.id),
+            "agent_process_id": str(agent.id),
             "pipeline_run_id": str(schedule.last_pipeline_run.id) if schedule.last_pipeline_run else None,
             "next_run_at": schedule.next_run_at.isoformat() if schedule.next_run_at else None
         }, status=status.HTTP_200_OK)

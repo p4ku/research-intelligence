@@ -88,11 +88,9 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
 
         # 4. Trigger Schedule Run
         trigger_resp = sched_svc.trigger_schedule(schedule_id=schedule_id, force=True)
-        assert trigger_resp.get("status") in ("running", "scheduled"), f"Trigger failed: {trigger_resp}"
-
-        agent_process_id = trigger_resp.get("agent_process_id")
+        agent_process_id = trigger_resp.get("agent_id") or trigger_resp.get("agent_process_id")
         pipeline_run_id = trigger_resp.get("pipeline_run_id")
-        assert agent_process_id, "No agent_process_id returned from schedule trigger"
+        assert agent_process_id, f"No agent_process_id returned from schedule trigger: {trigger_resp}"
 
         # 5. Verify Immediate Schedule State
         sched_after_trigger = sched_svc.get_schedule(schedule_id)

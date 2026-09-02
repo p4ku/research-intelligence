@@ -8,6 +8,8 @@ class WorkflowScheduleSerializer(serializers.ModelSerializer):
     schedule_description = serializers.CharField(read_only=True)
     cron_expression = serializers.CharField(required=False, allow_blank=True, allow_null=True, default='')
     last_status = serializers.CharField(source='current_execution_status', read_only=True)
+    successful_runs_count = serializers.IntegerField(read_only=True)
+    failed_runs_count = serializers.IntegerField(read_only=True)
     success_rate_percent = serializers.FloatField(read_only=True)
 
     def validate_cron_expression(self, value):
@@ -39,6 +41,8 @@ class WorkflowScheduleSerializer(serializers.ModelSerializer):
             'last_pipeline_run',
             'last_status',
             'total_runs_count',
+            'successful_runs_count',
+            'failed_runs_count',
             'consecutive_failures_count',
             'max_consecutive_failures',
             'success_rate_percent',
@@ -56,6 +60,8 @@ class WorkflowScheduleSerializer(serializers.ModelSerializer):
             'last_pipeline_run',
             'last_status',
             'total_runs_count',
+            'successful_runs_count',
+            'failed_runs_count',
             'consecutive_failures_count',
             'success_rate_percent',
             'created_by',
