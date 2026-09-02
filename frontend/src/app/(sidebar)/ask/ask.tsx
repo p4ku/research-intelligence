@@ -112,12 +112,17 @@ export function Ask({
   const [openingId, setOpeningId] = useState<string | null>(null)
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
   const [railStale, setRailStale] = useState(false)
-  // The delete flow: a row only nominates; the AlertDialog confirms.
+  // The delete flow: a row only nominates; the AlertDialog confirms. `open`
+  // is separate from the nominee so the title stays in the description
+  // through the exit animation instead of flashing to an empty quote.
   const [pendingDelete, setPendingDelete] = useState<ChatSession | null>(null)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   // The trash button that opened the dialog — focus returns to it on close
-  // (a controlled dialog with no Trigger would otherwise focus <body>).
+  // (a controlled dialog with no Trigger would otherwise focus <body>). Taken
+  // from the click, not document.activeElement: Safari and iOS don't focus a
+  // button on tap, so activeElement is already <body> by the time we look.
   const deleteTriggerRef = useRef<HTMLElement | null>(null)
   // Bumps per question so the anchor effect fires even for a repeated question.
   const [askSeq, setAskSeq] = useState(0)
@@ -323,22 +328,23 @@ export function Ask({
     focusField()
   }
 
-  function requestDelete(session: ChatSession) {
-    deleteTriggerRef.current = document.activeElement as HTMLElement | null
+  function requestDelete(session: ChatSession, trigger: HTMLElement) {
+    deleteTriggerRef.current = trigger
     setDeleteError(null)
     setPendingDelete(session)
+    setDeleteOpen(true)
   }
 
   async function confirmDelete() {
     const session = pendingDelete
-    if (!session || deleting) return
+    if (!session || !deleteOpen || deleting) return
     setDeleting(true)
     setDeleteError(null)
     try {
       await bffFetch<void>(`/bff/chat/sessions/${session.id}`, { method: 'DELETE' })
       setSessions((prev) => prev.filter((s) => s.id !== session.id))
       if (session.id === activeSessionId) newThread()
-      setPendingDelete(null)
+      setDeleteOpen(false)
       // The row — the outcome's anchor — is gone, so this is the one place
       // a toast is right (see the Toaster note in app/layout.tsx).
       toast(t('Conversation deleted'))
@@ -780,10 +786,10 @@ export function Ask({
       {/* One dialog serves both delete triggers (rail + mobile list). A
           failure keeps it open — a destructive action never fails silently. */}
       <AlertDialog
-        open={pendingDelete !== null}
+        open={deleteOpen}
         onOpenChange={(open) => {
           if (!open && !deleting) {
-            setPendingDelete(null)
+            setDeleteOpen(false)
             setDeleteError(null)
           }
         }}
@@ -791,7 +797,11 @@ export function Ask({
         <AlertDialogContent
           onCloseAutoFocus={(event) => {
             event.preventDefault()
-            deleteTriggerRef.current?.focus()
+            // After a successful delete the trash button is gone with its
+            // row; the composer is the next sensible place, not <body>.
+            const trigger = deleteTriggerRef.current
+            if (trigger?.isConnected) trigger.focus()
+            else focusField()
           }}
         >
           <AlertDialogHeader>

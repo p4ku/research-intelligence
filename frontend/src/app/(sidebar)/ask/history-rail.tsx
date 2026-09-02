@@ -35,7 +35,8 @@ function HistoryRow({
   active: boolean
   opening: boolean
   onOpen: () => void
-  onDelete: () => void
+  /** Receives the trash button so the confirm dialog can hand focus back to it. */
+  onDelete: (trigger: HTMLElement) => void
 }) {
   const t = useT()
   return (
@@ -91,7 +92,7 @@ function HistoryRow({
           ::after overhang widened the page on mobile — don't reintroduce). */}
       <button
         type="button"
-        onClick={onDelete}
+        onClick={(event) => onDelete(event.currentTarget)}
         title={t('Delete conversation')}
         aria-label={t('Delete conversation')}
         className="text-muted-foreground hover:text-negative border-line-soft ml-1 flex items-center self-stretch border-l py-1 pr-1 pl-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 pointer-coarse:py-4 pointer-coarse:pr-3.5 pointer-coarse:pl-4 pointer-coarse:opacity-100"
@@ -115,7 +116,7 @@ export function HistoryList({
   openingId?: string | null
   rowError?: { id: string; message: string } | null
   onOpen: (session: ChatSession) => void
-  onDelete: (session: ChatSession) => void
+  onDelete: (session: ChatSession, trigger: HTMLElement) => void
 }) {
   const t = useT()
   const { lang } = useLanguage()
@@ -152,7 +153,7 @@ export function HistoryList({
                   active={session.id === activeId}
                   opening={session.id === openingId}
                   onOpen={() => onOpen(session)}
-                  onDelete={() => onDelete(session)}
+                  onDelete={(trigger) => onDelete(session, trigger)}
                 />
                 {rowError?.id === session.id && (
                   <p role="alert" className="text-negative px-2 pt-1 pb-0.5 text-[11px]">
@@ -192,7 +193,7 @@ export function HistoryRail({
   onRefresh?: () => void
   onOpen: (session: ChatSession) => void
   onNew: () => void
-  onDelete: (session: ChatSession) => void
+  onDelete: (session: ChatSession, trigger: HTMLElement) => void
 }) {
   const t = useT()
   return (
