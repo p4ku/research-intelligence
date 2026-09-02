@@ -83,18 +83,25 @@ sequenceDiagram
     participant Stepper as ⏱️ Live Stepper & Controls (/runs/[id])
     participant AskUI as 💬 Ask Paper Assistant (/ask)
 
+    Note over Admin,AskUI: 1. Workspace Selection & Pipeline Navigation
     Admin->>TopBar: Selects Workspace ('Quantum Computing')
     Admin->>RunsPage: Clicks 'Runs' in navigation
     Admin->>RunsPage: Clicks '+ New Pipeline Run' button
+
+    Note over Admin,AskUI: 2. Run Initiation (Reprocess or Full Review)
     RunsPage->>Modal: Opens Run Initiation Modal
     Admin->>Modal: Selects 'Reprocess Existing Papers' (New extraction model)
     Admin->>Modal: Clicks 'Launch Pipeline'
     Modal->>RunsPage: Closes modal & registers running job
     RunsPage->>Stepper: Automatically navigates to /runs/[id]
+
+    Note over Admin,AskUI: 3. Live Execution Tracking & Intervention
     loop Live Progress Monitoring
         Stepper-->>Admin: Animates stage transitions (Screening ➔ Extraction ➔ Signal ➔ Report)
     end
     Stepper-->>Admin: Shows 'Run Completed' status & execution metrics ($0.044 USD, 26s)
+
+    Note over Admin,AskUI: 4. Intelligence Synthesis & Cross-Paper Interrogation
     Admin->>TopBar: Switches active Run context to newly completed Run
     Admin->>AskUI: Navigates to /ask and interrogates cross-paper findings with citations
 ```
@@ -136,12 +143,19 @@ sequenceDiagram
     participant RunsPage as 🚀 Runs Dashboard (/runs)
     participant Modal as 🪟 New Run Modal
 
+    Note over Mgr,Modal: 1. Run Context Selection & Overview Audit
     Mgr->>TopBar: Selects Workspace ('Quantum Computing') & Run ('Run #12')
     Mgr->>Overview: Reviews Run Funnel (Passed: 14/50 papers, Avg Fit: 88%)
+
+    Note over Mgr,Modal: 2. Executive Briefing Review & PDF Export
     Mgr->>Briefing: Reads Executive Narrative Report & Clicks 'Export PDF'
     Briefing-->>Mgr: Downloads compiled PDF briefing
+
+    Note over Mgr,Modal: 3. Catalog Deep-Dive & Scoring Filter
     Mgr->>PapersUI: Navigates to /papers and filters by 'Signal Score > 80'
     PapersUI-->>Mgr: Displays filtered list of high-impact papers
+
+    Note over Mgr,Modal: 4. On-Demand Review Triggering
     Mgr->>RunsPage: Navigates to /runs
     Mgr->>RunsPage: Clicks '+ New Pipeline Run'
     RunsPage->>Modal: Opens Run Modal (Enters new search query & limit: 20)
@@ -188,12 +202,19 @@ sequenceDiagram
     participant DetailUI as 📑 Paper Scorecard (/papers/[id])
     participant AskUI as 💬 Ask Assistant & Side Chat
 
+    Note over Res,AskUI: 1. Context Selection & Overview Inspection
     Res->>TopBar: Selects Workspace ('Quantum Computing') & Run ('Run #14')
     Res->>Overview: Inspects Top Signal papers and Funnel acceptance rate
+
+    Note over Res,AskUI: 2. Literature Filtering & Discovery
     Res->>PapersUI: Filters papers by 'Accepted' and 'TRL >= 4'
+
+    Note over Res,AskUI: 3. Deep-Dive Scorecard & Evidence Audit
     Res->>DetailUI: Clicks top paper to open Scorecard & Radar profile
     DetailUI-->>Res: Displays extracted variables (Fidelity: 99.9%, Overhead: 1000:1)
     Res->>DetailUI: Clicks 'Evidence Quote' -> Highlights exact snippet from PDF
+
+    Note over Res,AskUI: 4. Grounded AI Interrogation with Citations
     Res->>AskUI: Opens Ask Assistant scoped to this Paper & Run
     Res->>AskUI: Asks: "How does this error correction scheme compare to surface codes?"
     AskUI-->>Res: Streams synthesized answer with clickable citation tags
@@ -242,17 +263,17 @@ sequenceDiagram
     participant Dashboard as 📊 Overview Dashboard (/dashboard)
     participant AvatarMenu as 🧭 Top Navbar & Avatar Menu
 
-    Note over User,Dashboard: 1. Sign In
+    Note over User,AvatarMenu: 1. Sign In & Session Initialization
     User->>LoginScreen: Enters Email / Username & Password
     User->>LoginScreen: Clicks 'Sign In'
     LoginScreen->>LoginScreen: Displays loading spinner & validates credentials
     LoginScreen->>Dashboard: Transitions to Workspace Overview Dashboard
     Dashboard-->>User: Displays 'Good morning / afternoon' welcome header
 
-    Note over User,LoginScreen: 2. Active Session & Navigation
+    Note over User,AvatarMenu: 2. Active Session & Navigation
     User->>Dashboard: Navigates across Overview, Briefings, Papers, Ask AI
 
-    Note over User,LoginScreen: 3. Sign Out
+    Note over User,AvatarMenu: 3. Sign Out & Session Teardown
     User->>AvatarMenu: Clicks profile avatar in top navbar / sidebar footer
     AvatarMenu-->>User: Expands account dropdown menu
     User->>AvatarMenu: Clicks 'Sign Out'
@@ -286,22 +307,23 @@ sequenceDiagram
     participant SettingsPage as ⚙️ Settings Page (/settings)
     participant Toast as 🔔 Notification Toast & Form Feedback
 
+    Note over User,Toast: 1. Navigation to Settings
     User->>AvatarMenu: Clicks avatar dropdown -> Selects 'My Account'
     AvatarMenu->>SettingsPage: Navigates to /settings
 
-    Note over User,Toast: Action 1: Update Profile Details
+    Note over User,Toast: 2. Profile Details Update
     User->>SettingsPage: Modifies First Name, Last Name, Email
     User->>SettingsPage: Clicks 'Save Profile'
     SettingsPage->>Toast: Displays green confirmation toast ('Profile updated')
     SettingsPage-->>User: Updates avatar initials and displayed name in top bar
 
-    Note over User,Toast: Action 2: Change Password
+    Note over User,Toast: 3. Password Change & Security
     User->>SettingsPage: Enters Current Password, New Password, Confirm Password
     User->>SettingsPage: Clicks 'Update Password'
     SettingsPage->>Toast: Displays 'Password changed successfully'
     SettingsPage-->>User: Resets password input fields
 
-    Note over User,Toast: Action 3: Configure Notification Cadence
+    Note over User,Toast: 4. Notification Preferences & Cadence
     User->>SettingsPage: Toggles 'Email Notifications' ON
     User->>SettingsPage: Selects 'Weekly Executive Briefing' radio option
     User->>SettingsPage: Clicks 'Save Preferences'
