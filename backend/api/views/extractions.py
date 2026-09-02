@@ -27,6 +27,7 @@ class ExtractionSerializer(serializers.ModelSerializer):
         OpenApiParameter(name='paper_id', type=str, location=OpenApiParameter.QUERY, description='Alias for paper filter'),
         OpenApiParameter(name='definition', type=str, location=OpenApiParameter.QUERY, description='Filter extractions by definition UUID'),
         OpenApiParameter(name='definition_id', type=str, location=OpenApiParameter.QUERY, description='Alias for definition filter'),
+        OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Filter extractions by PipelineRun UUID (including reprocessed papers)'),
     ]
 )
 class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
@@ -60,5 +61,10 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
         def_id = self.request.query_params.get('definition') or self.request.query_params.get('definition_id')
         if def_id:
             qs = qs.filter(extraction_definition_id=def_id)
+
+        pipeline_run_id = self.request.query_params.get('pipeline_run') or self.request.query_params.get('pipeline_run_id')
+        if pipeline_run_id:
+            from django.db.models import Q
+            qs = qs.filter(Q(paper__pipeline_run_id=pipeline_run_id) | Q(paper__reprocessed_runs__id=pipeline_run_id)).distinct()
 
         return qs.order_by('-created_at')
