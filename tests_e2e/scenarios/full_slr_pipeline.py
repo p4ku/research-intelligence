@@ -33,6 +33,7 @@ from ..client import (
     PipelineService,
     ChatService,
     ScheduleService,
+    DataConsistencyValidator,
 )
 
 logger = logging.getLogger("e2e_slr_scenario")
@@ -448,7 +449,49 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         papers = pipeline_svc.list_papers(workspace_id=workspace_id)
         accepted_papers = [p for p in papers if p.get("screening_status") in ("full_text_passed", "accepted")]
         extractions = pipeline_svc.list_extractions(workspace_id=workspace_id)
+        paper_metrics = pipeline_svc.list_paper_metrics(workspace_id=workspace_id, pipeline_run=pipeline_run_id)
         reports = pipeline_svc.list_reports(workspace_id=workspace_id)
+
+        # Deep Structural & Type Validation
+        DataConsistencyValidator.validate_uuid(workspace_id, "workspace_id")
+        DataConsistencyValidator.validate_uuid(process_id, "process_id")
+        if pipeline_run_id:
+            DataConsistencyValidator.validate_uuid(pipeline_run_id, "pipeline_run_id")
+
+        for p in papers:
+            DataConsistencyValidator.validate_paper_schema(p)
+        for m in paper_metrics:
+            DataConsistencyValidator.validate_paper_metric_schema(m)
+        for e in extractions:
+            DataConsistencyValidator.validate_extraction_schema(e)
+
+        # Cross-Endpoint Round-Trip Consistency
+        DataConsistencyValidator.validate_cross_endpoint_consistency(papers, paper_metrics, extractions)
+
+        # Token & Financial Arithmetic Integrity
+        DataConsistencyValidator.validate_token_and_cost_integrity(pr_detail, comp_runs)
+
+        # Mathematical Validation of Signal Score
+        def _calc_expected_score(vars_dict):
+            trl = float(vars_dict.get("trl_level") or 0.0)
+            if trl < 3.0:
+                return 0.0
+            fit = float(vars_dict.get("fit_score") or 0.0)
+            novelty = float(vars_dict.get("novelty_score") or 0.0)
+            base = 0.6 * fit + 0.4 * novelty
+            multiplier = 1.25 if trl >= 7.0 else 1.0
+            return round(base * multiplier, 2)
+
+        for m in paper_metrics:
+            score = m.get("signal_score")
+            details = m.get("signal_score_details") or {}
+            vars_dict = details.get("variables") or {}
+            if score is not None and ("fit_score" in vars_dict or "novelty_score" in vars_dict or "trl_level" in vars_dict):
+                DataConsistencyValidator.validate_signal_score_math(
+                    actual_score=float(score),
+                    variables=vars_dict,
+                    formula_fn=_calc_expected_score
+                )
 
         scenario_results["total_papers_fetched"] = len(papers)
         scenario_results["accepted_papers_count"] = len(accepted_papers)
