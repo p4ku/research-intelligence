@@ -94,7 +94,28 @@ graph TD
 
 ---
 
-## 🔐 3. Authentication & Security Architecture
+## 🚀 3. Pipeline Triggering Pathways & Concurrency Controls
+
+The Systematic Literature Review (SLR) pipeline can be dispatched through **5 distinct, enterprise-grade execution channels**, all converging into the unified `ResearchAgentRunner` and `WorkflowDAG` orchestrator:
+
+| Pathway | Interface / Entrypoint | Concurrency & Overlap Policy | Async Dispatch Mechanism |
+| :--- | :--- | :--- | :--- |
+| **1. Celery Beat Periodic Dispatcher** | `dispatch_due_workflow_schedules()` | `select_for_update(skip_locked=True)` + `prevent_overlap` check. If overlapping, advances `next_run_at` to prevent busy-spin. | Automated cron evaluation with staggered jitter ($0\text{s} - 45\text{s}$) to distribute worker load. |
+| **2. Django Admin UI ("Run Now")** | Admin action / detail view: `admin:research_intelligence_workflowschedule_trigger` | `force=True` (allows manual execution override even if previous run is active). | `transaction.on_commit` Celery task dispatch with immediate UI flash message. |
+| **3. Django REST API** | `POST /api/schedules/{id}/trigger/`<br/>`POST /api/pipeline-runs/` | Honors `prevent_overlap` (returns HTTP 200 with process ID or 409 Conflict if locked). | Non-blocking DRF viewset dispatching async Celery task. |
+| **4. FastMCP SSE Agent Tools** | `start_research_agent(workspace_id, ...)`<br/>`trigger_search_job(...)` | Dynamic configuration overrides (e.g. `reprocess_existing`, `limit`, `date_range_days`). | Async Celery worker trigger returning instant execution payload and run UUID. |
+| **5. Direct Engine / Programmatic Runner** | `ResearchAgentRunner.tick(process_id)` | Row-level locking on PostgreSQL (`select_for_update`). Protected against premature connection closure via `in_atomic_block` guard. | Direct DAG node evaluation and synchronous/asynchronous task dispatch. |
+
+### Key Architectural Concurrency & Observability Guarantees:
+1. **Overlap Prevention (`prevent_overlap=True`)**: Prevents duplicate executions if a previous `PipelineRun` is still in status `'running'` or `'pending'`.
+2. **Decoupled Signals Observer**: Django `post_save` signals in `signals.py` observe `PipelineRun` and `ResearchAgentProcess` state changes and update the associated `WorkflowSchedule.last_status` via dual lookup (`last_pipeline_run_id` OR `schedule_id`).
+3. **Failure Guardrails & Auto-Pause**: Automatically tracks `consecutive_failures_count` across recurring runs, auto-pausing (`is_active=False`) once `max_consecutive_failures` threshold is reached.
+4. **Early Halting Safety**: When zero new papers are discovered (due to deduplication) or zero papers pass screening, the pipeline cleanly halts at that step (`stopped_at_step`, `stop_reason`) and sets `pipeline_run.status='completed'` with an informative `status_message`.
+5. **Daylight Saving Time (DST) Support**: Leverages Python's native `zoneinfo.ZoneInfo` for accurate localized cron evaluations (e.g. Europe/Berlin, UTC, America/New_York) without 1-hour shifts during clock changes.
+
+---
+
+## 🔐 4. Authentication & Security Architecture
 
 *(See [`docs/SECURITY.md`](../docs/SECURITY.md) for full threat model specification and RBAC matrix)*
 
@@ -113,7 +134,7 @@ graph TD
 
 ---
 
-## 🧪 4. Testing & Verification
+## 🧪 5. Testing & Verification
 
 ```bash
 # Run the complete test suite (400+ tests in parallel, 0 tokens / in-memory SQLite)

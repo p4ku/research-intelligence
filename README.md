@@ -143,6 +143,22 @@ graph TD
 - **FastMCP SSE Interface (Port 8001)**: Exposes workspace tools, scrapers, state machine controls, parameter extraction, and document registry stats to LLM clients (Claude, Gemini, Cursor, Antigravity) via `@mcp.tool()` and `@mcp.prompt()`.
 - **Django REST API (Port 8000)**: Exposes `/api/workspaces/`, `/api/agents/`, `/api/extractions/`, `/api/pipeline-runs/`, and `/api/chat/` endpoints for web frontends.
 
+### 8. The 5 Pipeline Triggering Pathways & Concurrency Controls
+The Systematic Literature Review (SLR) pipeline can be dispatched through **5 distinct, enterprise-grade execution channels**, all converging into the unified `ResearchAgentRunner` and `WorkflowDAG` orchestrator:
+
+| Pathway | Interface / Entrypoint | Concurrency & Overlap Policy | Async Dispatch Mechanism |
+| :--- | :--- | :--- | :--- |
+| **1. Celery Beat Periodic Dispatcher** | `dispatch_due_workflow_schedules()` | `select_for_update(skip_locked=True)` + `prevent_overlap` check. If overlapping, advances `next_run_at` to prevent busy-spin. | Automated cron evaluation with staggered jitter ($0\text{s} - 45\text{s}$) to distribute worker load. |
+| **2. Django Admin UI ("Run Now")** | Admin action / detail view: `admin:research_intelligence_workflowschedule_trigger` | `force=True` (allows manual execution override even if previous run is active). | `transaction.on_commit` Celery task dispatch with immediate UI flash message. |
+| **3. Django REST API** | `POST /api/schedules/{id}/trigger/`<br/>`POST /api/pipeline-runs/` | Honors `prevent_overlap` (returns HTTP 200 with process ID or 409 Conflict if locked). | Non-blocking DRF viewset dispatching async Celery task. |
+| **4. FastMCP SSE Agent Tools** | `start_research_agent(workspace_id, ...)`<br/>`trigger_search_job(...)` | Dynamic configuration overrides (e.g. `reprocess_existing`, `limit`, `date_range_days`). | Async Celery worker trigger returning instant execution payload and run UUID. |
+| **5. Direct Engine / Programmatic Runner** | `ResearchAgentRunner.tick(process_id)` | Row-level locking on PostgreSQL (`select_for_update`). Protected against premature connection closure via `in_atomic_block` guard. | Direct DAG node evaluation and synchronous/asynchronous task dispatch. |
+
+* **Concurrency & Overlap Guard**: `prevent_overlap=True` guarantees zero race conditions or duplicate runs for the same schedule.
+* **Decoupled Signals Observer**: Django `post_save` signals in `signals.py` update observing `WorkflowSchedule.last_status` records dynamically.
+* **Failure Guardrails & Auto-Pause**: Auto-pauses recurring schedules (`is_active=False`) when `consecutive_failures_count >= max_consecutive_failures`.
+* **Daylight Saving Time (DST) Support**: Leverages Python's native `zoneinfo.ZoneInfo` for localized cron evaluations without 1-hour clock shifts.
+
 ---
 
 ## 🗄️ 3. Database Architecture & Entity Relationships
