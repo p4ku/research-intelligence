@@ -201,7 +201,10 @@ class ReprocessedRunsAPIMCPTests(TestCase):
         self.assertEqual(status_data["total_papers_fetched"], 1)
         self.assertEqual(status_data["extractions_count"], 1)
         self.assertEqual(len(status_data.get("fetched_papers_preview", [])), 1)
-        self.assertEqual(status_data["fetched_papers_preview"][0]["id"], str(self.paper.id))
+        preview_p = status_data["fetched_papers_preview"][0]
+        self.assertEqual(preview_p["id"], str(self.paper.id))
+        self.assertEqual(preview_p["full_text_screening_reasoning"], "Reprocessed with newer topological models.")
+        self.assertNotIn("screening_reasoning", preview_p)
 
     def test_mcp_tool_extractions_matrix(self):
         """
@@ -213,12 +216,28 @@ class ReprocessedRunsAPIMCPTests(TestCase):
 
         self.assertIn("papers", matrix_data)
         self.assertEqual(len(matrix_data["papers"]), 1)
-        self.assertEqual(matrix_data["papers"][0]["paper_id"], str(self.paper.id))
+        matrix_p = matrix_data["papers"][0]
+        self.assertEqual(matrix_p["paper_id"], str(self.paper.id))
+        self.assertEqual(matrix_p["full_text_screening_reasoning"], "Reprocessed with newer topological models.")
+        self.assertNotIn("screening_reasoning", matrix_p)
 
         list_str = list_extractions_logic(self.user, pipeline_run_id=str(self.run_2.id))
         list_data = json.loads(list_str)
         self.assertEqual(len(list_data), 1)
         self.assertEqual(list_data[0]["id"], str(self.extraction.id))
+
+    def test_mcp_tool_list_papers(self):
+        """
+        FastMCP list_papers_logic must return dual reasonings and not screening_reasoning.
+        """
+        from mcp_server.tools.scrapers.search import list_papers_logic
+        res_str = list_papers_logic(self.user, workspace_id=str(self.workspace.id), pipeline_run_id=str(self.run_2.id))
+        papers_list = json.loads(res_str)
+        self.assertEqual(len(papers_list), 1)
+        p = papers_list[0]
+        self.assertEqual(p["paper_id"], str(self.paper.id))
+        self.assertEqual(p["full_text_screening_reasoning"], "Reprocessed with newer topological models.")
+        self.assertNotIn("screening_reasoning", p)
 
     def test_mcp_tool_agent_process_status(self):
         """
@@ -408,3 +427,5 @@ class ReprocessedRunsAPIMCPTests(TestCase):
         self.assertEqual(results[0]["pipeline_run"], str(self.run_2.id))
         self.assertEqual(results[0]["signal_score"], 94.5)
         self.assertEqual(results[0]["screening_status"], "full_text_passed")
+        self.assertEqual(results[0]["full_text_screening_reasoning"], "Reprocessed with newer topological models.")
+        self.assertNotIn("screening_reasoning", results[0])
