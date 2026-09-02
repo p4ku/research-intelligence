@@ -51,6 +51,7 @@ class ScreeningTasksTestCase(TestCase):
         self.assertIsNotNone(metric)
         self.assertEqual(metric.screening_status, "abstract_passed")
         self.assertEqual(metric.abstract_screening_reasoning, "Contains agentic keywords.")
+        self.assertEqual(metric.latest_screening_reasoning, "Contains agentic keywords.")
 
         # Ensure correct model and reasoning_effort parameters were passed
         mock_generate.assert_called_once()
@@ -74,6 +75,7 @@ class ScreeningTasksTestCase(TestCase):
         self.assertIsNotNone(metric)
         self.assertEqual(metric.screening_status, "full_text_passed")
         self.assertEqual(metric.full_text_screening_reasoning, "Full text details reasoning workflows.")
+        self.assertEqual(metric.latest_screening_reasoning, "Full text details reasoning workflows.")
 
         # Ensure correct model and reasoning_effort parameters were passed
         mock_generate.assert_called_once()
