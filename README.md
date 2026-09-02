@@ -149,7 +149,7 @@ graph TD
 
 The data layer is structured into 5 cohesive domains:
 1. **Tenancy & Authentication**: `Workspace`, `WorkspaceMember`, `APIKey`, `UserActivityLog`
-2. **Configuration & Scrapers**: `Scraper`, `ExtractionDefinition`, `Subscriber`
+2. **Configuration & Scrapers**: `Scraper`, `ExtractionDefinition`, `Subscriber`, `WorkflowSchedule`
 3. **Execution & Orchestration**: `PipelineRun`, `ResearchAgentProcess`, `ComponentRun`
 4. **Ingestion & Registry Cache**: `Paper`, `DocumentRegistry` (Global SHA-256 PDF & OCR Cache)
 5. **Intelligence & Scorecards**: `Extraction`, `PaperMetric`, `NarrativeReport`, `HITLCorrection`
@@ -177,7 +177,7 @@ The data layer is structured into 5 cohesive domains:
 │   └── research_intelligence/   # Core intelligence platform
 │       ├── tasks/               # 8-Stage Pipeline & Orchestrator DAG State Engine
 │       ├── models/              # Workspace, DocumentRegistry, Paper, Extraction models
-│       └── tests/               # Automated unit & integration test suite (378+ tests)
+│       └── tests/               # Automated unit & integration test suite (440+ tests)
 ├── frontend/                    # Next.js User Interface
 ├── docs/                        # Architecture documentation, diagrams & image generators
 │   ├── generate_db_schema.py    # Automated DB schema diagram builder (Mermaid/PNG/SVG)

@@ -7,6 +7,7 @@ import {
 } from '@/lib/auth/cookies'
 import { secondsUntilExpiry } from '@/lib/auth/jwt'
 import { problemBody } from '@/lib/bff/core/problem'
+import { LANG_COOKIE, type Lang } from '@/lib/i18n'
 import { NextResponse, type NextRequest } from 'next/server'
 
 // Two jobs, in this order:
@@ -32,6 +33,15 @@ const PUBLIC_ROUTES = [
 /** Refresh when the access token has less than this long to live. */
 const REFRESH_SKEW_SECONDS = 120
 
+/** Mirrors the client-side toggle's cookie (see lib/i18n-client.tsx). */
+const LANG_COOKIE_OPTIONS = { path: '/', maxAge: 31536000, sameSite: 'lax' } as const
+
+/** First visit carries no language cookie: default it from Accept-Language. */
+function detectLang(header: string | null): Lang {
+  const first = (header ?? '').split(',')[0]?.trim().toLowerCase() ?? ''
+  return first === 'de' || first.startsWith('de-') ? 'de' : 'en'
+}
+
 export async function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl
 
@@ -45,8 +55,14 @@ export async function proxy(request: NextRequest) {
     const canonical = '/' + pathname.replace(/\/+$/, '').replace(/^[/\\]+/, '')
     return NextResponse.redirect(absoluteUrl(request, canonical + search), 308)
   }
+
+  // No rs-lang cookie yet (first visit): pick from Accept-Language so a
+  // German browser gets a German first paint. The user's toggle wins from
+  // then on — this runs only while the cookie is absent.
+  const newLang = request.cookies.get(LANG_COOKIE) ? null : detectLang(request.headers.get('accept-language'))
+
   if (PUBLIC_ROUTES.some((route) => route.test(pathname))) {
-    return NextResponse.next()
+    return nextWithLang(request, newLang)
   }
 
   // BFF calls are fetches, not navigations: they get problem+json, never a
@@ -55,26 +71,28 @@ export async function proxy(request: NextRequest) {
 
   const access = request.cookies.get(ACCESS_COOKIE)?.value
   const refresh = request.cookies.get(REFRESH_COOKIE)?.value
-  if (!refresh) return isBff ? bffUnauthorized(request, false) : toLogin(request)
+  if (!refresh) return isBff ? bffUnauthorized(request, false) : withLang(toLogin(request), newLang)
   if (access && secondsUntilExpiry(access) > REFRESH_SKEW_SECONDS) {
-    return NextResponse.next()
+    return nextWithLang(request, newLang)
   }
 
   const result = await refreshAccess(refresh)
   if (result.kind === 'unreachable') {
     // Don't sign people out over a blip; the page's own API call will decide.
-    return NextResponse.next()
+    return nextWithLang(request, newLang)
   }
   if (result.kind === 'rejected') {
-    const res = isBff ? bffUnauthorized(request, true) : toLogin(request)
+    const res = isBff ? bffUnauthorized(request, true) : withLang(toLogin(request), newLang)
     if (!isBff) clearAuthCookies(res.cookies)
     return res
   }
 
   // Make the new token visible to this render as well as to later requests.
   const headers = new Headers(request.headers)
-  headers.set('cookie', replaceCookie(request.headers.get('cookie'), ACCESS_COOKIE, result.access))
-  const res = NextResponse.next({ request: { headers } })
+  let cookieHeader = replaceCookie(request.headers.get('cookie'), ACCESS_COOKIE, result.access)
+  if (newLang) cookieHeader = replaceCookie(cookieHeader, LANG_COOKIE, newLang)
+  headers.set('cookie', cookieHeader)
+  const res = withLang(NextResponse.next({ request: { headers } }), newLang)
   res.cookies.set(ACCESS_COOKIE, result.access, authCookieOptions())
   // With ROTATE_REFRESH_TOKENS the refresh we just spent is blacklisted and a
   // replacement comes back with the access token. Storing it is what keeps the
@@ -108,6 +126,23 @@ async function refreshAccess(refresh: string): Promise<RefreshResult> {
   } catch {
     return { kind: 'unreachable' }
   }
+}
+
+/** Persist a freshly detected language on the response, if any. */
+function withLang(res: NextResponse, lang: Lang | null): NextResponse {
+  if (lang) res.cookies.set(LANG_COOKIE, lang, LANG_COOKIE_OPTIONS)
+  return res
+}
+
+/**
+ * NextResponse.next() that also makes a freshly detected language visible to
+ * this very render (via the forwarded cookie header) and to later requests.
+ */
+function nextWithLang(request: NextRequest, lang: Lang | null): NextResponse {
+  if (!lang) return NextResponse.next()
+  const headers = new Headers(request.headers)
+  headers.set('cookie', replaceCookie(request.headers.get('cookie'), LANG_COOKIE, lang))
+  return withLang(NextResponse.next({ request: { headers } }), lang)
 }
 
 /** 401 problem+json for BFF fetches with no usable session. */

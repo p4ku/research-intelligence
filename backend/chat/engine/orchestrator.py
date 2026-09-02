@@ -124,7 +124,14 @@ class PaperChatEngine:
 
             # 8. Record token usage and cost accounting on Workspace & Session
             model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.7-flash') or 'google/gemini-3.7-flash'
-            total_tokens = (tokens_in or 0) + (tokens_out or 0)
+            tokens_in = tokens_in or 0
+            tokens_out = tokens_out or 0
+            if not tokens_in:
+                tokens_in = max(len(prompt) // 4, 1)
+            if not tokens_out and cleaned_answer:
+                tokens_out = max(len(cleaned_answer + (thought_process or "")) // 4, 1)
+            total_tokens = tokens_in + tokens_out
+
             cost = workspace.record_token_usage(
                 tokens_in,
                 tokens_out,
@@ -269,15 +276,25 @@ class PaperChatEngine:
                     deep_thinking=deep_thinking_active,
                     include_thoughts=deep_thinking_active
                 ):
-                    if usage and isinstance(usage, dict) and usage.get("thought"):
-                        thought_chunk = usage["thought"]
-                        accumulated_thoughts.append(thought_chunk)
-                        yield f"event: thought\ndata: {json.dumps({'thought': thought_chunk})}\n\n"
+                    if usage and isinstance(usage, dict):
+                        if usage.get("thought"):
+                            thought_chunk = usage["thought"]
+                            accumulated_thoughts.append(thought_chunk)
+                            yield f"event: thought\ndata: {json.dumps({'thought': thought_chunk})}\n\n"
+                        if usage.get("prompt_tokens") or usage.get("candidates_tokens") or usage.get("total_tokens"):
+                            p = usage.get("prompt_tokens") or 0
+                            c = usage.get("candidates_tokens") or 0
+                            t = usage.get("total_tokens") or (p + c)
+                            if p > 0:
+                                final_usage["prompt_tokens"] = p
+                            if c > 0:
+                                final_usage["candidates_tokens"] = c
+                            if t > 0:
+                                final_usage["total_tokens"] = t
+
                     if chunk_text:
                         accumulated_text.append(chunk_text)
                         yield f"event: delta\ndata: {json.dumps({'delta': chunk_text})}\n\n"
-                    if usage:
-                        final_usage = usage
             else:
                 # Fallback to single-pass generation
                 resp_raw = provider.generate(
@@ -287,10 +304,18 @@ class PaperChatEngine:
                     mime_type=prompt_mime,
                     system_instruction=system_instruction if not cached_content_name else None,
                     deep_thinking=deep_thinking_active,
-                    include_thoughts=deep_thinking_active
+                    include_thoughts=deep_thinking_active,
+                    return_usage=True
                 )
-                accumulated_text.append(str(resp_raw))
-                yield f"event: delta\ndata: {json.dumps({'delta': str(resp_raw)})}\n\n"
+                if isinstance(resp_raw, tuple) and len(resp_raw) == 2:
+                    resp_text, usage = resp_raw
+                    accumulated_text.append(str(resp_text))
+                    if usage:
+                        final_usage = usage
+                    yield f"event: delta\ndata: {json.dumps({'delta': str(resp_text)})}\n\n"
+                else:
+                    accumulated_text.append(str(resp_raw))
+                    yield f"event: delta\ndata: {json.dumps({'delta': str(resp_raw)})}\n\n"
 
             full_answer = "".join(accumulated_text)
             full_thoughts = "".join(accumulated_thoughts)
@@ -310,7 +335,14 @@ class PaperChatEngine:
             # Cost & Usage
             tokens_in = final_usage.get("prompt_tokens", 0) or 0
             tokens_out = final_usage.get("candidates_tokens", 0) or 0
-            total_tokens = final_usage.get("total_tokens", tokens_in + tokens_out)
+
+            # Fallback estimation if token metrics are zero
+            if not tokens_in:
+                tokens_in = max(len(prompt) // 4, 1)
+            if not tokens_out and (full_answer or full_thoughts):
+                tokens_out = max(len(full_answer + full_thoughts) // 4, 1)
+            total_tokens = tokens_in + tokens_out
+
             cost = workspace.record_token_usage(
                 tokens_in,
                 tokens_out,
@@ -352,7 +384,7 @@ class PaperChatEngine:
             raise
 
         except Exception as ex:
-            logger.error(f"Streaming failed for message '{message.id}': {ex}", exc_info=True)
+            logger.exception(f"Paper chat streaming failed for message '{message.id}': {ex}")
             message.status = 'failed'
             message.error_message = str(ex)
             message.completed_at = timezone.now()
@@ -416,6 +448,12 @@ class PaperChatEngine:
             answer_raw = str(llm_response) if llm_response else ""
             tokens_in = 0
             tokens_out = 0
+
+        # Ensure tokens_in and tokens_out are non-zero via estimation fallback
+        if not tokens_in:
+            tokens_in = max(len(prompt) // 4, 1)
+        if not tokens_out and answer_raw:
+            tokens_out = max(len(str(answer_raw) + thought_text) // 4, 1)
 
         if not isinstance(answer_raw, str):
             answer_raw = json.dumps(answer_raw, indent=2) if answer_raw else ""

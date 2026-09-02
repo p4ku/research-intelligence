@@ -88,18 +88,20 @@ Evaluated directly against the raw full-length PDF document using multimodal Gem
   Reject if the paper only mentions logistics as an abstract future possibility, lacks experimental or simulation data, or is behind an impenetrable paywall.
   ```
 
-#### C. Engine & LLM Configuration
+#### C. Engine, Provider & Processing Policies
 * **Screening LLM Model**: `google/gemini-3.7-flash` *(Recommended default for ultra-fast, cost-effective multimodal analysis)*.
 * **OCR Provider**: `None` *(Leave as `None` to pass native PDF binaries directly into Gemini's native multimodal visual reasoning engine; select `pypdf`, `mistral`, or `gemini` only if raw Markdown text layout is required)*.
+* **Reprocess Existing**: `False` *(Default workspace policy. If checked/True, pipeline runs default to re-evaluating and re-screening existing workspace papers even if no new papers are found)*.
+* **Skip Abstract Screening**: `False` *(If checked/True, bypasses Abstract Screening and routes all ingested candidate papers directly to deep Full-Text Screening)*.
 * **Cost Limit (USD)**: `50.00` *(Safety ceiling per run)*.
 
 Click **Save and continue editing**.
 
 ---
 
-## 👥 Step 2: Add Workspace Members & Email Subscribers
+## 👥 Step 2: Add Team Members, Email Subscribers & Workflow Schedules
 
-Collaborate securely with team members and ensure automated briefing delivery upon run completion.
+Collaborate securely with team members, configure automated briefing delivery, and establish automated recurring review schedules.
 
 ### Adding Team Members
 1. Scroll down to the **Workspace Members** inline table (or navigate to **Workspace Members** in the sidebar).
@@ -111,12 +113,20 @@ Collaborate securely with team members and ensure automated briefing delivery up
      * `Researcher`: Read-only access to scorecards, chat explorer, and downloads.
 
 ### Adding Notification Subscribers
-Keep executive stakeholders informed automatically:
+Keep executive stakeholders informed automatically upon pipeline completion:
 * In the **Workspace Subscribers** inline table, add the email addresses of stakeholders and choose their **Subscription Type**:
   * `Result Report (Scorecard & Findings)`: Receives parameter scorecards and top papers.
   * `Pipeline Errors (Failure Alerts)`: Receives alerts if an issue occurs.
   * `Pipeline Status (Execution Digest)`: Receives step progress reports.
   * `All Notifications (Full Broadcast)`: Full broadcast of all run events.
+
+### Configuring Automated Workflow Schedules
+Establish autonomous recurring runs:
+* In the **Workflow Schedules** inline table, click **+ Add another Workflow Schedule**:
+  * **Name**: e.g., `Daily 3pm Ingestion` or `Weekly Deep Tech Review`.
+  * **Frequency**: `Daily`, `Weekdays (Mon-Fri)`, `Weekly`, `Monthly`, `Custom Cron`, or `One-Off`.
+  * **Reprocess Existing**: Optionally enable reprocessing for this scheduled job.
+  * **Limit & Date Range**: Restrict candidate paper count and publication date window per run.
 
 ---
 

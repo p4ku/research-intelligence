@@ -15,6 +15,7 @@ from .views.chat import ChatSubmitView, ChatStreamView, ChatMessageDetailView, P
 from .views.reports import ReportViewSet
 from .views.agents import ResearchAgentViewSet
 from .views.pipeline_runs import PipelineRunViewSet, ComponentRunViewSet
+from .views.schedules import WorkflowScheduleViewSet
 from .views.activity_logs import UserActivityLogViewSet
 from .views.auth import LoginView, TokenRefreshView, UserProfileView, ChangePasswordView, LogoutView
 from .views.diagnostics import HealthCheckView, DeepDiagnosticsView
@@ -22,6 +23,7 @@ from observability.views import TelemetryAnalyticsAPIView
 
 router = DefaultRouter()
 router.register(r'workspaces', WorkspaceViewSet, basename='workspace')
+router.register(r'schedules', WorkflowScheduleViewSet, basename='schedule')
 router.register(r'extraction-definitions', ExtractionDefinitionViewSet, basename='extraction-definition')
 router.register(r'pipeline-runs', PipelineRunViewSet, basename='pipeline-run')
 router.register(r'component-runs', ComponentRunViewSet, basename='component-run')

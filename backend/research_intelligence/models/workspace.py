@@ -276,8 +276,6 @@ class Workspace(models.Model):
             "scoring_variables": available_vars,
         }
     
-    # Digest distribution schedule
-    digest_schedule = models.CharField(max_length=100, default="0 9 * * 5", help_text="Cron expression for weekly digest execution (e.g. every Friday at 9am)")
     ocr_provider = models.CharField(
         max_length=50,
         null=True,
@@ -320,7 +318,10 @@ class Workspace(models.Model):
     
     # Agent & Pipeline Configuration
     skip_abstract_screening = models.BooleanField(default=False, help_text="If True, skips Abstract Screening and performs direct Full-Text Screening")
-    notification_email = models.EmailField(blank=True, null=True, help_text="Email address notified upon agent completion or failure")
+    reprocess_existing = models.BooleanField(
+        default=False,
+        help_text="Default workspace policy to reprocess and re-screen existing workspace papers on pipeline runs unless explicitly overridden."
+    )
     signal_score_code = models.TextField(
         blank=True, 
         null=True, 

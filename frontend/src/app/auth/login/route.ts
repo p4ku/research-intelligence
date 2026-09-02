@@ -1,5 +1,4 @@
 import { backendUrl } from '@/lib/api/backend-url'
-import { apiErrorMessage } from '@/lib/api/server'
 import {
   ACCESS_COOKIE,
   REFRESH_COOKIE,
@@ -16,8 +15,16 @@ import { NextResponse, type NextRequest } from 'next/server'
 // Exchanges credentials for Django's JWT pair and stores it in httpOnly
 // cookies. Lives under /auth (not /api) because Cloud Foundry routes /api to
 // Django before this app ever sees the request.
-
-const GENERIC_ERROR = 'Those credentials did not match. Please try again.'
+//
+// Errors are returned as codes, not prose: the login panel translates them
+// into the interface language (see login-panel.tsx / locales/de/login.ts).
+export type LoginErrorCode =
+  | 'cross-site'
+  | 'invalid-request'
+  | 'missing-credentials'
+  | 'unreachable'
+  | 'credentials'
+  | 'upstream'
 
 interface LoginBody {
   identifier?: string
@@ -35,20 +42,20 @@ interface DjangoLoginResponse {
 
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request)) {
-    return NextResponse.json({ error: 'Cross-site login blocked.' }, { status: 403 })
+    return NextResponse.json({ code: 'cross-site' satisfies LoginErrorCode }, { status: 403 })
   }
 
   let body: LoginBody
   try {
     body = (await request.json()) as LoginBody
   } catch {
-    return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+    return NextResponse.json({ code: 'invalid-request' satisfies LoginErrorCode }, { status: 400 })
   }
   const identifier = body.identifier?.trim()
   const password = body.password
   if (!identifier || !password) {
     return NextResponse.json(
-      { error: 'Enter your email or username and password.' },
+      { code: 'missing-credentials' satisfies LoginErrorCode },
       { status: 400 },
     )
   }
@@ -63,16 +70,13 @@ export async function POST(request: NextRequest) {
       cache: 'no-store',
     })
   } catch {
-    return NextResponse.json(
-      { error: 'The backend is unreachable. Try again shortly.' },
-      { status: 502 },
-    )
+    return NextResponse.json({ code: 'unreachable' satisfies LoginErrorCode }, { status: 502 })
   }
 
   const data = (await upstream.json().catch(() => null)) as DjangoLoginResponse | null
   if (upstream.status === 401 || upstream.status === 403) {
     return NextResponse.json(
-      { error: apiErrorMessage(data, GENERIC_ERROR) },
+      { code: 'credentials' satisfies LoginErrorCode },
       { status: upstream.status },
     )
   }
@@ -80,7 +84,7 @@ export async function POST(request: NextRequest) {
     // Anything else is a backend/config problem (e.g. ALLOWED_HOSTS rejecting
     // BACKEND_INTERNAL_URL's host) — don't disguise it as a bad password.
     return NextResponse.json(
-      { error: `The backend could not process the sign-in (HTTP ${upstream.status}).` },
+      { code: 'upstream' satisfies LoginErrorCode, status: upstream.status },
       { status: 502 },
     )
   }

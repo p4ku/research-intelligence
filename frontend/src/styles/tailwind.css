@@ -191,6 +191,8 @@
   --line-soft: #ebebe4;
   /* Shell chrome only (sidebar rail, top bar) — cards stay on --line */
   --line-strong: #d5d5cd;
+  /* Skeleton scan-sweep highlight (see [data-skeleton] rules below) */
+  --bone-sheen: rgba(255, 255, 255, 0.65);
   --accent: #00c3cd;
   --positive: #1e7b44;
   --negative: #b5402c;
@@ -221,6 +223,8 @@
   --line: #2a2a26;
   --line-soft: #1e1e1b;
   --line-strong: #2f2f2b;
+  /* Dark surfaces take only a whisper of sheen */
+  --bone-sheen: rgba(255, 255, 255, 0.05);
   --accent: #00c3cd;
   --positive: #53c783;
   --negative: #e5654f;
@@ -347,9 +351,99 @@
     box-shadow: 0 0 0 0 transparent;
   }
 }
+/* ------------------------- Skeleton scan sweep ------------------------------ */
+/* One soft highlight crosses each loading region ([data-skeleton], rendered by
+   Skeleton.Region in components/skeleton.tsx) — the scanner's gesture, kin to
+   the lock-on sweep above. Bones never animate; only the sweep moves, so a
+   region costs one animation however many bones it holds. Driven by an
+   animated custom property rather than a translated overlay so the region
+   needs no overflow clipping (card rings and shadows inside stay intact).
+   Not animate-pulse — pulse already means "running" (run-presentation,
+   step-timeline). */
+@property --bone-x {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: -30%;
+}
+[data-skeleton]::after {
+  content: '';
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent calc(var(--bone-x) - 25%),
+    var(--bone-sheen) var(--bone-x),
+    transparent calc(var(--bone-x) + 25%)
+  );
+  animation: bone-scan 1.9s var(--ease-in-out) infinite;
+}
+@keyframes bone-scan {
+  from {
+    --bone-x: -30%;
+  }
+  to {
+    --bone-x: 130%;
+  }
+}
+/* The gallery and screenshot runs freeze the sweep with ?motion=static. */
+[data-motion='static'] [data-skeleton]::after {
+  animation: none;
+  display: none;
+}
+
+/* ---------------------- Skeleton → content handoff --------------------------- */
+/* React <ViewTransition exit="bone-exit"> wraps a Suspense fallback,
+   <ViewTransition enter="bone-enter"> its content. The old content leaves
+   fast so it does not compete for attention; the new arrives more gently,
+   fading in from a slight blur while it rises (the blur bridges the two
+   shapes). Timings from Next's Suspense-reveal recipe, on the house easing. */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-old(.bone-exit) {
+  animation:
+    150ms var(--ease-out) both bone-fade reverse,
+    150ms var(--ease-out) both bone-rise reverse;
+}
+::view-transition-new(.bone-enter) {
+  animation:
+    210ms var(--ease-out) 150ms both bone-fade,
+    400ms var(--ease-out) both bone-rise;
+}
+@keyframes bone-fade {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+@keyframes bone-rise {
+  from {
+    transform: translateY(10px);
+  }
+  to {
+    transform: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   [data-lock-on] {
     animation: none;
+  }
+  [data-skeleton]::after {
+    animation: none;
+    display: none;
+  }
+  /* Skeleton → content handoff becomes an instant swap. */
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
   }
   [data-lock-on]::after {
     background: none;

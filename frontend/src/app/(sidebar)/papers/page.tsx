@@ -7,8 +7,12 @@ import { getCurrentWorkspace } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { PapersBrowser } from './papers-browser'
 
-export const metadata: Metadata = { title: 'Papers' }
 export const dynamic = 'force-dynamic'
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT()
+  return { title: t('Papers') }
+}
 
 export default async function PapersPage() {
   const [t, ws] = await Promise.all([getT(), getCurrentWorkspace()])
@@ -23,7 +27,7 @@ export default async function PapersPage() {
             {t('No workspace selected')}
           </p>
           <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-            {t('You are not a member of any workspace yet. Membership is managed in the backend.')}
+            {t('You are not a member of any workspace yet. Ask an administrator for access.')}
           </p>
         </Card>
       </div>

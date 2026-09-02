@@ -46,7 +46,7 @@ class AbstractScreeningNode(BaseWorkflowNode):
 
     def should_halt_pipeline(self, pipeline_run, workspace, config: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         from research_intelligence.models import Paper, ComponentRun
-        reprocess = config.get("reprocess_existing", getattr(pipeline_run, 'reprocess_existing', False))
+        reprocess = config.get("reprocess_existing", getattr(pipeline_run, 'reprocess_existing', getattr(workspace, 'reprocess_existing', False)))
         comp_run = ComponentRun.objects.filter(
             pipeline_run=pipeline_run,
             step_type='screening',
@@ -135,7 +135,7 @@ class FullTextScreeningNode(BaseWorkflowNode):
 
     def should_halt_pipeline(self, pipeline_run, workspace, config: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         from research_intelligence.models import Paper, ComponentRun
-        reprocess = config.get("reprocess_existing", getattr(pipeline_run, 'reprocess_existing', False))
+        reprocess = config.get("reprocess_existing", getattr(pipeline_run, 'reprocess_existing', getattr(workspace, 'reprocess_existing', False)))
         comp_run = ComponentRun.objects.filter(
             pipeline_run=pipeline_run,
             step_type='screening',

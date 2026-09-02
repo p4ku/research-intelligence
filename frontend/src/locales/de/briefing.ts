@@ -8,12 +8,13 @@ export const dict: Record<string, string> = {
     '{screened} gesichtet → {included} aufgenommen → {inBriefing} im Briefing',
   'In brief': 'In Kürze',
   'Briefing history': 'Briefing-Verlauf',
-  'auto-brief': 'Auto-Brief',
+  // "Auto-Brief" would read as "automatic letter" — Briefing stays the loanword.
+  'auto-brief': 'Auto-Briefing',
   'Screening log →': 'Screening-Protokoll →',
   'Nothing was screened out in this run.': 'In diesem Lauf wurde nichts aussortiert.',
   'No completed runs yet.': 'Noch keine abgeschlossenen Läufe.',
   'Once a pipeline run completes in this workspace, its briefing appears here.':
-    'Sobald ein Pipeline-Lauf in diesem Workspace abschließt, erscheint sein Briefing hier.',
+    'Sobald ein Pipeline-Lauf in diesem Arbeitsbereich abschließt, erscheint sein Briefing hier.',
   'Open briefing →': 'Briefing öffnen →',
   'Search briefings by subject, summary, or paper…':
     'Briefings nach Betreff, Zusammenfassung oder Paper durchsuchen…',
@@ -24,7 +25,7 @@ export const dict: Record<string, string> = {
   'passed every gate': 'alle Stufen bestanden',
   '1 paper': '1 Paper',
   '{n} papers': '{n} Papers',
-  'Screened out': 'Ausgesiebt',
+  'Screened out': 'Aussortiert',
   'a sample from the log': 'Auszug aus dem Protokoll',
   Paper: 'Paper',
   Source: 'Quelle',

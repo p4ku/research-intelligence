@@ -20,7 +20,7 @@ def start_research_agent_logic(
     query_prefix: str = None,
     skip_abstract_screening: bool = None,
     notification_email: str = None,
-    reprocess_existing: bool = False
+    reprocess_existing: bool = None
 ) -> str:
     """
     Start a new autonomous ResearchAgentProcess to execute an end-to-end ingestion and intelligence cycle.
@@ -42,8 +42,8 @@ def start_research_agent_logic(
         "date_range_days": date_range_days,
         "query_prefix": query_prefix,
         "skip_abstract_screening": skip_abstract_screening if skip_abstract_screening is not None else workspace.skip_abstract_screening,
-        "notification_email": notification_email or workspace.notification_email,
-        "reprocess_existing": bool(reprocess_existing)
+        "notification_email": notification_email,
+        "reprocess_existing": bool(reprocess_existing if reprocess_existing is not None else getattr(workspace, 'reprocess_existing', False))
     }
 
     agent_process = ResearchAgentProcess.objects.create(

@@ -3,8 +3,7 @@ export const dict: Record<string, string> = {
   Today: 'Heute',
   'Today · {date}': 'Heute · {date}',
   'Open briefing →': 'Briefing öffnen →',
-  'Assembled from the run — model-written briefs arrive with the backend’s reporting step.':
-    'Aus dem Lauf zusammengesetzt — modellgeschriebene Briefings kommen mit dem Reporting-Schritt des Backends.',
+  'Assembled automatically from this run.': 'Automatisch aus diesem Lauf zusammengestellt.',
   'No completed runs yet.': 'Noch keine abgeschlossenen Läufe.',
   'No workspace selected': 'Kein Arbeitsbereich ausgewählt',
   'Run of {date}: {fetched} papers fetched, {passed} passed screening, {n} listed below.':
@@ -85,6 +84,10 @@ export const dict: Record<string, string> = {
   'cleared the signal bar': 'über der Signalschwelle',
   'In the briefing': 'Im Briefing',
   'listed below': 'unten gelistet',
+  // Streaming skeleton statuses (Skeleton.Region announcements).
+  'Loading the funnel': 'Die Kennzahlen werden geladen',
+  'Loading today’s brief': '„Heute in Kürze“ wird geladen',
+  'Loading the papers': 'Die Papers werden geladen',
   Papers: 'Papers',
   'Not yet active': 'Noch nicht aktiv',
   'A dense day for Hybrid Computing: agents pick up deterministic control flow, recovery-first tool use, and a learned memory at a sixth of the tokens; durable content credentials survive real platform pipelines, and verifiable delegation answers the know-your-agent question at checkout.':

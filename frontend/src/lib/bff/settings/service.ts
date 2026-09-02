@@ -68,7 +68,7 @@ export const settings = {
       })
     }
     throw problem('not-implemented', {
-      detail: 'Digest preferences are not persisted until the backend endpoint exists.',
+      detail: 'Digest preferences currently apply to this session only.',
     })
   },
 }

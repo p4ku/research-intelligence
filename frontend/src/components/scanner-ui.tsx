@@ -1,8 +1,9 @@
 import { AnswerMarkdown } from '@/components/answer-markdown'
 import { Sparkline } from '@/components/charts'
+import { Bone } from '@/components/skeleton'
 import type { T } from '@/lib/i18n'
 import type { Dimension, ScreeningStatus } from '@/lib/papers/types'
-import { ArrowDownIcon, ArrowRightIcon } from '@heroicons/react/16/solid'
+import { ArrowDownIcon, ArrowRightIcon, ExclamationTriangleIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import Link from 'next/link'
 
@@ -10,10 +11,16 @@ import Link from 'next/link'
 
 // Location trail in the app's mono-eyebrow style. The final item is the
 // current page (rendered emphasised, not linked); earlier items link up.
-export function Breadcrumbs({ items }: { items: { label: string; href?: string }[] }) {
+export function Breadcrumbs({
+  items,
+  t = (s) => s,
+}: {
+  items: { label: string; href?: string }[]
+  t?: T
+}) {
   return (
     <nav
-      aria-label="Breadcrumb"
+      aria-label={t('Breadcrumb')}
       className="flex max-w-full items-center gap-2 font-mono text-[11px] tracking-[0.14em] uppercase"
     >
       {items.map((item, i) => {
@@ -59,7 +66,7 @@ export function PageHeader({
   description,
   actions,
 }: {
-  eyebrow?: string
+  eyebrow?: React.ReactNode
   title: string
   description?: string
   actions?: React.ReactNode
@@ -130,6 +137,40 @@ export function Card({ className, children, ...props }: React.ComponentPropsWith
 
 /* --------------------------------- Stat tile -------------------------------- */
 
+function StatTileFrame({
+  label,
+  value,
+  bottom,
+  state,
+}: {
+  label: React.ReactNode
+  value: React.ReactNode
+  bottom: React.ReactNode
+  state: 'loaded' | 'skeleton'
+}) {
+  // Not a Card: an inset well recessed to the page background — no elevation.
+  return (
+    <div
+      data-shape="stat-tile"
+      data-state={state}
+      className="border-line-soft bg-background flex flex-col gap-1 rounded-sm border p-5"
+    >
+      <div data-row="label" className="text-sm text-zinc-500 dark:text-zinc-400">
+        {label}
+      </div>
+      <div
+        data-row="value"
+        className="font-mono text-3xl font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white"
+      >
+        {value}
+      </div>
+      <div data-row="sub" className="flex items-center gap-2 text-xs">
+        {bottom}
+      </div>
+    </div>
+  )
+}
+
 export function StatTile({
   label,
   value,
@@ -141,18 +182,29 @@ export function StatTile({
   sub?: string
   delta?: number
 }) {
-  // Not a Card: an inset well recessed to the page background — no elevation.
   return (
-    <div className="border-line-soft bg-background flex flex-col gap-1 rounded-sm border p-5">
-      <div className="text-sm text-zinc-500 dark:text-zinc-400">{label}</div>
-      <div className="font-mono text-3xl font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white">
-        {value}
-      </div>
-      <div className="flex items-center gap-2 text-xs">
-        {typeof delta === 'number' && <DeltaBadge delta={delta} />}
-        {sub && <span className="text-zinc-500 dark:text-zinc-400">{sub}</span>}
-      </div>
-    </div>
+    <StatTileFrame
+      state="loaded"
+      label={label}
+      value={value}
+      bottom={
+        <>
+          {typeof delta === 'number' && <DeltaBadge delta={delta} />}
+          {sub && <span className="text-zinc-500 dark:text-zinc-400">{sub}</span>}
+        </>
+      }
+    />
+  )
+}
+
+export function StatTileSkeleton({ digits = 3 }: { digits?: number }) {
+  return (
+    <StatTileFrame
+      state="skeleton"
+      label={<Bone.Text widths={['9ch']} />}
+      value={<Bone.Number digits={digits} />}
+      bottom={<Bone.Text widths={['12ch']} />}
+    />
   )
 }
 
@@ -174,6 +226,98 @@ export interface StatBandItem {
  * the first gets a → prefix. Set `orientation="vertical"` to stack the stats
  * in a single column (e.g. as a narrow side rail); flow arrows point down.
  */
+/** One rendered cell of a StatBand: shared by the loaded band and its skeleton. */
+interface StatBandCell {
+  key: string
+  label: React.ReactNode
+  value: React.ReactNode
+  delta?: React.ReactNode
+  below?: React.ReactNode
+}
+
+// The band chrome for both orientations. Slots receive fully-wrapped nodes;
+// every layout class lives here so StatBandSkeleton cannot drift from the
+// loaded band (measured by scripts/skeleton-drift.ts via data-shape/data-row).
+function StatBandFrame({
+  cells,
+  flow = false,
+  orientation = 'horizontal',
+  state,
+  className,
+}: {
+  cells: StatBandCell[]
+  flow?: boolean
+  orientation?: 'horizontal' | 'vertical'
+  state: 'loaded' | 'skeleton'
+  className?: string
+}) {
+  if (orientation === 'vertical') {
+    return (
+      <div
+        data-shape="stat-band"
+        data-state={state}
+        className={clsx(
+          'border-line-soft flex flex-col divide-y divide-zinc-950/5 border-y dark:divide-white/5',
+          className,
+        )}
+      >
+        {cells.map((cell, i) => (
+          <div
+            key={cell.key}
+            data-row="cell"
+            className="flex items-baseline justify-between gap-4 py-3.5"
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
+                {flow && i > 0 && (
+                  <ArrowDownIcon className="size-3 shrink-0 text-zinc-300 dark:text-zinc-600" />
+                )}
+                <span className="truncate">{cell.label}</span>
+              </div>
+              {cell.below}
+            </div>
+            <div className="flex shrink-0 items-baseline gap-2">
+              {cell.delta}
+              <span className="font-mono text-3xl font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white">
+                {cell.value}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+
+  return (
+    <div
+      data-shape="stat-band"
+      data-state={state}
+      className={clsx(
+        'border-line-soft grid grid-cols-2 gap-x-4 gap-y-6 border-y py-5 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-zinc-950/5 lg:dark:divide-white/5',
+        className,
+      )}
+    >
+      {cells.map((cell, i) => (
+        <div key={cell.key} data-row="cell" className="lg:px-6 lg:first:pl-0 lg:last:pr-0">
+          <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
+            {flow && i > 0 && (
+              <ArrowRightIcon className="size-3 shrink-0 text-zinc-300 dark:text-zinc-600" />
+            )}
+            <span className="truncate">{cell.label}</span>
+          </div>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="font-mono text-3xl font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white">
+              {cell.value}
+            </span>
+            {cell.delta}
+          </div>
+          {cell.below}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function StatBand({
   items,
   flow = false,
@@ -185,72 +329,92 @@ export function StatBand({
   orientation?: 'horizontal' | 'vertical'
   className?: string
 }) {
-  if (orientation === 'vertical') {
-    return (
-      <div
-        className={clsx(
-          'border-line-soft flex flex-col divide-y divide-zinc-950/5 border-y dark:divide-white/5',
-          className,
-        )}
-      >
-        {items.map((item, i) => (
-          <div key={item.label} className="flex items-baseline justify-between gap-4 py-3.5">
-            <div className="min-w-0">
-              <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-                {flow && i > 0 && (
-                  <ArrowDownIcon className="size-3 shrink-0 text-zinc-300 dark:text-zinc-600" />
-                )}
-                <span className="truncate">{item.label}</span>
-              </div>
-              {item.sub && (
-                <div className="mt-0.5 text-[11px] text-zinc-400 dark:text-zinc-500">
-                  {item.sub}
-                </div>
-              )}
-            </div>
-            <div className="flex shrink-0 items-baseline gap-2">
-              {typeof item.delta === 'number' && <DeltaBadge delta={item.delta} />}
-              <span className="font-mono text-3xl font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white">
-                {item.value}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    )
-  }
-
+  const vertical = orientation === 'vertical'
+  const cells = items.map(
+    (item): StatBandCell => ({
+      key: item.label,
+      label: item.label,
+      value: item.value,
+      delta: typeof item.delta === 'number' ? <DeltaBadge delta={item.delta} /> : undefined,
+      below: vertical ? (
+        item.sub && (
+          <div className="mt-0.5 text-[11px] text-zinc-400 dark:text-zinc-500">{item.sub}</div>
+        )
+      ) : item.spark ? (
+        <Sparkline data={item.spark} width={96} height={24} className="mt-2" />
+      ) : (
+        item.sub && (
+          <div className="mt-2 text-[11px] text-zinc-400 dark:text-zinc-500">{item.sub}</div>
+        )
+      ),
+    }),
+  )
   return (
-    <div
-      className={clsx(
-        'border-line-soft grid grid-cols-2 gap-x-4 gap-y-6 border-y py-5 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-zinc-950/5 lg:dark:divide-white/5',
-        className,
-      )}
-    >
-      {items.map((item, i) => (
-        <div key={item.label} className="lg:px-6 lg:first:pl-0 lg:last:pr-0">
-          <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-            {flow && i > 0 && (
-              <ArrowRightIcon className="size-3 shrink-0 text-zinc-300 dark:text-zinc-600" />
-            )}
-            <span className="truncate">{item.label}</span>
-          </div>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="font-mono text-3xl font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white">
-              {item.value}
-            </span>
-            {typeof item.delta === 'number' && <DeltaBadge delta={item.delta} />}
-          </div>
-          {item.spark ? (
-            <Sparkline data={item.spark} width={96} height={24} className="mt-2" />
-          ) : (
-            item.sub && (
-              <div className="mt-2 text-[11px] text-zinc-400 dark:text-zinc-500">{item.sub}</div>
-            )
-          )}
-        </div>
-      ))}
-    </div>
+    <StatBandFrame
+      cells={cells}
+      flow={flow}
+      orientation={orientation}
+      state="loaded"
+      className={className}
+    />
+  )
+}
+
+/**
+ * The band's loading state. Pass the real `labels`/`subs` when the copy is
+ * static (e.g. the dashboard funnel) so only the numbers are bones; `digits`
+ * sizes the number bones in mono ch.
+ */
+export function StatBandSkeleton({
+  count = 4,
+  labels,
+  subs,
+  digits = 3,
+  withDelta = false,
+  below = 'sub',
+  flow = false,
+  orientation = 'horizontal',
+  className,
+}: {
+  count?: number
+  labels?: string[]
+  subs?: string[]
+  digits?: number
+  withDelta?: boolean
+  below?: 'sub' | 'spark' | 'none'
+  flow?: boolean
+  orientation?: 'horizontal' | 'vertical'
+  className?: string
+}) {
+  const vertical = orientation === 'vertical'
+  const subWrap = vertical
+    ? 'mt-0.5 text-[11px] text-zinc-400 dark:text-zinc-500'
+    : 'mt-2 text-[11px] text-zinc-400 dark:text-zinc-500'
+  const cells = Array.from(
+    { length: count },
+    (_, i): StatBandCell => ({
+      key: labels?.[i] ?? `bone-${i}`,
+      label: labels?.[i] ?? <Bone.Text widths={['9ch']} />,
+      value: <Bone.Number digits={digits} />,
+      delta: withDelta ? (
+        <Bone.Text widths={['3ch']} className="font-mono text-[11px]" />
+      ) : undefined,
+      below:
+        below === 'none' || (vertical && below === 'spark') ? undefined : below === 'spark' ? (
+          <Bone.Block className="mt-2 h-6 w-24" />
+        ) : (
+          <div className={subWrap}>{subs?.[i] ?? <Bone.Text widths={['60%']} />}</div>
+        ),
+    }),
+  )
+  return (
+    <StatBandFrame
+      cells={cells}
+      flow={flow}
+      orientation={orientation}
+      state="skeleton"
+      className={className}
+    />
   )
 }
 
@@ -538,5 +702,37 @@ export function LinkCard({
     >
       {children}
     </Link>
+  )
+}
+
+/* -------------------------------- ErrorNote -------------------------------- */
+
+// The single inline error presentation: tinted panel, icon, message, optional
+// action slot. `role="alert"` announces it when it appears. Error ink is
+// `--negative` (5.6:1 on white) — `--warn` is a chart/badge fill, not a text
+// colour (see route-error.test.tsx, which pins both).
+export function ErrorNote({
+  action,
+  className,
+  children,
+}: {
+  action?: React.ReactNode
+  className?: string
+  children: React.ReactNode
+}) {
+  return (
+    <div
+      role="alert"
+      className={clsx(
+        'border-negative/40 bg-negative/5 flex items-start gap-2 rounded-sm border px-3 py-2.5',
+        className,
+      )}
+    >
+      <ExclamationTriangleIcon aria-hidden="true" className="text-negative mt-0.5 size-4 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <div className="text-foreground/90 text-sm leading-relaxed">{children}</div>
+        {action && <div className="mt-2">{action}</div>}
+      </div>
+    </div>
   )
 }

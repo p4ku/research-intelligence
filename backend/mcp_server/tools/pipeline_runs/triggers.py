@@ -27,7 +27,7 @@ def trigger_search_job_logic(
     workspace_id: str,
     scraper_id: str = None,
     limit: int = None,
-    reprocess_existing: bool = False,
+    reprocess_existing: bool = None,
     date_range_days: int = None,
     query_prefix: str = None
 ) -> str:
@@ -54,12 +54,14 @@ def trigger_search_job_logic(
         if not scrapers.exists():
             return json.dumps({"status": "error", "error": f"No active scrapers configured for workspace '{workspace.name}'. Please create a scraper first."}, indent=2)
 
+    reprocess_val = reprocess_existing if reprocess_existing is not None else getattr(workspace, 'reprocess_existing', False)
+
     # Create new PipelineRun
     pipeline_run = PipelineRun.objects.create(
         workspace=workspace,
         status='running',
         current_stage='search',
-        reprocess_existing=bool(reprocess_existing),
+        reprocess_existing=bool(reprocess_val),
         triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None
     )
 

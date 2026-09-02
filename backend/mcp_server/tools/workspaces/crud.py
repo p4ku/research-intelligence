@@ -34,7 +34,7 @@ def list_workspaces_logic(user) -> str:
             "screening_llm_model": ws.screening_llm_model,
             "reasoning_effort": getattr(ws, 'reasoning_effort', 'medium'),
             "skip_abstract_screening": getattr(ws, 'skip_abstract_screening', False),
-            "notification_email": ws.notification_email,
+            "reprocess_existing": getattr(ws, 'reprocess_existing', False),
             "signal_score_code": ws.signal_score_code,
             "tokens_consumed_this_month": getattr(ws, 'tokens_consumed_this_month', 0),
             "usd_spent_this_month": float(getattr(ws, 'usd_spent_this_month', 0.0)),
@@ -62,7 +62,7 @@ def get_workspace_logic(user, workspace_id: str) -> str:
         "screening_llm_model": workspace.screening_llm_model,
         "reasoning_effort": getattr(workspace, 'reasoning_effort', 'medium'),
         "skip_abstract_screening": getattr(workspace, 'skip_abstract_screening', False),
-        "notification_email": workspace.notification_email,
+        "reprocess_existing": getattr(workspace, 'reprocess_existing', False),
         "signal_score_code": workspace.signal_score_code,
         "quota_tokens_monthly": getattr(workspace, 'quota_tokens_monthly', getattr(workspace, 'monthly_token_limit', None)),
         "quota_usd_monthly": float(workspace.quota_usd_monthly) if getattr(workspace, 'quota_usd_monthly', None) else None,
@@ -104,6 +104,28 @@ def get_workspace_logic(user, workspace_id: str) -> str:
                 "is_active": d.is_active
             }
             for d in extraction_defs
+        ],
+        "subscribers": [
+            {
+                "subscriber_id": str(sub.id),
+                "email": sub.email,
+                "name": sub.name,
+                "subscription_type": sub.subscription_type,
+                "is_active": sub.is_active
+            }
+            for sub in workspace.subscribers.all()
+        ],
+        "schedules": [
+            {
+                "schedule_id": str(sched.id),
+                "name": sched.name,
+                "frequency": sched.frequency,
+                "cron_expression": sched.cron_expression,
+                "reprocess_existing": sched.reprocess_existing,
+                "is_active": sched.is_active,
+                "next_run_at": sched.next_run_at.isoformat() if sched.next_run_at else None
+            }
+            for sched in workspace.schedules.all()
         ]
     }
     return json.dumps(data, indent=2, cls=DjangoJSONEncoder)
@@ -128,15 +150,20 @@ def create_workspace_logic(
     screening_llm_model: str = 'google/gemini-3.7-flash',
     llm_provider: str = 'google',
     reasoning_effort: str = 'medium',
-    digest_schedule: str = '0 9 * * 5',
     monthly_token_limit: int = 10000000,
     monthly_usd_limit: float = 100.00,
     cost_limit_usd: float = None,
     signal_score_code: str = None,
     skip_abstract_screening: bool = False,
-    notification_email: str = None
+    reprocess_existing: bool = False
 ) -> str:
-    """Create a new workspace and automatically assign the creator as the 'admin' member."""
+    """
+    Create a new systematic review workspace and assign the creator as 'admin'.
+    
+    Parameters:
+    - reprocess_existing: Default workspace policy (boolean, default False). If True, pipeline runs
+      default to re-screening and re-evaluating existing workspace papers unless overridden per-run.
+    """
     from research_intelligence.services import create_workspace_record
 
     usd_limit = cost_limit_usd if cost_limit_usd is not None else monthly_usd_limit
@@ -160,12 +187,11 @@ def create_workspace_logic(
         screening_llm_model=screening_llm_model,
         llm_provider=llm_provider,
         reasoning_effort=reasoning_effort or 'medium',
-        digest_schedule=digest_schedule,
         monthly_token_limit=monthly_token_limit if monthly_token_limit is not None else 10000000,
         monthly_usd_limit=usd_limit if usd_limit is not None else 100.00,
         signal_score_code=signal_score_code,
         skip_abstract_screening=bool(skip_abstract_screening),
-        notification_email=notification_email
+        reprocess_existing=bool(reprocess_existing)
     )
 
     if err:
@@ -199,13 +225,12 @@ def update_workspace_logic(
     screening_llm_model: str = None,
     llm_provider: str = None,
     reasoning_effort: str = None,
-    digest_schedule: str = None,
     monthly_token_limit: int = None,
     cost_limit_usd: float = None,
     monthly_usd_limit: float = None,
     signal_score_code: str = None,
     skip_abstract_screening: bool = None,
-    notification_email: str = None
+    reprocess_existing: bool = None
 ) -> str:
     """Update criteria, OCR provider, screening prompts/schemas, or LLM configuration for a workspace. Requires admin or manager role."""
     workspace, _, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager'])
@@ -260,9 +285,9 @@ def update_workspace_logic(
     if skip_abstract_screening is not None:
         workspace.skip_abstract_screening = bool(skip_abstract_screening)
         fields_to_update.append('skip_abstract_screening')
-    if notification_email is not None:
-        workspace.notification_email = notification_email.strip() if notification_email else None
-        fields_to_update.append('notification_email')
+    if reprocess_existing is not None:
+        workspace.reprocess_existing = bool(reprocess_existing)
+        fields_to_update.append('reprocess_existing')
     if ocr_provider is not None:
         if isinstance(ocr_provider, str) and (ocr_provider.strip().lower() in ('none', '')):
             workspace.ocr_provider = None
@@ -287,9 +312,6 @@ def update_workspace_logic(
             return json.dumps({"status": "error", "error": f"Error: Invalid reasoning_effort '{reasoning_effort}'. Choose from {valid_efforts}."}, indent=2)
         workspace.reasoning_effort = reasoning_effort
         fields_to_update.append('reasoning_effort')
-    if digest_schedule is not None:
-        workspace.digest_schedule = digest_schedule
-        fields_to_update.append('digest_schedule')
     if monthly_token_limit is not None:
         workspace.monthly_token_limit = monthly_token_limit
         fields_to_update.append('monthly_token_limit')

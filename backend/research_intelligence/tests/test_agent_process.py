@@ -71,8 +71,7 @@ class ResearchAgentProcessTest(TestCase):
             name="Autonomous Agent Workspace",
             abstract_acceptance_criteria="AI agent research",
             abstract_rejection_criteria="Out of domain",
-            ocr_provider="pypdf",
-            notification_email="notify@example.com"
+            ocr_provider="pypdf"
         )
         from research_intelligence.models import WorkspaceMember
         WorkspaceMember.objects.create(workspace=self.workspace, user=self.user, role="admin")
@@ -663,16 +662,13 @@ class ResearchAgentProcessTest(TestCase):
         res_ws = self.client.get(f"/api/workspaces/{self.workspace.id}/")
         self.assertEqual(res_ws.status_code, 200)
         self.assertIn("skip_abstract_screening", res_ws.data)
-        self.assertIn("notification_email", res_ws.data)
 
         res_patch = self.client.patch(f"/api/workspaces/{self.workspace.id}/", {
-            "skip_abstract_screening": True,
-            "notification_email": "patched@example.com"
+            "skip_abstract_screening": True
         }, format="json")
         self.assertEqual(res_patch.status_code, 200)
         self.workspace.refresh_from_db()
         self.assertTrue(self.workspace.skip_abstract_screening)
-        self.assertEqual(self.workspace.notification_email, "patched@example.com")
 
 
 

@@ -126,7 +126,6 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
             full_text_screening_user_prompt_template="Custom FT Template: {full_text}",
             full_text_screening_response_schema={"type": "object", "properties": {"ft_score": {"type": "number"}}},
             full_text_screening_exit_metric="ft_score",
-            digest_schedule="0 10 * * 1",
             monthly_token_limit=5000000,
             monthly_usd_limit=250.00
         ))
@@ -142,7 +141,6 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
         self.assertEqual(ws.full_text_screening_user_prompt_template, "Custom FT Template: {full_text}")
         self.assertEqual(ws.full_text_screening_response_schema, {"type": "object", "properties": {"ft_score": {"type": "number"}}})
         self.assertEqual(ws.full_text_screening_exit_metric, "ft_score")
-        self.assertEqual(ws.digest_schedule, "0 10 * * 1")
         self.assertEqual(ws.monthly_token_limit, 5000000)
         self.assertEqual(float(ws.monthly_usd_limit), 250.00)
 
@@ -263,32 +261,27 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
         self.assertEqual(err_res["status"], "error")
         self.assertIn("invalid reasoning_effort", err_res["error"].lower())
 
-    def test_workspace_skip_abstract_screening_and_notification_email_mcp_lifecycle(self):
+    def test_workspace_skip_abstract_screening_mcp_lifecycle(self):
         res = self.parse_res(create_workspace_logic(
             self.admin,
             name="Skip Screening WS",
-            skip_abstract_screening=True,
-            notification_email="notify@example.com"
+            skip_abstract_screening=True
         ))
         self.assertEqual(res["status"], "success")
         ws = Workspace.objects.get(id=res["workspace_id"])
         self.assertTrue(ws.skip_abstract_screening)
-        self.assertEqual(ws.notification_email, "notify@example.com")
 
         ws_details = self.parse_res(get_workspace_logic(self.admin, workspace_id=str(ws.id)))
         self.assertTrue(ws_details["skip_abstract_screening"])
-        self.assertEqual(ws_details["notification_email"], "notify@example.com")
 
         up_res = self.parse_res(update_workspace_logic(
             self.admin,
             workspace_id=str(ws.id),
-            skip_abstract_screening=False,
-            notification_email="updated@example.com"
+            skip_abstract_screening=False
         ))
         self.assertEqual(up_res["status"], "success")
         ws.refresh_from_db()
         self.assertFalse(ws.skip_abstract_screening)
-        self.assertEqual(ws.notification_email, "updated@example.com")
 
 
 

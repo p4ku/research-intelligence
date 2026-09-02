@@ -50,7 +50,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
 
   return (
     <div className="mx-auto max-w-7xl">
-      <Breadcrumbs items={[{ label: t('Papers'), href: '/papers' }, { label: paper.title }]} />
+      <Breadcrumbs items={[{ label: t('Papers'), href: '/papers' }, { label: paper.title }]} t={t} />
 
       <div className="mt-8 grid items-start gap-8 lg:grid-cols-[2fr_1fr]">
         <div className="min-w-0 space-y-8">
@@ -217,7 +217,7 @@ export default async function PaperDetailPage({ params }: { params: Promise<{ id
               )}
               {(paper.pdf_key || paper.markdown_key) && (
                 <p className="text-xs text-zinc-400">
-                  {t('No file endpoint yet — storage key shown for reference.')}
+                  {t('Stored in the research archive — download is not yet available.')}
                 </p>
               )}
               {!paper.pdf_url && !paper.pdf_key && !paper.markdown_key && (

@@ -2,17 +2,23 @@ import { Card, PageHeader, SectionLabel } from '@/components/scanner-ui'
 import { forPage } from '@/lib/bff/core/page'
 import { sourceOf } from '@/lib/bff/core/source'
 import { settings } from '@/lib/bff/settings/service'
-import { getT } from '@/lib/i18n-server'
+import { describeCron } from '@/lib/cron'
+import { getLang, getT } from '@/lib/i18n-server'
 import { getCurrentWorkspace } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { NotificationSettings, PasswordForm, ProfileForm } from './settings-form'
 
-export const metadata: Metadata = { title: 'Settings' }
 export const dynamic = 'force-dynamic'
 
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT()
+  return { title: t('Settings') }
+}
+
 export default async function SettingsPage() {
-  const [t, ws, profile] = await Promise.all([
+  const [t, lang, ws, profile] = await Promise.all([
     getT(),
+    getLang(),
     getCurrentWorkspace(),
     forPage(settings.profile()),
   ])
@@ -69,7 +75,13 @@ export default async function SettingsPage() {
             <Row label={t('Screening model')} value={ws.screening_llm_model ?? '—'} />
             <Row
               label={t('Digest schedule')}
-              value={ws.digest_schedule ? <code className="font-mono text-xs">{ws.digest_schedule}</code> : '—'}
+              value={
+                ws.digest_schedule
+                  ? (describeCron(ws.digest_schedule, lang) ?? (
+                      <code className="font-mono text-xs">{ws.digest_schedule}</code>
+                    ))
+                  : '—'
+              }
             />
           </dl>
         </Card>

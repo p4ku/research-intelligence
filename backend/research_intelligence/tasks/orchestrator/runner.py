@@ -79,7 +79,7 @@ class ResearchAgentRunner:
 
             # 1. State: INITIALIZED -> Initialize PipelineRun
             if process.current_step == 'initialized' or not process.pipeline_run:
-                reprocess_existing = config.get("reprocess_existing", False)
+                reprocess_existing = config.get("reprocess_existing", getattr(workspace, "reprocess_existing", False))
                 pipeline_run = PipelineRun.objects.create(
                     workspace=workspace,
                     status='running',
@@ -188,11 +188,10 @@ class ResearchAgentRunner:
         """
         recipients = set()
 
-        # Explicit override in config or workspace setting
+        # Explicit override in config
         cfg_emails = (
             agent_process.configuration_override.get("notification_emails")
             or agent_process.configuration_override.get("notification_email")
-            or agent_process.workspace.notification_email
         )
         if cfg_emails:
             if isinstance(cfg_emails, list):

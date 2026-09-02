@@ -1,0 +1,79 @@
+{% extends "admin/change_list.html" %}
+{% load i18n humanize %}
+
+{% block content %}
+{% if schedule_stats %}
+<div style="margin-bottom: 24px;">
+  <!-- Top KPI Dashboard Banner -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin-bottom: 16px;">
+    
+    <!-- Card 1: Active Schedules -->
+    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 8px; padding: 16px 20px; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">⏰ Active Schedules</span>
+        <span style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600;">Recurring</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 700; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        {{ schedule_stats.active_count }} <span style="font-size: 13px; font-weight: 400; color: #94a3b8;">/ {{ schedule_stats.total_count }} total</span>
+      </div>
+      <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+        {{ schedule_stats.paused_count }} paused schedule(s)
+      </div>
+    </div>
+
+    <!-- Card 2: Upcoming in Next 24h -->
+    <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); border-radius: 8px; padding: 16px 20px; border: 1px solid #334155; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">📅 Next 24h Queue</span>
+        <span style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 600;">Upcoming</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 700; color: #60a5fa; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        {{ schedule_stats.upcoming_24h_count }} <span style="font-size: 13px; font-weight: 400; color: #94a3b8;">runs due</span>
+      </div>
+      <div style="font-size: 11px; color: #64748b; margin-top: 4px;">
+        Auto-dispatched via Celery Beat (60s tick)
+      </div>
+    </div>
+
+    <!-- Card 3: Total Dispatched Runs -->
+    <div style="background: linear-gradient(135deg, #0f2b48 0%, #091e32 100%); border-radius: 8px; padding: 16px 20px; border: 1px solid #0284c7; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #bae6fd; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">🚀 Total Runs Triggered</span>
+        <span style="background: rgba(14, 165, 233, 0.3); color: #38bdf8; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 700;">Lifetime</span>
+      </div>
+      <div style="font-size: 24px; font-weight: 700; color: #38bdf8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        {{ schedule_stats.total_dispatched_runs|intcomma }} <span style="font-size: 13px; font-weight: 400; color: #bae6fd;">executions</span>
+      </div>
+      <div style="font-size: 11px; color: #7dd3fc; margin-top: 4px;">
+        Autonomous pipelines executed on schedule
+      </div>
+    </div>
+
+    <!-- Card 4: Last Dispatched Activity -->
+    <div style="background: linear-gradient(135deg, #064e3b 0%, #022c22 100%); border-radius: 8px; padding: 16px 20px; border: 1px solid #059669; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+        <span style="color: #a7f3d0; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">⚡ Engine Health</span>
+        <span style="background: rgba(16, 185, 129, 0.3); color: #34d399; font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 700;">Celery Beat</span>
+      </div>
+      <div style="font-size: 18px; font-weight: 700; color: #34d399; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin-top: 4px;">
+        {% if schedule_stats.last_dispatched_at %}
+          {{ schedule_stats.last_dispatched_at|date:"Y-m-d H:i" }}
+        {% else %}
+          Ready &amp; Waiting
+        {% endif %}
+      </div>
+      <div style="font-size: 11px; color: #6ee7b7; margin-top: 4px;">
+        {% if schedule_stats.last_dispatched_at %}
+          Most recent scheduled execution
+        {% else %}
+          Scheduler running every 60s
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endif %}
+
+{{ block.super }}
+{% endblock %}

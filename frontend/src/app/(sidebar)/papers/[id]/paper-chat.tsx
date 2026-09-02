@@ -1,6 +1,7 @@
 'use client'
 
 import { AnswerMarkdown } from '@/components/answer-markdown'
+import { ErrorNote } from '@/components/scanner-ui'
 import type { ChatSession, ChatSessionDetail, VisualCitation } from '@/lib/bff/chat/schema'
 import { bffFetch } from '@/lib/bff/client'
 import type { Page } from '@/lib/bff/core/pagination'
@@ -136,9 +137,9 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
                 </p>
               ) : m.failed ? (
                 // Failure text is an error string, not model prose.
-                <p key={i} className="text-warn text-[13px] leading-relaxed whitespace-pre-wrap">
+                <ErrorNote key={i} className="whitespace-pre-wrap">
                   {m.text}
-                </p>
+                </ErrorNote>
               ) : (
                 <AnswerMarkdown
                   key={i}
