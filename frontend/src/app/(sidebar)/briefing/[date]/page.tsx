@@ -44,7 +44,7 @@ export default async function BriefingEditionPage({
   // A missing workspace is not a missing page: an outage gets the honest
   // notice, a user with no membership gets the membership copy — only a
   // date with no edition is a true 404.
-  if (state.kind !== 'ok') return <WorkspaceNotice kind={state.kind} />
+  if (state.kind !== 'ok') return <WorkspaceNotice state={state} />
   const ws = state.ws
   const [edition, scored] = await forPage(
     Promise.all([briefings.getByDate(ws.id, date, lang), papersService.listAll(ws.id)]),

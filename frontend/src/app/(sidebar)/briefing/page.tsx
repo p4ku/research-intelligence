@@ -28,7 +28,7 @@ export default async function BriefingPage() {
       <div className="space-y-8">
         <PageHeader eyebrow={t('Daily briefings')} title={t('Briefings')} />
         {state.kind !== 'ok' ? (
-          <WorkspaceNotice kind={state.kind} />
+          <WorkspaceNotice state={state} />
         ) : (
           <Card>
             <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">

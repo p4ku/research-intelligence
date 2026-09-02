@@ -40,7 +40,7 @@ export default async function DashboardPage() {
     return (
       <div className="space-y-10">
         <PageHeader eyebrow={t('Today')} title={fmt(t('Good morning, {name}'), { name })} />
-        <WorkspaceNotice kind="unavailable" />
+        <WorkspaceNotice state={state} />
       </div>
     )
   }

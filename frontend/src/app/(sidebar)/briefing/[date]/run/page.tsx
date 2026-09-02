@@ -27,7 +27,7 @@ export default async function ScreeningLogPage({ params }: { params: Promise<{ d
     getLang(),
   ])
   // Same split as the edition page: only a date with no edition is a 404.
-  if (state.kind !== 'ok') return <WorkspaceNotice kind={state.kind} />
+  if (state.kind !== 'ok') return <WorkspaceNotice state={state} />
   const ws = state.ws
   const edition = await forPage(briefings.getByDate(ws.id, date, lang))
   if (!edition) notFound()

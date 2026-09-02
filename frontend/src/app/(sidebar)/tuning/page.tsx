@@ -29,7 +29,7 @@ export default async function TuningPage() {
     return (
       <div className="space-y-8">
         <PageHeader eyebrow={t('Controls')} title={t('Tuning')} />
-        <WorkspaceNotice kind={state.kind} />
+        <WorkspaceNotice state={state} />
       </div>
     )
   }

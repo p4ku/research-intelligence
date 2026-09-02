@@ -33,9 +33,8 @@ export const dict: Record<string, string> = {
     'Ihr Passwort konnte nicht geändert werden. Versuchen Sie es erneut.',
 
   // Workspace notice (workspace-notice.tsx)
-  "Couldn't reach the backend.": 'Das Backend ist nicht erreichbar.',
-  'Your workspaces are still there. Try again in a moment.':
-    'Ihre Arbeitsbereiche sind weiterhin vorhanden. Versuchen Sie es gleich noch einmal.',
+  // The second line is the problem's own copy (the slug sentences above).
+  "Couldn't load your workspaces.": 'Ihre Arbeitsbereiche konnten nicht geladen werden.',
   'No workspace selected': 'Kein Arbeitsbereich ausgewählt',
   'You are not a member of any workspace yet. Ask an administrator for access.':
     'Sie sind noch keinem Arbeitsbereich zugeordnet. Wenden Sie sich für Zugriff an die Administration.',

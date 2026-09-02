@@ -31,7 +31,7 @@ export default async function RunsPage({
       <div className="space-y-8">
         <PageHeader eyebrow="Studio" title={runsPageCopy.title} />
         {state.kind === 'unavailable' ? (
-          <WorkspaceNotice kind="unavailable" english />
+          <WorkspaceNotice state={state} english />
         ) : (
           <Card>
             <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">

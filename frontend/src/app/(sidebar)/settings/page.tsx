@@ -87,7 +87,7 @@ export default async function SettingsPage() {
         </Card>
       )}
 
-      {state.kind === 'unavailable' && <WorkspaceNotice kind="unavailable" />}
+      {state.kind === 'unavailable' && <WorkspaceNotice state={state} />}
 
       {ws && preferences && (
         <NotificationSettings

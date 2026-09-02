@@ -32,7 +32,7 @@ export default async function AskPage({
     return (
       <div className="space-y-8">
         <PageHeader eyebrow={t('Assistant')} title={t('Ask Research Intelligence')} />
-        <WorkspaceNotice kind={state.kind} />
+        <WorkspaceNotice state={state} />
       </div>
     )
   }

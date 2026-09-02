@@ -23,7 +23,7 @@ export default async function PapersPage() {
     return (
       <div className="space-y-8">
         <PageHeader eyebrow={t('Corpus')} title={t('Papers')} />
-        <WorkspaceNotice kind={state.kind} />
+        <WorkspaceNotice state={state} />
       </div>
     )
   }

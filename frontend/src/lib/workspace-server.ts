@@ -1,5 +1,6 @@
 import 'server-only'
 
+import type { Problem } from '@/lib/bff/core/problem'
 import { workspaces } from '@/lib/bff/workspaces/service'
 import { cookies } from 'next/headers'
 import { cache } from 'react'
@@ -15,12 +16,16 @@ export interface WorkspaceChoice {
  * `none` (the user belongs to no workspace) is an account fact; `unavailable`
  * (the workspace list could not be fetched) is an outage. Pages must not
  * render membership copy for an outage — that is offense #2 of the error-UX
- * audit. Render `<WorkspaceNotice kind={...}>` for both non-ok kinds.
+ * audit. Render `<WorkspaceNotice state={state}>` for both non-ok kinds.
+ * `unavailable` carries the problem, so the notice can say *what* failed —
+ * a backend that did not answer and a backend whose payload no longer
+ * matches the contract are different outages (2026-09-02: the latter read
+ * as "Couldn't reach the backend" on every page while /api/health was 200).
  */
 export type WorkspaceState =
   | { kind: 'ok'; ws: WorkspaceSummary }
   | { kind: 'none' }
-  | { kind: 'unavailable' }
+  | { kind: 'unavailable'; problem: Problem }
 
 /**
  * The workspace in scope: the cookie's choice if the user still belongs to
@@ -28,7 +33,7 @@ export type WorkspaceState =
  */
 export const getWorkspaceState = cache(async (): Promise<WorkspaceState> => {
   const [result, store] = await Promise.all([workspaces.listAllResult(), cookies()])
-  if (!result.ok) return { kind: 'unavailable' }
+  if (!result.ok) return { kind: 'unavailable', problem: result.problem }
   const all = result.workspaces
   if (all.length === 0) return { kind: 'none' }
   const chosen = store.get(WORKSPACE_COOKIE)?.value
