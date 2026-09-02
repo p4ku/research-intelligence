@@ -374,6 +374,7 @@ class PipelineTokenAccumulationTestCase(TestCase):
         from research_intelligence.llm_providers.pricing import calculate_llm_cost
 
         models = [
+            "google/gemini-3.8-flash",
             "google/gemini-3.7-flash",
             "google/gemini-2.5-pro",
             "anthropic/claude-3.5-sonnet",
@@ -382,6 +383,10 @@ class PipelineTokenAccumulationTestCase(TestCase):
             "deepseek/deepseek-r1",
             "mistral/mistral-large",
         ]
+
+        # Explicit check for gemini-3.8-flash: $0.75/1M in, $3.75/1M out -> $4.5000 / 1M pair
+        cost_38 = calculate_llm_cost("google/gemini-3.8-flash", 1_000_000, 1_000_000)
+        self.assertEqual(cost_38, Decimal("4.5000"))
 
         # 10,000 in, 2,000 out
         for model in models:

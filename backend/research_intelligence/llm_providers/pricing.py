@@ -3,6 +3,7 @@ from decimal import Decimal
 # Cost in USD per 1 Million tokens (Gemini Developer API pricing from https://ai.google.dev/gemini-api/docs/pricing)
 MODEL_PRICING = {
     # Gemini 3.x Flash Family
+    "gemini-3.8-flash": {"in": Decimal("0.75"), "out": Decimal("3.75")},
     "gemini-3.7-flash": {"in": Decimal("0.75"), "out": Decimal("3.75")},
     "gemini-3.6-flash": {"in": Decimal("0.75"), "out": Decimal("3.75")},
     "gemini-3.5-flash": {"in": Decimal("0.75"), "out": Decimal("3.75")},
