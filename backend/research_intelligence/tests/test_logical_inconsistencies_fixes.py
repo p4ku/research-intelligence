@@ -558,33 +558,14 @@ score = clamp(trl_val) * 0.5 + 4.0
         self.assertIn("Full text proves physical threshold", ft_html)
         self.assertIn("&lt; 1.2% on simulated grid.", ft_html)
 
-        # 6. Fallback test: when abstract_screening_reasoning column is None, it falls back to ComponentRun
-        paper_legacy = Paper.objects.create(
+        # 6. Test empty message when abstract_screening_reasoning is None
+        pm_empty = PaperMetric(
+            paper=self.paper_1,
             workspace=self.workspace_a,
-            title="Legacy Paper",
-            hash_id="legacy_hash_123"
-        )
-        pm_legacy = PaperMetric.objects.create(
-            paper=paper_legacy,
-            pipeline_run=self.run_a1,
-            workspace=self.workspace_a,
-            screening_status="full_text_passed",
             abstract_screening_reasoning=None,
             full_text_screening_reasoning=None
         )
-        ComponentRun.objects.create(
-            pipeline_run=self.run_a1,
-            step_type="abstract_screening",
-            component_name="abstract_screening",
-            status="completed",
-            output_data={
-                "screened_papers": [
-                    {
-                        "paper_id": str(paper_legacy.id),
-                        "reasoning": "Recovered abstract reasoning from component run audit!"
-                    }
-                ]
-            }
-        )
-        fallback_html = admin.abstract_screening_reasoning_display(pm_legacy)
-        self.assertIn("Recovered abstract reasoning from component run audit!", fallback_html)
+        empty_abs_html = admin.abstract_screening_reasoning_display(pm_empty)
+        self.assertIn("Brak uzasadnienia dla etapu abstraktu", empty_abs_html)
+        empty_ft_html = admin.full_text_screening_reasoning_display(pm_empty)
+        self.assertIn("Brak uzasadnienia dla etapu pełnego tekstu", empty_ft_html)

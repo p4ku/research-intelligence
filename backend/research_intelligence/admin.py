@@ -2661,59 +2661,24 @@ class PaperMetricAdmin(admin.ModelAdmin):
     )
 
     def abstract_screening_reasoning_display(self, obj):
-        text = obj.abstract_screening_reasoning
-        # Fallback 1: check metrics_data
-        if not text and obj.metrics_data and isinstance(obj.metrics_data, dict):
-            text = obj.metrics_data.get('abstract_screening', {}).get('reasoning')
-        # Fallback 2: check ComponentRun output_data for abstract screening
-        if not text and obj.pipeline_run and obj.paper:
-            from research_intelligence.models import ComponentRun
-            cr = ComponentRun.objects.filter(
-                pipeline_run=obj.pipeline_run,
-                component_name='abstract_screening'
-            ).only('output_data').first()
-            if cr and cr.output_data and isinstance(cr.output_data, dict):
-                screened = cr.output_data.get('screened_papers', [])
-                for sp in screened:
-                    if str(sp.get('paper_id')) == str(obj.paper_id):
-                        text = sp.get('reasoning')
-                        break
-
-        if not text:
+        if not obj.abstract_screening_reasoning:
             return mark_safe('<span style="color: #adb5bd; font-style: italic;">Brak uzasadnienia dla etapu abstraktu</span>')
         return format_html(
             '<div style="background: #f0fbfc; border-left: 4px solid #0dcaf0; padding: 8px 12px; border-radius: 4px; font-size: 13px; line-height: 1.5; color: #212529;">'
             '<strong style="color: #055160;">📄 Abstract Screening Reasoning:</strong><br/><div style="margin-top: 4px;">{}</div>'
             '</div>',
-            text
+            obj.abstract_screening_reasoning
         )
     abstract_screening_reasoning_display.short_description = "Abstract Screening Reasoning"
 
     def full_text_screening_reasoning_display(self, obj):
-        text = obj.full_text_screening_reasoning
-        # Fallback 1: check metrics_data
-        if not text and obj.metrics_data and isinstance(obj.metrics_data, dict):
-            text = obj.metrics_data.get('full_text_screening', {}).get('reasoning')
-        # Fallback 2: check ComponentRun output_data for full-text screening
-        if not text and obj.pipeline_run and obj.paper:
-            from research_intelligence.models import ComponentRun
-            cr = ComponentRun.objects.filter(
-                pipeline_run=obj.pipeline_run,
-                component_name='full_text_screening'
-            ).only('output_data').first()
-            if cr and cr.output_data and isinstance(cr.output_data, dict):
-                screened = cr.output_data.get('screened_papers', [])
-                for sp in screened:
-                    if str(sp.get('paper_id')) == str(obj.paper_id):
-                        text = sp.get('reasoning')
-                        break
-        if not text:
+        if not obj.full_text_screening_reasoning:
             return mark_safe('<span style="color: #adb5bd; font-style: italic;">Brak uzasadnienia dla etapu pełnego tekstu (np. odrzucony na etapie abstraktu)</span>')
         return format_html(
             '<div style="background: #f0fdf4; border-left: 4px solid #198754; padding: 8px 12px; border-radius: 4px; font-size: 13px; line-height: 1.5; color: #212529;">'
             '<strong style="color: #0f5132;">📑 Full-Text Screening Reasoning:</strong><br/><div style="margin-top: 4px;">{}</div>'
             '</div>',
-            text
+            obj.full_text_screening_reasoning
         )
     full_text_screening_reasoning_display.short_description = "Full-Text Screening Reasoning"
 
