@@ -23,6 +23,10 @@ const nextConfig = {
   generateBuildId: async () => process.env.BUILD_ID ?? null,
   // Parallel agents build into their own directories (see build-management).
   distDir: process.env.BUILD_DIR || '.next',
+  // Without this, every `next dev` re-creates frontend/AGENTS.md and
+  // frontend/CLAUDE.md, which the shared checkout would keep offering up as
+  // untracked files. The repo's own agent instructions live at the root.
+  agentRules: false,
   turbopack: {
     root: resolve(__dirname),
   },
