@@ -80,6 +80,7 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             prevent_overlap=True,
             max_consecutive_failures=3,
             reprocess_existing=False,
+            configuration_override={"limit": 3},
             is_active=True,
         )
         schedule_id = sched_data["id"]

@@ -24,6 +24,7 @@ class ScheduleService:
         prevent_overlap: bool = True,
         max_consecutive_failures: int = 3,
         reprocess_existing: bool = False,
+        configuration_override: Optional[Dict[str, Any]] = None,
         is_active: bool = True,
     ) -> Dict[str, Any]:
         payload = {
@@ -36,6 +37,7 @@ class ScheduleService:
             "prevent_overlap": prevent_overlap,
             "max_consecutive_failures": max_consecutive_failures,
             "reprocess_existing": reprocess_existing,
+            "configuration_override": configuration_override or {},
             "is_active": is_active,
         }
         logger.info(f"📅 Creating Workflow Schedule '{name}' for workspace '{workspace_id}' (freq: {frequency})...")
