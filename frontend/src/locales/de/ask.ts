@@ -86,4 +86,5 @@ export const dict: Record<string, string> = {
   'What would it take to use this at case scale?':
     'Was wäre nötig, um das im Projektmaßstab einzusetzen?',
   'Which claims are weakest?': 'Welche Aussagen sind am schwächsten belegt?',
+  'Loading the assistant': 'Der Assistent wird geladen',
 }
