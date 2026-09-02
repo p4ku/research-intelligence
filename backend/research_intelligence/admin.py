@@ -2281,7 +2281,7 @@ class PaperMetricInline(admin.TabularInline):
         except Exception:
             score_str = str(obj.signal_score)
         return format_html(
-            '<span style="background-color: #0d6efd; color: #ffffff; padding: 2px 7px; border-radius: 4px; font-weight: bold; font-size: 11px;">⚡ {}</span>',
+            '<span style="background-color: #0d6efd; color: #ffffff; padding: 2px 7px; border-radius: 4px; font-weight: bold; font-size: 11px; white-space: nowrap; display: inline-block;">⚡&nbsp;{}</span>',
             score_str
         )
     signal_score_badge.short_description = "Signal Score"
@@ -2777,7 +2777,7 @@ class PaperMetricAdmin(admin.ModelAdmin):
             bg = "#6c757d"  # gray
 
         return format_html(
-            '<span style="background-color: {}; color: #ffffff; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px;">⚡ {}</span>',
+            '<span style="background-color: {}; color: #ffffff; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; white-space: nowrap; display: inline-block;">⚡&nbsp;{}</span>',
             bg, score_str
         )
     signal_score_badge.short_description = "Signal Score"

@@ -8,6 +8,7 @@ from .agent_service import AgentService
 from .pipeline_service import PipelineService
 from .chat_service import ChatService
 from .schedule_service import ScheduleService
+from .validator import DataConsistencyValidator
 
 __all__ = [
     "APIClient",
@@ -17,4 +18,5 @@ __all__ = [
     "PipelineService",
     "ChatService",
     "ScheduleService",
+    "DataConsistencyValidator",
 ]
