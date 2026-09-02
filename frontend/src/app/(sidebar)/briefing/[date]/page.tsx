@@ -1,18 +1,12 @@
-import { AnswerMarkdown } from '@/components/answer-markdown'
-import { PaperCard } from '@/components/paper-card'
-import { Breadcrumbs, SectionLabel, StatBand } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
-import { briefings } from '@/lib/bff/briefings/service'
-import { forPage } from '@/lib/bff/core/page'
-import { papers as papersService } from '@/lib/bff/papers/service'
-import { fmt } from '@/lib/i18n'
 import { getLang, getT } from '@/lib/i18n-server'
-import type { ScoredPaper } from '@/lib/papers/types'
 import { getWorkspaceState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { formatEditionDate } from '../format'
+import { Suspense, ViewTransition } from 'react'
+import { isEditionDate } from '../format'
+import { EditionHead, EditionPapers } from './sections'
+import { EditionHeadSkeleton, EditionPapersSkeleton } from './skeletons'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,6 +23,10 @@ export async function generateMetadata({
 // One edition, frozen: the same shape as the dashboard's daily brief — the
 // funnel, the brief, the papers that passed — plus the run's screening log.
 // Permalinkable, so a briefing can be shared as a URL.
+//
+// Two sections stream behind their own boundaries: the head on the edition,
+// the papers on the edition plus the scored corpus. loading.tsx shows the same
+// skeletons on navigation.
 
 export default async function BriefingEditionPage({
   params,
@@ -43,75 +41,36 @@ export default async function BriefingEditionPage({
   ])
   // A missing workspace is not a missing page: an outage gets the honest
   // notice, a user with no membership gets the membership copy — only a
-  // date with no edition is a true 404.
+  // date with no edition (or not a date at all) is a true 404.
   if (state.kind !== 'ok') return <WorkspaceNotice state={state} />
+  if (!isEditionDate(date)) notFound()
   const ws = state.ws
-  const [edition, scored] = await forPage(
-    Promise.all([briefings.getByDate(ws.id, date, lang), papersService.listAll(ws.id)]),
-  )
-  if (!edition) notFound()
-
-  const byId = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
-  const cards = edition.papers
-    .map((p) => byId.get(p.id))
-    .filter((p): p is ScoredPaper => Boolean(p))
-
-  const funnel = [
-    { value: edition.funnel.fetched, label: t('Screened'), sub: t('matched the focus fields') },
-    {
-      value: edition.funnel.passed_screening,
-      label: t('Included'),
-      sub: t('cleared the signal bar'),
-    },
-    { value: edition.funnel.surfaced, label: t('In the briefing'), sub: t('listed below') },
-  ]
 
   return (
     <div className="space-y-10">
-      <div className="space-y-4">
-        <Breadcrumbs
-          items={[
-            { label: t('Briefings'), href: '/briefing' },
-            { label: formatEditionDate(edition.date, lang) },
-          ]}
-          t={t}
-        />
-        <h1 className="text-[26px]/8 font-semibold tracking-tight text-zinc-950 dark:text-white">
-          {edition.title}
-        </h1>
-      </div>
+      <Suspense
+        fallback={
+          <ViewTransition exit="bone-exit" default="none">
+            <EditionHeadSkeleton t={t} lang={lang} date={date} />
+          </ViewTransition>
+        }
+      >
+        <ViewTransition enter="bone-enter" default="none">
+          <EditionHead wsId={ws.id} date={date} lang={lang} t={t} />
+        </ViewTransition>
+      </Suspense>
 
-      <StatBand items={funnel} flow className="lg:grid-cols-3!" />
-
-      <section>
-        <SectionLabel size="sm">{t('In brief')}</SectionLabel>
-        <AnswerMarkdown
-          text={edition.in_brief}
-          className="mt-4 max-w-3xl text-base text-pretty text-zinc-600 dark:text-zinc-300"
-        />
-      </section>
-
-      <section>
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <SectionLabel size="sm">{t('The papers')}</SectionLabel>
-          <span className="flex items-baseline gap-4">
-            <span className="font-mono text-[11px] text-zinc-400 tabular-nums dark:text-zinc-500">
-              {cards.length === 1 ? t('1 paper') : fmt(t('{n} papers'), { n: cards.length })}
-            </span>
-            <Link
-              href={`/briefing/${edition.date}/run`}
-              className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
-            >
-              {t('Screening log →')}
-            </Link>
-          </span>
-        </div>
-        <div className="mt-5 space-y-3">
-          {cards.map((p) => (
-            <PaperCard key={p.id} paper={p} />
-          ))}
-        </div>
-      </section>
+      <Suspense
+        fallback={
+          <ViewTransition exit="bone-exit" default="none">
+            <EditionPapersSkeleton t={t} date={date} />
+          </ViewTransition>
+        }
+      >
+        <ViewTransition enter="bone-enter" default="none">
+          <EditionPapers wsId={ws.id} date={date} lang={lang} t={t} />
+        </ViewTransition>
+      </Suspense>
     </div>
   )
 }

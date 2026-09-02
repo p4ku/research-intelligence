@@ -1,23 +1,49 @@
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { PaperCard, PaperCardSkeleton } from '@/components/paper-card'
 import {
+  Card,
+  DimensionsFrame,
   PageHeader,
+  ScoreRow,
+  ScoreRowSkeleton,
   SectionLabel,
   StatBand,
   StatBandSkeleton,
   StatTile,
   StatTileSkeleton,
 } from '@/components/scanner-ui'
+import { SignalLedger, SignalLedgerSkeleton } from '@/components/signal-ledger'
 import { Skeleton } from '@/components/skeleton'
 import { fixtureEditions } from '@/lib/bff/briefings/fixtures'
+import { fixtureSessions } from '@/lib/bff/chat/fixtures'
 import { fixtureSteps } from '@/lib/bff/component-runs/fixtures'
 import { fixturePapers, fixtureWorkspace } from '@/lib/bff/papers/fixtures'
 import { fixtureRunDetail, fixtureRuns } from '@/lib/bff/pipeline-runs/fixtures'
+import type { T } from '@/lib/i18n'
 import type { ReactNode } from 'react'
+import { HistoryRailSkeleton } from '../../(sidebar)/ask/history-rail'
+import { PaperPickerSkeleton } from '../../(sidebar)/ask/paper-picker'
+import type { PaletteEntry } from '../../(sidebar)/ask/types'
+import {
+  ExclusionsTable,
+  ExclusionsTableSkeleton,
+} from '../../(sidebar)/briefing/[date]/run/exclusions-table'
+import {
+  EditionBrowser,
+  EditionBrowserSkeleton,
+  type BrowserEdition,
+} from '../../(sidebar)/briefing/edition-browser'
 import { RunPapers, RunPapersSkeleton } from '../../(sidebar)/dashboard/run-papers'
+import {
+  PaperHeader,
+  PaperHeaderSkeleton,
+  SignalHeading,
+} from '../../(sidebar)/papers/[id]/paper-header'
+import { DIMENSION_ROWS } from '../../(sidebar)/papers/[id]/skeletons'
 import { RunFacts, RunFactsSkeleton } from '../runs/[id]/run-facts'
 import { StepTimeline, StepTimelineSkeleton } from '../runs/[id]/step-timeline'
 import { RunsTable, RunsTableSkeleton } from '../runs/runs-table'
+import { HistoryRailDemo, PaperPickerDemo } from './gallery-clients'
 
 /**
  * The skeleton gallery: every data shape next to its loading state, on fixture
@@ -38,12 +64,62 @@ const paper = {
   ...fixturePapers[0],
   abstract:
     'We study coordinated tool use in multi-agent language model systems, showing that a shared scratchpad and a lightweight arbitration protocol reduce redundant calls by 41% while preserving task success across three benchmark suites, and that the effect strengthens as the number of cooperating agents grows from two to eight.',
+  // Likewise the first dimension's rationale: real ones run to a couple of
+  // lines, which is what the paper skeleton reserves (DIMENSION_ROWS).
+  dimensions: fixturePapers[0].dimensions.map((d, i) =>
+    i === 0
+      ? {
+          ...d,
+          rationale:
+            'Squarely in the agentic-AI focus: the paper studies how cooperating language-model agents divide tool calls between them, measures the effect on redundant work and task success across three benchmark suites, and reports how the gain scales as more agents join — the exact question the workspace is scanning for.',
+        }
+      : d,
+  ),
 }
 // Five rows so the list pair exercises the page-sized skeleton; ids only need
 // to be unique keys.
 const fivePapers = Array.from({ length: 5 }, (_, i) => ({
   ...paper,
   id: `${paper.id.slice(0, -1)}${i}`,
+}))
+
+// Studio is English-only; the shared components take a translator.
+const t: T = (s) => s
+
+// Three sessions on two days: the fixture pair plus a question long enough
+// to wrap, so the rail pair exercises both a day break and the two-line title.
+const sessions = [
+  ...fixtureSessions,
+  {
+    ...fixtureSessions[1],
+    id: '00000000-0000-4000-8000-000000000053',
+    title:
+      'Which of these results would survive a replication attempt with a smaller model and a tighter budget?',
+    turns_count: 3,
+    updated_at: '2026-08-26T10:05:00Z',
+  },
+]
+
+const pickerEntries: PaletteEntry[] = fivePapers.map((p) => ({
+  id: p.id,
+  title: p.title,
+  first_author: p.authors[0] ?? null,
+  source: p.source,
+  signal_score: p.signal_score,
+  created_at: p.created_at,
+}))
+
+const browserEditions: BrowserEdition[] = fixtureEditions.map((e) => ({
+  date: e.date,
+  title: e.title,
+  inBrief: e.in_brief,
+  proseSource: e.in_brief_source,
+  funnel: {
+    screened: e.funnel.fetched,
+    included: e.funnel.passed_screening,
+    inBriefing: e.funnel.surfaced,
+  },
+  papers: e.papers.map((p) => ({ id: p.id, title: p.title, signal: p.signal_score })),
 }))
 
 function Pair({
@@ -222,6 +298,119 @@ export default async function SkeletonsPage({
         status="Loading the steps"
         loaded={<StepTimeline steps={fixtureSteps} />}
         skeleton={<StepTimelineSkeleton steps={fixtureSteps.length} />}
+      />
+
+      <Pair
+        shape="paper-header"
+        title="Paper header"
+        status="Loading the paper"
+        loaded={<PaperHeader paper={paper} t={t} lang="en" />}
+        skeleton={<PaperHeaderSkeleton />}
+      />
+
+      {/* Literal inputs: the fixture paper is not on the canonical formula, so
+          ledgerInputs() would refuse it. TRL 4 keeps the bonus row dim. */}
+      <Pair
+        shape="signal-ledger"
+        title="Signal ledger"
+        status="Loading the paper"
+        loaded={
+          <Card>
+            <SignalLedger
+              inputs={{ trl: 4, fit: 92, novelty: 74 }}
+              heading={<SignalHeading t={t} />}
+            />
+          </Card>
+        }
+        skeleton={
+          <Card>
+            <SignalLedgerSkeleton heading={<SignalHeading t={t} />} />
+          </Card>
+        }
+      />
+
+      <Pair
+        shape="dimensions"
+        title="Dimension rows"
+        status="Loading the paper"
+        loaded={
+          <DimensionsFrame>
+            {paper.dimensions.map((d) => (
+              <ScoreRow
+                key={d.key}
+                label={d.name}
+                value={d.value}
+                max={d.max}
+                raw={d.raw}
+                rationale={d.rationale}
+                evidence={d.evidence}
+              />
+            ))}
+          </DimensionsFrame>
+        }
+        skeleton={
+          <DimensionsFrame state="skeleton">
+            {DIMENSION_ROWS.map((row, i) => (
+              <ScoreRowSkeleton key={i} {...row} />
+            ))}
+          </DimensionsFrame>
+        }
+      />
+
+      <Pair
+        shape="history-rail"
+        title="Ask · history rail"
+        status="Loading the assistant"
+        loaded={
+          <div className="max-w-sm">
+            <HistoryRailDemo threads={sessions} />
+          </div>
+        }
+        skeleton={
+          <div className="max-w-sm">
+            <HistoryRailSkeleton groups={[1, 2]} lines={[1, 1, 2]} />
+          </div>
+        }
+      />
+
+      <Pair
+        shape="paper-picker"
+        title="Ask · paper picker"
+        status="Loading the assistant"
+        loaded={
+          <div className="max-w-2xl">
+            <PaperPickerDemo entries={pickerEntries} />
+          </div>
+        }
+        skeleton={
+          <div className="max-w-2xl">
+            <PaperPickerSkeleton rows={pickerEntries.length} />
+          </div>
+        }
+      />
+
+      <Pair
+        shape="edition-browser"
+        title="Briefings reading room"
+        status="Loading the briefings"
+        loaded={<EditionBrowser editions={browserEditions} lang="en" />}
+        skeleton={
+          <EditionBrowserSkeleton
+            editions={browserEditions.length}
+            papers={browserEditions[0].papers.length}
+            briefParagraphs={[2]}
+          />
+        }
+      />
+
+      <Pair
+        shape="exclusions-table"
+        title="Screening log table"
+        status="Loading the screening log"
+        loaded={<ExclusionsTable exclusions={edition.exclusions} t={t} />}
+        skeleton={
+          <ExclusionsTableSkeleton t={t} rows={edition.exclusions.length} shape={[[2, 1]]} />
+        }
       />
     </div>
   )

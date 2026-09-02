@@ -1,12 +1,12 @@
-import { Breadcrumbs, SectionLabel, StatBand } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
-import { briefings } from '@/lib/bff/briefings/service'
-import { forPage } from '@/lib/bff/core/page'
 import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspaceState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { formatEditionDate } from '../../format'
+import { Suspense, ViewTransition } from 'react'
+import { isEditionDate } from '../../format'
+import { ScreeningLog } from './sections'
+import { ScreeningLogHeader, ScreeningLogSkeleton } from './skeletons'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +18,10 @@ export async function generateMetadata(): Promise<Metadata> {
 // The run behind one edition: the funnel, and what screened out and why.
 // Showing the near-misses is the credibility move — the briefing's short list
 // means something because the exclusions are inspectable.
+//
+// Crumbs and title render with the shell (the date is in the URL); the funnel
+// and the table stream behind one boundary. loading.tsx shows the same
+// skeleton on navigation.
 
 export default async function ScreeningLogPage({ params }: { params: Promise<{ date: string }> }) {
   const [{ date }, state, t, lang] = await Promise.all([
@@ -28,74 +32,24 @@ export default async function ScreeningLogPage({ params }: { params: Promise<{ d
   ])
   // Same split as the edition page: only a date with no edition is a 404.
   if (state.kind !== 'ok') return <WorkspaceNotice state={state} />
+  if (!isEditionDate(date)) notFound()
   const ws = state.ws
-  const edition = await forPage(briefings.getByDate(ws.id, date, lang))
-  if (!edition) notFound()
-
-  const funnel = [
-    { value: edition.funnel.fetched, label: t('Screened'), sub: t('matched the focus fields') },
-    {
-      value: edition.funnel.passed_screening,
-      label: t('Included'),
-      sub: t('cleared the signal bar'),
-    },
-    { value: edition.funnel.surfaced, label: t('In the briefing'), sub: t('passed every gate') },
-  ]
 
   return (
     <div className="space-y-10">
-      <div className="space-y-4">
-        <Breadcrumbs
-          items={[
-            { label: t('Briefings'), href: '/briefing' },
-            { label: formatEditionDate(edition.date, lang), href: `/briefing/${edition.date}` },
-            { label: t('Screening log') },
-          ]}
-          t={t}
-        />
-        <h1 className="text-[26px]/8 font-semibold tracking-tight text-zinc-950 dark:text-white">
-          {t('Screening log')}
-        </h1>
-      </div>
+      <ScreeningLogHeader t={t} lang={lang} date={date} />
 
-      <StatBand items={funnel} flow className="lg:grid-cols-3!" />
-
-      <section>
-        <SectionLabel size="sm">{t('Screened out')}</SectionLabel>
-
-        {edition.exclusions.length > 0 ? (
-          <table className="mt-5 w-full">
-            <thead>
-              <tr className="text-left text-xs text-zinc-500 dark:text-zinc-400">
-                <th className="pr-6 pb-2 font-medium whitespace-nowrap">{t('Paper')}</th>
-                <th className="hidden pr-6 pb-2 font-medium whitespace-nowrap sm:table-cell">
-                  {t('Source')}
-                </th>
-                <th className="pb-2 font-medium whitespace-nowrap">{t('Why it did not pass')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-950/5 dark:divide-white/5">
-              {edition.exclusions.map((ex) => (
-                <tr key={ex.paper_id} className="align-top">
-                  <td className="max-w-xs py-3 pr-6 text-sm font-medium text-zinc-800 dark:text-zinc-100">
-                    {ex.title}
-                  </td>
-                  <td className="hidden py-3 pr-6 text-xs whitespace-nowrap text-zinc-400 sm:table-cell dark:text-zinc-500">
-                    {ex.source}
-                  </td>
-                  <td className="py-3 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
-                    {ex.reason ?? '—'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <p className="mt-5 max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
-            {t('Nothing was screened out in this run.')}
-          </p>
-        )}
-      </section>
+      <Suspense
+        fallback={
+          <ViewTransition exit="bone-exit" default="none">
+            <ScreeningLogSkeleton t={t} />
+          </ViewTransition>
+        }
+      >
+        <ViewTransition enter="bone-enter" default="none">
+          <ScreeningLog wsId={ws.id} date={date} lang={lang} t={t} />
+        </ViewTransition>
+      </Suspense>
     </div>
   )
 }

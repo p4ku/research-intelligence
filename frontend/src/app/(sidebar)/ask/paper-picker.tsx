@@ -1,9 +1,10 @@
 'use client'
 
+import { Bone } from '@/components/skeleton'
 import { fmt, formatDate } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
 import clsx from 'clsx'
-import { useEffect } from 'react'
+import { useEffect, type ComponentPropsWithoutRef, type ReactNode } from 'react'
 import type { PaletteEntry } from './types'
 
 function matches(entry: PaletteEntry, query: string): boolean {
@@ -29,21 +30,78 @@ export function scoreColor(score: number | null): string {
   return rounded >= 75 ? 'var(--accent)' : rounded >= 55 ? 'var(--warn)' : '#9a9a90'
 }
 
+const MINI_SCORE =
+  'text-foreground/80 flex shrink-0 items-center gap-1 font-mono text-xs font-medium tabular-nums'
+
 /** Compact score for tight spots: threshold dot + tabular number. */
 export function MiniScore({ score }: { score: number | null }) {
   if (score === null) return null
   return (
-    <span className="text-foreground/80 flex shrink-0 items-center gap-1 font-mono text-xs font-medium tabular-nums">
+    <span className={MINI_SCORE}>
       <span className="size-1.5 rounded-full" style={{ backgroundColor: scoreColor(score) }} />
       {Math.round(score)}
     </span>
   )
 }
 
+/* ---------------------------------- Frame ---------------------------------- */
+
+/** Below the composer on the empty page, above it once docked; `static` sits in flow (the gallery). */
+export type PickerPlacement = 'below' | 'above' | 'static'
+
+const ROW =
+  'flex w-full items-center gap-3 rounded-sm px-2 py-2 text-left transition-colors duration-100 ease-out'
+
+function PickerFrame({
+  placement,
+  state = 'loaded',
+  footer,
+  children,
+  ...props
+}: {
+  placement: PickerPlacement
+  state?: 'loaded' | 'skeleton'
+  footer: ReactNode
+  children: ReactNode
+} & ComponentPropsWithoutRef<'div'>) {
+  return (
+    <div
+      {...props}
+      data-shape="paper-picker"
+      data-state={state}
+      className={clsx(
+        'border-line-strong bg-surface max-h-[min(19rem,38vh)] overflow-y-auto rounded-sm border p-1.5 shadow-[0_1px_2px_rgba(19,19,17,0.05),0_5px_14px_-4px_rgba(19,19,17,0.10)]',
+        placement !== 'static' &&
+          'animate-rise-in absolute inset-x-0 z-30 motion-reduce:animate-none',
+        placement === 'below' && 'top-[calc(100%-0.75rem)] origin-top',
+        placement === 'above' && 'bottom-[calc(100%-0.375rem)] origin-bottom',
+      )}
+    >
+      {children}
+      <div className="border-line-soft text-muted-foreground mt-1 flex items-center gap-3 border-t px-2.5 pt-2 pb-0.5 text-[11px]">
+        {footer}
+      </div>
+    </div>
+  )
+}
+
+function RowBody({ score, title, sub }: { score: ReactNode; title: ReactNode; sub: ReactNode }) {
+  return (
+    <>
+      {score}
+      <span className="min-w-0 flex-1">
+        <span className="text-foreground block truncate text-[13px] font-medium">{title}</span>
+        <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">{sub}</span>
+      </span>
+    </>
+  )
+}
+
+/* ---------------------------------- Loaded --------------------------------- */
+
 /**
  * The inline paper picker: a listbox attached to the composer while no paper
- * is chosen (entries arrive pre-sorted by signal). Below the composer on the
- * empty page, above it once the composer has docked.
+ * is chosen (entries arrive pre-sorted by signal).
  */
 export function PaperPicker({
   entries,
@@ -56,7 +114,7 @@ export function PaperPicker({
   entries: PaletteEntry[]
   query: string
   cursor: number
-  placement: 'below' | 'above'
+  placement: PickerPlacement
   onCursor: (i: number) => void
   onPick: (entry: PaletteEntry) => void
 }) {
@@ -73,17 +131,26 @@ export function PaperPicker({
   }, [cursor])
 
   return (
-    <div
+    <PickerFrame
       id="paper-picker"
       role="listbox"
       aria-label={t('Papers')}
-      className={clsx(
-        'border-line-strong bg-surface absolute inset-x-0 z-30 max-h-[min(19rem,38vh)] overflow-y-auto rounded-sm border p-1.5 shadow-[0_1px_2px_rgba(19,19,17,0.05),0_5px_14px_-4px_rgba(19,19,17,0.10)]',
-        'animate-rise-in motion-reduce:animate-none',
-        placement === 'below'
-          ? 'top-[calc(100%-0.75rem)] origin-top'
-          : 'bottom-[calc(100%-0.375rem)] origin-bottom',
-      )}
+      placement={placement}
+      footer={
+        <>
+          <span>
+            <kbd className="font-mono">↑↓</kbd> {t('choose')}
+          </span>
+          <span>
+            <kbd className="font-mono">↵</kbd> {t('scope the conversation')}
+          </span>
+          <span className="ml-auto tabular-nums">
+            {hasQuery
+              ? fmt(t('{n} of {total}'), { n: shown.length, total: entries.length })
+              : fmt(t('Top {n} of {total}'), { n: shown.length, total: entries.length })}
+          </span>
+        </>
+      }
     >
       {shown.length > 0 ? (
         shown.map((entry, i) => (
@@ -92,26 +159,20 @@ export function PaperPicker({
             type="button"
             role="option"
             aria-selected={i === cursor}
+            data-row="pick"
             onMouseEnter={() => onCursor(i)}
             // Keep the caret in the composer.
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => onPick(entry)}
-            className={clsx(
-              'flex w-full items-center gap-3 rounded-sm px-2 py-2 text-left transition-colors duration-100 ease-out',
-              i === cursor && 'bg-foreground/5',
-            )}
+            className={clsx(ROW, i === cursor && 'bg-foreground/5')}
           >
-            <MiniScore score={entry.signal_score} />
-            <span className="min-w-0 flex-1">
-              <span className="text-foreground block truncate text-[13px] font-medium">
-                {entry.title}
-              </span>
-              <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">
-                {[entry.first_author, entry.source, formatDate(entry.created_at, lang)]
-                  .filter(Boolean)
-                  .join(' · ')}
-              </span>
-            </span>
+            <RowBody
+              score={<MiniScore score={entry.signal_score} />}
+              title={entry.title}
+              sub={[entry.first_author, entry.source, formatDate(entry.created_at, lang)]
+                .filter(Boolean)
+                .join(' · ')}
+            />
           </button>
         ))
       ) : (
@@ -122,20 +183,58 @@ export function PaperPicker({
           })}
         </p>
       )}
+    </PickerFrame>
+  )
+}
 
-      <div className="border-line-soft text-muted-foreground mt-1 flex items-center gap-3 border-t px-2.5 pt-2 pb-0.5 text-[11px]">
-        <span>
-          <kbd className="font-mono">↑↓</kbd> {t('choose')}
-        </span>
-        <span>
-          <kbd className="font-mono">↵</kbd> {t('scope the conversation')}
-        </span>
-        <span className="ml-auto tabular-nums">
-          {hasQuery
-            ? fmt(t('{n} of {total}'), { n: shown.length, total: entries.length })
-            : fmt(t('Top {n} of {total}'), { n: shown.length, total: entries.length })}
-        </span>
-      </div>
-    </div>
+/* --------------------------------- Skeleton -------------------------------- */
+
+const TITLE_WIDTHS = [['62%'], ['46%'], ['74%']]
+
+/**
+ * The picker's bones — for loading.tsx and the gallery only. The live picker
+ * is client state and never blocks first paint, so this never replaces it.
+ */
+export function PaperPickerSkeleton({
+  rows = 5,
+  placement = 'static',
+}: {
+  rows?: number
+  placement?: PickerPlacement
+}) {
+  const t = useT()
+  return (
+    <PickerFrame
+      placement={placement}
+      state="skeleton"
+      footer={
+        <>
+          <span>
+            <kbd className="font-mono">↑↓</kbd> {t('choose')}
+          </span>
+          <span>
+            <kbd className="font-mono">↵</kbd> {t('scope the conversation')}
+          </span>
+          <span className="ml-auto tabular-nums">
+            <Bone.Text widths={['11ch']} />
+          </span>
+        </>
+      }
+    >
+      {Array.from({ length: rows }, (_, i) => (
+        <div key={i} data-row="pick" className={ROW}>
+          <RowBody
+            score={
+              <span className={MINI_SCORE}>
+                <Bone.Dot size={6} />
+                <Bone.Number digits={2} />
+              </span>
+            }
+            title={<Bone.Text widths={TITLE_WIDTHS[i % TITLE_WIDTHS.length]} />}
+            sub={<Bone.Text widths={['26ch']} />}
+          />
+        </div>
+      ))}
+    </PickerFrame>
   )
 }

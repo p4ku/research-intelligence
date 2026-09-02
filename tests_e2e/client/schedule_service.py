@@ -32,7 +32,7 @@ class ScheduleService:
             "frequency": frequency,
             "time_of_day": time_of_day,
             "timezone_name": timezone_name,
-            "cron_expression": cron_expression,
+            "cron_expression": cron_expression or "",
             "prevent_overlap": prevent_overlap,
             "max_consecutive_failures": max_consecutive_failures,
             "reprocess_existing": reprocess_existing,
