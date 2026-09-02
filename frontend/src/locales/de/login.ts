@@ -11,6 +11,7 @@ export const dict: Record<string, string> = {
     'Research Intelligence ist ein internes Tool. Der Zugriff ist autorisierten Konten vorbehalten.',
   'Your session expired. Please sign in again.':
     'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an.',
+  'You have been signed out.': 'Sie wurden abgemeldet.',
   // Sign-in errors, keyed by the /auth/login error code (see login-panel.tsx).
   'Those credentials did not match. Please try again.':
     'Die Anmeldedaten waren nicht korrekt. Bitte versuchen Sie es erneut.',

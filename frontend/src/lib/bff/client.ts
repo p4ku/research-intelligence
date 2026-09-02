@@ -4,6 +4,7 @@
  * Client-safe (no server imports); server components import services
  * directly instead of fetching over loopback HTTP.
  */
+import { sessionExpired } from '@/lib/auth/leave'
 import { problemBody, type Problem } from './core/problem'
 
 export class BffClientError extends Error {
@@ -33,9 +34,7 @@ export async function bffFetch<T>(path: string, init: RequestInit = {}): Promise
 
   if (contentType.includes('application/problem+json')) {
     const body = (await res.json()) as Problem
-    if (body.status === 401 && typeof window !== 'undefined') {
-      window.location.assign('/auth/logout?reason=expired')
-    }
+    if (body.status === 401) sessionExpired()
     throw new BffClientError(body)
   }
   if (res.status === 204) return undefined as T
