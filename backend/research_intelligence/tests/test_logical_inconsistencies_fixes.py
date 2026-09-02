@@ -247,6 +247,10 @@ class LogicalInconsistenciesFixesTestCase(TestCase):
 
         # Test PaperAdmin display
         admin = PaperAdmin(Paper, AdminSite())
+        self.assertNotIn("pipeline_run_link", admin.list_display)
+        self.assertIn("runs_count_badge", admin.list_display)
+        badge_html = admin.runs_count_badge(self.paper_1)
+        self.assertIn("2 runy", badge_html)
         link_html = admin.pipeline_run_link(self.paper_1)
         self.assertIn(str(run_new.id), link_html)
 

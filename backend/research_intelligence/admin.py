@@ -2308,7 +2308,7 @@ class PaperAdmin(admin.ModelAdmin):
     list_display = (
         'title',
         'workspace',
-        'pipeline_run_link',
+        'runs_count_badge',
         'source_database_badge',
         'created_at'
     )
@@ -2329,6 +2329,34 @@ class PaperAdmin(admin.ModelAdmin):
             'fields': ('document_registry', 'original_pdf_path', 'converted_md_path', 'created_at')
         }),
     )
+
+    def get_queryset(self, request):
+        qs = super().get_queryset(request)
+        return qs.annotate(
+            _runs_count=models.Count('metrics__pipeline_run', distinct=True)
+        )
+
+    def runs_count_badge(self, obj):
+        count = getattr(obj, '_runs_count', None)
+        if count is None:
+            count = obj.metrics.filter(pipeline_run__isnull=False).values('pipeline_run').distinct().count()
+
+        if count == 0:
+            return format_html('<span style="color: #adb5bd; font-size: 11px;">0 runów</span>')
+
+        label = "1 run" if count == 1 else f"{count} runy" if 2 <= count <= 4 else f"{count} runów"
+        url = reverse("admin:research_intelligence_papermetric_changelist")
+        return format_html(
+            '<a href="{}?paper__id__exact={}" style="text-decoration: none;" title="Pokaż metryki ze wszystkich {} runów">'
+            '<span style="background-color: #0d6efd; color: #ffffff; padding: 2px 8px; border-radius: 12px; font-weight: 700; font-size: 11px; white-space: nowrap;">⚡ {}</span>'
+            '</a>',
+            url,
+            obj.id,
+            count,
+            label
+        )
+    runs_count_badge.short_description = "Pipeline Runs"
+    runs_count_badge.admin_order_field = "_runs_count"
 
     def pipeline_run_link(self, obj):
         pr = getattr(obj, 'latest_pipeline_run', None) or obj.pipeline_run
