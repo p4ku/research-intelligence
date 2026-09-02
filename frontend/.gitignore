@@ -13,10 +13,9 @@
 # testing
 /coverage
 
-# next.js
+# next.js — any BUILD_DIR, whatever an agent named it
 /.next/
-/.next-build/
-/.next-agent*/
+/.next-*/
 /out/
 
 # production

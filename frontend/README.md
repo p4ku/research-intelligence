@@ -52,6 +52,7 @@ so non-technical users can see _why_ something ranked where it did.
 | ---------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | [`docs/making-it-real.md`](docs/making-it-real.md)         | The roadmap from mock to functional: ingestion, scoring pipeline, embeddings, auth, infra. |
 | [`docs/design.md`](docs/design.md)                         | The design system: type, color, charts, layout patterns.                                   |
+| [`docs/conventions.md`](docs/conventions.md)               | How we work in a shared checkout: scope, `bun run check`, what never gets committed.       |
 | [`docs/tech-preferences.md`](docs/tech-preferences.md)     | The stack we build the real thing on.                                                      |
 | [`docs/backend-handoff.md`](docs/backend-handoff.md)       | **For the backend team**: the requested endpoints, conventions, work list, findings.       |
 | [`docs/deploy-handoff.md`](docs/deploy-handoff.md)         | Shipping this frontend on Cloud Foundry (subtree, manifest env, smoke checks).             |
@@ -124,10 +125,15 @@ hostname across the backend apps and this one.
 ### Tests and checks
 
 ```bash
-bun run typecheck && bun run lint && bun test && bun run build
+bun run check            # format, types, lint + contract specs, tests, scope
+bun run build            # not in `check` — slow; run it after config or routing changes
 bun run contract:check   # validates a live Django against the contract
 bun run contract:spec    # regenerates contract/*.openapi.json
 ```
+
+`bun run check` is what to run before committing; see
+[`docs/conventions.md`](docs/conventions.md) for the rest of the working
+agreements.
 
 ### Docker
 
