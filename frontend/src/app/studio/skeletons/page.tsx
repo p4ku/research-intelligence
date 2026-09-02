@@ -10,9 +10,14 @@ import {
 } from '@/components/scanner-ui'
 import { Skeleton } from '@/components/skeleton'
 import { fixtureEditions } from '@/lib/bff/briefings/fixtures'
+import { fixtureSteps } from '@/lib/bff/component-runs/fixtures'
 import { fixturePapers, fixtureWorkspace } from '@/lib/bff/papers/fixtures'
+import { fixtureRunDetail, fixtureRuns } from '@/lib/bff/pipeline-runs/fixtures'
 import type { ReactNode } from 'react'
 import { RunPapers, RunPapersSkeleton } from '../../(sidebar)/dashboard/run-papers'
+import { RunFacts, RunFactsSkeleton } from '../runs/[id]/run-facts'
+import { StepTimeline, StepTimelineSkeleton } from '../runs/[id]/step-timeline'
+import { RunsTable, RunsTableSkeleton } from '../runs/runs-table'
 
 /**
  * The skeleton gallery: every data shape next to its loading state, on fixture
@@ -193,6 +198,30 @@ export default async function SkeletonsPage({
         status="Loading the papers"
         loaded={<RunPapers papers={fivePapers} workspace={fixtureWorkspace} />}
         skeleton={<RunPapersSkeleton />}
+      />
+
+      <Pair
+        shape="runs-table"
+        title="Runs table"
+        status="Loading the runs"
+        loaded={<RunsTable runs={fixtureRuns} />}
+        skeleton={<RunsTableSkeleton rows={fixtureRuns.length} />}
+      />
+
+      <Pair
+        shape="run-facts"
+        title="Run facts"
+        status="Loading the run"
+        loaded={<RunFacts run={fixtureRunDetail} />}
+        skeleton={<RunFactsSkeleton />}
+      />
+
+      <Pair
+        shape="step-timeline"
+        title="Step timeline"
+        status="Loading the steps"
+        loaded={<StepTimeline steps={fixtureSteps} />}
+        skeleton={<StepTimelineSkeleton steps={fixtureSteps.length} />}
       />
     </div>
   )

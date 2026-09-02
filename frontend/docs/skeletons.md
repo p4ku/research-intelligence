@@ -49,8 +49,9 @@ live one.
    root `data-shape="foo"` + `data-state="loaded|skeleton"` and each measurable
    row `data-row="…"`.
 2. **Size bones honestly.** `Bone.Text` occupies exactly `1lh` per line and
-   inherits type from its slot; `Bone.Number` reserves `N ch` of the mono face —
-   put it inside something carrying `font-mono`. Percentage widths only in block
+   inherits type from its slot; `Bone.Number` reserves `N ch` of the inherited
+   font, which is exact for digits in a `font-mono` slot or a `tabular-nums`
+   sans cell (a `ch` is a digit's width). Percentage widths only in block
    context: in a flex row a `%` width on a shrink-to-fit item resolves to 0, so
    use `ch` or `Bone.Chip` there. Line widths come from a fixed pattern, never
    random, so screenshots and drift runs stay stable.
@@ -88,27 +89,55 @@ removes it and reduces the handoff to an instant swap.
 `PaperCard`, `StatBand` / `StatTile`, `AnswerMarkdown`, `RunPapers`, and the
 dashboard streaming in three sections.
 
-## Pass 2 — the Studio surfaces
+## Done (pass 2) — the Studio surfaces
 
-Highest value per unit of work; both shapes are extremely regular.
+`/studio/runs` streams band + filter strip + table behind one boundary (they
+all read the one list): `runs/runs-table.tsx` (`RunsTable` / `RunsTableSkeleton`
+over a frame that also owns the column list), `runs/run-tabs.tsx`,
+`runs/sections.tsx`, `runs/skeletons.tsx`, `runs/loading.tsx`.
 
-| Shape         | File                                                         | Skeleton                                                                                                                                                                              |
-| ------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Runs table    | `app/studio/runs/page.tsx` (rows via `components/table.tsx`) | Row frame with a `Bone.Number` per tabular column (short id, duration, counts, cost) and a `Bone.Chip` for the status pill. 8 rows. The band above it already has `StatBandSkeleton`. |
-| Step timeline | `app/studio/runs/[id]/step-timeline.tsx`                     | Rail `Bone.Dot` + connector, title line with 2–3 chips, a summary line, and the right rail: a 96px duration bar (`Bone.Block h-1 w-24`) over three mono lines.                        |
+`/studio/runs/[id]` streams two sections — the head (header, band, facts) on
+the run record and the steps on the component-run list: `[id]/run-facts.tsx`,
+`[id]/step-timeline.tsx` (`StepTimelineFrame` takes the rail dot's colour as a
+slot, so the running step's `animate-pulse` stays with the loaded list),
+`[id]/sections.tsx`, `[id]/skeletons.tsx`, `[id]/loading.tsx`. The failed-steps
+notice moved from above the band to directly above the Steps section, where the
+steps it names are. `StepSummarySkeleton` lives with `StepSummary` in
+`studio/run-presentation.tsx`.
 
-Watch for: the timeline's running-step dot is `animate-pulse` **status**, not a
-bone — leave it alone. Both routes then get a `loading.tsx` and come off
-`KNOWN_UNCOVERED`. The Studio is English-only, so no locale keys are needed.
+Fixtures for the gallery: `lib/bff/pipeline-runs/fixtures.ts` and
+`lib/bff/component-runs/fixtures.ts`, schema-checked by `lib/bff/fixtures.test.ts`.
+The six-step fixture _is_ the timeline skeleton's drift contract: spend and
+model lines on the LLM steps only.
+
+Things learned:
+
+- **Tables: mark the headers, not the cells.** Column widths are content-derived
+  under `whitespace-nowrap`, so each `<th>` carries `data-row="col"` and the
+  drift check catches a bone that pushes a column wider. A bone narrower than
+  its header adds nothing to the column, which is the easy way to make
+  header-dominated columns match exactly.
+- **A `ch` is a digit; prose is ~15% narrower.** Size prose bones in fractional
+  `ch` (`'15ch'` for an 18-character label) or let the drift run tell you.
+- **`StatBandSkeleton subs` takes `null`** for a cell that has no sub line in
+  the loaded band, `undefined` for a bone.
+- **`PageHeader` title/description and `Breadcrumbs` labels are nodes** so a
+  `loading.tsx`, which gets no params, can bone the run id.
+- **A `loading.tsx` on a dynamic segment changes the not-found status.** Next
+  wraps the page in the loading boundary, so a dead `/studio/runs/<id>` now
+  streams the shell with HTTP 200 and renders `studio/not-found.tsx` in-stream
+  with `noindex`. Accepted for this route (behind auth; the not-found page still
+  shows), decided 2026-09-02. Any route that must keep a genuine 404 must call
+  `notFound()` in a layout above the loading boundary, or skip `loading.tsx`.
 
 ## Pass 3 — paper detail and the ask rails
 
-| Shape           | File                                                      | Skeleton                                                                                                                                                                                                           |
-| --------------- | --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Signal ledger   | `components/signal-ledger.tsx`                            | 34px mono score (`Bone.Number`), segmented bar as a `Bone.Block`, three labelled slider rows. It animates the score with `useMotionValue`/`useSpring` — the skeleton must not, or the spring will fight the sweep. |
-| Score variables | `components/score-variables.tsx`                          | Scalar grid / variable list; rows are uniform.                                                                                                                                                                     |
-| Charts          | `components/charts.tsx`                                   | `RadarChart`, `QuadrantChart`, `HeatGrid`, `ScoreMeter`, `Sparkline` have fixed viewBoxes, so an exact-size `Bone.Block` lands the chart with no shift.                                                            |
-| Ask rails       | `app/(sidebar)/ask/history-rail.tsx`, `paper-palette.tsx` | Session rows (title + timestamp); palette rows (title, author, source, score).                                                                                                                                     |
+| Shape           | File                                                     | Skeleton                                                                                                                                                                                                           |
+| --------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Signal ledger   | `components/signal-ledger.tsx`                           | 34px mono score (`Bone.Number`), segmented bar as a `Bone.Block`, three labelled slider rows. It animates the score with `useMotionValue`/`useSpring` — the skeleton must not, or the spring will fight the sweep. |
+| Score variables | `components/score-variables.tsx`                         | Scalar grid / variable list; rows are uniform.                                                                                                                                                                     |
+| Charts          | `components/charts.tsx`                                  | `RadarChart`, `QuadrantChart`, `HeatGrid`, `ScoreMeter`, `Sparkline` have fixed viewBoxes, so an exact-size `Bone.Block` lands the chart with no shift.                                                            |
+| Ask rails       | `app/(sidebar)/ask/history-rail.tsx`, `paper-picker.tsx` | Session rows (title + timestamp); picker rows (title, author, source, score).                                                                                                                                      |
 
 `papers/[id]` and `ask` load their whole corpus server-side and hand it to a
 client browser component, so they want one whole-list skeleton rather than

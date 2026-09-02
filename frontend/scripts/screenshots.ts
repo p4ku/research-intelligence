@@ -201,6 +201,8 @@ const SCREENS: Screen[] = [
   { name: 'settings', route: '/settings', auth: true },
   // The skeleton gallery (loaded and skeleton panes side by side, sweep frozen)
   // so loading states ride the same review loop as every other screen.
+  { name: 'studio-runs', route: '/studio/runs', auth: true },
+  { name: 'studio-run', route: '/studio/runs/[run]', auth: true },
   { name: 'skeletons', route: '/studio/skeletons?motion=static', auth: true },
 ]
 
@@ -251,15 +253,17 @@ async function discover(
   const briefing =
     (await firstHref('/briefing', '/briefing/')) ?? (await firstHref('/dashboard', '/briefing/'))
   const paper = await firstHref('/papers', '/papers/')
+  const run = await firstHref('/studio/runs', '/studio/runs/')
   await ctx.close()
   const date = briefing?.split('/')[2] ?? null
   const id = paper?.split('/')[2] ?? null
-  return { date, id }
+  const runId = run?.split('/')[3] ?? null
+  return { date, id, runId }
 }
 
 function resolveRoute(
   route: string,
-  params: { date: string | null; id: string | null },
+  params: { date: string | null; id: string | null; runId: string | null },
 ): string | null {
   if (route.includes('[date]')) {
     if (!params.date) return null
@@ -268,6 +272,10 @@ function resolveRoute(
   if (route.includes('[id]')) {
     if (!params.id) return null
     route = route.replace('[id]', params.id)
+  }
+  if (route.includes('[run]')) {
+    if (!params.runId) return null
+    route = route.replace('[run]', params.runId)
   }
   return PSEUDO_ROUTES[route] ?? route
 }
@@ -296,7 +304,9 @@ async function main() {
     const cookies = await login(browser, opts)
     log(`Signed in as ${opts.user}`)
     const params = await discover(browser, opts, cookies)
-    log(`Discovered   → briefing date=${params.date ?? '—'}  paper id=${params.id ?? '—'}`)
+    log(
+      `Discovered   → briefing date=${params.date ?? '—'}  paper id=${params.id ?? '—'}  run id=${params.runId ?? '—'}`,
+    )
 
     for (const vpName of opts.viewports) {
       const viewport = VIEWPORTS[vpName]

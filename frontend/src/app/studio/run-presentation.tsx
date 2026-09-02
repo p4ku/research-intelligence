@@ -5,11 +5,17 @@
  * to the source string, so switching the app to German leaves these untouched
  * until someone who knows the domain terms supplies them.
  */
+import { Bone } from '@/components/skeleton'
 import type { ComponentRun, ComponentSummary } from '@/lib/bff/component-runs/schema'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import clsx from 'clsx'
 
 /* --------------------------------- Values --------------------------------- */
+
+/** The first eight characters of a run id — how a run is named on screen. */
+export function shortId(id: string): string {
+  return id.slice(0, 8)
+}
 
 /**
  * `0.84s`, `43.0s`, `1m 08s`, `3m 53s`, `2h 04m`. Null renders as an em dash.
@@ -135,12 +141,16 @@ function Count({ value, label, tone }: { value: number; label: string; tone?: 'g
   )
 }
 
+// One line of counts; shared with StepSummarySkeleton so the bones sit on the
+// same baseline grid as the loaded counts.
+const SUMMARY_WRAP = 'flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs'
+
 /**
  * What a step did, read off the typed summary the BFF resolved. `kind: 'none'`
  * says so plainly rather than showing a zero the engine never reported.
  */
 export function StepSummary({ summary }: { summary: ComponentSummary }) {
-  const wrap = 'flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs'
+  const wrap = SUMMARY_WRAP
   switch (summary.kind) {
     case 'search':
       return (
@@ -219,4 +229,15 @@ export function StepSummary({ summary }: { summary: ComponentSummary }) {
         <div className="text-xs text-zinc-400 italic dark:text-zinc-500">No metrics recorded</div>
       )
   }
+}
+
+/** One line of count bones, on the same baseline grid as StepSummary. */
+export function StepSummarySkeleton({ counts = 3 }: { counts?: number }) {
+  return (
+    <div className={SUMMARY_WRAP}>
+      {Array.from({ length: counts }, (_, i) => (
+        <Bone.Text key={i} widths={['9ch']} />
+      ))}
+    </div>
+  )
 }
