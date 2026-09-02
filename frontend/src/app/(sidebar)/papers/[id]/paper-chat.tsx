@@ -19,7 +19,8 @@ interface Msg {
   text: string
   /** Structured partners of the answer's inline `[Page N, …]` markers. */
   visualCitations: VisualCitation[]
-  failed?: boolean
+  /** Mapped problem copy when the turn failed; partial `text` is kept. */
+  error?: string | null
 }
 
 /**
@@ -45,50 +46,63 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
   // loop, not a render effect).
   const { state: live, send } = useChatStream((final) => {
     if (!askingRef.current) return
-    const failed = final.status === 'error'
     setMsgs((prev) => [
       ...prev,
       {
         role: 'scanner',
-        text: failed ? problemMessage(final.error, t) : final.text,
-        visualCitations: failed ? [] : final.visualCitations,
-        failed,
+        // A failure keeps what streamed; the error rides alongside the text.
+        text: final.text,
+        visualCitations: final.visualCitations,
+        error: final.status === 'error' ? problemMessage(final.error, t) : null,
       },
     ])
     if (final.sessionId) setSessionId(final.sessionId)
     setAsking(false)
   })
 
-  // Continue the paper's newest session, if one exists.
-  const loaded = useRef(false)
+  // Continue the paper's newest session, if one exists. A failed load is a
+  // failure, not "no history": it gets its own state and a Retry (bump
+  // `reloadKey`), and never dresses up as the empty state.
+  const [historyState, setHistoryState] = useState<'loading' | 'empty' | 'ready' | 'failed'>(
+    'loading',
+  )
+  const [reloadKey, setReloadKey] = useState(0)
   useEffect(() => {
-    if (loaded.current) return
-    loaded.current = true
+    let cancelled = false
     void (async () => {
       try {
         const page = await bffFetch<Page<ChatSession>>(
           `/bff/chat/sessions?paper_id=${paper.id}&page_size=1`,
         )
         const newest = page.results[0]
-        if (!newest) return
+        if (!newest) {
+          if (!cancelled) setHistoryState('empty')
+          return
+        }
         const detail = await bffFetch<ChatSessionDetail>(`/bff/chat/sessions/${newest.id}`)
+        if (cancelled) return
         setSessionId(detail.id)
         setMsgs(
           detail.turns.flatMap((turn): Msg[] => [
             { role: 'user', text: turn.question, visualCitations: [] },
             {
               role: 'scanner',
-              text: turn.answer ?? turn.error ?? t('The answer failed.'),
+              text: turn.answer ?? '',
               visualCitations: turn.visual_citations,
-              failed: turn.status === 'failed',
+              error: turn.status === 'failed' ? (turn.error ?? t('The answer failed.')) : null,
             },
           ]),
         )
-      } catch {
-        // No history — start fresh.
+        setHistoryState('ready')
+      } catch (error) {
+        console.error('[paper-chat] history load failed:', error)
+        if (!cancelled) setHistoryState('failed')
       }
     })()
-  }, [paper.id, t])
+    return () => {
+      cancelled = true
+    }
+  }, [paper.id, reloadKey, t])
 
   useEffect(() => {
     if (msgs.length > 0 || live.text) endRef.current?.scrollIntoView({ block: 'end' })
@@ -120,7 +134,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-        {msgs.length === 0 && !asking ? (
+        {msgs.length === 0 && !asking && historyState !== 'failed' ? (
           <p className="text-muted-foreground text-sm leading-relaxed text-balance">
             {t('Questions here are answered from this paper alone.')}
           </p>
@@ -134,19 +148,22 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
                 >
                   {m.text}
                 </p>
-              ) : m.failed ? (
-                // Failure text is an error string, not model prose.
-                <ErrorNote key={i} className="whitespace-pre-wrap">
-                  {m.text}
-                </ErrorNote>
               ) : (
-                <AnswerMarkdown
-                  key={i}
-                  text={m.text}
-                  citations={m.visualCitations}
-                  t={t}
-                  className="text-muted-foreground text-[13px]"
-                />
+                <div key={i} className="min-w-0">
+                  {m.text !== '' && (
+                    <AnswerMarkdown
+                      text={m.text}
+                      citations={m.visualCitations}
+                      t={t}
+                      className={clsx('text-muted-foreground text-[13px]', m.error && 'mb-2')}
+                    />
+                  )}
+                  {m.error && (
+                    <ErrorNote className="whitespace-pre-wrap">
+                      {m.text !== '' ? t('The answer stopped part-way through.') : m.error}
+                    </ErrorNote>
+                  )}
+                </div>
               ),
             )}
             {asking &&
@@ -171,6 +188,28 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
           </div>
         )}
       </div>
+
+      {historyState === 'failed' && msgs.length === 0 && (
+        <div className="border-line-soft border-t px-4 py-3">
+          <ErrorNote
+            action={
+              <button
+                type="button"
+                onClick={() => {
+                  setHistoryState('loading')
+                  setReloadKey((k) => k + 1)
+                }}
+                className="bg-foreground text-background hover:bg-foreground/85 rounded-sm px-2.5 py-1 text-xs font-medium transition-colors"
+              >
+                {t('Retry')}
+              </button>
+            }
+          >
+            {t("Couldn't load this paper's earlier questions.")}{' '}
+            {t('A new thread will start if you ask now.')}
+          </ErrorNote>
+        </div>
+      )}
 
       <form
         onSubmit={(e) => {
