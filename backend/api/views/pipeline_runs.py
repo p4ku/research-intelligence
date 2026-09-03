@@ -224,6 +224,29 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
         return Response(res, status=http_status)
 
     @extend_schema(
+        parameters=[
+            OpenApiParameter(name="step_name", type=str, location=OpenApiParameter.QUERY, required=False,
+                             description="Step to rerun from ('search', 'download', 'ocr', 'abstract_screening', 'full_text_screening', 'extraction', 'signal_score', 'reporting'). If omitted, automatically resumes from the failed step."),
+        ],
+        responses={
+            200: OpenApiResponse(description="Pipeline rerun successfully initiated"),
+            400: OpenApiResponse(description="Invalid step or cannot rerun"),
+            403: OpenApiResponse(description="Forbidden - requires Admin or Manager role"),
+            404: OpenApiResponse(description="Pipeline run not found"),
+        }
+    )
+    @action(detail=True, methods=['post'], url_path='rerun-from-step')
+    def rerun_from_step(self, request, pk=None):
+        instance = self.get_object()
+        step_name = request.data.get('step_name') or request.query_params.get('step_name')
+        from mcp_server.tools.pipeline_runs import rerun_pipeline_from_step_logic
+        res_json = rerun_pipeline_from_step_logic(user=request.user, pipeline_run_id=str(instance.id), step_name=step_name)
+        res_data = json.loads(res_json)
+        if res_data.get("status") == "error":
+            return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(res_data, status=status.HTTP_200_OK)
+
+    @extend_schema(
         request=TriggerStepSerializer,
         responses={
             200: OpenApiResponse(description="Pipeline step successfully launched"),
@@ -423,3 +446,21 @@ class ComponentRunViewSet(viewsets.ReadOnlyModelViewSet):
             if "Error:" in res_json:
                 return Response({"error": res_json}, status=status.HTTP_400_BAD_REQUEST)
             return Response({"message": res_json}, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Component task successfully re-dispatched on Celery"),
+            400: OpenApiResponse(description="Failed to re-execute component"),
+            403: OpenApiResponse(description="Forbidden - requires Admin or Manager role"),
+            404: OpenApiResponse(description="Component run not found"),
+        }
+    )
+    @action(detail=True, methods=['post'], url_path='reexecute')
+    def reexecute(self, request, pk=None):
+        instance = self.get_object()
+        from mcp_server.tools.pipeline_runs import reexecute_component_run_logic
+        res_json = reexecute_component_run_logic(user=request.user, component_run_id=str(instance.id))
+        res_data = json.loads(res_json)
+        if res_data.get("status") == "error":
+            return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
+        return Response(res_data, status=status.HTTP_200_OK)

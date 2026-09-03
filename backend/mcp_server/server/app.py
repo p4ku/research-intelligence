@@ -87,6 +87,8 @@ from mcp_server.tools import (
     get_component_run_status_logic,
     pause_pipeline_run_logic,
     resume_pipeline_run_logic,
+    rerun_pipeline_from_step_logic,
+    reexecute_component_run_logic,
     tick_pipeline_run_logic,
     abort_job_logic,
     list_pipeline_runs_logic,
@@ -1249,6 +1251,53 @@ def abort_job(component_run_id: str | None = None, pipeline_run_id: str | None =
     except Exception as e:
         return str(e)
     return abort_job_logic(user, component_run_id, pipeline_run_id)
+
+
+@mcp.tool()
+@with_db_connection
+def rerun_pipeline_from_step(pipeline_run_id: str, step_name: str | None = None) -> str:
+    """
+    [RERUN / RESUME PIPELINE FROM STEP - RESILIENCE TOOL]
+    Rerun a PipelineRun from a specific step forward, or automatically resume from the step that failed/aborted.
+    
+    Resets the target step and all downstream dependent steps in the DAG, sets the pipeline run
+    status back to 'running', and immediately dispatches the step task(s) to Celery workers.
+    
+    Idempotent: Already downloaded PDFs, converted OCR files, and screened papers are preserved and skipped!
+    
+    Args:
+        pipeline_run_id: UUID of the PipelineRun to rerun/resume.
+        step_name: Step to restart from: 'search', 'download', 'ocr', 'abstract_screening',
+                   'full_text_screening', 'extraction', 'signal_score', 'reporting'.
+                   If omitted (None) or set to 'auto' / 'failed', automatically detects the stage
+                   where the run halted or failed.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "runs:write")
+    except Exception as e:
+        return str(e)
+    return rerun_pipeline_from_step_logic(user, pipeline_run_id, step_name)
+
+
+@mcp.tool()
+@with_db_connection
+def reexecute_component_run(component_run_id: str) -> str:
+    """
+    [RE-EXECUTE SINGLE COMPONENT TASK]
+    Re-dispatches an isolated single ComponentRun task to Celery workers without resetting downstream steps.
+    Ideal for quickly retrying a single failed or stalled component (e.g., a specific download or OCR task)
+    while keeping the rest of the pipeline DAG untouched.
+    
+    Args:
+        component_run_id: UUID of the ComponentRun to re-execute.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "runs:write")
+    except Exception as e:
+        return str(e)
+    return reexecute_component_run_logic(user, component_run_id)
 
 
 @mcp.tool()

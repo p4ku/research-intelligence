@@ -241,3 +241,61 @@ class PipelineRunsAPITestCase(APITestCase):
             self.assertTrue(res.data['success'])
             mock_tick.assert_called_once_with(self.run_a.id)
 
+    @patch('research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick')
+    def test_rerun_from_step_api(self, mock_notify):
+        """User A can trigger rerun from a specific step or auto-resume via REST API."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_a}')
+
+        # Create paper and component runs
+        from research_intelligence.models import Paper, ComponentRun
+        Paper.objects.create(
+            workspace=self.workspace_a,
+            pipeline_run=self.run_a,
+            hash_id="p_api_rerun",
+            title="API Rerun Paper",
+            authors="Author",
+            abstract="Abstract",
+            source_database="arxiv",
+            screening_status="accepted"
+        )
+        ComponentRun.objects.create(pipeline_run=self.run_a, step_type="search", component_name="search", status="completed")
+        ComponentRun.objects.create(pipeline_run=self.run_a, step_type="screening", component_name="abstract_screening", status="completed")
+        ComponentRun.objects.create(pipeline_run=self.run_a, step_type="download", component_name="download", status="failed", error_message="Timeout")
+
+        # Foreign user B cannot rerun run A -> 404
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_b}')
+        res_foreign = self.client.post(f'/api/pipeline-runs/{self.run_a.id}/rerun-from-step/', {'step_name': 'download'})
+        self.assertEqual(res_foreign.status_code, status.HTTP_404_NOT_FOUND)
+
+        # User A triggers rerun with auto-detection -> 200 OK
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_a}')
+        res_own = self.client.post(f'/api/pipeline-runs/{self.run_a.id}/rerun-from-step/')
+        self.assertEqual(res_own.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_own.data['status'], 'success')
+        self.assertEqual(res_own.data['resumed_from_step'], 'download')
+
+    @patch('research_intelligence.tasks.orchestrator.dag.DownloadNode.execute')
+    def test_reexecute_component_run_api(self, mock_execute):
+        """User A can re-execute an isolated failed component task via REST API."""
+        from research_intelligence.models import ComponentRun
+        cr = ComponentRun.objects.create(
+            pipeline_run=self.run_a,
+            step_type="download",
+            component_name="download",
+            status="failed",
+            error_message="Worker died"
+        )
+
+        # Foreign user B cannot re-execute -> 404
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_b}')
+        res_foreign = self.client.post(f'/api/component-runs/{cr.id}/reexecute/')
+        self.assertEqual(res_foreign.status_code, status.HTTP_404_NOT_FOUND)
+
+        # User A re-executes -> 200 OK
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_a}')
+        res_own = self.client.post(f'/api/component-runs/{cr.id}/reexecute/')
+        self.assertEqual(res_own.status_code, status.HTTP_200_OK)
+        self.assertEqual(res_own.data['status'], 'success')
+        mock_execute.assert_called_once()
+
+

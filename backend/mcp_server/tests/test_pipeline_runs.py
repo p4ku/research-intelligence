@@ -15,6 +15,8 @@ from mcp_server.tools import (
     tick_pipeline_run_logic,
     abort_job_logic,
     delete_pipeline_run_logic,
+    rerun_pipeline_from_step_logic,
+    reexecute_component_run_logic,
 )
 from datetime import timedelta
 from django.utils import timezone
@@ -410,6 +412,107 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
             tick_res = self.parse_res(tick_pipeline_run_logic(self.admin, pipeline_run_id=str(pr.id)))
             self.assertEqual(tick_res["status"], "success")
             mock_tick.assert_called_once_with(pr.id)
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    def test_rerun_pipeline_from_step_explicit(self, mock_notify):
+        """Validates that rerun_pipeline_from_step resets downstream nodes from an explicitly specified step."""
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="completed",
+            current_stage="reporting"
+        )
+        Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=pr,
+            hash_id="p_test_rerun_explicit",
+            title="Quantum Paper",
+            authors="Test Author",
+            abstract="Test Abstract",
+            source_database="arxiv",
+            screening_status="accepted"
+        )
+        # Create completed components for search, screening, download, ocr
+        c_search = ComponentRun.objects.create(pipeline_run=pr, step_type="search", component_name="search", status="completed")
+        c_screen = ComponentRun.objects.create(pipeline_run=pr, step_type="screening", component_name="abstract_screening", status="completed")
+        c_download = ComponentRun.objects.create(pipeline_run=pr, step_type="download", component_name="download", status="completed")
+        c_ocr = ComponentRun.objects.create(pipeline_run=pr, step_type="ocr", component_name="ocr", status="completed")
+
+        res = self.parse_res(rerun_pipeline_from_step_logic(self.admin, pipeline_run_id=str(pr.id), step_name="download"))
+        self.assertEqual(res["status"], "success")
+        self.assertEqual(res["resumed_from_step"], "download")
+
+        pr.refresh_from_db()
+        self.assertEqual(pr.status, "running")
+        self.assertEqual(pr.current_stage, "download")
+
+        # Upstream components (search, screening) must remain intact
+        self.assertTrue(ComponentRun.objects.filter(id=c_search.id).exists())
+        self.assertTrue(ComponentRun.objects.filter(id=c_screen.id).exists())
+
+        # Target node and downstream nodes (download, ocr) must be reset/deleted for fresh execution
+        self.assertFalse(ComponentRun.objects.filter(id=c_download.id).exists())
+        self.assertFalse(ComponentRun.objects.filter(id=c_ocr.id).exists())
+        mock_notify.assert_called()
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    def test_rerun_pipeline_auto_detect_failed_step(self, mock_notify):
+        """Validates that rerun_pipeline_from_step automatically detects and resumes from the failed stage when step_name is omitted."""
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="failed",
+            current_stage="download",
+            stopped_at_stage="download"
+        )
+        Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=pr,
+            hash_id="p_test_rerun_auto",
+            title="Quantum Paper Auto",
+            authors="Test Author",
+            abstract="Test Abstract",
+            source_database="arxiv",
+            screening_status="accepted"
+        )
+        c_search = ComponentRun.objects.create(pipeline_run=pr, step_type="search", component_name="search", status="completed")
+        c_screen = ComponentRun.objects.create(pipeline_run=pr, step_type="screening", component_name="abstract_screening", status="completed")
+        c_failed_download = ComponentRun.objects.create(pipeline_run=pr, step_type="download", component_name="download", status="failed", error_message="Network timeout")
+
+        # Call with step_name=None -> should auto-detect 'download'
+        res = self.parse_res(rerun_pipeline_from_step_logic(self.admin, pipeline_run_id=str(pr.id), step_name=None))
+        self.assertEqual(res["status"], "success")
+        self.assertEqual(res["resumed_from_step"], "download")
+
+        pr.refresh_from_db()
+        self.assertEqual(pr.status, "running")
+        self.assertEqual(pr.current_stage, "download")
+        self.assertIsNone(pr.stopped_at_stage)
+        mock_notify.assert_called()
+
+    @patch("research_intelligence.tasks.orchestrator.dag.DownloadNode.execute")
+    def test_reexecute_component_run_mcp_tool(self, mock_execute):
+        """Validates that reexecute_component_run re-dispatches an isolated failed component without touching others."""
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="failed",
+            current_stage="download"
+        )
+        cr = ComponentRun.objects.create(
+            pipeline_run=pr,
+            step_type="download",
+            component_name="download",
+            status="failed",
+            error_message="Simulated worker SIGKILL"
+        )
+
+        res = self.parse_res(reexecute_component_run_logic(self.admin, component_run_id=str(cr.id)))
+        self.assertEqual(res["status"], "success")
+        self.assertEqual(res["component_run_id"], str(cr.id))
+
+        cr.refresh_from_db()
+        self.assertEqual(cr.status, "running")
+        self.assertEqual(cr.error_message, "")
+        mock_execute.assert_called_once()
+
 
 
 
