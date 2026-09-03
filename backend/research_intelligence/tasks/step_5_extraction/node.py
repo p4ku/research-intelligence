@@ -52,6 +52,7 @@ class ExtractionNode(BaseWorkflowNode):
         params.update(workspace.get_extraction_prompt_snapshot())
         has_ft = pipeline_run.component_runs.filter(step_type='screening', component_name__icontains='full_text', status='completed').exists()
         params["target_screening_stage"] = "full_text" if has_ft else "abstract"
+        params["composite_extraction_schema"] = workspace.get_composite_extraction_schema()
         return params
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:

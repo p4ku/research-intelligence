@@ -57,6 +57,7 @@ return round(min(base, 10.0), 2)
         self.def_trl = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="TRL Level",
+            exit_metric="trl_level",
             system_prompt="Extract TRL level with exact quote.",
             user_prompt_template="Analyze this text: {paper_text}",
             response_schema={
@@ -73,6 +74,7 @@ return round(min(base, 10.0), 2)
         self.def_fit = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Fit Score",
+            exit_metric="fit_score",
             system_prompt="Extract Fit Score.",
             user_prompt_template="Analyze this text: {paper_text}",
             response_schema={
@@ -89,6 +91,7 @@ return round(min(base, 10.0), 2)
         self.def_novelty = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Novelty Score",
+            exit_metric="novelty_score",
             system_prompt="Extract Novelty Score.",
             user_prompt_template="Analyze this text: {paper_text}",
             response_schema={
@@ -183,13 +186,14 @@ return round(min(base, 10.0), 2)
         mock_fulltext_llm_provider.return_value = fulltext_llm
 
         extraction_llm = MagicMock()
-        def mock_extract(prompt, **kwargs):
-            if "TRL Level" in prompt:
+        def mock_extract(prompt=None, system_instruction=None, **kwargs):
+            comb = (str(prompt or "") + " " + str(system_instruction or "")).lower()
+            if "trl" in comb:
                 return (
-                    {"trl_level": 7, "reasoning": "Demonstrated 100-qubit processor.", "confidence_score": 0.95, "evidence_quote": "Demonstrated operational stability."},
+                    {"trl_level": 7.0, "reasoning": "Demonstrated 100-qubit processor.", "confidence_score": 0.95, "evidence_quote": "Demonstrated operational stability."},
                     {"prompt_tokens": 500, "candidates_tokens": 100, "total_tokens": 600}
                 )
-            elif "Fit Score" in prompt:
+            elif "fit" in comb:
                 return (
                     {"fit_score": 9.5, "reasoning": "Direct match for quantum fault tolerance.", "confidence_score": 0.98, "evidence_quote": "Surface code threshold demonstrated."},
                     {"prompt_tokens": 500, "candidates_tokens": 100, "total_tokens": 600}
@@ -271,10 +275,19 @@ return round(min(base, 10.0), 2)
         extraction_res = execute_extraction_job(str(extraction_comp_run.id))
         self.assertTrue(extraction_res)
 
-        # Verify database extractions
+        # Verify database extractions and validation status
         exts = Extraction.objects.filter(paper=paper_1)
         self.assertEqual(exts.count(), 3)
+        for ext in exts:
+            self.assertEqual(ext.validation_status, "pass")
         self.assertEqual(Extraction.objects.filter(paper=paper_2).count(), 0)
+
+        # Validate that intermediate extractions satisfy the dynamic composite schema
+        composite_schema = self.workspace.get_composite_extraction_schema()
+        import jsonschema
+        from research_intelligence.tasks.step_6_signal_score.scorer import extract_paper_parameters
+        context_vars = extract_paper_parameters(paper_1, pipeline_run=self.pipeline_run)
+        jsonschema.validate(instance=context_vars, schema=composite_schema)
 
         # 7. STEP 7 (Signal Score AST Calculation Contract Handoff):
         signal_comp_run = ComponentRun.objects.create(
@@ -503,3 +516,57 @@ return round(min(base, 10.0), 2)
         self.assertTrue(default_storage.exists(p2.original_pdf_path))
         self.assertTrue(default_storage.exists(p3.original_pdf_path))
         self.assertEqual(mock_arxiv_download_file.call_count, 3)
+
+    def test_intermediate_extraction_schema_mismatch_resilience(self):
+        """
+        Validates intermediate data resilience when Extraction produces schema mismatches / failures:
+        - Extraction.validation_status transitions to 'fail'.
+        - SignalScoreNode consumer receives clean defaults (0.0) rather than raising KeyError.
+        - The pipeline handoff completes successfully.
+        """
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="doc_mismatch_001",
+            title="Non-compliant quantum paper"
+        )
+        PaperMetric.objects.create(
+            paper=paper,
+            pipeline_run=self.pipeline_run,
+            workspace=self.workspace,
+            screening_status="full_text_passed"
+        )
+
+        # 1. Simulate an extraction with schema failure (missing required exit_metric 'trl_level')
+        Extraction.objects.create(
+            paper=paper,
+            workspace=self.workspace,
+            extraction_definition=self.def_trl,
+            fields_data={"hallucinated_field": 123},
+            validation_status="fail",
+            review_required=True
+        )
+        # 2. Simulate successful extraction for fit_score
+        Extraction.objects.create(
+            paper=paper,
+            workspace=self.workspace,
+            extraction_definition=self.def_fit,
+            fields_data={"fit_score": 6.0},
+            validation_status="pass"
+        )
+
+        # 3. Execute SignalScoreNode job
+        signal_comp_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="signal_score",
+            component_name="signal_scorer",
+            status="pending"
+        )
+        signal_res = execute_signal_score_job(str(signal_comp_run.id))
+        self.assertTrue(signal_res["success"])
+
+        # trl_level defaults to 0.0 (no KeyError). fit_score=6.0.
+        # base = 0.5 * 6.0 + 0.3 * 0.0 + 0.2 * 0.0 = 3.0
+        # min(3.0, 10.0) = 3.0
+        pm = PaperMetric.objects.get(paper=paper, pipeline_run=self.pipeline_run)
+        self.assertEqual(pm.signal_score, 3.0)

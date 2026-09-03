@@ -52,6 +52,7 @@ class SignalScoreNode(BaseWorkflowNode):
     def get_input_params(self, pipeline_run, workspace, config: Dict[str, Any], limit: Optional[int] = None) -> Dict[str, Any]:
         params = super().get_input_params(pipeline_run, workspace, config, limit=limit)
         params.update(workspace.get_signal_score_prompt_snapshot())
+        params["composite_extraction_schema"] = workspace.get_composite_extraction_schema()
         return params
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:

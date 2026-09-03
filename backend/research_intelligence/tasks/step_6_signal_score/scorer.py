@@ -85,6 +85,10 @@ def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -
     extractions = list(paper.extractions.all().select_related('extraction_definition'))
 
     for ext in extractions:
+        # Ignore extractions that failed schema validation so variables retain their safe 0.0 default
+        if ext.validation_status == 'fail':
+            continue
+
         raw_val = ext.exit_metric or ext.get_exit_metric() or ""
         parsed_val = _parse_numeric_value(raw_val)
 

@@ -355,3 +355,63 @@ return round(score * 10.0, 2)
         p_none = ft_node.get_input_params(self.pipeline_run, self.workspace, config={"ocr_provider": ""})
         self.assertEqual(p_none["input_mode"], "multimodal_pdf")
 
+    def test_dynamic_composite_schema_contract_between_extraction_and_signal_score(self):
+        """
+        Validates the dynamic JSON Schema contract connecting ExtractionNode (producer)
+        and SignalScoreNode (consumer):
+        1. Both nodes' get_input_params() provide matching composite_extraction_schema.
+        2. Extraction output data conforms to this composite schema.
+        3. Even if one extraction fails or is missing, SignalScoreNode cleanly defaults it
+           to 0.0 without throwing KeyError.
+        """
+        dag = build_default_slr_dag(workspace=self.workspace)
+        ext_node = dag.nodes["extraction"]
+        sig_node = dag.nodes["signal_score"]
+
+        ext_params = ext_node.get_input_params(self.pipeline_run, self.workspace, {})
+        sig_params = sig_node.get_input_params(self.pipeline_run, self.workspace, {})
+
+        # 1. Both nodes share the exact same dynamic composite extraction schema
+        self.assertIn("composite_extraction_schema", ext_params)
+        self.assertIn("composite_extraction_schema", sig_params)
+        self.assertEqual(ext_params["composite_extraction_schema"], sig_params["composite_extraction_schema"])
+
+        schema = sig_params["composite_extraction_schema"]
+        self.assertEqual(schema["type"], "object")
+        self.assertIn("fit_score", schema["properties"])
+        self.assertIn("trl_level", schema["properties"])
+
+        # 2. Producer produces extractions: fit_score=8.5, trl_level is missing
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="inter_test_p1",
+            title="Quantum Surface Code Implementation"
+        )
+        PaperMetric.objects.create(
+            paper=paper,
+            pipeline_run=self.pipeline_run,
+            workspace=self.workspace,
+            screening_status="full_text_passed"
+        )
+        Extraction.objects.create(
+            paper=paper,
+            workspace=self.workspace,
+            extraction_definition=self.def_fit,
+            fields_data={"fit_score": 8.5},
+            validation_status="pass"
+        )
+
+        from research_intelligence.tasks.step_6_signal_score.scorer import extract_paper_parameters
+        context = extract_paper_parameters(paper, pipeline_run=self.pipeline_run)
+
+        # 3. Consumer receives validated variables with safe defaults (0.0 for missing)
+        self.assertEqual(context["fit_score"], 8.5)
+        self.assertEqual(context["trl_level"], 0.0)
+
+        # 4. Consumer calculates signal score safely
+        score, details = compute_paper_signal_score(paper, pipeline_run=self.pipeline_run)
+        # score = 0.5 * 8.5 + 0.3 * 0.0 + 0.2 * 0.0 = 4.25 -> 4.25 * 10 = 42.5
+        self.assertEqual(score, 42.5)
+        self.assertIsNone(details["error"])
+

@@ -81,6 +81,9 @@ class Extraction(models.Model):
         Dynamically unpacks the exit metric value from fields_data using extraction_definition.exit_metric key
         with smart fallbacks for key variants and scalar values.
         """
+        if self.validation_status == 'fail':
+            return "-"
+
         if self.fields_data and isinstance(self.fields_data, dict):
             data = self.fields_data
             if "fields" in data and isinstance(data["fields"], dict):
