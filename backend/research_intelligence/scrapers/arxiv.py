@@ -242,6 +242,8 @@ class ArxivScraperProvider(BaseScraperProvider):
                     is_withdrawn = True
                     withdrawn_reason = comment_text or "Paper has been withdrawn by authors."
 
+                entry_meta = self._parse_entry_meta(entry)
+
                 results.append({
                     "title": title,
                     "authors": authors,
@@ -252,12 +254,60 @@ class ArxivScraperProvider(BaseScraperProvider):
                     "source_database": "arxiv",
                     "published_date": published,
                     "is_withdrawn": is_withdrawn,
-                    "withdrawn_reason": withdrawn_reason
+                    "withdrawn_reason": withdrawn_reason,
+                    "meta": entry_meta
                 })
             return results
         except Exception as e:
             logger.exception(f"Error parsing arXiv XML response: {str(e)}")
             raise e
+
+    def _parse_entry_meta(self, entry) -> dict:
+        """
+        Converts an arXiv Atom XML <entry> element tree into a clean, complete JSON dictionary.
+        """
+        data = {}
+        authors = []
+        links = []
+        categories = []
+
+        for child in entry:
+            tag = child.tag.split("}")[-1]
+            if tag == "author":
+                author_info = {"name": "", "affiliation": []}
+                for sub in child:
+                    sub_tag = sub.tag.split("}")[-1]
+                    if sub_tag == "name":
+                        author_info["name"] = (sub.text or "").strip()
+                    elif sub_tag == "affiliation":
+                        affil = (sub.text or "").strip()
+                        if affil:
+                            author_info["affiliation"].append(affil)
+                if author_info["name"]:
+                    authors.append(author_info)
+            elif tag == "link":
+                links.append(dict(child.attrib))
+            elif tag == "category":
+                categories.append(dict(child.attrib))
+            elif tag == "primary_category":
+                data["primary_category"] = child.attrib.get("term", "")
+            elif tag == "title":
+                data["title"] = (child.text or "").strip().replace("\n", " ")
+            elif tag == "summary":
+                data["summary"] = (child.text or "").strip()
+            else:
+                text = (child.text or "").strip()
+                if text:
+                    data[tag] = text
+
+        if authors:
+            data["authors"] = authors
+        if links:
+            data["links"] = links
+        if categories:
+            data["categories"] = categories
+
+        return data
 
     def _search_openalex_arxiv_fallback(self, query: str, limit: int = 10) -> list[dict]:
         """
@@ -334,7 +384,8 @@ class ArxivScraperProvider(BaseScraperProvider):
                     "source_database": "arxiv",
                     "published_date": published,
                     "is_withdrawn": False,
-                    "withdrawn_reason": ""
+                    "withdrawn_reason": "",
+                    "meta": item
                 })
             logger.info(f"✅ [ARXIV FALLBACK] Successfully retrieved {len(results)} arXiv papers via OpenAlex index.")
             return results

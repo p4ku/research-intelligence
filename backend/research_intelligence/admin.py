@@ -2315,6 +2315,10 @@ class PaperAdmin(admin.ModelAdmin):
         ('Canonical Document Registry & Local Storage', {
             'fields': ('document_registry', 'original_pdf_path', 'converted_md_path', 'created_at')
         }),
+        ('Source Metadata (meta)', {
+            'fields': ('meta',),
+            'description': 'Raw JSON metadata payload ingested from external repository.'
+        }),
     )
 
     def get_queryset(self, request):
@@ -3218,6 +3222,9 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
 
 @admin.register(DocumentRegistry)
 class DocumentRegistryAdmin(admin.ModelAdmin):
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
     list_display = (
         'title_snippet',
         'doi_display',
@@ -3231,6 +3238,38 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
     search_fields = ('title', 'doi', 'arxiv_id', 'sha256_hash', 'canonical_pdf_path')
     list_filter = ('primary_source', 'ocr_provider', 'first_ingested_at', 'last_accessed_at')
     readonly_fields = ('id', 'sha256_hash', 'first_ingested_at', 'last_accessed_at', 'access_count')
+
+    fieldsets = (
+        ('Document Identity & Core Hashes', {
+            'fields': (
+                'id',
+                'title',
+                'doi',
+                'arxiv_id',
+                'sha256_hash',
+                'primary_source',
+            )
+        }),
+        ('Canonical Storage & Layout Cache', {
+            'fields': (
+                'canonical_pdf_path',
+                'pdf_file_size_bytes',
+                'ocr_provider',
+                'canonical_ocr_md_path',
+            )
+        }),
+        ('Usage & Lifetime Metrics', {
+            'fields': (
+                'access_count',
+                'first_ingested_at',
+                'last_accessed_at',
+            )
+        }),
+        ('Source Metadata (meta)', {
+            'fields': ('meta',),
+            'description': 'Raw JSON metadata payload ingested from external repository (arXiv Atom XML or OpenAlex).'
+        }),
+    )
 
     def changelist_view(self, request, extra_context=None):
         from django.db.models import Sum, Count, Q

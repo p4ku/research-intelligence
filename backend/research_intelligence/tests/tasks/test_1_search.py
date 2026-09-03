@@ -308,6 +308,11 @@ class IngestionSearchTasksTestCase(TestCase):
         self.assertIn("Alice Smith", item["authors"])
         self.assertIn("Bob Jones", item["authors"])
         self.assertEqual(item["pdf_url"], "http://arxiv.org/pdf/2401.12345v1")
+        self.assertIn("meta", item)
+        self.assertEqual(item["meta"]["id"], "http://arxiv.org/abs/2401.12345v1")
+        self.assertEqual(item["meta"]["title"], "Scalable High-Temperature Superconductors")
+        self.assertEqual(len(item["meta"]["authors"]), 2)
+        self.assertEqual(item["meta"]["authors"][0]["name"], "Alice Smith")
 
     @patch("research_intelligence.scrapers.openalex.urllib.request.urlopen")
     def test_openalex_inverted_index_abstract_reconstruction(self, mock_urlopen):
@@ -348,6 +353,8 @@ class IngestionSearchTasksTestCase(TestCase):
 
         self.assertEqual(len(results), 1)
         item = results[0]
+        self.assertIn("meta", item)
+        self.assertEqual(item["meta"]["id"], "https://openalex.org/W2741809807")
         self.assertEqual(item["title"], "Quantum Error Mitigation for NISQ Devices")
         self.assertEqual(item["abstract"], "Quantum error mitigation is critical for NISQ computing.")
         self.assertEqual(item["authors"], "Charlie Brown, Diana Prince")

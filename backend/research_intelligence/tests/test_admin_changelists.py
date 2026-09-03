@@ -386,3 +386,18 @@ class AdminChangelistViewsTestCase(TestCase):
         self.assertContains(response, "white-space: nowrap;")
         self.assertContains(response, "gemini-3.8-flash")
 
+    def test_documentregistry_changeform_renders_meta_field(self):
+        self.doc_registry.meta = {
+            "id": "http://arxiv.org/abs/2608.01939v2",
+            "title": "Oraqle: An Empirical Analysis",
+            "primary_category": "quant-ph",
+            "authors": [{"name": "Emmanouil Giortamis"}]
+        }
+        self.doc_registry.save(update_fields=['meta'])
+
+        url = reverse('admin:research_intelligence_documentregistry_change', args=[self.doc_registry.id])
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Source Metadata (meta)")
+        self.assertContains(response, "http://arxiv.org/abs/2608.01939v2")
+

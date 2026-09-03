@@ -293,3 +293,43 @@ class DocumentRegistryAndCacheTestCase(TestCase):
         self.workspace_b.delete()
         doc_reg.refresh_from_db()
         self.assertEqual(doc_reg.access_count, 1)
+
+    def test_document_registry_meta_propagation_and_cache_reuse(self):
+        """
+        Validates that raw source metadata ('meta') is propagated between
+        Paper and DocumentRegistry upon registration and cache hits.
+        """
+        sample_arxiv_meta = {
+            "id": "http://arxiv.org/abs/2608.01939v2",
+            "title": "Oraqle: An Empirical Analysis of Qubit Readout",
+            "published": "2026-08-03T09:13:15Z",
+            "primary_category": "quant-ph",
+            "authors": [{"name": "Emmanouil Giortamis"}]
+        }
+
+        # 1. Registration copies paper.meta -> doc_reg.meta
+        paper_a = Paper.objects.create(
+            workspace=self.workspace_a,
+            pipeline_run=self.run_a,
+            hash_id="meta_test_001",
+            arxiv_id="2608.01939",
+            title="Oraqle: An Empirical Analysis of Qubit Readout",
+            meta=sample_arxiv_meta
+        )
+        doc_reg = register_document_pdf(paper_a, self.pdf_binary)
+        self.assertEqual(doc_reg.meta, sample_arxiv_meta)
+
+        # 2. Paper B without meta reuses cache -> inherits doc_reg.meta
+        paper_b = Paper.objects.create(
+            workspace=self.workspace_b,
+            pipeline_run=self.run_b,
+            hash_id="meta_test_002",
+            arxiv_id="2608.01939",
+            title="Oraqle: An Empirical Analysis of Qubit Readout",
+            meta={}
+        )
+        target_path = f"workspaces/{self.workspace_b.id}/runs/{self.run_b.id}/documents/meta_test_002/original.pdf"
+        reuse_res = try_reuse_cached_pdf(paper_b, target_path)
+        self.assertIsNotNone(reuse_res)
+        paper_b.refresh_from_db()
+        self.assertEqual(paper_b.meta, sample_arxiv_meta)

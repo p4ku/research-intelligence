@@ -173,9 +173,17 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                         "authors": item.get('authors', ''),
                         "abstract": item.get('abstract', ''),
                         "source_database": item.get('source_database', 'arxiv'),
-                        "original_pdf_path": item.get('pdf_url', '') or item.get('original_pdf_path', '')
+                        "original_pdf_path": item.get('pdf_url', '') or item.get('original_pdf_path', ''),
+                        "meta": item.get('meta') or {}
                     }
                 )
+                if not created and item.get('meta') and not paper.meta:
+                    paper.meta = item.get('meta')
+                    paper.save(update_fields=['meta'])
+                if paper.document_registry and not paper.document_registry.meta and paper.meta:
+                    paper.document_registry.meta = paper.meta
+                    paper.document_registry.save(update_fields=['meta'])
+
                 PaperMetric.objects.get_or_create(
                     paper=paper,
                     pipeline_run=pipeline_run,

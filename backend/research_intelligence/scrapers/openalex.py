@@ -71,7 +71,8 @@ class OpenAlexScraperProvider(BaseScraperProvider):
                     "pdf_url": pdf_url,
                     "other_url": other_url,
                     "source_database": "openalex",
-                    "published_date": published
+                    "published_date": published,
+                    "meta": item
                 })
             return results
         except Exception as e:

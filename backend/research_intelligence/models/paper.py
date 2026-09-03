@@ -31,6 +31,13 @@ class DocumentRegistry(models.Model):
     first_ingested_at = models.DateTimeField(auto_now_add=True)
     last_accessed_at = models.DateTimeField(auto_now=True)
 
+    # Raw Source Metadata
+    meta = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Raw source repository metadata payload (JSON e.g. from arXiv Atom XML or OpenAlex)"
+    )
+
     class Meta:
         app_label = 'research_intelligence'
         ordering = ['-last_accessed_at', '-id']
@@ -162,6 +169,13 @@ class Paper(models.Model):
     source_database = models.CharField(max_length=50, help_text="arxiv, openalex, or lens")
     original_pdf_path = models.CharField(max_length=512, blank=True, null=True, help_text="S3 key of original PDF")
     converted_md_path = models.CharField(max_length=512, blank=True, null=True, help_text="S3 key of layout Markdown")
+    
+    # Raw Source Metadata
+    meta = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Raw source repository metadata payload (JSON e.g. from arXiv Atom XML or OpenAlex)"
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -55,7 +55,8 @@ def register_document_pdf(paper: Paper, file_bytes: bytes, run_storage_path: str
             "primary_source": paper.source_database or "arxiv",
             "canonical_pdf_path": canonical_cache_path,
             "pdf_file_size_bytes": len(file_bytes),
-            "access_count": 1
+            "access_count": 1,
+            "meta": paper.meta or {}
         }
     )
 
@@ -71,6 +72,9 @@ def register_document_pdf(paper: Paper, file_bytes: bytes, run_storage_path: str
         if paper.arxiv_id and not doc_reg.arxiv_id:
             doc_reg.arxiv_id = paper.arxiv_id
             updates.append("arxiv_id")
+        if paper.meta and not doc_reg.meta:
+            doc_reg.meta = paper.meta
+            updates.append("meta")
         if paper.document_registry_id != doc_reg.id:
             doc_reg.access_count = F('access_count') + 1
             updates.append("access_count")
@@ -78,9 +82,13 @@ def register_document_pdf(paper: Paper, file_bytes: bytes, run_storage_path: str
             doc_reg.save(update_fields=updates)
             doc_reg.refresh_from_db(fields=['access_count'])
 
-    # Link Paper instance
+    # Link Paper instance and sync meta if needed
     paper.document_registry = doc_reg
-    paper.save(update_fields=['document_registry'])
+    paper_updates = ['document_registry']
+    if not paper.meta and doc_reg.meta:
+        paper.meta = doc_reg.meta
+        paper_updates.append('meta')
+    paper.save(update_fields=paper_updates)
     return doc_reg
 
 
@@ -105,7 +113,14 @@ def try_reuse_cached_pdf(paper: Paper, target_path: str, title_snippet: str = ""
                 saved_path = default_storage.save(target_path, ContentFile(file_bytes))
                 paper.original_pdf_path = saved_path
                 paper.document_registry = doc_reg
-                paper.save(update_fields=['original_pdf_path', 'document_registry'])
+                paper_fields = ['original_pdf_path', 'document_registry']
+                if not paper.meta and doc_reg.meta:
+                    paper.meta = doc_reg.meta
+                    paper_fields.append('meta')
+                elif paper.meta and not doc_reg.meta:
+                    doc_reg.meta = paper.meta
+                    doc_reg.save(update_fields=['meta'])
+                paper.save(update_fields=paper_fields)
 
                 # Increment registry access count
                 DocumentRegistry.objects.filter(pk=doc_reg.pk).update(access_count=F('access_count') + 1)
