@@ -110,7 +110,10 @@ yarn-error.log*
 *.log
 docker-compose.override.yml
 *.pdf
-prototype/tmp/
+# Temporary directory (local scratchpad / slide exports)
+/tmp/
+tmp/
+
 prototype/paper.md
 celerybeat-schedule
 celerybeat-schedule.db

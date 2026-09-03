@@ -537,13 +537,13 @@ score = clamp(trl_val) * 0.5 + 4.0
         self.assertIn("abstract_screening", pm.metrics_data)
         self.assertIn("full_text_screening", pm.metrics_data)
 
-        # 4. REST API Serializer returns both reasonings
+        # 4. REST API Serializer returns both reasonings plus screening_reasoning for frontend compatibility
         from api.serializers.papers import PaperSerializer, PaperMetricSerializer
         ser = PaperSerializer(self.paper_1, context={"pipeline_run": str(self.run_a1.id)})
         data = ser.data
         self.assertEqual(data["abstract_screening_reasoning"], "Abstract clearly addresses fault-tolerant syndrome decoding.")
         self.assertEqual(data["full_text_screening_reasoning"], "Full text proves physical threshold p < 1.2% on simulated grid.")
-        self.assertNotIn("screening_reasoning", data)
+        self.assertEqual(data["screening_reasoning"], "Full text proves physical threshold p < 1.2% on simulated grid.")
 
         metric_ser = PaperMetricSerializer(pm)
         self.assertEqual(metric_ser.data["abstract_screening_reasoning"], "Abstract clearly addresses fault-tolerant syndrome decoding.")

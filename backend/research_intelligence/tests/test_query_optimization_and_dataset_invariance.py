@@ -205,6 +205,45 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
         for item in data_acc:
             self.assertEqual(item["screening_status"], "accepted")
 
+    def test_api_papers_endpoint_latest_run_and_reasoning(self):
+        """
+        Validates that:
+        1. /api/papers/ returns bare array with 'screening_reasoning', 'pipeline_run', 'pipeline_run_id'.
+        2. If pipeline_run is not specified, backend resolves to latest valid pipeline run.
+        3. /api/papers/?pipeline_run=latest resolves correctly.
+        4. /api/workspaces/{id}/papers/ returns workspace papers.
+        """
+        resp = self.client.get("/api/papers/")
+        self.assertEqual(resp.status_code, 200)
+        papers_data = resp.json()
+        self.assertIsInstance(papers_data, list)
+        self.assertTrue(len(papers_data) > 0)
+
+        for p in papers_data:
+            self.assertIn("screening_reasoning", p)
+            self.assertIn("pipeline_run", p)
+            self.assertIn("pipeline_run_id", p)
+            self.assertIn("run_id", p)
+            # pipeline_run must resolve to a valid UUID string
+            self.assertIsNotNone(p["pipeline_run"])
+            import uuid
+            self.assertTrue(uuid.UUID(str(p["pipeline_run"])))
+
+        # Test pipeline_run=latest parameter
+        resp_latest = self.client.get(f"/api/papers/?workspace_id={self.workspace.id}&pipeline_run=latest")
+        self.assertEqual(resp_latest.status_code, 200)
+        latest_data = resp_latest.json()
+        data_list = latest_data["results"] if isinstance(latest_data, dict) and "results" in latest_data else latest_data
+        self.assertEqual(len(data_list), 10)
+        for item in data_list:
+            self.assertEqual(item["pipeline_run"], str(self.run_2.id))
+
+        # Test /api/workspaces/{id}/papers/
+        resp_ws_papers = self.client.get(f"/api/workspaces/{self.workspace.id}/papers/")
+        self.assertEqual(resp_ws_papers.status_code, 200)
+        ws_papers = resp_ws_papers.json()
+        self.assertEqual(len(ws_papers), 15)
+
     def test_mcp_extractions_matrix_dataset_invariance(self):
         """
         Verify that get_paper_extractions_matrix_logic returns exact papers and aggregated scores.

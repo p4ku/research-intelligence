@@ -65,10 +65,34 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
         if pipeline_run_id and str(pipeline_run_id).lower() not in ('undefined', 'null', ''):
             import uuid
             from django.db.models import Prefetch
-            try:
-                pr_uuid = uuid.UUID(str(pipeline_run_id))
-            except (ValueError, TypeError):
-                return qs.none()
+            if str(pipeline_run_id).lower() == 'latest':
+                from research_intelligence.models import PipelineRun
+                run_filter = {}
+                if ws_id and str(ws_id).lower() not in ('undefined', 'null', ''):
+                    run_filter['workspace_id'] = ws_id
+                elif not getattr(user, 'is_superuser', False):
+                    run_filter['workspace_id__in'] = user_ws_ids
+                latest_run = (
+                    PipelineRun.objects.filter(**run_filter)
+                    .exclude(status__in=['failed', 'aborted'])
+                    .order_by('-started_at', '-id')
+                    .first()
+                )
+                if not latest_run:
+                    latest_run = (
+                        PipelineRun.objects.filter(**run_filter)
+                        .order_by('-started_at', '-id')
+                        .first()
+                    )
+                if latest_run:
+                    pr_uuid = latest_run.id
+                else:
+                    return qs.none()
+            else:
+                try:
+                    pr_uuid = uuid.UUID(str(pipeline_run_id))
+                except (ValueError, TypeError):
+                    return qs.none()
 
             filter_kwargs = {'metrics__pipeline_run_id': pr_uuid}
             if screening_status:
@@ -185,11 +209,35 @@ class PaperMetricViewSet(viewsets.ReadOnlyModelViewSet):
             if str(pr_id).lower() in ('undefined', 'null', ''):
                 return qs.none()
             import uuid
-            try:
-                pr_uuid = uuid.UUID(str(pr_id))
-                qs = qs.filter(pipeline_run_id=pr_uuid)
-            except (ValueError, TypeError):
-                return qs.none()
+            if str(pr_id).lower() == 'latest':
+                from research_intelligence.models import PipelineRun
+                run_filter = {}
+                if ws_id and str(ws_id).lower() not in ('undefined', 'null', ''):
+                    run_filter['workspace_id'] = ws_id
+                elif not getattr(user, 'is_superuser', False):
+                    run_filter['workspace_id__in'] = user_ws_ids
+                latest_run = (
+                    PipelineRun.objects.filter(**run_filter)
+                    .exclude(status__in=['failed', 'aborted'])
+                    .order_by('-started_at', '-id')
+                    .first()
+                )
+                if not latest_run:
+                    latest_run = (
+                        PipelineRun.objects.filter(**run_filter)
+                        .order_by('-started_at', '-id')
+                        .first()
+                    )
+                if latest_run:
+                    qs = qs.filter(pipeline_run_id=latest_run.id)
+                else:
+                    return qs.none()
+            else:
+                try:
+                    pr_uuid = uuid.UUID(str(pr_id))
+                    qs = qs.filter(pipeline_run_id=pr_uuid)
+                except (ValueError, TypeError):
+                    return qs.none()
 
         paper_id = self.request.query_params.get('paper') or self.request.query_params.get('paper_id')
         if paper_id:

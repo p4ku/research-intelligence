@@ -1,4 +1,5 @@
 from rest_framework import viewsets, permissions
+from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from drf_spectacular.utils import extend_schema
 from research_intelligence.models import Workspace, WorkspaceMember, ExtractionDefinition
@@ -72,6 +73,34 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             logging.getLogger(__name__).warning(f"Could not purge workspace storage directory: {e}")
 
         instance.delete()
+
+    @extend_schema(
+        tags=['Workspaces Management', 'Literature & Papers'],
+        description="List papers ingested into this workspace, optionally filtered by pipeline_run or screening_status.",
+    )
+    @action(detail=True, methods=['get'], url_path='papers')
+    def papers(self, request, pk=None):
+        workspace = self.get_object()
+        from ..views.papers import PaperViewSet
+        from ..serializers.papers import PaperSerializer
+        from rest_framework.response import Response
+
+        paper_view = PaperViewSet()
+        paper_view.request = request
+        paper_view.format_kwarg = None
+
+        # Scope query to this workspace
+        q_params = request.query_params.copy()
+        q_params['workspace'] = str(workspace.id)
+        request._request.GET = q_params
+
+        qs = paper_view.get_queryset().filter(workspace=workspace)
+        page = paper_view.paginate_queryset(qs)
+        if page is not None:
+            serializer = PaperSerializer(page, many=True, context={'request': request, 'workspace': workspace})
+            return paper_view.get_paginated_response(serializer.data)
+        serializer = PaperSerializer(qs, many=True, context={'request': request, 'workspace': workspace})
+        return Response(serializer.data)
 
 
 @extend_schema(tags=['Extraction Definitions'])
