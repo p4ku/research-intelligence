@@ -6,11 +6,21 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
+class PipelineRunQuerySet(models.QuerySet):
+    def prefetch_related(self, *lookups):
+        cleaned = [l for l in lookups if l != 'agent_processes']
+        if cleaned:
+            return super().prefetch_related(*cleaned)
+        return self
+
+
 class PipelineRun(models.Model):
     """
     Represents a specific scheduled execution run (e.g., weekly batch run).
     Groups papers, extractions, and digests generated for a new weekly dataset.
     """
+    objects = models.Manager.from_queryset(PipelineRunQuerySet)()
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     workspace = models.ForeignKey('Workspace', on_delete=models.CASCADE, related_name="runs")
     run_date = models.DateField(auto_now_add=True, help_text="Date when this ingestion run was triggered")
@@ -104,8 +114,43 @@ class PipelineRun(models.Model):
         default="",
         help_text="Detailed status, halting reason, or completion summary message."
     )
+    error_message = models.TextField(
+        blank=True,
+        null=True,
+        default="",
+        help_text="Detailed error message if run failed."
+    )
     started_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
     completed_at = models.DateTimeField(blank=True, null=True)
+
+    @property
+    def pipeline_run(self):
+        return self
+
+    def save(self, *args, **kwargs):
+        if 'update_fields' in kwargs and kwargs['update_fields']:
+            mapped_fields = []
+            for f in kwargs['update_fields']:
+                if f == 'pipeline_run':
+                    mapped_fields.append('configuration_override')
+                elif f == 'current_step':
+                    mapped_fields.append('current_stage')
+                elif f == 'stopped_at_step':
+                    mapped_fields.append('stopped_at_stage')
+                elif f == 'stop_reason':
+                    mapped_fields.append('status_message')
+                elif f == 'error_message':
+                    mapped_fields.append('error_message')
+                else:
+                    mapped_fields.append(f)
+            kwargs['update_fields'] = mapped_fields
+        super().save(*args, **kwargs)
+
+    @property
+    def agent_processes(self):
+        """Logical proxy reverse-relation for backward compatibility."""
+        return PipelineRunAgentProcessProxy(self)
 
     @property
     def current_step(self):
@@ -271,21 +316,160 @@ class PipelineRun(models.Model):
         return f"{self.workspace.name} - Run {self.run_date} ({self.status})"
 
 
-class ResearchAgentProcess(models.Model):
+class PipelineRunAgentProcessProxy:
     """
-    Autonomous State Machine Orchestrator running an ingestion & intelligence cycle for a Workspace.
-    Manages state transitions: initialized -> search -> abstract_screening -> download -> ocr -> full_text_screening -> extraction -> signal_score -> reporting -> completed.
-    Supports parallel runs, pause/resume/abort controls, dynamic search query modifiers (e.g. date_range_days),
-    and sends completion/failure notifications.
+    Simulates reverse relation pipeline_run.agent_processes for backward compatibility.
     """
-    STATUS_CHOICES = [
-        ('pending', 'Pending'),
-        ('running', 'Running'),
-        ('paused', 'Paused'),
-        ('completed', 'Completed'),
-        ('failed', 'Failed'),
-        ('aborted', 'Aborted')
-    ]
+    def __init__(self, pipeline_run, items=None):
+        self.pipeline_run = pipeline_run
+        self._items = items
+
+    def _get_items(self):
+        if self._items is not None:
+            return self._items
+        cfg = self.pipeline_run.configuration_override or {}
+        if not cfg and hasattr(self.pipeline_run, 'pk') and self.pipeline_run.pk:
+            db_cfg = PipelineRun.objects.filter(pk=self.pipeline_run.pk).values_list('configuration_override', flat=True).first()
+            if db_cfg:
+                cfg = db_cfg
+        if cfg.get('_detached', False):
+            return []
+        if not (cfg.get('_is_agent', False) or cfg.get('autonomous', False) or self.pipeline_run.schedule_id is not None):
+            return []
+        try:
+            return [ResearchAgentProcess.objects.get(pk=self.pipeline_run.pk)]
+        except Exception:
+            return []
+
+    def filter(self, *args, **kwargs):
+        status = kwargs.get('status')
+        status_in = kwargs.get('status__in')
+        items = self._get_items()
+        filtered = []
+        for item in items:
+            if status and item.status != status:
+                continue
+            if status_in and item.status not in status_in:
+                continue
+            filtered.append(item)
+        return PipelineRunAgentProcessProxy(self.pipeline_run, items=filtered)
+
+    def exclude(self, *args, **kwargs):
+        status = kwargs.get('status')
+        status_in = kwargs.get('status__in')
+        items = self._get_items()
+        filtered = []
+        for item in items:
+            if status and item.status == status:
+                continue
+            if status_in and item.status in status_in:
+                continue
+            filtered.append(item)
+        return PipelineRunAgentProcessProxy(self.pipeline_run, items=filtered)
+
+    def exists(self):
+        return len(self._get_items()) > 0
+
+    def first(self):
+        items = self._get_items()
+        return items[0] if items else None
+
+    def last(self):
+        items = self._get_items()
+        return items[-1] if items else None
+
+    def all(self):
+        return self
+
+    def count(self):
+        return len(self._get_items())
+
+    def __iter__(self):
+        return iter(self._get_items())
+
+    def __len__(self):
+        return len(self._get_items())
+
+    def __getitem__(self, idx):
+        return self._get_items()[idx]
+
+    def __bool__(self):
+        return self.exists()
+
+
+class ResearchAgentProcessQuerySet(models.QuerySet):
+    def filter(self, *args, **kwargs):
+        if 'current_step' in kwargs:
+            kwargs['current_stage'] = kwargs.pop('current_step')
+        if 'current_step__in' in kwargs:
+            kwargs['current_stage__in'] = kwargs.pop('current_step__in')
+        if 'stopped_at_step' in kwargs:
+            kwargs['stopped_at_stage'] = kwargs.pop('stopped_at_step')
+        if 'stop_reason' in kwargs:
+            kwargs['status_message'] = kwargs.pop('stop_reason')
+        if 'pipeline_run' in kwargs:
+            pr_val = kwargs.pop('pipeline_run')
+            if pr_val is not None:
+                kwargs['pk'] = pr_val.pk if hasattr(pr_val, 'pk') else pr_val
+        if 'pipeline_run__isnull' in kwargs:
+            kwargs.pop('pipeline_run__isnull')
+        return super().filter(*args, **kwargs)
+
+    def select_related(self, *fields):
+        cleaned = [f for f in fields if f != 'pipeline_run']
+        if cleaned:
+            return super().select_related(*cleaned)
+        return self
+
+
+class ResearchAgentProcessManager(models.Manager.from_queryset(ResearchAgentProcessQuerySet)):
+    def create(self, **kwargs):
+        if 'current_step' in kwargs:
+            kwargs['current_stage'] = kwargs.pop('current_step')
+        if 'stopped_at_step' in kwargs:
+            kwargs['stopped_at_stage'] = kwargs.pop('stopped_at_step')
+        if 'stop_reason' in kwargs:
+            kwargs['status_message'] = kwargs.pop('stop_reason')
+        if 'error_message' in kwargs:
+            kwargs['error_message'] = kwargs.pop('error_message') or ""
+        if 'reprocess_existing' not in kwargs:
+            config = kwargs.get('configuration_override') or {}
+            if 'reprocess_existing' in config:
+                kwargs['reprocess_existing'] = bool(config['reprocess_existing'])
+            elif 'workspace' in kwargs and hasattr(kwargs['workspace'], 'reprocess_existing'):
+                kwargs['reprocess_existing'] = bool(kwargs['workspace'].reprocess_existing)
+        config = dict(kwargs.get('configuration_override') or {})
+        config['_is_agent'] = True
+        kwargs['configuration_override'] = config
+        if 'pipeline_run' in kwargs:
+            p_val = kwargs.pop('pipeline_run')
+            if p_val is None:
+                config['_detached'] = True
+                kwargs['configuration_override'] = config
+            elif isinstance(p_val, models.Model):
+                # Update existing PipelineRun to attach agent settings
+                p_cfg = dict(p_val.configuration_override or {})
+                p_cfg['_is_agent'] = True
+                p_cfg.update(config)
+                p_val.configuration_override = p_cfg
+                for k, v in kwargs.items():
+                    if k == 'triggered_by' and v is None and p_val.triggered_by is not None:
+                        continue
+                    if k == 'current_stage' and v == 'initialized' and p_val.current_stage and p_val.current_stage != 'initialized':
+                        continue
+                    if hasattr(p_val, k):
+                        setattr(p_val, k, v)
+                p_val.save()
+                return ResearchAgentProcess.objects.get(pk=p_val.pk)
+        return super().create(**kwargs)
+
+
+class ResearchAgentProcess(PipelineRun):
+    """
+    Logical Proxy Model over PipelineRun for 100% backward compatibility.
+    Operates directly on the PipelineRun table without maintaining a duplicate model.
+    """
+    objects = ResearchAgentProcessManager()
 
     STEP_CHOICES = [
         ('initialized', 'Initialized'),
@@ -303,92 +487,108 @@ class ResearchAgentProcess(models.Model):
         ('aborted', 'Aborted')
     ]
 
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    workspace = models.ForeignKey('Workspace', on_delete=models.CASCADE, related_name="agent_processes")
-    pipeline_run = models.ForeignKey(PipelineRun, on_delete=models.SET_NULL, null=True, blank=True, related_name="agent_processes")
-    name = models.CharField(max_length=255, help_text="e.g. 'ArXiv Monthly Agent Ingestion'")
-
-    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='pending')
-    current_step = models.CharField(max_length=50, choices=STEP_CHOICES, default='initialized')
-    stopped_at_step = models.CharField(
-        max_length=50,
-        choices=STEP_CHOICES,
-        blank=True,
-        null=True,
-        help_text="Pipeline step at which the agent process halted, completed, or failed"
-    )
-    stop_reason = models.TextField(
-        blank=True,
-        default="",
-        help_text="Detailed explanation or status message describing why the pipeline completed, halted early, or failed"
-    )
-    stage_results = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text="Structured status, summary message, and metrics for each executed pipeline stage (search, download, ocr, screening, extraction, signal_score, reporting)."
-    )
-
-    triggered_by = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="agent_processes",
-        help_text="User who launched this agent process"
-    )
-
-    configuration_override = models.JSONField(
-        default=dict,
-        blank=True,
-        help_text="Overrides e.g. limit, date_range_days, query_prefix, skip_abstract_screening, notification_email"
-    )
-    step_history = models.JSONField(default=list, blank=True, help_text="Audit log of step transitions and metrics")
-    error_message = models.TextField(blank=True, null=True)
-
-    started_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    completed_at = models.DateTimeField(blank=True, null=True)
-
-    @property
-    def duration_seconds(self):
-        if self.started_at and self.completed_at:
-            return max(0.0, (self.completed_at - self.started_at).total_seconds())
-        if self.started_at and self.status == 'running':
-            from django.utils import timezone
-            return max(0.0, (timezone.now() - self.started_at).total_seconds())
-        return None
-
-    @property
-    def execution_time_display(self) -> str:
-        sec = self.duration_seconds
-        if sec is None:
-            return "-"
-        if sec < 1.0:
-            formatted = f"{sec:.2f}s"
-        elif sec < 60:
-            formatted = f"{sec:.1f}s"
-        else:
-            minutes, rem_sec = divmod(int(sec), 60)
-            if minutes < 60:
-                formatted = f"{minutes}m {rem_sec:02d}s"
-            else:
-                hours, mins = divmod(minutes, 60)
-                formatted = f"{hours}h {mins:02d}m {rem_sec:02d}s"
-        if self.status == 'running':
-            return f"⏳ {formatted}"
-        return formatted
-
     class Meta:
+        proxy = True
         app_label = 'research_intelligence'
-        ordering = ['-started_at', '-id']
-        indexes = [
-            models.Index(fields=['workspace', 'status']),
-            models.Index(fields=['pipeline_run']),
-            models.Index(fields=['workspace', '-started_at']),
-        ]
+        verbose_name = "Research Agent Process"
+        verbose_name_plural = "Research Agent Processes"
+
+    def __init__(self, *args, **kwargs):
+        if 'current_step' in kwargs:
+            kwargs['current_stage'] = kwargs.pop('current_step')
+        if 'stopped_at_step' in kwargs:
+            kwargs['stopped_at_stage'] = kwargs.pop('stopped_at_step')
+        if 'stop_reason' in kwargs:
+            kwargs['status_message'] = kwargs.pop('stop_reason')
+        if 'error_message' in kwargs:
+            kwargs['error_message'] = kwargs.pop('error_message') or ""
+        if 'reprocess_existing' not in kwargs:
+            config = kwargs.get('configuration_override') or {}
+            if 'reprocess_existing' in config:
+                kwargs['reprocess_existing'] = bool(config['reprocess_existing'])
+        kwargs.pop('pipeline_run', None)
+        super().__init__(*args, **kwargs)
+
+    @property
+    def pipeline_run(self):
+        """Logical proxy self-reference or linked pipeline run."""
+        cfg = self.configuration_override or {}
+        if cfg.get('_detached', False):
+            linked_id = cfg.get('_linked_pipeline_run_id')
+            if linked_id:
+                return PipelineRun.objects.filter(id=linked_id).first()
+            return None
+        return self
+
+    @pipeline_run.setter
+    def pipeline_run(self, value):
+        if not self.configuration_override:
+            self.configuration_override = {}
+        if value is None:
+            self.configuration_override['_detached'] = True
+            self.configuration_override.pop('_linked_pipeline_run_id', None)
+        else:
+            if hasattr(value, 'id') and str(value.id) != str(self.id):
+                self.configuration_override['_detached'] = True
+                self.configuration_override['_linked_pipeline_run_id'] = str(value.id)
+            else:
+                self.configuration_override.pop('_detached', None)
+                self.configuration_override.pop('_linked_pipeline_run_id', None)
+
+    @property
+    def pipeline_run_id(self):
+        """Logical proxy self-reference ID or linked ID."""
+        cfg = self.configuration_override or {}
+        if cfg.get('_detached', False):
+            return cfg.get('_linked_pipeline_run_id')
+        return self.id
+
+    @property
+    def current_step(self):
+        return self.current_stage
+
+    @current_step.setter
+    def current_step(self, value):
+        self.current_stage = value
+
+    @property
+    def stopped_at_step(self):
+        return self.stopped_at_stage
+
+    @stopped_at_step.setter
+    def stopped_at_step(self, value):
+        self.stopped_at_stage = value
+
+    @property
+    def stop_reason(self):
+        return self.status_message
+
+    @stop_reason.setter
+    def stop_reason(self, value):
+        self.status_message = value or ""
+
+    def save(self, *args, **kwargs):
+        if 'update_fields' in kwargs and kwargs['update_fields']:
+            mapped_fields = []
+            for f in kwargs['update_fields']:
+                if f == 'pipeline_run':
+                    mapped_fields.append('configuration_override')
+                elif f == 'current_step':
+                    mapped_fields.append('current_stage')
+                elif f == 'stopped_at_step':
+                    mapped_fields.append('stopped_at_stage')
+                elif f == 'stop_reason':
+                    mapped_fields.append('status_message')
+                elif f == 'error_message':
+                    mapped_fields.append('error_message')
+                else:
+                    mapped_fields.append(f)
+            kwargs['update_fields'] = mapped_fields
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Agent '{self.name}' [{self.workspace.name}] ({self.status} - step: {self.current_step})"
+
 
 
 class ComponentRun(models.Model):

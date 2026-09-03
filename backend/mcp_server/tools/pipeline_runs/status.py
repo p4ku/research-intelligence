@@ -441,10 +441,10 @@ def list_pipeline_runs_logic(user, workspace_id: str = None, limit: int = 20) ->
         workspace, membership, error = check_workspace_access(user, workspace_id)
         if error:
             return json.dumps({"status": "error", "error": error}, indent=2)
-        runs_qs = PipelineRun.objects.filter(workspace=workspace).select_related('workspace', 'triggered_by').prefetch_related('component_runs', 'agent_processes').order_by('-started_at')
+        runs_qs = PipelineRun.objects.filter(workspace=workspace).select_related('workspace', 'triggered_by').prefetch_related('component_runs').order_by('-started_at')
     else:
         accessible_ws = Workspace.objects.filter(memberships__user=user)
-        runs_qs = PipelineRun.objects.filter(workspace__in=accessible_ws).select_related('workspace', 'triggered_by').prefetch_related('component_runs', 'agent_processes').order_by('-started_at')
+        runs_qs = PipelineRun.objects.filter(workspace__in=accessible_ws).select_related('workspace', 'triggered_by').prefetch_related('component_runs').order_by('-started_at')
 
     runs = list(runs_qs[:limit]) if limit else list(runs_qs)
     result = []

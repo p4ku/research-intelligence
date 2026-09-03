@@ -2,7 +2,7 @@ import logging
 from django.db.models.signals import post_delete, post_save, pre_delete
 from django.db.models import Count, Q
 from django.dispatch import receiver
-from .models import Paper, DocumentRegistry, PipelineRun, ResearchAgentProcess, WorkflowSchedule
+from .models import Paper, DocumentRegistry, PipelineRun, WorkflowSchedule
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +63,10 @@ def on_paper_deleted_decrement_registry(sender, instance, **kwargs):
 from django.db.models import Q
 
 
+from research_intelligence.models.pipeline import ResearchAgentProcess
+
 @receiver(post_save, sender=PipelineRun)
+@receiver(post_save, sender=ResearchAgentProcess)
 def on_pipeline_run_status_changed_update_schedules(sender, instance, **kwargs):
     """
     Observer pattern: Reacts to PipelineRun status transitions (running -> completed, failed, aborted)
@@ -110,34 +113,4 @@ def on_pipeline_run_status_changed_update_schedules(sender, instance, **kwargs):
             )
     except Exception as e:
         logger.warning(f"Error updating WorkflowSchedule from PipelineRun observer: {e}")
-
-
-@receiver(post_save, sender=ResearchAgentProcess)
-def on_agent_process_status_changed_update_schedules(sender, instance, **kwargs):
-    """
-    Observer pattern: Reacts to ResearchAgentProcess status transitions and updates
-    any WorkflowSchedule records observing its associated PipelineRun.
-    """
-    if not instance.pipeline_run_id:
-        return
-    try:
-        p_run = PipelineRun.objects.filter(id=instance.pipeline_run_id).only('id', 'schedule_id').first()
-        query = Q(last_pipeline_run_id=instance.pipeline_run_id)
-        if p_run and p_run.schedule_id:
-            query |= Q(id=p_run.schedule_id)
-
-        schedules = list(WorkflowSchedule.objects.filter(query).distinct())
-        if not schedules:
-            return
-
-        target_status = instance.status
-        for schedule in schedules:
-            if schedule.last_status != target_status:
-                WorkflowSchedule.objects.filter(id=schedule.id).update(last_status=target_status)
-                logger.info(
-                    f"🔄 [SCHEDULE OBSERVER] ResearchAgentProcess '{instance.id}' status '{target_status}' "
-                    f"observed -> updated WorkflowSchedule '{schedule.name}' last_status: '{schedule.last_status}' -> '{target_status}'"
-                )
-    except Exception as e:
-        logger.warning(f"Error updating WorkflowSchedule from ResearchAgentProcess observer: {e}")
 

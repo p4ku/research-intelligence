@@ -128,7 +128,7 @@ class PipelineRunner:
                 pending_runs = pipeline_run.component_runs.filter(status__in=['pending', 'running'])
                 if not pending_runs.exists() and pipeline_run.component_runs.filter(status='completed').exists():
                     last_comp = pipeline_run.component_runs.order_by('-completed_at', '-id').first()
-                    if last_comp and last_comp.step_type in ['signal_score', 'extraction', 'reporting']:
+                    if last_comp and last_comp.step_type in ['reporting']:
                         pipeline_run.status = 'completed'
                         pipeline_run.current_stage = 'completed'
                         if not pipeline_run.completed_at:
@@ -257,43 +257,22 @@ class ResearchAgentRunner:
             config = process.configuration_override or {}
             history = list(process.step_history or [])
 
-            # State: INITIALIZED -> Initialize PipelineRun if not already attached
-            if not process.pipeline_run:
-                reprocess_existing = config.get("reprocess_existing", getattr(workspace, "reprocess_existing", False))
-                pipeline_run = PipelineRun.objects.create(
-                    workspace=workspace,
-                    name=process.name or f"Pipeline Run for Agent {process.id}",
-                    status='running',
-                    current_stage='search',
-                    reprocess_existing=reprocess_existing,
-                    triggered_by=process.triggered_by,
-                    configuration_override=config
-                )
-                process.pipeline_run = pipeline_run
+            # State: INITIALIZED -> Transition to search
+            if process.current_step == 'initialized':
                 process.status = 'running'
                 process.current_step = 'search'
-
+                if config.get("reprocess_existing") and not process.reprocess_existing:
+                    process.reprocess_existing = True
                 history.append({
                     "step": "search",
                     "event": "started",
-                    "pipeline_run_id": str(pipeline_run.id),
+                    "pipeline_run_id": str(process.id),
                     "timestamp": timezone.now().isoformat()
                 })
                 process.step_history = history
-                process.save(update_fields=['pipeline_run', 'status', 'current_step', 'step_history', 'updated_at'])
-            elif process.current_step == 'initialized':
-                process.status = 'running'
-                process.current_step = 'search'
-                history.append({
-                    "step": "search",
-                    "event": "started",
-                    "pipeline_run_id": str(process.pipeline_run.id),
-                    "timestamp": timezone.now().isoformat()
-                })
-                process.step_history = history
-                process.save(update_fields=['status', 'current_step', 'step_history', 'updated_at'])
+                process.save(update_fields=['status', 'current_stage', 'reprocess_existing', 'step_history', 'updated_at'])
 
-            return PipelineRunner.tick(process.pipeline_run, agent_process=process)
+            return PipelineRunner.tick(process, agent_process=process)
 
     @classmethod
     def handle_component_completion(cls, pipeline_run_id_or_obj):

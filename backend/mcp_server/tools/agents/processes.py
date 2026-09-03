@@ -679,19 +679,8 @@ def pause_research_agent_logic(user, process_id: str) -> str:
     if process.status != 'running':
         return json.dumps({"status": "error", "error": f"Agent process is in status '{process.status}' and cannot be paused."}, indent=2)
 
-    process.status = 'paused'
-    history = process.step_history or []
-    history.append({
-        "step": process.current_step,
-        "event": "paused",
-        "timestamp": timezone.now().isoformat()
-    })
-    process.step_history = history
-    process.save(update_fields=['status', 'step_history', 'updated_at'])
-
-    # Synchronize underlying PipelineRun
-    if process.pipeline_run and process.pipeline_run.status in ['running', 'pending']:
-        process.pipeline_run.pause(reason=f"Paused via AgentProcess '{process.id}'")
+    process.pause(reason=f"Paused via AgentProcess '{process.id}'")
+    process.refresh_from_db()
 
     return json.dumps({
         "status": "success",
@@ -708,7 +697,7 @@ def resume_research_agent_logic(user, process_id: str) -> str:
     """
     try:
         p_uuid = uuid.UUID(process_id)
-        process = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').get(id=p_uuid)
+        process = ResearchAgentProcess.objects.select_related('workspace').get(id=p_uuid)
     except (ValueError, ResearchAgentProcess.DoesNotExist):
         return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
@@ -719,29 +708,7 @@ def resume_research_agent_logic(user, process_id: str) -> str:
     if process.status != 'paused':
         return json.dumps({"status": "error", "error": f"Agent process is in status '{process.status}' and cannot be resumed."}, indent=2)
 
-    process.status = 'running'
-    history = process.step_history or []
-    history.append({
-        "step": process.current_step,
-        "event": "resumed",
-        "timestamp": timezone.now().isoformat()
-    })
-    process.step_history = history
-    process.save(update_fields=['status', 'step_history', 'updated_at'])
-
-    # Synchronize underlying PipelineRun
-    if process.pipeline_run and process.pipeline_run.status == 'paused':
-        process.pipeline_run.status = 'running'
-        pr_history = list(process.pipeline_run.step_history or [])
-        pr_history.append({
-            "step": process.pipeline_run.current_stage,
-            "event": "resumed",
-            "timestamp": timezone.now().isoformat()
-        })
-        process.pipeline_run.step_history = pr_history
-        process.pipeline_run.save(update_fields=['status', 'step_history'])
-
-    # Evaluate tick to continue
+    process.resume()
     tick_res = tick_agent_process(str(process.id))
     process.refresh_from_db()
 
@@ -761,7 +728,7 @@ def abort_research_agent_logic(user, process_id: str) -> str:
     """
     try:
         p_uuid = uuid.UUID(process_id)
-        process = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').get(id=p_uuid)
+        process = ResearchAgentProcess.objects.select_related('workspace').get(id=p_uuid)
     except (ValueError, ResearchAgentProcess.DoesNotExist):
         return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
@@ -769,21 +736,10 @@ def abort_research_agent_logic(user, process_id: str) -> str:
     if error:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
-    # Abort attached pipeline run jobs if running
-    if process.pipeline_run:
-        from mcp_server.tools.pipeline_runs import abort_job_logic
-        abort_job_logic(user, pipeline_run_id=str(process.pipeline_run.id))
+    from mcp_server.tools.pipeline_runs import abort_job_logic
+    abort_job_logic(user, pipeline_run_id=str(process.id))
 
-    process.status = 'aborted'
-    process.completed_at = timezone.now()
-    history = process.step_history or []
-    history.append({
-        "step": process.current_step,
-        "event": "aborted",
-        "timestamp": timezone.now().isoformat()
-    })
-    process.step_history = history
-    process.save(update_fields=['status', 'completed_at', 'step_history', 'updated_at'])
+    process.refresh_from_db()
 
     return json.dumps({
         "status": "success",
@@ -796,11 +752,11 @@ def abort_research_agent_logic(user, process_id: str) -> str:
 
 def delete_research_agent_logic(user, process_id: str) -> str:
     """
-    Delete a ResearchAgentProcess record and optionally cleanup associated PipelineRun data.
+    Delete a ResearchAgentProcess and its associated pipeline run, component runs, and files.
     """
     try:
         p_uuid = uuid.UUID(process_id)
-        process = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').get(id=p_uuid)
+        process = ResearchAgentProcess.objects.select_related('workspace').get(id=p_uuid)
     except (ValueError, ResearchAgentProcess.DoesNotExist):
         return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
@@ -809,20 +765,14 @@ def delete_research_agent_logic(user, process_id: str) -> str:
         return json.dumps({"status": "error", "error": error}, indent=2)
 
     process_name = process.name
-    pr_id = str(process.pipeline_run.id) if process.pipeline_run else None
-
-    # Delete PipelineRun if present
-    if process.pipeline_run:
-        from mcp_server.tools.pipeline_runs import delete_pipeline_run_logic
-        delete_pipeline_run_logic(user, pr_id)
-
-    process.delete()
+    from mcp_server.tools.pipeline_runs import delete_pipeline_run_logic
+    delete_pipeline_run_logic(user, str(process.id))
 
     return json.dumps({
         "status": "success",
         "message": f"ResearchAgentProcess '{process_name}' (ID: {process_id}) and attached PipelineRun data were successfully deleted.",
         "process_id": process_id,
-        "deleted_pipeline_run_id": pr_id
+        "deleted_pipeline_run_id": process_id
     }, indent=2)
 
 

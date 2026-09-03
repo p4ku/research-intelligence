@@ -324,6 +324,7 @@ class WorkflowDAG:
                 
                 pipeline_run.status = 'failed'
                 pipeline_run.status_message = fail_summary
+                pipeline_run.error_message = err_msg
                 pipeline_run.stopped_at_stage = failed_node_name
                 pipeline_run.completed_at = timezone.now()
                 p_hist = list(pipeline_run.step_history or [])
@@ -334,9 +335,9 @@ class WorkflowDAG:
                     "timestamp": timezone.now().isoformat()
                 })
                 pipeline_run.step_history = p_hist
-                pipeline_run.save(update_fields=['status', 'status_message', 'stopped_at_stage', 'completed_at', 'step_history', 'stage_results'])
+                pipeline_run.save(update_fields=['status', 'status_message', 'error_message', 'stopped_at_stage', 'completed_at', 'step_history', 'stage_results'])
 
-                if agent_process:
+                if agent_process and getattr(agent_process, 'pk', None) != getattr(pipeline_run, 'pk', None):
                     agent_process.status = 'failed'
                     agent_process.stopped_at_step = failed_node_name
                     agent_process.stop_reason = fail_summary
@@ -358,7 +359,7 @@ class WorkflowDAG:
                         if should_halt:
                             logger.info(f"Pipeline halted early at node '{name}': {halt_reason}")
                             pipeline_run.status = 'completed'
-                            pipeline_run.current_stage = name
+                            pipeline_run.current_stage = 'completed'
                             pipeline_run.stopped_at_stage = name
                             pipeline_run.status_message = halt_reason
                             pipeline_run.completed_at = timezone.now()
@@ -373,7 +374,7 @@ class WorkflowDAG:
                             pipeline_run.step_history = p_hist
                             pipeline_run.save(update_fields=['status', 'current_stage', 'stopped_at_stage', 'status_message', 'completed_at', 'step_history', 'stage_results'])
 
-                            if agent_process:
+                            if agent_process and getattr(agent_process, 'pk', None) != getattr(pipeline_run, 'pk', None):
                                 agent_process.status = 'completed'
                                 agent_process.current_step = 'completed'
                                 agent_process.stopped_at_step = name
@@ -451,7 +452,7 @@ class WorkflowDAG:
                 pipeline_run.step_history = p_hist
                 pipeline_run.save(update_fields=['current_stage', 'step_history', 'stage_results'])
 
-                if agent_process:
+                if agent_process and getattr(agent_process, 'pk', None) != getattr(pipeline_run, 'pk', None):
                     agent_process.current_step = node.name
                     history = list(agent_process.step_history or [])
                     history.append({
@@ -481,7 +482,7 @@ class WorkflowDAG:
                 pipeline_run.current_stage = active_step
                 pipeline_run.save(update_fields=['current_stage', 'stage_results'])
 
-                if agent_process:
+                if agent_process and getattr(agent_process, 'pk', None) != getattr(pipeline_run, 'pk', None):
                     if agent_process.current_step != active_step:
                         agent_process.current_step = active_step
                     agent_process.save(update_fields=['current_step', 'stage_results', 'updated_at'])
@@ -548,7 +549,7 @@ class WorkflowDAG:
                     'total_papers_passed_screening', 'step_history', 'stage_results'
                 ])
 
-                if agent_process:
+                if agent_process and getattr(agent_process, 'pk', None) != getattr(pipeline_run, 'pk', None):
                     agent_process.status = 'completed'
                     agent_process.current_step = 'completed'
                     agent_process.stopped_at_step = 'completed'

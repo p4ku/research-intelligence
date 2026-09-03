@@ -109,9 +109,13 @@ def reap_zombie_tasks(
                 if comp.pipeline_run and comp.pipeline_run.status == 'running':
                     comp.pipeline_run.status = 'failed'
                     comp.pipeline_run.status_message = f"Pipeline terminated: Component '{comp.component_name}' reaped by watchdog as zombie ({reason})"
+                    if not comp.pipeline_run.stopped_at_stage:
+                        comp.pipeline_run.stopped_at_stage = comp.step_type or comp.pipeline_run.current_stage
                     comp.pipeline_run.completed_at = now
-                    comp.pipeline_run.save(update_fields=['status', 'status_message', 'completed_at'])
+                    comp.pipeline_run.save(update_fields=['status', 'status_message', 'stopped_at_stage', 'completed_at'])
                     stats["reaped_pipelines"] += 1
+                    if (comp.pipeline_run.configuration_override or {}).get('_is_agent') or comp.pipeline_run.agent_processes.exists():
+                        stats["reaped_agents"] += 1
                     pipelines_to_notify.append(comp.pipeline_run)
 
     # -------------------------------------------------------------------------
@@ -169,9 +173,13 @@ def reap_zombie_tasks(
                 pr.status = new_status
                 if new_message:
                     pr.status_message = new_message
+                if not pr.stopped_at_stage:
+                    pr.stopped_at_stage = pr.current_stage
                 pr.completed_at = now
-                pr.save(update_fields=['status', 'status_message', 'completed_at'])
+                pr.save(update_fields=['status', 'status_message', 'stopped_at_stage', 'completed_at'])
                 stats["reaped_pipelines"] += 1
+                if (pr.configuration_override or {}).get('_is_agent') or pr.agent_processes.exists():
+                    stats["reaped_agents"] += 1
                 stats["details"].append(f"PipelineRun {pr.id} -> {new_status}")
 
     # -------------------------------------------------------------------------

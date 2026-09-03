@@ -441,8 +441,15 @@ class Workspace(models.Model):
             return True, f"Monthly token limit exceeded: consumed {int(self.tokens_consumed_this_month):,} tokens of {int(self.monthly_token_limit):,} limit for workspace '{self.name}'."
         return False, None
 
+    @property
+    def agent_processes(self):
+        """Logical proxy relation to ResearchAgentProcess for backward compatibility."""
+        from .pipeline import ResearchAgentProcess
+        return ResearchAgentProcess.objects.filter(workspace=self)
+
     class Meta:
         app_label = 'research_intelligence'
+
 
     def __str__(self):
         return self.name

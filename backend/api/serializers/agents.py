@@ -15,7 +15,12 @@ class StartResearchAgentSerializer(serializers.Serializer):
 
 class ResearchAgentProcessSerializer(serializers.ModelSerializer):
     workspace_name = serializers.CharField(source='workspace.name', read_only=True)
-    pipeline_run_status = serializers.CharField(source='pipeline_run.status', read_only=True, default=None)
+    pipeline_run = serializers.UUIDField(source='id', read_only=True)
+    pipeline_run_status = serializers.CharField(source='status', read_only=True, default=None)
+    current_step = serializers.CharField(source='current_stage', read_only=True)
+    stopped_at_step = serializers.CharField(source='stopped_at_stage', read_only=True, allow_null=True)
+    stop_reason = serializers.CharField(source='status_message', read_only=True)
+    error_message = serializers.CharField(source='status_message', read_only=True, allow_null=True)
     duration_seconds = serializers.FloatField(read_only=True)
     execution_time_display = serializers.CharField(read_only=True)
 

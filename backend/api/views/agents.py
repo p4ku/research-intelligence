@@ -28,16 +28,16 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
     serializer_class = ResearchAgentProcessSerializer
     permission_classes = [permissions.IsAuthenticated]
     http_method_names = ['get', 'post', 'delete', 'head', 'options']
-    ordering_fields = ['started_at', 'completed_at', 'name', 'status', 'current_step']
+    ordering_fields = ['started_at', 'completed_at', 'name', 'status', 'current_stage']
     ordering = ['-started_at']
 
     def get_queryset(self):
         user = self.request.user
         if getattr(user, 'is_superuser', False):
-            qs = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').all()
+            qs = ResearchAgentProcess.objects.select_related('workspace').all()
         else:
             user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-            qs = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').filter(
+            qs = ResearchAgentProcess.objects.select_related('workspace').filter(
                 workspace_id__in=user_ws_ids
             )
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')

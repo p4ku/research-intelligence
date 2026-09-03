@@ -425,21 +425,15 @@ class WorkflowSchedule(models.Model):
 
         pipeline_run = PipelineRun.objects.create(
             workspace=self.workspace,
+            name=f"Scheduled Run - {self.name}",
             schedule=self,
             status='running',
             current_stage='search',
             reprocess_existing=self.reprocess_existing,
             triggered_by=triggered_by_user or self.created_by,
-        )
-
-        agent = ResearchAgentProcess.objects.create(
-            workspace=self.workspace,
-            pipeline_run=pipeline_run,
-            name=f"Scheduled Run - {self.name}",
-            status='running',
-            current_step='initialized',
             configuration_override=config_override
         )
+        agent = ResearchAgentProcess.objects.get(pk=pipeline_run.pk)
 
         self.last_run_at = now
         self.last_pipeline_run = pipeline_run

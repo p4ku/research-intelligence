@@ -1535,6 +1535,9 @@ class PipelineRunAdmin(admin.ModelAdmin):
     def run_full_pipeline(self, request, queryset):
         from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
         for pr in queryset:
+            if request.user.is_authenticated and not pr.triggered_by:
+                pr.triggered_by = request.user
+                pr.save(update_fields=['triggered_by'])
             agent = pr.agent_processes.filter(status__in=['running', 'pending', 'paused']).first()
             if not agent:
                 agent = ResearchAgentProcess.objects.create(
@@ -1546,6 +1549,9 @@ class PipelineRunAdmin(admin.ModelAdmin):
                     current_step=pr.current_stage if pr.current_stage != 'completed' else 'initialized',
                     configuration_override={"reprocess_existing": pr.reprocess_existing}
                 )
+            elif request.user.is_authenticated and not agent.triggered_by:
+                agent.triggered_by = request.user
+                agent.save(update_fields=['triggered_by'])
             tick_agent_process(str(agent.id))
         self.message_user(request, f"Triggered autonomous pipeline orchestrator for {queryset.count()} pipeline run(s).")
 
@@ -1581,21 +1587,21 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         'stop_reason_display',
         'reprocess_mode_badge',
         'execution_time',
-        'usd_cost',
+        'usd_cost_display',
         'pipeline_run_link',
         'started_at',
         'completed_at',
         'triggered_by_display'
     )
     ordering = ('-started_at', '-id')
-    list_select_related = ('workspace', 'pipeline_run', 'triggered_by')
-    list_filter = ('status', 'current_step', 'stopped_at_step', 'workspace', 'triggered_by')
-    search_fields = ('name', 'id', 'workspace__name', 'stop_reason', 'error_message', 'triggered_by__username', 'triggered_by__email')
+    list_select_related = ('workspace', 'triggered_by')
+    list_filter = ('status', 'current_stage', 'stopped_at_stage', 'workspace', 'triggered_by')
+    search_fields = ('name', 'id', 'workspace__name', 'status_message', 'triggered_by__username', 'triggered_by__email')
     readonly_fields = ('started_at', 'completed_at', 'execution_time', 'stage_results_preview', 'step_history_preview')
 
     fieldsets = (
         ('Agent Identification', {
-            'fields': ('workspace', 'name', 'triggered_by', 'status', 'current_step', 'stopped_at_step', 'stop_reason', 'pipeline_run')
+            'fields': ('workspace', 'name', 'triggered_by', 'status', 'current_stage', 'stopped_at_stage', 'status_message')
         }),
         ('Stage Execution Results & Breakdown', {
             'fields': ('stage_results_preview', 'stage_results'),
@@ -1606,7 +1612,7 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
             'description': 'Optional parameters such as <code>{"reprocess_existing": true, "limit": 50}</code>.'
         }),
         ('Audit Log & History', {
-            'fields': ('step_history_preview', 'step_history', 'error_message')
+            'fields': ('step_history_preview', 'step_history')
         }),
         ('Lifecycle', {
             'fields': ('started_at', 'completed_at')
@@ -1680,9 +1686,9 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
     def usd_cost(self, obj):
         pr = obj.pipeline_run
         if not pr and obj.workspace:
-            pr = PipelineRun.objects.filter(workspace=obj.workspace).order_by('-started_at').first()
+            pr = PipelineRun.objects.filter(workspace=obj.workspace).exclude(pk=obj.pk).order_by('-started_at').first()
         if pr:
-            cost = float(pr.usd_cost or 0.0)
+            cost = float(PipelineRun.objects.filter(pk=pr.pk).values_list('usd_cost', flat=True).first() or pr.usd_cost or 0.0)
             if cost == 0.0:
                 comp_cost = sum(
                     float((cr.metrics or {}).get("usd_cost") or 0.0)
@@ -1701,7 +1707,12 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
                 return format_html('<strong style="color: #0d6efd;">${}</strong>', f"{cost:.4f}")
         return format_html('<span style="color: #6c757d;">$0.0000</span>')
     usd_cost.short_description = "USD Cost"
-    usd_cost.admin_order_field = 'pipeline_run__usd_cost'
+    usd_cost.admin_order_field = 'usd_cost'
+
+    def usd_cost_display(self, obj):
+        return self.usd_cost(obj)
+    usd_cost_display.short_description = "USD Cost"
+    usd_cost_display.admin_order_field = 'usd_cost'
 
     def status_badge(self, obj):
         colors = {
@@ -1809,7 +1820,7 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
     def pipeline_run_link(self, obj):
         pr = obj.pipeline_run
         if not pr and obj.workspace:
-            pr = PipelineRun.objects.filter(workspace=obj.workspace).order_by('-started_at').first()
+            pr = PipelineRun.objects.filter(workspace=obj.workspace).exclude(pk=obj.pk).order_by('-started_at').first()
             if pr:
                 obj.pipeline_run = pr
                 obj.save(update_fields=['pipeline_run'])
@@ -2208,23 +2219,25 @@ class ComponentRunAdmin(admin.ModelAdmin):
             pr = comp.pipeline_run
             if pr:
                 pr.status = 'aborted'
+                pr.stopped_at_stage = comp.step_type
                 pr.status_message = f"Pipeline aborted at step '{comp.step_type}' by administrator."
                 pr.completed_at = timezone.now()
-                pr.save(update_fields=['status', 'status_message', 'completed_at'])
+                p_hist = list(pr.step_history or [])
+                p_hist.append({
+                    "step": comp.step_type,
+                    "event": "aborted",
+                    "message": f"ComponentRun '{comp.id}' aborted by administrator",
+                    "timestamp": timezone.now().isoformat()
+                })
+                pr.step_history = p_hist
+                pr.save(update_fields=['status', 'stopped_at_stage', 'status_message', 'completed_at', 'step_history'])
 
                 for agent in pr.agent_processes.filter(status__in=['running', 'pending', 'paused']):
                     agent.status = 'aborted'
                     agent.stopped_at_step = comp.step_type
                     agent.stop_reason = f"Component task '{comp.step_type}' was aborted by admin."
                     agent.completed_at = timezone.now()
-                    history = list(agent.step_history or [])
-                    history.append({
-                        "step": comp.step_type,
-                        "event": "aborted",
-                        "message": f"ComponentRun '{comp.id}' aborted by administrator",
-                        "timestamp": timezone.now().isoformat()
-                    })
-                    agent.step_history = history
+                    agent.step_history = p_hist
                     agent.save(update_fields=['status', 'stopped_at_step', 'stop_reason', 'completed_at', 'step_history'])
 
             count += 1
