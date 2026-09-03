@@ -1,20 +1,20 @@
 import logging
 from typing import Dict, List, Any, Optional, Set
 from django.utils import timezone
-from django.db import transaction
+from django.db import transaction, connection
 
 from .base_node import BaseWorkflowNode
 
 logger = logging.getLogger(__name__)
 
 
-def sync_agent_stage_results(agent_process, pipeline_run, dag_nodes, config=None) -> Dict[str, Any]:
+def sync_pipeline_run_stage_results(pipeline_run, dag_nodes, config=None, agent_process=None) -> Dict[str, Any]:
     """
-    Synchronizes all stage results into the agent_process.stage_results dictionary
-    by delegating to each node's polymorphic get_stage_result_entry implementation.
+    Synchronizes all stage results into pipeline_run.stage_results (and optionally
+    agent_process.stage_results) by delegating to each node's get_stage_result_entry implementation.
     """
     from research_intelligence.models import ComponentRun
-    stage_results = dict(agent_process.stage_results or {})
+    stage_results = dict(pipeline_run.stage_results or (agent_process.stage_results if agent_process else {}))
     comp_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run).order_by('started_at', 'id')
     cfg = config or {}
 
@@ -34,8 +34,17 @@ def sync_agent_stage_results(agent_process, pipeline_run, dag_nodes, config=None
         elif name not in stage_results:
             stage_results[name] = node.get_stage_result_entry(status="pending")
 
-    agent_process.stage_results = stage_results
+    pipeline_run.stage_results = stage_results
+    if agent_process:
+        agent_process.stage_results = stage_results
     return stage_results
+
+
+def sync_agent_stage_results(agent_process, pipeline_run, dag_nodes, config=None) -> Dict[str, Any]:
+    """
+    Backwards-compatible wrapper for sync_pipeline_run_stage_results.
+    """
+    return sync_pipeline_run_stage_results(pipeline_run, dag_nodes, config=config, agent_process=agent_process)
 
 
 class WorkflowDAG:
@@ -212,17 +221,35 @@ class WorkflowDAG:
         Main DAG execution driver. Evaluates current graph state, handles skippable nodes,
         and launches all ready nodes (in parallel on Celery workers).
         """
-        from research_intelligence.models import ComponentRun
+        from research_intelligence.models import ComponentRun, PipelineRun
         workspace = pipeline_run.workspace
         cfg = dict(config or {})
+        if getattr(pipeline_run, 'configuration_override', None):
+            cfg = {**pipeline_run.configuration_override, **cfg}
         if agent_process and getattr(agent_process, 'configuration_override', None):
             cfg = {**agent_process.configuration_override, **cfg}
 
         with transaction.atomic():
+            if connection.vendor == 'postgresql':
+                pipeline_run = PipelineRun.objects.select_for_update().get(id=pipeline_run.id)
+            else:
+                pipeline_run = PipelineRun.objects.get(id=pipeline_run.id)
+
+            if pipeline_run.status in ('paused', 'aborted', 'failed', 'completed'):
+                return {
+                    "success": True,
+                    "status": pipeline_run.status,
+                    "current_step": pipeline_run.current_stage,
+                    "message": f"PipelineRun in terminal or paused state: {pipeline_run.status}"
+                }
+
             if agent_process:
                 # Refresh with row lock
                 from research_intelligence.models import ResearchAgentProcess
-                agent_process = ResearchAgentProcess.objects.select_for_update().get(id=agent_process.id)
+                if connection.vendor == 'postgresql':
+                    agent_process = ResearchAgentProcess.objects.select_for_update().get(id=agent_process.id)
+                else:
+                    agent_process = ResearchAgentProcess.objects.get(id=agent_process.id)
                 if agent_process.status in ('paused', 'aborted', 'failed', 'completed'):
                     return {
                         "success": True,
@@ -232,8 +259,7 @@ class WorkflowDAG:
                     }
 
             status_map = self.get_node_status_map(pipeline_run, config=cfg)
-            if agent_process:
-                sync_agent_stage_results(agent_process, pipeline_run, self.nodes, config=cfg)
+            sync_pipeline_run_stage_results(pipeline_run, self.nodes, config=cfg, agent_process=agent_process)
 
             # 0. Check Workspace Monthly Quota & Budget Enforcement
             is_exceeded, quota_reason = workspace.is_quota_exceeded()
@@ -241,11 +267,19 @@ class WorkflowDAG:
                 logger.warning(f"🛑 [QUOTA LIMIT EXCEEDED] Workspace '{workspace.name}': {quota_reason}")
                 pipeline_run.status = 'failed'
                 pipeline_run.status_message = quota_reason
+                pipeline_run.stopped_at_stage = pipeline_run.current_stage
                 pipeline_run.completed_at = timezone.now()
-                pipeline_run.save(update_fields=['status', 'status_message', 'completed_at'])
+                p_hist = list(pipeline_run.step_history or [])
+                p_hist.append({
+                    "step": pipeline_run.current_stage,
+                    "event": "quota_exceeded",
+                    "message": quota_reason,
+                    "timestamp": timezone.now().isoformat()
+                })
+                pipeline_run.step_history = p_hist
+                pipeline_run.save(update_fields=['status', 'status_message', 'stopped_at_stage', 'completed_at', 'step_history', 'stage_results'])
 
                 if agent_process:
-                    sync_agent_stage_results(agent_process, pipeline_run, self.nodes, config=cfg)
                     agent_process.status = 'failed'
                     agent_process.stopped_at_step = agent_process.current_step
                     agent_process.stop_reason = quota_reason
@@ -260,13 +294,14 @@ class WorkflowDAG:
                     })
                     agent_process.step_history = history
                     agent_process.save(update_fields=['status', 'stopped_at_step', 'stop_reason', 'stage_results', 'error_message', 'completed_at', 'step_history', 'updated_at'])
-                    from research_intelligence.tasks.orchestrator.agent_engine import _send_agent_notification
-                    _send_agent_notification(agent_process)
+
+                from research_intelligence.tasks.orchestrator.agent_engine import _send_agent_notification
+                _send_agent_notification(agent_process or pipeline_run)
 
                 return {
                     "success": False,
                     "status": "failed",
-                    "current_step": agent_process.current_step if agent_process else "search",
+                    "current_step": pipeline_run.current_stage,
                     "error": quota_reason
                 }
 
@@ -289,17 +324,28 @@ class WorkflowDAG:
                 
                 pipeline_run.status = 'failed'
                 pipeline_run.status_message = fail_summary
+                pipeline_run.stopped_at_stage = failed_node_name
                 pipeline_run.completed_at = timezone.now()
-                pipeline_run.save(update_fields=['status', 'status_message', 'completed_at'])
+                p_hist = list(pipeline_run.step_history or [])
+                p_hist.append({
+                    "step": failed_node_name,
+                    "event": "failed",
+                    "message": err_msg,
+                    "timestamp": timezone.now().isoformat()
+                })
+                pipeline_run.step_history = p_hist
+                pipeline_run.save(update_fields=['status', 'status_message', 'stopped_at_stage', 'completed_at', 'step_history', 'stage_results'])
 
                 if agent_process:
-                    sync_agent_stage_results(agent_process, pipeline_run, self.nodes, config=cfg)
                     agent_process.status = 'failed'
                     agent_process.stopped_at_step = failed_node_name
                     agent_process.stop_reason = fail_summary
                     agent_process.error_message = err_msg
                     agent_process.completed_at = timezone.now()
                     agent_process.save(update_fields=['status', 'stopped_at_step', 'stop_reason', 'stage_results', 'error_message', 'completed_at', 'updated_at'])
+
+                from research_intelligence.tasks.orchestrator.agent_engine import _send_agent_notification
+                _send_agent_notification(agent_process or pipeline_run)
 
                 return {"success": False, "status": "failed", "error": err_msg}
 
@@ -313,18 +359,27 @@ class WorkflowDAG:
                             logger.info(f"Pipeline halted early at node '{name}': {halt_reason}")
                             pipeline_run.status = 'completed'
                             pipeline_run.current_stage = name
+                            pipeline_run.stopped_at_stage = name
                             pipeline_run.status_message = halt_reason
                             pipeline_run.completed_at = timezone.now()
-                            pipeline_run.save(update_fields=['status', 'current_stage', 'status_message', 'completed_at'])
+                            p_hist = list(pipeline_run.step_history or [])
+                            event_name = "halted_zero_papers" if ("0" in halt_reason and "paper" in halt_reason) else "completed"
+                            p_hist.append({
+                                "step": name,
+                                "event": event_name,
+                                "message": halt_reason,
+                                "timestamp": timezone.now().isoformat()
+                            })
+                            pipeline_run.step_history = p_hist
+                            pipeline_run.save(update_fields=['status', 'current_stage', 'stopped_at_stage', 'status_message', 'completed_at', 'step_history', 'stage_results'])
+
                             if agent_process:
-                                sync_agent_stage_results(agent_process, pipeline_run, self.nodes, config=cfg)
                                 agent_process.status = 'completed'
                                 agent_process.current_step = 'completed'
                                 agent_process.stopped_at_step = name
                                 agent_process.stop_reason = halt_reason
                                 agent_process.completed_at = timezone.now()
                                 history = list(agent_process.step_history or [])
-                                event_name = "halted_zero_papers" if ("0" in halt_reason and "paper" in halt_reason) else "completed"
                                 history.append({
                                     "step": name,
                                     "event": event_name,
@@ -333,8 +388,10 @@ class WorkflowDAG:
                                 })
                                 agent_process.step_history = history
                                 agent_process.save(update_fields=['status', 'current_step', 'stopped_at_step', 'stop_reason', 'stage_results', 'completed_at', 'step_history', 'updated_at'])
-                                from research_intelligence.tasks.orchestrator.agent_engine import _send_agent_notification
-                                _send_agent_notification(agent_process)
+
+                            from research_intelligence.tasks.orchestrator.agent_engine import _send_agent_notification
+                            _send_agent_notification(agent_process or pipeline_run)
+
                             return {
                                 "success": True,
                                 "status": "completed",
@@ -384,8 +441,17 @@ class WorkflowDAG:
                     input_params=input_params
                 )
 
+                pipeline_run.current_stage = node.name
+                p_hist = list(pipeline_run.step_history or [])
+                p_hist.append({
+                    "step": node.name,
+                    "event": "started",
+                    "timestamp": timezone.now().isoformat()
+                })
+                pipeline_run.step_history = p_hist
+                pipeline_run.save(update_fields=['current_stage', 'step_history', 'stage_results'])
+
                 if agent_process:
-                    sync_agent_stage_results(agent_process, pipeline_run, self.nodes, config=cfg)
                     agent_process.current_step = node.name
                     history = list(agent_process.step_history or [])
                     history.append({
@@ -395,9 +461,6 @@ class WorkflowDAG:
                     })
                     agent_process.step_history = history
                     agent_process.save(update_fields=['current_step', 'stage_results', 'step_history', 'updated_at'])
-
-                pipeline_run.current_stage = node.name
-                pipeline_run.save(update_fields=['current_stage'])
 
                 node.execute(pipeline_run, comp_run, limit=limit)
                 dispatched.append(node.name)
@@ -415,11 +478,14 @@ class WorkflowDAG:
             running_nodes = [name for name, st in status_map.items() if st == "running"]
             if running_nodes:
                 active_step = self.nodes[running_nodes[0]].name
+                pipeline_run.current_stage = active_step
+                pipeline_run.save(update_fields=['current_stage', 'stage_results'])
+
                 if agent_process:
-                    sync_agent_stage_results(agent_process, pipeline_run, self.nodes, config=cfg)
                     if agent_process.current_step != active_step:
                         agent_process.current_step = active_step
                     agent_process.save(update_fields=['current_step', 'stage_results', 'updated_at'])
+
                 return {
                     "success": True,
                     "status": "running",
@@ -442,6 +508,7 @@ class WorkflowDAG:
 
                 pipeline_run.status = 'completed'
                 pipeline_run.current_stage = 'completed'
+                pipeline_run.stopped_at_stage = 'completed'
                 pipeline_run.status_message = summary_msg
                 if not pipeline_run.completed_at:
                     pipeline_run.completed_at = timezone.now()
@@ -466,15 +533,22 @@ class WorkflowDAG:
                     pipeline_run.tokens_out = comp_tokens_out
 
                 pipeline_run.total_papers_passed_screening = accepted_count
+                p_hist = list(pipeline_run.step_history or [])
+                p_hist.append({
+                    "step": "pipeline",
+                    "event": "completed",
+                    "message": summary_msg,
+                    "timestamp": timezone.now().isoformat()
+                })
+                pipeline_run.step_history = p_hist
 
                 pipeline_run.save(update_fields=[
-                    'status', 'current_stage', 'status_message', 'completed_at',
+                    'status', 'current_stage', 'stopped_at_stage', 'status_message', 'completed_at',
                     'usd_cost', 'tokens_in', 'tokens_out', 'tokens_consumed',
-                    'total_papers_passed_screening'
+                    'total_papers_passed_screening', 'step_history', 'stage_results'
                 ])
 
                 if agent_process:
-                    sync_agent_stage_results(agent_process, pipeline_run, self.nodes, config=cfg)
                     agent_process.status = 'completed'
                     agent_process.current_step = 'completed'
                     agent_process.stopped_at_step = 'completed'
@@ -491,8 +565,8 @@ class WorkflowDAG:
                     agent_process.step_history = history
                     agent_process.save(update_fields=['status', 'current_step', 'stopped_at_step', 'stop_reason', 'stage_results', 'completed_at', 'step_history', 'updated_at'])
 
-                    from research_intelligence.tasks.orchestrator.agent_engine import _send_agent_notification
-                    _send_agent_notification(agent_process)
+                from research_intelligence.tasks.orchestrator.agent_engine import _send_agent_notification
+                _send_agent_notification(agent_process or pipeline_run)
 
                 return {
                     "success": True,

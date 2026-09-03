@@ -1,6 +1,7 @@
 import json
 import uuid
 import logging
+from django.utils import timezone
 
 from research_intelligence.models import (
     PipelineRun,
@@ -60,13 +61,26 @@ def trigger_search_job_logic(
 
     reprocess_val = reprocess_existing if reprocess_existing is not None else getattr(workspace, 'reprocess_existing', False)
 
+    config_override = {
+        "limit": limit,
+        "date_range_days": date_range_days,
+        "query_prefix": query_prefix,
+        "reprocess_existing": bool(reprocess_val)
+    }
+
     # Create new PipelineRun
     pipeline_run = PipelineRun.objects.create(
         workspace=workspace,
         status='running',
         current_stage='search',
         reprocess_existing=bool(reprocess_val),
-        triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None
+        triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None,
+        configuration_override=config_override,
+        step_history=[{
+            "step": "search",
+            "event": "started",
+            "timestamp": timezone.now().isoformat()
+        }]
     )
 
     created_runs = []

@@ -161,6 +161,69 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             return Response({"message": res_json}, status=status.HTTP_200_OK)
 
     @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Pipeline run successfully paused"),
+            400: OpenApiResponse(description="Pipeline run cannot be paused"),
+            403: OpenApiResponse(description="Forbidden - requires Admin or Manager role"),
+            404: OpenApiResponse(description="Pipeline run not found"),
+        }
+    )
+    @action(detail=True, methods=['post'])
+    def pause(self, request, pk=None):
+        instance = self.get_object()
+        reason = request.data.get('reason', 'Paused via API')
+        ok = instance.pause(reason=reason)
+        if not ok:
+            return Response(
+                {"success": False, "error": f"Cannot pause run in status '{instance.status}'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return Response({
+            "success": True,
+            "pipeline_run_id": str(instance.id),
+            "status": instance.status,
+            "message": f"Pipeline run paused: {reason}"
+        }, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Pipeline run successfully resumed"),
+            400: OpenApiResponse(description="Pipeline run cannot be resumed"),
+            403: OpenApiResponse(description="Forbidden - requires Admin or Manager role"),
+            404: OpenApiResponse(description="Pipeline run not found"),
+        }
+    )
+    @action(detail=True, methods=['post'])
+    def resume(self, request, pk=None):
+        instance = self.get_object()
+        ok = instance.resume()
+        if not ok:
+            return Response(
+                {"success": False, "error": f"Cannot resume run in status '{instance.status}'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        return Response({
+            "success": True,
+            "pipeline_run_id": str(instance.id),
+            "status": instance.status,
+            "message": "Pipeline run resumed and tick scheduled"
+        }, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        responses={
+            200: OpenApiResponse(description="Pipeline run tick executed"),
+            403: OpenApiResponse(description="Forbidden - requires Admin or Manager role"),
+            404: OpenApiResponse(description="Pipeline run not found"),
+        }
+    )
+    @action(detail=True, methods=['post'])
+    def tick(self, request, pk=None):
+        instance = self.get_object()
+        res = instance.tick()
+        http_status = status.HTTP_200_OK if res.get("success", False) else status.HTTP_400_BAD_REQUEST
+        return Response(res, status=http_status)
+
+    @extend_schema(
         request=TriggerStepSerializer,
         responses={
             200: OpenApiResponse(description="Pipeline step successfully launched"),

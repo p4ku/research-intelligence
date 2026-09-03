@@ -1,12 +1,12 @@
 """
-Autonomous Research Agent Process Runner.
+Autonomous Pipeline Run & Research Agent Process Runner.
 
 Encapsulates the lifecycle, concurrency control, and DAG orchestration for
-ResearchAgentProcess instances.
+PipelineRun (primary) and ResearchAgentProcess (compatibility) instances.
 """
 
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Union
 from django.conf import settings
 from django.utils import timezone
 from django.db import close_old_connections, transaction, connection
@@ -21,104 +21,52 @@ from research_intelligence.tasks.orchestrator.dag import build_default_slr_dag
 logger = logging.getLogger(__name__)
 
 
-class ResearchAgentRunner:
+class PipelineRunner:
     """
-    Autonomous Execution Engine for ResearchAgentProcesses.
-
-    Responsibilities:
-    1. Concurrency & Locking: Uses database row locks (select_for_update on Postgres)
-       to prevent race conditions across parallel Celery workers.
-    2. Lifecycle Management: Handles initialization (INITIALIZED -> RUNNING),
-       step transitions, pauses, aborts, and terminal completion.
-    3. DAG Orchestration: Instantiates and executes the WorkflowDAG for the agent's workspace.
-    4. Completion Notifications: Sends rich email digests to active workspace subscribers
-       via Mailgun upon pipeline completion.
+    Primary Execution and State Machine Engine for PipelineRun instances.
+    Operates directly on PipelineRun, orchestrating the WorkflowDAG.
     """
 
     @classmethod
-    def tick(cls, process_id: str) -> Dict[str, Any]:
+    def tick(cls, pipeline_run_id_or_obj: Union[str, PipelineRun], agent_process: Optional[ResearchAgentProcess] = None) -> Dict[str, Any]:
         """
-        Executes a single state transition tick for a ResearchAgentProcess.
-        
-        Evaluates the current state of the agent, initializes the underlying
-        PipelineRun if needed, builds the DAG for the workspace, and evaluates/dispatches
-        all ready pipeline nodes.
-
-        Args:
-            process_id: UUID string of the ResearchAgentProcess to advance.
-
-        Returns:
-            Dict[str, Any]: Result dictionary containing success status, current step,
-                            and state transition details.
+        Executes a single state transition tick for a PipelineRun.
+        Evaluates the current state, builds the DAG for the workspace, and dispatches all ready nodes.
         """
         if not connection.in_atomic_block:
             close_old_connections()
         with transaction.atomic():
+            pr_id = getattr(pipeline_run_id_or_obj, 'id', pipeline_run_id_or_obj)
             try:
                 if connection.vendor == 'postgresql':
-                    process = ResearchAgentProcess.objects.select_for_update().get(pk=process_id)
+                    pipeline_run = PipelineRun.objects.select_for_update().get(pk=pr_id)
                 else:
-                    process = ResearchAgentProcess.objects.get(pk=process_id)
-            except ResearchAgentProcess.DoesNotExist:
-                logger.error(f"ResearchAgentProcess '{process_id}' not found.")
-                return {"success": False, "error": f"ResearchAgentProcess '{process_id}' not found."}
+                    pipeline_run = PipelineRun.objects.get(pk=pr_id)
+            except PipelineRun.DoesNotExist:
+                logger.error(f"PipelineRun '{pr_id}' not found.")
+                return {"success": False, "error": f"PipelineRun '{pr_id}' not found."}
 
-            # If agent is in terminal or paused state, do not advance
-            if process.status in ['paused', 'aborted', 'failed', 'completed']:
-                logger.info(f"Agent process '{process.id}' is in status '{process.status}'. No state transition taken.")
+            # If pipeline is in terminal or paused state, do not advance
+            if pipeline_run.status in ['paused', 'aborted', 'failed', 'completed']:
+                logger.info(f"PipelineRun '{pipeline_run.id}' is in status '{pipeline_run.status}'. No state transition taken.")
                 return {
                     "success": True,
-                    "status": process.status,
-                    "current_step": process.current_step,
-                    "message": f"Agent process is in status '{process.status}'."
+                    "status": pipeline_run.status,
+                    "current_step": pipeline_run.current_stage,
+                    "message": f"PipelineRun is in status '{pipeline_run.status}'."
                 }
 
-            workspace = process.workspace
-            config = process.configuration_override or {}
+            workspace = pipeline_run.workspace
+            config = dict(pipeline_run.configuration_override or {})
+            if agent_process and getattr(agent_process, 'configuration_override', None):
+                config = {**config, **agent_process.configuration_override}
             limit = config.get("limit", 50)
-            history = list(process.step_history or [])
-
-            # 1. State: INITIALIZED -> Initialize PipelineRun if not already attached
-            if not process.pipeline_run:
-                reprocess_existing = config.get("reprocess_existing", getattr(workspace, "reprocess_existing", False))
-                pipeline_run = PipelineRun.objects.create(
-                    workspace=workspace,
-                    status='running',
-                    current_stage='search',
-                    reprocess_existing=reprocess_existing,
-                    triggered_by=process.triggered_by
-                )
-                process.pipeline_run = pipeline_run
-                process.status = 'running'
-                process.current_step = 'search'
-
-                history.append({
-                    "step": "search",
-                    "event": "started",
-                    "pipeline_run_id": str(pipeline_run.id),
-                    "timestamp": timezone.now().isoformat()
-                })
-                process.step_history = history
-                process.save(update_fields=['pipeline_run', 'status', 'current_step', 'step_history', 'updated_at'])
-            elif process.current_step == 'initialized':
-                process.status = 'running'
-                process.current_step = 'search'
-                history.append({
-                    "step": "search",
-                    "event": "started",
-                    "pipeline_run_id": str(process.pipeline_run.id),
-                    "timestamp": timezone.now().isoformat()
-                })
-                process.step_history = history
-                process.save(update_fields=['status', 'current_step', 'step_history', 'updated_at'])
-
-            pipeline_run = process.pipeline_run
 
             # Execute and dispatch via Workflow DAG
             dag = build_default_slr_dag(workspace=workspace, config=config)
             return dag.evaluate_and_dispatch(
                 pipeline_run=pipeline_run,
-                agent_process=process,
+                agent_process=agent_process,
                 config=config,
                 limit=limit
             )
@@ -126,11 +74,8 @@ class ResearchAgentRunner:
     @classmethod
     def handle_component_completion(cls, pipeline_run_id_or_obj):
         """
-        Triggered whenever a ComponentRun finishes to advance any attached
-        running ResearchAgentProcesses.
-
-        Args:
-            pipeline_run_id_or_obj: PipelineRun instance or UUID string.
+        Triggered whenever a ComponentRun finishes to advance execution of the PipelineRun
+        and any attached ResearchAgentProcesses.
         """
         if not pipeline_run_id_or_obj:
             return
@@ -150,23 +95,36 @@ class ResearchAgentRunner:
                 pipeline_run.save(update_fields=['usd_cost'])
 
             running_agents = list(pipeline_run.agent_processes.filter(status='running'))
+            from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
 
             if running_agents:
-                from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
                 from research_intelligence.tasks.orchestrator.agent_engine import run_agent_process_tick
                 for agent_proc in running_agents:
                     proc_id = str(agent_proc.id)
-                    def _dispatch_tick(target_id=proc_id):
+                    def _dispatch_agent_tick(target_id=proc_id):
                         try:
                             run_agent_process_tick.delay(target_id)
                         except Exception:
                             try:
-                                cls.tick(target_id)
+                                ResearchAgentRunner.tick(target_id)
                             except Exception as sync_err:
                                 logger.warning(f"Fallback tick execution failed for agent '{target_id}': {sync_err}")
-                    safe_dispatch_on_commit(_dispatch_tick)
+                    safe_dispatch_on_commit(_dispatch_agent_tick)
+            elif (pipeline_run.configuration_override or {}).get('autonomous', False) or pipeline_run.schedule is not None:
+                # Standalone autonomous pipeline run (scheduled or configured for autonomous progression)
+                from research_intelligence.tasks.orchestrator.agent_engine import run_pipeline_tick
+                pr_id = str(pipeline_run.id)
+                def _dispatch_pipeline_tick(target_id=pr_id):
+                    try:
+                        run_pipeline_tick.delay(target_id)
+                    except Exception:
+                        try:
+                            cls.tick(target_id)
+                        except Exception as sync_err:
+                            logger.warning(f"Fallback tick execution failed for pipeline '{target_id}': {sync_err}")
+                safe_dispatch_on_commit(_dispatch_pipeline_tick)
             else:
-                # Check if all component runs are done for this pipeline run
+                # Manual step execution: check if terminal component run completed
                 pending_runs = pipeline_run.component_runs.filter(status__in=['pending', 'running'])
                 if not pending_runs.exists() and pipeline_run.component_runs.filter(status='completed').exists():
                     last_comp = pipeline_run.component_runs.order_by('-completed_at', '-id').first()
@@ -180,21 +138,31 @@ class ResearchAgentRunner:
             logger.warning(f"Failed to handle component completion tick: {e}")
 
     @classmethod
-    def send_completion_notification(cls, agent_process: ResearchAgentProcess):
+    def send_completion_notification(cls, pipeline_run_or_agent, agent_process=None):
         """
-        Sends an email digest notification via Mailgun when an agent process completes or fails.
-        Notifies all active workspace subscribers and any explicit override email.
+        Sends an email digest notification via Mailgun when a pipeline run (or agent process)
+        reaches a terminal state.
+        """
+        if isinstance(pipeline_run_or_agent, ResearchAgentProcess):
+            agent_process = pipeline_run_or_agent
+            pipeline_run = agent_process.pipeline_run
+        else:
+            pipeline_run = pipeline_run_or_agent
+            if not agent_process and pipeline_run:
+                agent_process = pipeline_run.agent_processes.first()
 
-        Args:
-            agent_process: ResearchAgentProcess that has reached a terminal state.
-        """
+        workspace = (pipeline_run.workspace if pipeline_run else (agent_process.workspace if agent_process else None))
+        if not workspace:
+            return
+
         recipients = set()
+        cfg = {}
+        if pipeline_run and pipeline_run.configuration_override:
+            cfg.update(pipeline_run.configuration_override)
+        if agent_process and agent_process.configuration_override:
+            cfg.update(agent_process.configuration_override)
 
-        # Explicit override in config
-        cfg_emails = (
-            agent_process.configuration_override.get("notification_emails")
-            or agent_process.configuration_override.get("notification_email")
-        )
+        cfg_emails = cfg.get("notification_emails") or cfg.get("notification_email")
         if cfg_emails:
             if isinstance(cfg_emails, list):
                 for em in cfg_emails:
@@ -205,12 +173,11 @@ class ResearchAgentRunner:
                     if em.strip():
                         recipients.add(em.strip())
 
-        # Determine event type
-        is_error = agent_process.status in ['failed', 'aborted']
+        status = pipeline_run.status if pipeline_run else (agent_process.status if agent_process else 'completed')
+        is_error = status in ['failed', 'aborted']
         target_types = ['pipeline_errors', 'all'] if is_error else ['result_report', 'pipeline_status', 'all']
 
-        # Workspace Active Subscribers filtered by subscription_type
-        subscribers = agent_process.workspace.subscribers.filter(
+        subscribers = workspace.subscribers.filter(
             is_active=True,
             subscription_type__in=target_types
         )
@@ -220,13 +187,11 @@ class ResearchAgentRunner:
 
         recipient_list = sorted(list(recipients))
         if not recipient_list:
-            logger.info(f"📧 [NOTIFICATION] No active recipients/subscribers found for Workspace '{agent_process.workspace.name}' (event={agent_process.status}).")
+            logger.info(f"📧 [NOTIFICATION] No active recipients found for Workspace '{workspace.name}' (event={status}).")
             return
 
-
         from research_intelligence.tasks.auxiliary.email_digest import build_pipeline_run_digest_payload
-
-        payload = build_pipeline_run_digest_payload(agent_process.pipeline_run, agent_process=agent_process)
+        payload = build_pipeline_run_digest_payload(pipeline_run, agent_process=agent_process, workspace=workspace)
         subject = payload["subject"]
         html_message = payload["html_content"]
         plain_message = payload["text_content"]
@@ -255,3 +220,84 @@ class ResearchAgentRunner:
                     )
             except Exception as mail_err:
                 logger.warning(f"⚠️ [MAIL NOTIFICATION EXCEPTION] To: {to_email} | Error: {mail_err}")
+
+
+class ResearchAgentRunner:
+    """
+    Backwards-compatible facade over PipelineRunner for legacy ResearchAgentProcess instances.
+    """
+
+    @classmethod
+    def tick(cls, process_id: str) -> Dict[str, Any]:
+        """
+        Executes a state transition tick for a ResearchAgentProcess by delegating to PipelineRunner.
+        """
+        if not connection.in_atomic_block:
+            close_old_connections()
+        with transaction.atomic():
+            try:
+                if connection.vendor == 'postgresql':
+                    process = ResearchAgentProcess.objects.select_for_update().get(pk=process_id)
+                else:
+                    process = ResearchAgentProcess.objects.get(pk=process_id)
+            except ResearchAgentProcess.DoesNotExist:
+                logger.error(f"ResearchAgentProcess '{process_id}' not found.")
+                return {"success": False, "error": f"ResearchAgentProcess '{process_id}' not found."}
+
+            if process.status in ['paused', 'aborted', 'failed', 'completed']:
+                logger.info(f"Agent process '{process.id}' is in status '{process.status}'. No state transition taken.")
+                return {
+                    "success": True,
+                    "status": process.status,
+                    "current_step": process.current_step,
+                    "message": f"Agent process is in status '{process.status}'."
+                }
+
+            workspace = process.workspace
+            config = process.configuration_override or {}
+            history = list(process.step_history or [])
+
+            # State: INITIALIZED -> Initialize PipelineRun if not already attached
+            if not process.pipeline_run:
+                reprocess_existing = config.get("reprocess_existing", getattr(workspace, "reprocess_existing", False))
+                pipeline_run = PipelineRun.objects.create(
+                    workspace=workspace,
+                    status='running',
+                    current_stage='search',
+                    reprocess_existing=reprocess_existing,
+                    triggered_by=process.triggered_by,
+                    configuration_override=config
+                )
+                process.pipeline_run = pipeline_run
+                process.status = 'running'
+                process.current_step = 'search'
+
+                history.append({
+                    "step": "search",
+                    "event": "started",
+                    "pipeline_run_id": str(pipeline_run.id),
+                    "timestamp": timezone.now().isoformat()
+                })
+                process.step_history = history
+                process.save(update_fields=['pipeline_run', 'status', 'current_step', 'step_history', 'updated_at'])
+            elif process.current_step == 'initialized':
+                process.status = 'running'
+                process.current_step = 'search'
+                history.append({
+                    "step": "search",
+                    "event": "started",
+                    "pipeline_run_id": str(process.pipeline_run.id),
+                    "timestamp": timezone.now().isoformat()
+                })
+                process.step_history = history
+                process.save(update_fields=['status', 'current_step', 'step_history', 'updated_at'])
+
+            return PipelineRunner.tick(process.pipeline_run, agent_process=process)
+
+    @classmethod
+    def handle_component_completion(cls, pipeline_run_id_or_obj):
+        return PipelineRunner.handle_component_completion(pipeline_run_id_or_obj)
+
+    @classmethod
+    def send_completion_notification(cls, agent_process: ResearchAgentProcess):
+        return PipelineRunner.send_completion_notification(agent_process.pipeline_run, agent_process=agent_process)

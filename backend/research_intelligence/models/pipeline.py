@@ -29,11 +29,13 @@ class PipelineRun(models.Model):
         ('completed', 'Completed'),
     ]
 
+    name = models.CharField(max_length=255, blank=True, default="", help_text="Optional human-readable label for this pipeline run")
     status = models.CharField(
         max_length=50,
         choices=[
             ('pending', 'Pending'),
             ('running', 'Running'),
+            ('paused', 'Paused'),
             ('completed', 'Completed'),
             ('failed', 'Failed'),
             ('aborted', 'Aborted')
@@ -45,6 +47,28 @@ class PipelineRun(models.Model):
         choices=STAGE_CHOICES,
         default='search',
         help_text="Active processing stage of the overall pipeline"
+    )
+    stopped_at_stage = models.CharField(
+        max_length=50,
+        choices=STAGE_CHOICES,
+        blank=True,
+        null=True,
+        help_text="Pipeline stage at which the pipeline run halted, completed, or failed"
+    )
+    configuration_override = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Overrides e.g. limit, date_range_days, query_prefix, skip_abstract_screening, notification_email, reprocess_existing"
+    )
+    step_history = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Audit log of state transitions and lifecycle events"
+    )
+    stage_results = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Structured status, summary message, and metrics for each executed pipeline stage"
     )
     
     # Aggregated run metrics
@@ -82,6 +106,95 @@ class PipelineRun(models.Model):
     )
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(blank=True, null=True)
+
+    @property
+    def current_step(self):
+        """Backward-compatible alias matching ResearchAgentProcess.current_step."""
+        return self.current_stage
+
+    @current_step.setter
+    def current_step(self, value):
+        self.current_stage = value
+
+    @property
+    def stopped_at_step(self):
+        """Backward-compatible alias matching ResearchAgentProcess.stopped_at_step."""
+        return self.stopped_at_stage
+
+    @stopped_at_step.setter
+    def stopped_at_step(self, value):
+        self.stopped_at_stage = value
+
+    @property
+    def stop_reason(self):
+        """Backward-compatible alias matching ResearchAgentProcess.stop_reason."""
+        return self.status_message
+
+    @stop_reason.setter
+    def stop_reason(self, value):
+        self.status_message = value
+
+    def tick(self) -> dict:
+        """Executes a single state transition tick for this PipelineRun via the DAG engine."""
+        from research_intelligence.tasks.orchestrator.runner import PipelineRunner
+        return PipelineRunner.tick(self.id)
+
+    def pause(self, reason: str = "Paused by user") -> bool:
+        """Pauses execution of the pipeline run."""
+        from django.utils import timezone
+        if self.status not in ['running', 'pending']:
+            return False
+        self.status = 'paused'
+        self.status_message = reason
+        history = list(self.step_history or [])
+        history.append({
+            "step": self.current_stage,
+            "event": "paused",
+            "message": reason,
+            "timestamp": timezone.now().isoformat()
+        })
+        self.step_history = history
+        self.save(update_fields=['status', 'status_message', 'step_history'])
+        return True
+
+    def resume(self) -> bool:
+        """Resumes a paused pipeline run and dispatches an orchestrator tick."""
+        from django.utils import timezone
+        if self.status != 'paused':
+            return False
+        self.status = 'running'
+        history = list(self.step_history or [])
+        history.append({
+            "step": self.current_stage,
+            "event": "resumed",
+            "timestamp": timezone.now().isoformat()
+        })
+        self.step_history = history
+        self.save(update_fields=['status', 'step_history'])
+        from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit
+        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+        safe_dispatch_on_commit(lambda: notify_pipeline_orchestrator_tick(self))
+        return True
+
+    def abort(self, reason: str = "Aborted by user") -> bool:
+        """Aborts an active or paused pipeline run."""
+        from django.utils import timezone
+        if self.status in ['completed', 'failed', 'aborted']:
+            return False
+        self.status = 'aborted'
+        self.status_message = reason
+        self.stopped_at_stage = self.current_stage
+        self.completed_at = timezone.now()
+        history = list(self.step_history or [])
+        history.append({
+            "step": self.current_stage,
+            "event": "aborted",
+            "message": reason,
+            "timestamp": timezone.now().isoformat()
+        })
+        self.step_history = history
+        self.save(update_fields=['status', 'status_message', 'stopped_at_stage', 'step_history', 'completed_at'])
+        return True
 
     def get_papers(self, screening_status=None, exclude_status=None):
         """

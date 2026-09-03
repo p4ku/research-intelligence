@@ -40,6 +40,7 @@ class PipelineRunSerializer(serializers.ModelSerializer):
         model = PipelineRun
         fields = [
             'id',
+            'name',
             'workspace',
             'workspace_name',
             'schedule',
@@ -47,6 +48,10 @@ class PipelineRunSerializer(serializers.ModelSerializer):
             'run_date',
             'status',
             'current_stage',
+            'stopped_at_stage',
+            'configuration_override',
+            'stage_results',
+            'step_history',
             'total_papers_fetched',
             'total_papers_passed_screening',
             'tokens_in',
