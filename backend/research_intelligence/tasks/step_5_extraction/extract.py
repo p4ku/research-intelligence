@@ -256,7 +256,7 @@ def _run_single_extraction_impl(paper, definition, workspace):
                 }
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=15)
+@shared_task(bind=True, acks_late=True, reject_on_worker_lost=True, max_retries=3, default_retry_delay=15)
 def execute_extraction_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing Parameter & Claim Extraction for papers in a ComponentRun job.

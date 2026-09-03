@@ -45,7 +45,7 @@ def _send_agent_notification(agent_process_or_pipeline_run):
     return PipelineRunner.send_completion_notification(agent_process_or_pipeline_run)
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, acks_late=True, reject_on_worker_lost=True, max_retries=2, default_retry_delay=5)
 def run_pipeline_tick(self, pipeline_run_id: str):
     """
     Celery task that executes a single state transition tick for a PipelineRun.
@@ -55,7 +55,7 @@ def run_pipeline_tick(self, pipeline_run_id: str):
     return PipelineRunner.tick(pipeline_run_id)
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, acks_late=True, reject_on_worker_lost=True, max_retries=2, default_retry_delay=5)
 def run_agent_process_tick(self, process_id: str):
     """
     Celery task that executes a single state transition tick for a ResearchAgentProcess.

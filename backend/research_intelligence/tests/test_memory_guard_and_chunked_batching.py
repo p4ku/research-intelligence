@@ -175,3 +175,83 @@ class MemoryGuardAndChunkedBatchingTestCase(TestCase):
         self.assertEqual(comp_run.metrics["passed"], 5)
         # 5 papers with chunk size 2 -> 3 chunks -> 3 reclaim_ram invocations
         self.assertEqual(mock_reclaim.call_count, 3)
+
+    def test_celery_tasks_have_acks_late_and_reject_on_worker_lost(self):
+        """Validates that all core pipeline stage tasks declare acks_late=True and reject_on_worker_lost=True."""
+        from research_intelligence.tasks.step_1_search.search import execute_scraper_run_job
+        from research_intelligence.tasks.step_2_download.fetch import execute_pdf_download_job
+        from research_intelligence.tasks.step_3_ocr.convert import execute_ocr_job
+        from research_intelligence.tasks.step_4_screening.abstract import execute_screening_job
+        from research_intelligence.tasks.step_4_screening.full_text import execute_full_text_screening_job
+        from research_intelligence.tasks.step_5_extraction.extract import execute_extraction_job
+        from research_intelligence.tasks.step_6_signal_score.scorer import execute_signal_score_job
+        from research_intelligence.tasks.orchestrator.agent_engine import run_pipeline_tick
+
+        tasks_to_check = [
+            execute_scraper_run_job,
+            execute_pdf_download_job,
+            execute_ocr_job,
+            execute_screening_job,
+            execute_full_text_screening_job,
+            execute_extraction_job,
+            execute_signal_score_job,
+            run_pipeline_tick,
+        ]
+
+        for task in tasks_to_check:
+            self.assertTrue(getattr(task, 'acks_late', False), f"Task {task.name} must have acks_late=True")
+            self.assertTrue(getattr(task, 'reject_on_worker_lost', False), f"Task {task.name} must have reject_on_worker_lost=True")
+
+    def test_zombie_watchdog_auto_retries_before_failure(self):
+        """Verifies that the zombie watchdog auto-retries stalled tasks up to max_retries before failing."""
+        from datetime import timedelta
+        from django.utils import timezone
+        from research_intelligence.tasks.auxiliary.zombie_watchdog import reap_zombie_tasks
+
+        stale_time = timezone.now() - timedelta(minutes=45)
+        stalled_comp = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="download",
+            component_name="download",
+            status="running",
+            metrics={"total_work_items": 100, "passed": 10}
+        )
+        ComponentRun.objects.filter(id=stalled_comp.id).update(started_at=stale_time)
+
+        # 1. First watchdog pass with auto_retry=True -> should auto-retry, not fail
+        stats1 = reap_zombie_tasks(max_component_age_minutes=30, auto_retry=True, max_retries=2)
+        stalled_comp.refresh_from_db()
+        self.pipeline_run.refresh_from_db()
+
+        self.assertEqual(stats1["retried_components"], 1)
+        self.assertEqual(stats1["reaped_components"], 0)
+        self.assertEqual(stalled_comp.status, "pending")
+        self.assertEqual(stalled_comp.metrics["watchdog_retries"], 1)
+        self.assertEqual(self.pipeline_run.status, "running")
+
+        # Simulate second stall
+        ComponentRun.objects.filter(id=stalled_comp.id).update(status="running", started_at=stale_time)
+
+        # 2. Second watchdog pass with auto_retry=True -> should auto-retry second time
+        stats2 = reap_zombie_tasks(max_component_age_minutes=30, auto_retry=True, max_retries=2)
+        stalled_comp.refresh_from_db()
+        self.pipeline_run.refresh_from_db()
+
+        self.assertEqual(stats2["retried_components"], 1)
+        self.assertEqual(stats2["reaped_components"], 0)
+        self.assertEqual(stalled_comp.status, "pending")
+        self.assertEqual(stalled_comp.metrics["watchdog_retries"], 2)
+        self.assertEqual(self.pipeline_run.status, "running")
+
+        # Simulate third stall (exceeded max_retries=2)
+        ComponentRun.objects.filter(id=stalled_comp.id).update(status="running", started_at=stale_time)
+
+        # 3. Third watchdog pass -> should finally fail
+        stats3 = reap_zombie_tasks(max_component_age_minutes=30, auto_retry=True, max_retries=2)
+        stalled_comp.refresh_from_db()
+        self.pipeline_run.refresh_from_db()
+
+        self.assertEqual(stats3["retried_components"], 0)
+        self.assertEqual(stats3["reaped_components"], 1)
+        self.assertEqual(stalled_comp.status, "failed")
+        self.assertEqual(self.pipeline_run.status, "failed")

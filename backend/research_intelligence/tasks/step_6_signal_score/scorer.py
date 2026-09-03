@@ -199,7 +199,7 @@ def compute_paper_signal_score(
 calculate_paper_signal_score = compute_paper_signal_score
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, acks_late=True, reject_on_worker_lost=True, max_retries=2, default_retry_delay=10)
 def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] = None) -> Dict[str, Any]:
     """
     Celery Task: Evaluates the composite signal score for all screened/accepted papers

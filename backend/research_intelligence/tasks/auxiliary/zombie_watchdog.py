@@ -26,21 +26,24 @@ def reap_zombie_tasks(
     max_component_age_minutes: int = DEFAULT_MAX_COMPONENT_AGE_MINUTES,
     max_pipeline_age_minutes: int = DEFAULT_MAX_PIPELINE_AGE_MINUTES,
     force: bool = False,
+    auto_retry: bool = False,
+    max_retries: int = 2,
 ) -> Dict[str, Any]:
     """
     Finds and resolves orphaned/zombie ComponentRuns, PipelineRuns, and
     ResearchAgentProcesses stuck in 'running' or 'pending' states.
+    Supports automatic task retry before declaring permanent failure.
 
     Args:
         max_component_age_minutes: Maximum elapsed minutes before an in-flight
-                                   component task with no heartbeat is considered dead
-                                   (defaults to ZOMBIE_WATCHDOG_COMPONENT_TIMEOUT_MINUTES or 60m / 1h).
-        max_pipeline_age_minutes: Maximum elapsed minutes for overall pipeline runs
-                                  (defaults to ZOMBIE_WATCHDOG_PIPELINE_TIMEOUT_MINUTES or 120m / 2h).
+                                   component task with no heartbeat is considered dead.
+        max_pipeline_age_minutes: Maximum elapsed minutes for overall pipeline runs.
         force: If True, immediately terminates all running tasks regardless of age.
+        auto_retry: If True, resets stalled components to 'pending' up to max_retries before failing.
+        max_retries: Maximum number of automatic retries granted to a stalled component.
 
     Returns:
-        Dict with counts of reaped entities.
+        Dict with counts of reaped and retried entities.
     """
     close_old_connections()
     
@@ -60,6 +63,7 @@ def reap_zombie_tasks(
         "reaped_components": 0,
         "reaped_pipelines": 0,
         "reaped_agents": 0,
+        "retried_components": 0,
         "details": []
     }
 
@@ -93,6 +97,21 @@ def reap_zombie_tasks(
                 comp.save(update_fields=['status', 'completed_at'])
                 logger.info(f"✨ [ZOMBIE WATCHDOG RECOVERED] ComponentRun '{comp.id}' ({comp.component_name}) was fully processed ({done_items}/{total_items}). Marked completed.")
                 stats["details"].append(f"ComponentRun {comp.id} ({comp.component_name}) -> recovered completed")
+                if comp.pipeline_run:
+                    pipelines_to_notify.append(comp.pipeline_run)
+            elif auto_retry and not force and (comp.metrics or {}).get("watchdog_retries", 0) < max_retries and comp.pipeline_run and comp.pipeline_run.status == 'running':
+                retries = (comp.metrics or {}).get("watchdog_retries", 0)
+                m_data = dict(comp.metrics or {})
+                m_data["watchdog_retries"] = retries + 1
+                m_data["last_watchdog_retry_at"] = now.isoformat()
+                comp.metrics = m_data
+                comp.status = 'pending'
+                comp.started_at = now
+                comp.error_message = f"Transient stall or worker exit detected (inactive for {age_min}m). Auto-retrying ({retries + 1}/{max_retries})."
+                comp.save(update_fields=['status', 'metrics', 'started_at', 'error_message'])
+                stats["retried_components"] += 1
+                stats["details"].append(f"ComponentRun {comp.id} ({comp.component_name}) -> auto-retried ({retries + 1}/{max_retries})")
+                logger.warning(f"🔄 [WATCHDOG AUTO-RETRY] Stalled ComponentRun '{comp.id}' ({comp.component_name}) re-queued as pending (retry {retries + 1}/{max_retries}).")
                 if comp.pipeline_run:
                     pipelines_to_notify.append(comp.pipeline_run)
             else:
@@ -245,17 +264,20 @@ def reap_zombie_tasks(
     return stats
 
 
-@shared_task(name="research_intelligence.tasks.auxiliary.zombie_watchdog.reap_zombie_tasks_task")
+@shared_task(name="research_intelligence.tasks.auxiliary.zombie_watchdog.reap_zombie_tasks_task", acks_late=True, reject_on_worker_lost=True)
 def reap_zombie_tasks_task(
     max_component_age_minutes: int = DEFAULT_MAX_COMPONENT_AGE_MINUTES,
-    max_pipeline_age_minutes: int = DEFAULT_MAX_PIPELINE_AGE_MINUTES
+    max_pipeline_age_minutes: int = DEFAULT_MAX_PIPELINE_AGE_MINUTES,
+    force: bool = False,
+    auto_retry: bool = True,
 ) -> Dict[str, Any]:
     """
-    Celery Beat scheduled task executing periodic zombie process reaping.
+    Celery Beat scheduled task executing periodic zombie process reaping with automatic retry resilience.
     """
     logger.info("🕒 [CELERY BEAT] Running periodic Zombie Process & Stale Task Watchdog...")
     return reap_zombie_tasks(
         max_component_age_minutes=max_component_age_minutes,
         max_pipeline_age_minutes=max_pipeline_age_minutes,
-        force=False,
+        force=force,
+        auto_retry=auto_retry,
     )

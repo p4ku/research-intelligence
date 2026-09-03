@@ -14,7 +14,7 @@ from ...utils.memory_guard import reclaim_ram
 logger = logging.getLogger(__name__)
 
 
-@shared_task
+@shared_task(acks_late=True, reject_on_worker_lost=True)
 def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None, pipeline_run_id=None):
     """
     Screens full paper content (OCR Markdown if present, PDF binary if available, or abstract fallback)
@@ -280,7 +280,7 @@ def _screen_full_text_paper_task(paper, workspace_obj, pipeline_run_id=None):
         close_old_connections()
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=15)
+@shared_task(bind=True, acks_late=True, reject_on_worker_lost=True, max_retries=3, default_retry_delay=15)
 def execute_full_text_screening_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing Full-Text Screening for papers in a ComponentRun job.

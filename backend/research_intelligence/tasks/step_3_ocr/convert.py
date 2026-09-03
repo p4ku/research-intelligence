@@ -15,7 +15,7 @@ from ...utils.memory_guard import reclaim_ram
 logger = logging.getLogger(__name__)
 
 
-@shared_task
+@shared_task(acks_late=True, reject_on_worker_lost=True)
 def run_ocr_conversion(paper_id, output_format="markdown", paper_obj=None):
     """
     Downloads the paper PDF from storage, parses it into text using the Workspace's configured OCR provider,
@@ -150,7 +150,7 @@ def _ocr_paper_task(paper):
     return paper, res
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, acks_late=True, reject_on_worker_lost=True, max_retries=2, default_retry_delay=10)
 def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing Layout OCR Extraction for papers in a ComponentRun job.

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 from .dedup import normalize_doi, normalize_arxiv_id, normalize_title
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, acks_late=True, reject_on_worker_lost=True, max_retries=2, default_retry_delay=10)
 def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = None):
     """
     Celery worker task executing an individual scraping ComponentRun job.
@@ -303,7 +303,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
         return False
 
 
-@shared_task
+@shared_task(acks_late=True, reject_on_worker_lost=True)
 def execute_workspace_search(workspace_id, pipeline_run_id, limit=50):
     """
     Backwards-compatible consolidated search task that launches ComponentRun jobs

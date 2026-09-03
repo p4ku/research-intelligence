@@ -159,7 +159,7 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
                 return {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": str(e)}
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, acks_late=True, reject_on_worker_lost=True, max_retries=2, default_retry_delay=10)
 def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing PDF Binary Download for papers in a ComponentRun job.
@@ -365,7 +365,7 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
         return False
 
 
-@shared_task
+@shared_task(acks_late=True, reject_on_worker_lost=True)
 def download_pdf_to_s3(paper_id):
     """
     Downloads paper PDF using the appropriate scraper provider and uploads it to storage.

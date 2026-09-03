@@ -171,7 +171,7 @@ def generate_executive_narrative_report(pipeline_run: PipelineRun) -> Dict[str, 
     }
 
 
-@shared_task
+@shared_task(acks_late=True, reject_on_worker_lost=True)
 def generate_narrative_report_with_refinement(workspace_id):
     """Backwards-compatible Celery task."""
     try:
