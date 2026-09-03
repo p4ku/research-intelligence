@@ -48,6 +48,12 @@ class ReportingNode(BaseWorkflowNode):
             return "Reporting: Narrative SLR executive report compiled."
         return super().generate_stage_summary(comp_run, status=status)
 
+    def get_input_params(self, pipeline_run, workspace, config: Dict[str, Any], limit: Optional[int] = None) -> Dict[str, Any]:
+        params = super().get_input_params(pipeline_run, workspace, config, limit=limit)
+        params["generate_narrative_report"] = config.get("generate_narrative_report", True)
+        params["subscribers_count"] = workspace.subscribers.filter(is_active=True).count()
+        return params
+
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
         from django.utils import timezone
         from research_intelligence.tasks.orchestrator.dag.base_node import safe_dispatch_on_commit

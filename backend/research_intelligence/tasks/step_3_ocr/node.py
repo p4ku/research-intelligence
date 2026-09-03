@@ -57,6 +57,11 @@ class OCRNode(BaseWorkflowNode):
             return f"OCR: {conv} documents converted to Markdown."
         return super().generate_stage_summary(comp_run, status=status)
 
+    def get_input_params(self, pipeline_run, workspace, config: Dict[str, Any], limit: Optional[int] = None) -> Dict[str, Any]:
+        params = super().get_input_params(pipeline_run, workspace, config, limit=limit)
+        params["ocr_provider"] = config.get("ocr_provider", workspace.ocr_provider)
+        return params
+
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
         from research_intelligence.tasks.step_3_ocr.convert import execute_ocr_job
         return self.dispatch_celery_task(execute_ocr_job, comp_run, limit=limit)

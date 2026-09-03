@@ -80,6 +80,15 @@ class SearchNode(BaseWorkflowNode):
             return f"Search: {total} fetched, {ingested} created (new), {dups} duplicates."
         return super().generate_stage_summary(comp_run, status=status)
 
+    def get_input_params(self, pipeline_run, workspace, config: Dict[str, Any], limit: Optional[int] = None) -> Dict[str, Any]:
+        params = super().get_input_params(pipeline_run, workspace, config, limit=limit)
+        params["scrapers"] = [
+            {"provider": s.provider, "query": s.search_query, "limit": s.limit}
+            for s in workspace.scrapers.filter(is_active=True)
+        ]
+        params["reprocess_existing"] = bool(config.get("reprocess_existing", getattr(pipeline_run, 'reprocess_existing', getattr(workspace, 'reprocess_existing', False))))
+        return params
+
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:
         from research_intelligence.models import ComponentRun
         from research_intelligence.tasks.step_1_search.search import execute_scraper_run_job
