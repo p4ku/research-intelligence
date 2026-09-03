@@ -13,7 +13,6 @@ from research_intelligence.models import (
 from research_intelligence.utils.mailer import send_mailgun_message
 
 from django.template.loader import render_to_string
-from research_intelligence.utils.mailer import send_mailgun_message
 
 logger = logging.getLogger(__name__)
 

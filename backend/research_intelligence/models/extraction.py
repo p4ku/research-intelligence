@@ -21,23 +21,6 @@ class ExtractionDefinition(models.Model):
     requires_consensus = models.BooleanField(default=False, help_text="Requires multi-sample self-consistency for difficult fields")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
-
-    @property
-    def exit_metrics(self):
-        return self.exit_metric
-
-    @exit_metrics.setter
-    def exit_metrics(self, value):
-        self.exit_metric = value
-
-    @property
-    def exit_metric_key(self):
-        return self.exit_metric
-
-    @exit_metric_key.setter
-    def exit_metric_key(self, value):
-        self.exit_metric = value
-
     class Meta:
         app_label = 'research_intelligence'
 
