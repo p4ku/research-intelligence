@@ -76,8 +76,21 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None,
                 raw_bytes = f.read()
             from ..step_2_download.fetch import is_valid_pdf_binary
             if is_valid_pdf_binary(raw_bytes):
-                pdf_bytes = raw_bytes
-                input_source = "multimodal_pdf"
+                # Pre-check: If PDF is larger than 15MB, Gemini inline multimodal API rejects it with 400 INVALID_ARGUMENT
+                # (inline payload limit is 20MB base64) and causes high memory usage. Extract text via PyPDF instead!
+                if len(raw_bytes) > 15 * 1024 * 1024:
+                    from ...utils.pdf_extractor import extract_text_from_pdf_bytes
+                    logger.info(f"📄 Paper '{paper_id}' PDF is large ({len(raw_bytes)/(1024*1024):.1f} MB > 15 MB). Extracting text to avoid 400 INVALID_ARGUMENT.")
+                    extracted_text = extract_text_from_pdf_bytes(raw_bytes, max_chars=120000)
+                    if extracted_text:
+                        md_text = extracted_text
+                        input_source = "pdf_text_extracted"
+                    else:
+                        pdf_bytes = raw_bytes
+                        input_source = "multimodal_pdf"
+                else:
+                    pdf_bytes = raw_bytes
+                    input_source = "multimodal_pdf"
             else:
                 logger.warning(f"Stored file for paper {paper_id} at {paper.original_pdf_path} is not a valid PDF (e.g. 0 pages or HTML). Falling back to abstract.")
         except Exception as e:
@@ -254,6 +267,40 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None,
             }
         except Exception as e:
             last_error = e
+            err_str = str(e)
+            # Automatic Recovery: If Gemini rejected the binary with 400 INVALID_ARGUMENT,
+            # fall back to text extraction/abstract immediately without burning retries on broken binary
+            if ("400" in err_str or "INVALID_ARGUMENT" in err_str) and gen_kwargs.get("pdf_bytes"):
+                logger.warning(
+                    f"⚠️ [FULL-TEXT 400 FALLBACK] Gemini rejected PDF binary for paper '{paper.id}' "
+                    f"({paper.title[:30]}...). Extracting text and retrying without binary attachment."
+                )
+                from ...utils.pdf_extractor import extract_text_from_pdf_bytes
+                extracted_text = extract_text_from_pdf_bytes(gen_kwargs.pop("pdf_bytes", None), max_chars=120000) or paper.abstract or ""
+                gen_kwargs.pop("mime_type", None)
+                input_source = "pdf_fallback_text" if extracted_text else "abstract_fallback"
+                ctx = {
+                    "title": paper.title or "",
+                    "full_text": extracted_text[:120000],
+                    "abstract": paper.abstract or "",
+                    "acceptance_criteria": acceptance,
+                    "rejection_criteria": rejection,
+                    "paper_title": paper.title or "",
+                    "paper_text": extracted_text[:120000]
+                }
+                user_prompt = safe_format_prompt(user_prompt_template, ctx)
+                if not user_prompt:
+                    user_prompt = (
+                        f"<UNTRUSTED_DOCUMENT_CONTENT>\n"
+                        f"Title: {paper.title}\n\n"
+                        f"Full-Text Content:\n{extracted_text[:120000]}\n"
+                        f"</UNTRUSTED_DOCUMENT_CONTENT>\n\n"
+                        f"Acceptance Criteria (must satisfy to pass):\n{acceptance}\n\n"
+                        f"Rejection Criteria (if matched, paper is rejected):\n{rejection}"
+                    )
+                gen_kwargs["prompt"] = user_prompt
+                continue
+
             if attempt < max_attempts:
                 delay = (2 ** attempt) + (0.1 * attempt)
                 logger.warning(f"⚠️ [RETRY {attempt}/{max_attempts}] Paper '{paper.id}' ({paper.title[:30]}...) full-text screening failed: {str(e)}. Retrying in {delay:.1f}s...")

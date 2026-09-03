@@ -235,11 +235,25 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                         logger.error(f"Failed to read file at {f_path}: {str(e)}")
 
             if resolved_bytes:
-                file_part = types.Part.from_bytes(
-                    data=resolved_bytes,
-                    mime_type=resolved_mime,
-                )
-                contents.append(file_part)
+                # Pre-check: If PDF is larger than 15MB, Gemini inline data API will fail with 400 INVALID_ARGUMENT
+                # (inline limit is 20MB base64 payload) or cause huge memory spikes. Extract text directly!
+                if resolved_mime == "application/pdf" and len(resolved_bytes) > 15 * 1024 * 1024:
+                    logger.info(f"📄 PDF binary is large ({len(resolved_bytes)/(1024*1024):.1f} MB > 15 MB). Extracting text to avoid 400 INVALID_ARGUMENT inline limit.")
+                    try:
+                        from ..utils.pdf_extractor import extract_text_from_pdf_bytes
+                        pdf_text = extract_text_from_pdf_bytes(resolved_bytes, max_chars=120000)
+                        if pdf_text:
+                            contents.append(f"<DOCUMENT_TEXT>\n{pdf_text}\n</DOCUMENT_TEXT>")
+                            resolved_bytes = None
+                    except Exception as ext_err:
+                        logger.warning(f"Could not pre-extract large PDF text: {ext_err}")
+
+                if resolved_bytes:
+                    file_part = types.Part.from_bytes(
+                        data=resolved_bytes,
+                        mime_type=resolved_mime,
+                    )
+                    contents.append(file_part)
 
         contents.append(prompt)
 
@@ -292,6 +306,25 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                 break
             except Exception as e:
                 err_str = str(e)
+                # Resilient fallback: If Gemini rejects binary PDF with 400 INVALID_ARGUMENT (e.g. font error, >1000 pages, corruption),
+                # automatically extract text from bytes and retry generation as text prompt immediately instead of failing the job.
+                if ("400" in err_str or "INVALID_ARGUMENT" in err_str) and has_file and resolved_bytes:
+                    logger.warning(
+                        f"⚠️ [GEMINI 400 FALLBACK] Gemini API rejected binary payload with 400 INVALID_ARGUMENT. "
+                        f"Extracting text from PDF and retrying generation as text prompt..."
+                    )
+                    try:
+                        from ..utils.pdf_extractor import extract_text_from_pdf_bytes
+                        pdf_text = extract_text_from_pdf_bytes(resolved_bytes, max_chars=120000)
+                    except Exception:
+                        pdf_text = ""
+                    if pdf_text:
+                        contents = [f"<DOCUMENT_TEXT>\n{pdf_text}\n</DOCUMENT_TEXT>", prompt]
+                    else:
+                        contents = prompt
+                    resolved_bytes = None
+                    has_file = False
+                    continue
                 is_transient = (
                     "429" in err_str or
                     "RESOURCE_EXHAUSTED" in err_str or

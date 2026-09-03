@@ -411,6 +411,13 @@ if STORAGE_BACKEND in ['s3', 'minio']:
         AWS_S3_ENDPOINT_URL = endpoint_url
         AWS_S3_USE_SSL = use_ssl
 
+    from botocore.config import Config
+    AWS_S3_MAX_POOL_CONNECTIONS = int(os.environ.get('AWS_S3_MAX_POOL_CONNECTIONS', 50))
+    AWS_S3_CLIENT_CONFIG = Config(
+        max_pool_connections=AWS_S3_MAX_POOL_CONNECTIONS,
+        retries={'max_attempts': 3, 'mode': 'standard'}
+    )
+
 elif STORAGE_BACKEND in ['gcs', 'gcp']:
     STORAGES["default"] = {
         "BACKEND": "storages.backends.gcp_storage.GoogleCloudStorage",

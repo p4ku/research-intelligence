@@ -55,9 +55,23 @@ def _run_single_extraction_impl(paper, definition, workspace):
                 raw_bytes = f.read()
             from ..step_2_download.fetch import is_valid_pdf_binary
             if is_valid_pdf_binary(raw_bytes):
-                pdf_bytes = raw_bytes
-                input_source = "multimodal_pdf"
-                paper_text = "Please analyze the attached full-text PDF document for dynamic parameter extraction."
+                # Pre-check: If PDF is larger than 15MB, Gemini inline multimodal API rejects it with 400 INVALID_ARGUMENT
+                # (inline payload limit is 20MB base64) and causes high memory usage. Extract text via PyPDF instead!
+                if len(raw_bytes) > 15 * 1024 * 1024:
+                    from ...utils.pdf_extractor import extract_text_from_pdf_bytes
+                    logger.info(f"📄 Paper '{paper.id}' PDF is large ({len(raw_bytes)/(1024*1024):.1f} MB > 15 MB). Extracting text to avoid 400 INVALID_ARGUMENT.")
+                    extracted_text = extract_text_from_pdf_bytes(raw_bytes, max_chars=120000)
+                    if extracted_text:
+                        paper_text = extracted_text
+                        input_source = "pdf_text_extracted"
+                    else:
+                        pdf_bytes = raw_bytes
+                        input_source = "multimodal_pdf"
+                        paper_text = "Please analyze the attached full-text PDF document for dynamic parameter extraction."
+                else:
+                    pdf_bytes = raw_bytes
+                    input_source = "multimodal_pdf"
+                    paper_text = "Please analyze the attached full-text PDF document for dynamic parameter extraction."
             else:
                 logger.warning(f"Stored file for paper {paper.id} at {paper.original_pdf_path} is not a valid PDF. Falling back to abstract.")
         except Exception as e:
@@ -238,6 +252,32 @@ def _run_single_extraction_impl(paper, definition, workspace):
             }
         except Exception as e:
             last_error = e
+            err_str = str(e)
+            if ("400" in err_str or "INVALID_ARGUMENT" in err_str) and gen_kwargs.get("pdf_bytes"):
+                logger.warning(
+                    f"⚠️ [EXTRACTION 400 FALLBACK] Gemini rejected PDF binary for paper '{paper.id}' "
+                    f"({paper.title[:30]}...). Extracting text and retrying without binary attachment."
+                )
+                from ...utils.pdf_extractor import extract_text_from_pdf_bytes
+                extracted_text = extract_text_from_pdf_bytes(gen_kwargs.pop("pdf_bytes", None), max_chars=120000) or paper.abstract or ""
+                gen_kwargs.pop("mime_type", None)
+                input_source = "pdf_fallback_text" if extracted_text else "abstract_fallback"
+                format_data = SafeFormatterDict(
+                    paper_text=extracted_text[:120000] if extracted_text else "",
+                    full_text=extracted_text[:120000] if extracted_text else "",
+                    title=paper.title or "",
+                    paper_title=paper.title or "",
+                    abstract=paper.abstract or "",
+                    paper_abstract=paper.abstract or "",
+                    authors=paper.authors or "",
+                    published_date=str(getattr(paper, "published_date", "")) if getattr(paper, "published_date", None) else "",
+                    source_database=paper.source_database or "",
+                    arxiv_id=paper.arxiv_id or "",
+                    doi=paper.doi or ""
+                )
+                gen_kwargs["prompt"] = normalized_tmpl.format_map(format_data)
+                continue
+
             if attempt < max_attempts:
                 delay = (2 ** attempt) + (0.1 * attempt)
                 logger.warning(f"⚠️ [EXTRACTION RETRY {attempt}/{max_attempts}] Paper '{paper.id}' with def '{definition.name}' failed: {e}. Retrying in {delay:.1f}s...")
