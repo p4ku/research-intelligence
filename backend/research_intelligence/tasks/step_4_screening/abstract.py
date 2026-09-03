@@ -334,7 +334,8 @@ def execute_screening_job(self, component_run_id: str, limit: int = None, max_wo
         else:
             batch_timeout_sec = max(600.0, (len(papers) / max(1, worker_concurrency)) * 300.0)
             completed_paper_ids = set()
-            with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
+            executor = ThreadPoolExecutor(max_workers=worker_concurrency)
+            try:
                 future_to_paper = {
                     executor.submit(_screen_paper_task, paper, workspace, pipeline_run_id=str(pipeline_run.id)): paper
                     for paper in papers
@@ -344,7 +345,7 @@ def execute_screening_job(self, component_run_id: str, limit: int = None, max_wo
                         paper = future_to_paper[future]
                         completed_paper_ids.add(paper.id)
                         try:
-                            _, res = future.result(timeout=300.0)
+                            _, res = future.result(timeout=180.0)
                         except Exception as fe:
                             logger.error(f"Thread execution error for paper '{paper.id}': {fe}")
                             res = {"success": False, "error": str(fe), "duration_seconds": 0.0, "usage": {}}
@@ -359,6 +360,8 @@ def execute_screening_job(self, component_run_id: str, limit: int = None, max_wo
                         logger.warning(f"⚠️ [TIMEOUT RECOVERY] Paper '{paper.id}' ({paper.title[:40]}...) timed out during abstract screening. Recording as failed.")
                         res = {"success": False, "error": "Operation timed out during abstract screening batch execution.", "duration_seconds": 0.0, "usage": {}}
                         _record_result(paper, res)
+            finally:
+                executor.shutdown(wait=False, cancel_futures=True)
 
         job_duration_sec = round(time.time() - job_t0, 3)
         avg_duration_sec = round(job_duration_sec / len(papers), 3) if papers else 0.0

@@ -120,8 +120,9 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                 logger.warning(f"Failed to load credentials from GOOGLE_SERVICE_ACCOUNT_JSON env var: {str(e)}")
 
         target_project_id = self.project_id or sa_project_id
-        # Note: google-genai SDK types.HttpOptions expects timeout in milliseconds (300,000 ms = 5 minutes).
-        http_options = types.HttpOptions(timeout=300000) if hasattr(types, 'HttpOptions') else None
+        # Note: google-genai SDK types.HttpOptions expects timeout in milliseconds (120,000 ms = 2 minutes).
+        # A 2-minute ceiling prevents threads from hanging for 5+ minutes on stalled TCP/DNS connections.
+        http_options = types.HttpOptions(timeout=120000) if hasattr(types, 'HttpOptions') else None
 
         try:
             if credentials is not None:
@@ -303,7 +304,17 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                     "500" in err_str or
                     "unavailable" in err_str.lower() or
                     "connection" in err_str.lower() or
-                    "deadline" in err_str.lower()
+                    "connect" in err_str.lower() or
+                    "name resolution" in err_str.lower() or
+                    "temporary failure" in err_str.lower() or
+                    "errno -3" in err_str.lower() or
+                    "eai_again" in err_str.lower() or
+                    "dns" in err_str.lower() or
+                    "deadline" in err_str.lower() or
+                    "reset by peer" in err_str.lower() or
+                    "broken pipe" in err_str.lower() or
+                    "remote end closed" in err_str.lower() or
+                    "network" in err_str.lower()
                 )
 
                 if is_transient and attempt < max_retries:
