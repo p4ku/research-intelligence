@@ -2627,9 +2627,7 @@ class PaperMetricAdmin(admin.ModelAdmin):
             'fields': (
                 'screening_status',
                 'abstract_screening_reasoning_display',
-                'abstract_screening_reasoning',
                 'full_text_screening_reasoning_display',
-                'full_text_screening_reasoning',
                 'is_evaluation_benchmark',
                 'evaluation_label'
             )

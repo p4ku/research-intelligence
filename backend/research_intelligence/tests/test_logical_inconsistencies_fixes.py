@@ -570,6 +570,14 @@ score = clamp(trl_val) * 0.5 + 4.0
         empty_ft_html = admin.full_text_screening_reasoning_display(pm_empty)
         self.assertIn("Brak uzasadnienia dla etapu pełnego tekstu", empty_ft_html)
 
+        # 7. PaperMetricAdmin hides duplicate raw textboxes in favor of styled readonly boxes
+        screening_fieldset = next(fs for name, fs in admin.fieldsets if name == 'Screening Decision & Verification')
+        fields = screening_fieldset['fields']
+        self.assertIn('abstract_screening_reasoning_display', fields)
+        self.assertIn('full_text_screening_reasoning_display', fields)
+        self.assertNotIn('abstract_screening_reasoning', fields)
+        self.assertNotIn('full_text_screening_reasoning', fields)
+
     def test_dag_completion_aggregates_tokens_and_total_passed(self):
         """Validates that DAG completion aggregates tokens from component runs and updates total_papers_passed_screening."""
         from research_intelligence.tasks.orchestrator.dag.pipelines import build_default_slr_dag
