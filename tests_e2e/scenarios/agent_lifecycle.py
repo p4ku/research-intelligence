@@ -115,6 +115,7 @@ def run_agent_lifecycle_scenario(config: Optional[E2EConfig] = None) -> Dict[str
             "workspace_id": workspace_id,
             "process_id": process_id,
             "final_status": completed_proc.get("status"),
+            "total_papers": int(pr_info.get("total_papers_fetched", 0) or 0),
             "cost_metrics": cost_metrics,
         }
 

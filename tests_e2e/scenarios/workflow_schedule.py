@@ -111,6 +111,7 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
 
         # 7. Verify Linked PipelineRun & Schedule State Consistency
         final_pipeline_run_id = completed_agent.get("pipeline_run") or pipeline_run_id
+        pr_data = {}
         if final_pipeline_run_id:
             pr_data = pipeline_svc.get_pipeline_run(final_pipeline_run_id)
             assert pr_data.get("schedule") == schedule_id or pr_data.get("schedule_id") == schedule_id, (
@@ -137,6 +138,20 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         logger.info("🎉 WORKFLOW SCHEDULE & OBSERVABILITY SCENARIO PASSED (SAFELY DEACTIVATED)!")
         logger.info("=================================================================")
 
+        p_in = int(pr_data.get("tokens_in", 0) or 0)
+        p_out = int(pr_data.get("tokens_out", 0) or 0)
+        p_tok = int(pr_data.get("tokens_consumed", 0) or (p_in + p_out))
+        p_usd = float(pr_data.get("usd_cost") or 0.0)
+
+        cost_metrics = {
+            "pipeline_tokens_in": p_in,
+            "pipeline_tokens_out": p_out,
+            "pipeline_total_tokens": p_tok,
+            "pipeline_usd_cost": p_usd,
+            "total_tokens_consumed": p_tok,
+            "total_usd_spent": p_usd,
+        }
+
         return {
             "status": "passed",
             "workspace_id": workspace_id,
@@ -144,6 +159,8 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             "agent_process_id": agent_process_id,
             "pipeline_run_id": final_pipeline_run_id,
             "schedule_status": current_status,
+            "total_papers": int(pr_data.get("total_papers_fetched", 0) or 0),
+            "cost_metrics": cost_metrics,
         }
 
     finally:

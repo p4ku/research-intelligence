@@ -12,6 +12,7 @@ from ..client import (
     AuthService,
     WorkspaceService,
     AgentService,
+    PipelineService,
 )
 
 logger = logging.getLogger("e2e_concurrent_load")
@@ -31,6 +32,7 @@ def run_concurrent_agents_load_scenario(config: Optional[E2EConfig] = None, num_
     auth.login(cfg.username, cfg.password)
     ws_svc = WorkspaceService(client)
     agent_svc = AgentService(client)
+    pipeline_svc = PipelineService(client)
 
     logger.info("=================================================================")
     logger.info(f"⚡ STARTING CONCURRENT AGENTS LOAD SCENARIO ({num_agents} PARALLEL AGENTS)")
@@ -108,6 +110,7 @@ def run_concurrent_agents_load_scenario(config: Optional[E2EConfig] = None, num_
         tot_p_out = 0
         tot_p_tok = 0
         tot_p_usd = 0.0
+        tot_papers = 0
 
         for p_id, p_data in finished_processes.items():
             pr_id = p_data.get("pipeline_run")
@@ -122,8 +125,9 @@ def run_concurrent_agents_load_scenario(config: Optional[E2EConfig] = None, num_
                     tot_p_out += p_out
                     tot_p_tok += p_tok
                     tot_p_usd += p_usd
-                except Exception:
-                    pass
+                    tot_papers += int(pr_info.get("total_papers_fetched", 0) or 0)
+                except Exception as e:
+                    logger.warning(f"Could not retrieve pipeline run {pr_id} metrics: {e}")
 
         cost_metrics = {
             "pipeline_tokens_in": tot_p_in,
@@ -137,6 +141,7 @@ def run_concurrent_agents_load_scenario(config: Optional[E2EConfig] = None, num_
         return {
             "status": "passed",
             "agents_count": len(processes),
+            "total_papers": tot_papers,
             "total_elapsed_seconds": total_elapsed,
             "workspaces": [ws["id"] for ws in workspaces],
             "cost_metrics": cost_metrics,

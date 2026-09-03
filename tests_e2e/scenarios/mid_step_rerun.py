@@ -106,6 +106,7 @@ def run_mid_step_rerun_scenario(config: Optional[E2EConfig] = None) -> Dict[str,
             "status": "passed",
             "workspace_id": workspace_id,
             "pipeline_run_id": pipeline_run_id,
+            "total_papers": int(pr_updated.get("total_papers_fetched", 0) or 0),
             "component_runs_count": len(pr_updated.get("component_runs", [])),
             "cost_metrics": cost_metrics,
         }
