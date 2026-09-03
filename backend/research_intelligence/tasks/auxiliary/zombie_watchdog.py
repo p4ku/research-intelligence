@@ -63,6 +63,8 @@ def reap_zombie_tasks(
         "details": []
     }
 
+    pipelines_to_notify = []
+
     from research_intelligence.models import ComponentRun, PipelineRun, ResearchAgentProcess
 
     # -------------------------------------------------------------------------
@@ -91,6 +93,8 @@ def reap_zombie_tasks(
                 comp.save(update_fields=['status', 'completed_at'])
                 logger.info(f"✨ [ZOMBIE WATCHDOG RECOVERED] ComponentRun '{comp.id}' ({comp.component_name}) was fully processed ({done_items}/{total_items}). Marked completed.")
                 stats["details"].append(f"ComponentRun {comp.id} ({comp.component_name}) -> recovered completed")
+                if comp.pipeline_run:
+                    pipelines_to_notify.append(comp.pipeline_run)
             else:
                 reason = f"Zombie task reaped: No worker progress for {age_min} minutes (exceeded {max_component_age_minutes}m timeout)."
                 logger.warning(f"🧟 [ZOMBIE COMPONENT REAPED] ComponentRun '{comp.id}' ({comp.component_name}) | Age: {age_min}m | Task ID: {comp.celery_task_id}")
@@ -101,25 +105,14 @@ def reap_zombie_tasks(
                 stats["reaped_components"] += 1
                 stats["details"].append(f"ComponentRun {comp.id} ({comp.component_name}) -> failed")
 
-                # Immediately fail the associated PipelineRun if active and notify orchestrator
+                # Immediately fail the associated PipelineRun if active and queue notification
                 if comp.pipeline_run and comp.pipeline_run.status == 'running':
                     comp.pipeline_run.status = 'failed'
                     comp.pipeline_run.status_message = f"Pipeline terminated: Component '{comp.component_name}' reaped by watchdog as zombie ({reason})"
                     comp.pipeline_run.completed_at = now
                     comp.pipeline_run.save(update_fields=['status', 'status_message', 'completed_at'])
                     stats["reaped_pipelines"] += 1
-                    try:
-                        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
-                        notify_pipeline_orchestrator_tick(comp.pipeline_run)
-                    except Exception as tick_err:
-                        logger.warning(f"Watchdog orchestrator tick notification failed: {tick_err}")
-
-            if comp.status == 'completed' and comp.pipeline_run:
-                try:
-                    from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
-                    notify_pipeline_orchestrator_tick(comp.pipeline_run)
-                except Exception as tick_err:
-                    logger.warning(f"Watchdog orchestrator tick notification failed: {tick_err}")
+                    pipelines_to_notify.append(comp.pipeline_run)
 
     # -------------------------------------------------------------------------
     # 2. Inspect & Reap Stale PipelineRuns
@@ -226,6 +219,19 @@ def reap_zombie_tasks(
                 agent.save(update_fields=['status', 'stopped_at_step', 'stop_reason', 'error_message', 'completed_at', 'step_history', 'updated_at'])
                 stats["reaped_agents"] += 1
                 stats["details"].append(f"ResearchAgentProcess {agent.id} -> {agent_final_status}")
+
+    # -------------------------------------------------------------------------
+    # 4. Notify Orchestrator of Reaped or Recovered Pipeline Runs
+    # -------------------------------------------------------------------------
+    seen_pr_ids = set()
+    for pr in pipelines_to_notify:
+        if pr and pr.id not in seen_pr_ids:
+            seen_pr_ids.add(pr.id)
+            try:
+                from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+                notify_pipeline_orchestrator_tick(pr)
+            except Exception as tick_err:
+                logger.warning(f"Watchdog orchestrator tick notification failed: {tick_err}")
 
     close_old_connections()
     return stats
