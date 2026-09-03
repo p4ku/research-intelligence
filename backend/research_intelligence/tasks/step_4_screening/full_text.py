@@ -428,6 +428,7 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
                     "failed": failed_count,
                     "percent_complete": pct,
                     "latest_processed": f"[{latest_badge}] {title_snippet}",
+                    "last_progress_at": timezone.now().isoformat(),
                     "elapsed_seconds": round(time.time() - job_t0, 1),
                 }
                 component_run.save(update_fields=['metrics'])

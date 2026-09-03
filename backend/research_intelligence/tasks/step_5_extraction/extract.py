@@ -422,6 +422,7 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
                     "total_definitions": len(active_definitions),
                     "percent_complete": pct,
                     "latest_processed": f"[{badge}] {def_name}: {p_title[:35]}...",
+                    "last_progress_at": timezone.now().isoformat(),
                     "elapsed_seconds": round(time.time() - job_t0, 1),
                 }
                 component_run.save(update_fields=['metrics'])

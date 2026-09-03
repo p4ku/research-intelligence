@@ -593,12 +593,30 @@ def check_run_status_logic(
         component_runs_summary=component_runs_summary
     )
 
+    active_progress = {}
+    if process.pipeline_run:
+        from mcp_server.tools.pipeline_runs.status import compute_active_progress_summary
+        active_progress = compute_active_progress_summary(process.pipeline_run, comp_runs_list)
+        if process.status == 'running' and active_progress.get("guidance_for_ai"):
+            recommendation = active_progress["guidance_for_ai"]
+
+        if active_progress.get("is_stalled"):
+            stalled_m = active_progress.get("stalled_minutes", 0)
+            summary_markdown = f"> ⚠️ **WORKER STALLED ALERT**: No progress detected for {stalled_m} minutes. DO NOT MODIFY SOURCE CODE.\n>\n" + summary_markdown
+        elif active_progress.get("is_progressing"):
+            p_sum = active_progress.get("progress_summary")
+            summary_markdown = f"> ⏳ **ACTIVE PROGRESS**: {p_sum} (Advancing normally in Celery — do not edit code)\n>\n" + summary_markdown
+
     current_step_display = dict(ResearchAgentProcess.STEP_CHOICES).get(process.current_step, process.current_step)
     is_finished = process.status in ['completed', 'failed', 'aborted']
 
     response_data = {
         "status": process.status,
         "is_finished": is_finished,
+        "is_progressing": active_progress.get("is_progressing", False),
+        "is_stalled": active_progress.get("is_stalled", False),
+        "guidance_for_ai": active_progress.get("guidance_for_ai", ""),
+        "active_progress": active_progress,
         "agent_status": process.status,
         "current_step": process.current_step,
         "current_step_display": current_step_display,

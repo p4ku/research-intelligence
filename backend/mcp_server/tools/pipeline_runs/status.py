@@ -65,6 +65,122 @@ def _get_run_storage_stats(dir_path: str) -> dict:
     }
 
 
+def compute_active_progress_summary(pipeline_run, comp_runs_list: list) -> dict:
+    """
+    Computes real-time progress state, detects active progression vs stall,
+    and returns structured guidance for AI / MCP clients so they never modify
+    source code while a background task is running.
+    """
+    from django.utils.dateparse import parse_datetime
+    now = timezone.now()
+    is_running = pipeline_run.status in ['running', 'pending']
+
+    # Locate active component run (running first, or pending if none running)
+    active_cr = next((cr for cr in comp_runs_list if cr.status == 'running'), None)
+    if not active_cr and is_running:
+        active_cr = next((cr for cr in comp_runs_list if cr.status == 'pending'), None)
+
+    if not is_running or not active_cr:
+        is_finished = pipeline_run.status in ['completed', 'failed', 'aborted']
+        return {
+            "is_running": False,
+            "is_finished": is_finished,
+            "is_progressing": False,
+            "is_stalled": False,
+            "status": pipeline_run.status,
+            "current_stage": pipeline_run.current_stage,
+            "active_component": None,
+            "percent_complete": 100.0 if pipeline_run.status == 'completed' else 0.0,
+            "progress_summary": f"Pipeline is {pipeline_run.status}",
+            "elapsed_time": pipeline_run.execution_time_display,
+            "stalled_minutes": 0.0,
+            "guidance_for_ai": (
+                "Pipeline execution is finished. Call get_paper_extractions_matrix to inspect results."
+                if pipeline_run.status == 'completed' else
+                f"Pipeline execution halted with status '{pipeline_run.status}'. Reason: {pipeline_run.status_message or 'Check logs'}. Report status to user without modifying source code."
+            )
+        }
+
+    m = active_cr.metrics or {}
+    total_items = (
+        m.get("total_work_items")
+        or m.get("total_to_screen")
+        or m.get("total_screened")
+        or m.get("total_processed")
+        or m.get("total_papers")
+        or pipeline_run.get_papers().count()
+        or 0
+    )
+    processed_items = (
+        m.get("total_processed")
+        or (m.get("passed", 0) + m.get("rejected", 0) + m.get("withdrawn", 0) + m.get("failed", 0))
+        or (m.get("completed_extractions", 0) + m.get("failed_extractions", 0))
+        or m.get("total_screened", 0)
+        or 0
+    )
+    pct = m.get("percent_complete")
+    if pct is None:
+        pct = round((processed_items / total_items * 100.0), 1) if total_items > 0 else 0.0
+
+    latest_processed = m.get("latest_processed") or ""
+    last_progress_iso = m.get("last_progress_at")
+
+    # Calculate time since last progress update or since task start
+    stalled_sec = 0.0
+    if last_progress_iso:
+        dt = parse_datetime(last_progress_iso)
+        if dt:
+            stalled_sec = max(0.0, (now - dt).total_seconds())
+    elif active_cr.started_at:
+        stalled_sec = max(0.0, (now - active_cr.started_at).total_seconds())
+
+    # If running for more than 3 minutes without any item completed, flag as stalled
+    STALL_THRESHOLD_SECONDS = 180.0  # 3 minutes
+    is_stalled = active_cr.status == 'running' and stalled_sec > STALL_THRESHOLD_SECONDS
+    is_progressing = active_cr.status == 'running' and not is_stalled
+    stalled_minutes = round(stalled_sec / 60.0, 1)
+
+    stage_display = dict(PipelineRun.STAGE_CHOICES).get(pipeline_run.current_stage, pipeline_run.current_stage)
+    progress_summary = f"{processed_items}/{total_items} items ({pct}%)" if total_items > 0 else f"{stage_display} in progress"
+
+    if is_stalled:
+        guidance = (
+            f"⚠️ STALLED WARNING: Background worker on stage '{active_cr.component_name}' has shown NO PROGRESS for "
+            f"{stalled_minutes} minutes (stuck at {progress_summary}). "
+            f"DO NOT EDIT OR MODIFY SOURCE CODE. The Celery worker or network socket may be hung. "
+            f"Inform the user that the background process appears stalled, and offer to check worker logs or re-trigger the step."
+        )
+    else:
+        guidance = (
+            f"DO NOT MODIFY SOURCE CODE. Pipeline is actively processing background tasks in Celery. "
+            f"Current step: '{active_cr.component_name}' ({progress_summary}). "
+            f"Multimodal LLM calls take 15-30 seconds per item. "
+            f"Inform the user of the active progress ({progress_summary}, elapsed {active_cr.execution_time_display}) and poll status again in 15-30s."
+        )
+
+    return {
+        "is_running": True,
+        "is_finished": False,
+        "is_progressing": is_progressing,
+        "is_stalled": is_stalled,
+        "status": pipeline_run.status,
+        "current_stage": pipeline_run.current_stage,
+        "current_stage_display": stage_display,
+        "active_component": active_cr.component_name,
+        "active_component_status": active_cr.status,
+        "items_completed": processed_items,
+        "items_total": total_items,
+        "percent_complete": pct,
+        "progress_summary": progress_summary,
+        "latest_processed_item": latest_processed,
+        "last_progress_at": last_progress_iso,
+        "elapsed_seconds": active_cr.duration_seconds,
+        "elapsed_time": active_cr.execution_time_display,
+        "stalled_minutes": stalled_minutes if is_stalled else 0.0,
+        "guidance_for_ai": guidance
+    }
+
+
 def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
     """
     Retrieve full status, metrics, downloaded paper counts, storage footprint, component run states,
@@ -199,7 +315,14 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
             "created_at": p.created_at.isoformat()
         })
 
+    active_progress = compute_active_progress_summary(pipeline_run, comp_runs_list)
+
     details = {
+        "is_in_progress": active_progress["is_running"],
+        "is_progressing": active_progress["is_progressing"],
+        "is_stalled": active_progress["is_stalled"],
+        "guidance_for_ai": active_progress["guidance_for_ai"],
+        "active_progress": active_progress,
         "pipeline_run_id": str(pipeline_run.id),
         "workspace_id": str(pipeline_run.workspace.id),
         "workspace_name": pipeline_run.workspace.name,

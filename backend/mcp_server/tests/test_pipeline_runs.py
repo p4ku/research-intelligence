@@ -12,6 +12,8 @@ from mcp_server.tools import (
     abort_job_logic,
     delete_pipeline_run_logic,
 )
+from datetime import timedelta
+from django.utils import timezone
 from .base import BaseMCPTestCase
 from unittest.mock import patch, MagicMock
 
@@ -282,6 +284,79 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
             pipeline_run_id=str(pr.id),
             recipient_override=["lead@corp.com", "analyst@corp.com"]
         )
+
+    def test_get_pipeline_run_status_active_progressing_guidance(self):
+        """
+        Verifies that when a component run is actively progressing (recent heartbeat),
+        is_progressing is True, is_stalled is False, and AI guidance instructs
+        not to modify source code.
+        """
+        from datetime import timedelta
+        from django.utils import timezone
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="running",
+            current_stage="extraction"
+        )
+        ComponentRun.objects.create(
+            pipeline_run=pr,
+            step_type="extraction",
+            component_name="extraction",
+            status="running",
+            metrics={
+                "total_work_items": 130,
+                "completed_extractions": 55,
+                "failed_extractions": 0,
+                "percent_complete": 42.3,
+                "latest_processed": "[PASSED] TRL Assessment: Quantum Paper",
+                "last_progress_at": (timezone.now() - timedelta(seconds=15)).isoformat()
+            }
+        )
+
+        res = self.parse_res(get_pipeline_run_status_logic(self.admin, pipeline_run_id=str(pr.id)))
+        self.assertTrue(res["is_in_progress"])
+        self.assertTrue(res["is_progressing"])
+        self.assertFalse(res["is_stalled"])
+        self.assertEqual(res["active_progress"]["items_completed"], 55)
+        self.assertEqual(res["active_progress"]["items_total"], 130)
+        self.assertEqual(res["active_progress"]["percent_complete"], 42.3)
+        self.assertIn("DO NOT MODIFY SOURCE CODE", res["guidance_for_ai"])
+        self.assertIn("55/130 items (42.3%)", res["active_progress"]["progress_summary"])
+
+    def test_get_pipeline_run_status_stalled_guidance(self):
+        """
+        Verifies that when a component run has had no progress for > 3 minutes,
+        is_stalled is True, is_progressing is False, and AI guidance warns about
+        the stall without telling the AI to touch code.
+        """
+        from datetime import timedelta
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="running",
+            current_stage="extraction"
+        )
+        ComponentRun.objects.create(
+            pipeline_run=pr,
+            step_type="extraction",
+            component_name="extraction",
+            status="running",
+            metrics={
+                "total_work_items": 130,
+                "completed_extractions": 55,
+                "failed_extractions": 0,
+                "percent_complete": 42.3,
+                "latest_processed": "[PASSED] TRL Assessment: Quantum Paper",
+                "last_progress_at": (timezone.now() - timedelta(minutes=12)).isoformat()
+            }
+        )
+
+        res = self.parse_res(get_pipeline_run_status_logic(self.admin, pipeline_run_id=str(pr.id)))
+        self.assertTrue(res["is_in_progress"])
+        self.assertFalse(res["is_progressing"])
+        self.assertTrue(res["is_stalled"])
+        self.assertGreaterEqual(res["active_progress"]["stalled_minutes"], 11.9)
+        self.assertIn("STALLED WARNING", res["guidance_for_ai"])
+        self.assertIn("DO NOT EDIT OR MODIFY SOURCE CODE", res["guidance_for_ai"])
 
 
 
