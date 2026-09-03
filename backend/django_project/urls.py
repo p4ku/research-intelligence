@@ -12,11 +12,11 @@ urlpatterns = [
     # Legacy admin redirect from ResearchAgentProcess to PipelineRun
     path(
         'admin/research_intelligence/researchagentprocess/',
-        RedirectView.as_view(pattern_name='admin:research_intelligence_pipelinerun_changelist', permanent=False),
+        RedirectView.as_view(url='/admin/research_intelligence/pipelinerun/', permanent=False),
     ),
     path(
         'admin/research_intelligence/researchagentprocess/<path:rest>',
-        RedirectView.as_view(pattern_name='admin:research_intelligence_pipelinerun_changelist', permanent=False),
+        RedirectView.as_view(url='/admin/research_intelligence/pipelinerun/', permanent=False),
     ),
     path('admin/', admin.site.urls),
 
