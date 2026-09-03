@@ -10,6 +10,7 @@ from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from ...models import Workspace, Paper, PipelineRun, ComponentRun, DocumentRegistry
 from ...ocr_providers.factory import get_ocr_provider
+from ...utils.memory_guard import reclaim_ram
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +237,6 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
                 failed_count += 1
                 logger.warning(f"⚠️ [OCR FAILED] Paper '{title_snippet}...': {res.get('error')}")
 
-        from ...utils.memory_guard import reclaim_ram
         chunk_size = int(os.environ.get("OCR_CHUNK_SIZE", 20))
         chunks = [papers[i:i + chunk_size] for i in range(0, len(papers), chunk_size)]
         total_chunks = len(chunks)

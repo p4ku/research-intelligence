@@ -10,6 +10,7 @@ from django.core.files.base import ContentFile
 
 from ...models import Workspace, Paper, PipelineRun, ComponentRun, PaperMetric
 from ...scrapers import get_scraper_provider
+from ...utils.memory_guard import reclaim_ram
 from .pdf_cache import try_reuse_cached_pdf, register_document_pdf
 
 logger = logging.getLogger(__name__)
@@ -260,7 +261,6 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
             except Exception as me:
                 logger.debug(f"Download metrics live flush note: {me}")
 
-        from ...utils.memory_guard import reclaim_ram
         chunk_size = int(os.environ.get("DOWNLOAD_CHUNK_SIZE", 25))
         chunks = [papers[i:i + chunk_size] for i in range(0, len(papers), chunk_size)]
         total_chunks = len(chunks)
