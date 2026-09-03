@@ -59,7 +59,7 @@ Choose your preferred way of working — whether you prefer the visual **Django 
 
 ### 2. ⚡ Launching & Monitoring Runs
 * **[03. Running Research Pipelines via Django Admin](./03_running_pipeline_admin.md)**
-  * Triggering Autonomous Research Agent processes, tuning paper ingestion quotas, monitoring Celery worker tasks in real-time, and inspecting live step-by-step progress.
+  * Triggering Pipeline Runs, monitoring real-time stage progress, inspecting the unified "Papers (In ➔ Out)" funnel, managing stopped stages, and executing bulk state machine actions.
 * **[04. Running Research Pipelines via MCP & Claude Code](./04_running_pipeline_mcp.md)**
   * Executing reviews autonomously with `start_research_agent`, monitoring live ASCII progress bars via `check_run_status`, pausing, resuming, and aborting runs on demand.
 

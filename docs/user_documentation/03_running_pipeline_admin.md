@@ -1,11 +1,15 @@
 # 🚀 Guide 03: Running a Research Pipeline via Django Admin
 
-This guide explains how to trigger, monitor, and manage end-to-end autonomous research runs using the **Schwarz Research Intelligence (SRI) Admin Portal**.
+This guide explains how to trigger, monitor, and manage end-to-end autonomous research runs using the consolidated **Pipeline Runs** interface in the **Schwarz Research Intelligence (SRI) Admin Portal**.
 
 ---
 
 ## 🌐 Quick Access
 * **Admin Portal URL**: [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/)
+* **Pipeline Runs Direct URL**: [https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/research_intelligence/pipelinerun/](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/research_intelligence/pipelinerun/)
+
+> [!NOTE]
+> **Unified Architecture**: Research Agent Processes have been fully consolidated into **Pipeline Runs**. All execution tracking, stage transitions, stopped-stage breakpoints, funnel statistics, and bulk resume controls are unified under a single model. Legacy URLs (`/admin/research_intelligence/researchagentprocess/`) automatically redirect to Pipeline Runs.
 
 ---
 
@@ -16,6 +20,7 @@ When you trigger a run, the SRI Autonomous State Engine coordinates an 8-stage D
 ```
 ┌────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │                                 THE 8-STAGE SLR PIPELINE EXECUTION LIFECYCLE                           │
+│                                (Unified PipelineRun Execution Engine)                                  │
 └────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 
  ┌───────────────────────────────────┐
@@ -51,60 +56,59 @@ When you trigger a run, the SRI Autonomous State Engine coordinates an 8-stage D
  └───────────────────────────────────┘
 ```
 
-![Research Agent Processes List](./images/07_research_agents_list.png)
-*Figure 1: Autonomous Research Agent Processes list showing execution states, paper counts, and duration.*
+![Pipeline Runs List](./images/08_pipeline_runs_list.png)
+*Figure 1: Consolidated Pipeline Runs changelist featuring the unified "Papers (In ➔ Out)" funnel column, stopped stage badges, and duration metrics.*
 
 ---
 
-## ⚡ Step-by-Step: Launching an Autonomous Run
+## ⚡ Step-by-Step: Launching a Pipeline Run
 
 1. Log into the [Admin Portal](https://sri-prod.apps.01.cf.eu01.onstackit.cloud/admin/).
-2. In the sidebar under **Research Intelligence**, click **Research Agent Processes** ➡️ **+ Add Research Agent Process** (or view an active process).
-3. Configure the run parameters:
-   * **Workspace**: Select your target workspace (e.g. `Quantum Computing in Logistics 2026`).
-   * **Process Name**: `Q1-2026 Quantum Routing Review` *(Optional label for reporting)*.
-   * **Paper Limit**: `50` *(Maximum candidate papers to harvest across all scrapers)*.
-   * **Date Range Days**: `90` *(Ingest only papers published within the last 90 days; leave empty for all-time)*.
-   * **Reprocess Existing Papers**: `Unchecked` *(Check this if you want to re-screen and re-extract parameters from previously fetched papers using updated criteria)*.
-   * **Notification Email**: `lead-scout@schwarz.com` *(Optional override to receive instant notification upon completion)*.
+2. In the sidebar under **Research Intelligence**, click **Pipeline runs** ➡️ **+ Add Pipeline run** (or inspect an existing run).
+3. Configure run parameters:
+   * **Workspace**: Select your target workspace (e.g. `Hybrid Computing` or `Quantum Computing in Logistics 2026`).
+   * **Run Name**: Optional human-readable name (e.g. `Q1-2026 Comprehensive Review` or `Autonomous Research Agent - 2026-09-03 10:40`).
+   * **Reprocess Existing**: `Unchecked` for incremental scouting; check this to re-evaluate and re-extract parameters from previously fetched papers with updated criteria.
+   * **Stopped at Stage**: Optional execution breakpoint. Set to `abstract_screening` to pause execution after initial screening for human review, or leave empty for full end-to-end execution through executive reporting.
+   * **Configuration Override**: Optional JSON payload to dynamically override model selection, reasoning effort, or rate limits for this specific execution.
 
-4. Click **Save and start process**.
+4. Click **Save**.
 
-The state machine immediately transitions to `running` and schedules the initial search task.
+The Celery distributed task dispatcher immediately picks up the run, sets `status="running"`, and launches the initial `search` ingestion worker.
 
-![Research Agent Process Details & Execution Tree](./images/07b_research_agent_detail.png)
-*Figure 2: Active Research Agent Process detail card displaying live status, component run tree, token usage, and cost.*
+![Pipeline Run Execution Details](./images/08b_pipeline_run_detail.png)
+*Figure 2: Active Pipeline Run detail page displaying live stage progress, stage results preview, step history preview, and linked Component Runs.*
 
 ---
 
-## 📊 Monitoring Live Execution in Real Time
+## 📊 Monitoring Execution in Real Time
 
-You can monitor your research agent's progress directly from the Admin panel:
+You can monitor your research pipeline's progress directly from the Admin panel:
 
-### 1. Research Agent Process Detail View
-Navigate to your active process to inspect:
-* **Current State**: `initialized` ➡️ `search` ➡️ `abstract_screening` ➡️ `download` ➡️ `ocr` ➡️ `full_text_screening` ➡️ `extraction` ➡️ `signal_score` ➡️ `reporting` ➡️ `completed`.
-* **Progress Bar & Timeline**: Dynamic percentage completion.
-* **Cost & Token Tracker**: Real-time USD budget spend and token usage counters.
+### 1. Key Metrics in the Pipeline Runs List
 
-### 2. Pipeline Runs & Component Runs Tree (Step-by-Step Audit)
+The consolidated changelist provides instant operational clarity:
 
-![Pipeline Runs List](./images/08_pipeline_runs_list.png)
-*Figure 3: Pipeline Runs dashboard tracking lifecycle, trigger method, and paper statistics.*
-
-![Pipeline Run Execution Details](./images/08b_pipeline_run_detail.png)
-*Figure 4: Detailed Component Run execution hierarchy with timing and logs.*
-
-| Component Stage | Status | Key Metrics Displayed |
+| Column | Description | Example |
 | :--- | :--- | :--- |
-| **Search & Ingestion** | `completed` | 50 papers discovered, 42 unique (8 duplicates pruned) |
-| **Abstract Screening** | `completed` | 42 screened: 18 passed criteria, 24 excluded |
-| **PDF Download** | `completed` | 18 PDFs successfully downloaded for passed papers (SHA256 cached) |
-| **Layout OCR Conversion** | `skipped` | OCR skipped (`ocr_provider=None`) for native multimodal ingest |
-| **Full-Text Screening** | `completed` | 18 evaluated: 9 accepted, 9 rejected with AI reasoning |
-| **Parameter Extraction** | `completed` | 27 parameters extracted across 9 accepted papers |
-| **Composite Signal Score**| `completed` | 9 papers scored (Top: 94.2/100, Avg: 81.5/100) |
-| **Executive Reporting** | `completed` | Executive briefing compiled and email digest dispatched |
+| **Papers (In ➔ Out)** | Unified funnel metric displaying total harvested candidate papers vs. final papers that passed screening | `94 in ➔ 27 out` |
+| **Status** | Current high-level state of the pipeline run | `RUNNING`, `COMPLETED`, `FAILED`, `ABORTED` |
+| **Halt / Final Stage** | Visual badge indicating completion status or the stage where execution paused | `✅ COMPLETED`, `⛔ ABSTRACT_SCREENING`, `⚠️ FAILED` |
+| **Status Message / Reason** | Live progress narrative or error diagnostic explanation | `Full SLR pipeline finished successfully...` |
+| **Execution Time** | Total run duration formatted for human readability | `4m 12s`, `43.0s` |
+| **USD Cost** | Real-time aggregated Gemini API spending for this run | `$1.42` |
+
+### 2. Pipeline Run Detail View
+Open any run record to inspect:
+* **Stage Results Preview**: Formatted JSON summary of output counts per completed step (papers discovered, duplicates pruned, screening pass rates).
+* **Step History Preview**: Chronological audit trail of all executed stages with individual duration measurements.
+* **Component Runs Table**: Inline list of granular Celery worker tasks with links to raw storage paths and execution metrics.
+
+### 3. Administrative Bulk Actions
+
+From the Pipeline Runs changelist dropdown, administrators can execute batch operations on selected runs:
+* **🔄 Tick Selected Runs**: Advances the state machine for active or halted runs, triggering the next pending DAG stage.
+* **▶️ Resume Selected Runs**: Resumes runs that were stopped at an intermediate stage (e.g. after human review of abstract screening results).
 
 ---
 
@@ -116,10 +120,10 @@ If you updated full-text criteria or adjusted an extraction schema, you don't ne
 2. Select the component run where you want execution to restart from (e.g. `Full-Text Screening` or `Extraction`).
 3. Under the **Action** dropdown, select **🔄 Rerun Pipeline from Selected Step Forward**.
 4. Click **Go**.
-5. The DAG engine resets the downstream nodes, dispatches fresh Celery tasks, and continues execution automatically.
+5. The DAG engine resets downstream nodes, dispatches fresh Celery tasks, and continues execution automatically.
 
 ---
 
 ## 🎯 Next Steps
-* Learn how to view technology scorecards and extracted parameter tables: **[Guide 05: Viewing Results via Admin](./05_viewing_results_admin.md)**.
-* Learn how to monitor runs with Claude Code: **[Guide 04: Running Pipelines via MCP](./04_running_pipeline_mcp.md)**.
+* Learn how to inspect technology scorecards and extracted parameter tables: **[Guide 05: Viewing Results via Admin](./05_viewing_results_admin.md)**.
+* Learn how to monitor and trigger runs via Claude Code & MCP: **[Guide 04: Running Pipelines via MCP](./04_running_pipeline_mcp.md)**.

@@ -43,7 +43,7 @@ Setting up a complete intelligence pipeline involves 6 straightforward steps:
 ```
 
 ![SRI Admin Dashboard](./images/02_admin_dashboard.png)
-*Figure 2: Django Admin Dashboard highlighting Workspaces, Scrapers, Extraction Targets, and Agent Processes.*
+*Figure 2: Django Admin Dashboard highlighting Workspaces, Scrapers, Extraction Definitions, and Pipeline Runs.*
 
 ---
 
