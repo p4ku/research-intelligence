@@ -205,3 +205,39 @@ class PipelineRunsAPITestCase(APITestCase):
         run_ids = [r['id'] for r in items]
         self.assertIn(str(self.run_a.id), run_ids)
         self.assertIn(str(self.run_b.id), run_ids)
+
+    def test_pause_and_resume_pipeline_run(self):
+        """User A can pause and resume Run A with full audit history tracking."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_a}')
+
+        # Pause own run -> 200 OK
+        res_pause = self.client.post(f'/api/pipeline-runs/{self.run_a.id}/pause/', {'reason': 'Maintenance pause'})
+        self.assertEqual(res_pause.status_code, status.HTTP_200_OK)
+        self.run_a.refresh_from_db()
+        self.assertEqual(self.run_a.status, 'paused')
+        self.assertEqual(self.run_a.status_message, 'Maintenance pause')
+        self.assertTrue(any(e.get('event') == 'paused' for e in self.run_a.step_history))
+
+        # Pause foreign run -> 404 Not Found
+        res_foreign = self.client.post(f'/api/pipeline-runs/{self.run_b.id}/pause/')
+        self.assertEqual(res_foreign.status_code, status.HTTP_404_NOT_FOUND)
+
+        # Resume own run -> 200 OK
+        with patch('research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick') as mock_notify:
+            res_resume = self.client.post(f'/api/pipeline-runs/{self.run_a.id}/resume/')
+            self.assertEqual(res_resume.status_code, status.HTTP_200_OK)
+            self.run_a.refresh_from_db()
+            self.assertEqual(self.run_a.status, 'running')
+            self.assertTrue(any(e.get('event') == 'resumed' for e in self.run_a.step_history))
+            mock_notify.assert_called_once()
+
+    def test_tick_pipeline_run(self):
+        """User A can trigger a manual DAG tick on Run A."""
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_a}')
+        with patch('research_intelligence.tasks.orchestrator.runner.PipelineRunner.tick') as mock_tick:
+            mock_tick.return_value = {"success": True, "status": "running", "current_stage": "search"}
+            res = self.client.post(f'/api/pipeline-runs/{self.run_a.id}/tick/')
+            self.assertEqual(res.status_code, status.HTTP_200_OK)
+            self.assertTrue(res.data['success'])
+            mock_tick.assert_called_once_with(self.run_a.id)
+

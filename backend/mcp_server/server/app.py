@@ -76,6 +76,7 @@ from mcp_server.tools import (
     get_paper_extractions_matrix_logic,
     get_extraction_logic,
     trigger_search_job_logic,
+    start_pipeline_run_logic,
     trigger_pdf_download_job_logic,
     trigger_ocr_job_logic,
     trigger_screening_job_logic,
@@ -84,6 +85,9 @@ from mcp_server.tools import (
     trigger_reporting_job_logic,
     get_pipeline_run_status_logic,
     get_component_run_status_logic,
+    pause_pipeline_run_logic,
+    resume_pipeline_run_logic,
+    tick_pipeline_run_logic,
     abort_job_logic,
     list_pipeline_runs_logic,
     delete_pipeline_run_logic,
@@ -1273,6 +1277,86 @@ def delete_pipeline_run(pipeline_run_id: str) -> str:
     except Exception as e:
         return str(e)
     return delete_pipeline_run_logic(user, pipeline_run_id)
+
+
+@mcp.tool()
+@with_db_connection
+def start_pipeline_run(
+    workspace_id: str,
+    name: str | None = None,
+    limit: int | None = None,
+    date_range_days: int | None = None,
+    query_prefix: str | None = None,
+    skip_abstract_screening: bool | None = None,
+    notification_email: str | None = None,
+    reprocess_existing: bool | None = None,
+    autonomous: bool = True
+) -> str:
+    """
+    [AUTONOMOUS PIPELINE EXECUTION - RECOMMENDED]
+    Launch an autonomous end-to-end PipelineRun for a workspace.
+    Executes the full SLR state machine (Search -> Screening -> Download -> OCR -> Extraction -> Signal Score -> Reporting).
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "runs:write")
+    except Exception as e:
+        return str(e)
+    return start_pipeline_run_logic(
+        user,
+        workspace_id=workspace_id,
+        name=name,
+        limit=limit,
+        date_range_days=date_range_days,
+        query_prefix=query_prefix,
+        skip_abstract_screening=skip_abstract_screening,
+        notification_email=notification_email,
+        reprocess_existing=reprocess_existing,
+        autonomous=autonomous
+    )
+
+
+@mcp.tool()
+@with_db_connection
+def pause_pipeline_run(pipeline_run_id: str, reason: str = "Paused via MCP") -> str:
+    """
+    Pause an active PipelineRun without losing execution state.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "runs:write")
+    except Exception as e:
+        return str(e)
+    return pause_pipeline_run_logic(user, pipeline_run_id=pipeline_run_id, reason=reason)
+
+
+@mcp.tool()
+@with_db_connection
+def resume_pipeline_run(pipeline_run_id: str) -> str:
+    """
+    Resume a paused PipelineRun and continue autonomous DAG state transitions.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "runs:write")
+    except Exception as e:
+        return str(e)
+    return resume_pipeline_run_logic(user, pipeline_run_id=pipeline_run_id)
+
+
+@mcp.tool()
+@with_db_connection
+def tick_pipeline_run(pipeline_run_id: str) -> str:
+    """
+    Execute a single state transition tick for a PipelineRun.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "runs:write")
+    except Exception as e:
+        return str(e)
+    return tick_pipeline_run_logic(user, pipeline_run_id=pipeline_run_id)
+
 
 
 @mcp.tool()

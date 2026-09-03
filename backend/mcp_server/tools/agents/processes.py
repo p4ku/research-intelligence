@@ -689,6 +689,10 @@ def pause_research_agent_logic(user, process_id: str) -> str:
     process.step_history = history
     process.save(update_fields=['status', 'step_history', 'updated_at'])
 
+    # Synchronize underlying PipelineRun
+    if process.pipeline_run and process.pipeline_run.status in ['running', 'pending']:
+        process.pipeline_run.pause(reason=f"Paused via AgentProcess '{process.id}'")
+
     return json.dumps({
         "status": "success",
         "message": f"ResearchAgentProcess '{process.name}' was successfully paused.",
@@ -704,7 +708,7 @@ def resume_research_agent_logic(user, process_id: str) -> str:
     """
     try:
         p_uuid = uuid.UUID(process_id)
-        process = ResearchAgentProcess.objects.select_related('workspace').get(id=p_uuid)
+        process = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run').get(id=p_uuid)
     except (ValueError, ResearchAgentProcess.DoesNotExist):
         return json.dumps({"status": "error", "error": f"ResearchAgentProcess '{process_id}' not found."}, indent=2)
 
@@ -724,6 +728,18 @@ def resume_research_agent_logic(user, process_id: str) -> str:
     })
     process.step_history = history
     process.save(update_fields=['status', 'step_history', 'updated_at'])
+
+    # Synchronize underlying PipelineRun
+    if process.pipeline_run and process.pipeline_run.status == 'paused':
+        process.pipeline_run.status = 'running'
+        pr_history = list(process.pipeline_run.step_history or [])
+        pr_history.append({
+            "step": process.pipeline_run.current_stage,
+            "event": "resumed",
+            "timestamp": timezone.now().isoformat()
+        })
+        process.pipeline_run.step_history = pr_history
+        process.pipeline_run.save(update_fields=['status', 'step_history'])
 
     # Evaluate tick to continue
     tick_res = tick_agent_process(str(process.id))

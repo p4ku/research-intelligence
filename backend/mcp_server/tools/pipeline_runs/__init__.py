@@ -9,6 +9,7 @@ Contains modules:
 
 from .triggers import (
     trigger_search_job_logic,
+    start_pipeline_run_logic,
     trigger_pdf_download_job_logic,
     trigger_ocr_job_logic,
     trigger_screening_job_logic,
@@ -24,12 +25,16 @@ from .status import (
 )
 from .lifecycle import (
     abort_job_logic,
+    pause_pipeline_run_logic,
+    resume_pipeline_run_logic,
+    tick_pipeline_run_logic,
     delete_pipeline_run_logic,
     _recursive_delete_run_storage,
 )
 
 __all__ = [
     "trigger_search_job_logic",
+    "start_pipeline_run_logic",
     "trigger_pdf_download_job_logic",
     "trigger_ocr_job_logic",
     "trigger_screening_job_logic",
@@ -39,6 +44,9 @@ __all__ = [
     "get_pipeline_run_status_logic",
     "get_component_run_status_logic",
     "list_pipeline_runs_logic",
+    "pause_pipeline_run_logic",
+    "resume_pipeline_run_logic",
+    "tick_pipeline_run_logic",
     "abort_job_logic",
     "delete_pipeline_run_logic",
     "_get_run_storage_stats",

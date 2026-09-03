@@ -262,6 +262,7 @@ class ResearchAgentRunner:
                 reprocess_existing = config.get("reprocess_existing", getattr(workspace, "reprocess_existing", False))
                 pipeline_run = PipelineRun.objects.create(
                     workspace=workspace,
+                    name=process.name or f"Pipeline Run for Agent {process.id}",
                     status='running',
                     current_stage='search',
                     reprocess_existing=reprocess_existing,

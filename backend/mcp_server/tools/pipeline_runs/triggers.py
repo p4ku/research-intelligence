@@ -2,6 +2,7 @@ import json
 import uuid
 import logging
 from django.utils import timezone
+from django.core.serializers.json import DjangoJSONEncoder
 
 from research_intelligence.models import (
     PipelineRun,
@@ -633,4 +634,73 @@ def trigger_reporting_job_logic(
         "status": comp_run.status,
         "digest_result": digest_res
     }, indent=2)
+
+
+def start_pipeline_run_logic(
+    user,
+    workspace_id: str,
+    name: str = None,
+    limit: int = None,
+    date_range_days: int = None,
+    query_prefix: str = None,
+    skip_abstract_screening: bool = None,
+    notification_email: str = None,
+    reprocess_existing: bool = None,
+    autonomous: bool = True
+) -> str:
+    """
+    Start a new autonomous PipelineRun executing the end-to-end SLR cycle
+    (Search & Ingestion -> Abstract Screening -> PDF Download -> Layout OCR ->
+     Full-Text Screening -> Parameter Extraction -> Signal Scoring -> Reporting).
+    """
+    workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
+    if error:
+        return json.dumps({"status": "error", "error": error}, indent=2)
+
+    is_exceeded, quota_reason = workspace.is_quota_exceeded()
+    if is_exceeded:
+        return json.dumps({"status": "error", "error": quota_reason}, indent=2)
+
+    run_name = name or f"Autonomous Pipeline Run - {timezone.now().strftime('%Y-%m-%d %H:%M')}"
+
+    config_override = {
+        "limit": limit,
+        "date_range_days": date_range_days,
+        "query_prefix": query_prefix,
+        "skip_abstract_screening": skip_abstract_screening if skip_abstract_screening is not None else workspace.skip_abstract_screening,
+        "notification_email": notification_email,
+        "reprocess_existing": bool(reprocess_existing if reprocess_existing is not None else getattr(workspace, 'reprocess_existing', False)),
+        "autonomous": bool(autonomous)
+    }
+
+    pipeline_run = PipelineRun.objects.create(
+        workspace=workspace,
+        name=run_name,
+        status='running',
+        current_stage='search',
+        reprocess_existing=config_override["reprocess_existing"],
+        triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None,
+        configuration_override=config_override,
+        step_history=[{
+            "step": "search",
+            "event": "started",
+            "timestamp": timezone.now().isoformat()
+        }]
+    )
+
+    tick_res = pipeline_run.tick()
+    pipeline_run.refresh_from_db()
+
+    return json.dumps({
+        "status": "success",
+        "message": f"Autonomous PipelineRun '{run_name}' started successfully for workspace '{workspace.name}'.",
+        "pipeline_run_id": str(pipeline_run.id),
+        "workspace_id": str(workspace.id),
+        "name": pipeline_run.name,
+        "run_status": pipeline_run.status,
+        "current_stage": pipeline_run.current_stage,
+        "configuration_override": pipeline_run.configuration_override,
+        "tick_result": tick_res
+    }, indent=2, cls=DjangoJSONEncoder)
+
 

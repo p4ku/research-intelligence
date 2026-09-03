@@ -1,6 +1,7 @@
 from research_intelligence.models import PipelineRun, ComponentRun, Paper
 from mcp_server.tools import (
     trigger_search_job_logic,
+    start_pipeline_run_logic,
     trigger_pdf_download_job_logic,
     trigger_ocr_job_logic,
     trigger_screening_job_logic,
@@ -9,6 +10,9 @@ from mcp_server.tools import (
     list_pipeline_runs_logic,
     get_pipeline_run_status_logic,
     get_component_run_status_logic,
+    pause_pipeline_run_logic,
+    resume_pipeline_run_logic,
+    tick_pipeline_run_logic,
     abort_job_logic,
     delete_pipeline_run_logic,
 )
@@ -357,6 +361,56 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
         self.assertGreaterEqual(res["active_progress"]["stalled_minutes"], 11.9)
         self.assertIn("STALLED WARNING", res["guidance_for_ai"])
         self.assertIn("DO NOT EDIT OR MODIFY SOURCE CODE", res["guidance_for_ai"])
+
+    @patch("research_intelligence.tasks.orchestrator.runner.PipelineRunner.tick")
+    def test_start_pipeline_run_mcp_tool(self, mock_tick):
+        mock_tick.return_value = {"success": True, "status": "running", "current_stage": "search"}
+        res = self.parse_res(start_pipeline_run_logic(
+            self.admin,
+            workspace_id=str(self.workspace.id),
+            name="Quantum Autonomous Run",
+            limit=20,
+            date_range_days=14,
+            query_prefix="qubit",
+            reprocess_existing=True
+        ))
+        self.assertEqual(res["status"], "success")
+        self.assertIn("pipeline_run_id", res)
+        pr_id = res["pipeline_run_id"]
+        pr = PipelineRun.objects.get(id=pr_id)
+        self.assertEqual(pr.name, "Quantum Autonomous Run")
+        self.assertEqual(pr.status, "running")
+        self.assertTrue(pr.configuration_override.get("autonomous"))
+        self.assertEqual(pr.configuration_override.get("limit"), 20)
+        self.assertTrue(pr.configuration_override.get("reprocess_existing"))
+
+    def test_pause_resume_tick_pipeline_run_mcp_tools(self):
+        pr = PipelineRun.objects.create(
+            workspace=self.workspace,
+            status="running",
+            current_stage="download"
+        )
+        # 1. Pause
+        pause_res = self.parse_res(pause_pipeline_run_logic(self.admin, pipeline_run_id=str(pr.id), reason="Paused via test"))
+        self.assertEqual(pause_res["status"], "success")
+        pr.refresh_from_db()
+        self.assertEqual(pr.status, "paused")
+
+        # 2. Resume
+        with patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick") as mock_notify:
+            resume_res = self.parse_res(resume_pipeline_run_logic(self.admin, pipeline_run_id=str(pr.id)))
+            self.assertEqual(resume_res["status"], "success")
+            pr.refresh_from_db()
+            self.assertEqual(pr.status, "running")
+            mock_notify.assert_called_once()
+
+        # 3. Tick
+        with patch("research_intelligence.tasks.orchestrator.runner.PipelineRunner.tick") as mock_tick:
+            mock_tick.return_value = {"success": True, "status": "running", "current_stage": "download"}
+            tick_res = self.parse_res(tick_pipeline_run_logic(self.admin, pipeline_run_id=str(pr.id)))
+            self.assertEqual(tick_res["status"], "success")
+            mock_tick.assert_called_once_with(pr.id)
+
 
 
 
