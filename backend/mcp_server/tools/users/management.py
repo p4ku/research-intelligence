@@ -109,12 +109,14 @@ def list_users_logic(
 
 def get_user_logic(user, user_id_or_username: str) -> str:
     """
-    Retrieve full details of a specific user by numeric ID or username.
-    Requires staff or superuser privileges.
+    Retrieve details of a specific user by numeric ID or username.
+    Superusers and staff members can view any user profile.
+    Regular (non-staff) users can ONLY view their own profile.
     """
-    allowed, err = check_staff_or_superuser(user)
-    if not allowed:
-        return json.dumps({"status": "error", "error": err}, indent=2)
+    if not user or not getattr(user, 'is_authenticated', False):
+        return json.dumps({"status": "error", "error": "Authentication required. Please provide valid API credentials."}, indent=2)
+    if not getattr(user, 'is_active', False):
+        return json.dumps({"status": "error", "error": "Permission denied. Inactive user accounts cannot perform actions."}, indent=2)
 
     val = str(user_id_or_username).strip()
     target_user = None
@@ -125,6 +127,18 @@ def get_user_logic(user, user_id_or_username: str) -> str:
 
     if not target_user:
         return json.dumps({"status": "error", "error": f"User '{user_id_or_username}' not found."}, indent=2)
+
+    is_caller_staff = getattr(user, 'is_staff', False)
+    is_caller_superuser = getattr(user, 'is_superuser', False)
+    is_privileged = is_caller_staff or is_caller_superuser
+
+    # Regular user check: can only view themselves
+    if not is_privileged:
+        if target_user.id != getattr(user, 'id', None) and target_user.username.lower() != getattr(user, 'username', '').lower():
+            return json.dumps({
+                "status": "error",
+                "error": "Permission denied. Regular users can only view their own profile. Only staff members or superusers can view other users."
+            }, indent=2)
 
     data = serialize_user(target_user)
 
@@ -163,7 +177,7 @@ def create_user_logic(
 ) -> str:
     """
     Create a new Django user with encrypted password and specified role flags.
-    Requires staff or superuser privileges.
+    Requires staff or superuser privileges. Regular users cannot manage or create users.
     Non-superusers cannot create superusers.
     """
     allowed, err = check_staff_or_superuser(user)
@@ -240,13 +254,17 @@ def update_user_logic(
 ) -> str:
     """
     Update attributes, role flags, and password for a specified user.
-    Requires staff or superuser privileges.
-    Protects the root 'admin' user from deactivation or revocation of administrative access.
-    Non-superusers cannot modify superusers or grant superuser privileges.
+    PERMISSIONS:
+    - Superusers and staff members can manage users.
+    - Regular users (non-staff, non-superuser) CANNOT manage other users.
+      They can AT MOST update their OWN password, first_name, and last_name.
+    - Protected user 'admin' cannot be deactivated or have administrative access revoked.
+    - Staff members cannot modify superusers or grant superuser privileges.
     """
-    allowed, err = check_staff_or_superuser(user)
-    if not allowed:
-        return json.dumps({"status": "error", "error": err}, indent=2)
+    if not user or not getattr(user, 'is_authenticated', False):
+        return json.dumps({"status": "error", "error": "Authentication required. Please provide valid API credentials."}, indent=2)
+    if not getattr(user, 'is_active', False):
+        return json.dumps({"status": "error", "error": "Permission denied. Inactive user accounts cannot perform actions."}, indent=2)
 
     val = str(user_id_or_username).strip()
     target_user = None
@@ -258,23 +276,51 @@ def update_user_logic(
     if not target_user:
         return json.dumps({"status": "error", "error": f"User '{user_id_or_username}' not found."}, indent=2)
 
+    is_calling_staff = getattr(user, 'is_staff', False)
     is_calling_superuser = getattr(user, 'is_superuser', False)
+    is_privileged = is_calling_staff or is_calling_superuser
 
-    # Privilege boundary: Staff members cannot edit superuser accounts
-    if target_user.is_superuser and not is_calling_superuser:
+    # 1. Non-staff / non-superuser strict constraint:
+    if not is_privileged:
+        is_self = (target_user.id == getattr(user, 'id', None)) or (target_user.username.lower() == getattr(user, 'username', '').lower())
+        if not is_self:
+            return json.dumps({
+                "status": "error",
+                "error": "Permission denied. Non-staff users cannot manage other users. You can only update your own account."
+            }, indent=2)
+
+        # Non-staff users can ONLY update their own password, first_name, and last_name
+        disallowed_fields = []
+        if email is not None:
+            disallowed_fields.append("email")
+        if is_staff is not None:
+            disallowed_fields.append("is_staff")
+        if is_superuser is not None:
+            disallowed_fields.append("is_superuser")
+        if is_active is not None:
+            disallowed_fields.append("is_active")
+
+        if disallowed_fields:
+            return json.dumps({
+                "status": "error",
+                "error": f"Permission denied. Non-staff users can only update their own password, first_name, and last_name (attempted to modify: {', '.join(disallowed_fields)})."
+            }, indent=2)
+
+    # 2. Staff privilege boundary: Staff members cannot edit superuser accounts
+    if is_privileged and target_user.is_superuser and not is_calling_superuser:
         return json.dumps({
             "status": "error",
             "error": "Permission denied. Staff members cannot modify superuser accounts."
         }, indent=2)
 
-    # Privilege boundary: Staff members cannot grant superuser privileges
-    if is_superuser is True and not is_calling_superuser:
+    # 3. Staff privilege boundary: Staff members cannot grant superuser privileges
+    if is_privileged and is_superuser is True and not is_calling_superuser:
         return json.dumps({
             "status": "error",
             "error": "Permission denied. Only superusers can grant superuser privileges."
         }, indent=2)
 
-    # Protected user 'admin' guardrails:
+    # 4. Protected user 'admin' guardrails:
     if target_user.username.lower() == "admin":
         if is_active is False:
             return json.dumps({

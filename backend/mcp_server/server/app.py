@@ -1932,8 +1932,9 @@ def get_user(
     user_id_or_username: str
 ) -> str:
     """
-    Retrieve detailed profile and workspace memberships for a specified user by numeric ID or username.
-    Requires staff member or superuser privileges in Django.
+    Retrieve profile and workspace memberships for a specified user by numeric ID or username.
+    Staff members and superusers can view any user profile.
+    Regular (non-staff) users can only view their own profile.
     """
     user, workspace, api_key = get_auth_context()
     return get_user_logic(user, user_id_or_username=user_id_or_username)
@@ -1953,7 +1954,7 @@ def create_user(
 ) -> str:
     """
     Create a new Django user account with an encrypted password and role flags.
-    Requires staff member or superuser privileges in Django.
+    Requires staff member or superuser privileges in Django. Regular users cannot manage or create users.
     Non-superusers cannot create superuser accounts.
     """
     user, workspace, api_key = get_auth_context()
@@ -1983,10 +1984,12 @@ def update_user(
     is_active: bool = None
 ) -> str:
     """
-    Update attributes, password, or administrative flags for an existing Django user account.
-    Requires staff member or superuser privileges in Django.
-    Protected user 'admin' cannot be deactivated or have administrative access revoked.
-    Staff members cannot modify superuser accounts or grant superuser privileges.
+    Update attributes, password, or administrative flags for a user account.
+    PERMISSIONS:
+    - Superusers and staff members can manage users.
+    - Regular users (non-staff, non-superuser) CANNOT manage other users. They can at most update their OWN password, first_name, and last_name.
+    - Protected user 'admin' cannot be deactivated or have administrative access revoked.
+    - Staff members cannot modify superusers or grant superuser privileges.
     """
     user, workspace, api_key = get_auth_context()
     return update_user_logic(

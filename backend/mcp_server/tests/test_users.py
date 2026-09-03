@@ -49,27 +49,80 @@ class MCPUserManagementTestCase(TestCase):
     def parse_res(self, res_str: str) -> dict:
         return json.loads(res_str)
 
-    def test_permission_denied_for_regular_user(self):
-        """Regular non-staff/non-superuser users must be denied access to all user tools."""
+    def test_permission_denied_for_regular_user_managing_others(self):
+        """Regular non-staff/non-superuser users cannot list, create, delete, or modify other users."""
         res_list = self.parse_res(list_users_logic(self.regular_user))
         self.assertEqual(res_list["status"], "error")
         self.assertIn("Permission denied", res_list["error"])
 
-        res_get = self.parse_res(get_user_logic(self.regular_user, "admin"))
-        self.assertEqual(res_get["status"], "error")
-        self.assertIn("Permission denied", res_get["error"])
+        res_get_other = self.parse_res(get_user_logic(self.regular_user, "admin"))
+        self.assertEqual(res_get_other["status"], "error")
+        self.assertIn("Permission denied", res_get_other["error"])
 
         res_create = self.parse_res(create_user_logic(self.regular_user, "newbie", "pass123"))
         self.assertEqual(res_create["status"], "error")
         self.assertIn("Permission denied", res_create["error"])
 
-        res_update = self.parse_res(update_user_logic(self.regular_user, "admin", email="hacked@evil.com"))
-        self.assertEqual(res_update["status"], "error")
-        self.assertIn("Permission denied", res_update["error"])
+        res_update_other = self.parse_res(update_user_logic(self.regular_user, "admin", first_name="Hacked"))
+        self.assertEqual(res_update_other["status"], "error")
+        self.assertIn("Permission denied", res_update_other["error"])
 
-        res_delete = self.parse_res(delete_user_logic(self.regular_user, "regular_researcher"))
+        res_delete = self.parse_res(delete_user_logic(self.regular_user, "staff_member"))
         self.assertEqual(res_delete["status"], "error")
         self.assertIn("Permission denied", res_delete["error"])
+
+    def test_regular_user_can_only_update_self_password_and_name(self):
+        """
+        Regular non-staff user can view themselves and update password, first_name, last_name.
+        Attempting to update email or role flags (is_staff, is_superuser, is_active) must be rejected.
+        """
+        # 1. Can view own profile
+        res_get_self = self.parse_res(get_user_logic(self.regular_user, "regular_researcher"))
+        self.assertEqual(res_get_self["status"], "success")
+        self.assertEqual(res_get_self["user"]["username"], "regular_researcher")
+
+        # 2. Can update own first_name, last_name, and password
+        res_update_self = self.parse_res(update_user_logic(
+            user=self.regular_user,
+            user_id_or_username="regular_researcher",
+            first_name="Jan",
+            last_name="Kowalski",
+            password="MyNewSecurePassword123!"
+        ))
+        self.assertEqual(res_update_self["status"], "success")
+        self.assertEqual(res_update_self["user"]["first_name"], "Jan")
+        self.assertEqual(res_update_self["user"]["last_name"], "Kowalski")
+
+        self.regular_user.refresh_from_db()
+        self.assertEqual(self.regular_user.first_name, "Jan")
+        self.assertEqual(self.regular_user.last_name, "Kowalski")
+        self.assertTrue(self.regular_user.check_password("MyNewSecurePassword123!"))
+
+        # 3. Cannot update own email
+        res_email = self.parse_res(update_user_logic(
+            user=self.regular_user,
+            user_id_or_username="regular_researcher",
+            email="hacker@corp.com"
+        ))
+        self.assertEqual(res_email["status"], "error")
+        self.assertIn("Non-staff users can only update their own password, first_name, and last_name", res_email["error"])
+
+        # 4. Cannot elevate own privileges
+        res_staff = self.parse_res(update_user_logic(
+            user=self.regular_user,
+            user_id_or_username="regular_researcher",
+            is_staff=True
+        ))
+        self.assertEqual(res_staff["status"], "error")
+        self.assertIn("Non-staff users can only update their own password, first_name, and last_name", res_staff["error"])
+
+        res_super = self.parse_res(update_user_logic(
+            user=self.regular_user,
+            user_id_or_username="regular_researcher",
+            is_superuser=True
+        ))
+        self.assertEqual(res_super["status"], "error")
+        self.assertIn("Non-staff users can only update their own password, first_name, and last_name", res_super["error"])
 
     def test_staff_and_superuser_can_list_and_get_users(self):
         """Both staff and superusers can list and view user accounts."""
