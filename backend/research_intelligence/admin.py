@@ -1360,44 +1360,134 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
 
 @admin.register(PipelineRun)
 class PipelineRunAdmin(admin.ModelAdmin):
+    formfield_overrides = {
+        models.JSONField: {'widget': PrettyJSONWidget},
+    }
     list_display = (
         'id',
         'workspace',
-        'schedule_display',
-        'run_date',
+        'name_display',
         'status_badge',
-        'current_stage_badge',
+        'stopped_stage_badge',
         'status_message_display',
+        'papers_funnel_display',
         'reprocess_existing_badge',
         'execution_time',
         'formatted_usd_cost',
-        'total_papers_fetched',
-        'total_papers_passed_screening',
+        'schedule_display',
         'started_at',
         'completed_at',
         'triggered_by_display'
     )
+    list_display_links = ('id', 'name_display')
     ordering = ('-started_at', '-id')
     list_select_related = ('workspace', 'triggered_by', 'schedule')
-    list_filter = ('status', 'current_stage', 'reprocess_existing', 'schedule', 'run_date', 'workspace', 'triggered_by')
-    search_fields = ('id', 'workspace__name', 'status_message', 'schedule__name', 'triggered_by__username', 'triggered_by__email')
-    readonly_fields = ('started_at', 'completed_at', 'execution_time')
+    list_filter = ('status', 'current_stage', 'stopped_at_stage', 'reprocess_existing', 'schedule', 'run_date', 'workspace', 'triggered_by')
+    search_fields = ('id', 'name', 'workspace__name', 'status_message', 'schedule__name', 'triggered_by__username', 'triggered_by__email')
+    readonly_fields = ('started_at', 'completed_at', 'execution_time', 'stage_results_preview', 'step_history_preview')
     inlines = [ComponentRunInline]
 
     fieldsets = (
         ('Execution Info', {
-            'fields': ('workspace', 'schedule', 'status', 'current_stage', 'status_message', 'triggered_by')
+            'fields': ('workspace', 'name', 'schedule', 'status', 'current_stage', 'stopped_at_stage', 'status_message', 'triggered_by')
+        }),
+        ('Stage Execution Results & Breakdown', {
+            'fields': ('stage_results_preview', 'stage_results'),
+            'description': 'Per-stage execution status, summary explanations, and metrics.'
         }),
         ('Reprocessing & Ingestion Options', {
-            'fields': ('reprocess_existing',),
+            'fields': ('reprocess_existing', 'configuration_override'),
             'description': 'When enabled, existing and duplicate papers in the workspace will be re-screened and re-extracted through all downstream stages instead of halted during Search & Ingestion.'
         }),
-        ('Timestamps & Metrics', {
-            'fields': ('started_at', 'completed_at', 'execution_time', 'tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost')
+        ('Audit Log & History', {
+            'fields': ('step_history_preview', 'step_history')
+        }),
+        ('Timestamps & Throughput Metrics', {
+            'fields': (
+                'started_at', 'completed_at', 'execution_time',
+                'total_papers_fetched', 'total_papers_passed_screening',
+                'tokens_in', 'tokens_out', 'tokens_consumed', 'usd_cost'
+            )
         }),
     )
 
-    actions = ['run_full_pipeline', 'rerun_with_reprocessing']
+    actions = [
+        'run_full_pipeline',
+        'rerun_with_reprocessing',
+        'tick_selected_runs',
+        'pause_selected_runs',
+        'resume_selected_runs',
+        'abort_selected_runs',
+        'send_digest_email_action',
+        'reap_zombie_runs_action'
+    ]
+
+    def name_display(self, obj):
+        name = (obj.name or "").strip()
+        if name:
+            return format_html('<strong>{}</strong>', name)
+        return format_html('<span style="color: #6c757d;">Run {}</span>', str(obj.id)[:8])
+    name_display.short_description = "Run Name"
+    name_display.admin_order_field = "name"
+
+    def papers_funnel_display(self, obj):
+        fetched = obj.total_papers_fetched
+        passed = obj.total_papers_passed_screening
+        if fetched is None or fetched == 0:
+            if hasattr(obj, 'get_papers'):
+                try:
+                    fetched = obj.get_papers().count()
+                except Exception:
+                    fetched = 0
+            else:
+                fetched = 0
+        if passed is None:
+            passed = 0
+
+        if fetched == 0 and passed == 0:
+            return format_html('<span style="color: #6c757d;">0 in ➔ 0 out</span>')
+        return format_html(
+            '<span style="white-space: nowrap; font-family: monospace; font-size: 12px;">'
+            '<strong style="color: #0d6efd;">{} in</strong> '
+            '<span style="color: #6c757d;">➔</span> '
+            '<strong style="color: #198754;">{} out</strong>'
+            '</span>',
+            fetched,
+            passed
+        )
+    papers_funnel_display.short_description = "Papers (In ➔ Out)"
+    papers_funnel_display.admin_order_field = 'total_papers_fetched'
+
+    papers_in_out = papers_funnel_display
+
+    def total_papers_fetched(self, obj):
+        return obj.total_papers_fetched
+    total_papers_fetched.short_description = "Papers In (Fetched)"
+
+    def total_papers_passed_screening(self, obj):
+        return obj.total_papers_passed_screening
+    total_papers_passed_screening.short_description = "Papers Out (Passed)"
+
+    def stopped_stage_badge(self, obj):
+        stage = obj.stopped_at_stage or obj.current_stage
+        stage_choices = dict(PipelineRun.STAGE_CHOICES)
+        stage_name = stage_choices.get(stage, (stage or "").replace('_', ' ').title())
+
+        if obj.status == 'running':
+            cur_name = stage_choices.get(obj.current_stage, (obj.current_stage or "Search").replace('_', ' ').title())
+            return render_badge(f"⏳ IN PROGRESS ({cur_name.upper()})", "#0d6efd", "#ffffff")
+        elif obj.status == 'failed':
+            return render_badge(f"❌ FAILED AT {stage_name.upper()}", "#dc3545", "#ffffff")
+        elif obj.status == 'completed':
+            if stage and stage not in ('completed', 'reporting'):
+                return render_badge(f"⚠️ HALTED AT {stage_name.upper()}", "#fd7e14", "#ffffff")
+            return render_badge("✅ COMPLETED", "#198754", "#ffffff")
+        elif obj.status == 'paused':
+            return render_badge("⏸️ PAUSED", "#ffc107", "#000000")
+        elif obj.status == 'aborted':
+            return render_badge("🛑 ABORTED", "#495057", "#ffffff")
+        return render_badge((obj.status or "PENDING").upper(), "#6c757d", "#ffffff")
+    stopped_stage_badge.short_description = "Halt / Final Stage"
 
     def schedule_display(self, obj):
         if not obj.schedule:
@@ -1438,20 +1528,28 @@ class PipelineRunAdmin(admin.ModelAdmin):
 
     def status_message_display(self, obj):
         msg = (obj.status_message or "").strip()
+        if not msg and obj.error_message:
+            msg = obj.error_message.strip()
+        if not msg and obj.step_history:
+            for entry in reversed(obj.step_history):
+                if entry.get('message'):
+                    msg = entry['message'].strip()
+                    break
+
         if not msg:
             if obj.status == 'running':
                 return format_html('<span style="color: #0d6efd;">⏳ Active stage in progress...</span>')
             elif obj.status == 'completed':
-                return format_html('<span style="color: #198754;">✅ Completed</span>')
+                return format_html('<span style="color: #198754;">✅ Systematic review completed</span>')
             return "-"
-        
-        display_text = msg if len(msg) <= 60 else (msg[:57] + "...")
-        if "0 new papers" in msg or "0 papers" in msg or "halted" in msg.lower():
+
+        display_text = msg if len(msg) <= 65 else (msg[:62] + "...")
+        if "0 new papers" in msg or "0 papers" in msg or "halted" in msg.lower() or ("0" in msg and "paper" in msg.lower()):
             return format_html('<span title="{}" style="color: #d63384; font-weight: 500;">⚠️ {}</span>', msg, display_text)
         elif obj.status == 'failed':
             return format_html('<span title="{}" style="color: #dc3545; font-weight: 500;">❌ {}</span>', msg, display_text)
         elif obj.status == 'completed':
-            return format_html('<span title="{}" style="color: #198754;">✅ {}</span>', msg, display_text)
+            return format_html('<span title="{}" style="color: #198754; font-weight: 500;">✅ {}</span>', msg, display_text)
         return format_html('<span title="{}">{}</span>', msg, display_text)
     status_message_display.short_description = "Status Message / Reason"
 
@@ -1520,316 +1618,6 @@ class PipelineRunAdmin(admin.ModelAdmin):
         return render_badge(obj.get_current_stage_display(), bg, text_color)
     current_stage_badge.short_description = "Current Stage"
 
-    actions = ['run_full_pipeline', 'rerun_with_reprocessing', 'send_digest_email_action', 'reap_zombie_runs_action']
-
-    @admin.action(description="🧟 Reap / Terminate Stale Zombie Runs")
-    def reap_zombie_runs_action(self, request, queryset):
-        from research_intelligence.tasks.auxiliary.zombie_watchdog import reap_zombie_tasks
-        stats = reap_zombie_tasks(max_component_age_minutes=5, force=False)
-        self.message_user(
-            request,
-            f"🧟 Reaped {stats['reaped_pipelines']} stale pipeline run(s), {stats['reaped_agents']} agent process(es), and {stats['reaped_components']} component task(s)."
-        )
-
-    @admin.action(description="🚀 Launch/Advance Autonomous Pipeline (Current Settings)")
-    def run_full_pipeline(self, request, queryset):
-        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
-        for pr in queryset:
-            if request.user.is_authenticated and not pr.triggered_by:
-                pr.triggered_by = request.user
-                pr.save(update_fields=['triggered_by'])
-            agent = pr.agent_processes.filter(status__in=['running', 'pending', 'paused']).first()
-            if not agent:
-                agent = ResearchAgentProcess.objects.create(
-                    workspace=pr.workspace,
-                    pipeline_run=pr,
-                    triggered_by=request.user if request.user.is_authenticated else pr.triggered_by,
-                    name=f"Autonomous Pipeline - {pr.workspace.name}",
-                    status='running',
-                    current_step=pr.current_stage if pr.current_stage != 'completed' else 'initialized',
-                    configuration_override={"reprocess_existing": pr.reprocess_existing}
-                )
-            elif request.user.is_authenticated and not agent.triggered_by:
-                agent.triggered_by = request.user
-                agent.save(update_fields=['triggered_by'])
-            tick_agent_process(str(agent.id))
-        self.message_user(request, f"Triggered autonomous pipeline orchestrator for {queryset.count()} pipeline run(s).")
-
-    @admin.action(description="🔄 Launch Pipeline with Forced Reprocessing of Existing Papers (ON)")
-    def rerun_with_reprocessing(self, request, queryset):
-        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
-        for pr in queryset:
-            pr.reprocess_existing = True
-            pr.save(update_fields=['reprocess_existing'])
-            agent = ResearchAgentProcess.objects.create(
-                workspace=pr.workspace,
-                pipeline_run=pr,
-                triggered_by=request.user if request.user.is_authenticated else pr.triggered_by,
-                name=f"Reprocessing Run - {pr.workspace.name}",
-                status='running',
-                current_step='initialized',
-                configuration_override={"reprocess_existing": True}
-            )
-            tick_agent_process(str(agent.id))
-        self.message_user(request, f"Launched forced reprocessing run for {queryset.count()} pipeline run(s).")
-
-
-@admin.register(ResearchAgentProcess)
-class ResearchAgentProcessAdmin(admin.ModelAdmin):
-    formfield_overrides = {
-        models.JSONField: {'widget': PrettyJSONWidget},
-    }
-    list_display = (
-        'name',
-        'workspace',
-        'status_badge',
-        'stopped_stage_badge',
-        'stop_reason_display',
-        'reprocess_mode_badge',
-        'execution_time',
-        'usd_cost_display',
-        'pipeline_run_link',
-        'started_at',
-        'completed_at',
-        'triggered_by_display'
-    )
-    ordering = ('-started_at', '-id')
-    list_select_related = ('workspace', 'triggered_by')
-    list_filter = ('status', 'current_stage', 'stopped_at_stage', 'workspace', 'triggered_by')
-    search_fields = ('name', 'id', 'workspace__name', 'status_message', 'triggered_by__username', 'triggered_by__email')
-    readonly_fields = ('started_at', 'completed_at', 'execution_time', 'stage_results_preview', 'step_history_preview')
-
-    fieldsets = (
-        ('Agent Identification', {
-            'fields': ('workspace', 'name', 'triggered_by', 'status', 'current_stage', 'stopped_at_stage', 'status_message')
-        }),
-        ('Stage Execution Results & Breakdown', {
-            'fields': ('stage_results_preview', 'stage_results'),
-            'description': 'Per-stage execution status, summary explanations, and metrics.'
-        }),
-        ('Configuration & Override', {
-            'fields': ('configuration_override',),
-            'description': 'Optional parameters such as <code>{"reprocess_existing": true, "limit": 50}</code>.'
-        }),
-        ('Audit Log & History', {
-            'fields': ('step_history_preview', 'step_history')
-        }),
-        ('Lifecycle', {
-            'fields': ('started_at', 'completed_at')
-        }),
-    )
-
-    actions = ['tick_selected_agents', 'rerun_with_reprocessing', 'pause_selected_agents', 'resume_selected_agents', 'abort_selected_agents', 'reap_zombie_agents_action']
-
-    @admin.action(description="🧟 Reap / Terminate Stale Zombie Processes")
-    def reap_zombie_agents_action(self, request, queryset):
-        from research_intelligence.tasks.auxiliary.zombie_watchdog import reap_zombie_tasks
-        stats = reap_zombie_tasks(max_component_age_minutes=5, force=False)
-        self.message_user(
-            request,
-            f"🧟 Reaped {stats['reaped_agents']} stale agent process(es), {stats['reaped_pipelines']} pipeline run(s), and {stats['reaped_components']} component task(s)."
-        )
-
-    def save_model(self, request, obj, form, change):
-        is_new = obj._state.adding
-        if not obj.triggered_by and request.user.is_authenticated:
-            obj.triggered_by = request.user
-        super().save_model(request, obj, form, change)
-        if (is_new or obj.current_step == 'initialized') and obj.status == 'running':
-            from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
-            try:
-                tick_agent_process(str(obj.id))
-            except Exception as e:
-                logger.warning(f"Failed to auto-tick newly created agent '{obj.id}': {e}")
-
-    def triggered_by_display(self, obj):
-        user = obj.triggered_by
-        if not user and obj.pipeline_run:
-            user = obj.pipeline_run.triggered_by
-
-        if not user:
-            return format_html('<span style="color: #6c757d; font-style: italic;">⚙️ System / Automated</span>')
-
-        username = user.username or "User"
-        email_part = f" ({user.email})" if user.email else ""
-        return format_html(
-            '<span style="font-weight: 500; color: #212529;">👤 {}<span style="color: #6c757d; font-size: 0.85em;">{}</span></span>',
-            username,
-            email_part
-        )
-    triggered_by_display.short_description = "Triggered By"
-    triggered_by_display.admin_order_field = 'triggered_by__username'
-
-    def changelist_view(self, request, extra_context=None):
-        # Auto-reconcile any running agents that might be stuck on initialized
-        stuck_agents = list(ResearchAgentProcess.objects.filter(status='running', current_step='initialized')[:5])
-        if stuck_agents:
-            from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
-            for agent in stuck_agents:
-                try:
-                    tick_agent_process(str(agent.id))
-                except Exception:
-                    pass
-        return super().changelist_view(request, extra_context=extra_context)
-
-    def reprocess_mode_badge(self, obj):
-        is_reprocess = False
-        if isinstance(obj.configuration_override, dict) and obj.configuration_override.get('reprocess_existing'):
-            is_reprocess = True
-        elif obj.pipeline_run and obj.pipeline_run.reprocess_existing:
-            is_reprocess = True
-        if is_reprocess:
-            return render_badge("🔄 REPROCESS ON", "#0dcaf0", "#000000")
-        return format_html('<span style="color: #6c757d;">Standard</span>')
-    reprocess_mode_badge.short_description = "Reprocess"
-
-    def usd_cost(self, obj):
-        pr = obj.pipeline_run
-        if not pr and obj.workspace:
-            pr = PipelineRun.objects.filter(workspace=obj.workspace).exclude(pk=obj.pk).order_by('-started_at').first()
-        if pr:
-            cost = float(PipelineRun.objects.filter(pk=pr.pk).values_list('usd_cost', flat=True).first() or pr.usd_cost or 0.0)
-            if cost == 0.0:
-                comp_cost = sum(
-                    float((cr.metrics or {}).get("usd_cost") or 0.0)
-                    for cr in pr.component_runs.all()
-                )
-                if comp_cost > 0.0:
-                    cost = comp_cost
-            if cost == 0.0 and (pr.tokens_in or pr.tokens_out or pr.tokens_consumed):
-                try:
-                    from research_intelligence.llm_providers.pricing import calculate_llm_cost
-                    model_name = pr.workspace.screening_llm_model if pr.workspace else "google/gemini-3.8-flash"
-                    cost = float(calculate_llm_cost(model_name, pr.tokens_in or 0, pr.tokens_out or 0))
-                except Exception:
-                    pass
-            if cost > 0:
-                return format_html('<strong style="color: #0d6efd;">${}</strong>', f"{cost:.4f}")
-        return format_html('<span style="color: #6c757d;">$0.0000</span>')
-    usd_cost.short_description = "USD Cost"
-    usd_cost.admin_order_field = 'usd_cost'
-
-    def usd_cost_display(self, obj):
-        return self.usd_cost(obj)
-    usd_cost_display.short_description = "USD Cost"
-    usd_cost_display.admin_order_field = 'usd_cost'
-
-    def status_badge(self, obj):
-        colors = {
-            'pending': '#6c757d',
-            'running': '#0d6efd',
-            'paused': '#ffc107',
-            'completed': '#198754',
-            'failed': '#dc3545',
-            'aborted': '#495057',
-        }
-        bg = colors.get(obj.status, '#6c757d')
-        text_color = '#000000' if bg == '#ffc107' else '#ffffff'
-        return render_badge(obj.status.upper(), bg, text_color)
-    status_badge.short_description = "Status"
-
-    def stopped_stage_badge(self, obj):
-        step = obj.stopped_at_step or obj.current_step
-        if obj.status == 'running':
-            active_step = obj.current_step or 'initialized'
-            step_name = dict(ResearchAgentProcess.STEP_CHOICES).get(active_step, active_step.title())
-            return render_badge(f"⏳ IN PROGRESS ({step_name.upper()})", "#0d6efd", "#ffffff")
-        elif obj.status == 'failed':
-            step_name = dict(ResearchAgentProcess.STEP_CHOICES).get(step, step.title() if step else 'Unknown')
-            return render_badge(f"❌ FAILED AT {step_name.upper()}", "#dc3545", "#ffffff")
-        elif obj.status == 'completed':
-            if step and step not in ('completed', 'reporting'):
-                step_name = dict(ResearchAgentProcess.STEP_CHOICES).get(step, step.title())
-                return render_badge(f"⚠️ HALTED AT {step_name.upper()}", "#fd7e14", "#ffffff")
-            return render_badge("✅ COMPLETED", "#198754", "#ffffff")
-        elif obj.status == 'paused':
-            return render_badge("⏸️ PAUSED", "#ffc107", "#000000")
-        elif obj.status == 'aborted':
-            return render_badge("🛑 ABORTED", "#495057", "#ffffff")
-        return render_badge((obj.status or "PENDING").upper(), "#6c757d", "#ffffff")
-    stopped_stage_badge.short_description = "Halt / Final Stage"
-
-    def stop_reason_display(self, obj):
-        msg = (obj.stop_reason or "").strip()
-        if not msg and obj.error_message:
-            msg = obj.error_message.strip()
-        if not msg and obj.pipeline_run and obj.pipeline_run.status_message:
-            msg = obj.pipeline_run.status_message.strip()
-        if not msg and obj.step_history:
-            for entry in reversed(obj.step_history):
-                if entry.get('message'):
-                    msg = entry['message'].strip()
-                    break
-        
-        if not msg:
-            if obj.status == 'running':
-                return format_html('<span style="color: #0d6efd;">⏳ Active step in progress...</span>')
-            elif obj.status == 'completed':
-                return format_html('<span style="color: #198754;">✅ Systematic review completed.</span>')
-            return "-"
-        
-        display_text = msg if len(msg) <= 75 else (msg[:72] + "...")
-        if "0 new papers" in msg or "0 papers" in msg or "halted" in msg.lower() or ("0" in msg and "paper" in msg.lower()):
-            return format_html('<span title="{}" style="color: #d63384; font-weight: 500;">⚠️ {}</span>', msg, display_text)
-        elif obj.status == 'failed':
-            return format_html('<span title="{}" style="color: #dc3545; font-weight: 500;">❌ {}</span>', msg, display_text)
-        elif obj.status == 'completed':
-            return format_html('<span title="{}" style="color: #198754; font-weight: 500;">✅ {}</span>', msg, display_text)
-        return format_html('<span title="{}">{}</span>', msg, display_text)
-    stop_reason_display.short_description = "Stop Reason / Status Message"
-
-    def current_step_badge(self, obj):
-        step = obj.current_step
-        if step == 'initialized' and obj.status == 'running' and obj.pipeline_run and obj.pipeline_run.current_stage != 'initialized':
-            step = obj.pipeline_run.current_stage
-
-        colors = {
-            'initialized': '#6c757d',
-            'search': '#0d6efd',
-            'download': '#0dcaf0',
-            'ocr': '#6f42c1',
-            'screening': '#ffc107',
-            'extraction': '#198754',
-            'signal_score': '#fd7e14',
-            'reporting': '#20c997',
-            'completed': '#198754',
-            'failed': '#dc3545',
-            'aborted': '#495057',
-        }
-        bg = colors.get(step, '#6c757d')
-        text_color = '#000000' if bg in ('#ffc107', '#0dcaf0') else '#ffffff'
-        display_name = dict(ResearchAgentProcess.STEP_CHOICES).get(step, step.title())
-        return render_badge(display_name, bg, text_color)
-    current_step_badge.short_description = "Active Step"
-
-    def execution_time(self, obj):
-        sec = obj.duration_seconds
-        if sec is None:
-            return "-"
-        formatted = obj.execution_time_display
-        if obj.status == 'running':
-            return format_html('<span style="color: #0d6efd; font-weight: 600;">{}</span>', formatted)
-        elif obj.status == 'completed':
-            return format_html('<span>⏱️ <strong>{}</strong></span>', formatted)
-        elif obj.status in ['failed', 'aborted']:
-            return format_html('<span style="color: #dc3545;">⏱️ {}</span>', formatted)
-        return formatted
-    execution_time.short_description = "Execution Time"
-    execution_time.admin_order_field = 'completed_at'
-
-    def pipeline_run_link(self, obj):
-        pr = obj.pipeline_run
-        if not pr and obj.workspace:
-            pr = PipelineRun.objects.filter(workspace=obj.workspace).exclude(pk=obj.pk).order_by('-started_at').first()
-            if pr:
-                obj.pipeline_run = pr
-                obj.save(update_fields=['pipeline_run'])
-        if not pr:
-            return "-"
-        url = reverse("admin:research_intelligence_pipelinerun_change", args=[pr.id])
-        return format_html('<a href="{}"><code>{}</code></a>', url, str(pr.id)[:8] + '...')
-    pipeline_run_link.short_description = "Pipeline Run"
-
     def stage_results_preview(self, obj):
         if not obj.stage_results:
             return format_html('<span style="color: #6c757d;">No stage results recorded yet.</span>')
@@ -1897,6 +1685,203 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
         return format_html('<ul style="margin: 0; padding-left: 18px; line-height: 1.6;">{}</ul>', mark_safe("".join(items)))
     step_history_preview.short_description = "Recent History"
 
+    @admin.action(description="🧟 Reap / Terminate Stale Zombie Runs")
+    def reap_zombie_runs_action(self, request, queryset):
+        from research_intelligence.tasks.auxiliary.zombie_watchdog import reap_zombie_tasks
+        stats = reap_zombie_tasks(max_component_age_minutes=5, force=False)
+        self.message_user(
+            request,
+            f"🧟 Reaped {stats['reaped_pipelines']} stale pipeline run(s), {stats['reaped_agents']} agent process(es), and {stats['reaped_components']} component task(s)."
+        )
+
+    @admin.action(description="🚀 Launch/Advance Autonomous Pipeline (Current Settings)")
+    def run_full_pipeline(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+        for pr in queryset:
+            if request.user.is_authenticated and not pr.triggered_by:
+                pr.triggered_by = request.user
+                pr.save(update_fields=['triggered_by'])
+            agent = pr.agent_processes.filter(status__in=['running', 'pending', 'paused']).first()
+            if not agent:
+                agent = ResearchAgentProcess.objects.create(
+                    workspace=pr.workspace,
+                    pipeline_run=pr,
+                    triggered_by=request.user if request.user.is_authenticated else pr.triggered_by,
+                    name=f"Autonomous Pipeline - {pr.workspace.name}",
+                    status='running',
+                    current_step=pr.current_stage if pr.current_stage != 'completed' else 'initialized',
+                    configuration_override={"reprocess_existing": pr.reprocess_existing}
+                )
+            elif request.user.is_authenticated and not agent.triggered_by:
+                agent.triggered_by = request.user
+                agent.save(update_fields=['triggered_by'])
+            tick_agent_process(str(agent.id))
+        self.message_user(request, f"Triggered autonomous pipeline orchestrator for {queryset.count()} pipeline run(s).")
+
+    @admin.action(description="🔄 Launch Pipeline with Forced Reprocessing of Existing Papers (ON)")
+    def rerun_with_reprocessing(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+        for pr in queryset:
+            pr.reprocess_existing = True
+            pr.save(update_fields=['reprocess_existing'])
+            agent = ResearchAgentProcess.objects.create(
+                workspace=pr.workspace,
+                pipeline_run=pr,
+                triggered_by=request.user if request.user.is_authenticated else pr.triggered_by,
+                name=f"Reprocessing Run - {pr.workspace.name}",
+                status='running',
+                current_step='initialized',
+                configuration_override={"reprocess_existing": True}
+            )
+            tick_agent_process(str(agent.id))
+        self.message_user(request, f"Launched forced reprocessing run for {queryset.count()} pipeline run(s).")
+
+    @admin.action(description="▶️ Advance/Tick Selected Run(s)")
+    def tick_selected_runs(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.agent_engine import run_pipeline_tick
+        for pr in queryset:
+            run_pipeline_tick(str(pr.id))
+        self.message_user(request, f"Ticked execution engine for {queryset.count()} pipeline run(s).")
+
+    @admin.action(description="⏸️ Pause Selected Run(s)")
+    def pause_selected_runs(self, request, queryset):
+        for pr in queryset.filter(status='running'):
+            pr.status = 'paused'
+            pr.save(update_fields=['status'])
+        self.message_user(request, f"Paused {queryset.count()} pipeline run(s).")
+
+    @admin.action(description="▶️ Resume Selected Run(s)")
+    def resume_selected_runs(self, request, queryset):
+        from research_intelligence.tasks.orchestrator.agent_engine import run_pipeline_tick
+        for pr in queryset.filter(status='paused'):
+            pr.status = 'running'
+            pr.save(update_fields=['status'])
+            run_pipeline_tick(str(pr.id))
+        self.message_user(request, f"Resumed {queryset.count()} pipeline run(s).")
+
+    @admin.action(description="⏹️ Abort Selected Run(s)")
+    def abort_selected_runs(self, request, queryset):
+        for pr in queryset.exclude(status__in=['completed', 'failed', 'aborted']):
+            pr.status = 'aborted'
+            pr.save(update_fields=['status'])
+        self.message_user(request, f"Aborted {queryset.count()} pipeline run(s).")
+
+
+class ResearchAgentProcessAdmin(PipelineRunAdmin):
+    """
+    Backward-compatibility proxy ModelAdmin for ResearchAgentProcess.
+    Inherits all rich UI/UX, funnel metrics, stage results preview,
+    and actions from PipelineRunAdmin without exposing a separate menu item.
+    """
+
+    def has_module_permission(self, request):
+        return False
+
+    def reprocess_mode_badge(self, obj):
+        is_reprocess = False
+        if isinstance(getattr(obj, 'configuration_override', None), dict) and obj.configuration_override.get('reprocess_existing'):
+            is_reprocess = True
+        elif getattr(obj, 'reprocess_existing', False):
+            is_reprocess = True
+        elif hasattr(obj, 'pipeline_run') and obj.pipeline_run and obj.pipeline_run.reprocess_existing:
+            is_reprocess = True
+        if is_reprocess:
+            return render_badge("🔄 REPROCESS ON", "#0dcaf0", "#000000")
+        return format_html('<span style="color: #6c757d;">Standard</span>')
+    reprocess_mode_badge.short_description = "Reprocess"
+
+    def pipeline_run_link(self, obj):
+        pr = getattr(obj, 'pipeline_run', None)
+        if not pr and getattr(obj, 'workspace', None):
+            pr = PipelineRun.objects.filter(workspace=obj.workspace).exclude(pk=obj.pk).order_by('-started_at').first()
+            if pr:
+                obj.pipeline_run = pr
+                obj.save(update_fields=['pipeline_run'])
+        if not pr:
+            return "-"
+        url = reverse("admin:research_intelligence_pipelinerun_change", args=[pr.id])
+        return format_html('<a href="{}"><code>{}</code></a>', url, str(pr.id)[:8] + '...')
+    pipeline_run_link.short_description = "Pipeline Run"
+
+    def current_step_badge(self, obj):
+        step = getattr(obj, 'current_step', None) or getattr(obj, 'current_stage', 'search')
+        colors = {
+            'initialized': '#6c757d',
+            'search': '#0d6efd',
+            'download': '#0dcaf0',
+            'ocr': '#6f42c1',
+            'screening': '#ffc107',
+            'extraction': '#198754',
+            'signal_score': '#fd7e14',
+            'reporting': '#20c997',
+            'completed': '#198754',
+            'failed': '#dc3545',
+            'aborted': '#495057',
+        }
+        bg = colors.get(step, '#6c757d')
+        text_color = '#000000' if bg in ('#ffc107', '#0dcaf0') else '#ffffff'
+        display_name = dict(ResearchAgentProcess.STEP_CHOICES).get(step, step.title())
+        return render_badge(display_name, bg, text_color)
+    current_step_badge.short_description = "Active Step"
+
+    def stop_reason_display(self, obj):
+        return self.status_message_display(obj)
+    stop_reason_display.short_description = "Stop Reason / Status Message"
+
+    def save_model(self, request, obj, form, change):
+        is_new = obj._state.adding
+        if not obj.triggered_by and request.user.is_authenticated:
+            obj.triggered_by = request.user
+        super().save_model(request, obj, form, change)
+        if (is_new or obj.current_step == 'initialized') and obj.status == 'running':
+            from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+            try:
+                tick_agent_process(str(obj.id))
+            except Exception as e:
+                logger.warning(f"Failed to auto-tick newly created agent '{obj.id}': {e}")
+
+    def changelist_view(self, request, extra_context=None):
+        stuck_agents = list(ResearchAgentProcess.objects.filter(status='running', current_step='initialized')[:5])
+        if stuck_agents:
+            from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
+            for agent in stuck_agents:
+                try:
+                    tick_agent_process(str(agent.id))
+                except Exception:
+                    pass
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def usd_cost(self, obj):
+        pr = obj.pipeline_run
+        if not pr and obj.workspace:
+            pr = PipelineRun.objects.filter(workspace=obj.workspace).exclude(pk=obj.pk).order_by('-started_at').first()
+        if pr:
+            cost = float(PipelineRun.objects.filter(pk=pr.pk).values_list('usd_cost', flat=True).first() or pr.usd_cost or 0.0)
+            if cost == 0.0:
+                comp_cost = sum(
+                    float((cr.metrics or {}).get("usd_cost") or 0.0)
+                    for cr in pr.component_runs.all()
+                )
+                if comp_cost > 0.0:
+                    cost = comp_cost
+            if cost == 0.0 and (pr.tokens_in or pr.tokens_out or pr.tokens_consumed):
+                try:
+                    from research_intelligence.llm_providers.pricing import calculate_llm_cost
+                    model_name = pr.workspace.screening_llm_model if pr.workspace else "google/gemini-3.8-flash"
+                    cost = float(calculate_llm_cost(model_name, pr.tokens_in or 0, pr.tokens_out or 0))
+                except Exception:
+                    pass
+            if cost > 0:
+                return format_html('<strong style="color: #0d6efd;">${}</strong>', f"{cost:.4f}")
+        return format_html('<span style="color: #6c757d;">$0.0000</span>')
+    usd_cost.short_description = "USD Cost"
+    usd_cost.admin_order_field = 'usd_cost'
+
+    def usd_cost_display(self, obj):
+        return self.usd_cost(obj)
+    usd_cost_display.short_description = "USD Cost"
+    usd_cost_display.admin_order_field = 'usd_cost'
+
     @admin.action(description="▶️ Advance/Tick Selected Agent(s)")
     def tick_selected_agents(self, request, queryset):
         from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
@@ -1904,28 +1889,9 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
             tick_agent_process(str(agent.id))
         self.message_user(request, f"Ticked state machine for {queryset.count()} agent process(es).")
 
-    @admin.action(description="🔄 Re-run Agent with Forced Reprocessing of Existing Papers (ON)")
-    def rerun_with_reprocessing(self, request, queryset):
-        from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
-        for old_agent in queryset:
-            cfg = dict(old_agent.configuration_override or {})
-            cfg['reprocess_existing'] = True
-            new_agent = ResearchAgentProcess.objects.create(
-                workspace=old_agent.workspace,
-                name=f"Reprocess: {old_agent.name}",
-                status='running',
-                current_step='initialized',
-                configuration_override=cfg
-            )
-            tick_agent_process(str(new_agent.id))
-        self.message_user(request, f"Launched {queryset.count()} new agent process(es) with reprocess_existing=True.")
-
     @admin.action(description="⏸️ Pause Selected Agent(s)")
     def pause_selected_agents(self, request, queryset):
-        for agent in queryset.filter(status='running'):
-            agent.status = 'paused'
-            agent.save(update_fields=['status'])
-        self.message_user(request, f"Paused {queryset.count()} agent process(es).")
+        return self.pause_selected_runs(request, queryset)
 
     @admin.action(description="▶️ Resume Selected Agent(s)")
     def resume_selected_agents(self, request, queryset):
@@ -1938,10 +1904,11 @@ class ResearchAgentProcessAdmin(admin.ModelAdmin):
 
     @admin.action(description="⏹️ Abort Selected Agent(s)")
     def abort_selected_agents(self, request, queryset):
-        for agent in queryset.exclude(status__in=['completed', 'failed', 'aborted']):
-            agent.status = 'aborted'
-            agent.save(update_fields=['status'])
-        self.message_user(request, f"Aborted {queryset.count()} agent process(es).")
+        return self.abort_selected_runs(request, queryset)
+
+    @admin.action(description="🧟 Reap / Terminate Stale Zombie Processes")
+    def reap_zombie_agents_action(self, request, queryset):
+        return self.reap_zombie_runs_action(request, queryset)
 
 
 class RecentPipelineRunFilter(admin.SimpleListFilter):

@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import path, re_path, include
+from django.views.generic import RedirectView
 from drf_spectacular.views import (
     SpectacularAPIView,
     SpectacularRedocView,
@@ -8,6 +9,15 @@ from drf_spectacular.views import (
 from api.views.diagnostics import HealthCheckView, DeepDiagnosticsView
 
 urlpatterns = [
+    # Legacy admin redirect from ResearchAgentProcess to PipelineRun
+    path(
+        'admin/research_intelligence/researchagentprocess/',
+        RedirectView.as_view(pattern_name='admin:research_intelligence_pipelinerun_changelist', permanent=False),
+    ),
+    path(
+        'admin/research_intelligence/researchagentprocess/<path:rest>',
+        RedirectView.as_view(pattern_name='admin:research_intelligence_pipelinerun_changelist', permanent=False),
+    ),
     path('admin/', admin.site.urls),
 
     # OpenAPI 3.0 & Swagger UI routes

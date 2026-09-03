@@ -200,6 +200,7 @@ class AdminChangelistViewsTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "$0.0452")
         self.assertContains(response, "Quantum Computing Intelligence")
+        self.assertContains(response, "Papers (In ➔ Out)")
 
     def test_pipelinerun_changeform_renders(self):
         url = reverse('admin:research_intelligence_pipelinerun_change', args=[self.pipeline_run.id])
@@ -218,10 +219,11 @@ class AdminChangelistViewsTestCase(TestCase):
         self.assertContains(response, "65 extractions")
 
     def test_researchagentprocess_changelist_renders(self):
-        url = reverse('admin:research_intelligence_researchagentprocess_changelist')
-        response = self.client.get(url)
+        # Legacy ResearchAgentProcess URL seamlessly redirects to unified PipelineRun changelist
+        url = '/admin/research_intelligence/researchagentprocess/'
+        response = self.client.get(url, follow=True)
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "Autonomous Agent Process 1")
+        self.assertContains(response, "Quantum Computing Intelligence")
         self.assertContains(response, "$0.0452")
 
     def test_documentregistry_changelist_renders(self):
