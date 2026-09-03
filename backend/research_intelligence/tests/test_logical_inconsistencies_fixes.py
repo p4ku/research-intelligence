@@ -454,6 +454,11 @@ score = clamp(trl_val) * 0.5 + 4.0
         self.assertIn("metric_detail_link", admin.list_display)
         self.assertIn("workspace_link", admin.list_display)
         self.assertEqual(admin.list_display_links, ("metric_detail_link",))
+        # Extracted metrics column comes BEFORE signal score column
+        self.assertLess(
+            admin.list_display.index("metrics_preview"),
+            admin.list_display.index("signal_score_badge")
+        )
 
         # 2. Metric instance rendering
         metric = PaperMetric.objects.create(
@@ -481,10 +486,11 @@ score = clamp(trl_val) * 0.5 + 4.0
         ws_html = admin.workspace_link(metric)
         self.assertIn(self.workspace_a.name, ws_html)
 
-        # Metrics preview renders badges on separate lines and skips heavy text / test aliases
+        # Metrics preview renders badges on separate lines, skips heavy text, and omits keypad icon before numbers
         preview_html = admin.metrics_preview(metric)
         self.assertIn("PASS", preview_html)
         self.assertIn("7", preview_html)
+        self.assertNotIn("🔢", preview_html)
         self.assertIn("CNN-GNN", preview_html)
         self.assertNotIn("test_e2e_sched_58705055_trl_level", preview_html)
         self.assertNotIn("Extremely detailed rationale", preview_html)

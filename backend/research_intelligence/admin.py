@@ -2595,8 +2595,8 @@ class PaperMetricAdmin(admin.ModelAdmin):
         'workspace_link',
         'pipeline_run_link',
         'screening_status_badge',
-        'signal_score_badge',
         'metrics_preview',
+        'signal_score_badge',
         'created_at'
     )
     list_display_links = ('metric_detail_link',)
@@ -2816,7 +2816,7 @@ class PaperMetricAdmin(admin.ModelAdmin):
             else:
                 val_str = str(val)
             return format_html(
-                '<span style="background-color: #cff4fc; color: #055160; border: 1px solid #b6effb; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 11px; font-family: monospace;">🔢 {}</span>',
+                '<span style="background-color: #cff4fc; color: #055160; border: 1px solid #b6effb; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 11px; font-family: monospace;">{}</span>',
                 val_str
             )
 
@@ -2844,7 +2844,7 @@ class PaperMetricAdmin(admin.ModelAdmin):
             num = float(val_lower)
             formatted_num = str(int(num)) if num.is_integer() else f"{num:.2f}"
             return format_html(
-                '<span style="background-color: #cff4fc; color: #055160; border: 1px solid #b6effb; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 11px; font-family: monospace;">🔢 {}</span>',
+                '<span style="background-color: #cff4fc; color: #055160; border: 1px solid #b6effb; padding: 1px 6px; border-radius: 4px; font-weight: 700; font-size: 11px; font-family: monospace;">{}</span>',
                 formatted_num
             )
         except (ValueError, TypeError):
