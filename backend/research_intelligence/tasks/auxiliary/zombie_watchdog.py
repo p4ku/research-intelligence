@@ -18,7 +18,7 @@ from django.db import close_old_connections, transaction
 logger = logging.getLogger(__name__)
 
 # Configurable timeout defaults via environment variables
-DEFAULT_MAX_COMPONENT_AGE_MINUTES: int = int(os.environ.get("ZOMBIE_WATCHDOG_COMPONENT_TIMEOUT_MINUTES", "60"))
+DEFAULT_MAX_COMPONENT_AGE_MINUTES: int = int(os.environ.get("ZOMBIE_WATCHDOG_COMPONENT_TIMEOUT_MINUTES", "30"))
 DEFAULT_MAX_PIPELINE_AGE_MINUTES: int = int(os.environ.get("ZOMBIE_WATCHDOG_PIPELINE_TIMEOUT_MINUTES", "120"))
 
 
@@ -76,8 +76,13 @@ def reap_zombie_tasks(
         with transaction.atomic():
             age_min = round((now - comp.started_at).total_seconds() / 60.0, 1) if comp.started_at else 0
             m = comp.metrics or {}
-            total_items = m.get("total_to_screen") or m.get("total_screened") or m.get("total_processed") or 0
-            done_items = (m.get("passed", 0) + m.get("rejected", 0) + m.get("withdrawn", 0) + m.get("failed", 0)) or m.get("total_screened", 0)
+            total_items = m.get("total_work_items") or m.get("total_to_screen") or m.get("total_screened") or m.get("total_processed") or m.get("total_papers") or 0
+            done_items = (
+                (m.get("passed", 0) + m.get("rejected", 0) + m.get("withdrawn", 0) + m.get("failed", 0))
+                or (m.get("completed_extractions", 0) + m.get("failed_extractions", 0))
+                or m.get("total_screened", 0)
+                or m.get("total_processed", 0)
+            )
             
             # If all items were processed but status was left running due to a dropped callback
             if total_items > 0 and done_items >= total_items:
@@ -95,6 +100,19 @@ def reap_zombie_tasks(
                 comp.save(update_fields=['status', 'error_message', 'completed_at'])
                 stats["reaped_components"] += 1
                 stats["details"].append(f"ComponentRun {comp.id} ({comp.component_name}) -> failed")
+
+                # Immediately fail the associated PipelineRun if active and notify orchestrator
+                if comp.pipeline_run and comp.pipeline_run.status == 'running':
+                    comp.pipeline_run.status = 'failed'
+                    comp.pipeline_run.status_message = f"Pipeline terminated: Component '{comp.component_name}' reaped by watchdog as zombie ({reason})"
+                    comp.pipeline_run.completed_at = now
+                    comp.pipeline_run.save(update_fields=['status', 'status_message', 'completed_at'])
+                    stats["reaped_pipelines"] += 1
+                    try:
+                        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+                        notify_pipeline_orchestrator_tick(comp.pipeline_run)
+                    except Exception as tick_err:
+                        logger.warning(f"Watchdog orchestrator tick notification failed: {tick_err}")
 
             if comp.status == 'completed' and comp.pipeline_run:
                 try:

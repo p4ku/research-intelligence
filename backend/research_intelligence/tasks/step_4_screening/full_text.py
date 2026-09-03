@@ -279,7 +279,7 @@ def _screen_full_text_paper_task(paper, workspace_obj, pipeline_run_id=None):
         close_old_connections()
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, max_retries=3, default_retry_delay=15)
 def execute_full_text_screening_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing Full-Text Screening for papers in a ComponentRun job.
@@ -505,6 +505,25 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
             "usd_cost": float(cost),
             "screened_papers": papers_summary
         }
+
+        # Check for total catastrophic failure: if work was attempted and 0 succeeded
+        if len(papers) > 0 and (passed_count + rejected_count + withdrawn_count) == 0 and failed_count > 0:
+            error_msg = f"All {failed_count} papers failed full-text screening (provider timeout, network drop, or schema errors)."
+            logger.error(f"❌ [FULL-TEXT SCREENING TOTAL FAILURE] {error_msg}")
+            component_run.status = 'failed'
+            component_run.error_message = error_msg
+            component_run.completed_at = timezone.now()
+            component_run.save(update_fields=['metrics', 'output_data', 'status', 'error_message', 'completed_at'])
+
+            pipeline_run.status = 'failed'
+            pipeline_run.status_message = f"Pipeline terminated: Full-Text Screening step failed completely ({error_msg})"
+            pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'status_message', 'completed_at'])
+
+            from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+            notify_pipeline_orchestrator_tick(pipeline_run)
+            return False
+
         component_run.status = 'completed'
         component_run.completed_at = timezone.now()
         component_run.save(update_fields=['metrics', 'output_data', 'status', 'completed_at'])
@@ -556,14 +575,33 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
         return True
     except Exception as e:
         logger.exception(f"Error in Full-Text Screening ComponentRun '{component_run_id}': {e}")
-        component_run.status = 'failed'
-        component_run.error_message = str(e)
-        component_run.completed_at = timezone.now()
-        component_run.save(update_fields=['status', 'error_message', 'completed_at'])
-        pipeline_run.status = 'failed'
-        pipeline_run.save(update_fields=['status'])
+        retries = getattr(self.request, 'retries', 0) if hasattr(self, 'request') else 0
+        max_retries = getattr(self, 'max_retries', 3)
+        if retries < max_retries:
+            countdown = 15 * (2 ** retries)
+            logger.warning(f"⚠️ [TASK RETRY {retries + 1}/{max_retries}] Retrying execute_full_text_screening_job for ComponentRun '{component_run_id}' in {countdown}s due to: {e}")
+            try:
+                if component_run:
+                    component_run.error_message = f"Transient task failure (attempt {retries + 1}/{max_retries}): {e}. Retrying in {countdown}s..."
+                    component_run.save(update_fields=['error_message'])
+                raise self.retry(exc=e, countdown=countdown)
+            except Exception as retry_err:
+                if retry_err is not e and not isinstance(retry_err, getattr(self, 'MaxRetriesExceededError', Exception)):
+                    raise
 
-        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
-        notify_pipeline_orchestrator_tick(pipeline_run)
+        if component_run:
+            component_run.status = 'failed'
+            component_run.error_message = f"Full-Text Screening failed after {max_retries} task retries: {str(e)}"
+            component_run.completed_at = timezone.now()
+            component_run.save(update_fields=['status', 'error_message', 'completed_at'])
+
+        if pipeline_run:
+            pipeline_run.status = 'failed'
+            pipeline_run.status_message = f"Pipeline terminated: Full-Text Screening step failed after {max_retries} retries ({str(e)})"
+            pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'status_message', 'completed_at'])
+
+            from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+            notify_pipeline_orchestrator_tick(pipeline_run)
 
         return False

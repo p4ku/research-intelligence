@@ -220,3 +220,125 @@ class WorkerCompletionAndTimeoutsTestCase(TestCase):
         self.assertEqual(stuck_comp.status, "completed")
         self.assertIsNotNone(stuck_comp.completed_at)
         self.assertIn("recovered completed", stats["details"][0])
+
+    @patch("research_intelligence.tasks.step_5_extraction.extract._run_single_extraction_worker")
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    def test_extraction_total_failure_fails_pipeline_and_component(self, mock_notify, mock_extract):
+        """
+        Verifies that if all extractions fail (0 succeeded), the ComponentRun
+        and PipelineRun are marked 'failed' and execution halts.
+        """
+        ext_def = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Methodology",
+            system_prompt="Assess Method",
+            response_schema={"type": "object"},
+            is_active=True
+        )
+
+        mock_extract.return_value = {
+            "success": False,
+            "error": "Simulated complete outage",
+            "paper_id": "test",
+            "definition_id": str(ext_def.id)
+        }
+
+        comp_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="extraction",
+            component_name="extraction",
+            status="pending"
+        )
+
+        res = execute_extraction_job(str(comp_run.id), max_workers=2)
+        self.assertFalse(res)
+
+        comp_run.refresh_from_db()
+        self.pipeline_run.refresh_from_db()
+
+        self.assertEqual(comp_run.status, "failed")
+        self.assertIn("All 3 extractions failed", comp_run.error_message)
+        self.assertEqual(self.pipeline_run.status, "failed")
+        self.assertIn("Extraction step failed completely", self.pipeline_run.status_message)
+        mock_notify.assert_called_with(self.pipeline_run)
+
+    @patch("research_intelligence.tasks.step_5_extraction.extract._run_single_extraction_worker")
+    def test_extraction_resume_skips_already_completed_extractions(self, mock_extract):
+        """
+        Verifies that if extractions were already created in a previous attempt,
+        the task gracefully resumes from where it left off, avoiding duplicate calls.
+        """
+        from research_intelligence.models import Extraction
+        ext_def = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Architecture",
+            system_prompt="Assess Architecture",
+            response_schema={"type": "object"},
+            is_active=True
+        )
+
+        # Pre-seed one successful extraction in DB for paper1
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=self.paper1,
+            extraction_definition=ext_def,
+            category="Architecture",
+            fields_data={"layer": "hybrid"},
+            validation_status="pass",
+            confidence_score=0.95
+        )
+
+        mock_extract.return_value = {
+            "success": True,
+            "paper_id": "other",
+            "definition_id": str(ext_def.id),
+            "definition_name": ext_def.name,
+            "extracted_data": {},
+            "usage": {"tokens_in": 100, "tokens_out": 50}
+        }
+
+        comp_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="extraction",
+            component_name="extraction",
+            status="pending"
+        )
+
+        res = execute_extraction_job(str(comp_run.id), max_workers=2)
+        self.assertTrue(res)
+
+        # Mock extract should only have been called for paper2 and paper3 (2 times), NOT paper1!
+        self.assertEqual(mock_extract.call_count, 2)
+
+        comp_run.refresh_from_db()
+        self.assertEqual(comp_run.status, "completed")
+        self.assertEqual(comp_run.metrics["extractions_created"], 3)
+        self.assertEqual(comp_run.metrics["failed"], 0)
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    def test_zombie_watchdog_reaping_failed_component_fails_pipeline(self, mock_notify):
+        """
+        Verifies that when the zombie watchdog reaps an in-flight dead component
+        as failed, it immediately marks the associated PipelineRun as failed.
+        """
+        stale_time = timezone.now() - timedelta(minutes=45)
+        stuck_comp = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="extraction",
+            component_name="extraction",
+            status="running",
+            metrics={"total_work_items": 130, "completed_extractions": 55, "failed_extractions": 0}
+        )
+        ComponentRun.objects.filter(id=stuck_comp.id).update(started_at=stale_time)
+
+        stats = reap_zombie_tasks(max_component_age_minutes=30)
+
+        stuck_comp.refresh_from_db()
+        self.pipeline_run.refresh_from_db()
+
+        self.assertEqual(stuck_comp.status, "failed")
+        self.assertEqual(self.pipeline_run.status, "failed")
+        self.assertIn("Pipeline terminated: Component 'extraction' reaped by watchdog as zombie", self.pipeline_run.status_message)
+        self.assertEqual(stats["reaped_components"], 1)
+        self.assertEqual(stats["reaped_pipelines"], 1)
+        mock_notify.assert_called()

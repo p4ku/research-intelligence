@@ -220,7 +220,7 @@ def _run_single_extraction_impl(paper, definition, workspace):
                 }
 
 
-@shared_task(bind=True)
+@shared_task(bind=True, max_retries=3, default_retry_delay=15)
 def execute_extraction_job(self, component_run_id: str, limit: int = None, max_workers: int = 4):
     """
     Celery worker task executing Parameter & Claim Extraction for papers in a ComponentRun job.
@@ -311,10 +311,6 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
 
         papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
 
-        # Prepare (paper, definition) work items
-        work_items = [(paper, definition) for paper in papers for definition in active_definitions]
-        logger.info(f"🚀 [PARALLEL EXTRACTION START] Running {len(work_items)} extractions ({len(papers)} papers x {len(active_definitions)} definitions) with {worker_concurrency} threads...")
-
         succeeded_count = 0
         failed_count = 0
         total_prompt_tokens = 0
@@ -322,6 +318,49 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
         total_tokens = 0
         tokens_by_model = {}
         extractions_summary = []
+
+        # Prepare (paper, definition) work items
+        all_work_items = [(paper, definition) for paper in papers for definition in active_definitions]
+
+        # Resume resilience: check already successfully extracted pairs in this workspace
+        # If pipeline_run.reprocess_existing or force_reextract is enabled, re-extract everything
+        force_reextract = getattr(pipeline_run, 'reprocess_existing', False) or (component_run.input_params or {}).get("force_reextract", False)
+        existing_extractions = {}
+        if not force_reextract:
+            existing_extractions = {
+                (str(ext.paper_id), str(ext.extraction_definition_id)): ext
+                for ext in Extraction.objects.filter(
+                    workspace=workspace,
+                    paper__in=papers,
+                    extraction_definition__in=active_definitions
+                ).exclude(validation_status='fail')
+            }
+
+        work_items = []
+        for paper, definition in all_work_items:
+            key = (str(paper.id), str(definition.id))
+            if key in existing_extractions:
+                existing_ext = existing_extractions[key]
+                succeeded_count += 1
+                extractions_summary.append({
+                    "paper_id": str(paper.id),
+                    "paper_title": paper.title,
+                    "definition_id": str(definition.id),
+                    "definition_name": definition.name,
+                    "validation_status": existing_ext.validation_status,
+                    "confidence_score": existing_ext.confidence_score,
+                    "duration_seconds": 0.0,
+                    "tokens": {"tokens_in": 0, "tokens_out": 0, "total_tokens": 0},
+                    "fields_extracted": len(existing_ext.fields_data) if isinstance(existing_ext.fields_data, dict) else 0,
+                    "resumed_from_cache": True
+                })
+            else:
+                work_items.append((paper, definition))
+
+        if existing_extractions:
+            logger.info(f"🔄 [EXTRACTION RESUME] Found {len(existing_extractions)} already extracted items. Processing remaining {len(work_items)} items with {worker_concurrency} threads...")
+        else:
+            logger.info(f"🚀 [PARALLEL EXTRACTION START] Running {len(work_items)} extractions ({len(papers)} papers x {len(active_definitions)} definitions) with {worker_concurrency} threads...")
 
         def _record_result(res):
             nonlocal succeeded_count, failed_count
@@ -368,7 +407,7 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
 
             # Flush live progress metrics to DB for real-time monitoring by MCP, Admin, and E2E polling
             processed_so_far = succeeded_count + failed_count
-            total_items = len(work_items)
+            total_items = len(all_work_items)
             pct = round((processed_so_far / total_items * 100.0), 1) if total_items > 0 else 100.0
             p_title = res.get('paper_title') or 'Untitled'
             def_name = res.get('definition_name') or 'Target'
@@ -468,7 +507,7 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
             "parallel_workers": worker_concurrency,
             "total_papers": len(papers),
             "total_definitions": len(active_definitions),
-            "total_extractions_attempted": len(work_items),
+            "total_extractions_attempted": len(all_work_items),
             "extractions_created": succeeded_count,
             "failed": failed_count,
             "tokens_in": total_prompt_tokens,
@@ -485,6 +524,25 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
             "usd_cost": float(cost),
             "extractions": extractions_summary
         }
+
+        # Check for total catastrophic failure: if work was attempted and 0 succeeded
+        if len(all_work_items) > 0 and succeeded_count == 0 and failed_count > 0:
+            error_msg = f"All {failed_count} extractions failed (provider timeout, network drop, or schema errors)."
+            logger.error(f"❌ [EXTRACTION TOTAL FAILURE] {error_msg}")
+            component_run.status = 'failed'
+            component_run.error_message = error_msg
+            component_run.completed_at = timezone.now()
+            component_run.save(update_fields=['metrics', 'output_data', 'status', 'error_message', 'completed_at'])
+
+            pipeline_run.status = 'failed'
+            pipeline_run.status_message = f"Pipeline terminated: Extraction step failed completely ({error_msg})"
+            pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'status_message', 'completed_at'])
+
+            from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+            notify_pipeline_orchestrator_tick(pipeline_run)
+            return False
+
         component_run.status = 'completed'
         component_run.completed_at = timezone.now()
         component_run.save(update_fields=['metrics', 'output_data', 'status', 'completed_at'])
@@ -548,16 +606,34 @@ def execute_extraction_job(self, component_run_id: str, limit: int = None, max_w
 
     except Exception as e:
         logger.exception(f"Error in ComponentRun '{component_run_id}': {e}")
-        component_run.status = 'failed'
-        component_run.error_message = str(e)
-        component_run.completed_at = timezone.now()
-        component_run.save(update_fields=['status', 'error_message', 'completed_at'])
+        retries = getattr(self.request, 'retries', 0) if hasattr(self, 'request') else 0
+        max_retries = getattr(self, 'max_retries', 3)
+        if retries < max_retries:
+            countdown = 15 * (2 ** retries)
+            logger.warning(f"⚠️ [TASK RETRY {retries + 1}/{max_retries}] Retrying execute_extraction_job for ComponentRun '{component_run_id}' in {countdown}s due to: {e}")
+            try:
+                if component_run:
+                    component_run.error_message = f"Transient task failure (attempt {retries + 1}/{max_retries}): {e}. Retrying in {countdown}s..."
+                    component_run.save(update_fields=['error_message'])
+                raise self.retry(exc=e, countdown=countdown)
+            except Exception as retry_err:
+                if retry_err is not e and not isinstance(retry_err, getattr(self, 'MaxRetriesExceededError', Exception)):
+                    raise
 
-        pipeline_run.status = 'failed'
-        pipeline_run.save(update_fields=['status'])
+        if component_run:
+            component_run.status = 'failed'
+            component_run.error_message = f"Extraction failed after {max_retries} task retries: {str(e)}"
+            component_run.completed_at = timezone.now()
+            component_run.save(update_fields=['status', 'error_message', 'completed_at'])
 
-        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
-        notify_pipeline_orchestrator_tick(pipeline_run)
+        if pipeline_run:
+            pipeline_run.status = 'failed'
+            pipeline_run.status_message = f"Pipeline terminated: Extraction step failed after {max_retries} retries ({str(e)})"
+            pipeline_run.completed_at = timezone.now()
+            pipeline_run.save(update_fields=['status', 'status_message', 'completed_at'])
+
+            from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+            notify_pipeline_orchestrator_tick(pipeline_run)
 
         return False
 
