@@ -351,9 +351,47 @@ class ComponentRunViewSet(viewsets.ReadOnlyModelViewSet):
                 pipeline_run__workspace_id__in=user_ws_ids
             ).order_by('-started_at')
 
+        ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
+        if ws_id and str(ws_id).lower() not in ('undefined', 'null', ''):
+            import uuid
+            try:
+                ws_uuid = uuid.UUID(str(ws_id))
+                qs = qs.filter(pipeline_run__workspace_id=ws_uuid)
+            except (ValueError, TypeError):
+                return qs.none()
+
         pipeline_run_id = self.request.query_params.get('pipeline_run') or self.request.query_params.get('pipeline_run_id')
-        if pipeline_run_id:
-            qs = qs.filter(pipeline_run_id=pipeline_run_id)
+        if pipeline_run_id and str(pipeline_run_id).lower() not in ('undefined', 'null', ''):
+            if str(pipeline_run_id).lower() == 'latest':
+                from research_intelligence.models import PipelineRun
+                run_filter = {}
+                if ws_id and str(ws_id).lower() not in ('undefined', 'null', ''):
+                    run_filter['workspace_id'] = ws_id
+                elif not getattr(user, 'is_superuser', False):
+                    run_filter['workspace_id__in'] = user_ws_ids
+                latest_run = (
+                    PipelineRun.objects.filter(**run_filter)
+                    .exclude(status__in=['failed', 'aborted'])
+                    .order_by('-started_at', '-id')
+                    .first()
+                )
+                if not latest_run:
+                    latest_run = (
+                        PipelineRun.objects.filter(**run_filter)
+                        .order_by('-started_at', '-id')
+                        .first()
+                    )
+                if latest_run:
+                    qs = qs.filter(pipeline_run_id=latest_run.id)
+                else:
+                    return qs.none()
+            else:
+                import uuid
+                try:
+                    pr_uuid = uuid.UUID(str(pipeline_run_id))
+                    qs = qs.filter(pipeline_run_id=pr_uuid)
+                except (ValueError, TypeError):
+                    return qs.none()
 
         step_type = self.request.query_params.get('step_type')
         if step_type:

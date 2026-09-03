@@ -225,3 +225,38 @@ class PapersApiWithAndWithoutPipelineRunTestCase(TestCase):
         self.assertEqual(res_older.status_code, 200)
         items_older = res_older.json()
         self.assertEqual(len(items_older), 2)
+
+    def test_5_scorecard_and_component_runs_filtering(self):
+        """
+        Tests the /api/papers/{id}/scorecard/ endpoint and component-runs filtering.
+        """
+        from research_intelligence.models import ComponentRun
+        c_run = ComponentRun.objects.create(
+            pipeline_run=self.newer_run,
+            step_type="search",
+            component_name="arXiv Ingest",
+            status="completed",
+        )
+
+        # Test scorecard endpoint
+        res_card = self.client.get(f"/api/papers/{self.paper_multi.id}/scorecard/")
+        self.assertEqual(res_card.status_code, 200)
+        data = res_card.json()
+        self.assertIn("workspace", data)
+        self.assertIn("paper", data)
+        self.assertEqual(data["paper"]["id"], str(self.paper_multi.id))
+        self.assertEqual(data["paper"]["title"], self.paper_multi.title)
+        self.assertEqual(data["paper"]["signal_score"], 88.5)
+
+        # Test component-runs with workspace and pipeline_run filters
+        res_cr = self.client.get(f"/api/component-runs/?workspace={self.workspace.id}")
+        self.assertEqual(res_cr.status_code, 200)
+        cr_items = res_cr.json()
+        self.assertEqual(len(cr_items), 1)
+
+        # Test component-runs with pipeline_run=latest
+        res_cr_latest = self.client.get(f"/api/component-runs/?workspace={self.workspace.id}&pipeline_run=latest")
+        self.assertEqual(res_cr_latest.status_code, 200)
+        cr_latest_items = res_cr_latest.json()
+        self.assertEqual(len(cr_latest_items), 1)
+

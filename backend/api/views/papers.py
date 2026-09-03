@@ -153,6 +153,82 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
         response['Content-Disposition'] = f'inline; filename="{safe_filename}"'
         return response
 
+    @extend_schema(
+        tags=['Literature & Papers'],
+        description="One paper in the scorecard shape, with its workspace summary.",
+    )
+    @action(detail=True, methods=['get'], url_path='scorecard')
+    def scorecard(self, request, pk=None):
+        paper = self.get_object()
+        paper_serializer = PaperSerializer(paper, context={'request': request})
+        paper_data = paper_serializer.data
+
+        from research_intelligence.models import Extraction, ExtractionDefinition
+        extractions = Extraction.objects.filter(paper=paper).select_related('extraction_definition')
+        definitions = list(ExtractionDefinition.objects.filter(workspace=paper.workspace, is_active=True).order_by('created_at'))
+
+        raw_authors = paper.authors or ''
+        authors_list = [a.strip() for a in raw_authors.split(',') if a.strip()] if raw_authors else []
+
+        dimensions = []
+        ext_by_def = {e.extraction_definition_id: e for e in extractions if e.extraction_definition_id}
+        for d in definitions:
+            e = ext_by_def.get(d.id)
+            val = None
+            if e and e.fields_data and isinstance(e.fields_data, dict):
+                val = next(iter(e.fields_data.values()), None)
+            dimensions.append({
+                'key': d.name.lower().replace(' ', '_'),
+                'label': d.name,
+                'value': str(val) if val is not None else None,
+                'definition_id': str(d.id),
+                'confidence': float(e.confidence_score) if (e and e.confidence_score is not None) else None,
+                'is_hitl': bool(e.is_hitl_validated) if e else False,
+            })
+
+        scored = {
+            'id': str(paper.id),
+            'workspace_id': str(paper.workspace_id),
+            'pipeline_run_id': paper_data.get('pipeline_run') or '',
+            'title': paper.title,
+            'authors': authors_list,
+            'authors_raw': raw_authors,
+            'abstract': paper.abstract or '',
+            'doi': paper.doi or None,
+            'arxiv_id': paper.arxiv_id or None,
+            'source': paper.source_database or '',
+            'screening_status': paper_data.get('screening_status') or 'pending',
+            'screening_reasoning': paper_data.get('screening_reasoning') or None,
+            'signal_score': paper_data.get('signal_score'),
+            'signal_score_details': paper_data.get('signal_score_details'),
+            'dimensions': dimensions,
+            'pdf_key': paper.original_pdf_path or None,
+            'markdown_key': paper.converted_md_path or None,
+            'pdf_url': f"https://arxiv.org/abs/{paper.arxiv_id}" if paper.arxiv_id else (f"https://doi.org/{paper.doi}" if paper.doi else None),
+            'is_benchmark': bool(paper_data.get('is_evaluation_benchmark', False)),
+            'evaluation_label': paper_data.get('evaluation_label'),
+            'created_at': paper.created_at.isoformat(),
+        }
+
+        ws_summary = {
+            'id': str(paper.workspace.id),
+            'name': paper.workspace.name,
+            'definitions': [
+                {
+                    'id': str(d.id),
+                    'name': d.name,
+                    'key': d.name.lower().replace(' ', '_'),
+                    'is_active': d.is_active,
+                    'max': None,
+                    'is_trl': 'trl' in d.name.lower(),
+                }
+                for d in definitions
+            ],
+            'scrapers_count': paper.workspace.scrapers.count(),
+        }
+
+        return Response({'workspace': ws_summary, 'paper': scored})
+
 
 @extend_schema(
     tags=['Literature & Papers'],
