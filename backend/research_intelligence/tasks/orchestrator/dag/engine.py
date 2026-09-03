@@ -364,7 +364,7 @@ class WorkflowDAG:
                             pipeline_run.status_message = halt_reason
                             pipeline_run.completed_at = timezone.now()
                             p_hist = list(pipeline_run.step_history or [])
-                            event_name = "halted_zero_papers" if ("0" in halt_reason and "paper" in halt_reason) else "completed"
+                            event_name = "halted_zero_papers" if ("0 papers" in halt_reason.lower() or "0 new papers" in halt_reason.lower()) else "completed"
                             p_hist.append({
                                 "step": name,
                                 "event": event_name,

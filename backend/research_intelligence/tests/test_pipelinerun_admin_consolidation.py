@@ -202,11 +202,23 @@ class PipelineRunAdminConsolidationTestCase(TestCase):
         Validates status message display, warnings for 0 papers / halted,
         and fallback to error_message or step_history.
         """
-        # Explicit warning message
-        pr_warn = PipelineRun(status="completed", status_message="Halted: 0 new papers found")
+        # Explicit warning message for truly halted run
+        pr_warn = PipelineRun(status="completed", stopped_at_stage="search", status_message="Halted: 0 new papers found")
         msg = str(self.admin_obj.status_message_display(pr_warn))
         self.assertIn("⚠️", msg)
         self.assertIn("0 new papers found", msg)
+        self.assertIn("#d63384", msg)
+
+        # Successful completed run containing digits (e.g. 140 parameter extractions) must be GREEN ✅, not ⚠️!
+        pr_success = PipelineRun(
+            status="completed",
+            stopped_at_stage="completed",
+            status_message="Full SLR pipeline finished successfully. Papers: 94 fetched, 25 passed screening, 140 parameter extractions completed."
+        )
+        msg_success = str(self.admin_obj.status_message_display(pr_success))
+        self.assertIn("✅", msg_success)
+        self.assertNotIn("⚠️", msg_success)
+        self.assertIn("#198754", msg_success)
 
         # Error message fallback
         pr_err = PipelineRun(status="failed", status_message="", error_message="LLM Context Exceeded")

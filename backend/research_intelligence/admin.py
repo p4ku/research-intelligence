@@ -1210,7 +1210,7 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
             badge_label = f"⚠️ HALTED ({halt_step.upper()})" if halt_step else "⚠️ HALTED"
             if "duplicate" in stop_reason.lower():
                 short_note = "0 new papers (duplicates)"
-            elif "0" in stop_reason and "paper" in stop_reason.lower():
+            elif "0 papers" in stop_reason.lower() or "0 new papers" in stop_reason.lower():
                 short_note = "0 papers passed criteria"
             elif stop_reason:
                 short_note = stop_reason[:28] + ("..." if len(stop_reason) > 28 else "")
@@ -1544,10 +1544,17 @@ class PipelineRunAdmin(admin.ModelAdmin):
             return "-"
 
         display_text = msg if len(msg) <= 65 else (msg[:62] + "...")
-        if "0 new papers" in msg or "0 papers" in msg or "halted" in msg.lower() or ("0" in msg and "paper" in msg.lower()):
-            return format_html('<span title="{}" style="color: #d63384; font-weight: 500;">⚠️ {}</span>', msg, display_text)
-        elif obj.status == 'failed':
+        is_halted = (
+            (obj.stopped_at_stage and obj.stopped_at_stage not in ('completed', 'reporting'))
+            or "halted" in msg.lower()
+            or "0 new papers" in msg.lower()
+            or "0 papers fetched" in msg.lower()
+            or "0 papers passed" in msg.lower()
+        )
+        if obj.status == 'failed':
             return format_html('<span title="{}" style="color: #dc3545; font-weight: 500;">❌ {}</span>', msg, display_text)
+        elif is_halted:
+            return format_html('<span title="{}" style="color: #d63384; font-weight: 500;">⚠️ {}</span>', msg, display_text)
         elif obj.status == 'completed':
             return format_html('<span title="{}" style="color: #198754; font-weight: 500;">✅ {}</span>', msg, display_text)
         return format_html('<span title="{}">{}</span>', msg, display_text)
