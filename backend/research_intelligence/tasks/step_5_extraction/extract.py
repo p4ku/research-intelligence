@@ -154,17 +154,53 @@ def _run_single_extraction_impl(paper, definition, workspace):
                     if conf_list:
                         avg_confidence = sum(conf_list) / len(conf_list)
 
+            # Dynamic JSON Schema and exit_metric validation
+            schema_validation_errors = []
+            if definition.response_schema and isinstance(definition.response_schema, dict):
+                try:
+                    import jsonschema
+                    validator = jsonschema.Draft7Validator(definition.response_schema)
+                    for err in validator.iter_errors(fields_dict if isinstance(fields_dict, dict) else {}):
+                        schema_validation_errors.append(err.message)
+                except Exception as val_e:
+                    logger.debug(f"JSON schema validation error check: {val_e}")
+
+            exit_metric_missing = False
+            if definition.exit_metric:
+                em_key = definition.exit_metric.strip().lower().replace(" ", "_")
+                if isinstance(fields_dict, dict):
+                    exit_metric_found = any(
+                        k.strip().lower().replace(" ", "_") == em_key
+                        for k in fields_dict.keys()
+                    )
+                else:
+                    exit_metric_found = False
+
+                if not exit_metric_found:
+                    exit_metric_missing = True
+                    schema_validation_errors.append(
+                        f"Expected exit_metric '{definition.exit_metric}' was missing from extracted fields."
+                    )
+
             review_required = False
             validation_status = "pass"
 
-            if avg_confidence < 0.65:
+            if schema_validation_errors:
+                review_required = True
+                # Severe: missing exit metric or multiple violations -> 'fail', minor -> 'warn'
+                if exit_metric_missing or len(schema_validation_errors) > 1:
+                    validation_status = "fail"
+                else:
+                    validation_status = "warn"
+            elif avg_confidence < 0.65:
                 review_required = True
                 validation_status = "warn"
 
             version_info = {
                 "version": definition.version,
                 "llm_model": definition.llm_model,
-                "provider": workspace.llm_provider
+                "provider": workspace.llm_provider,
+                "validation_errors": schema_validation_errors
             }
 
             # Save or update Extraction model atomically

@@ -275,6 +275,50 @@ class Workspace(models.Model):
             "total_scoring_variables": len(available_vars),
             "scoring_variables": available_vars,
         }
+
+    def get_composite_extraction_schema(self) -> dict:
+        """
+        Dynamically generates a unified JSON Schema (Draft-07) representing all active
+        extraction definitions in this workspace, their field contracts, and expected
+        variables for signal scoring calculation.
+        """
+        active_defs = self.extraction_definitions.filter(is_active=True).order_by('created_at', 'name')
+        properties = {}
+        required = []
+
+        for d in active_defs:
+            clean_name = d.name.strip().lower().replace(" ", "_") if d.name else ""
+            clean_exit = d.exit_metric.strip().lower().replace(" ", "_") if d.exit_metric else ""
+            var_name = clean_exit or clean_name or f"def_{d.id}"
+
+            prop_type = "number"
+            desc = d.name
+            if d.response_schema and isinstance(d.response_schema, dict):
+                props = d.response_schema.get("properties", {})
+                if var_name in props and isinstance(props[var_name], dict):
+                    prop_type = props[var_name].get("type", "number")
+                    desc = props[var_name].get("description", d.name)
+                elif d.exit_metric and d.exit_metric in props and isinstance(props[d.exit_metric], dict):
+                    prop_type = props[d.exit_metric].get("type", "number")
+                    desc = props[d.exit_metric].get("description", d.name)
+
+            properties[var_name] = {
+                "type": prop_type,
+                "description": desc,
+                "definition_id": str(d.id),
+                "definition_name": d.name,
+                "default": 0.0 if prop_type == "number" else ""
+            }
+            required.append(var_name)
+
+        return {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "title": f"{self.name} Dynamic Extraction Schema",
+            "type": "object",
+            "properties": properties,
+            "required": required,
+            "additionalProperties": True
+        }
     
     ocr_provider = models.CharField(
         max_length=50,
