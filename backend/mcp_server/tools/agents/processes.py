@@ -507,10 +507,10 @@ def check_run_status_logic(
             total_fetched=Count('id'),
             downloaded_count=Count('id', filter=Q(original_pdf_path__isnull=False) & ~Q(original_pdf_path='')),
             ocr_count=Count('id', filter=Q(converted_md_path__isnull=False) & ~Q(converted_md_path='')),
-            abstract_passed=Count('id', filter=Q(metrics__pipeline_run=process.pipeline_run, metrics__screening_status__in=['abstract_passed', 'full_text_passed'])),
-            abstract_screened=Count('id', filter=Q(metrics__pipeline_run=process.pipeline_run, metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'rejected'])),
-            full_text_passed=Count('id', filter=Q(metrics__pipeline_run=process.pipeline_run, metrics__screening_status='full_text_passed')),
-            rejected_count=Count('id', filter=Q(metrics__pipeline_run=process.pipeline_run, metrics__screening_status='rejected')),
+            abstract_passed=Count('id', filter=Q(metrics__pipeline_run=process.pipeline_run, metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'accepted'])),
+            abstract_screened=Count('id', filter=Q(metrics__pipeline_run=process.pipeline_run, metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'accepted', 'rejected', 'withdrawn'])),
+            full_text_passed=Count('id', filter=Q(metrics__pipeline_run=process.pipeline_run, metrics__screening_status__in=['full_text_passed', 'accepted'])),
+            rejected_count=Count('id', filter=Q(metrics__pipeline_run=process.pipeline_run, metrics__screening_status__in=['rejected', 'withdrawn'])),
         )
 
         abstract_run = next((cr for cr in comp_runs_list if cr.step_type == 'screening' and 'abstract' in (cr.component_name or '').lower()), None)

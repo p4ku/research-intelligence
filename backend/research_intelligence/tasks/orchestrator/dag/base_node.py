@@ -99,6 +99,8 @@ class BaseWorkflowNode(abc.ABC):
                     comp_run.status = 'failed'
                     comp_run.error_message = f"Celery broker dispatch failed: {str(e)}"
                     comp_run.save(update_fields=['status', 'error_message'])
+                    from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+                    notify_pipeline_orchestrator_tick(comp_run.pipeline_run)
 
         safe_dispatch_on_commit(_dispatch)
         return {"status": "dispatched"}
@@ -124,6 +126,8 @@ class BaseWorkflowNode(abc.ABC):
                         comp_run.status = 'failed'
                         comp_run.error_message = f"Celery broker dispatch failed: {str(e)}"
                         comp_run.save(update_fields=['status', 'error_message'])
+                        from research_intelligence.tasks.orchestrator.agent_engine import notify_pipeline_orchestrator_tick
+                        notify_pipeline_orchestrator_tick(comp_run.pipeline_run)
 
         safe_dispatch_on_commit(_dispatch_all)
         return {"status": "dispatched", "tasks_count": len(comp_runs)}

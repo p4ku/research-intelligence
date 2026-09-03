@@ -142,6 +142,22 @@ def run_paper_evidence_and_pdf_scenario(config: Optional[E2EConfig] = None) -> D
         logger.info("🎉 PAPER SCORECARD, EVIDENCE & PDF STREAMING SCENARIO PASSED!")
         logger.info("=================================================================")
 
+        pr_id = completed_agent.get("pipeline_run")
+        pr_info = pipeline_svc.get_pipeline_run(pr_id) if pr_id else {}
+        p_in = int(pr_info.get("tokens_in", 0) or 0)
+        p_out = int(pr_info.get("tokens_out", 0) or 0)
+        p_tok = int(pr_info.get("tokens_consumed", 0) or (p_in + p_out))
+        p_usd = float(pr_info.get("usd_cost") or 0.0)
+
+        cost_metrics = {
+            "pipeline_tokens_in": p_in,
+            "pipeline_tokens_out": p_out,
+            "pipeline_total_tokens": p_tok,
+            "pipeline_usd_cost": p_usd,
+            "total_tokens_consumed": p_tok,
+            "total_usd_spent": p_usd,
+        }
+
         return {
             "status": "passed",
             "workspace_id": workspace_id,
@@ -150,6 +166,8 @@ def run_paper_evidence_and_pdf_scenario(config: Optional[E2EConfig] = None) -> D
             "signal_score": paper_detail.get("signal_score"),
             "extractions_count": len(paper_extractions),
             "pdf_status_code": resp_pdf.status_code,
+            "total_papers": len(papers),
+            "cost_metrics": cost_metrics,
         }
 
     finally:

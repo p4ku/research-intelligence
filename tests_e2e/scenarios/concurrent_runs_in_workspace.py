@@ -154,6 +154,21 @@ def run_concurrent_runs_in_workspace_scenario(config: Optional[E2EConfig] = None
         logger.info("🎉 CONCURRENT RUNS IN SINGLE WORKSPACE SCENARIO PASSED!")
         logger.info("=================================================================")
 
+        tot_p_in = int(pr1_detail.get("tokens_in", 0) or 0) + int(pr2_detail.get("tokens_in", 0) or 0)
+        tot_p_out = int(pr1_detail.get("tokens_out", 0) or 0) + int(pr2_detail.get("tokens_out", 0) or 0)
+        tot_p_tok = int(pr1_detail.get("tokens_consumed", 0) or (int(pr1_detail.get("tokens_in", 0) or 0) + int(pr1_detail.get("tokens_out", 0) or 0))) + \
+                    int(pr2_detail.get("tokens_consumed", 0) or (int(pr2_detail.get("tokens_in", 0) or 0) + int(pr2_detail.get("tokens_out", 0) or 0)))
+        tot_p_usd = float(pr1_detail.get("usd_cost") or 0.0) + float(pr2_detail.get("usd_cost") or 0.0)
+
+        cost_metrics = {
+            "pipeline_tokens_in": tot_p_in,
+            "pipeline_tokens_out": tot_p_out,
+            "pipeline_total_tokens": tot_p_tok,
+            "pipeline_usd_cost": tot_p_usd,
+            "total_tokens_consumed": tot_p_tok,
+            "total_usd_spent": tot_p_usd,
+        }
+
         return {
             "status": "passed",
             "workspace_id": workspace_id,
@@ -162,6 +177,7 @@ def run_concurrent_runs_in_workspace_scenario(config: Optional[E2EConfig] = None
             "run1_papers": len(papers_run1),
             "run2_papers": len(papers_run2),
             "total_papers": len(papers_all),
+            "cost_metrics": cost_metrics,
         }
 
     finally:

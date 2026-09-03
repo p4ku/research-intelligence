@@ -19,15 +19,16 @@ logger = logging.getLogger(__name__)
 
 
 def build_pipeline_run_digest_payload(
-    pipeline_run: PipelineRun,
-    agent_process: Optional[Any] = None
+    pipeline_run: Optional[PipelineRun] = None,
+    agent_process: Optional[Any] = None,
+    workspace: Optional[Any] = None
 ) -> Dict[str, Any]:
     """
     Gathers metrics, papers, extractions, and definitions for an executed PipelineRun/ResearchAgentProcess
     and generates both state-of-the-art responsive HTML and clean plaintext email content
     using Django's template engine (emails/pipeline_digest.html and emails/pipeline_digest.txt).
     """
-    workspace = pipeline_run.workspace if pipeline_run else (agent_process.workspace if agent_process else None)
+    workspace = workspace or (pipeline_run.workspace if pipeline_run else (agent_process.workspace if agent_process else None))
     ws_name = workspace.name if workspace else "Research Workspace"
     run_date_str = (
         pipeline_run.started_at.strftime("%B %d, %Y %H:%M UTC")
@@ -56,6 +57,24 @@ def build_pipeline_run_digest_payload(
             accepted_papers = list(pipeline_run.get_papers(screening_status='abstract_passed').prefetch_related('extractions', 'extractions__extraction_definition'))
         else:
             accepted_papers = list(pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn', 'pending']).prefetch_related('extractions', 'extractions__extraction_definition'))
+    elif workspace:
+        ws_accepted = Paper.objects.filter(
+            workspace=workspace,
+            metrics__screening_status__in=['full_text_passed', 'accepted']
+        ).distinct().prefetch_related('extractions', 'extractions__extraction_definition')
+        if ws_accepted.exists():
+            accepted_papers = list(ws_accepted)
+        else:
+            ws_abs_accepted = Paper.objects.filter(
+                workspace=workspace,
+                metrics__screening_status='abstract_passed'
+            ).distinct().prefetch_related('extractions', 'extractions__extraction_definition')
+            if ws_abs_accepted.exists():
+                accepted_papers = list(ws_abs_accepted)
+            else:
+                accepted_papers = list(Paper.objects.filter(workspace=workspace).exclude(
+                    metrics__screening_status__in=['rejected', 'withdrawn', 'pending']
+                ).distinct().prefetch_related('extractions', 'extractions__extraction_definition'))
     else:
         accepted_papers = []
 

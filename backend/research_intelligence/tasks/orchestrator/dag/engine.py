@@ -446,7 +446,7 @@ class WorkflowDAG:
                 if not pipeline_run.completed_at:
                     pipeline_run.completed_at = timezone.now()
 
-                # Refresh and aggregate USD cost across component runs if needed
+                # Refresh and aggregate USD cost and tokens across component runs if needed
                 comp_costs = sum(
                     float((cr.metrics or {}).get("usd_cost") or 0.0)
                     for cr in pipeline_run.component_runs.all()
@@ -454,7 +454,24 @@ class WorkflowDAG:
                 if comp_costs > float(pipeline_run.usd_cost or 0.0):
                     pipeline_run.usd_cost = comp_costs
 
-                pipeline_run.save(update_fields=['status', 'current_stage', 'status_message', 'completed_at', 'usd_cost'])
+                comp_tokens_in = sum(int((cr.metrics or {}).get("tokens_in", (cr.metrics or {}).get("total_prompt_tokens", 0)) or 0) for cr in pipeline_run.component_runs.all())
+                comp_tokens_out = sum(int((cr.metrics or {}).get("tokens_out", (cr.metrics or {}).get("total_candidates_tokens", 0)) or 0) for cr in pipeline_run.component_runs.all())
+                comp_tokens = sum(int((cr.metrics or {}).get("tokens_consumed", (cr.metrics or {}).get("total_tokens", (cr.metrics or {}).get("total_tokens_consumed", 0))) or 0) for cr in pipeline_run.component_runs.all())
+
+                if comp_tokens > (pipeline_run.tokens_consumed or 0):
+                    pipeline_run.tokens_consumed = comp_tokens
+                if comp_tokens_in > (pipeline_run.tokens_in or 0):
+                    pipeline_run.tokens_in = comp_tokens_in
+                if comp_tokens_out > (pipeline_run.tokens_out or 0):
+                    pipeline_run.tokens_out = comp_tokens_out
+
+                pipeline_run.total_papers_passed_screening = accepted_count
+
+                pipeline_run.save(update_fields=[
+                    'status', 'current_stage', 'status_message', 'completed_at',
+                    'usd_cost', 'tokens_in', 'tokens_out', 'tokens_consumed',
+                    'total_papers_passed_screening'
+                ])
 
                 if agent_process:
                     sync_agent_stage_results(agent_process, pipeline_run, self.nodes, config=cfg)

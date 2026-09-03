@@ -569,3 +569,93 @@ score = clamp(trl_val) * 0.5 + 4.0
         self.assertIn("Brak uzasadnienia dla etapu abstraktu", empty_abs_html)
         empty_ft_html = admin.full_text_screening_reasoning_display(pm_empty)
         self.assertIn("Brak uzasadnienia dla etapu pełnego tekstu", empty_ft_html)
+
+    def test_dag_completion_aggregates_tokens_and_total_passed(self):
+        """Validates that DAG completion aggregates tokens from component runs and updates total_papers_passed_screening."""
+        from research_intelligence.tasks.orchestrator.dag.pipelines import build_default_slr_dag
+        dag = build_default_slr_dag()
+
+        pr = PipelineRun.objects.create(workspace=self.workspace_a, status='running')
+        p1 = Paper.objects.create(workspace=self.workspace_a, pipeline_run=pr, hash_id="h1_dag", title="P1")
+        PaperMetric.objects.create(paper=p1, pipeline_run=pr, workspace=self.workspace_a, screening_status="full_text_passed")
+
+        # Create all nodes as completed
+        for node in dag.nodes.values():
+            metrics = {}
+            if node.step_type == 'screening':
+                metrics = {"tokens_in": 1000, "tokens_out": 200, "total_tokens": 1200, "usd_cost": 0.05}
+            elif node.step_type == 'extraction':
+                metrics = {"tokens_in": 2000, "tokens_out": 400, "total_tokens": 2400, "usd_cost": 0.10}
+            ComponentRun.objects.create(
+                pipeline_run=pr,
+                step_type=node.step_type,
+                component_name=node.component_name,
+                status='completed',
+                metrics=metrics
+            )
+
+        res = dag.evaluate_and_dispatch(pr)
+        self.assertTrue(res["success"])
+        self.assertEqual(res["status"], "completed")
+
+        pr.refresh_from_db()
+        self.assertEqual(pr.status, 'completed')
+        self.assertEqual(pr.total_papers_passed_screening, 1)
+        self.assertGreaterEqual(pr.tokens_in, 3000)
+        self.assertGreaterEqual(pr.tokens_out, 600)
+        self.assertGreaterEqual(pr.tokens_consumed, 3600)
+        self.assertAlmostEqual(float(pr.usd_cost), 0.20, places=2)
+
+    def test_base_node_dispatch_failure_notifies_orchestrator(self):
+        """Validates that when Celery broker dispatch fails, notify_pipeline_orchestrator_tick is invoked."""
+        from django.test import override_settings
+        from research_intelligence.tasks.step_1_search.node import SearchNode
+        node = SearchNode()
+
+        pr = PipelineRun.objects.create(workspace=self.workspace_a, status='running')
+        cr = ComponentRun.objects.create(pipeline_run=pr, step_type='search', component_name='search_arxiv', status='running')
+
+        mock_task = MagicMock()
+        mock_task.delay.side_effect = Exception("Connection refused to Redis broker:6379")
+
+        with override_settings(CELERY_TASK_ALWAYS_EAGER=False):
+            with patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick") as mock_tick:
+                node.dispatch_celery_task(mock_task, cr)
+                cr.refresh_from_db()
+                self.assertEqual(cr.status, 'failed')
+                self.assertIn("Celery broker dispatch failed", cr.error_message)
+                mock_tick.assert_called_once_with(pr)
+
+    def test_status_tools_include_accepted_and_withdrawn(self):
+        """Validates that MCP get_pipeline_run_status_logic includes 'accepted' and 'withdrawn' papers."""
+        from mcp_server.tools.pipeline_runs.status import get_pipeline_run_status_logic
+        pr = PipelineRun.objects.create(workspace=self.workspace_a, status='completed')
+        ComponentRun.objects.create(pipeline_run=pr, step_type='screening', component_name='abstract_screening', status='completed')
+        ComponentRun.objects.create(pipeline_run=pr, step_type='screening', component_name='full_text_screening', status='completed')
+
+        p_acc = Paper.objects.create(workspace=self.workspace_a, pipeline_run=pr, hash_id="h_acc", title="Accepted")
+        PaperMetric.objects.create(paper=p_acc, pipeline_run=pr, workspace=self.workspace_a, screening_status="accepted")
+
+        p_ft = Paper.objects.create(workspace=self.workspace_a, pipeline_run=pr, hash_id="h_ft", title="FT Passed")
+        PaperMetric.objects.create(paper=p_ft, pipeline_run=pr, workspace=self.workspace_a, screening_status="full_text_passed")
+
+        p_w = Paper.objects.create(workspace=self.workspace_a, pipeline_run=pr, hash_id="h_w", title="Withdrawn")
+        PaperMetric.objects.create(paper=p_w, pipeline_run=pr, workspace=self.workspace_a, screening_status="withdrawn")
+
+        raw_json = get_pipeline_run_status_logic(self.user_a, pipeline_run_id=str(pr.id))
+        status_data = json.loads(raw_json)
+
+        screening_stats = status_data["screening_metrics"]
+        self.assertEqual(screening_stats["full_text_stage"]["passed"], 2)  # accepted + full_text_passed
+        self.assertEqual(screening_stats["abstract_stage"]["passed"], 2)
+
+    def test_workspace_level_email_digest_accepted_papers(self):
+        """Validates that build_pipeline_run_digest_payload handles workspace-level digest with accepted papers."""
+        p_acc = Paper.objects.create(workspace=self.workspace_a, hash_id="h_ws_acc", title="WS Accepted Paper")
+        PaperMetric.objects.create(paper=p_acc, workspace=self.workspace_a, screening_status="accepted", signal_score=9.2)
+
+        payload = build_pipeline_run_digest_payload(pipeline_run=None, workspace=self.workspace_a)
+        self.assertEqual(payload["stats"]["accepted_papers"], 1)
+        self.assertEqual(len(payload["context"]["papers_data"]), 1)
+        self.assertEqual(payload["context"]["papers_data"][0]["title"], "WS Accepted Paper")
+

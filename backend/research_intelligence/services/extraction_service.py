@@ -116,14 +116,18 @@ def build_paper_extractions_matrix(
     if screening_status and screening_status != 'all':
         if target_pr_id:
             if screening_status == 'all_screened':
-                papers_qs = papers_qs.filter(metrics__pipeline_run_id=target_pr_id, metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'accepted', 'rejected'])
+                papers_qs = papers_qs.filter(metrics__pipeline_run_id=target_pr_id, metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'accepted', 'rejected', 'withdrawn'])
+            elif screening_status == 'full_text_only':
+                papers_qs = papers_qs.filter(metrics__pipeline_run_id=target_pr_id, metrics__screening_status__in=['full_text_passed', 'accepted'])
             elif screening_status in ['all_passed', 'accepted', 'passed', 'full_text_passed']:
                 papers_qs = papers_qs.filter(metrics__pipeline_run_id=target_pr_id, metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'accepted'])
             else:
                 papers_qs = papers_qs.filter(metrics__pipeline_run_id=target_pr_id, metrics__screening_status=screening_status)
         else:
             if screening_status == 'all_screened':
-                papers_qs = papers_qs.filter(metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'accepted', 'rejected'])
+                papers_qs = papers_qs.filter(metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'accepted', 'rejected', 'withdrawn'])
+            elif screening_status == 'full_text_only':
+                papers_qs = papers_qs.filter(metrics__screening_status__in=['full_text_passed', 'accepted'])
             elif screening_status in ['all_passed', 'accepted', 'passed', 'full_text_passed']:
                 papers_qs = papers_qs.filter(metrics__screening_status__in=['abstract_passed', 'full_text_passed', 'accepted'])
             else:

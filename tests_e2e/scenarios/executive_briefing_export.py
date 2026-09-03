@@ -124,6 +124,21 @@ def run_executive_briefing_export_scenario(config: Optional[E2EConfig] = None) -
         logger.info("🎉 EXECUTIVE BRIEFING GENERATION SCENARIO PASSED!")
         logger.info("=================================================================")
 
+        pr_info = pipeline_svc.get_pipeline_run(pr_id) if pr_id else {}
+        p_in = int(pr_info.get("tokens_in", 0) or 0)
+        p_out = int(pr_info.get("tokens_out", 0) or 0)
+        p_tok = int(pr_info.get("tokens_consumed", 0) or (p_in + p_out))
+        p_usd = float(pr_info.get("usd_cost") or 0.0)
+
+        cost_metrics = {
+            "pipeline_tokens_in": p_in,
+            "pipeline_tokens_out": p_out,
+            "pipeline_total_tokens": p_tok,
+            "pipeline_usd_cost": p_usd,
+            "total_tokens_consumed": p_tok,
+            "total_usd_spent": p_usd,
+        }
+
         return {
             "status": "passed",
             "workspace_id": workspace_id,
@@ -131,6 +146,8 @@ def run_executive_briefing_export_scenario(config: Optional[E2EConfig] = None) -
             "report_id": report.get("id"),
             "report_title": report.get("title"),
             "content_length": len(content),
+            "total_papers": int(pr_info.get("total_papers_fetched", 0) or 0),
+            "cost_metrics": cost_metrics,
         }
 
     finally:
