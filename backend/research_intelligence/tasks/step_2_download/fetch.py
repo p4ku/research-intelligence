@@ -108,6 +108,7 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
                 paper.save(update_fields=['original_pdf_path'])
                 doc_reg = register_document_pdf(paper, file_bytes)
                 size_bytes = len(file_bytes)
+                del file_bytes
                 size_kb = size_bytes / 1024
                 logger.info(f"✅ [DOWNLOADED] Successfully fetched PDF [{size_kb:.1f} KB] from '{pdf_source_url}' -> saved to: '{saved_path}' (Registered in DocumentRegistry: {doc_reg.id if doc_reg else 'None'})")
                 return {
@@ -259,38 +260,47 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
             except Exception as me:
                 logger.debug(f"Download metrics live flush note: {me}")
 
-        if worker_concurrency <= 1:
-            for paper in papers:
-                res = _download_paper_task(paper, workspace, pipeline_run)
-                _record_result(res)
-        else:
-            batch_timeout_sec = max(600.0, (len(papers) / max(1, worker_concurrency)) * 180.0)
-            completed_paper_ids = set()
-            with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
-                future_to_paper = {
-                    executor.submit(_download_paper_task, paper, workspace, pipeline_run): paper
-                    for paper in papers
-                }
-                try:
-                    for future in as_completed(future_to_paper, timeout=batch_timeout_sec):
-                        paper = future_to_paper[future]
-                        completed_paper_ids.add(paper.id)
-                        try:
-                            res = future.result(timeout=180.0)
-                        except Exception as fe:
-                            logger.error(f"Thread execution error downloading PDF for paper '{paper.id}': {fe}")
-                            res = {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": str(fe)}
-                        _record_result(res)
-                except Exception as batch_err:
-                    logger.warning(f"⚠️ [BATCH TIMEOUT / ERROR] PDF download batch interrupted: {batch_err}")
+        from ...utils.memory_guard import reclaim_ram
+        chunk_size = int(os.environ.get("DOWNLOAD_CHUNK_SIZE", 25))
+        chunks = [papers[i:i + chunk_size] for i in range(0, len(papers), chunk_size)]
+        total_chunks = len(chunks)
 
-                # Ensure any hanging futures are safely terminated and recorded as failed
-                for future, paper in future_to_paper.items():
-                    if paper.id not in completed_paper_ids:
-                        future.cancel()
-                        logger.warning(f"⚠️ [TIMEOUT RECOVERY] Paper '{paper.id}' ({paper.title[:40]}...) timed out during PDF download. Recording as failed.")
-                        res = {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": "Download timed out."}
-                        _record_result(res)
+        for chunk_idx, chunk in enumerate(chunks):
+            if worker_concurrency <= 1:
+                for paper in chunk:
+                    res = _download_paper_task(paper, workspace, pipeline_run)
+                    _record_result(res)
+            else:
+                chunk_timeout_sec = max(180.0, (len(chunk) / max(1, worker_concurrency)) * 180.0)
+                completed_paper_ids = set()
+                with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
+                    future_to_paper = {
+                        executor.submit(_download_paper_task, paper, workspace, pipeline_run): paper
+                        for paper in chunk
+                    }
+                    try:
+                        for future in as_completed(future_to_paper, timeout=chunk_timeout_sec):
+                            paper = future_to_paper[future]
+                            completed_paper_ids.add(paper.id)
+                            try:
+                                res = future.result(timeout=180.0)
+                            except Exception as fe:
+                                logger.error(f"Thread execution error downloading PDF for paper '{paper.id}': {fe}")
+                                res = {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": str(fe)}
+                            _record_result(res)
+                    except Exception as batch_err:
+                        logger.warning(f"⚠️ [BATCH TIMEOUT / ERROR] PDF download batch {chunk_idx + 1}/{total_chunks} interrupted: {batch_err}")
+
+                    # Ensure any hanging futures are safely terminated and recorded as failed
+                    for future, paper in future_to_paper.items():
+                        if paper.id not in completed_paper_ids:
+                            future.cancel()
+                            logger.warning(f"⚠️ [TIMEOUT RECOVERY] Paper '{paper.id}' ({paper.title[:40]}...) timed out during PDF download. Recording as failed.")
+                            res = {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": "Download timed out."}
+                            _record_result(res)
+
+            # Aggressively reclaim memory after every batch of PDFs
+            reclaim_ram(f"download_batch_{chunk_idx + 1}_of_{total_chunks}")
 
         # Update component run lifecycle metrics & output_data
         duration_sec = round(time.time() - start_time, 2)

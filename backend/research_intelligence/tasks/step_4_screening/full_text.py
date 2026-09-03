@@ -435,45 +435,54 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
             except Exception as me:
                 logger.debug(f"Metrics live flush note: {me}")
 
-        if worker_concurrency <= 1:
-            for paper in papers:
-                try:
-                    res = screen_full_text(paper.id, workspace.id, workspace_obj=workspace, paper_obj=paper, pipeline_run_id=str(pipeline_run.id))
-                except Exception as pe:
-                    logger.error(f"Error screening paper '{paper.id}': {pe}")
-                    res = {"success": False, "error": str(pe), "input_source": "error", "duration_seconds": 0.0, "usage": {}}
-                _record_result(paper, res)
-        else:
-            batch_timeout_sec = max(600.0, (len(papers) / max(1, worker_concurrency)) * 300.0)
-            completed_paper_ids = set()
-            executor = ThreadPoolExecutor(max_workers=worker_concurrency)
-            try:
-                future_to_paper = {
-                    executor.submit(_screen_full_text_paper_task, paper, workspace, pipeline_run_id=str(pipeline_run.id)): paper
-                    for paper in papers
-                }
-                try:
-                    for future in as_completed(future_to_paper, timeout=batch_timeout_sec):
-                        paper = future_to_paper[future]
-                        completed_paper_ids.add(paper.id)
-                        try:
-                            _, res = future.result(timeout=180.0)
-                        except Exception as fe:
-                            logger.error(f"Thread execution error for paper '{paper.id}': {fe}")
-                            res = {"success": False, "error": str(fe), "input_source": "unknown", "duration_seconds": 0.0, "usage": {}}
-                        _record_result(paper, res)
-                except Exception as batch_err:
-                    logger.warning(f"⚠️ [BATCH TIMEOUT / ERROR] Full-text screening batch interrupted: {batch_err}")
+        from ...utils.memory_guard import reclaim_ram
+        chunk_size = int(os.environ.get("FULL_TEXT_CHUNK_SIZE", 20))
+        chunks = [papers[i:i + chunk_size] for i in range(0, len(papers), chunk_size)]
+        total_chunks = len(chunks)
 
-                # Ensure any hanging futures are safely terminated and recorded as failed
-                for future, paper in future_to_paper.items():
-                    if paper.id not in completed_paper_ids:
-                        future.cancel()
-                        logger.warning(f"⚠️ [TIMEOUT RECOVERY] Paper '{paper.id}' ({paper.title[:40]}...) timed out during full-text screening. Recording as failed.")
-                        res = {"success": False, "error": "Operation timed out during full-text screening batch execution.", "input_source": "timeout", "duration_seconds": 0.0, "usage": {}}
-                        _record_result(paper, res)
-            finally:
-                executor.shutdown(wait=False, cancel_futures=True)
+        for chunk_idx, chunk in enumerate(chunks):
+            if worker_concurrency <= 1:
+                for paper in chunk:
+                    try:
+                        res = screen_full_text(paper.id, workspace.id, workspace_obj=workspace, paper_obj=paper, pipeline_run_id=str(pipeline_run.id))
+                    except Exception as pe:
+                        logger.error(f"Error screening paper '{paper.id}': {pe}")
+                        res = {"success": False, "error": str(pe), "input_source": "error", "duration_seconds": 0.0, "usage": {}}
+                    _record_result(paper, res)
+            else:
+                chunk_timeout_sec = max(300.0, (len(chunk) / max(1, worker_concurrency)) * 300.0)
+                completed_paper_ids = set()
+                executor = ThreadPoolExecutor(max_workers=worker_concurrency)
+                try:
+                    future_to_paper = {
+                        executor.submit(_screen_full_text_paper_task, paper, workspace, pipeline_run_id=str(pipeline_run.id)): paper
+                        for paper in chunk
+                    }
+                    try:
+                        for future in as_completed(future_to_paper, timeout=chunk_timeout_sec):
+                            paper = future_to_paper[future]
+                            completed_paper_ids.add(paper.id)
+                            try:
+                                _, res = future.result(timeout=180.0)
+                            except Exception as fe:
+                                logger.error(f"Thread execution error for paper '{paper.id}': {fe}")
+                                res = {"success": False, "error": str(fe), "input_source": "unknown", "duration_seconds": 0.0, "usage": {}}
+                            _record_result(paper, res)
+                    except Exception as batch_err:
+                        logger.warning(f"⚠️ [BATCH TIMEOUT / ERROR] Full-text screening batch {chunk_idx + 1}/{total_chunks} interrupted: {batch_err}")
+
+                    # Ensure any hanging futures are safely terminated and recorded as failed
+                    for future, paper in future_to_paper.items():
+                        if paper.id not in completed_paper_ids:
+                            future.cancel()
+                            logger.warning(f"⚠️ [TIMEOUT RECOVERY] Paper '{paper.id}' ({paper.title[:40]}...) timed out during full-text screening. Recording as failed.")
+                            res = {"success": False, "error": "Operation timed out during full-text screening batch execution.", "input_source": "timeout", "duration_seconds": 0.0, "usage": {}}
+                            _record_result(paper, res)
+                finally:
+                    executor.shutdown(wait=False, cancel_futures=True)
+
+            # Aggressively reclaim memory after each batch of full-text screening
+            reclaim_ram(f"full_text_batch_{chunk_idx + 1}_of_{total_chunks}")
 
         job_duration_sec = round(time.time() - job_t0, 3)
         avg_duration_sec = round(job_duration_sec / len(papers), 3) if papers else 0.0
