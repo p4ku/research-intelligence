@@ -70,6 +70,14 @@ from .diagnostics import (
 from .chat import (
     ask_paper_logic,
 )
+from .users import (
+    check_staff_or_superuser,
+    list_users_logic,
+    get_user_logic,
+    create_user_logic,
+    update_user_logic,
+    delete_user_logic,
+)
 from . import (
     workspaces,
     scrapers,
@@ -78,6 +86,7 @@ from . import (
     agents,
     diagnostics,
     chat,
+    users,
 )
 
 __all__ = [
@@ -89,6 +98,14 @@ __all__ = [
     "agents",
     "diagnostics",
     "chat",
+    "users",
+    # Functions
+    "check_staff_or_superuser",
+    "list_users_logic",
+    "get_user_logic",
+    "create_user_logic",
+    "update_user_logic",
+    "delete_user_logic",
     # Functions
     "check_workspace_access",
     "ask_paper_logic",

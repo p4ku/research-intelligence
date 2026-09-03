@@ -108,6 +108,11 @@ from mcp_server.tools import (
     list_user_activity_logs_logic,
     send_pipeline_run_digest_email_logic,
     ask_paper_logic,
+    list_users_logic,
+    get_user_logic,
+    create_user_logic,
+    update_user_logic,
+    delete_user_logic,
 )
 
 
@@ -1898,6 +1903,120 @@ def ask_paper(
     except Exception as e:
         return str(e)
     return ask_paper_logic(user, workspace_id, question, paper_id=paper_id, session_id=session_id, deep_thinking=deep_thinking)
+
+
+# ---------------------------------------------------------------------------
+# 11. User Management Tools (Staff & Superuser Only)
+# ---------------------------------------------------------------------------
+
+@mcp.tool()
+@with_db_connection
+def list_users(
+    search: str = None,
+    is_active: bool = None,
+    is_staff: bool = None,
+    is_superuser: bool = None,
+    limit: int = 50
+) -> str:
+    """
+    List Django user accounts with optional filtering by search query (username, email, name), active status, or staff/superuser roles.
+    Requires staff member or superuser privileges in Django.
+    """
+    user, workspace, api_key = get_auth_context()
+    return list_users_logic(user, search=search, is_active=is_active, is_staff=is_staff, is_superuser=is_superuser, limit=limit)
+
+
+@mcp.tool()
+@with_db_connection
+def get_user(
+    user_id_or_username: str
+) -> str:
+    """
+    Retrieve detailed profile and workspace memberships for a specified user by numeric ID or username.
+    Requires staff member or superuser privileges in Django.
+    """
+    user, workspace, api_key = get_auth_context()
+    return get_user_logic(user, user_id_or_username=user_id_or_username)
+
+
+@mcp.tool()
+@with_db_connection
+def create_user(
+    username: str,
+    password: str,
+    email: str = "",
+    first_name: str = "",
+    last_name: str = "",
+    is_staff: bool = False,
+    is_superuser: bool = False,
+    is_active: bool = True
+) -> str:
+    """
+    Create a new Django user account with an encrypted password and role flags.
+    Requires staff member or superuser privileges in Django.
+    Non-superusers cannot create superuser accounts.
+    """
+    user, workspace, api_key = get_auth_context()
+    return create_user_logic(
+        user=user,
+        username=username,
+        password=password,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        is_staff=is_staff,
+        is_superuser=is_superuser,
+        is_active=is_active
+    )
+
+
+@mcp.tool()
+@with_db_connection
+def update_user(
+    user_id_or_username: str,
+    email: str = None,
+    first_name: str = None,
+    last_name: str = None,
+    password: str = None,
+    is_staff: bool = None,
+    is_superuser: bool = None,
+    is_active: bool = None
+) -> str:
+    """
+    Update attributes, password, or administrative flags for an existing Django user account.
+    Requires staff member or superuser privileges in Django.
+    Protected user 'admin' cannot be deactivated or have administrative access revoked.
+    Staff members cannot modify superuser accounts or grant superuser privileges.
+    """
+    user, workspace, api_key = get_auth_context()
+    return update_user_logic(
+        user=user,
+        user_id_or_username=user_id_or_username,
+        email=email,
+        first_name=first_name,
+        last_name=last_name,
+        password=password,
+        is_staff=is_staff,
+        is_superuser=is_superuser,
+        is_active=is_active
+    )
+
+
+@mcp.tool()
+@with_db_connection
+def delete_user(
+    user_id_or_username: str
+) -> str:
+    """
+    Delete a user account from Django.
+    CRITICAL SAFETY RULES:
+    - User 'admin' CANNOT be deleted via MCP.
+    - An authenticated user cannot delete their own active account via MCP.
+    - Staff members cannot delete superuser accounts.
+    Requires staff member or superuser privileges in Django.
+    """
+    user, workspace, api_key = get_auth_context()
+    return delete_user_logic(user=user, user_id_or_username=user_id_or_username)
 
 
 def create_app():
