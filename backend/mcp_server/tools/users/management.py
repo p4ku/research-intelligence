@@ -191,6 +191,9 @@ def create_user_logic(
     if not password or len(password) < 4:
         return json.dumps({"status": "error", "error": "Password must be at least 4 characters long."}, indent=2)
 
+    if username_clean.lower() == "admin":
+        return json.dumps({"status": "error", "error": "Username 'admin' is reserved."}, indent=2)
+
     if User.objects.filter(username__iexact=username_clean).exists():
         return json.dumps({"status": "error", "error": f"User with username '{username_clean}' already exists."}, indent=2)
 
@@ -333,6 +336,14 @@ def update_user_logic(
                 "error": "Protected user 'admin' administrative privileges cannot be revoked."
             }, indent=2)
 
+    # 5. Last active superuser lockout guard:
+    if target_user.is_superuser and (is_active is False or is_superuser is False):
+        if User.objects.filter(is_superuser=True, is_active=True).exclude(id=target_user.id).count() == 0:
+            return json.dumps({
+                "status": "error",
+                "error": "Cannot deactivate or revoke superuser status from the only remaining active superuser."
+            }, indent=2)
+
     updated_fields = []
 
     if email is not None:
@@ -436,6 +447,13 @@ def delete_user_logic(user, user_id_or_username: str) -> str:
         return json.dumps({
             "status": "error",
             "error": "Permission denied. Staff members cannot delete a superuser."
+        }, indent=2)
+
+    # 4. Last active superuser lockout guard
+    if target_user.is_superuser and User.objects.filter(is_superuser=True, is_active=True).count() <= 1:
+        return json.dumps({
+            "status": "error",
+            "error": "Cannot delete the only remaining active superuser."
         }, indent=2)
 
     target_id = target_user.id

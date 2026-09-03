@@ -70,7 +70,7 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None,
             logger.warning(f"Failed reading converted MD from {paper.converted_md_path} for paper {paper_id}: {e}")
 
     # Priority 2: Check for original PDF binary
-    if not md_text and paper.original_pdf_path and default_storage.exists(paper.original_pdf_path):
+    if not md_text and paper.original_pdf_path and not paper.original_pdf_path.startswith(("http://", "https://")) and default_storage.exists(paper.original_pdf_path):
         try:
             with default_storage.open(paper.original_pdf_path, 'rb') as f:
                 raw_bytes = f.read()

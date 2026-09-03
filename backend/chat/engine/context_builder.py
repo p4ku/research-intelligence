@@ -90,7 +90,7 @@ class PaperContextBuilder:
 
         # Fallback to multimodal PDF binary if Markdown was not found
         if not any("Full Document Text" in p for p in context_parts) and paper.original_pdf_path:
-            if default_storage.exists(paper.original_pdf_path):
+            if not paper.original_pdf_path.startswith(("http://", "https://")) and default_storage.exists(paper.original_pdf_path):
                 try:
                     with default_storage.open(paper.original_pdf_path, 'rb') as f:
                         pdf_bytes = f.read()

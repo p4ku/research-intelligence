@@ -49,7 +49,7 @@ def _run_single_extraction_impl(paper, definition, workspace):
             logger.warning(f"Error reading MD for paper {paper.id}: {e}")
 
     # Priority 2: Original PDF binary for direct Multimodal Gemini extraction
-    if not paper_text and paper.original_pdf_path and default_storage.exists(paper.original_pdf_path):
+    if not paper_text and paper.original_pdf_path and not paper.original_pdf_path.startswith(("http://", "https://")) and default_storage.exists(paper.original_pdf_path):
         try:
             with default_storage.open(paper.original_pdf_path, 'rb') as f:
                 raw_bytes = f.read()

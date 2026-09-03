@@ -337,7 +337,7 @@ class WorkflowDAG:
                 pipeline_run.step_history = p_hist
                 pipeline_run.save(update_fields=['status', 'status_message', 'error_message', 'stopped_at_stage', 'completed_at', 'step_history', 'stage_results'])
 
-                if agent_process and getattr(agent_process, 'pk', None) != getattr(pipeline_run, 'pk', None):
+                if agent_process and (agent_process is not pipeline_run):
                     agent_process.status = 'failed'
                     agent_process.stopped_at_step = failed_node_name
                     agent_process.stop_reason = fail_summary
@@ -374,7 +374,7 @@ class WorkflowDAG:
                             pipeline_run.step_history = p_hist
                             pipeline_run.save(update_fields=['status', 'current_stage', 'stopped_at_stage', 'status_message', 'completed_at', 'step_history', 'stage_results'])
 
-                            if agent_process and getattr(agent_process, 'pk', None) != getattr(pipeline_run, 'pk', None):
+                            if agent_process and (agent_process is not pipeline_run):
                                 agent_process.status = 'completed'
                                 agent_process.current_step = 'completed'
                                 agent_process.stopped_at_step = name
@@ -452,7 +452,7 @@ class WorkflowDAG:
                 pipeline_run.step_history = p_hist
                 pipeline_run.save(update_fields=['current_stage', 'step_history', 'stage_results'])
 
-                if agent_process and getattr(agent_process, 'pk', None) != getattr(pipeline_run, 'pk', None):
+                if agent_process and (agent_process is not pipeline_run):
                     agent_process.current_step = node.name
                     history = list(agent_process.step_history or [])
                     history.append({
@@ -482,7 +482,7 @@ class WorkflowDAG:
                 pipeline_run.current_stage = active_step
                 pipeline_run.save(update_fields=['current_stage', 'stage_results'])
 
-                if agent_process and getattr(agent_process, 'pk', None) != getattr(pipeline_run, 'pk', None):
+                if agent_process and (agent_process is not pipeline_run):
                     if agent_process.current_step != active_step:
                         agent_process.current_step = active_step
                     agent_process.save(update_fields=['current_step', 'stage_results', 'updated_at'])
@@ -515,12 +515,13 @@ class WorkflowDAG:
                     pipeline_run.completed_at = timezone.now()
 
                 # Refresh and aggregate USD cost and tokens across component runs if needed
+                from decimal import Decimal
                 comp_costs = sum(
                     float((cr.metrics or {}).get("usd_cost") or 0.0)
                     for cr in pipeline_run.component_runs.all()
                 )
                 if comp_costs > float(pipeline_run.usd_cost or 0.0):
-                    pipeline_run.usd_cost = comp_costs
+                    pipeline_run.usd_cost = Decimal(str(round(comp_costs, 4)))
 
                 comp_tokens_in = sum(int((cr.metrics or {}).get("tokens_in", (cr.metrics or {}).get("total_prompt_tokens", 0)) or 0) for cr in pipeline_run.component_runs.all())
                 comp_tokens_out = sum(int((cr.metrics or {}).get("tokens_out", (cr.metrics or {}).get("total_candidates_tokens", 0)) or 0) for cr in pipeline_run.component_runs.all())
@@ -549,7 +550,7 @@ class WorkflowDAG:
                     'total_papers_passed_screening', 'step_history', 'stage_results'
                 ])
 
-                if agent_process and getattr(agent_process, 'pk', None) != getattr(pipeline_run, 'pk', None):
+                if agent_process and (agent_process is not pipeline_run):
                     agent_process.status = 'completed'
                     agent_process.current_step = 'completed'
                     agent_process.stopped_at_step = 'completed'
