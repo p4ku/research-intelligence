@@ -150,12 +150,19 @@ sequenceDiagram
     User->>TopBar: Selects Workspace and Run (defaults to latest completed)
     TopBar->>PapersList: Renders all papers evaluated in selected Run
 
-    Note over User,PaperChat: 2. Filtering
-    User->>Filters: Selects Screening Status = Passed and TRL >= 4
-    Filters->>PapersList: Updates paper table in real time
+    Note over User,PaperChat: 2. Finding & Selecting Papers (Browse, Search, or Filter)
+    alt Option A: Direct Catalog Browsing
+        User->>PapersList: Browses table rows and spots relevant paper
+    else Option B: Search by Title or Keyword
+        User->>PapersList: Types paper title or keyword in search bar
+        PapersList-->>User: Dynamically filters table rows to matching results
+    else Option C: Apply Facet Filters
+        User->>Filters: Selects Screening Status = Passed and TRL >= 4
+        Filters->>PapersList: Updates paper table with matching subset
+    end
 
     Note over User,DetailsPage: 3. Drill-Down into Paper Details
-    User->>PapersList: Clicks paper row
+    User->>PapersList: Clicks target paper row
     PapersList->>DetailsPage: Opens Paper Details (/papers/[id]?run_id=14)
 
     Note over User,DetailsPage: 4. Paper Details (Scoring and Run Results)
@@ -404,45 +411,6 @@ In the SRI architecture, data entities have distinct lifecycles and scopes:
 | `/ask`<br>`/ask?paper_id=<uuid>&run_id=<uuid>` | **Ask Paper (Grounded Interrogation Console)** | Workspace + Run Context + Paper Entity | • **Explicit**: `?paper_id=<uuid>&run_id=<uuid>` locks document & run.<br>• **Default (clean `/ask` entry)**: User selects a paper from the last successful run via `[Select paper first]` search drawer. | `POST /api/chat/`<br>(payload: `workspace_id`, `pipeline_run_id`, `paper_id`, `message`) | Main AI chat canvas with source citations + **`Chat History (Right)`** rail with chronological conversation threads in this workspace. |
 | `/pipeline`<br>`/pipeline?run_id=<uuid>` | **Pipeline Management (Orchestration & Audit)** | Workspace (All Runs) + Selected Run for Component Audit | • TopBar `RunSelector` dimmed (view manages all runs simultaneously).<br>• Clicking a row opens `Historic Run Details (Components level)` for specified `run_id`. | `GET /api/pipeline-runs/?workspace_id=<id>`<br>`GET /api/component-runs/?pipeline_run=<run_id>` | `Run Pipeline` button (with `running` mutex lock), historical runs table. Detail sheet with component DAG, execution logs, and timing (`No Re-run` rule). |
 | `/settings` | **Account Settings** | Authenticated User Session (Global) | None (Global user profile settings). | `GET /api/auth/me/`<br>`PATCH /api/auth/me/`<br>`GET/PATCH /api/users/preferences/` | Stacked tabs: Personal Profile, Password Change, Notification Preferences (email alerts on run completion). |
-
----
-
-### 9.3 Deep-Dive: Why `/papers/[id]` Requires Explicit `?run_id=` and How Fallback Operates
-
-1. **The Django Data Model Reality**:
-   - In the database, `Paper` is workspace-wide and uniquely identified by `id`, `hash_id`, `title`, and `meta` JSON. It does **not** link to a single `PipelineRun`.
-   - In contrast, the `PaperMetric` model represents an evaluation in the relation `(paper, pipeline_run)`. A document processed in Run #10 and re-evaluated in Run #14 has **two distinct `PaperMetric` records**, potentially with different `signal_score` values, different extraction variables, and different screening justifications.
-2. **The API Contract for `/api/papers/{id}/scorecard/`**:
-   - The endpoint checks the request query parameters:
-     ```python
-     pipeline_run_id = (
-         request.query_params.get('pipeline_run')
-         or request.query_params.get('pipeline_run_id')
-         or request.query_params.get('run_id')
-     )
-     ```
-   - **When `?run_id` / `?pipeline_run` is provided**:
-     - The serializer returns evaluation data strictly from that specific historical run, enabling reliable, reproducible research audits.
-   - **When the parameter is NOT provided (direct entry without context)**:
-     - The serializer executes a **hard fallback to the last successful run**:
-       ```python
-       run_id = (
-           PipelineRun.objects.filter(workspace_id=workspace_id)
-           .exclude(status__in=['failed', 'aborted'])
-           .order_by('-started_at', '-id')
-           .values_list('id', flat=True)
-           .first()
-       )
-       ```
-     - Consequently, accessing `/papers/[id]` directly never fails or displays empty metrics — the user sees data from the latest verified, completed pipeline run.
-3. **Frontend Routing and Linking Specification**:
-   - All internal links navigating to Paper Details (from `/briefing` and `/papers`) **must explicitly append the query parameter**:
-     ```typescript
-     href={`/papers/${paper.id}?run_id=${activeRunId}`}
-     ```
-   - This prevents context loss where a researcher inspecting historical Run #10 would otherwise be switched to default Run #14 upon opening a paper card.
-   - On the `/papers/[id]` page itself, the header component displays an active context badge with a quick-switch option:
-     `Evaluated in Run #14 (Score: 91.4 · Full Text Passed) [View in Run #12]`.
 
 ---
 
