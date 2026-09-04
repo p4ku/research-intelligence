@@ -103,39 +103,53 @@ Located permanently in the top navigation bar across all views:
 
 The following transition graph maps the core pages across the platform and all navigation paths connecting them ("skąd się łazi gdzie"):
 
+> 💡 **Visual Key**:  
+> • 🟪 **Full Pages / URL Routes** (Lavender boxes): `/briefing`, `/papers`, `/papers/[id]`, `/ask`, `/pipeline`  
+> • 🌸 **In-Page Elements & Sub-Functionalities** (Pink boxes): Embedded Rails, Modals, and Viewers
+
 ```mermaid
 flowchart TB
+    %% Full Pages (URL Routes) - Lavender Style (img 2)
     Briefing("📊 Briefings Dashboard<br/><code>/briefing</code>")
     PapersList("📄 Browse Papers Catalog<br/><code>/papers</code>")
     Details("📑 Paper Details Page<br/><code>/papers/[id]?run_id=...</code>")
-    DetailsChat("💬 In-Page 'Ask this paper'<br/><i>Integrated Right Rail</i>")
     AskConsole("💬 Ask Paper Console<br/><code>/ask?paper_id=...&run_id=...</code>")
-    PDFView("📕 Canonical PDF Reader<br/><i>External / S3 Stream</i>")
     PipelinePage("⚙️ Pipeline Management<br/><code>/pipeline</code>")
 
+    %% In-Page Elements & Sub-Functionalities - Pink Style (img 3)
+    DetailsChat("💬 In-Page 'Ask this paper'<br/><i>Integrated Right Rail</i>")
+    PDFView("📕 Canonical PDF Reader<br/><i>Document File Viewer</i>")
+    HistoryRail("📜 Chat History (Right)<br/><i>Saved Threads Drawer</i>")
+    SearchModal("🔎 Paper Selector Drawer<br/><i>Quick Search Modal</i>")
+
+    %% Transitions from Briefings
     Briefing -->|"Click Top Paper Card"| Details
     Briefing -->|"Click 'Ask Paper' CTA"| AskConsole
     Briefing -.->|"Sidebar Navigation"| PapersList
     Briefing -.->|"Sidebar Navigation"| PipelinePage
 
+    %% Transitions from Browse Papers
     PapersList -->|"Click Paper Row (Browse/Filter)"| Details
 
+    %% Transitions from Paper Details
     Details -->|"In-Page QA (1fr Rail)"| DetailsChat
     Details -->|"Click 'View PDF'"| PDFView
-    Details -->|"Launch Dedicated Chat"| AskConsole
+    Details -->|"Open Dedicated Chat"| AskConsole
     Details -.->|"Breadcrumb Return"| Briefing
     Details -.->|"Breadcrumb Return"| PapersList
 
+    %% Transitions from Ask Paper Console
     AskConsole -->|"Click Active Paper Badge"| Details
+    AskConsole -->|"In-Page Thread Restore"| HistoryRail
+    AskConsole -->|"Select Paper First"| SearchModal
     AskConsole -.->|"Sidebar Navigation"| Briefing
 
-    style Briefing stroke:#000000,fill:#E1F0D4
-    style PapersList stroke:#000000,fill:#DBCDF8
-    style Details stroke:#000000,fill:#C3EFE0
-    style DetailsChat stroke:#000000,fill:#F6ACD8
-    style AskConsole stroke:#000000,fill:#D4EFF0
-    style PDFView stroke:#000000,fill:#F2F7D2
-    style PipelinePage stroke:#000000,fill:#BEF6AC
+    %% Color Coding Legend: Pages (Lavender img 2) vs In-Page Elements (Pink img 3)
+    classDef pageNode fill:#ECEBFA,stroke:#7C71E8,stroke-width:2px,color:#1E1B4B;
+    classDef elementNode fill:#F6ACD8,stroke:#9D174D,stroke-width:2px,color:#831843;
+
+    class Briefing,PapersList,Details,AskConsole,PipelinePage pageNode;
+    class DetailsChat,PDFView,HistoryRail,SearchModal elementNode;
 ```
 
 ### 3.3 Briefings to Paper Details Interaction Sequence
