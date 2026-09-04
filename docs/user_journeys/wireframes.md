@@ -31,7 +31,7 @@ Across all authenticated views, the application renders a persistent two-tier co
      - `4. ⚙️ Pipeline Management (/pipeline)` — **Visible in High-Level List Mode Only** (Inspects list of runs, timestamps, paper counts, and durations; **cannot enter component-level details or DAGs**; cannot trigger runs)
      - `👤 Settings (/settings)` — Personal profile & preferences
    - **System Administrator**:
-     - *(⏳ **No specific screens or navigation at this stage**; full admin UI is deferred to **Step 2**)*
+     - *(⏳ **No specific screens or navigation at this stage**; full admin UI is deferred to a **Future Iteration**)*
 
 ```
 +---------------------------------------------------------------------------------------------------------------+
@@ -45,7 +45,7 @@ Across all authenticated views, the application renders a persistent two-tier co
 |  • ⚙️ Pipeline Management [ ▶ Run Pipeline ]    |  • ⚙️ Pipeline Management (Runs List Only · No Details CTA)  |
 |  • 👤 Settings                                  |  • 👤 Settings                                              |
 |  ---------------------------------------------  |  ---------------------------------------------------------  |
-|  ADMIN ROLE STATUS: No specific screens in MVP (Deferred to Step 2)                                           |
+|  ADMIN ROLE STATUS: No specific screens in MVP (Future Iteration)                                             |
 +---------------------------------------------------------------------------------------------------------------+
 ```
 
@@ -103,8 +103,8 @@ Across all authenticated views, the application renders a persistent two-tier co
 
 > [!NOTE]
 > **Role Visibility on Briefings**:
-> - The link `[ 📂 View All Runs in Pipeline ➔ ]` at the bottom of the Edition History rail is visible to **both Managers and Researchers** (Researchers can view historical runs and component DAGs in read-only audit mode).
-> - **System Admin**: No dedicated screen in MVP (deferred to Step 2).
+> - The link `[ 📂 View All Runs in Pipeline ➔ ]` at the bottom of the Edition History rail is visible to **both Managers and Researchers** (Managers have full execution controls; Researchers inspect historical runs in high-level list-only mode).
+> - **System Admin**: No dedicated screen in MVP (deferred to a **Future Iteration**).
 
 ---
 
@@ -264,7 +264,7 @@ Across all authenticated views, the application renders a persistent two-tier co
 > **Role-Based Permissions on Pipeline Management**:
 > - **Manager (`Manager can run pipelines & inspect DAGs`)**: Fully active. Can trigger new review runs via **`[ ▶ Run Pipeline ]`** (with single-active-run concurrency mutex lock), monitor live execution, and click any run row (`[ View Component Audit ➔ ]`) to open the **Historic Run Details (Components level)** drawer to audit the DAG.
 > - **Researcher (`Researcher sees high-level runs list ONLY`)**: Can view the list of historical runs, completion timestamps, paper counts, and durations in the summary table. **Researchers CANNOT enter into component details** (the `[ View Component Audit ➔ ]` action and component-level DAG drawer are **strictly hidden and inaccessible** for Researchers). The **`[ ▶ Run Pipeline ]`** CTA is also hidden or disabled.
-> - **System Admin**: **No specific screens or features in this MVP** (governance portal and custom admin tools are deferred to **Step 2**).
+> - **System Admin**: **No specific screens or features in this MVP** (governance portal and custom admin tools are deferred to a **Future Iteration**).
 
 ### Layout Topology
 - **Top Context Bar**: Run selector is dimmed/inactive because the Pipeline view manages and displays *all* historical runs.
@@ -366,7 +366,7 @@ Across all authenticated views, the application renders a persistent two-tier co
 > **Role Variations on Settings Screen**:
 > - **Manager**: Profile displays `Role: Manager (Can Run Pipelines)`. Card 4 allows subscribing to run failure alerts and automated completion summaries.
 > - **Researcher**: Profile displays `Role: Researcher (Results Only)`. Allows self-service credential updates and briefing email notifications.
-> - **System Admin**: Full workspace provisioning, token quotas, and scraper query builders are **deferred to Step 2**.
+> - **System Admin**: Dedicated administration portal encompassing workspace management & editing, extraction definitions, workspace members & roles, and upstream scrapers & quotas is deferred to a **Future Iteration**.
 
 ---
 

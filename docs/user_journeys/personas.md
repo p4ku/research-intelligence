@@ -1,6 +1,6 @@
 # User Personas & Access Control Specification
 
-**Document Version**: 3.3  
+**Document Version**: 3.4  
 **Associated Documents**:  
 - 🗺️ **[user_journeys.md](user_journeys.md)** — Frontend User Journeys & Interaction Sequences  
 - 📐 **[wireframes.md](wireframes.md)** — Screen Layout Wireframes & UI Component Topologies  
@@ -9,19 +9,19 @@
 
 ---
 
-## 1. Executive Summary: MVP Scope vs. Step 2 Roadmap
+## 1. Executive Summary: MVP Scope vs. Future Iteration
 
 The frontend MVP is specifically designed around **two active user personas**:
 1. **Manager (Research Lead)**: Full operational control over review cycles; can trigger runs (`[ ▶ Run Pipeline ]`), drills into **Historic Run Details (Components level)** (`/pipeline?run_id=...`), audits DAG execution, and consumes all research outputs.
 2. **Researcher (Scientific Analyst)**: Consumes research results (`/briefing`, `/papers`, `/papers/[id]`, `/ask`) and has access to **Pipeline Management (`/pipeline`) in high-level read-only mode only** (inspects the list of historical runs, completion timestamps, paper counts, and durations). **The Researcher CANNOT trigger runs and CANNOT drill into component-level DAG execution details.**
 
 > [!IMPORTANT]
-> **Admin Features are Step 2 (Out of Scope for MVP Frontend)**:  
-> In the current MVP phase, **we do not have anything specific for Admin on the frontend**. System administration, multi-tenant workspace provisioning, scraper query configuration, and fine-grained quota governance are strictly **Step 2**. Any underlying maintenance in Step 1 is handled via standard backend interfaces without custom frontend screens.
+> **Admin Features are Planned for Future Iteration**:  
+> In the current MVP phase, **we do not have anything specific for Admin on the frontend**. System administration, multi-tenant workspace provisioning, scraper query configuration, and fine-grained quota governance are reserved for a **Future Iteration**. Any underlying maintenance in the current phase is handled via standard backend interfaces without custom frontend screens.
 
 ```
 +---------------------------------------------------------------------------------------------------------------+
-|                                    MVP FRONTEND USER PERSONAS (STEP 1)                                        |
+|                                    MVP FRONTEND USER PERSONAS (CURRENT)                                       |
 +-------------------------------------------------------+-------------------------------------------------------+
 |                    1. RESEARCHER                      |                      2. MANAGER                       |
 |                 (Scientific Analyst)                  |                    (Research Lead)                    |
@@ -35,8 +35,8 @@ The frontend MVP is specifically designed around **two active user personas**:
 |  • ❌ CANNOT drill into Component DAGs (/pipeline?run) |  • ✅ CAN drill into Component DAGs (/pipeline?run)   |
 |  • 🚫 CANNOT trigger runs ([ ▶ Run Pipeline ] hidden) |  • ✅ CAN trigger runs ([ ▶ Run Pipeline ] active)    |
 +-------------------------------------------------------+-------------------------------------------------------+
-|                                  [ STEP 2 ROADMAP: SYSTEM ADMINISTRATOR ]                                     |
-|  • Custom Admin UI, Workspace Provisioning, Scraper Builder & Quota Controls are deferred to Step 2.          |
+|                                    [ FUTURE ITERATION: SYSTEM ADMINISTRATOR ]                                 |
+|  • Custom Admin UI, Workspace Editing, Extraction Definitions & Member Governance are in Future Iteration.    |
 +---------------------------------------------------------------------------------------------------------------+
 ```
 
@@ -108,43 +108,43 @@ The Manager has complete access to all research outputs, full operational contro
 
 ---
 
-## 4. Persona 3: System Administrator (Step 2 Roadmap / Out-of-Scope for MVP)
+## 4. Persona 3: System Administrator (Future Iteration)
 
 ### MVP Scope Status
 > [!NOTE]
-> **No Specific Admin UI in Step 1**:  
-> For the initial MVP, there are no dedicated frontend screens or user journeys for the System Administrator. All administrative features are explicitly planned for **Step 2**.
+> **No Dedicated Admin UI in MVP**:  
+> For the initial MVP, there are no dedicated frontend screens or user journeys for the System Administrator. Governance and administrative capabilities are planned for a **Future Iteration**.
 
-### Step 2 Scope (Future Iteration)
-When implemented in Step 2, the System Administrator interface will encompass:
-- **Workspace Provisioning & Multi-tenancy**: Creating research domains, assigning storage quotas, and managing workspace lifecycles.
-- **Upstream Scraper Management**: Interactive query builders for arXiv, OpenAlex, Semantic Scholar, and PubMed with rate limits and cron schedules.
-- **Team Role Governance**: Provisioning user accounts, assigning roles (`manager` vs. `researcher`), and revoking access.
-- **Budget & Quota Controls**: Hard monthly USD ceilings (`monthly_usd_limit`) and LLM token caps per workspace.
-- **Model & OCR Routing**: Assigning LLM models (e.g., Claude 3.5 Sonnet, Gemini 2.0 Flash) and PDF parser engines per workspace.
+### Future Iteration
+In a future iteration, a dedicated administration portal will be introduced encompassing four core capabilities:
+1. **Workspace Management & Editing**: Creating, editing, configuring, and archiving research domain workspaces and their global attributes.
+2. **Extraction Definitions**: Defining, customizing, and editing domain-specific extraction parameters, schema rules, and AST scoring variables.
+3. **Workspace Members & Roles**: Provisioning user accounts, managing workspace team memberships, invitations, and role assignments (`manager` vs. `researcher`).
+4. **Upstream Scrapers & Quotas**: Configuring search queries, data sources (arXiv, OpenAlex, PubMed), scraping rate limits, and monthly token/USD budget ceilings.
 
 ---
 
-## 5. Screen & Action Permissions Matrix (MVP Step 1)
+## 5. Screen & Action Permissions Matrix (Current MVP)
 
 The following matrix defines the exact visibility and action capabilities across the active MVP personas:
 
-| View / Action | URL Route | Researcher (Analyst) | Manager (Lead) | System Admin (Step 2) | Notes |
+| View / Action | URL Route | Researcher (Analyst) | Manager (Lead) | System Admin (Future) | Notes |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Login Screen** | `/` | ✅ Visible | ✅ Visible | *(Step 2)* | Standard authentication for all active roles. |
-| **Briefings Dashboard** | `/briefing` | ✅ Visible | ✅ Visible | *(Step 2)* | High-level synthesis and top paper cards. |
-| **Browse Papers Catalog** | `/papers` | ✅ Visible | ✅ Visible | *(Step 2)* | Multi-attribute search, TRL & score filters. |
-| **Paper Details & Scorecard** | `/papers/[id]` | ✅ Visible | ✅ Visible | *(Step 2)* | AST formula ledger, radar chart, PDF link. |
-| **Ask Paper Console** | `/ask` | ✅ Visible | ✅ Visible | *(Step 2)* | Grounded multi-turn conversational chat. |
-| **In-Page 'Ask this paper'** | `/papers/[id]` rail | ✅ Visible | ✅ Visible | *(Step 2)* | Contextual document assistant. |
-| **Pipeline Runs Overview (High-level)** | `/pipeline` | ✅ **Visible (List Only)** | ✅ **Visible (Active)** | *(Step 2)* | **Researcher sees list of runs only.** |
-| **Trigger Pipeline Run** | `/pipeline` CTA | 🚫 **No (Manager Only)** | ✅ **Can Run (`[ ▶ ]`)** | *(Step 2)* | Subject to single active run mutex lock. |
-| **Historic Run Details (Components level)** | `/pipeline?run_id=...` | 🚫 **Hidden (Manager Only)** | ✅ **Visible & Active** | *(Step 2)* | **Researcher cannot enter into component details.** |
-| **Audit Spend & Run Metrics** | `/pipeline` | ✅ **Visible (Table summary)**| ✅ **Visible (Component DAG)**| *(Step 2)* | Researcher sees summary table costs; Manager audits stage spend. |
-| **Manage Profile & Password** | `/settings` | ✅ Visible | ✅ Visible | *(Step 2)* | Self-service credential update. |
-| **Workspace Provisioning** | Dedicated Admin UI | 🚫 No | 🚫 No | ⏳ **Step 2** | Out of scope for MVP frontend. |
-| **Scraper Query Builder** | Dedicated Admin UI | 🚫 No | 🚫 No | ⏳ **Step 2** | Out of scope for MVP frontend. |
-| **Budget & Token Limits** | Dedicated Admin UI | 🚫 No | 🚫 No | ⏳ **Step 2** | Out of scope for MVP frontend. |
+| **Login Screen** | `/` | ✅ Visible | ✅ Visible | *(Future)* | Standard authentication for all active roles. |
+| **Briefings Dashboard** | `/briefing` | ✅ Visible | ✅ Visible | *(Future)* | High-level synthesis and top paper cards. |
+| **Browse Papers Catalog** | `/papers` | ✅ Visible | ✅ Visible | *(Future)* | Multi-attribute search, TRL & score filters. |
+| **Paper Details & Scorecard** | `/papers/[id]` | ✅ Visible | ✅ Visible | *(Future)* | AST formula ledger, radar chart, PDF link. |
+| **Ask Paper Console** | `/ask` | ✅ Visible | ✅ Visible | *(Future)* | Grounded multi-turn conversational chat. |
+| **In-Page 'Ask this paper'** | `/papers/[id]` rail | ✅ Visible | ✅ Visible | *(Future)* | Contextual document assistant. |
+| **Pipeline Runs Overview (High-level)** | `/pipeline` | ✅ **Visible (List Only)** | ✅ **Visible (Active)** | *(Future)* | **Researcher sees list of runs only.** |
+| **Trigger Pipeline Run** | `/pipeline` CTA | 🚫 **No (Manager Only)** | ✅ **Can Run (`[ ▶ ]`)** | *(Future)* | Subject to single active run mutex lock. |
+| **Historic Run Details (Components level)** | `/pipeline?run_id=...` | 🚫 **Hidden (Manager Only)** | ✅ **Visible & Active** | *(Future)* | **Researcher cannot enter into component details.** |
+| **Audit Spend & Run Metrics** | `/pipeline` | ✅ **Visible (Table summary)**| ✅ **Visible (Component DAG)**| *(Future)* | Researcher sees summary table costs; Manager audits stage spend. |
+| **Manage Profile & Password** | `/settings` | ✅ Visible | ✅ Visible | *(Future)* | Self-service credential update. |
+| **Workspace Management & Editing** | Dedicated Admin UI | 🚫 No | 🚫 No | ⏳ **Future Iteration** | Out of scope for MVP frontend. |
+| **Extraction Definitions** | Dedicated Admin UI | 🚫 No | 🚫 No | ⏳ **Future Iteration** | Out of scope for MVP frontend. |
+| **Workspace Members & Roles** | Dedicated Admin UI | 🚫 No | 🚫 No | ⏳ **Future Iteration** | Out of scope for MVP frontend. |
+| **Upstream Scrapers & Quotas** | Dedicated Admin UI | 🚫 No | 🚫 No | ⏳ **Future Iteration** | Out of scope for MVP frontend. |
 
 ---
 
