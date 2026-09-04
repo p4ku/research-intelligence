@@ -70,7 +70,75 @@ Located permanently in the top navigation bar across all views:
     - Right on the Details page sits **`Ask this paper`** (implemented via `PaperChat`) — a live, grounded interrogation assistant scoped directly to this paper.
     - This explains the user's note `Redundant?`: because `Ask this paper` is already natively embedded as a right-hand sub-functionality inside `/papers/[id]`, the user can interrogate the document immediately while reviewing its scoring details!
 
-### 3.2 Briefings to Paper Details Interaction Sequence
+#### Paper Details Screen Layout Wireframe (`/papers/[id]?run_id=<id>`)
+
+```
++---------------------------------------------------------------------------------------------------------------+
+|  [ SRI Logo ]   Workspace: [ Quantum Computing ▾ ]    Run: [ Run #14 (Latest Successful) ▾ ]  | [ Profile ▾ ] |
++---------------------------------------------------------------------------------------------------------------+
+|  ← Back to Briefings / Papers                                                                                 |
+|                                                                                                               |
+|  +-------------------------------------------------------------+  +----------------------------------------+  |
+|  |  LEFT AREA (2fr) — Paper Run Results & Scoring Details      |  |  RIGHT RAIL (1fr) — Ask this paper     |  |
+|  |                                                             |  |                                        |  |
+|  |  📄 Oraqle: An Empirical Analysis of Qubit Readout...       |  |  💬 Ask this paper (Grounded Chat)     |  |
+|  |  Authors: J. Smith, A. Doe · arXiv:2401.0987 · [ View PDF ] |  |  ------------------------------------  |  |
+|  |  Badge: Evaluated in Run #14 · Signal Score: 91.4/100       |  |  "Explain the readout fidelity in      |  |
+|  |  ---------------------------------------------------------  |  |   theorem 2"                           |  |
+|  |  📊 Signal Score Formula Ledger (AST Variables & Snippet)   |  |                                        |  |
+|  |  • Gate TRL: 4.0 | Bonus TRL: 1.0 | Novelty: 0.85           |  |  🤖 Answer: According to Section 3...  |  |
+|  |  ---------------------------------------------------------  |  |  Citations: [Page 4, Fig 2] [Sec 3.1]  |  |
+|  |  🎯 Dimensions & TRL (Radar Chart & Parameter Extractions)  |  |                                        |  |
+|  |  ---------------------------------------------------------  |  |  ------------------------------------  |  |
+|  |  🛡️ Screening Justifications                                |  |  [ Type prompt...                ]  |  |
+|  |  • Abstract Screening: PASSED (LLM justification quote)     |  |                                        |  |
+|  |  • Full-Text Screening: PASSED (LLM justification quote)    |  +----------------------------------------+  |
+|  |  ---------------------------------------------------------  |                                              |
+|  |  📑 Abstract & Extracted Markdown Layout                     |                                              |
+|  +-------------------------------------------------------------+                                              |
++---------------------------------------------------------------------------------------------------------------+
+```
+
+### 3.2 Page Navigation & Transitions Flow Graph
+
+The following transition graph maps the core pages across the platform and all navigation paths connecting them ("skąd się łazi gdzie"):
+
+```mermaid
+flowchart TB
+    Briefing("📊 Briefings Dashboard<br/><code>/briefing</code>")
+    PapersList("📄 Browse Papers Catalog<br/><code>/papers</code>")
+    Details("📑 Paper Details Page<br/><code>/papers/[id]?run_id=...</code>")
+    DetailsChat("💬 In-Page 'Ask this paper'<br/><i>Integrated Right Rail</i>")
+    AskConsole("💬 Ask Paper Console<br/><code>/ask?paper_id=...&run_id=...</code>")
+    PDFView("📕 Canonical PDF Reader<br/><i>External / S3 Stream</i>")
+    PipelinePage("⚙️ Pipeline Management<br/><code>/pipeline</code>")
+
+    Briefing -->|"Click Top Paper Card"| Details
+    Briefing -->|"Click 'Ask Paper' CTA"| AskConsole
+    Briefing -.->|"Sidebar Navigation"| PapersList
+    Briefing -.->|"Sidebar Navigation"| PipelinePage
+
+    PapersList -->|"Click Paper Row (Browse/Filter)"| Details
+
+    Details -->|"In-Page QA (1fr Rail)"| DetailsChat
+    Details -->|"Click 'View PDF'"| PDFView
+    Details -->|"Launch Dedicated Chat"| AskConsole
+    Details -.->|"Breadcrumb Return"| Briefing
+    Details -.->|"Breadcrumb Return"| PapersList
+
+    AskConsole -->|"Click Active Paper Badge"| Details
+    AskConsole -.->|"Sidebar Navigation"| Briefing
+
+    style Briefing stroke:#000000,fill:#E1F0D4
+    style PapersList stroke:#000000,fill:#DBCDF8
+    style Details stroke:#000000,fill:#C3EFE0
+    style DetailsChat stroke:#000000,fill:#F6ACD8
+    style AskConsole stroke:#000000,fill:#D4EFF0
+    style PDFView stroke:#000000,fill:#F2F7D2
+    style PipelinePage stroke:#000000,fill:#BEF6AC
+```
+
+### 3.3 Briefings to Paper Details Interaction Sequence
 
 ```mermaid
 sequenceDiagram
@@ -103,7 +171,7 @@ sequenceDiagram
     PaperChat-->>User: Streams grounded answer with citations while user reads scoring details
 ```
 
-### 3.3 Screen States:
+### 3.4 Screen States:
 1. **Briefings View (`/briefing`)**:
    - Report canvas rendering markdown of the generated `NarrativeReport`.
    - Funnel metrics bar: Total candidate papers, screened count, passed count, average signal score.
