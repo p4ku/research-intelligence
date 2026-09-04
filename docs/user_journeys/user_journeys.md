@@ -81,25 +81,28 @@ Located permanently in the top navigation bar across all views:
 
 The following transition graph maps the core pages across the platform and all navigation paths connecting them ("skąd się łazi gdzie"):
 
-> 💡 **Visual Key**:  
-> • 🟪 **Full Pages / URL Routes** (Lavender boxes): `/briefing`, `/papers`, `/papers/[id]`, `/ask`, `/pipeline`  
-> • 🌸 **In-Page Elements & Sub-Functionalities** (Pink boxes): Embedded Rails, Modals, Viewers, and Historic Run Details Sheet
+#### Visual Key
+
+| Node Type | Color Coding | Layout & Navigation Semantics | Included Views & Components |
+| :--- | :--- | :--- | :--- |
+| **Full Page (URL Route)** | Lavender (`#ECEBFA` / `#7C71E8`) | Top-level view with dedicated URL routing and browser history | `/briefing`, `/papers`, `/papers/[id]`, `/ask`, `/pipeline`, Historic Run Details (`/pipeline?run_id=...`) |
+| **In-Page Sub-Functionality** | Pink (`#F6ACD8` / `#9D174D`) | Contextual embedded rails, slide-out drawers, modals, or file viewers | `Ask this paper` (Right Rail), `Canonical PDF Reader`, `Chat History (Right)`, `Paper Selector Drawer` |
 
 ```mermaid
 flowchart TB
-    %% Full Pages (URL Routes) - Lavender Style (img 2)
+    %% Full Pages (URL Routes) - Lavender Style
     Briefing("📊 Briefings Dashboard<br/><code>/briefing</code>")
     PapersList("📄 Browse Papers Catalog<br/><code>/papers</code>")
     Details("📑 Paper Details Page<br/><code>/papers/[id]?run_id=...</code>")
     AskConsole("💬 Ask Paper Console<br/><code>/ask?paper_id=...&run_id=...</code>")
     PipelinePage("⚙️ Pipeline Management<br/><code>/pipeline</code>")
+    RunDetails("⏱️ Historic Run Details<br/><code>/pipeline?run_id=...</code><br/><i>(Components level)</i>")
 
-    %% In-Page Elements & Sub-Functionalities - Pink Style (img 3)
+    %% In-Page Elements & Sub-Functionalities - Pink Style
     DetailsChat("💬 In-Page 'Ask this paper'<br/><i>Integrated Right Rail</i>")
     PDFView("📕 Canonical PDF Reader<br/><i>Document File Viewer</i>")
     HistoryRail("📜 Chat History (Right)<br/><i>Saved Threads Drawer</i>")
     SearchModal("🔎 Paper Selector Drawer<br/><i>Quick Search Modal</i>")
-    RunDetails("⏱️ Historic Run Details<br/><i>(Components level)</i>")
 
     %% Transitions from Briefings
     Briefing -->|"Click Top Paper Card"| Details
@@ -125,13 +128,14 @@ flowchart TB
 
     %% Transitions from Pipeline Management
     PipelinePage -->|"Click Run Row"| RunDetails
+    RunDetails -.->|"Breadcrumb Return"| PipelinePage
 
-    %% Color Coding Legend: Pages (Lavender img 2) vs In-Page Elements (Pink img 3)
+    %% Color Coding Legend: Pages (Lavender) vs In-Page Elements (Pink)
     classDef pageNode fill:#ECEBFA,stroke:#7C71E8,stroke-width:2px,color:#1E1B4B;
     classDef elementNode fill:#F6ACD8,stroke:#9D174D,stroke-width:2px,color:#831843;
 
-    class Briefing,PapersList,Details,AskConsole,PipelinePage pageNode;
-    class DetailsChat,PDFView,HistoryRail,SearchModal,RunDetails elementNode;
+    class Briefing,PapersList,Details,AskConsole,PipelinePage,RunDetails pageNode;
+    class DetailsChat,PDFView,HistoryRail,SearchModal elementNode;
 ```
 
 ### 3.3 Briefings to Paper Details Interaction Sequence
