@@ -1,6 +1,6 @@
 # User Personas & Access Control Specification
 
-**Document Version**: 3.1  
+**Document Version**: 3.2  
 **Associated Documents**:  
 - 🗺️ **[user_journeys.md](user_journeys.md)** — Frontend User Journeys & Interaction Sequences  
 - 📐 **[wireframes.md](wireframes.md)** — Screen Layout Wireframes & UI Component Topologies  
@@ -13,7 +13,7 @@
 
 The frontend MVP is specifically designed around **two active user personas**:
 1. **Manager (Research Lead)**: Orchestrates research cycles, can run pipelines (`/pipeline`), audits run execution, and consumes all intelligence outputs.
-2. **Researcher (Scientific Analyst)**: Pure consumer of scientific intelligence; **sees results only** (`/briefing`, `/papers`, `/papers/[id]`, `/ask`).
+2. **Researcher (Scientific Analyst)**: Consumes scientific intelligence (`/briefing`, `/papers`, `/papers/[id]`, `/ask`) and has **read-only audit access** to pipeline runs (`/pipeline`) to verify SLR methodology and data provenance, **without the ability to trigger or run pipelines**.
 
 > [!IMPORTANT]
 > **Admin Features are Step 2 (Out of Scope for MVP Frontend)**:  
@@ -26,12 +26,13 @@ The frontend MVP is specifically designed around **two active user personas**:
 |                    1. RESEARCHER                      |                      2. MANAGER                       |
 |                 (Scientific Analyst)                  |                    (Research Lead)                    |
 +-------------------------------------------------------+-------------------------------------------------------+
-|  Scope: RESULTS ONLY                                  |  Scope: CAN RUN PIPELINES + RESULTS                   |
+|  Scope: RESULTS + READ-ONLY PIPELINE AUDIT            |  Scope: CAN RUN PIPELINES + RESULTS                   |
 |  • Reads Executive Synthesis & Briefings              |  • Triggers New Review Runs ([ ▶ Run Pipeline ])      |
 |  • Filters Evaluated Papers Catalog                   |  • Monitors Live Run Execution (Mutex Protection)     |
 |  • Deep-dives into Paper Details & Scorecards         |  • Audits Historic Runs & Component Level DAGs        |
 |  • Interrogates Literature via Grounded AI Chat       |  • Consumes All Briefings, Catalogs & Scorecards      |
-|  • ❌ Pipeline Management (/pipeline) is HIDDEN        |  • ⚙️ Pipeline Management (/pipeline) is FULLY ACTIVE  |
+|  • ⚙️ Pipeline Management (/pipeline): READ-ONLY AUDIT|  • ⚙️ Pipeline Management (/pipeline): FULL CONTROL   |
+|  • 🚫 CANNOT trigger runs ([ ▶ Run Pipeline ] hidden) |  • ✅ CAN trigger runs ([ ▶ Run Pipeline ] active)    |
 +-------------------------------------------------------+-------------------------------------------------------+
 |                                  [ STEP 2 ROADMAP: SYSTEM ADMINISTRATOR ]                                     |
 |  • Custom Admin UI, Workspace Provisioning, Scraper Builder & Quota Controls are deferred to Step 2.          |
@@ -44,30 +45,36 @@ The frontend MVP is specifically designed around **two active user personas**:
 
 ### Profile & Motivation
 - **Role Title**: Senior Research Scientist, Domain Analyst, Postdoctoral Researcher, Technology Scout.
-- **Primary Goal**: Quickly discover breakthrough papers in their domain, understand why a paper received a high Signal Score, verify technical claims against full-text evidence, and interrogate specific methodologies using grounded conversational AI.
+- **Primary Goal**: Quickly discover breakthrough papers in their domain, understand why a paper received a high Signal Score, verify technical claims against full-text evidence, interrogate methodologies using AI, and audit review run provenance.
 - **Daily Pain Points Solved**:
   - Eliminates manual screening of hundreds of noisy arXiv / OpenAlex preprints.
   - Replaces manual PDF scanning with structured scoring ledgers, radar charts, and LLM rationales.
   - Enables instant natural-language Q&A directly cited from paper sections and figures.
+  - Provides full transparency into pipeline execution DAGs and SLR data provenance without operational overhead.
 
-### Access Boundary: Results Only
-The Researcher is strictly shielded from operational pipeline details, system logs, execution DAGs, and infrastructure costs.
+### Access Boundary: Results + Read-Only Pipeline Audit
+The Researcher has full visibility into research outputs and pipeline execution logs, but **cannot perform state-altering operational actions (cannot run pipelines)**:
 
 - **Accessible Views**:
   1. 📊 **Briefings Dashboard (`/briefing`)**: Reads executive summaries, breakthroughs, bottleneck analysis, and top-scoring paper cards.
   2. 📄 **Browse Papers Catalog (`/papers`)**: Filters papers by screening status, signal score slider, TRL window, and free-text search.
   3. 📑 **Paper Details & Scorecard (`/papers/[id]`)**: Deep-dives into AST formula ledgers, radar charts, LLM screening reasons, and canonical PDF files.
   4. 💬 **Ask Paper Console (`/ask`) & In-Page Assistant**: Converses with papers, verifies citation badges, and restores chat history threads.
-  5. 👤 **Personal Account Settings (`/settings`)**: Updates name, email, and password.
+  5. ⚙️ **Pipeline Management & Runs Audit (`/pipeline`) — READ-ONLY MODE**:
+     - **Visible**: Inspects list of historical runs, completion timestamps, paper counts, and duration metrics.
+     - **Visible**: Drills into **Historic Run Details (`/pipeline?run_id=...`)** to audit individual component stages (Search ➔ Ingestion ➔ Screening ➔ Extraction ➔ Scoring ➔ Reporting) for complete scientific transparency.
+  6. 👤 **Personal Account Settings (`/settings`)**: Updates name, email, and password.
 
-- **Restricted / Hidden Views**:
-  - ❌ **Pipeline Management (`/pipeline`)**: **Completely hidden from the sidebar navigation**. Researchers cannot trigger runs, abort jobs, inspect component DAGs, or view financial costs.
+- **Restricted Operational Actions**:
+  - 🚫 **Cannot Trigger Runs**: The **`[ ▶ Run Pipeline ]`** CTA button is **hidden or disabled** for Researchers (with a tooltip or banner: *"Manager role required to initiate pipeline runs"*).
+  - 🚫 **Cannot Abort Runs**: Only Managers can halt an in-progress run.
+  - 🚫 **Cannot Modify Scrapers or Budgets**: Upstream queries and financial ceilings are managed in the backend (Admin Step 2).
 
 ### Typical User Journey
 1. **Morning Scan**: Opens `/briefing` for the latest successful run to review the executive synthesis and top 3 high-signal papers.
 2. **Targeted Investigation**: Clicks a paper card to open `/papers/[id]?run_id=...` and inspects the Signal Score AST formula breakdown and TRL radar chart.
 3. **In-Page Interrogation**: Uses the integrated `Ask this paper` right rail to ask: *"Explain the readout latency assumptions in Section 3.2"*.
-4. **Broader Exploration**: Navigates to `/papers` and adjusts the Signal Score cutoff slider to $\ge 80$ to find additional candidates across the active domain.
+4. **Methodology Verification**: Clicks `/pipeline` to review how Run #14 was executed, inspecting which scrapers were run and verifying screening stage pass rates in the component DAG.
 
 ---
 
@@ -85,9 +92,9 @@ The Researcher is strictly shielded from operational pipeline details, system lo
 The Manager has complete access to all research outputs plus full operational control over the pipeline execution lifecycle in the frontend.
 
 - **Accessible Views**:
-  1. **All Researcher Views**: Full access to `/briefing`, `/papers`, `/papers/[id]`, and `/ask`.
-  2. ⚙️ **Pipeline Management (`/pipeline`)**:
-     - **Trigger Pipeline Runs**: Can start a fresh review cycle using the **`[ ▶ Run Pipeline ]`** button (protected by a single active run mutex lock).
+  1. **All Researcher Views**: Full access to `/briefing`, `/papers`, `/papers/[id]`, `/ask`, and `/pipeline`.
+  2. ⚙️ **Pipeline Management (`/pipeline`) — FULL OPERATIONAL CONTROL**:
+     - **Trigger Pipeline Runs**: **Can start a fresh review cycle using the `[ ▶ Run Pipeline ]` button** (protected by a single active run concurrency mutex lock).
      - **Live Execution Monitoring**: Observes run status in real time while stages progress.
      - **Historic Runs Overview**: Reviews past runs table showing timestamps, durations, paper yields, and total USD costs.
      - **Component DAG Audit (`/pipeline?run_id=...`)**: Drills into **Historic Run Details (Components level)** to audit individual stage outputs (Search ➔ Ingestion ➔ Screening ➔ Extraction ➔ Scoring ➔ Reporting) in read-only mode (`No Re-run`).
@@ -124,20 +131,20 @@ The following matrix defines the exact visibility and action capabilities across
 
 | View / Action | URL Route | Researcher (Analyst) | Manager (Lead) | System Admin (Step 2) | Notes |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Login Screen** | `/` | ✅ | ✅ | *(Step 2)* | Standard authentication for all active roles. |
-| **Briefings Dashboard** | `/briefing` | ✅ | ✅ | *(Step 2)* | High-level synthesis and top paper cards. |
-| **Browse Papers Catalog** | `/papers` | ✅ | ✅ | *(Step 2)* | Multi-attribute search, TRL & score filters. |
-| **Paper Details & Scorecard** | `/papers/[id]` | ✅ | ✅ | *(Step 2)* | AST formula ledger, radar chart, PDF link. |
-| **Ask Paper Console** | `/ask` | ✅ | ✅ | *(Step 2)* | Grounded multi-turn conversational chat. |
-| **In-Page 'Ask this paper'** | `/papers/[id]` rail | ✅ | ✅ | *(Step 2)* | Contextual document assistant. |
-| **Pipeline Management View** | `/pipeline` | 🚫 **Hidden** | ✅ **Active** | *(Step 2)* | **Researcher sees results only.** |
-| **Trigger Pipeline Run** | `/pipeline` CTA | 🚫 **No** | ✅ **Can Run** | *(Step 2)* | Subject to single active run mutex lock. |
-| **Inspect Component DAG** | `/pipeline?run_id=...` | 🚫 **Hidden** | ✅ **Active** | *(Step 2)* | Historic component audit (`No Re-run`). |
-| **Audit Spend & Costs** | `/pipeline` | 🚫 **Hidden** | ✅ **Active** | *(Step 2)* | Run-level USD and duration tracking. |
-| **Manage Profile & Password** | `/settings` | ✅ | ✅ | *(Step 2)* | Self-service credential update. |
-| **Workspace Provisioning** | Dedicated Admin UI | 🚫 **No** | 🚫 **No** | ⏳ **Step 2** | Out of scope for MVP frontend. |
-| **Scraper Query Builder** | Dedicated Admin UI | 🚫 **No** | 🚫 **No** | ⏳ **Step 2** | Out of scope for MVP frontend. |
-| **Budget & Token Limits** | Dedicated Admin UI | 🚫 **No** | 🚫 **No** | ⏳ **Step 2** | Out of scope for MVP frontend. |
+| **Login Screen** | `/` | ✅ Visible | ✅ Visible | *(Step 2)* | Standard authentication for all active roles. |
+| **Briefings Dashboard** | `/briefing` | ✅ Visible | ✅ Visible | *(Step 2)* | High-level synthesis and top paper cards. |
+| **Browse Papers Catalog** | `/papers` | ✅ Visible | ✅ Visible | *(Step 2)* | Multi-attribute search, TRL & score filters. |
+| **Paper Details & Scorecard** | `/papers/[id]` | ✅ Visible | ✅ Visible | *(Step 2)* | AST formula ledger, radar chart, PDF link. |
+| **Ask Paper Console** | `/ask` | ✅ Visible | ✅ Visible | *(Step 2)* | Grounded multi-turn conversational chat. |
+| **In-Page 'Ask this paper'** | `/papers/[id]` rail | ✅ Visible | ✅ Visible | *(Step 2)* | Contextual document assistant. |
+| **Pipeline Management View** | `/pipeline` | ✅ **Visible (Read-Only)** | ✅ **Visible (Active)** | *(Step 2)* | **Researcher can view pipeline history & audits.** |
+| **Trigger Pipeline Run** | `/pipeline` CTA | 🚫 **No (Manager Only)** | ✅ **Can Run (`[ ▶ ]`)** | *(Step 2)* | Subject to single active run mutex lock. |
+| **Inspect Component DAG** | `/pipeline?run_id=...` | ✅ **Visible (Read-Only)** | ✅ **Visible (Read-Only)**| *(Step 2)* | Historic component audit (`No Re-run`). |
+| **Audit Spend & Costs** | `/pipeline` | ✅ **Visible (Read-Only)** | ✅ **Visible (Active)** | *(Step 2)* | Run-level USD and duration tracking. |
+| **Manage Profile & Password** | `/settings` | ✅ Visible | ✅ Visible | *(Step 2)* | Self-service credential update. |
+| **Workspace Provisioning** | Dedicated Admin UI | 🚫 No | 🚫 No | ⏳ **Step 2** | Out of scope for MVP frontend. |
+| **Scraper Query Builder** | Dedicated Admin UI | 🚫 No | 🚫 No | ⏳ **Step 2** | Out of scope for MVP frontend. |
+| **Budget & Token Limits** | Dedicated Admin UI | 🚫 No | 🚫 No | ⏳ **Step 2** | Out of scope for MVP frontend. |
 
 ---
 
