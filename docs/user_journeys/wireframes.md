@@ -17,16 +17,35 @@ Across all authenticated views, the application renders a persistent two-tier co
    - **Workspace Selector**: Scoped domain dropdown (e.g., `Quantum Computing ▾`).
    - **Run Selector**: Dropdown displaying finished pipeline runs for the active workspace; **automatically pre-selects the Last Successful Run** (`default to last successful run`).
    - User Profile & Settings Trigger (`[ Profile ▾ ]`).
-2. **Main Navigation Rail / Sidebar**:
-   - `1. 📊 Briefings (/briefing)`
-   - `2. 📄 Browse Papers (/papers)`
-   - `3. 💬 Ask Paper (/ask)`
-   - `4. ⚙️ Pipeline Management (/pipeline)`
-   - `👤 Settings (/settings)`
+2. **Main Navigation Rail / Sidebar (Persona-Specific Visibility in MVP)**:
+   - **Manager Navigation (Can Run Pipelines + Results)**:
+     - `1. 📊 Briefings (/briefing)` — Executive synthesis and top papers
+     - `2. 📄 Browse Papers (/papers)` — Searchable literature catalog & filters
+     - `3. 💬 Ask Paper (/ask)` — Grounded AI interrogation console
+     - `4. ⚙️ Pipeline Management (/pipeline)` — **Active for Manager** (Trigger runs, audit DAGs)
+     - `👤 Settings (/settings)` — Personal profile & preferences
+   - **Researcher Navigation (Results Only)**:
+     - `1. 📊 Briefings (/briefing)` — Executive synthesis and top papers
+     - `2. 📄 Browse Papers (/papers)` — Searchable literature catalog & filters
+     - `3. 💬 Ask Paper (/ask)` — Grounded AI interrogation console
+     - `👤 Settings (/settings)` — Personal profile & preferences
+     - *(🚫 ⚙️ Pipeline Management is **completely hidden** from Researcher)*
+   - **System Administrator**:
+     - *(⏳ **No specific screens or navigation at this stage**; full admin UI is deferred to **Step 2**)*
 
 ```
 +---------------------------------------------------------------------------------------------------------------+
+|  GLOBAL TWO-TIER CONTEXT BAR                                                                                  |
 |  [ SRI Logo ]   Workspace: [ Quantum Computing ▾ ]    Run: [ Run #14 (Latest Successful) ▾ ]  | [ Profile ▾ ] |
++---------------------------------------------------------------------------------------------------------------+
+|  MANAGER SIDEBAR (Can Run Pipelines + Results)  |  RESEARCHER SIDEBAR (Results Only)                          |
+|  • 📊 Briefings                                 |  • 📊 Briefings                                             |
+|  • 📄 Browse Papers                             |  • 📄 Browse Papers                                         |
+|  • 💬 Ask Paper                                 |  • 💬 Ask Paper                                             |
+|  • ⚙️ Pipeline Management [ ▶ Run Pipeline ]    |  [ ⚙️ Pipeline Management is HIDDEN ]                       |
+|  • 👤 Settings                                  |  • 👤 Settings                                              |
+|  ---------------------------------------------  |  ---------------------------------------------------------  |
+|  ADMIN ROLE STATUS: No specific screens in MVP (Deferred to Step 2)                                           |
 +---------------------------------------------------------------------------------------------------------------+
 ```
 
@@ -81,6 +100,12 @@ Across all authenticated views, the application renders a persistent two-tier co
 |  +-------------------------------------------------------------+                                              |
 +---------------------------------------------------------------------------------------------------------------+
 ```
+
+> [!NOTE]
+> **Role Visibility on Briefings**:
+> - The link `[ 📂 View All Runs in Pipeline ➔ ]` at the bottom of the Edition History rail is visible **only to Managers** (`Manager can run pipelines`).
+> - For **Researchers** (`Researcher sees results only`), this link is **hidden** because `/pipeline` is inaccessible.
+> - **System Admin**: No dedicated screen in MVP (deferred to Step 2).
 
 ---
 
@@ -236,6 +261,12 @@ Across all authenticated views, the application renders a persistent two-tier co
 
 ## 6. Screen 5: Pipeline Management & Execution Audit (`/pipeline` or `/studio/runs`)
 
+> [!IMPORTANT]
+> **Access Restriction: Accessible Only to Managers (`Manager can run pipelines`)**:
+> - **Manager**: Fully active. Can trigger new review runs via **`[ ▶ Run Pipeline ]`** (with concurrency mutex lock), monitor live execution, and audit historical component DAGs.
+> - **Researcher (`Researcher sees results only`)**: **Completely hidden**. The `/pipeline` entry is absent from the sidebar. Direct URL requests redirect to `/briefing`.
+> - **System Admin**: **No specific screens or features in this MVP** (governance portal and custom admin tools are deferred to **Step 2**).
+
 ### Layout Topology
 - **Top Context Bar**: Run selector is dimmed/inactive because the Pipeline view manages and displays *all* historical runs.
 - **Page Header & Action**: View title, description, and primary CTA `[ ▶ Run Pipeline ]` (disabled with mutex tooltip if a run is already active).
@@ -326,6 +357,12 @@ Across all authenticated views, the application renders a persistent two-tier co
 |  +---------------------------------------------------------------------------------------------------------+  |
 +---------------------------------------------------------------------------------------------------------------+
 ```
+
+> [!NOTE]
+> **Role Variations on Settings Screen**:
+> - **Manager**: Profile displays `Role: Manager (Can Run Pipelines)`. Card 4 allows subscribing to run failure alerts and automated completion summaries.
+> - **Researcher**: Profile displays `Role: Researcher (Results Only)`. Allows self-service credential updates and briefing email notifications.
+> - **System Admin**: Full workspace provisioning, token quotas, and scraper query builders are **deferred to Step 2**.
 
 ---
 

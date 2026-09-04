@@ -21,23 +21,25 @@ The Schwarz Research Intelligence (SRI) frontend is strictly organized around **
 +---------------------------------------------------------------------------------------------------------------+
 |  [ SRI Logo ]   Workspace: [ Quantum Computing ▾ ]    Run: [ Run #14 (Latest Successful: Sep 3, 2026) ▾ ]    | [ Profile ▾ ]
 +---------------------------------------------------------------------------------------------------------------+
-|  1. 📊 Briefings (Dashboard)     |  Executive narrative report, highlights, top-scoring paper cards.          |
-|  2. 📄 Browse Papers             |  Searchable catalog, filters, paper details in context of specific run.   |
-|  3. 💬 Ask Paper                 |  Grounded conversational AI interrogation with Chat History (Right).       |
-|  4. ⚙️ Pipeline Management       |  Trigger runs (mutex lock), historical runs, component timeline (no rerun).|
-|  ─────────────────────────────── |                                                                           |
-|  👤 Settings                     |  User profile, password change, notification delivery preferences.        |
+|  MANAGER VIEW (Can Run Pipelines + Results)        |  RESEARCHER VIEW (Results Only)                          |
+|  1. 📊 Briefings (Dashboard & Synthesis)           |  1. 📊 Briefings (Dashboard & Synthesis)                 |
+|  2. 📄 Browse Papers (Catalog & Filter Matrix)     |  2. 📄 Browse Papers (Catalog & Filter Matrix)           |
+|  3. 💬 Ask Paper (AI Interrogation Console)        |  3. 💬 Ask Paper (AI Interrogation Console)              |
+|  4. ⚙️ Pipeline Management ([ ▶ Run Pipeline ])     |  [ ⚙️ Pipeline Management is HIDDEN from Researcher ]     |
+|  👤 Settings (Profile & Delivery Preferences)      |  👤 Settings (Profile & Delivery Preferences)            |
+|  ------------------------------------------------- | -------------------------------------------------------- |
+|  SYSTEM ADMIN ROLE STATUS: No specific screens in MVP (Step 2 Roadmap)                                        |
 +---------------------------------------------------------------------------------------------------------------+
 ```
 
 ### The 4 Pillars at a Glance
 
-| Pillar View | Route & Permalinks | Primary Goal | Context Scope | Key Interaction Transitions |
+| Pillar View | Route & Permalinks | Primary Goal | Context Scope | Role Access & Key Interaction Transitions |
 | :--- | :--- | :--- | :--- | :--- |
-| **1. Briefings** | `/briefing`<br>`/briefing?run_id=<id>` | Executive synthesis of the selected run | Workspace + Run Context | Top-scoring paper card ➔ Click to open **Paper Details** (`/papers/[id]?run_id=<id>`) with run scoring ledger & integrated **`Ask this paper`** |
-| **2. Browse Papers** | `/papers`<br>`/papers?run_id=<id>` | Filterable catalog & run-specific scoring | Workspace + Run Context | Paper row ➔ **Paper Details** (`/papers/[id]?run_id=<id>`) with run scoring ledger & integrated **`Ask this paper`** |
-| **3. Ask Paper** | `/ask`<br>`/ask?paper_id=<id>&run_id=<id>` | Dedicated interrogation console with Chat History | Workspace + Run + Paper | Standalone chat console with **`Chat History (Right)`**. Complements the in-page `Ask this paper` rail on `/papers/[id]`. |
-| **4. Pipeline Management** | `/pipeline`<br>`/pipeline?run_id=<id>` | Run orchestration & immutable audit<br>*(Manager & Admin only; hidden for Researcher)* | Workspace (All Runs) | Single active run mutex (`Don't allow multiple runs`) ➔ Component runs audit (`Historic Run Details (Components level)`, `No Re-run`) |
+| **1. Briefings** | `/briefing`<br>`/briefing?run_id=<id>` | Executive synthesis of the selected run | Workspace + Run Context | **All Roles** (Manager & Researcher). Top-scoring paper card ➔ Click to open **Paper Details** (`/papers/[id]?run_id=<id>`) with run scoring ledger & integrated **`Ask this paper`**. |
+| **2. Browse Papers** | `/papers`<br>`/papers?run_id=<id>` | Filterable catalog & run-specific scoring | Workspace + Run Context | **All Roles** (Manager & Researcher). Paper row ➔ **Paper Details** (`/papers/[id]?run_id=<id>`) with run scoring ledger & integrated **`Ask this paper`**. |
+| **3. Ask Paper** | `/ask`<br>`/ask?paper_id=<id>&run_id=<id>` | Dedicated interrogation console with Chat History | Workspace + Run + Paper | **All Roles** (Manager & Researcher). Standalone chat console with **`Chat History (Right)`**. Complements the in-page `Ask this paper` rail on `/papers/[id]`. |
+| **4. Pipeline Management** | `/pipeline`<br>`/pipeline?run_id=<id>` | Run orchestration & immutable audit | Workspace (All Runs) | **Manager Only** (`Manager can run pipelines`). Single active run mutex (`Don't allow multiple runs`) ➔ Component runs audit (`Historic Run Details (Components level)`, `No Re-run`).<br>*(🚫 **Hidden for Researcher** who sees results only; ⏳ **Admin is Step 2**)* |
 
 ---
 
@@ -50,6 +52,28 @@ Located permanently in the top navigation bar across all views:
    - **Default Behavior**: Automatically pre-selects the **Last Successful Run** (`default to last successful run`).
    - Displays run number, completion timestamp, paper count, and cost badge.
    - *Exception*: When the user enters **Pipeline Management (`/pipeline`)**, the Run Selector in the top bar is dimmed/inactive because the Pipeline view manages and displays *all* runs simultaneously.
+
+### 2.2 Persona Navigation & Visibility in MVP
+
+The MVP frontend strictly establishes access boundaries between **Manager** and **Researcher**, while all **System Administrator** features are deferred to **Step 2**:
+
+| Capability / Screen Area | URL Route | Researcher (Analyst) | Manager (Lead) | System Admin (Step 2) |
+| :--- | :--- | :---: | :---: | :---: |
+| **Briefings Dashboard** | `/briefing` | ✅ Visible | ✅ Visible | *(Step 2)* |
+| **Browse Papers Catalog** | `/papers` | ✅ Visible | ✅ Visible | *(Step 2)* |
+| **Paper Details & Scorecard** | `/papers/[id]` | ✅ Visible | ✅ Visible | *(Step 2)* |
+| **Ask Paper AI Interrogation** | `/ask` & right rail | ✅ Visible | ✅ Visible | *(Step 2)* |
+| **Pipeline Management View** | `/pipeline` | 🚫 **Hidden (Results Only)** | ✅ **Visible & Active** | *(Step 2)* |
+| **Trigger Review Run** | `/pipeline` CTA | 🚫 **No Access** | ✅ **`[ ▶ Run Pipeline ]`** | *(Step 2)* |
+| **Audit Component DAGs** | `/pipeline?run_id=...` | 🚫 **Hidden** | ✅ **Visible (`No Re-run`)**| *(Step 2)* |
+| **Personal Profile & Settings** | `/settings` | ✅ Visible | ✅ Visible | *(Step 2)* |
+| **Custom Admin & Governance UI**| `/admin/...` | 🚫 None | 🚫 None | ⏳ **Deferred to Step 2** |
+
+> [!IMPORTANT]
+> **Summary of Access Invariants**:  
+> • **Manager can run pipelines**: Full control to initiate reviews (`Run Pipeline` mutex), monitor live runs, and inspect historic component logs.  
+> • **Researcher sees results only**: Dedicated strictly to consuming briefings, searching papers, and asking questions. The `/pipeline` entry is completely omitted from their sidebar.  
+> • **Admin has nothing specific in Step 1**: System governance screens are deferred to **Step 2**.
 
 ---
 
@@ -109,7 +133,7 @@ flowchart TB
     Briefing -->|"Click Top Paper Card"| Details
     Briefing -->|"Click 'Ask Paper' CTA"| AskConsole
     Briefing -.->|"Sidebar Navigation"| PapersList
-    Briefing -.->|"Sidebar Navigation"| PipelinePage
+    Briefing -.->|"Sidebar Navigation (Manager Only)"| PipelinePage
 
     %% Transitions from Browse Papers
     PapersList -->|"Click Paper Row (Browse/Filter)"| Details
@@ -127,8 +151,8 @@ flowchart TB
     AskConsole -->|"Select Paper First"| SearchModal
     AskConsole -.->|"Sidebar Navigation"| Briefing
 
-    %% Transitions from Pipeline Management
-    PipelinePage -->|"Click Run Row"| RunDetails
+    %% Transitions from Pipeline Management (Manager Only)
+    PipelinePage -->|"Click Run Row (Manager Only)"| RunDetails
     RunDetails -.->|"Breadcrumb Return"| PipelinePage
 
     %% Color Coding Legend: Pages (Lavender) vs In-Page Elements (Pink)
@@ -138,6 +162,12 @@ flowchart TB
     class Briefing,PapersList,Details,AskConsole,PipelinePage,RunDetails pageNode;
     class DetailsChat,PDFView,HistoryRail,SearchModal elementNode;
 ```
+
+> [!NOTE]
+> **Role Path Segregation in Navigation**:
+> - **Manager**: Can traverse the complete graph, including `Briefing -.-> PipelinePage` and `PipelinePage --> RunDetails` to run and audit pipelines.
+> - **Researcher**: Paths to `PipelinePage` and `RunDetails` **do not exist**. Researcher journeys are strictly confined to the results triad (`Briefing <--> PapersList <--> Details <--> AskConsole`).
+> - **System Admin**: Has **no specific screens or navigation paths** in this MVP (deferred to **Step 2**).
 
 ### 3.3 Briefings to Paper Details Interaction Sequence
 
@@ -345,6 +375,10 @@ The user's hand-drawn mockups establish two foundational business rules for pipe
    - Component runs (Search, Download, OCR, Screening, Extraction, Signal, Report) form an interconnected directed acyclic graph (DAG).
    - Re-running individual steps inside a closed run risks state inconsistency.
    - **Enforcement**: Component runs are displayed with execution timestamps, status badges, and logs for post-mortem auditing only. No mid-step rerun buttons exist.
+4. **`Manager Can Run Pipelines; Researcher Sees Results Only` (Access Boundary)**:
+   - The entire `/pipeline` view, the **`[ ▶ Run Pipeline ]`** action button, live execution tracking, and component-level DAG logs are **accessible exclusively to Managers**.
+   - For **Researchers**, the `/pipeline` entry is completely omitted from the sidebar. Direct browser attempts to access `/pipeline` redirect to `/briefing`.
+   - **System Admin**: Has **no specific screens or controls** at this stage (deferred to **Step 2**).
 
 > 📐 **Screen Layout Wireframe**: See [Pipeline Management & Execution Audit Wireframe in wireframes.md](wireframes.md#6-screen-5-pipeline-management--execution-audit-pipeline-or-studioruns).
 
