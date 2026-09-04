@@ -24,11 +24,11 @@ Across all authenticated views, the application renders a persistent two-tier co
      - `3. 💬 Ask Paper (/ask)` — Grounded AI interrogation console
      - `4. ⚙️ Pipeline Management (/pipeline)` — **Active for Manager** (Trigger runs with `[ ▶ Run Pipeline ]`, audit DAGs)
      - `👤 Settings (/settings)` — Personal profile & preferences
-   - **Researcher Navigation (Results + Read-Only Pipeline Audit)**:
+   - **Researcher Navigation (Results + High-Level Runs List Only)**:
      - `1. 📊 Briefings (/briefing)` — Executive synthesis and top papers
      - `2. 📄 Browse Papers (/papers)` — Searchable literature catalog & filters
      - `3. 💬 Ask Paper (/ask)` — Grounded AI interrogation console
-     - `4. ⚙️ Pipeline Management (/pipeline)` — **Visible in Read-Only Audit Mode** (Inspect historical runs & component DAGs; cannot trigger runs)
+     - `4. ⚙️ Pipeline Management (/pipeline)` — **Visible in High-Level List Mode Only** (Inspects list of runs, timestamps, paper counts, and durations; **cannot enter component-level details or DAGs**; cannot trigger runs)
      - `👤 Settings (/settings)` — Personal profile & preferences
    - **System Administrator**:
      - *(⏳ **No specific screens or navigation at this stage**; full admin UI is deferred to **Step 2**)*
@@ -38,11 +38,11 @@ Across all authenticated views, the application renders a persistent two-tier co
 |  GLOBAL TWO-TIER CONTEXT BAR                                                                                  |
 |  [ SRI Logo ]   Workspace: [ Quantum Computing ▾ ]    Run: [ Run #14 (Latest Successful) ▾ ]  | [ Profile ▾ ] |
 +---------------------------------------------------------------------------------------------------------------+
-|  MANAGER SIDEBAR (Can Run Pipelines + Results)  |  RESEARCHER SIDEBAR (Read-Only Pipeline Audit)              |
+|  MANAGER SIDEBAR (Can Run Pipelines + Results)  |  RESEARCHER SIDEBAR (High-Level Runs List Only)             |
 |  • 📊 Briefings                                 |  • 📊 Briefings                                             |
 |  • 📄 Browse Papers                             |  • 📄 Browse Papers                                         |
 |  • 💬 Ask Paper                                 |  • 💬 Ask Paper                                             |
-|  • ⚙️ Pipeline Management [ ▶ Run Pipeline ]    |  • ⚙️ Pipeline Management (Read-Only Audit · No Trigger CTA) |
+|  • ⚙️ Pipeline Management [ ▶ Run Pipeline ]    |  • ⚙️ Pipeline Management (Runs List Only · No Details CTA)  |
 |  • 👤 Settings                                  |  • 👤 Settings                                              |
 |  ---------------------------------------------  |  ---------------------------------------------------------  |
 |  ADMIN ROLE STATUS: No specific screens in MVP (Deferred to Step 2)                                           |
@@ -262,29 +262,30 @@ Across all authenticated views, the application renders a persistent two-tier co
 
 > [!IMPORTANT]
 > **Role-Based Permissions on Pipeline Management**:
-> - **Manager (`Manager can run pipelines`)**: Fully active. Can trigger new review runs via **`[ ▶ Run Pipeline ]`** (with single-active-run concurrency mutex lock), monitor live execution, and audit historical component DAGs.
-> - **Researcher (`Researcher can view pipeline history in Read-Only mode`)**: Can view the runs list, filter by status, inspect timestamps/costs, and drill down into **Historic Run Details (Components level)** to verify SLR provenance. However, the **`[ ▶ Run Pipeline ]`** CTA button is **hidden or disabled** for Researchers (*"Manager role required to initiate pipeline runs"*).
+> - **Manager (`Manager can run pipelines & inspect DAGs`)**: Fully active. Can trigger new review runs via **`[ ▶ Run Pipeline ]`** (with single-active-run concurrency mutex lock), monitor live execution, and click any run row (`[ View Component Audit ➔ ]`) to open the **Historic Run Details (Components level)** drawer to audit the DAG.
+> - **Researcher (`Researcher sees high-level runs list ONLY`)**: Can view the list of historical runs, completion timestamps, paper counts, and durations in the summary table. **Researchers CANNOT enter into component details** (the `[ View Component Audit ➔ ]` action and component-level DAG drawer are **strictly hidden and inaccessible** for Researchers). The **`[ ▶ Run Pipeline ]`** CTA is also hidden or disabled.
 > - **System Admin**: **No specific screens or features in this MVP** (governance portal and custom admin tools are deferred to **Step 2**).
 
 ### Layout Topology
 - **Top Context Bar**: Run selector is dimmed/inactive because the Pipeline view manages and displays *all* historical runs.
 - **Page Header & Action**: View title, description, and primary CTA:
   - **For Manager**: Active **`[ ▶ Run Pipeline ]`** button (disabled with mutex tooltip if a run is already active).
-  - **For Researcher**: Read-only audit mode — CTA button is hidden or renders as disabled badge `[ Manager Role Required to Trigger ]`.
+  - **For Researcher**: Read-only overview mode — CTA button is hidden or renders as disabled badge `[ Manager Role Required to Trigger ]`.
 - **StatBand**: Aggregate metrics (`Total Runs`, `Papers Fetched`, `Passed Screening`, `Total Spend USD`).
 - **RunTabs**: Filter strip (`All`, `Completed`, `Running`, `Failed`).
-- **RunsTable**: High-density table displaying UTC start time, Outcome pill, Last stage reached, Fetched/Passed counts, Duration, Cost, and audit drill-down link.
-- **Component Execution Timeline Drawer / Sheet (`StepTimeline`)**:
+- **RunsTable**: High-density table displaying UTC start time, Outcome pill, Last stage reached, Fetched/Passed counts, Duration, Cost, and audit drill-down action (`[ View Component Audit ➔ ]` is Manager only).
+- **Component Execution Timeline Drawer / Sheet (`StepTimeline`) — MANAGER ONLY**:
   - Detailed component-level breakdown of the selected historical run.
   - Shows each stage status, timing, LLM model used, and monetary spend.
-  - **Strict Business Rule**: Permanent `[ No Re-Run Permitted ]` audit policy for both roles.
+  - **Access Restriction**: **Visible only to Managers; strictly hidden from Researchers**.
+  - **Strict Business Rule**: Permanent `[ No Re-Run Permitted ]` audit policy.
 
 ```
 +---------------------------------------------------------------------------------------------------------------+
 |  [ SRI Logo ]   Workspace: [ Quantum Computing ▾ ]    Run: [ All Runs Overview (Managed Here) ] | [ Profile ▾ ] |
 +---------------------------------------------------------------------------------------------------------------+
-|  Pipeline Management & Runs Audit                                                        [ ▶ Run Pipeline ]  |
-|  Immutable execution audit trail, component DAG logs, and spend for Quantum Computing.                        |
+|  Pipeline Management & Runs Audit                                       [ ▶ Run Pipeline ] (Manager Only)     |
+|  Immutable execution audit trail, run history, and spend for Quantum Computing.                               |
 |                                                                                                               |
 |  +---------------------------------------------------------------------------------------------------------+  |
 |  |  Runs: 14   |   Papers Fetched: 1,420   |   Passed Screening: 184 (13%)   |   Total Spend: $14.28       |  |
@@ -295,14 +296,15 @@ Across all authenticated views, the application renders a persistent two-tier co
 |  +---------------------------------------------------------------------------------------------------------+  |
 |  | Started (UTC)   | Outcome  | Last Stage  | Fetched | Passed | Duration | Cost  | Actions                    |  |
 |  | ----------------|----------|-------------|---------|--------|----------|-------|--------------------------- |  |
-|  | 03 Sep 14:20    | SUCCESS  | Reporting   |     142 |     18 | 4m 12s   | $1.15 | [ View Component Audit ➔ ] |  |
-|  | 27 Aug 09:15    | SUCCESS  | Reporting   |     138 |     14 | 3m 50s   | $1.02 | [ View Component Audit ➔ ] |  |
-|  | 20 Aug 11:00    | FAILED   | Extraction  |      90 |      0 | 1m 20s   | $0.35 | [ View Error Logs ➔ ]      |  |
-|  | 13 Aug 16:45    | SUCCESS  | Reporting   |     155 |     19 | 4m 30s   | $1.20 | [ View Component Audit ➔ ] |  |
+|  | 03 Sep 14:20    | SUCCESS  | Reporting   |     142 |     18 | 4m 12s   | $1.15 | [ View Component Audit ]*  |  |
+|  | 27 Aug 09:15    | SUCCESS  | Reporting   |     138 |     14 | 3m 50s   | $1.02 | [ View Component Audit ]*  |  |
+|  | 20 Aug 11:00    | FAILED   | Extraction  |      90 |      0 | 1m 20s   | $0.35 | [ View Error Logs ]*       |  |
+|  | 13 Aug 16:45    | SUCCESS  | Reporting   |     155 |     19 | 4m 30s   | $1.20 | [ View Component Audit ]*  |  |
 |  +---------------------------------------------------------------------------------------------------------+  |
+|  * Note on Actions: [ View Component Audit ] is visible ONLY to Managers. For Researchers, rows are static.   |
 |                                                                                                               |
 |  +---------------------------------------------------------------------------------------------------------+  |
-|  |  HISTORIC RUN DETAILS (COMPONENTS LEVEL) — Run #14 (Selected)                       [ No Re-Run Permitted ]|  |
+|  |  DRAWER: HISTORIC RUN DETAILS (COMPONENTS LEVEL) — VISIBLE TO MANAGER ONLY (HIDDEN FOR RESEARCHER)      |  |
 |  |  -----------------------------------------------------------------------------------------------------  |  |
 |  |  ● 1. Ingestion (arXiv / OpenAlex)     [ SUCCESS ] · 142 papers fetched          (22s | $0.00)          |  |
 |  |  ● 2. Screening (Abstract & Full-Text) [ SUCCESS ] · 18 passed / 124 rejected    (1m 45s | $0.48)       |  |
@@ -310,6 +312,7 @@ Across all authenticated views, the application renders a persistent two-tier co
 |  |  ● 4. Scoring (Signal Score Formulas)  [ SUCCESS ] · Ledgers computed            (10s | $0.00)          |  |
 |  |  ● 5. Reporting (Executive Briefing)   [ SUCCESS ] · Briefing generated          (40s | $0.15)          |  |
 |  +---------------------------------------------------------------------------------------------------------+  |
++---------------------------------------------------------------------------------------------------------------+
 +---------------------------------------------------------------------------------------------------------------+
 ```
 

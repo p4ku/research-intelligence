@@ -21,11 +21,11 @@ The Schwarz Research Intelligence (SRI) frontend is strictly organized around **
 +---------------------------------------------------------------------------------------------------------------+
 |  [ SRI Logo ]   Workspace: [ Quantum Computing ▾ ]    Run: [ Run #14 (Latest Successful: Sep 3, 2026) ▾ ]    | [ Profile ▾ ]
 +---------------------------------------------------------------------------------------------------------------+
-|  MANAGER VIEW (Can Run Pipelines + Results)        |  RESEARCHER VIEW (Results + Read-Only Pipeline Audit)    |
+|  MANAGER VIEW (Can Run Pipelines + Component DAGs) |  RESEARCHER VIEW (Results + High-Level Runs List Only)   |
 |  1. 📊 Briefings (Dashboard & Synthesis)           |  1. 📊 Briefings (Dashboard & Synthesis)                 |
 |  2. 📄 Browse Papers (Catalog & Filter Matrix)     |  2. 📄 Browse Papers (Catalog & Filter Matrix)           |
 |  3. 💬 Ask Paper (AI Interrogation Console)        |  3. 💬 Ask Paper (AI Interrogation Console)              |
-|  4. ⚙️ Pipeline Management ([ ▶ Run Pipeline ])     |  4. ⚙️ Pipeline Management (Read-Only Audit · No Trigger)|
+|  4. ⚙️ Pipeline Management ([ ▶ Run Pipeline ])     |  4. ⚙️ Pipeline Management (Runs List Only · No Details) |
 |  👤 Settings (Profile & Delivery Preferences)      |  👤 Settings (Profile & Delivery Preferences)            |
 |  ------------------------------------------------- | -------------------------------------------------------- |
 |  SYSTEM ADMIN ROLE STATUS: No specific screens in MVP (Step 2 Roadmap)                                        |
@@ -39,7 +39,7 @@ The Schwarz Research Intelligence (SRI) frontend is strictly organized around **
 | **1. Briefings** | `/briefing`<br>`/briefing?run_id=<id>` | Executive synthesis of the selected run | Workspace + Run Context | **All Roles** (Manager & Researcher). Top-scoring paper card ➔ Click to open **Paper Details** (`/papers/[id]?run_id=<id>`) with run scoring ledger & integrated **`Ask this paper`**. |
 | **2. Browse Papers** | `/papers`<br>`/papers?run_id=<id>` | Filterable catalog & run-specific scoring | Workspace + Run Context | **All Roles** (Manager & Researcher). Paper row ➔ **Paper Details** (`/papers/[id]?run_id=<id>`) with run scoring ledger & integrated **`Ask this paper`**. |
 | **3. Ask Paper** | `/ask`<br>`/ask?paper_id=<id>&run_id=<id>` | Dedicated interrogation console with Chat History | Workspace + Run + Paper | **All Roles** (Manager & Researcher). Standalone chat console with **`Chat History (Right)`**. Complements the in-page `Ask this paper` rail on `/papers/[id]`. |
-| **4. Pipeline Management** | `/pipeline`<br>`/pipeline?run_id=<id>` | Run orchestration & immutable audit | Workspace (All Runs) | **All Roles** (Manager & Researcher). Single active run mutex (`Don't allow multiple runs`) ➔ Component runs audit (`Historic Run Details (Components level)`, `No Re-run`).<br>*(⚡ **Manager can run pipelines** via `[ ▶ Run Pipeline ]`; 🔍 **Researcher has Read-Only Audit**; ⏳ **Admin is Step 2**)* |
+| **4. Pipeline Management** | `/pipeline`<br>`/pipeline?run_id=<id>` | Run orchestration & immutable audit | Workspace (All Runs) | **All Roles** (Manager & Researcher). Single active run mutex (`Don't allow multiple runs`) ➔ Component runs audit (`Historic Run Details (Components level)`, `No Re-run`).<br>*(⚡ **Manager can run pipelines and drill into component DAGs**; 🔍 **Researcher sees high-level runs list only**; ⏳ **Admin is Step 2**)* |
 
 ---
 
@@ -63,17 +63,17 @@ The MVP frontend strictly establishes access boundaries between **Manager** and 
 | **Browse Papers Catalog** | `/papers` | ✅ Visible | ✅ Visible | *(Step 2)* |
 | **Paper Details & Scorecard** | `/papers/[id]` | ✅ Visible | ✅ Visible | *(Step 2)* |
 | **Ask Paper AI Interrogation** | `/ask` & right rail | ✅ Visible | ✅ Visible | *(Step 2)* |
-| **Pipeline Management View** | `/pipeline` | ✅ **Visible (Read-Only Audit)** | ✅ **Visible & Active** | *(Step 2)* |
+| **Pipeline Runs Overview** | `/pipeline` | ✅ **Visible (List Only)** | ✅ **Visible & Active** | *(Step 2)* |
 | **Trigger Review Run** | `/pipeline` CTA | 🚫 **No (Manager Only)** | ✅ **`[ ▶ Run Pipeline ]`** | *(Step 2)* |
-| **Audit Component DAGs** | `/pipeline?run_id=...` | ✅ **Visible (Read-Only)** | ✅ **Visible (`No Re-run`)**| *(Step 2)* |
-| **Audit Spend & Costs** | `/pipeline` | ✅ **Visible (Read-Only)** | ✅ **Visible (Active)** | *(Step 2)* |
+| **Historic Run Details (Components)** | `/pipeline?run_id=...` | 🚫 **Hidden (Manager Only)** | ✅ **Visible (`No Re-run`)**| *(Step 2)* |
+| **Audit Spend & Costs** | `/pipeline` | ✅ **Visible (Table summary)** | ✅ **Visible (Component DAG)**| *(Step 2)* |
 | **Personal Profile & Settings** | `/settings` | ✅ Visible | ✅ Visible | *(Step 2)* |
 | **Custom Admin & Governance UI**| `/admin/...` | 🚫 None | 🚫 None | ⏳ **Deferred to Step 2** |
 
 > [!IMPORTANT]
 > **Summary of Access Invariants**:  
-> • **Manager can run pipelines**: Full operational control to initiate reviews (`[ ▶ Run Pipeline ]` mutex), monitor live execution, and audit historic component logs.  
-> • **Researcher has read-only pipeline audit**: Can view pipeline run histories, component DAGs, and costs to verify SLR provenance and methodology, but **cannot trigger runs** (`[ ▶ Run Pipeline ]` is disabled or hidden).  
+> • **Manager can run pipelines and audit component DAGs**: Full operational control to initiate reviews (`[ ▶ Run Pipeline ]` mutex), monitor live execution, and click run rows to inspect component DAGs.  
+> • **Researcher sees high-level runs list only**: Can inspect historical runs, timestamps, paper counts, and durations in the overview table. **Researchers CANNOT trigger runs and CANNOT enter into component-level execution details or DAGs.**  
 > • **Admin has nothing specific in Step 1**: System governance screens are deferred to **Step 2**.
 
 ---
@@ -152,8 +152,8 @@ flowchart TB
     AskConsole -->|"Select Paper First"| SearchModal
     AskConsole -.->|"Sidebar Navigation"| Briefing
 
-    %% Transitions from Pipeline Management
-    PipelinePage -->|"Click Run Row"| RunDetails
+    %% Transitions from Pipeline Management (Drill-down is Manager Only)
+    PipelinePage -->|"Click Run Row (Manager Only)"| RunDetails
     RunDetails -.->|"Breadcrumb Return"| PipelinePage
 
     %% Color Coding Legend: Pages (Lavender) vs In-Page Elements (Pink)
@@ -166,8 +166,8 @@ flowchart TB
 
 > [!NOTE]
 > **Role Capabilities in Navigation**:
-> - **Manager**: Can navigate to `/pipeline` and has the operational permission to trigger fresh runs (`[ ▶ Run Pipeline ]`).
-> - **Researcher**: Can navigate to `/pipeline` to inspect run histories and component DAGs in **read-only audit mode** (cannot trigger runs; `[ ▶ Run Pipeline ]` is disabled/hidden).
+> - **Manager**: Can navigate to `/pipeline`, trigger review runs (`[ ▶ Run Pipeline ]`), and click run rows to drill into `RunDetails` (components level DAG).
+> - **Researcher**: Can navigate to `/pipeline` to inspect the high-level list of historical runs, timestamps, paper counts, and durations. **Researchers CANNOT navigate to `RunDetails`** (component-level DAG drill-down is hidden for Researchers) and cannot trigger runs.
 > - **System Admin**: Has **no specific screens or navigation paths** in this MVP (deferred to **Step 2**).
 
 ### 3.3 Briefings to Paper Details Interaction Sequence
@@ -375,10 +375,10 @@ The user's hand-drawn mockups establish two foundational business rules for pipe
 3. **`Should we allow for Re-run of the component? - NO` (Atomic Pipeline Integrity)**:
    - Component runs (Search, Download, OCR, Screening, Extraction, Signal, Report) form an interconnected directed acyclic graph (DAG).
    - Re-running individual steps inside a closed run risks state inconsistency.
-4. **`Manager Can Run Pipelines; Researcher Has Read-Only Pipeline Audit` (Access Boundary)**:
-   - Both Manager and Researcher can access `/pipeline` to review historical runs and inspect component execution DAGs for complete SLR reproducibility and methodology transparency.
-   - Only **Managers** possess the operational authority to trigger fresh review runs using the **`[ ▶ Run Pipeline ]`** action button (protected by the single-active-run mutex lock).
-   - For **Researchers**, the trigger CTA is hidden or disabled (*"Manager role required to initiate pipeline runs"*).
+4. **`Manager Can Run Pipelines & Inspect Component DAGs; Researcher Sees Runs List Only` (Access Boundary)**:
+   - Both Manager and Researcher can access `/pipeline` to review historical run timestamps, paper yields, and duration metrics in the overview table.
+   - Only **Managers** possess the operational authority to trigger fresh review runs (`[ ▶ Run Pipeline ]`) and click into **`Historic Run Details (Components level)`** (`/pipeline?run_id=...`) to inspect DAG execution stages, timings, and logs.
+   - For **Researchers**, the trigger CTA is hidden/disabled, and run rows are static (Researchers **cannot enter into component-level execution details or DAGs**).
    - **System Admin**: Has **no specific screens or controls** at this stage (deferred to **Step 2**).
 
 > 📐 **Screen Layout Wireframe**: See [Pipeline Management & Execution Audit Wireframe in wireframes.md](wireframes.md#6-screen-5-pipeline-management--execution-audit-pipeline-or-studioruns).
