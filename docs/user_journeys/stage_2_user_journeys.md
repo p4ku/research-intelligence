@@ -93,8 +93,10 @@ sequenceDiagram
     User->>BriefingUI: Clicks high-scoring paper card (Oraqle: Qubit Readout)
     BriefingUI->>DetailsPage: Navigates to /papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0
 
-    Note over User,PaperChat: 4. Paper Details and Integrated Ask this paper
+    Note over User,DetailsPage: 4. Paper Details (Scoring and Run Results)
     DetailsPage-->>User: Left Panel: Title, SignalLedger formula, Dimensions, Radar, Screening reasons
+
+    Note over User,PaperChat: 5. Ask this paper in details
     DetailsPage-->>User: Right Rail: Built-in Ask this paper component active and ready for questions
     User->>PaperChat: Types question: "Explain the readout fidelity threshold in theorem 2"
     PaperChat-->>User: Streams grounded answer with citations while user reads scoring details
@@ -150,13 +152,15 @@ sequenceDiagram
     User->>Filters: Selects Screening Status = Passed and TRL >= 4
     Filters->>PapersList: Updates paper table in real time
 
-    Note over User,PaperChat: 3. Drill-Down into Paper Details
+    Note over User,DetailsPage: 3. Drill-Down into Paper Details
     User->>PapersList: Clicks paper row
     PapersList->>DetailsPage: Opens Paper Details (/papers/[id])
-    DetailsPage-->>User: Left Panel: Universal Metadata, Run Context (Signal: 91.4, Reasons, Extractions)
-    DetailsPage-->>User: Right Rail: Built-in Ask this paper component active and ready for questions
 
-    Note over User,PaperChat: 4. Interrogation and Full-Text Reading
+    Note over User,DetailsPage: 4. Paper Details (Scoring and Run Results)
+    DetailsPage-->>User: Left Panel: Universal Metadata, Run Context (Signal: 91.4, Reasons, Extractions)
+
+    Note over User,PaperChat: 5. Ask this paper in details
+    DetailsPage-->>User: Right Rail: Built-in Ask this paper component active and ready for questions
     alt Read Original Document
         User->>DetailsPage: Clicks View PDF to open canonical PDF in reader
     else Ask Document Directly
