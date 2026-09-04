@@ -287,7 +287,7 @@ Across all authenticated views, the application renders a persistent two-tier co
 
 ### Layout Topology
 - **Max-W-3XL Centered Stack**: Structured clean cards for profile, authentication, workspace bindings, and notifications.
-- **Card 1 — Personal Profile (`ProfileForm`)**: First name, last name, email address, role badge (`Administrator`, `Staff`, `Analyst`).
+- **Card 1 — Personal Profile (`ProfileForm`)**: First name, last name, email address, role badge (`Manager`, `Researcher`).
 - **Card 2 — Security & Password (`PasswordForm`)**: Current password verification, new password inputs.
 - **Card 3 — Active Workspace Configuration**: Display of active upstream scrapers, active extraction definitions, screening LLM model, and cron schedule for automated review digests.
 - **Card 4 — Notification Delivery Preferences (`NotificationSettings`)**: Instant email alerts on pipeline completion and failure alerts.
@@ -302,7 +302,7 @@ Across all authenticated views, the application renders a persistent two-tier co
 |  +---------------------------------------------------------------------------------------------------------+  |
 |  |  👤 Personal Profile                                                                                    |  |
 |  |  Name:  [ Piotr B.                                    ]   Email: [ piotr@example.com                  ] |  |
-|  |  Role:  Administrator (Full Workspace Permissions)                     [ Save Profile Changes ]         |  |
+|  |  Role:  Manager (Can Run Pipelines)                                 [ Save Profile Changes ]         |  |
 |  +---------------------------------------------------------------------------------------------------------+  |
 |                                                                                                               |
 |  +---------------------------------------------------------------------------------------------------------+  |

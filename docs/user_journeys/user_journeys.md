@@ -1,7 +1,7 @@
 # Frontend User Journeys & Interaction Architecture Specification
 
 **Document Version**: 3.0  
-**Target Roles**: Administrator, Research Lead (Manager), Researcher (Analyst)  
+**Target Roles**: Research Lead (Manager) & Researcher (Analyst) *(Admin features deferred to Step 2)*  
 **Scope**: Pure Frontend User Journeys, UI Views, Screen Transitions & Interactive States (Refined to 4 Core Pillars)  
 **Specification Source**: Hand-Drawn User Journey Architecture Mockups (Briefings, Browse Papers, Ask Paper, Pipeline Management)  
 **Companion Specifications**:  
@@ -353,36 +353,36 @@ The user's hand-drawn mockups establish two foundational business rules for pipe
 ```mermaid
 sequenceDiagram
     autonumber
-    actor Admin as 👑 Admin / Research Lead
+    actor Manager as 👔 Manager (Research Lead)
     participant TopBar as 🧭 Global Context Bar
     participant PipelinePage as ⚙️ Pipeline Management (/pipeline)
     participant Modal as 🪟 Run Pipeline Dialog
     participant RunDetails as ⏱️ Historic Run Details (Components level)
 
-    Note over Admin,RunDetails: 1. Workspace Selection and Mutex Check
-    Admin->>TopBar: Selects Workspace (Quantum Error Correction)
+    Note over Manager,RunDetails: 1. Workspace Selection and Mutex Check
+    Manager->>TopBar: Selects Workspace (Quantum Error Correction)
     TopBar->>PipelinePage: Loads Historical Runs list for this workspace
-    PipelinePage-->>Admin: Displays table of past runs (#14, #13, #12) with statuses
+    PipelinePage-->>Manager: Displays table of past runs (#14, #13, #12) with statuses
 
     alt Active Run Already Exists
-        PipelinePage-->>Admin: Run Pipeline button is DISABLED (Tooltip: Run in progress)
+        PipelinePage-->>Manager: Run Pipeline button is DISABLED (Tooltip: Run in progress)
     else Workspace is Idle
-        PipelinePage-->>Admin: Run Pipeline button is ENABLED
+        PipelinePage-->>Manager: Run Pipeline button is ENABLED
 
-        Note over Admin,RunDetails: 2. Triggering a Fresh Run
-        Admin->>PipelinePage: Clicks Run Pipeline
+        Note over Manager,RunDetails: 2. Triggering a Fresh Run
+        Manager->>PipelinePage: Clicks Run Pipeline
         PipelinePage->>Modal: Opens Run Dialog (Search query, limit, full vs reprocess)
-        Admin->>Modal: Confirms and Clicks Start Run
+        Manager->>Modal: Confirms and Clicks Start Run
         Modal->>PipelinePage: Closes modal and registers new active Run #15
-        PipelinePage-->>Admin: Run Pipeline button immediately locks with mutex active
+        PipelinePage-->>Manager: Run Pipeline button immediately locks with mutex active
     end
 
-    Note over Admin,RunDetails: 3. Inspecting Historical Run Details
-    Admin->>PipelinePage: Clicks historical Run #14
+    Note over Manager,RunDetails: 3. Inspecting Historical Run Details
+    Manager->>PipelinePage: Clicks historical Run #14
     PipelinePage->>RunDetails: Opens Details of Historic Run
-    RunDetails-->>Admin: Center: Summary, Paper Funnel (94 scraped, 25 passed), Cost ($0.086)
-    RunDetails-->>Admin: Right Panel: Component Runs (Search, Download, OCR, Screening, Extraction, Signal, Report)
-    Note over Admin,RunDetails: All components strictly read-only and NO re-run buttons allowed
+    RunDetails-->>Manager: Center: Summary, Paper Funnel (94 scraped, 25 passed), Cost ($0.086)
+    RunDetails-->>Manager: Right Panel: Component Runs (Search, Download, OCR, Screening, Extraction, Signal, Report)
+    Note over Manager,RunDetails: All components strictly read-only and NO re-run buttons allowed
 ```
 
 ### 6.3 Screen States:

@@ -1,59 +1,67 @@
 # User Personas & Access Control Specification
 
-**Document Version**: 3.0  
+**Document Version**: 3.1  
 **Associated Documents**:  
 - 🗺️ **[user_journeys.md](user_journeys.md)** — Frontend User Journeys & Interaction Sequences  
 - 📐 **[wireframes.md](wireframes.md)** — Screen Layout Wireframes & UI Component Topologies  
 - 🧭 **[route_matrix.md](route_matrix.md)** — URL Route & Context Resolution Matrix  
-**Scope**: Definitions, goals, behavioral workflows, and permission boundaries for the 3 core personas in the Schwarz Research Intelligence (SRI) platform.
+**Scope**: Definitions, behavioral workflows, and permission boundaries for the core personas in the Schwarz Research Intelligence (SRI) platform.
 
 ---
 
-## 1. Executive Summary: The 3 Personas
+## 1. Executive Summary: MVP Scope vs. Step 2 Roadmap
 
-The Schwarz Research Intelligence platform serves three distinct user roles with strict boundary segregation:
+The frontend MVP is specifically designed around **two active user personas**:
+1. **Manager (Research Lead)**: Orchestrates research cycles, can run pipelines (`/pipeline`), audits run execution, and consumes all intelligence outputs.
+2. **Researcher (Scientific Analyst)**: Pure consumer of scientific intelligence; **sees results only** (`/briefing`, `/papers`, `/papers/[id]`, `/ask`).
+
+> [!IMPORTANT]
+> **Admin Features are Step 2 (Out of Scope for MVP Frontend)**:  
+> In the current MVP phase, **we do not have anything specific for Admin on the frontend**. System administration, multi-tenant workspace provisioning, scraper query configuration, and fine-grained quota governance are strictly **Step 2**. Any underlying maintenance in Step 1 is handled via standard backend interfaces without custom frontend screens.
 
 ```
 +---------------------------------------------------------------------------------------------------------------+
-|                                      SCHWARZ RESEARCH INTELLIGENCE ROLES                                      |
-+------------------------------------+------------------------------------+-------------------------------------+
-|         1. RESEARCHER              |            2. MANAGER              |          3. SYSTEM ADMIN            |
-|       (Scientific Analyst)         |         (Research Lead)            |          (Infrastructure)           |
-+------------------------------------+------------------------------------+-------------------------------------+
-|  Scope: RESULTS ONLY               |  Scope: RESULTS + ORCHESTRATION    |  Scope: FULL SYSTEM & GOVERNANCE    |
-|  • Reads Executive Briefings       |  • Consumes Executive Synthesis    |  • Multi-tenant Workspace Setup     |
-|  • Filters Evaluated Papers        |  • Triggers Review Runs (Mutex)    |  • Upstream Scraper Configurations  |
-|  • Deep-dives into Scorecards      |  • Audits Component DAGs & Spend   |  • User Provisioning & Roles        |
-|  • Interrogates Papers via AI Chat |  • Oversees Digest Schedules       |  • Token Ceilings & USD Quotas      |
-+------------------------------------+------------------------------------+-------------------------------------+
+|                                    MVP FRONTEND USER PERSONAS (STEP 1)                                        |
++-------------------------------------------------------+-------------------------------------------------------+
+|                    1. RESEARCHER                      |                      2. MANAGER                       |
+|                 (Scientific Analyst)                  |                    (Research Lead)                    |
++-------------------------------------------------------+-------------------------------------------------------+
+|  Scope: RESULTS ONLY                                  |  Scope: CAN RUN PIPELINES + RESULTS                   |
+|  • Reads Executive Synthesis & Briefings              |  • Triggers New Review Runs ([ ▶ Run Pipeline ])      |
+|  • Filters Evaluated Papers Catalog                   |  • Monitors Live Run Execution (Mutex Protection)     |
+|  • Deep-dives into Paper Details & Scorecards         |  • Audits Historic Runs & Component Level DAGs        |
+|  • Interrogates Literature via Grounded AI Chat       |  • Consumes All Briefings, Catalogs & Scorecards      |
+|  • ❌ Pipeline Management (/pipeline) is HIDDEN        |  • ⚙️ Pipeline Management (/pipeline) is FULLY ACTIVE  |
++-------------------------------------------------------+-------------------------------------------------------+
+|                                  [ STEP 2 ROADMAP: SYSTEM ADMINISTRATOR ]                                     |
+|  • Custom Admin UI, Workspace Provisioning, Scraper Builder & Quota Controls are deferred to Step 2.          |
++---------------------------------------------------------------------------------------------------------------+
 ```
-
-> [!IMPORTANT]
-> **Core Principle: Researcher Sees Results Only**:  
-> A Researcher is a pure consumer of scientific intelligence. They are strictly shielded from pipeline execution details, infrastructure settings, scraper queries, and budget caps. The **`⚙️ Pipeline Management`** view is hidden from Researchers; their navigation is dedicated purely to discovering, filtering, and interrogating evaluated literature.
 
 ---
 
 ## 2. Persona 1: Researcher (Scientific Analyst)
 
 ### Profile & Motivation
-- **Role Title**: Senior Research Scientist, Domain Analyst, Postdoctoral Researcher.
-- **Primary Goal**: Quickly discover breakthrough papers in their domain, understand why a paper received a high Signal Score, verify technical claims against full-text evidence, and interrogate specific methodologies using grounded AI.
+- **Role Title**: Senior Research Scientist, Domain Analyst, Postdoctoral Researcher, Technology Scout.
+- **Primary Goal**: Quickly discover breakthrough papers in their domain, understand why a paper received a high Signal Score, verify technical claims against full-text evidence, and interrogate specific methodologies using grounded conversational AI.
 - **Daily Pain Points Solved**:
   - Eliminates manual screening of hundreds of noisy arXiv / OpenAlex preprints.
   - Replaces manual PDF scanning with structured scoring ledgers, radar charts, and LLM rationales.
   - Enables instant natural-language Q&A directly cited from paper sections and figures.
 
-### Access Boundary (Results Only)
+### Access Boundary: Results Only
+The Researcher is strictly shielded from operational pipeline details, system logs, execution DAGs, and infrastructure costs.
+
 - **Accessible Views**:
   1. 📊 **Briefings Dashboard (`/briefing`)**: Reads executive summaries, breakthroughs, bottleneck analysis, and top-scoring paper cards.
   2. 📄 **Browse Papers Catalog (`/papers`)**: Filters papers by screening status, signal score slider, TRL window, and free-text search.
   3. 📑 **Paper Details & Scorecard (`/papers/[id]`)**: Deep-dives into AST formula ledgers, radar charts, LLM screening reasons, and canonical PDF files.
   4. 💬 **Ask Paper Console (`/ask`) & In-Page Assistant**: Converses with papers, verifies citation badges, and restores chat history threads.
   5. 👤 **Personal Account Settings (`/settings`)**: Updates name, email, and password.
+
 - **Restricted / Hidden Views**:
-  - ❌ **Pipeline Management (`/pipeline`)**: Hidden. Researchers cannot trigger runs, abort jobs, view pipeline execution logs, or inspect system costs.
-  - ❌ **Workspace Governance**: Cannot configure scrapers, modify screening prompts, alter AST formulas, or change budgets.
+  - ❌ **Pipeline Management (`/pipeline`)**: **Completely hidden from the sidebar navigation**. Researchers cannot trigger runs, abort jobs, inspect component DAGs, or view financial costs.
 
 ### Typical User Journey
 1. **Morning Scan**: Opens `/briefing` for the latest successful run to review the executive synthesis and top 3 high-signal papers.
@@ -67,23 +75,23 @@ The Schwarz Research Intelligence platform serves three distinct user roles with
 
 ### Profile & Motivation
 - **Role Title**: Research Director, Lab Head, R&D Program Manager, Innovation Lead.
-- **Primary Goal**: Track research velocity, evaluate domain maturity (TRL progression), audit Systematic Literature Review (SLR) execution quality and spend, and initiate new automated review cycles.
+- **Primary Goal**: Track research velocity, evaluate domain maturity (TRL progression), initiate new automated review cycles, and audit Systematic Literature Review (SLR) execution quality and spend.
 - **Daily Pain Points Solved**:
   - Provides instant high-level visibility into review funnel yields (screened vs. passed).
-  - Eliminates accidental duplicate runs through strict workspace mutex locks.
+  - Enables on-demand triggering of review runs without risking duplicate concurrent jobs.
   - Provides a single-pane-of-glass audit trail for review reproducibility without allowing destructive re-runs.
 
-### Access Boundary (Results + Operational Pipeline)
+### Access Boundary: Can Run Pipelines + Consume Results
+The Manager has complete access to all research outputs plus full operational control over the pipeline execution lifecycle in the frontend.
+
 - **Accessible Views**:
   1. **All Researcher Views**: Full access to `/briefing`, `/papers`, `/papers/[id]`, and `/ask`.
-  2. ⚙️ **Pipeline Management & Audit (`/pipeline`)**:
-     - Can trigger new review runs via the **`[ ▶ Run Pipeline ]`** button (subject to single-run concurrency mutex).
-     - Monitors live run execution progress across pipeline stages.
-     - Audits historical runs: UTC start times, durations, paper counts, and total USD spend.
-     - Drills into **Historic Run Details (`/pipeline?run_id=...`)** to inspect component-level execution DAGs (Ingestion ➔ Screening ➔ Extraction ➔ Scoring ➔ Reporting).
-  3. 🔔 **Notification Subscriptions**: Receives automated email summaries upon review completion.
-- **Restricted Views**:
-  - ❌ Cannot delete workspaces or modify system-wide LLM infrastructure keys (reserved for System Admin).
+  2. ⚙️ **Pipeline Management (`/pipeline`)**:
+     - **Trigger Pipeline Runs**: Can start a fresh review cycle using the **`[ ▶ Run Pipeline ]`** button (protected by a single active run mutex lock).
+     - **Live Execution Monitoring**: Observes run status in real time while stages progress.
+     - **Historic Runs Overview**: Reviews past runs table showing timestamps, durations, paper yields, and total USD costs.
+     - **Component DAG Audit (`/pipeline?run_id=...`)**: Drills into **Historic Run Details (Components level)** to audit individual stage outputs (Search ➔ Ingestion ➔ Screening ➔ Extraction ➔ Scoring ➔ Reporting) in read-only mode (`No Re-run`).
+  3. 🔔 **Notification Preferences (`/settings`)**: Configures email digest alerts upon run completion.
 
 ### Typical User Journey
 1. **Executive Review**: Reviews `/briefing` on Monday morning to evaluate the weekly review output.
@@ -93,67 +101,43 @@ The Schwarz Research Intelligence platform serves three distinct user roles with
 
 ---
 
-## 4. Persona 3: System Administrator (Governance & Infrastructure)
+## 4. Persona 3: System Administrator (Step 2 Roadmap / Out-of-Scope for MVP)
 
-### Profile & Motivation
-- **Role Title**: Enterprise Platform Administrator, Head of DevOps / IT, Lead ML Engineer.
-- **Primary Goal**: Ensure system availability, provision workspaces and user roles, configure upstream scrapers, monitor LLM token and dollar consumption against monthly limits, and enforce security policies.
-- **Daily Pain Points Solved**:
-  - Prevents runaway LLM API costs through hard monthly budget caps (`monthly_usd_limit`).
-  - Controls access via fine-grained workspace membership roles.
-  - Manages upstream data source credentials and rate limits.
+### MVP Scope Status
+> [!NOTE]
+> **No Specific Admin UI in Step 1**:  
+> For the initial MVP, there are no dedicated frontend screens or user journeys for the System Administrator. All administrative features are explicitly planned for **Step 2**.
 
-### Access Boundary & Two-Tier Administrative Strategy (MVP Architecture)
-
-To maintain an ultra-lean frontend MVP while providing full enterprise governance, the System Administrator operates across two interfaces:
-
-```
-+---------------------------------------------------------------------------------------------------------------+
-|                                      SYSTEM ADMINISTRATOR WORKSPACES                                          |
-+-------------------------------------------------------+-------------------------------------------------------+
-|            TIER 1: FRONTEND RESEARCH PORTAL           |         TIER 2: BACKEND ADMINISTRATIVE CONSOLE        |
-|                       (Next.js)                       |                    (Django Admin)                     |
-+-------------------------------------------------------+-------------------------------------------------------+
-|  • Workspace Context Switching (All Domains)          |  • Workspace Provisioning & Deletion                  |
-|  • Verification of Briefings, Catalog & Scorecards    |  • Upstream Scraper Setup (arXiv, OpenAlex queries)   |
-|  • Pipeline Execution Trigger & Mutex Verification    |  • Team Provisioning & Role Assignments               |
-|  • Personal Account Profile & Security Settings       |  • Monthly USD & Token Quota Limits                   |
-|                                                       |  • LLM Provider Keys & OCR Model Assignment           |
-|                                                       |  • Persistent Usage Ledger & Storage Purging          |
-+-------------------------------------------------------+-------------------------------------------------------+
-```
-
-1. **Frontend Research Portal (`/`)**:
-   - Has global visibility across all workspaces in the dropdown.
-   - Can verify end-to-end user experiences, review briefings, and launch pipeline runs.
-2. **Administrative Console (`/admin/`)**:
-   - Configures upstream scraper search queries, limits, and sort criteria (`/admin/.../scraper/`).
-   - Assigns workspace memberships and roles (`admin`, `manager`, `researcher`) (`/admin/.../workspacemember/`).
-   - Sets monthly budget ceilings (`monthly_usd_limit`, `monthly_token_limit`) to protect against overages.
-   - Issues and revokes machine-to-machine API keys (`APIKey`) for MCP and REST integrations.
+### Step 2 Scope (Future Iteration)
+When implemented in Step 2, the System Administrator interface will encompass:
+- **Workspace Provisioning & Multi-tenancy**: Creating research domains, assigning storage quotas, and managing workspace lifecycles.
+- **Upstream Scraper Management**: Interactive query builders for arXiv, OpenAlex, Semantic Scholar, and PubMed with rate limits and cron schedules.
+- **Team Role Governance**: Provisioning user accounts, assigning roles (`manager` vs. `researcher`), and revoking access.
+- **Budget & Quota Controls**: Hard monthly USD ceilings (`monthly_usd_limit`) and LLM token caps per workspace.
+- **Model & OCR Routing**: Assigning LLM models (e.g., Claude 3.5 Sonnet, Gemini 2.0 Flash) and PDF parser engines per workspace.
 
 ---
 
-## 5. Screen & Action Permissions Matrix
+## 5. Screen & Action Permissions Matrix (MVP Step 1)
 
-The following matrix defines the exact visibility and action capabilities across all three personas:
+The following matrix defines the exact visibility and action capabilities across the active MVP personas:
 
-| View / Action | URL Route | Researcher | Manager | System Admin | Notes |
+| View / Action | URL Route | Researcher (Analyst) | Manager (Lead) | System Admin (Step 2) | Notes |
 | :--- | :--- | :---: | :---: | :---: | :--- |
-| **Login & SSO** | `/` | ✅ | ✅ | ✅ | Standard authentication for all roles. |
-| **View Briefings Dashboard** | `/briefing` | ✅ | ✅ | ✅ | High-level synthesis and top paper cards. |
-| **Browse Papers Catalog** | `/papers` | ✅ | ✅ | ✅ | Multi-attribute search, TRL & score filters. |
-| **Inspect Paper Details & Scorecard** | `/papers/[id]` | ✅ | ✅ | ✅ | AST formula ledger, radar chart, PDF link. |
-| **Ask Paper Interrogation Console** | `/ask` | ✅ | ✅ | ✅ | Grounded multi-turn conversational chat. |
-| **Use In-Page 'Ask this paper'** | `/papers/[id]` rail | ✅ | ✅ | ✅ | Contextual document assistant. |
-| **Access Pipeline Management** | `/pipeline` | 🚫 **Hidden** | ✅ | ✅ | **Researcher sees results only.** |
-| **Trigger Pipeline Run** | `/pipeline` CTA | 🚫 **No** | ✅ | ✅ | Subject to single-run concurrency mutex. |
-| **Inspect Component Execution DAG** | `/pipeline?run_id=...` | 🚫 **Hidden** | ✅ | ✅ | View execution logs and timing (`No Re-run`). |
-| **Audit Spend & Token Costs** | `/pipeline` | 🚫 **Hidden** | ✅ | ✅ | Track run costs ($) and durations. |
-| **Manage Profile & Password** | `/settings` | ✅ | ✅ | ✅ | Self-service credential update. |
-| **Configure Scrapers & Queries** | Admin Console | 🚫 **No** | 🚫 **No** | ✅ | Managed via Admin Console in MVP. |
-| **Invite Users & Assign Roles** | Admin Console | 🚫 **No** | 🚫 **No** | ✅ | Provision `admin`, `manager`, `researcher`. |
-| **Set USD Budget / Token Caps** | Admin Console | 🚫 **No** | 🚫 **No** | ✅ | Enforce workspace financial quotas. |
+| **Login Screen** | `/` | ✅ | ✅ | *(Step 2)* | Standard authentication for all active roles. |
+| **Briefings Dashboard** | `/briefing` | ✅ | ✅ | *(Step 2)* | High-level synthesis and top paper cards. |
+| **Browse Papers Catalog** | `/papers` | ✅ | ✅ | *(Step 2)* | Multi-attribute search, TRL & score filters. |
+| **Paper Details & Scorecard** | `/papers/[id]` | ✅ | ✅ | *(Step 2)* | AST formula ledger, radar chart, PDF link. |
+| **Ask Paper Console** | `/ask` | ✅ | ✅ | *(Step 2)* | Grounded multi-turn conversational chat. |
+| **In-Page 'Ask this paper'** | `/papers/[id]` rail | ✅ | ✅ | *(Step 2)* | Contextual document assistant. |
+| **Pipeline Management View** | `/pipeline` | 🚫 **Hidden** | ✅ **Active** | *(Step 2)* | **Researcher sees results only.** |
+| **Trigger Pipeline Run** | `/pipeline` CTA | 🚫 **No** | ✅ **Can Run** | *(Step 2)* | Subject to single active run mutex lock. |
+| **Inspect Component DAG** | `/pipeline?run_id=...` | 🚫 **Hidden** | ✅ **Active** | *(Step 2)* | Historic component audit (`No Re-run`). |
+| **Audit Spend & Costs** | `/pipeline` | 🚫 **Hidden** | ✅ **Active** | *(Step 2)* | Run-level USD and duration tracking. |
+| **Manage Profile & Password** | `/settings` | ✅ | ✅ | *(Step 2)* | Self-service credential update. |
+| **Workspace Provisioning** | Dedicated Admin UI | 🚫 **No** | 🚫 **No** | ⏳ **Step 2** | Out of scope for MVP frontend. |
+| **Scraper Query Builder** | Dedicated Admin UI | 🚫 **No** | 🚫 **No** | ⏳ **Step 2** | Out of scope for MVP frontend. |
+| **Budget & Token Limits** | Dedicated Admin UI | 🚫 **No** | 🚫 **No** | ⏳ **Step 2** | Out of scope for MVP frontend. |
 
 ---
 
