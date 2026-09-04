@@ -30,9 +30,9 @@ $$\mathbf{Workspace\ Context} \;\longrightarrow\; \mathbf{Pipeline\ Run\ Context
 
 | Pillar View | Route | Primary Goal | Context Scope | Key Interaction Transitions |
 | :--- | :--- | :--- | :--- | :--- |
-| **1. Briefings** | `/briefing` | Executive synthesis of the latest run | Workspace + Run | Top-scoring paper card $\longrightarrow$ Click **`Ask Paper`** $\longrightarrow$ Opens `/ask` with paper loaded |
-| **2. Browse Papers** | `/papers` | Filterable catalog & run-specific scoring | Workspace + Run | Paper row $\longrightarrow$ **Paper Details** (Metadata + Run Context) $\longrightarrow$ Click **`Ask Paper`** |
-| **3. Ask Paper** | `/ask` | Deep document interrogation with history | Workspace + Paper | Pre-selected paper (from Briefing/Papers) OR `[Select paper first]` picker $\longrightarrow$ History drawer |
+| **1. Briefings** | `/briefing` | Executive synthesis of the latest run | Workspace + Run | Top-scoring paper card $\longrightarrow$ Click to open **Paper Details** (`/papers/[id]`) with scoring ledger & integrated **`PaperChat`** |
+| **2. Browse Papers** | `/papers` | Filterable catalog & run-specific scoring | Workspace + Run | Paper row $\longrightarrow$ **Paper Details** (`/papers/[id]`) with scoring ledger & integrated **`PaperChat`** |
+| **3. Ask Paper** | `/ask` | Dedicated interrogation console with history | Workspace + Paper | Standalone chat console with history drawer. Complements the in-page `PaperChat` rail on `/papers/[id]`. |
 | **4. Pipeline Management** | `/pipeline` | Run orchestration & immutable audit | Workspace only | Single active run mutex (`Don't allow multiple runs`) $\longrightarrow$ Component runs status (`No Re-run`) |
 
 ---
@@ -49,16 +49,27 @@ Located permanently in the top navigation bar across all views:
 
 ---
 
-## 3. Core Journey 1: Briefings (Executive Discovery & High-Impact Papers)
+## 3. Core Journey 1: Briefings (Executive Discovery to Paper Details)
 
-> **Source Reference**: PDF Page 1 (*Briefings — Set Context*)
+> **Source Reference**: PDF Page 1 (*Briefings — Set Context, Briefing Cards -> Details -> Ask Paper sub-functionality*)
 
-### 3.1 UX Architecture & Redundancy Elimination
-- **Context**: Selecting Workspace sets the domain; Run selector automatically defaults to the **last successful run**.
-- **Redundancy Resolution**: As noted in the handwritten mockups (`Redundant?`), having a secondary *"Previous Briefings / Runs"* sidebar on the right is eliminated. Since the global top-bar selector already controls the active Run, the right column is removed in favor of a clean, focused reading experience.
-- **Direct Cross-Pillar CTA**: Each highlighted high-scoring paper card features an explicit **`Ask Paper`** shortcut button. Clicking it navigates straight to `/ask` with that paper pre-selected.
+### 3.1 UX Architecture: From Synthesis to Full Paper Run Details
+- **Context Setting**: Selecting Workspace sets the research domain; the Run selector automatically defaults to the **last successful run** (`default to last successful run`).
+- **Elimination of Redundancy**:
+  - As noted on the mockup (`Redundant?`), having a secondary *"Previous Briefings / Runs"* sidebar on the right of the Briefings page is eliminated. The global top-bar selector already controls the active Run.
+- **Drill-Down to Full Paper Details (`/papers/[id]`)**:
+  - Clicking any paper card or highlight in the Briefing navigates directly to the **Paper Detail Page** (`/papers/[id]`), mirroring the production implementation at `https://sri-prod.apps.01.cf.eu01.onstackit.cloud/papers/[id]`.
+  - **Left Area (2fr)**:
+    - **Header**: Paper title, authors, publication date, external arXiv / DOI links.
+    - **Run Results & Scoring Details**: Composite Signal Score badge + full `SignalLedger` with Python AST variable breakdown and code snippet.
+    - **Dimensions & TRL**: Extracted parameters with confidence ratings, LLM rationales, and evidence quotes + technological `RadarChart`.
+    - **Screening**: Dual-stage acceptance/rejection decisions with complete LLM justifications (*Abstract Screening* and *Full-Text Screening*).
+    - **Abstract & Files**: Stored canonical PDF binary and layout Markdown.
+  - **Right Rail (1fr) — Integrated `Ask Paper` Sub-Functionality**:
+    - Right on the Details page sits **`PaperChat`** — a live, grounded interrogation assistant scoped directly to this paper.
+    - This explains the user's note `Redundant?`: because `Ask Paper` is already natively embedded as a right-hand sub-functionality inside `/papers/[id]`, the user can interrogate the document immediately while reviewing its scoring details!
 
-### 3.2 Briefings Interaction Sequence
+### 3.2 Briefings to Paper Details Interaction Sequence
 
 ```mermaid
 sequenceDiagram
@@ -66,37 +77,37 @@ sequenceDiagram
     actor User as 👤 Researcher / Lead
     participant TopBar as 🧭 Global Context Bar
     participant BriefingUI as 📊 Briefings View (/briefing)
-    participant AskUI as 💬 Ask Paper View (/ask)
+    participant DetailsPage as 📑 Paper Details (/papers/[id])
+    participant PaperChat as 💬 PaperChat (Right Rail)
 
-    Note over User,AskUI: 1. Context Initialization
-    User->>TopBar: Selects Workspace ('Quantum Error Correction')
-    TopBar-->>TopBar: Auto-selects 'Last Successful Run' (Run #14)
+    Note over User,PaperChat: 1. Context Initialization
+    User->>TopBar: Selects Workspace (Quantum Error Correction)
+    TopBar-->>TopBar: Auto-selects Last Successful Run (Run #14)
     TopBar->>BriefingUI: Loads executive synthesis for Run #14
 
-    Note over User,AskUI: 2. Briefing Reading & Highlights
-    BriefingUI-->>User: Renders Executive Summary, Key Breakthroughs & Tech Bottlenecks
-    BriefingUI-->>User: Displays 'Top Scoring Papers' cards with Signal Scores
+    Note over User,PaperChat: 2. Briefing Reading and Highlights
+    BriefingUI-->>User: Renders Executive Summary, Key Breakthroughs and Bottlenecks
+    BriefingUI-->>User: Displays Top Scoring Papers cards with Signal Scores
 
-    Note over User,AskUI: 3. Drill-Down into Paper Card
-    User->>BriefingUI: Clicks on high-scoring paper card ('Oraqle: Qubit Readout')
-    BriefingUI-->>User: Expands inline details (Scoring details, TRL, Fit, abstract snippet)
+    Note over User,PaperChat: 3. Drill-Down directly into Full Paper Details
+    User->>BriefingUI: Clicks high-scoring paper card (Oraqle: Qubit Readout)
+    BriefingUI->>DetailsPage: Navigates to /papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0
 
-    Note over User,AskUI: 4. Seamless Transition to Ask Paper
-    User->>BriefingUI: Clicks 'Ask Paper' button on the card
-    BriefingUI->>AskUI: Navigates to /ask?paper_id=e6d45aab&run_id=run-14
-    AskUI-->>User: Opens chat session with 'Oraqle' already loaded and ready
+    Note over User,PaperChat: 4. Paper Details and Integrated Ask Paper
+    DetailsPage-->>User: Left Panel: Title, SignalLedger formula, Dimensions, Radar, Screening reasons
+    DetailsPage-->>User: Right Rail: Built-in PaperChat component active and ready for questions
+    User->>PaperChat: Types question: "Explain the readout fidelity threshold in theorem 2"
+    PaperChat-->>User: Streams grounded answer with citations while user reads scoring details
 ```
 
 ### 3.3 Screen States:
-1. **Default State**:
-   - Clean report canvas rendering markdown of the generated `NarrativeReport`.
-   - Metrics bar: Total candidate papers, screened count, passed count, average signal score.
-   - Action buttons: `Export PDF`, `Copy LaTeX Citations`.
-2. **Paper Card Preview**:
-   - Paper Title & Authors.
-   - Signal Score badge (e.g., `88.5`).
-   - Key extracted parameter pills (e.g., `TRL 4`, `Fidelity 99.9%`).
-   - Quick action: **`Ask Paper`** icon button.
+1. **Briefings View (`/briefing`)**:
+   - Report canvas rendering markdown of the generated `NarrativeReport`.
+   - Funnel metrics bar: Total candidate papers, screened count, passed count, average signal score.
+   - Top Scoring Paper cards showing: Paper Title, Authors, Signal Score badge, key dimensions, and a clickable link to `/papers/[id]`.
+2. **Paper Details View (`/papers/[id]`)**:
+   - **Left Column**: PaperHeader, SignalLedger, DimensionsFrame, RadarChart, Screening justifications, Abstract, Files.
+   - **Right Column**: Integrated `PaperChat` console allowing instant interrogation alongside the paper's scoring details.
 
 ---
 
