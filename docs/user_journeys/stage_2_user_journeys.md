@@ -65,9 +65,9 @@ Located permanently in the top navigation bar across all views:
     - **Dimensions & TRL**: Extracted parameters with confidence ratings, LLM rationales, and evidence quotes + technological `RadarChart`.
     - **Screening**: Dual-stage acceptance/rejection decisions with complete LLM justifications (*Abstract Screening* and *Full-Text Screening*).
     - **Abstract & Files**: Stored canonical PDF binary and layout Markdown.
-  - **Right Rail (1fr) — Integrated `Ask Paper` Sub-Functionality**:
-    - Right on the Details page sits **`PaperChat`** — a live, grounded interrogation assistant scoped directly to this paper.
-    - This explains the user's note `Redundant?`: because `Ask Paper` is already natively embedded as a right-hand sub-functionality inside `/papers/[id]`, the user can interrogate the document immediately while reviewing its scoring details!
+  - **Right Rail (1fr) — Integrated `Ask this paper` Sub-Functionality**:
+    - Right on the Details page sits **`Ask this paper`** (implemented via `PaperChat`) — a live, grounded interrogation assistant scoped directly to this paper.
+    - This explains the user's note `Redundant?`: because `Ask this paper` is already natively embedded as a right-hand sub-functionality inside `/papers/[id]`, the user can interrogate the document immediately while reviewing its scoring details!
 
 ### 3.2 Briefings to Paper Details Interaction Sequence
 
@@ -78,7 +78,7 @@ sequenceDiagram
     participant TopBar as 🧭 Global Context Bar
     participant BriefingUI as 📊 Briefings View (/briefing)
     participant DetailsPage as 📑 Paper Details (/papers/[id])
-    participant PaperChat as 💬 PaperChat (Right Rail)
+    participant PaperChat as 💬 Ask this paper (Right Rail)
 
     Note over User,PaperChat: 1. Context Initialization
     User->>TopBar: Selects Workspace (Quantum Error Correction)
@@ -93,9 +93,9 @@ sequenceDiagram
     User->>BriefingUI: Clicks high-scoring paper card (Oraqle: Qubit Readout)
     BriefingUI->>DetailsPage: Navigates to /papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0
 
-    Note over User,PaperChat: 4. Paper Details and Integrated Ask Paper
+    Note over User,PaperChat: 4. Paper Details and Integrated Ask this paper
     DetailsPage-->>User: Left Panel: Title, SignalLedger formula, Dimensions, Radar, Screening reasons
-    DetailsPage-->>User: Right Rail: Built-in PaperChat component active and ready for questions
+    DetailsPage-->>User: Right Rail: Built-in Ask this paper component active and ready for questions
     User->>PaperChat: Types question: "Explain the readout fidelity threshold in theorem 2"
     PaperChat-->>User: Streams grounded answer with citations while user reads scoring details
 ```
@@ -107,7 +107,7 @@ sequenceDiagram
    - Top Scoring Paper cards showing: Paper Title, Authors, Signal Score badge, key dimensions, and a clickable link to `/papers/[id]`.
 2. **Paper Details View (`/papers/[id]`)**:
    - **Left Column**: PaperHeader, SignalLedger, DimensionsFrame, RadarChart, Screening justifications, Abstract, Files.
-   - **Right Column**: Integrated `PaperChat` console allowing instant interrogation alongside the paper's scoring details.
+   - **Right Column**: Integrated `Ask this paper` console allowing instant interrogation alongside the paper's scoring details.
 
 ---
 
