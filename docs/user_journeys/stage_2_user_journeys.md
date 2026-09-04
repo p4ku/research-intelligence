@@ -148,9 +148,9 @@ sequenceDiagram
 
     Note over User,AskUI: 4. Interrogation & Full-Text Reading
     alt View Original Document
-        User->>DetailsView: Clicks 'View PDF' -> Opens canonical PDF in reader
+        User->>DetailsView: Clicks View PDF to open canonical PDF in reader
     else Interrogate Document
-        User->>DetailsView: Clicks 'Ask Paper' -> Redirects to /ask with paper context loaded
+        User->>DetailsView: Clicks Ask Paper to navigate to /ask with paper context loaded
     end
 ```
 
@@ -202,20 +202,20 @@ sequenceDiagram
     participant HistoryPanel as 📜 History Drawer (Right)
     participant LLM as 🤖 Backend AI Assistant
 
-    Note over User,LLM: Scenario A: Direct Entry (No Paper Pre-Selected)
+    Note over User,LLM: Scenario A: Direct Entry without Pre-Selected Paper
     User->>AskUI: Navigates to /ask via main menu
-    AskUI-->>User: Displays '[Select paper first]' empty state with Search Bar
-    User->>SearchModal: Types 'Oraqle' or selects from Top Signal list
-    SearchModal->>AskUI: Locks 'Oraqle' as active paper context
+    AskUI-->>User: Displays Select paper first empty state with Search Bar
+    User->>SearchModal: Types Oraqle or selects from Top Signal list
+    SearchModal->>AskUI: Locks Oraqle as active paper context
 
     Note over User,LLM: Scenario B: Context-Carried Entry
-    Note over User,AskUI: (Arrived via 'Ask Paper' button from Briefings or Browse Papers)
-    AskUI-->>User: Paper already pinned in header badge; chat console active
+    Note over User,AskUI: Arrived via Ask Paper button from Briefings or Browse Papers
+    AskUI-->>User: Paper already pinned in header badge, chat console active
 
-    Note over User,LLM: Multi-Turn Q&A with Evidence Citations
-    User->>AskUI: Types question: "What is the discriminator latency on the FPGA?"
+    Note over User,LLM: Multi-Turn QA with Evidence Citations
+    User->>AskUI: Types question regarding discriminator latency on FPGA
     AskUI->>LLM: Dispatches prompt with paper full-text markdown context
-    LLM-->>AskUI: Streams answer with clickable citation badges [Page 4, §3.1]
+    LLM-->>AskUI: Streams answer with clickable citation badges
     AskUI->>HistoryPanel: Automatically registers session in History drawer on right
 
     Note over User,LLM: Reviewing Previous Conversations
@@ -256,37 +256,30 @@ sequenceDiagram
     participant Modal as 🪟 Run Pipeline Dialog
     participant RunDetails as ⏱️ Historic Run Details Sheet
 
-    Note over Admin,RunDetails: 1. Workspace Selection & Mutex Check
-    Admin->>TopBar: Selects Workspace ('Quantum Error Correction')
+    Note over Admin,RunDetails: 1. Workspace Selection and Mutex Check
+    Admin->>TopBar: Selects Workspace (Quantum Error Correction)
     TopBar->>PipelinePage: Loads Historical Runs list for this workspace
-    PipelinePage-->>Admin: Displays table of past runs (#14, #13, #12...) with statuses
+    PipelinePage-->>Admin: Displays table of past runs (#14, #13, #12) with statuses
 
     alt Active Run Already Exists
-        PipelinePage-->>Admin: 'Run Pipeline' button is DISABLED (Tooltip: 'Run in progress')
+        PipelinePage-->>Admin: Run Pipeline button is DISABLED (Tooltip: Run in progress)
     else Workspace is Idle
-        PipelinePage-->>Admin: 'Run Pipeline' button is ENABLED
+        PipelinePage-->>Admin: Run Pipeline button is ENABLED
 
         Note over Admin,RunDetails: 2. Triggering a Fresh Run
-        Admin->>PipelinePage: Clicks 'Run Pipeline'
+        Admin->>PipelinePage: Clicks Run Pipeline
         PipelinePage->>Modal: Opens Run Dialog (Search query, limit, full vs reprocess)
-        Admin->>Modal: Confirms & Clicks 'Start Run'
-        Modal->>PipelinePage: Closes modal & registers new active Run #15
-        PipelinePage-->>Admin: 'Run Pipeline' button immediately locks (mutex active)
+        Admin->>Modal: Confirms and Clicks Start Run
+        Modal->>PipelinePage: Closes modal and registers new active Run #15
+        PipelinePage-->>Admin: Run Pipeline button immediately locks with mutex active
     end
 
     Note over Admin,RunDetails: 3. Inspecting Historical Run Details
-    Admin->>PipelinePage: Clicks historical 'Run #14'
+    Admin->>PipelinePage: Clicks historical Run #14
     PipelinePage->>RunDetails: Opens Details of Historic Run
     RunDetails-->>Admin: Center: Summary, Paper Funnel (94 scraped, 25 passed), Cost ($0.086)
-    RunDetails-->>Admin: Right Panel: List of Component Runs with Status & Duration:
-    RunDetails-->>Admin: • Step 1: Search (Completed, 3.2s)
-    RunDetails-->>Admin: • Step 2: Download (Completed, 14.1s)
-    RunDetails-->>Admin: • Step 3: OCR (Completed, 8.4s)
-    RunDetails-->>Admin: • Step 4: Screening (Completed, 22.0s)
-    RunDetails-->>Admin: • Step 5: Extraction (Completed, 45.3s)
-    RunDetails-->>Admin: • Step 6: Signal Score (Completed, 1.1s)
-    RunDetails-->>Admin: • Step 7: Narrative Report (Completed, 6.8s)
-    Note over Admin,RunDetails: (All components strictly read-only; NO re-run buttons)
+    RunDetails-->>Admin: Right Panel: Component Runs (Search, Download, OCR, Screening, Extraction, Signal, Report)
+    Note over Admin,RunDetails: All components strictly read-only and NO re-run buttons allowed
 ```
 
 ### 6.3 Screen States:
@@ -325,9 +318,9 @@ sequenceDiagram
     Briefing-->>User: Renders Executive Briefing
 
     Note over User,AvatarMenu: 2. Sign Out
-    User->>AvatarMenu: Clicks Avatar in top right -> 'Sign Out'
-    AvatarMenu->>LoginScreen: Invalidate token & redirect to /
-    LoginScreen-->>User: Displays 'Successfully signed out' banner
+    User->>AvatarMenu: Clicks Avatar in top right, selects Sign Out
+    AvatarMenu->>LoginScreen: Invalidate token and redirect to /
+    LoginScreen-->>User: Displays Successfully signed out banner
 ```
 
 ---
@@ -342,18 +335,18 @@ sequenceDiagram
     participant SettingsPage as ⚙️ Settings Page (/settings)
     participant Toast as 🔔 Notification Toast
 
-    User->>AvatarMenu: Clicks Avatar -> 'My Account'
+    User->>AvatarMenu: Clicks Avatar and selects My Account
     AvatarMenu->>SettingsPage: Navigates to /settings
 
     alt Update Profile Details
-        User->>SettingsPage: Updates First Name, Last Name, Email -> 'Save'
-        SettingsPage->>Toast: Displays 'Profile updated'
+        User->>SettingsPage: Updates First Name, Last Name, Email, clicks Save
+        SettingsPage->>Toast: Displays Profile updated
     else Change Password
-        User->>SettingsPage: Inputs Current & New Password -> 'Update Password'
-        SettingsPage->>Toast: Displays 'Password changed successfully'
+        User->>SettingsPage: Inputs Current and New Password, clicks Update Password
+        SettingsPage->>Toast: Displays Password changed successfully
     else Notification Preferences
-        User->>SettingsPage: Toggles Email Alerts ON & selects 'Instant on Run Complete'
-        SettingsPage->>Toast: Displays 'Preferences saved'
+        User->>SettingsPage: Toggles Email Alerts ON, selects Instant on Run Complete
+        SettingsPage->>Toast: Displays Preferences saved
     end
 ```
 
