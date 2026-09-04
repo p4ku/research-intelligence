@@ -77,7 +77,7 @@ sequenceDiagram
     actor User as 👤 Researcher / Lead
     participant TopBar as 🧭 Global Context Bar
     participant BriefingUI as 📊 Briefings View (/briefing)
-    participant DetailsPage as 📑 Paper Details (/papers/[id])
+    participant DetailsPage as 📑 Paper Details
     participant PaperChat as 💬 Ask this paper (Right Rail)
 
     Note over User,PaperChat: 1. Context Initialization
@@ -139,29 +139,29 @@ sequenceDiagram
     participant TopBar as 🧭 Global Context Bar
     participant PapersList as 📄 Browse Papers List (/papers)
     participant Filters as 🔍 Filters Drawer / Panel
-    participant DetailsView as 📑 Paper Details Sheet
-    participant AskUI as 💬 Ask Paper View (/ask)
+    participant DetailsPage as 📑 Paper Details
+    participant PaperChat as 💬 Ask this paper (Right Rail)
 
-    Note over User,AskUI: 1. Navigation & List Loading
-    User->>TopBar: Selects Workspace + Run (defaults to latest completed)
+    Note over User,PaperChat: 1. Navigation and List Loading
+    User->>TopBar: Selects Workspace and Run (defaults to latest completed)
     TopBar->>PapersList: Renders all papers evaluated in selected Run
 
-    Note over User,AskUI: 2. Filtering
-    User->>Filters: Selects 'Screening Status = Passed' & 'TRL >= 4'
+    Note over User,PaperChat: 2. Filtering
+    User->>Filters: Selects Screening Status = Passed and TRL >= 4
     Filters->>PapersList: Updates paper table in real time
 
-    Note over User,AskUI: 3. Details Inspection (Modal / Sheet)
+    Note over User,PaperChat: 3. Drill-Down into Paper Details
     User->>PapersList: Clicks paper row
-    PapersList->>DetailsView: Opens Paper Details
-    DetailsView-->>User: Section A: Universal Metadata (Authors, arXiv ID, DOI, raw meta JSON)
-    DetailsView-->>User: Section B: Run Context (Signal Score: 91.4, Dual Screening Reasons, Extractions)
-    DetailsView-->>User: Section C: Run History (Appeared in Run #12, Run #14)
+    PapersList->>DetailsPage: Opens Paper Details (/papers/[id])
+    DetailsPage-->>User: Left Panel: Universal Metadata, Run Context (Signal: 91.4, Reasons, Extractions)
+    DetailsPage-->>User: Right Rail: Built-in Ask this paper component active and ready for questions
 
-    Note over User,AskUI: 4. Interrogation & Full-Text Reading
-    alt View Original Document
-        User->>DetailsView: Clicks View PDF to open canonical PDF in reader
-    else Interrogate Document
-        User->>DetailsView: Clicks Ask Paper to navigate to /ask with paper context loaded
+    Note over User,PaperChat: 4. Interrogation and Full-Text Reading
+    alt Read Original Document
+        User->>DetailsPage: Clicks View PDF to open canonical PDF in reader
+    else Ask Document Directly
+        User->>PaperChat: Types question: "How are errors decoded in real-time?"
+        PaperChat-->>User: Streams grounded answer with citations alongside the details
     end
 ```
 
