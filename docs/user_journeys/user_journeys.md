@@ -83,7 +83,7 @@ The following transition graph maps the core pages across the platform and all n
 
 > 💡 **Visual Key**:  
 > • 🟪 **Full Pages / URL Routes** (Lavender boxes): `/briefing`, `/papers`, `/papers/[id]`, `/ask`, `/pipeline`  
-> • 🌸 **In-Page Elements & Sub-Functionalities** (Pink boxes): Embedded Rails, Modals, and Viewers
+> • 🌸 **In-Page Elements & Sub-Functionalities** (Pink boxes): Embedded Rails, Modals, Viewers, and Historic Run Details Sheet
 
 ```mermaid
 flowchart TB
@@ -99,6 +99,7 @@ flowchart TB
     PDFView("📕 Canonical PDF Reader<br/><i>Document File Viewer</i>")
     HistoryRail("📜 Chat History (Right)<br/><i>Saved Threads Drawer</i>")
     SearchModal("🔎 Paper Selector Drawer<br/><i>Quick Search Modal</i>")
+    RunDetails("⏱️ Historic Run Details<br/><i>(Components level)</i>")
 
     %% Transitions from Briefings
     Briefing -->|"Click Top Paper Card"| Details
@@ -122,12 +123,15 @@ flowchart TB
     AskConsole -->|"Select Paper First"| SearchModal
     AskConsole -.->|"Sidebar Navigation"| Briefing
 
+    %% Transitions from Pipeline Management
+    PipelinePage -->|"Click Run Row"| RunDetails
+
     %% Color Coding Legend: Pages (Lavender img 2) vs In-Page Elements (Pink img 3)
     classDef pageNode fill:#ECEBFA,stroke:#7C71E8,stroke-width:2px,color:#1E1B4B;
     classDef elementNode fill:#F6ACD8,stroke:#9D174D,stroke-width:2px,color:#831843;
 
     class Briefing,PapersList,Details,AskConsole,PipelinePage pageNode;
-    class DetailsChat,PDFView,HistoryRail,SearchModal elementNode;
+    class DetailsChat,PDFView,HistoryRail,SearchModal,RunDetails elementNode;
 ```
 
 ### 3.3 Briefings to Paper Details Interaction Sequence
