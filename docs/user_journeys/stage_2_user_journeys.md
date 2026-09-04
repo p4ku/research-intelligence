@@ -19,7 +19,7 @@ $$\mathbf{Workspace\ Context} \;\longrightarrow\; \mathbf{Pipeline\ Run\ Context
 +---------------------------------------------------------------------------------------------------------------+
 |  1. 📊 Briefings (Dashboard)     |  Executive narrative report, highlights, top-scoring paper cards.          |
 |  2. 📄 Browse Papers             |  Searchable catalog, filters, paper details in context of specific run.   |
-|  3. 💬 Ask Paper                 |  Grounded conversational AI interrogation with history drawer.             |
+|  3. 💬 Ask Paper                 |  Grounded conversational AI interrogation with Chat History (Right).       |
 |  4. ⚙️ Pipeline Management       |  Trigger runs (mutex lock), historical runs, component timeline (no rerun).|
 |  ─────────────────────────────── |                                                                           |
 |  👤 Settings                     |  User profile, password change, notification delivery preferences.        |
@@ -28,12 +28,12 @@ $$\mathbf{Workspace\ Context} \;\longrightarrow\; \mathbf{Pipeline\ Run\ Context
 
 ### The 4 Pillars at a Glance
 
-| Pillar View | Route | Primary Goal | Context Scope | Key Interaction Transitions |
+| Pillar View | Route & Permalinks | Primary Goal | Context Scope | Key Interaction Transitions |
 | :--- | :--- | :--- | :--- | :--- |
-| **1. Briefings** | `/briefing` | Executive synthesis of the latest run | Workspace + Run | Top-scoring paper card $\longrightarrow$ Click to open **Paper Details** (`/papers/[id]`) with scoring ledger & integrated **`PaperChat`** |
-| **2. Browse Papers** | `/papers` | Filterable catalog & run-specific scoring | Workspace + Run | Paper row $\longrightarrow$ **Paper Details** (`/papers/[id]`) with scoring ledger & integrated **`PaperChat`** |
-| **3. Ask Paper** | `/ask` | Dedicated interrogation console with history | Workspace + Paper | Standalone chat console with history drawer. Complements the in-page `PaperChat` rail on `/papers/[id]`. |
-| **4. Pipeline Management** | `/pipeline` | Run orchestration & immutable audit | Workspace only | Single active run mutex (`Don't allow multiple runs`) $\longrightarrow$ Component runs status (`No Re-run`) |
+| **1. Briefings** | `/briefing`<br>`/briefing?run_id=<id>` | Executive synthesis of the selected run | Workspace + Run Context | Top-scoring paper card $\longrightarrow$ Click to open **Paper Details** (`/papers/[id]?run_id=<id>`) with run scoring ledger & integrated **`Ask this paper`** |
+| **2. Browse Papers** | `/papers`<br>`/papers?run_id=<id>` | Filterable catalog & run-specific scoring | Workspace + Run Context | Paper row $\longrightarrow$ **Paper Details** (`/papers/[id]?run_id=<id>`) with run scoring ledger & integrated **`Ask this paper`** |
+| **3. Ask Paper** | `/ask`<br>`/ask?paper_id=<id>&run_id=<id>` | Dedicated interrogation console with Chat History | Workspace + Run + Paper | Standalone chat console with **`Chat History (Right)`**. Complements the in-page `Ask this paper` rail on `/papers/[id]`. |
+| **4. Pipeline Management** | `/pipeline`<br>`/pipeline?run_id=<id>` | Run orchestration & immutable audit | Workspace (All Runs) | Single active run mutex (`Don't allow multiple runs`) $\longrightarrow$ Component runs audit (`Historic Run Details (Components level)`, `No Re-run`) |
 
 ---
 
@@ -57,11 +57,12 @@ Located permanently in the top navigation bar across all views:
 - **Context Setting**: Selecting Workspace sets the research domain; the Run selector automatically defaults to the **last successful run** (`default to last successful run`).
 - **Elimination of Redundancy**:
   - As noted on the mockup (`Redundant?`), having a secondary *"Previous Briefings / Runs"* sidebar on the right of the Briefings page is eliminated. The global top-bar selector already controls the active Run.
-- **Drill-Down to Full Paper Details (`/papers/[id]`)**:
-  - Clicking any paper card or highlight in the Briefing navigates directly to the **Paper Detail Page** (`/papers/[id]`), mirroring the production implementation at `https://sri-prod.apps.01.cf.eu01.onstackit.cloud/papers/[id]`.
+- **Drill-Down to Full Paper Details (`/papers/[id]?run_id=<id>`)**:
+  - Clicking any paper card or highlight in the Briefing navigates directly to the **Paper Detail Page** carrying the active Run Context: `/papers/[id]?run_id=<run_id>` (mirroring the production scorecard shape).
+  - **Run Context Resolution**: The backend `Paper` model stores universal bibliographic metadata, while `PaperMetric` stores run-specific evaluation data (`pipeline_run_id`). Passing `?run_id=<run_id>` ensures the frontend queries `GET /api/papers/[id]/scorecard/?pipeline_run=<run_id>`, rendering the exact scoring ledger, screening justifications, and extraction values evaluated in that specific run.
   - **Left Area (2fr)**:
     - **Header**: Paper title, authors, publication date, external arXiv / DOI links.
-    - **Run Results & Scoring Details**: Composite Signal Score badge + full `SignalLedger` with Python AST variable breakdown and code snippet.
+    - **Run Results & Scoring Details**: Composite Signal Score badge + full `SignalLedger` with Python AST variable breakdown and code snippet for the bound run.
     - **Dimensions & TRL**: Extracted parameters with confidence ratings, LLM rationales, and evidence quotes + technological `RadarChart`.
     - **Screening**: Dual-stage acceptance/rejection decisions with complete LLM justifications (*Abstract Screening* and *Full-Text Screening*).
     - **Abstract & Files**: Stored canonical PDF binary and layout Markdown.
@@ -91,10 +92,10 @@ sequenceDiagram
 
     Note over User,PaperChat: 3. Drill-Down directly into Full Paper Details
     User->>BriefingUI: Clicks high-scoring paper card (Oraqle: Qubit Readout)
-    BriefingUI->>DetailsPage: Navigates to /papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0
+    BriefingUI->>DetailsPage: Navigates to /papers/ee9f8ca9-801a-4f36-8950-e7be86ee08c0?run_id=14
 
     Note over User,DetailsPage: 4. Paper Details (Scoring and Run Results)
-    DetailsPage-->>User: Left Panel: Title, SignalLedger formula, Dimensions, Radar, Screening reasons
+    DetailsPage-->>User: Left Panel: Title, SignalLedger formula, Dimensions, Radar, Screening reasons for Run #14
 
     Note over User,PaperChat: 5. Ask this paper in details
     DetailsPage-->>User: Right Rail: Built-in Ask this paper component active and ready for questions
@@ -126,11 +127,12 @@ The architecture cleanly bifurcates the paper details into two logical sections:
    - Raw upstream repository metadata payload (`meta` JSON from arXiv XML / OpenAlex).
    - Link to canonical PDF reader / storage binary and extracted markdown text.
 2. **Run-Specific Intelligence Context (`Details of specific RUN`)**:
-   - **Composite Signal Score** computed in *this specific run* with AST variable ledger.
+   - **Binding Mechanism**: Scoped explicitly by query parameter `?run_id=<uuid>` (or inherited from the top navbar's active run). When requesting `GET /api/papers/<id>/scorecard/?pipeline_run=<run_id>`, the backend isolates the `PaperMetric` evaluated in that specific run.
+   - **Composite Signal Score**: Computed in *this specific run* with AST variable ledger.
    - **Screening Decision**: Passed / Rejected with dual-stage LLM justification (*Abstract Screening Reasoning* and *Full-Text Screening Reasoning*).
    - **Extracted Parameter Values**: Specific metrics extracted by the extraction schema defined for this run.
    - **Cross-Run History**: Badges indicating other historical runs in which this paper appeared (e.g., `⚡ Run #12 (Passed)`, `Run #10 (Rejected)`).
-   - **`Ask Paper` CTA**: Launches an interactive chat grounded in this paper.
+   - **`Ask Paper` CTA**: Launches an interactive chat grounded in this paper carrying run context (`/ask?paper_id=<id>&run_id=<run_id>`).
 
 ### 4.2 Browse Papers Interaction Sequence
 
@@ -154,10 +156,10 @@ sequenceDiagram
 
     Note over User,DetailsPage: 3. Drill-Down into Paper Details
     User->>PapersList: Clicks paper row
-    PapersList->>DetailsPage: Opens Paper Details (/papers/[id])
+    PapersList->>DetailsPage: Opens Paper Details (/papers/[id]?run_id=14)
 
     Note over User,DetailsPage: 4. Paper Details (Scoring and Run Results)
-    DetailsPage-->>User: Left Panel: Universal Metadata, Run Context (Signal: 91.4, Reasons, Extractions)
+    DetailsPage-->>User: Left Panel: Universal Metadata, Run Context for Run #14 (Signal: 91.4, Reasons, Extractions)
 
     Note over User,PaperChat: 5. Ask this paper in details
     DetailsPage-->>User: Right Rail: Built-in Ask this paper component active and ready for questions
@@ -175,11 +177,11 @@ sequenceDiagram
   - Screening Status (*All*, *Abstract Passed*, *Full Text Passed*, *Rejected*).
   - Minimum Signal Score slider (0 – 100).
   - Target Parameters / TRL range.
-- **Paper Details Drawer (Slide-over)**:
-  - Header: Title, PDF link, External Repository link.
-  - Tab 1: **Run Scorecard** (Signal formula ledger, parameter extractions, screening reasoning).
+- **Paper Details View / Drawer**:
+  - Header: Title, PDF link, External Repository link, Run badge (`Evaluated in Run #14`).
+  - Tab 1: **Run Scorecard** (Signal formula ledger, parameter extractions, screening reasoning for active run).
   - Tab 2: **Raw Metadata (`meta`)** (Formatted JSON payload from arXiv / OpenAlex).
-  - Footer: **`Ask Paper`** primary button.
+  - Footer / Right Rail: **`Ask Paper`** interactive console.
 
 ---
 
@@ -192,17 +194,18 @@ The mockups explicitly emphasize the condition: **`[Select paper first]`**. The 
 
 1. **Context-Carried Entry (From Briefings or Papers)**:
    - User clicked **`Ask Paper`** on a briefing card or in paper details.
+   - The route carries both Paper and Run Context: `/ask?paper_id=<id>&run_id=<run_id>`.
    - The Ask view opens with the paper immediately locked into the session header:  
-     `Active Paper: [Oraqle: An Empirical Analysis of Qubit Readout...] [Change Paper]`.
-   - The user can start typing their prompt immediately.
+     `Active Paper: [Oraqle: An Empirical Analysis of Qubit Readout...] (Evaluated in Run #14) [Change Paper]`.
+   - The user can start typing their prompt immediately, and the assistant has access to both the document text and the run-specific scorecard extraction metrics.
 2. **Direct Navigation Entry (From Sidebar `/ask`)**:
    - User clicked **`Ask`** in the main sidebar without prior paper selection.
    - The center panel displays a clear onboarding state:  
-     **`Select a paper to interrogate`** with a live fuzzy search bar and a list of recently viewed / top-signal papers from the active workspace.
+     **`Select a paper to interrogate`** with a live fuzzy search bar and a list of recently viewed / top-signal papers from the active workspace and selected run.
    - Upon selecting a paper, the chat input unlocks.
 
-### 5.2 Interrogation History Panel
-- Located on the **right side** of the view (as drawn in mockup Page 3: `HISTORY`).
+### 5.2 Chat History (Right)
+- Located on the **right side** of the view (as drawn in mockup Page 3: **`HISTORY`** -> **Chat History (Right)**).
 - Displays chronological previous chat threads for the current user in this workspace.
 - Clicking an entry restores the conversation thread, loaded prompts, and cited evidence cards.
 
@@ -214,24 +217,27 @@ sequenceDiagram
     actor User as 👤 Researcher
     participant AskUI as 💬 Ask Paper Console (/ask)
     participant SearchModal as 🔎 Paper Selector Drawer
-    participant HistoryPanel as 📜 History Drawer (Right)
-    participant LLM as 🤖 Backend AI Assistant
+    participant HistoryPanel as 📜 Chat History (Right)
+
+    box #f1f5f9 Backend Service (Non-UI System)
+        participant LLM as 🤖 Backend AI Assistant
+    end
 
     Note over User,LLM: Scenario A: Direct Entry without Pre-Selected Paper
     User->>AskUI: Navigates to /ask via main menu
     AskUI-->>User: Displays Select paper first empty state with Search Bar
-    User->>SearchModal: Types Oraqle or selects from Top Signal list
-    SearchModal->>AskUI: Locks Oraqle as active paper context
+    User->>SearchModal: Types Oraqle or selects from Top Signal list (filtered by active Run)
+    SearchModal->>AskUI: Locks Oraqle and Run context into active chat session
 
     Note over User,LLM: Scenario B: Context-Carried Entry
-    Note over User,AskUI: Arrived via Ask Paper button from Briefings or Browse Papers
-    AskUI-->>User: Paper already pinned in header badge, chat console active
+    Note over User,AskUI: Arrived via Ask Paper button (?paper_id=...&run_id=...)
+    AskUI-->>User: Paper already pinned in header badge with Run context, chat console active
 
-    Note over User,LLM: Multi-Turn QA with Evidence Citations
+    Note over User,LLM: Multi-Turn QA with Evidence Citations (Backend Streaming)
     User->>AskUI: Types question regarding discriminator latency on FPGA
-    AskUI->>LLM: Dispatches prompt with paper full-text markdown context
+    AskUI->>LLM: Dispatches prompt with paper full-text markdown and run scorecard context
     LLM-->>AskUI: Streams answer with clickable citation badges
-    AskUI->>HistoryPanel: Automatically registers session in History drawer on right
+    AskUI->>HistoryPanel: Automatically registers session in Chat History (Right)
 
     Note over User,LLM: Reviewing Previous Conversations
     User->>HistoryPanel: Clicks past thread from yesterday
@@ -369,37 +375,86 @@ sequenceDiagram
 
 ## 9. Comprehensive Route & View Architecture
 
-| URL Route | Primary View | Context Anchor | Layout Description |
-| :--- | :--- | :--- | :--- |
-| `/` | **Login Screen** | None | Clean login box with credentials input, remember me, error alerts. |
-| `/briefing` | **Briefings (Dashboard)** | Workspace + Run | Executive report reader, key metrics, top-scoring paper cards with `Ask Paper` CTA. Right-hand run archive removed. |
-| `/papers` | **Browse Papers** | Workspace + Run | Searchable table of papers with right-side filter accordion. |
-| `/papers/[id]` | **Paper Details** | Workspace + Run + Paper | Drawer/Page showing: Universal Metadata (raw `meta`, PDF link) + Run Context (Score, Screening Reasons, Extractions, History) + `Ask Paper` button. |
-| `/ask` | **Ask Paper** | Workspace + Paper | Grounded chat console with pre-selected paper or `[Select paper first]` search prompt. Right side: Chat History drawer. |
-| `/pipeline` | **Pipeline Management** | Workspace | Top-right `Run Pipeline` button (with concurrency mutex). Main table: Historical Runs. Detail view: Component Runs timeline (no re-runs). |
-| `/settings` | **Account Settings** | User Session | Tabbed or stacked form: Personal Profile, Password Change, and Notification Preferences. |
+### 9.1 Context Resolution Hierarchy: Workspace, Run & Entity
+
+In the SRI architecture, data entities have distinct lifecycles and scopes:
+- **Workspace Scope**: The overarching research domain (e.g. *Quantum Computing*). All papers, extractions, scrapers, and pipeline runs belong to a workspace.
+- **Universal Paper Entity (`Paper`)**: Stores run-invariant bibliographic records (title, authors, DOI, arXiv ID, raw upstream `meta` JSON payload, canonical PDF binary, and layout markdown).
+- **Run-Scoped Evaluation (`PaperMetric` / `Extraction`)**: Stores intelligence generated by a specific pipeline execution (composite Signal Score, Python AST variable ledger, dual-stage *Abstract* and *Full-Text* screening decisions and LLM justifications).
+- **Run Context Binding Rule**:
+  1. **Primary (Explicit Permalink)**: URL query parameter `?run_id=<uuid>` (allows direct sharing and bookmarking of historical run audits).
+  2. **Secondary (Session Sync)**: Active `run_id` selected in the Top Navbar `RunSelector`.
+  3. **Tertiary (Default Fallback)**: Automatically queries the workspace's **last successful run** (`/api/pipeline-runs/?status=completed&ordering=-started_at`).
+
+---
+
+### 9.2 Route & Context Matrix
+
+| URL Route & Permalinks | Primary View | Context Hierarchy | Run Context Resolution Mechanism | Backend API Contract | Layout & Interaction Scope |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `/` | **Login Screen** | None (Unauthenticated) | Not applicable. | `POST /api/auth/token/` (or session auth) | Clean login card, credential inputs, error alert toasts. |
+| `/briefing`<br>`/briefing?run_id=<uuid>` | **Briefings (Dashboard)** | Workspace + Active Run | • Explicit: `?run_id=<uuid>`<br>• Fallback: Top Navbar `RunSelector` (defaults to latest completed run). | `GET /api/reports/executive_briefing/?workspace_id=<id>&pipeline_run=<run_id>` | Executive synthesis report reader, funnel metrics, top-scoring paper cards. Cards link to `/papers/[id]?run_id=<run_id>` and provide `Ask Paper` CTA (`/ask?paper_id=[id]&run_id=<run_id>`). |
+| `/papers`<br>`/papers?run_id=<uuid>` | **Browse Papers (Catalog)** | Workspace + Active Run | • Explicit: `?run_id=<uuid>`<br>• Fallback: Top Navbar `RunSelector`. Table filters papers evaluated in this specific run. | `GET /api/papers/?workspace_id=<id>&pipeline_run=<run_id>&screening_status=...` | Searchable table with sorting (title, score, screening pill), right-side filter accordion. Row click navigates to `/papers/[id]?run_id=<run_id>`. |
+| `/papers/[id]`<br>`/papers/[id]?run_id=<uuid>` | **Paper Details & Integrated Ask this paper** | Workspace + Run Context + Paper Entity | • Explicit: `?run_id=<uuid>` from parent list/briefing.<br>• Session: Inherited from active TopBar run.<br>• Fallback: Latest completed run metric.<br>*Ensures scorecard displays the exact run's evaluation.* | `GET /api/papers/{id}/scorecard/?pipeline_run={run_id}` | **Left (2fr)**: Universal Metadata (`meta` JSON, DOI, PDF link) + Run Scorecard (Signal score AST ledger, dual screening reasons, extractions) + Cross-Run comparison badges.<br>**Right Rail (1fr)**: Integrated `Ask this paper` console (`PaperChat`). |
+| `/ask`<br>`/ask?paper_id=<uuid>&run_id=<uuid>` | **Ask Paper (Grounded Interrogation Console)** | Workspace + Run Context + Paper Entity | • Context-Carried: `?paper_id=<uuid>&run_id=<uuid>` locks paper & run evaluation.<br>• Direct Entry: User selects paper from active run context via `[Select paper first]` search drawer. | `POST /api/chat/`<br>(payload: `workspace_id`, `pipeline_run_id`, `paper_id`, `message`) | Grounded multi-turn QA canvas with clickable citation pills + **`Chat History (Right)`** rail displaying chronological conversation threads. |
+| `/pipeline`<br>`/pipeline?run_id=<uuid>` | **Pipeline Management (Orchestration & Audit)** | Workspace (All Runs) + Selected Run for Component Audit | • Top Navbar `RunSelector` dimmed (displays all runs).<br>• Selecting a run row opens `Historic Run Details (Components level)` anchored to `?run_id=<uuid>`. | `GET /api/pipeline-runs/?workspace_id=<id>`<br>`GET /api/component-runs/?pipeline_run=<run_id>` | Top `Run Pipeline` button (with concurrency mutex lock), historical runs table. Sheet showing DAG component step status, timestamps, and error logs (no re-runs allowed). |
+| `/settings` | **Account Settings** | Authenticated User Session (Global) | Not applicable (Global user profile scope). | `GET /api/auth/me/`<br>`PATCH /api/auth/me/`<br>`GET/PATCH /api/users/preferences/` | Tabbed or stacked form: Personal Profile, Password Change, and Notification Preferences (email / run-completion alerts). |
+
+---
+
+### 9.3 Deep-Dive: Why `/papers/[id]` Requires Explicit Run Context
+
+1. **The Backend Model Reality**:
+   - In Django, `Paper` is workspace-wide and uniquely identified by `id` / `hash_id`. It does **not** point to a single `PipelineRun`.
+   - Instead, `PaperMetric` models the relationship `(paper, pipeline_run)`. A paper processed in Run #10 and re-screened in Run #12 will have **two distinct `PaperMetric` records** with potentially different screening decisions (e.g. updated criteria) and different signal scores.
+2. **The Scorecard API Contract**:
+   - When the frontend calls `/api/papers/{id}/scorecard/`, the serializer inspects:
+     ```python
+     pipeline_run_id = (
+         request.query_params.get('pipeline_run')
+         or request.query_params.get('pipeline_run_id')
+         or request.query_params.get('run_id')
+     )
+     ```
+   - If `pipeline_run` is omitted:
+     - The backend falls back to the workspace's latest run or the paper's latest metric.
+     - If a user was auditing historical Run #10 in `/briefing?run_id=10` or `/papers?run_id=10` and clicks into `/papers/[id]`, **without `?run_id=10` the view would show Run #14 metrics**, destroying the audit context!
+3. **The Frontend Route Specification**:
+   - Every drill-down link to Paper Details must construct the URL as:
+     ```typescript
+     href={`/papers/${paper.id}?run_id=${activeRunId}`}
+     ```
+   - The `/papers/[id]/page.tsx` server component reads `searchParams.run_id` and forwards it to `papers.get(id, runId)`, ensuring the scorecard endpoint queries:
+     ```
+     GET /api/papers/${id}/scorecard/?pipeline_run=${runId}
+     ```
+   - On the Details page, the UI renders a run context badge:
+     `Evaluated in Run #14 (Score: 91.4 · Full Text Passed) [View in Run #12]` allowing researchers to switch run contexts directly on the document.
 
 ---
 
 ## 10. Frontend Verification & Acceptance Criteria
 
-1. **Briefings Redundancy Elimination**:
+1. **Briefings Redundancy Elimination & Context Preservation**:
    - Verify that `/briefing` displays the executive briefing corresponding to the Run selected in the top bar.
    - Verify that there is **no duplicate right-hand sidebar** for switching runs; switching runs is done exclusively through the top navbar `RunSelector`.
-   - Verify that each paper highlight card has a working **`Ask Paper`** button that routes to `/ask` with that paper pre-selected.
+   - Verify that clicking any paper card in Briefings navigates to `/papers/[id]?run_id=<activeRunId>`, correctly binding the run context.
+   - Verify that each paper highlight card has a working **`Ask Paper`** button that routes to `/ask?paper_id=<id>&run_id=<activeRunId>`.
 
-2. **Browse Papers — Run Context Separation**:
-   - In `/papers`, clicking a paper opens a detail sheet that clearly distinguishes:
-     - **Metadata**: Title, authors, links, and raw source JSON (`meta`).
-     - **Run Specifics**: Composite Signal Score, Screening Status & dual reasoning, and extracted variables *for the active run*.
-     - **Historical Appearance**: Indication if the paper was evaluated in earlier runs.
+2. **Browse Papers — Run Context & Metric Isolation**:
+   - In `/papers`, clicking a paper opens Paper Details carrying `?run_id=<activeRunId>`.
+   - The Details view cleanly distinguishes:
+     - **Universal Metadata**: Title, authors, external links, and raw source JSON (`meta`).
+     - **Run-Specific Scorecard**: Composite Signal Score, AST variable ledger, screening status with dual-stage LLM justifications, and extracted parameters *for that specific run*.
+     - **Cross-Run History**: Badges indicating other historical runs in which this paper appeared (e.g. `⚡ Run #12 (Passed)`, `Run #10 (Rejected)`).
 
-3. **Ask Paper — Selection & History**:
-   - Navigating to `/ask` directly prompts the user with `Select a paper first` and a search input.
-   - Navigating to `/ask` via an `Ask Paper` button loads the paper immediately without prompts.
-   - The right side contains a **History** list of previous conversations for quick reloading.
+3. **Ask Paper — Pre-Selection, Run Context & Chat History**:
+   - Navigating to `/ask` directly prompts the user with `Select a paper first` and a search input filtered by the active workspace and run.
+   - Navigating to `/ask?paper_id=<id>&run_id=<id>` via an `Ask Paper` button loads the paper immediately with its run evaluation context without prompts.
+   - The right side contains **`Chat History (Right)`** with past conversation threads for quick reloading.
+   - Verify that AI responses stream citations with clickable evidence badges.
 
-4. **Pipeline Management — Concurrency & Immutability**:
-   - When a run is in status `running`, the `Run Pipeline` button is disabled.
-   - Historical runs have **no re-run** button.
-   - Component runs in the execution details sheet display status, timing, and error logs with **no component-level rerun** action.
+4. **Pipeline Management — Concurrency Mutex & Immutability**:
+   - When a run is in status `running`, the `Run Pipeline` button is disabled with a descriptive mutex tooltip.
+   - Historical runs have **no re-run** button (`No Re-run`).
+   - Component runs in the execution details sheet (`Historic Run Details (Components level)`) display status, timing, and error logs with **no component-level rerun** action.
