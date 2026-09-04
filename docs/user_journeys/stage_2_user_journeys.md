@@ -13,17 +13,58 @@ The Schwarz Research Intelligence (SRI) frontend is strictly organized around **
 
 $$\mathbf{Workspace\ Context} \;\longrightarrow\; \mathbf{Pipeline\ Run\ Context\ (Defaults\ to\ Last\ Successful\ Run)}$$
 
-```
-+---------------------------------------------------------------------------------------------------------------+
-|  [ SRI Logo ]   Workspace: [ Quantum Computing ▾ ]    Run: [ Run #14 (Latest Successful: Sep 3, 2026) ▾ ]    | [ Profile ▾ ]
-+---------------------------------------------------------------------------------------------------------------+
-|  1. 📊 Briefings (Dashboard)     |  Executive narrative report, highlights, top-scoring paper cards.          |
-|  2. 📄 Browse Papers             |  Searchable catalog, filters, paper details in context of specific run.   |
-|  3. 💬 Ask Paper                 |  Grounded conversational AI interrogation with Chat History (Right).       |
-|  4. ⚙️ Pipeline Management       |  Trigger runs (mutex lock), historical runs, component timeline (no rerun).|
-|  ─────────────────────────────── |                                                                           |
-|  👤 Settings                     |  User profile, password change, notification delivery preferences.        |
-+---------------------------------------------------------------------------------------------------------------+
+```mermaid
+flowchart TB
+    subgraph AppShell ["🖥️ SRI Web Application Shell & Mental Model"]
+        direction TB
+
+        subgraph TopBar ["🧭 Global Context Bar (Header)"]
+            direction LR
+            Logo["🔬 <b>SRI</b>"]
+            WS["📁 <b>Workspace:</b> Quantum Computing ▾"]
+            Run["⚡ <b>Run:</b> Run #14 (Sep 3, 2026) ▾"]
+            User["👤 <b>Profile ▾</b>"]
+            Logo ~~~ WS ~~~ Run ~~~ User
+        end
+
+        subgraph BodyLayout [" "]
+            direction LR
+
+            subgraph Sidebar ["📋 4 Pillars Navigation"]
+                direction TB
+                P1["📊 <b>1. Briefings (Dashboard)</b><br/><small>Executive narrative report & highlights</small>"]
+                P2["📄 <b>2. Browse Papers</b><br/><small>Searchable catalog & run-specific scoring</small>"]
+                P3["💬 <b>3. Ask Paper</b><br/><small>Grounded AI chat & Chat History (Right)</small>"]
+                P4["⚙️ <b>4. Pipeline Management</b><br/><small>Mutex triggers & component timeline</small>"]
+                Divider["───────────────────────────────────────"]
+                P5["👤 <b>Settings</b><br/><small>Profile, password & notification alerts</small>"]
+                P1 ~~~ P2 ~~~ P3 ~~~ P4 ~~~ Divider ~~~ P5
+            end
+
+            subgraph ContentArea ["🖼️ Active Viewport"]
+                direction TB
+                View["<b>Dynamic View Container</b><br/><br/>Bound to:<br/>• <b>Workspace:</b> <code>Quantum Computing</code><br/>• <b>Run Context:</b> <code>Run #14</code><br/><br/><i>Defaults to last successful run if ?run_id is omitted</i>"]
+            end
+        end
+    end
+
+    style AppShell fill:#f8fafc,stroke:#cbd5e1,stroke-width:1px
+    style TopBar fill:#0f172a,stroke:#020617,stroke-width:1px,color:#ffffff
+    style Sidebar fill:#ffffff,stroke:#e2e8f0,stroke-width:1px
+    style ContentArea fill:#ffffff,stroke:#e2e8f0,stroke-width:1px
+
+    style Logo fill:#1e293b,stroke:#334155,color:#ffffff
+    style WS fill:#1e293b,stroke:#334155,color:#38bdf8
+    style Run fill:#1e293b,stroke:#334155,color:#4ade80
+    style User fill:#1e293b,stroke:#334155,color:#ffffff
+
+    style P1 fill:#eff6ff,stroke:#93c5fd,color:#1e3a8a
+    style P2 fill:#f8fafc,stroke:#e2e8f0,color:#0f172a
+    style P3 fill:#f8fafc,stroke:#e2e8f0,color:#0f172a
+    style P4 fill:#f8fafc,stroke:#e2e8f0,color:#0f172a
+    style Divider fill:transparent,stroke:transparent,color:#94a3b8
+    style P5 fill:#f8fafc,stroke:#e2e8f0,color:#475569
+    style View fill:#f8fafc,stroke:#cbd5e1,color:#334155
 ```
 
 ### The 4 Pillars at a Glance
