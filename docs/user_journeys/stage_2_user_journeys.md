@@ -265,7 +265,7 @@ sequenceDiagram
     participant TopBar as 🧭 Global Context Bar
     participant PipelinePage as ⚙️ Pipeline Management (/pipeline)
     participant Modal as 🪟 Run Pipeline Dialog
-    participant RunDetails as ⏱️ Historic Run Details Sheet
+    participant RunDetails as ⏱️ Historic Run Details (Components level)
 
     Note over Admin,RunDetails: 1. Workspace Selection and Mutex Check
     Admin->>TopBar: Selects Workspace (Quantum Error Correction)
@@ -302,7 +302,7 @@ sequenceDiagram
      - Status (`Completed` ✅, `Running` 🔄, `Failed` ❌, `Halted` ⚠️).
      - Paper counts (Scraped / Screened / Extracted).
      - Cost ($ USD) & Duration.
-2. **Details of Historic Run**:
+2. **Historic Run Details (Components level)**:
    - Center Panel: Run status banner, overall status message, error logs (if failed), and direct links to view the generated Briefing or Browse Screened Papers.
    - Right Panel: **List of Component Runs** (`List of Component Runs with Status / Time`):
      - Chronological list of each pipeline stage.
