@@ -2,7 +2,6 @@
 
 **Document Version**: 3.0  
 **Associated Journey Document**: [user_journeys.md](user_journeys.md)  
-**Implementation Source**: `frontend/src/app` (Next.js App Router, Tailwind CSS, Radix UI)  
 **Scope**: High-fidelity ASCII layout wireframes and UI component topologies for all primary screens and embedded sub-functionalities.
 
 ---
@@ -31,9 +30,6 @@ Across all authenticated views, the application renders a persistent two-tier co
 ---
 
 ## 2. Screen 1: Briefings Dashboard (`/briefing`)
-
-*Source Component*: [`frontend/src/app/(sidebar)/briefing/edition-browser.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/(sidebar)/briefing/edition-browser.tsx)  
-*Interaction Sequence*: [user_journeys.md#33-briefings-to-paper-details-interaction-sequence](user_journeys.md#33-briefings-to-paper-details-interaction-sequence)
 
 ### Layout Topology
 - **Top Full-Width Search**: `SearchFrame` spanning both panes for quick filtering across all editions.
@@ -87,9 +83,6 @@ Across all authenticated views, the application renders a persistent two-tier co
 
 ## 3. Screen 2: Browse Papers Catalog (`/papers`)
 
-*Source Component*: [`frontend/src/app/(sidebar)/papers/papers-browser.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/(sidebar)/papers/papers-browser.tsx)  
-*Interaction Sequence*: [user_journeys.md#42-browse-papers-interaction-sequence](user_journeys.md#42-browse-papers-interaction-sequence)
-
 ### Layout Topology
 - **Full-Width Search Bar**: Fast fuzzy search filtering by title, authors, abstract text, arXiv ID, or DOI.
 - **Left Column (Main List — 2fr)**:
@@ -140,13 +133,6 @@ Across all authenticated views, the application renders a persistent two-tier co
 
 ## 4. Screen 3: Paper Details & Integrated Interrogation (`/papers/[id]?run_id=<id>`)
 
-*Source Components*:  
-- [`frontend/src/app/(sidebar)/papers/[id]/page.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/(sidebar)/papers/[id]/page.tsx)  
-- [`frontend/src/app/(sidebar)/papers/[id]/paper-header.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/(sidebar)/papers/[id]/paper-header.tsx)  
-- [`frontend/src/app/(sidebar)/papers/[id]/sections.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/(sidebar)/papers/[id]/sections.tsx)  
-- [`frontend/src/app/(sidebar)/papers/[id]/paper-chat.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/(sidebar)/papers/[id]/paper-chat.tsx)  
-*Interaction Sequence*: [user_journeys.md#33-briefings-to-paper-details-interaction-sequence](user_journeys.md#33-briefings-to-paper-details-interaction-sequence)
-
 ### Layout Topology
 - **Breadcrumb Navigation**: `← Back to Briefings / Papers`.
 - **Left Area (2fr) — Paper Run Results & Scoring Details**:
@@ -190,13 +176,6 @@ Across all authenticated views, the application renders a persistent two-tier co
 ---
 
 ## 5. Screen 4: Ask Paper Console (`/ask`)
-
-*Source Components*:  
-- [`frontend/src/app/(sidebar)/ask/console-frame.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/(sidebar)/ask/console-frame.tsx)  
-- [`frontend/src/app/(sidebar)/ask/ask.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/(sidebar)/ask/ask.tsx)  
-- [`frontend/src/app/(sidebar)/ask/history-rail.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/(sidebar)/ask/history-rail.tsx)  
-- [`frontend/src/app/(sidebar)/ask/paper-picker.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/(sidebar)/ask/paper-picker.tsx)  
-*Interaction Sequence*: [user_journeys.md#53-ask-paper-interaction-sequence](user_journeys.md#53-ask-paper-interaction-sequence)
 
 ### Layout Topology
 - **Left Column (3fr) — Main Interrogation Console**:
@@ -254,13 +233,6 @@ Across all authenticated views, the application renders a persistent two-tier co
 
 ## 6. Screen 5: Pipeline Management & Execution Audit (`/pipeline` or `/studio/runs`)
 
-*Source Components*:  
-- [`frontend/src/app/studio/runs/page.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/studio/runs/page.tsx)  
-- [`frontend/src/app/studio/runs/sections.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/studio/runs/sections.tsx)  
-- [`frontend/src/app/studio/runs/runs-table.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/studio/runs/runs-table.tsx)  
-- [`frontend/src/app/studio/runs/[id]/step-timeline.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/studio/runs/[id]/step-timeline.tsx)  
-*Interaction Sequence*: [user_journeys.md#62-pipeline-orchestration-and-audit-sequence](user_journeys.md#62-pipeline-orchestration-and-audit-sequence)
-
 ### Layout Topology
 - **Top Context Bar**: Run selector is dimmed/inactive because the Pipeline view manages and displays *all* historical runs.
 - **Page Header & Action**: View title, description, and primary CTA `[ ▶ Run Pipeline ]` (disabled with mutex tooltip if a run is already active).
@@ -310,9 +282,6 @@ Across all authenticated views, the application renders a persistent two-tier co
 
 ## 7. Screen 6: Account & Workspace Settings (`/settings`)
 
-*Source Component*: [`frontend/src/app/(sidebar)/settings/page.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/(sidebar)/settings/page.tsx)  
-*Interaction Sequence*: [user_journeys.md#82-settings-interaction-sequence](user_journeys.md#82-settings-interaction-sequence)
-
 ### Layout Topology
 - **Max-W-3XL Centered Stack**: Structured clean cards for profile, authentication, workspace bindings, and notifications.
 - **Card 1 — Personal Profile (`ProfileForm`)**: First name, last name, email address, role badge (`Administrator`, `Staff`, `Analyst`).
@@ -358,9 +327,6 @@ Across all authenticated views, the application renders a persistent two-tier co
 ---
 
 ## 8. Screen 7: Authentication & Institutional Login (`/`)
-
-*Source Component*: [`frontend/src/app/login-panel.tsx`](file:///Users/piotr/git/schwarz_research_inteligence/frontend/src/app/login-panel.tsx)  
-*Interaction Sequence*: [user_journeys.md#72-authentication-sequence](user_journeys.md#72-authentication-sequence)
 
 ### Layout Topology
 - **Centered Isolation Shell**: Focuses the user directly on credential validation or institutional single-sign-on without extraneous navigation chrome.

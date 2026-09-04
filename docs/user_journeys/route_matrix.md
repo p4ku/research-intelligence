@@ -4,7 +4,6 @@
 **Associated Documents**:  
 - 🗺️ **[user_journeys.md](user_journeys.md)** — Frontend User Journeys, State Transitions, and Interaction Sequences  
 - 📐 **[wireframes.md](wireframes.md)** — Screen Layout Wireframes & UI Component Topologies  
-**Implementation Source**: `frontend/src/app` (Next.js App Router) and `backend/api` (Django REST Framework)  
 **Scope**: Complete mapping of URL routes, context hierarchies, parameter bindings, fallback behaviors, and backend API contracts.
 
 ---
