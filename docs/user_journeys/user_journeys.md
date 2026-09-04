@@ -5,6 +5,7 @@
 **Scope**: Pure Frontend User Journeys, UI Views, Screen Transitions & Interactive States (Refined to 4 Core Pillars)  
 **Specification Source**: Hand-Drawn User Journey Architecture Mockups (Briefings, Browse Papers, Ask Paper, Pipeline Management)  
 **Companion Specifications**:  
+- 👥 **[personas.md](personas.md)** — User Personas, Daily Workflows & Permissions Matrix  
 - 📐 **[wireframes.md](wireframes.md)** — Full-fidelity ASCII layout wireframes and screen topologies for every view  
 - 🧭 **[route_matrix.md](route_matrix.md)** — Comprehensive URL routes, context hierarchies, parameter bindings, and backend API contracts
 
@@ -36,7 +37,7 @@ The Schwarz Research Intelligence (SRI) frontend is strictly organized around **
 | **1. Briefings** | `/briefing`<br>`/briefing?run_id=<id>` | Executive synthesis of the selected run | Workspace + Run Context | Top-scoring paper card ➔ Click to open **Paper Details** (`/papers/[id]?run_id=<id>`) with run scoring ledger & integrated **`Ask this paper`** |
 | **2. Browse Papers** | `/papers`<br>`/papers?run_id=<id>` | Filterable catalog & run-specific scoring | Workspace + Run Context | Paper row ➔ **Paper Details** (`/papers/[id]?run_id=<id>`) with run scoring ledger & integrated **`Ask this paper`** |
 | **3. Ask Paper** | `/ask`<br>`/ask?paper_id=<id>&run_id=<id>` | Dedicated interrogation console with Chat History | Workspace + Run + Paper | Standalone chat console with **`Chat History (Right)`**. Complements the in-page `Ask this paper` rail on `/papers/[id]`. |
-| **4. Pipeline Management** | `/pipeline`<br>`/pipeline?run_id=<id>` | Run orchestration & immutable audit | Workspace (All Runs) | Single active run mutex (`Don't allow multiple runs`) ➔ Component runs audit (`Historic Run Details (Components level)`, `No Re-run`) |
+| **4. Pipeline Management** | `/pipeline`<br>`/pipeline?run_id=<id>` | Run orchestration & immutable audit<br>*(Manager & Admin only; hidden for Researcher)* | Workspace (All Runs) | Single active run mutex (`Don't allow multiple runs`) ➔ Component runs audit (`Historic Run Details (Components level)`, `No Re-run`) |
 
 ---
 

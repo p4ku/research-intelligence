@@ -4,6 +4,7 @@
 **Associated Documents**:  
 - 🗺️ **[user_journeys.md](user_journeys.md)** — Frontend User Journeys, State Transitions, and Interaction Sequences  
 - 📐 **[wireframes.md](wireframes.md)** — Screen Layout Wireframes & UI Component Topologies  
+- 👥 **[personas.md](personas.md)** — User Personas, Daily Workflows & Permissions Matrix  
 **Scope**: Complete mapping of URL routes, context hierarchies, parameter bindings, fallback behaviors, and backend API contracts.
 
 ---

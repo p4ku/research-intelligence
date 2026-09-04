@@ -1,7 +1,10 @@
 # Frontend Screen Layout Wireframes Specification
 
 **Document Version**: 3.0  
-**Associated Journey Document**: [user_journeys.md](user_journeys.md)  
+**Associated Documents**:  
+- 🗺️ **[user_journeys.md](user_journeys.md)** — Frontend User Journeys, State Transitions, and Interaction Sequences  
+- 👥 **[personas.md](personas.md)** — User Personas, Daily Workflows & Permissions Matrix  
+- 🧭 **[route_matrix.md](route_matrix.md)** — URL Route & Context Resolution Matrix  
 **Scope**: High-fidelity ASCII layout wireframes and UI component topologies for all primary screens and embedded sub-functionalities.
 
 ---
