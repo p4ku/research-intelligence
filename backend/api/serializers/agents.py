@@ -1,16 +1,26 @@
 from rest_framework import serializers
 from research_intelligence.models import ResearchAgentProcess
+from .pipeline_runs import validate_iso_date
 
 
 class StartResearchAgentSerializer(serializers.Serializer):
-    workspace = serializers.UUIDField(required=True, help_text="Workspace UUID to launch the agent in")
+    workspace_id = serializers.UUIDField(required=True, help_text="Target Workspace UUID to launch the agent in")
     name = serializers.CharField(required=False, allow_blank=True, default="Autonomous Literature Review", help_text="Human-readable name for the research process")
-    limit = serializers.IntegerField(required=False, default=50, help_text="Max number of candidate papers to fetch & process")
-    date_range_days = serializers.IntegerField(required=False, allow_null=True, help_text="Filter query to the last N days")
-    query_prefix = serializers.CharField(required=False, allow_blank=True, help_text="Search query prefix override")
+    limit = serializers.IntegerField(required=False, default=50, min_value=1, help_text="Max number of candidate papers to fetch & process")
+    start_date = serializers.CharField(required=False, allow_null=True, allow_blank=True, default=None, help_text="ISO start date (e.g. '2026-08-01')")
+    end_date = serializers.CharField(required=False, allow_null=True, allow_blank=True, default=None, help_text="ISO end date (e.g. '2026-08-31')")
+    n_last_days = serializers.IntegerField(required=False, default=None, allow_null=True, min_value=1, max_value=3650, help_text="Lookback window in days (default: 7)")
+    query_prefix = serializers.CharField(required=False, allow_blank=True, default="", help_text="Search query prefix override")
     skip_abstract_screening = serializers.BooleanField(required=False, default=False, help_text="Skip abstract screening and screen directly on full text")
     reprocess_existing = serializers.BooleanField(required=False, default=False, help_text="Reprocess existing workspace papers without re-scraping")
-    notification_email = serializers.EmailField(required=False, allow_null=True, help_text="Optional email to receive notification upon completion")
+    notification_email = serializers.EmailField(required=False, allow_null=True, default=None, help_text="Optional email to receive notification upon completion")
+
+    def validate_start_date(self, value):
+        return validate_iso_date(value, "start_date")
+
+    def validate_end_date(self, value):
+        return validate_iso_date(value, "end_date")
+
 
 
 class ResearchAgentProcessSerializer(serializers.ModelSerializer):

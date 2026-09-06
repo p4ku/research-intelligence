@@ -110,7 +110,7 @@ class WorkflowSchedule(models.Model):
     configuration_override = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Optional pipeline configuration overrides (e.g. limit, date_range_days, skip_abstract_screening)"
+        help_text="Optional pipeline configuration overrides (e.g. limit, n_last_days, skip_abstract_screening)"
     )
 
     # Reliability, Telemetry & Failure Guardrails

@@ -210,6 +210,7 @@ DB_SCHEMA_DETAILED_MERMAID = """erDiagram
         uuid workspace_id FK
         string provider
         string search_query
+        int n_last_days
         json provider_params
         string schedule_cron
         int max_results_per_run

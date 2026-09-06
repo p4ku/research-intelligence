@@ -89,9 +89,9 @@ class IngestionSearchTasksTestCase(TestCase):
         self.assertEqual(papers.filter(source_database="openalex").count(), 1)
         self.assertEqual(papers.filter(source_database="lens").count(), 1)
         
-        mock_arxiv_search.assert_called_once_with("arxiv query", limit=20, sort_by="relevance", sort_order="desc")
-        mock_openalex_search.assert_called_once_with("openalex query", limit=20, sort_by="relevance", sort_order="desc")
-        mock_lens_search.assert_called_once_with("lens query", limit=20, sort_by="relevance", sort_order="desc")
+        mock_arxiv_search.assert_called_once_with("arxiv query", limit=20, sort_by="relevance", sort_order="desc", start_date=None, end_date=None, n_last_days=7)
+        mock_openalex_search.assert_called_once_with("openalex query", limit=20, sort_by="relevance", sort_order="desc", start_date=None, end_date=None, n_last_days=7)
+        mock_lens_search.assert_called_once_with("lens query", limit=20, sort_by="relevance", sort_order="desc", start_date=None, end_date=None, n_last_days=7)
 
     @patch("research_intelligence.scrapers.lens.LensScraperProvider.search")
     @patch("research_intelligence.scrapers.openalex.OpenAlexScraperProvider.search")
@@ -120,7 +120,7 @@ class IngestionSearchTasksTestCase(TestCase):
         self.assertEqual(papers.count(), 1)
         self.assertEqual(papers.first().title, "Arxiv Paper Only")
         
-        mock_arxiv_search.assert_called_once_with("arxiv query", limit=50, sort_by="relevance", sort_order="desc")
+        mock_arxiv_search.assert_called_once_with("arxiv query", limit=50, sort_by="relevance", sort_order="desc", start_date=None, end_date=None, n_last_days=7)
         mock_openalex_search.assert_not_called()
         mock_lens_search.assert_not_called()
 
@@ -198,7 +198,7 @@ class IngestionSearchTasksTestCase(TestCase):
         self.assertEqual(Paper.objects.filter(workspace=self.workspace).count(), 3)
         new_paper = Paper.objects.get(id=result[0])
         self.assertEqual(new_paper.title, "A Completely Unique Paper")
-        mock_arxiv_search.assert_called_once_with("arxiv query", limit=50, sort_by="relevance", sort_order="desc")
+        mock_arxiv_search.assert_called_once_with("arxiv query", limit=50, sort_by="relevance", sort_order="desc", start_date=None, end_date=None, n_last_days=7)
 
     def test_normalization_functions(self):
         self.assertEqual(normalize_doi("https://doi.org/10.1145/3377325.3377498"), "10.1145/3377325.3377498")
@@ -396,10 +396,45 @@ class IngestionSearchTasksTestCase(TestCase):
         with override_settings(LENS_API_KEY="test_mock_lens_key"):
             provider = LensScraperProvider()
             results = provider.search("silicon anode", limit=5)
-
             self.assertEqual(len(results), 1)
             item = results[0]
             self.assertEqual(item["title"], "Silicon Anode Degradation in Lithium Batteries")
             self.assertEqual(item["authors"], "Eva Green")
             self.assertEqual(item["pdf_url"], "https://publisher.com/article.pdf")
             self.assertEqual(item["other_url"], "https://www.lens.org/lens/scholar/article/012-345-678-901-234")
+
+    @patch("research_intelligence.tasks.step_1_search.search.get_scraper_provider")
+    def test_execute_scraper_run_job_with_date_range(self, mock_get_provider):
+        mock_provider = MagicMock()
+        mock_provider.search.return_value = []
+        mock_get_provider.return_value = mock_provider
+
+        scraper = Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="quantum dot",
+            is_active=True
+        )
+        comp_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="search",
+            component_name="arxiv_scraper",
+            scraper=scraper,
+            status="pending",
+            input_params={
+                "start_date": "2026-08-01",
+                "end_date": "2026-08-15",
+                "n_last_days": 14
+            }
+        )
+
+        ok = execute_scraper_run_job(str(comp_run.id))
+        self.assertNotEqual(ok, False)
+
+        mock_get_provider.assert_called_once_with("arxiv", n_last_days=14)
+        mock_provider.search.assert_called_once()
+        call_kwargs = mock_provider.search.call_args[1]
+        self.assertEqual(call_kwargs.get("start_date"), "2026-08-01")
+        self.assertEqual(call_kwargs.get("end_date"), "2026-08-15")
+        self.assertEqual(call_kwargs.get("n_last_days"), 14)
+

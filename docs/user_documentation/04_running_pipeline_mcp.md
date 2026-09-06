@@ -24,7 +24,7 @@ With the **Schwarz Research Intelligence (SRI) Model Context Protocol (MCP)** se
    ▼
  CLAUDE CODE / MCP CLIENT
    │
-   ├──► 1. start_research_agent(workspace_id="...", limit=50, date_range_days=90)
+   ├──► 1. start_research_agent(workspace_id="...", limit=50, n_last_days=90)
    │       └── Returns: { "process_id": "9a1b2c3d-...", "status": "running" }
    │
    ├──► 2. check_run_status(process_id="9a1b2c3d-...")  [Non-blocking poll]
@@ -52,22 +52,44 @@ Claude Code will launch the run and report real-time milestone updates.
 ### 1. Launching an Autonomous Run (`start_research_agent`)
 This is the **primary recommended entrypoint** for running systematic reviews.
 
-#### Parameters:
+#### Date Filtering Modes (Choose One):
+You can filter harvested literature by publication date using **either** relative days **or** explicit calendar dates:
+
+* **Mode 1: Relative Lookback Window (Default & Most Common)**
+  * `n_last_days` *(optional, integer, default: 7)*: Number of past days to query (`now() - N days` to `now()`). Active when neither `start_date` nor `end_date` is specified.
+  * *Example*: `"n_last_days": 14` (searches papers from the last 14 days).
+
+* **Mode 2: Explicit Date Range**
+  * `start_date` *(optional, ISO string, e.g. `'2026-08-01'`)*: Ingests papers published on or after this date.
+  * `end_date` *(optional, ISO string, e.g. `'2026-08-31'`)*: Ingests papers published on or before this date. Defaults to `now()` if omitted when `start_date` is provided.
+  * *Example*: `"start_date": "2026-08-01", "end_date": "2026-08-31"` (searches the exact August 2026 calendar interval).
+
+#### General Parameters:
 * `workspace_id` *(required)*: UUID of your target workspace.
 * `limit` *(optional, default: null = all available)*: Maximum number of candidate papers to harvest across scrapers.
-* `date_range_days` *(optional)*: Filter papers published within the last N days (e.g., `30`, `90`, `365`).
 * `query_prefix` *(optional)*: Additional query keywords to prepend to all scraper queries.
 * `skip_abstract_screening` *(optional, boolean)*: Set to `true` to skip abstract screening and route all papers directly to full text screening (default: inherits `workspace.skip_abstract_screening`).
 * `reprocess_existing` *(optional, boolean)*: Reprocessing policy override. When omitted (`null`), inherits the workspace default policy (`workspace.reprocess_existing`). Set explicitly to `true` to re-screen and re-extract all existing workspace papers even if no new papers are found; set `false` to only process newly scraped papers.
 * `notification_email` *(optional)*: Single-run email override to receive Mailgun completion report (default: sends to all active workspace Subscribers).
 
-#### Tool Invocation Example:
+#### Example A: Relative Lookback Run (`start_research_agent` / `start_pipeline_run`):
 ```json
 {
   "workspace_id": "7b8e1a90-3f2d-4b5c-8a1e-9d0c2e3f4a5b",
-  "name": "Q1 2026 Solid Electrolyte Review",
+  "name": "Weekly Autonomous Ingestion",
+  "n_last_days": 14,
+  "limit": 50
+}
+```
+
+#### Example B: Explicit Calendar Interval Run (`start_research_agent` / `start_pipeline_run`):
+```json
+{
+  "workspace_id": "7b8e1a90-3f2d-4b5c-8a1e-9d0c2e3f4a5b",
+  "name": "August 2026 Solid Electrolyte Review",
+  "start_date": "2026-08-01",
+  "end_date": "2026-08-31",
   "limit": 50,
-  "date_range_days": 90,
   "reprocess_existing": false,
   "notification_email": "innovation-team@schwarz.com"
 }
@@ -82,6 +104,26 @@ This is the **primary recommended entrypoint** for running systematic reviews.
   "message": "Autonomous Research Agent Process started successfully."
 }
 ```
+
+#### Granular Search Trigger (`trigger_search_job`):
+To execute Stage 1 Search as a standalone step:
+```json
+{
+  "workspace_id": "7b8e1a90-3f2d-4b5c-8a1e-9d0c2e3f4a5b",
+  "start_date": "2026-08-01",
+  "end_date": "2026-08-15",
+  "limit": 25
+}
+```
+*(Or with relative days)*:
+```json
+{
+  "workspace_id": "7b8e1a90-3f2d-4b5c-8a1e-9d0c2e3f4a5b",
+  "n_last_days": 30,
+  "limit": 25
+}
+```
+
 
 ---
 

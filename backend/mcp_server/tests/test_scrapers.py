@@ -48,6 +48,29 @@ class MCPScrapersTestCase(BaseMCPTestCase):
         self.assertTrue(res["success"])
         self.assertEqual(res["total_results"], 1)
 
+        # Test with date range parameters
+        res_date = self.parse_res(preview_search_query_logic(
+            self.admin,
+            provider="arxiv",
+            search_query="all:quantum",
+            limit=5,
+            start_date="2026-09-01",
+            end_date="2026-09-05",
+            n_last_days=14
+        ))
+        self.assertTrue(res_date["success"])
+        self.assertEqual(res_date["start_date"], "2026-09-01")
+        self.assertEqual(res_date["end_date"], "2026-09-05")
+        self.assertEqual(res_date["n_last_days"], 14)
+        mock_instance.search.assert_called_with(
+            "all:quantum",
+            max_results=5,
+            start_date="2026-09-01",
+            end_date="2026-09-05",
+            n_last_days=14
+        )
+
+
     def test_list_papers_and_optional_params(self):
         run = PipelineRun.objects.create(workspace=self.workspace)
         p1 = Paper.objects.create(

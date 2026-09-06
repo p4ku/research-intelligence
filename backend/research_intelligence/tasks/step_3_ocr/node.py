@@ -53,7 +53,7 @@ class OCRNode(BaseWorkflowNode):
             return "OCR: Skipped (Direct Multimodal PDF mode active)."
         if status == 'completed' and comp_run:
             metrics = comp_run.metrics or {}
-            conv = metrics.get('converted', metrics.get('total_converted', 0))
+            conv = metrics.get('total_converted', 0)
             return f"OCR: {conv} documents converted to Markdown."
         return super().generate_stage_summary(comp_run, status=status)
 

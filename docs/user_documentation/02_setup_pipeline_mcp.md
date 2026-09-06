@@ -85,7 +85,7 @@ Grant workspace permissions to your research team:
 ---
 
 ### Step 3: Configure Academic Scrapers (`create_scraper`)
-Set up multi-provider academic search queries to harvest relevant literature:
+Set up multi-provider academic search queries to harvest relevant literature. Each scraper supports `n_last_days` (default `7`), defining the lookback window when runs are triggered without explicit start/end dates:
 
 #### ArXiv Scraper
 ```json
@@ -94,6 +94,7 @@ Set up multi-provider academic search queries to harvest relevant literature:
   "provider": "arxiv",
   "search_query": "cat:cond-mat.mtrl-sci AND (all:\"solid state battery\" OR all:\"solid electrolyte\")",
   "limit": 50,
+  "n_last_days": 7,
   "is_active": true
 }
 ```
@@ -105,11 +106,26 @@ Set up multi-provider academic search queries to harvest relevant literature:
   "provider": "openalex",
   "search_query": "all-solid-state lithium battery energy density ionic conductivity",
   "limit": 50,
+  "n_last_days": 7,
   "is_active": true
 }
 ```
 
+#### Dry-Run Query Testing (`preview_search_query`)
+Inspect live search results and tune queries with optional date filters before persisting a scraper:
+```json
+{
+  "provider": "arxiv",
+  "search_query": "cat:cond-mat.mtrl-sci AND (all:\"solid state battery\")",
+  "start_date": "2026-08-01",
+  "end_date": "2026-08-31",
+  "n_last_days": 14,
+  "limit": 5
+}
+```
+
 ---
+
 
 ### Step 4: Define Dynamic Extraction Schemas (`create_extraction_definition`)
 Specify the exact structured JSON fields the AI must extract from screened full-text papers.

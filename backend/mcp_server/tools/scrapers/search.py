@@ -9,7 +9,15 @@ from research_intelligence.services import (
 )
 
 
-def preview_search_query_logic(user, provider: str, search_query: str, limit: int = 10) -> str:
+def preview_search_query_logic(
+    user,
+    provider: str,
+    search_query: str,
+    limit: int = 10,
+    start_date: str = None,
+    end_date: str = None,
+    n_last_days: int = None,
+) -> str:
     """Executes a live search query against a scientific provider (arXiv, OpenAlex, Lens.org) without downloading PDFs or storing DB runs."""
     valid_providers = [choice[0] for choice in Scraper.PROVIDER_CHOICES]
     if provider not in valid_providers:
@@ -19,10 +27,18 @@ def preview_search_query_logic(user, provider: str, search_query: str, limit: in
         return "Error: search_query is required."
 
     try:
-        payload = preview_search_query(provider=provider, search_query=search_query, limit=limit)
+        payload = preview_search_query(
+            provider=provider,
+            search_query=search_query,
+            limit=limit,
+            start_date=start_date,
+            end_date=end_date,
+            n_last_days=n_last_days
+        )
         return json.dumps(payload, indent=2, cls=DjangoJSONEncoder)
     except Exception as e:
         return f"Error previewing scraper query: {e}"
+
 
 
 def list_papers_logic(user, workspace_id: str, pipeline_run_id: str = None, limit: int = 50) -> str:

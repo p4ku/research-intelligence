@@ -37,6 +37,8 @@ class PaperSerializer(serializers.ModelSerializer):
     pipeline_run = serializers.SerializerMethodField()
     pipeline_run_id = serializers.SerializerMethodField()
     run_id = serializers.SerializerMethodField()
+    pipeline_run_name = serializers.SerializerMethodField()
+    published_date = serializers.SerializerMethodField()
     metrics = PaperMetricSerializer(many=True, read_only=True)
     signal_score = serializers.SerializerMethodField()
     signal_score_details = serializers.SerializerMethodField()
@@ -188,11 +190,37 @@ class PaperSerializer(serializers.ModelSerializer):
         m = self._get_target_metric(obj)
         return m.evaluation_label if m else None
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_published_date(self, obj):
+        meta = getattr(obj, 'meta', None) or {}
+        for k in ('published', 'publication_date', 'published_date', 'date'):
+            val = meta.get(k)
+            if val:
+                return str(val)[:10]
+        if obj.created_at:
+            return obj.created_at.strftime('%Y-%m-%d')
+        return None
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_pipeline_run_name(self, obj):
+        m = self._get_target_metric(obj)
+        if m and hasattr(m, '_state') and 'pipeline_run' in m._state.fields_cache:
+            pr = m._state.fields_cache['pipeline_run']
+            if pr:
+                return pr.name or f"Briefing {pr.run_date}"
+        if hasattr(obj, '_state') and 'pipeline_run' in obj._state.fields_cache:
+            pr = obj._state.fields_cache['pipeline_run']
+            if pr:
+                return pr.name or f"Briefing {pr.run_date}"
+        if hasattr(obj, '_pipeline_run') and obj._pipeline_run is not None:
+            return getattr(obj._pipeline_run, 'name', None) or f"Briefing {getattr(obj._pipeline_run, 'run_date', '')}"
+        return None
+
     class Meta:
         model = Paper
         fields = [
-            'id', 'workspace', 'pipeline_run', 'pipeline_run_id', 'run_id',
-            'hash_id', 'doi', 'arxiv_id', 'title', 'authors', 'abstract',
+            'id', 'workspace', 'pipeline_run', 'pipeline_run_id', 'run_id', 'pipeline_run_name',
+            'hash_id', 'doi', 'arxiv_id', 'title', 'authors', 'abstract', 'published_date',
             'source_database', 'original_pdf_path', 'converted_md_path',
             'screening_status', 'screening_reasoning',
             'abstract_screening_reasoning', 'full_text_screening_reasoning',

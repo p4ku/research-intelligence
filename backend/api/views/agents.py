@@ -63,26 +63,30 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
         description="Initiates an end-to-end autonomous research state engine run."
     )
     def create(self, request, *args, **kwargs):
-        workspace_id = request.data.get("workspace") or request.data.get("workspace_id")
-        if not workspace_id:
-            return Response({"error": "Must provide 'workspace' ID."}, status=status.HTTP_400_BAD_REQUEST)
+        serializer = StartResearchAgentSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        name = request.data.get("name")
-        limit = int(request.data.get("limit", 50))
-        date_range_days = request.data.get("date_range_days")
-        if date_range_days:
-            date_range_days = int(date_range_days)
-        query_prefix = request.data.get("query_prefix")
-        skip_abstract = request.data.get("skip_abstract_screening")
-        notification_email = request.data.get("notification_email")
-        reprocess_existing = bool(request.data.get("reprocess_existing", False))
+        validated = serializer.validated_data
+        workspace_id = validated["workspace_id"]
+        name = validated.get("name")
+        limit = validated.get("limit", 50)
+        start_date = validated.get("start_date")
+        end_date = validated.get("end_date")
+        n_last_days = validated.get("n_last_days")
+        query_prefix = validated.get("query_prefix")
+        skip_abstract = validated.get("skip_abstract_screening")
+        notification_email = validated.get("notification_email")
+        reprocess_existing = validated.get("reprocess_existing", False)
 
         res_json = start_research_agent_logic(
             user=request.user,
             workspace_id=str(workspace_id),
             name=name,
             limit=limit,
-            date_range_days=date_range_days,
+            start_date=start_date,
+            end_date=end_date,
+            n_last_days=n_last_days,
             query_prefix=query_prefix,
             skip_abstract_screening=skip_abstract,
             notification_email=notification_email,
@@ -94,7 +98,11 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
             return Response({"result": res_json}, status=status.HTTP_200_OK)
 
         if "error" in res_data or res_data.get("status") == "error":
+            err_msg = str(res_data.get("error", ""))
+            if "denied" in err_msg.lower() or "permissions" in err_msg.lower():
+                return Response(res_data, status=status.HTTP_403_FORBIDDEN)
             return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
+
 
         process_id = res_data.get("process_id")
         if process_id:

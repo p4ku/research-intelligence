@@ -1,9 +1,11 @@
-from rest_framework import viewsets, permissions
+from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
-from drf_spectacular.utils import extend_schema
+from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, OpenApiResponse
 from research_intelligence.models import Workspace, WorkspaceMember, ExtractionDefinition
 from ..serializers.workspaces import WorkspaceSerializer, ExtractionDefinitionSerializer
+from ..serializers.pipeline_runs import StartPipelineRunSerializer
 
 
 @extend_schema(
@@ -101,6 +103,58 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             return paper_view.get_paginated_response(serializer.data)
         serializer = PaperSerializer(qs, many=True, context={'request': request, 'workspace': workspace})
         return Response(serializer.data)
+
+    @extend_schema(
+        tags=['Workspaces Management', 'Pipeline Runs & Components'],
+        description="Trigger an autonomous pipeline run for this specific workspace with optional date range parameters.",
+        request=StartPipelineRunSerializer,
+        responses={
+            201: OpenApiResponse(description="Autonomous pipeline run started for workspace"),
+            400: OpenApiResponse(description="Bad request"),
+            403: OpenApiResponse(description="Forbidden"),
+        }
+    )
+    @action(detail=True, methods=['post'], url_path='run-pipeline')
+    def run_pipeline(self, request, pk=None):
+        import json
+        from mcp_server.tools.pipeline_runs.triggers import start_pipeline_run_logic
+
+        workspace = self.get_object()
+        data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
+        data['workspace_id'] = str(workspace.id)
+
+        serializer = StartPipelineRunSerializer(data=data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        valid_data = serializer.validated_data
+        n_last_days = valid_data.get('n_last_days')
+        res_json = start_pipeline_run_logic(
+            user=request.user,
+            workspace_id=str(workspace.id),
+            name=valid_data.get('name'),
+            limit=valid_data.get('limit'),
+            query_prefix=valid_data.get('query_prefix'),
+            skip_abstract_screening=valid_data.get('skip_abstract_screening'),
+            notification_email=valid_data.get('notification_email'),
+            reprocess_existing=valid_data.get('reprocess_existing'),
+            autonomous=valid_data.get('autonomous', True),
+            start_date=valid_data.get('start_date'),
+            end_date=valid_data.get('end_date'),
+            n_last_days=n_last_days
+        )
+        try:
+            res_data = json.loads(res_json)
+        except Exception:
+            res_data = {"raw_response": res_json}
+
+        if isinstance(res_data, dict) and res_data.get("status") == "error":
+            err_msg = res_data.get("error", "Error starting pipeline run")
+            if "denied" in err_msg.lower() or "permissions" in err_msg.lower():
+                return Response(res_data, status=status.HTTP_403_FORBIDDEN)
+            return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(res_data, status=status.HTTP_201_CREATED)
 
 
 @extend_schema(tags=['Extraction Definitions'])

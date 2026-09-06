@@ -96,7 +96,7 @@ architecture_mermaid = """graph TB
 # 2. Ingestion Pipeline Stages Diagram in Mermaid with Pod styling
 pipeline_mermaid = """graph TB
     subgraph P1 ["Stage 1: Ingestion Node"]
-        search[1. Search & Deduplication <br> arXiv, OpenAlex, Lens.org]
+        search[1. Search & Deduplication <br> arXiv, OpenAlex, Lens.org <br> Date Filter: start_date, end_date, n_last_days]
     end
     style P1 fill:#e6f2ff,stroke:#0066cc,stroke-width:2px
 

@@ -6,6 +6,8 @@ import logging
 import time
 import re
 import threading
+from datetime import datetime, date
+from typing import Optional, Union, List, Dict, Any, Tuple
 from .base import BaseScraperProvider
 
 logger = logging.getLogger(__name__)
@@ -43,7 +45,17 @@ class ArxivScraperProvider(BaseScraperProvider):
     COMPLEX_QUERY_PAGE_SIZE = 50
     MAX_TOTAL_RESULTS = 30000
 
-    def search(self, query: str, limit: int = 10, sort_by: str = "relevance", sort_order: str = "desc") -> list[dict]:
+    def search(
+        self,
+        query: str,
+        limit: int = 10,
+        sort_by: str = "relevance",
+        sort_order: str = "desc",
+        start_date: Optional[Union[str, date, datetime]] = None,
+        end_date: Optional[Union[str, date, datetime]] = None,
+        n_last_days: Optional[int] = None,
+        **kwargs
+    ) -> list[dict]:
         clean_query = query.strip()
         if clean_query.lower().startswith("arxiv:"):
             clean_query = clean_query[6:].strip()
@@ -55,15 +67,25 @@ class ArxivScraperProvider(BaseScraperProvider):
         # Enforce maximum accessible result set (arXiv limit is 30,000 per query)
         total_limit = max(1, min(limit, self.MAX_TOTAL_RESULTS))
 
+        start_dt, end_dt = self.resolve_date_range(start_date=start_date, end_date=end_date, n_last_days=n_last_days)
+
         # Check if query already contains field specifiers or boolean operators
         has_field_prefixes = any(p in clean_query for p in ["cat:", "ti:", "au:", "all:", "abs:", "submittedDate:", "jr:"])
         has_boolean_operators = any(b in clean_query for b in [" AND ", " OR ", " NOT "]) or clean_query.startswith("(")
 
-        if has_field_prefixes or has_boolean_operators:
-            formatted_query = clean_query
+        if not clean_query:
+            base_formatted_query = ""
+        elif has_field_prefixes or has_boolean_operators:
+            base_formatted_query = clean_query
         else:
             raw = clean_query.replace('"', '').replace("'", "")
-            formatted_query = f'all:"{raw}"' if " " in raw else f'all:{raw}'
+            base_formatted_query = f'all:"{raw}"' if " " in raw else f'all:{raw}'
+
+        if "submittedDate:" not in clean_query:
+            date_filter = self.format_arxiv_date_filter(start_dt, end_dt)
+            formatted_query = f"({base_formatted_query}) AND {date_filter}" if base_formatted_query else date_filter
+        else:
+            formatted_query = base_formatted_query
 
         is_complex = (
             len(clean_query) > 100
@@ -79,6 +101,7 @@ class ArxivScraperProvider(BaseScraperProvider):
 
         logger.info(
             f"🔍 [ARXIV SEARCH START] Target limit: {total_limit} papers | "
+            f"Date window: {start_dt.strftime('%Y-%m-%d')} to {end_dt.strftime('%Y-%m-%d')} | "
             f"Page size: {base_page_size} (complex_query={is_complex}) | "
             f"Sorting: {sort_by_param} ({sort_order_param})"
         )
@@ -95,7 +118,9 @@ class ArxivScraperProvider(BaseScraperProvider):
                 chunk_size=chunk_size,
                 sort_by_param=sort_by_param,
                 sort_order_param=sort_order_param,
-                raw_query=clean_query
+                raw_query=clean_query,
+                start_dt=start_dt,
+                end_dt=end_dt
             )
             if not chunk_results:
                 logger.info(f"ℹ️ [ARXIV SEARCH] No more results returned for start={start}. Ending pagination loop.")
@@ -123,7 +148,9 @@ class ArxivScraperProvider(BaseScraperProvider):
         chunk_size: int,
         sort_by_param: str,
         sort_order_param: str,
-        raw_query: str = ""
+        raw_query: str = "",
+        start_dt: Optional[datetime] = None,
+        end_dt: Optional[datetime] = None
     ) -> list[dict]:
         """
         Fetches a single slice from export.arxiv.org with adaptive chunk sizing,
@@ -176,7 +203,7 @@ class ArxivScraperProvider(BaseScraperProvider):
                     time.sleep(delay)
                 else:
                     logger.warning(f"⚠️ [ARXIV RATE LIMITED / TIMEOUT] Failed after {max_retries} attempts ({e}). Activating OpenAlex arXiv fallback...")
-                    return self._search_openalex_arxiv_fallback(raw_query, limit=chunk_size)
+                    return self._search_openalex_arxiv_fallback(raw_query, limit=chunk_size, start_dt=start_dt, end_dt=end_dt)
 
         if not xml_data:
             return []
@@ -309,7 +336,13 @@ class ArxivScraperProvider(BaseScraperProvider):
 
         return data
 
-    def _search_openalex_arxiv_fallback(self, query: str, limit: int = 10) -> list[dict]:
+    def _search_openalex_arxiv_fallback(
+        self,
+        query: str,
+        limit: int = 10,
+        start_dt: Optional[datetime] = None,
+        end_dt: Optional[datetime] = None
+    ) -> list[dict]:
         """
         Seamless fallback harvesting arXiv papers via OpenAlex's indexed repository source.
         Used when export.arxiv.org rate limits or blocks requests.
@@ -328,8 +361,12 @@ class ArxivScraperProvider(BaseScraperProvider):
             clean_search = " ".join(clean.split()[:8])
 
         encoded = urllib.parse.quote(clean_search or "quantum")
+        filter_str = "locations.source.id:s4306400194"
+        if start_dt and end_dt:
+            start_iso, end_iso = self.format_iso_date_range(start_dt, end_dt)
+            filter_str += f",from_publication_date:{start_iso},to_publication_date:{end_iso}"
 
-        url = f"https://api.openalex.org/works?filter=locations.source.id:s4306400194&search={encoded}&per_page={openalex_limit}"
+        url = f"https://api.openalex.org/works?filter={filter_str}&search={encoded}&per_page={openalex_limit}"
         try:
             req = urllib.request.Request(
                 url,

@@ -17,8 +17,11 @@ from ..serializers.pipeline_runs import (
     ComponentRunSerializer,
     TriggerStepSerializer,
     CreatePipelineRunSerializer,
+    StartPipelineRunSerializer,
 )
+from ..pagination import StandardResultsSetPagination
 from mcp_server.tools.pipeline_runs.triggers import (
+    start_pipeline_run_logic,
     trigger_search_job_logic,
     trigger_pdf_download_job_logic,
     trigger_ocr_job_logic,
@@ -41,6 +44,7 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
     Scoped strictly to workspaces the authenticated user belongs to.
     """
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = StandardResultsSetPagination
     http_method_names = ['get', 'post', 'delete', 'head', 'options']
     ordering_fields = ['started_at', 'completed_at', 'status', 'current_stage', 'tokens_consumed', 'usd_cost']
     ordering = ['-started_at']
@@ -50,6 +54,8 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             return PipelineRunDetailSerializer
         if self.action == 'create':
             return CreatePipelineRunSerializer
+        if self.action == 'start':
+            return StartPipelineRunSerializer
         if self.action == 'trigger_step':
             return TriggerStepSerializer
         return PipelineRunSerializer
@@ -78,6 +84,10 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             except (ValueError, TypeError):
                 return qs.none()
 
+        domain = self.request.query_params.get('domain') or self.request.query_params.get('workspace_name')
+        if domain and str(domain).lower() not in ('all', 'undefined', 'null', ''):
+            qs = qs.filter(workspace__name__iexact=domain.strip())
+
         status_param = self.request.query_params.get('status')
         if status_param:
             qs = qs.filter(status=status_param)
@@ -99,6 +109,10 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
 
         workspace_id = str(serializer.validated_data['workspace_id'])
         reprocess_existing = serializer.validated_data.get('reprocess_existing', False)
+        run_name = serializer.validated_data.get('name') or "SLR Review Run"
+        start_date = serializer.validated_data.get('start_date')
+        end_date = serializer.validated_data.get('end_date')
+        n_last_days = serializer.validated_data.get('n_last_days')
 
         workspace, membership, error = check_workspace_access(
             request.user, workspace_id, required_roles=['admin', 'manager', 'researcher']
@@ -106,18 +120,71 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
         if error:
             return Response({"error": error}, status=status.HTTP_403_FORBIDDEN)
 
+        config_override = {}
+        if start_date:
+            config_override['start_date'] = start_date
+        if end_date:
+            config_override['end_date'] = end_date
+        if n_last_days is not None:
+            config_override['n_last_days'] = n_last_days
+
         pipeline_run = PipelineRun.objects.create(
             workspace=workspace,
+            name=run_name,
             status='pending',
             current_stage='search',
             reprocess_existing=reprocess_existing,
             triggered_by=request.user,
+            configuration_override=config_override,
         )
 
         return Response(
             PipelineRunSerializer(pipeline_run).data,
             status=status.HTTP_201_CREATED
         )
+
+    @extend_schema(
+        request=StartPipelineRunSerializer,
+        responses={
+            201: OpenApiResponse(description="Autonomous pipeline run started successfully"),
+            400: OpenApiResponse(description="Bad request or validation error"),
+            403: OpenApiResponse(description="Forbidden - Insufficient permissions"),
+        }
+    )
+    @action(detail=False, methods=['post'], url_path='start')
+    def start(self, request, *args, **kwargs):
+        serializer = StartPipelineRunSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        data = serializer.validated_data
+        n_last_days = data.get('n_last_days')
+        res_json = start_pipeline_run_logic(
+            user=request.user,
+            workspace_id=str(data['workspace_id']),
+            name=data.get('name'),
+            limit=data.get('limit'),
+            query_prefix=data.get('query_prefix'),
+            skip_abstract_screening=data.get('skip_abstract_screening'),
+            notification_email=data.get('notification_email'),
+            reprocess_existing=data.get('reprocess_existing'),
+            autonomous=data.get('autonomous', True),
+            start_date=data.get('start_date'),
+            end_date=data.get('end_date'),
+            n_last_days=n_last_days
+        )
+        try:
+            res_data = json.loads(res_json)
+        except Exception:
+            res_data = {"raw_response": res_json}
+
+        if isinstance(res_data, dict) and res_data.get("status") == "error":
+            err_msg = res_data.get("error", "Error starting pipeline run")
+            if "denied" in err_msg.lower() or "permissions" in err_msg.lower():
+                return Response(res_data, status=status.HTTP_403_FORBIDDEN)
+            return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(res_data, status=status.HTTP_201_CREATED)
 
     @extend_schema(
         responses={
@@ -266,7 +333,6 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
         limit = serializer.validated_data.get('limit', 50)
         skip_abstract = serializer.validated_data.get('skip_abstract_screening', False)
         stage_param = serializer.validated_data.get('stage')
-        date_range_days = serializer.validated_data.get('date_range_days')
         query_prefix = serializer.validated_data.get('query_prefix')
 
         user = request.user
@@ -274,13 +340,16 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
         ws_id = str(pipeline_run.workspace_id)
 
         if step_type == 'search':
+            n_last_days = serializer.validated_data.get('n_last_days')
             res_json = trigger_search_job_logic(
                 user=user,
                 workspace_id=ws_id,
                 limit=limit,
                 reprocess_existing=pipeline_run.reprocess_existing,
-                date_range_days=date_range_days,
                 query_prefix=query_prefix,
+                start_date=serializer.validated_data.get('start_date'),
+                end_date=serializer.validated_data.get('end_date'),
+                n_last_days=n_last_days,
             )
         elif step_type == 'download':
             res_json = trigger_pdf_download_job_logic(

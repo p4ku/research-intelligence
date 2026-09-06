@@ -32,9 +32,9 @@ class SearchNode(BaseWorkflowNode):
     output_contract = {
         "papers": "QuerySet[Paper] (ingested Paper objects with title, abstract, DOI, arXiv ID, PDF URL)",
         "component_run_metrics": {
-            "total_found": "int",
-            "ingested_new": "int",
-            "duplicates_skipped": "int",
+            "total_fetched": "int",
+            "total_created": "int",
+            "duplicates_count": "int",
         },
     }
 
@@ -51,12 +51,12 @@ class SearchNode(BaseWorkflowNode):
         if papers_count == 0:
             last_run = search_runs.filter(status='completed').last()
             metrics = last_run.metrics if (last_run and last_run.metrics) else {}
-            duplicates = metrics.get("duplicates_skipped", metrics.get("total_duplicates_skipped", 0))
-            total_found = metrics.get("total_found", metrics.get("total_fetched", 0))
-            if duplicates > 0 or total_found > 0:
+            duplicates = metrics.get("duplicates_count", 0)
+            total_fetched = metrics.get("total_fetched", 0)
+            if duplicates > 0 or total_fetched > 0:
                 msg = (
                     f"Search: 0 papers were found matching criteria (0 new papers ingested - "
-                    f"found {total_found} on data sources, but all {duplicates} were already ingested in prior runs). "
+                    f"found {total_fetched} on data sources, but all {duplicates} were already ingested in prior runs). "
                     f"Pipeline halted cleanly. (Enable 'reprocess_existing' to re-screen/extract existing workspace papers)."
                 )
             else:
@@ -70,9 +70,9 @@ class SearchNode(BaseWorkflowNode):
     def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
         if status == 'completed' and comp_run:
             metrics = comp_run.metrics or {}
-            total = metrics.get('total_fetched', metrics.get('total_found', 0))
-            ingested = metrics.get('total_created', metrics.get('ingested_new', 0))
-            dups = metrics.get('duplicates_count', metrics.get('total_duplicates', metrics.get('duplicates_skipped', metrics.get('total_duplicates_skipped', 0))))
+            total = metrics.get('total_fetched', 0)
+            ingested = metrics.get('total_created', 0)
+            dups = metrics.get('duplicates_count', 0)
             if total == 0 and ingested == 0:
                 return "Search: 0 papers returned by queries."
             elif ingested == 0 and dups > 0:
@@ -83,10 +83,17 @@ class SearchNode(BaseWorkflowNode):
     def get_input_params(self, pipeline_run, workspace, config: Dict[str, Any], limit: Optional[int] = None) -> Dict[str, Any]:
         params = super().get_input_params(pipeline_run, workspace, config, limit=limit)
         params["scrapers"] = [
-            {"provider": s.provider, "query": s.search_query, "limit": s.limit}
+            {"provider": s.provider, "query": s.search_query, "limit": s.limit, "n_last_days": getattr(s, 'n_last_days', 7)}
             for s in workspace.scrapers.filter(is_active=True)
         ]
         params["reprocess_existing"] = bool(config.get("reprocess_existing", getattr(pipeline_run, 'reprocess_existing', getattr(workspace, 'reprocess_existing', False))))
+        if "start_date" in config and config["start_date"]:
+            params["start_date"] = config["start_date"]
+        if "end_date" in config and config["end_date"]:
+            params["end_date"] = config["end_date"]
+        n_last_days = config.get("n_last_days")
+        if n_last_days is not None:
+            params["n_last_days"] = n_last_days
         return params
 
     def execute(self, pipeline_run, comp_run, limit: Optional[int] = None) -> Any:

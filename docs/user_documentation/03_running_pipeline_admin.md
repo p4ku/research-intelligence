@@ -70,11 +70,40 @@ When you trigger a run, the SRI Autonomous State Engine coordinates an 8-stage D
    * **Run Name**: Optional human-readable name (e.g. `Q1-2026 Comprehensive Review` or `Autonomous Research Agent - 2026-09-03 10:40`).
    * **Reprocess Existing**: `Unchecked` for incremental scouting; check this to re-evaluate and re-extract parameters from previously fetched papers with updated criteria.
    * **Stopped at Stage**: Optional execution breakpoint. Set to `abstract_screening` to pause execution after initial screening for human review, or leave empty for full end-to-end execution through executive reporting.
-   * **Configuration Override**: Optional JSON payload to dynamically override model selection, reasoning effort, or rate limits for this specific execution.
+   * **Configuration Override**: Optional JSON payload to dynamically customize execution parameters, including scraper date range filtering:
+     ```json
+     {
+       "start_date": "2026-08-01",
+       "end_date": "2026-08-31",
+       "n_last_days": 14,
+       "limit": 50
+     }
+     ```
+     * **`start_date`**: ISO date string (`YYYY-MM-DD`). Ingests literature submitted/published on or after this date.
+     * **`end_date`**: ISO date string (`YYYY-MM-DD`). Ingests literature submitted/published on or before this date. Defaults to `now()` if omitted when `start_date` is given.
+     * **`n_last_days`**: Number of historical days to crawl (`now() - N days` to `now()`). Defaults to **7 days** if no dates are specified.
 
 4. Click **Save**.
 
 The Celery distributed task dispatcher immediately picks up the run, sets `status="running"`, and launches the initial `search` ingestion worker.
+
+### 🌐 Programmatic Launch via REST API
+Managers can also trigger runs programmatically via REST API with date range parameters:
+* **`POST /api/pipeline-runs/start/`**:
+  ```bash
+  curl -X POST https://sri-prod.apps.01.cf.eu01.onstackit.cloud/api/pipeline-runs/start/ \
+    -H "Authorization: Bearer <JWT_TOKEN>" \
+    -H "Content-Type: application/json" \
+    -d '{
+      "workspace_id": "7b8e1a90-3f2d-4b5c-8a1e-9d0c2e3f4a5b",
+      "name": "August 2026 Review",
+      "start_date": "2026-08-01",
+      "end_date": "2026-08-31",
+      "n_last_days": 7
+    }'
+  ```
+* **`POST /api/workspaces/<workspace_id>/run-pipeline/`**: Workspace-scoped endpoint accepting identical date parameters.
+
 
 ![Pipeline Run Execution Details](./images/08b_pipeline_run_detail.png)
 *Figure 2: Active Pipeline Run detail page displaying live stage progress, stage results preview, step history preview, and linked Component Runs.*

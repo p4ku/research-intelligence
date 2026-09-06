@@ -16,7 +16,9 @@ def start_research_agent_logic(
     workspace_id: str,
     name: str = None,
     limit: int = None,
-    date_range_days: int = None,
+    start_date: str = None,
+    end_date: str = None,
+    n_last_days: int = None,
     query_prefix: str = None,
     skip_abstract_screening: bool = None,
     notification_email: str = None,
@@ -26,6 +28,10 @@ def start_research_agent_logic(
     Start a new autonomous ResearchAgentProcess to execute an end-to-end ingestion and intelligence cycle.
     Supports parallel runs, dynamic query modifiers, date windowing, and notification settings.
     Set reprocess_existing=True to re-evaluate and screen existing workspace papers even if no new papers were found.
+
+    Date Filtering Modes:
+    - Mode 1 (Relative Lookback Days): Pass `n_last_days` (default: 7). Queries `now() - N days` to `now()`.
+    - Mode 2 (Explicit Date Range): Pass `start_date` and/or `end_date` (ISO strings). Overrides relative days.
     """
     workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
     if error:
@@ -37,9 +43,12 @@ def start_research_agent_logic(
 
     agent_name = name or f"Autonomous Research Agent - {timezone.now().strftime('%Y-%m-%d %H:%M')}"
 
+    effective_n_last_days = n_last_days if n_last_days is not None else 7
     config_override = {
         "limit": limit,
-        "date_range_days": date_range_days,
+        "n_last_days": effective_n_last_days,
+        "start_date": start_date,
+        "end_date": end_date,
         "query_prefix": query_prefix,
         "skip_abstract_screening": skip_abstract_screening if skip_abstract_screening is not None else workspace.skip_abstract_screening,
         "notification_email": notification_email,
@@ -531,7 +540,7 @@ def check_run_status_logic(
 
         search_runs = [cr for cr in comp_runs_list if cr.step_type == 'search']
         duplicates_count = sum(
-            int((cr.metrics or {}).get("duplicates_count", (cr.metrics or {}).get("total_duplicates", (cr.metrics or {}).get("duplicates_skipped", (cr.metrics or {}).get("total_duplicates_skipped", 0)))) or 0)
+            int((cr.metrics or {}).get("duplicates_count", 0))
             for cr in search_runs
         )
 

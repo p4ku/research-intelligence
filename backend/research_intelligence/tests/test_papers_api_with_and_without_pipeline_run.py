@@ -260,3 +260,49 @@ class PapersApiWithAndWithoutPipelineRunTestCase(TestCase):
         cr_latest_items = res_cr_latest.json()
         self.assertEqual(len(cr_latest_items), 1)
 
+    def test_6_search_and_frontend_convenience_fields(self):
+        """
+        Validates full-text search by title/author/doi, as well as published_date
+        and pipeline_run_name convenience fields needed for UI screens 3 and 5.
+        """
+        # Test search matching title fragment
+        res = self.client.get(f"/api/papers/?workspace={self.workspace.id}&search=Convolutional")
+        self.assertEqual(res.status_code, 200)
+        items = res.json()
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["id"], str(self.paper_multi.id))
+        self.assertIn("published_date", items[0])
+        self.assertIsNotNone(items[0]["published_date"])
+        self.assertEqual(items[0]["pipeline_run_name"], "Newer Run 2026-02")
+
+        # Test search matching author
+        res_auth = self.client.get(f"/api/papers/?workspace={self.workspace.id}&search=Alice")
+        self.assertEqual(res_auth.status_code, 200)
+        self.assertEqual(len(res_auth.json()), 1)
+
+        # Test search non-matching
+        res_none = self.client.get(f"/api/papers/?workspace={self.workspace.id}&search=NonExistentQuery")
+        self.assertEqual(res_none.status_code, 200)
+        self.assertEqual(len(res_none.json()), 0)
+
+    def test_7_pipelinerun_domain_and_pagination(self):
+        """
+        Validates pipeline run filtering by domain (workspace name) and pagination
+        with period and total_papers_screened convenience fields for UI screen 6.
+        """
+        # Filter by domain name
+        res = self.client.get("/api/pipeline-runs/?domain=Quantum NLP Contract Workspace")
+        self.assertEqual(res.status_code, 200)
+        items = res.json()
+        self.assertEqual(len(items), 2)
+        self.assertIn("period", items[0])
+        self.assertIn("total_papers_screened", items[0])
+
+        # Test pagination
+        res_pag = self.client.get("/api/pipeline-runs/?page=1&page_size=1")
+        self.assertEqual(res_pag.status_code, 200)
+        pag_data = res_pag.json()
+        self.assertIn("count", pag_data)
+        self.assertEqual(len(pag_data["results"]), 1)
+
+

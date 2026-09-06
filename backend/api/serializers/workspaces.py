@@ -10,7 +10,7 @@ class SubscriberSerializer(serializers.ModelSerializer):
 class ScraperSerializer(serializers.ModelSerializer):
     class Meta:
         model = Scraper
-        fields = ['id', 'workspace', 'provider', 'search_query', 'limit', 'sort_by', 'sort_order', 'is_active', 'created_at']
+        fields = ['id', 'workspace', 'provider', 'search_query', 'limit', 'sort_by', 'sort_order', 'n_last_days', 'is_active', 'created_at']
 
 class ExtractionDefinitionSerializer(serializers.ModelSerializer):
     class Meta:

@@ -148,6 +148,7 @@ Scrapers define what academic databases to search and what query strings to exec
      * *For ArXiv*: `cat:quant-ph AND (all:"supply chain" OR all:"vehicle routing" OR all:"logistics")`
      * *For OpenAlex*: `quantum computing logistics vehicle routing optimization`
    * **Limit**: `100` *(Target number of candidates to fetch)*.
+   * **N Last Days**: `7` *(Default lookback window in days when running search without explicit start/end dates. Defaults to 7)*.
    * **Is Active**: `Checked` (True).
 3. Click **Save**.
 

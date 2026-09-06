@@ -15,6 +15,7 @@ from ..pagination import StandardResultsSetPagination
         OpenApiParameter(name='workspace', type=str, location=OpenApiParameter.QUERY, description='Filter papers by workspace UUID'),
         OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Filter papers by PipelineRun UUID'),
         OpenApiParameter(name='screening_status', type=str, location=OpenApiParameter.QUERY, description='Filter by screening status (e.g. accepted, rejected)'),
+        OpenApiParameter(name='search', type=str, location=OpenApiParameter.QUERY, description='Full-text search in title, authors, abstract, DOI, or arXiv ID'),
     ]
 )
 class PaperViewSet(viewsets.ReadOnlyModelViewSet):
@@ -53,6 +54,18 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
                 qs = qs.filter(workspace_id=ws_uuid)
             except (ValueError, TypeError):
                 return qs.none()
+
+        search_query = self.request.query_params.get('search') or self.request.query_params.get('q')
+        if search_query and str(search_query).strip():
+            from django.db.models import Q
+            term = str(search_query).strip()
+            qs = qs.filter(
+                Q(title__icontains=term) |
+                Q(authors__icontains=term) |
+                Q(abstract__icontains=term) |
+                Q(doi__icontains=term) |
+                Q(arxiv_id__icontains=term)
+            )
 
         pipeline_run_id = (
             self.request.query_params.get('pipeline_run')
@@ -99,7 +112,7 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
                 filter_kwargs['metrics__screening_status'] = screening_status
 
             qs = qs.filter(**filter_kwargs).distinct().prefetch_related(
-                Prefetch('metrics', queryset=PaperMetric.objects.filter(pipeline_run_id=pr_uuid))
+                Prefetch('metrics', queryset=PaperMetric.objects.filter(pipeline_run_id=pr_uuid).select_related('pipeline_run'))
             )
 
             from django.db.models import F
@@ -111,7 +124,10 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
             return qs.order_by('-created_at', '-id')
 
         # Workspace-level queries (no specific pipeline run):
-        qs = qs.prefetch_related('metrics')
+        from django.db.models import Prefetch
+        qs = qs.prefetch_related(
+            Prefetch('metrics', queryset=PaperMetric.objects.select_related('pipeline_run'))
+        )
 
         from django.db.models import Subquery, OuterRef, F
         if screening_status:

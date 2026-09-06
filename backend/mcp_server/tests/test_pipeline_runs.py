@@ -102,7 +102,7 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
             workspace_id=str(self.workspace.id),
             scraper_id=str(scraper.id),
             limit=25,
-            date_range_days=30,
+            n_last_days=30,
             query_prefix="quantum"
         ))
         self.assertTrue(res["success"])
@@ -110,7 +110,7 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
         pr = PipelineRun.objects.get(id=pr_id)
         comp_run = pr.component_runs.first()
         self.assertEqual(comp_run.input_params["query_prefix"], "quantum")
-        self.assertEqual(comp_run.input_params["date_range_days"], 30)
+        self.assertEqual(comp_run.input_params["n_last_days"], 30)
         self.assertEqual(comp_run.input_params["search_query"], "quantum transformer attention")
 
     @patch("research_intelligence.tasks.auxiliary.email_digest.dispatch_pipeline_subscriber_digest")
@@ -180,7 +180,7 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
             step_type="search",
             component_name="arxiv_scraper",
             status="completed",
-            metrics={"total_fetched": 15, "total_created": 5, "duplicates_count": 10, "total_duplicates": 10}
+            metrics={"total_fetched": 15, "total_created": 5, "duplicates_count": 10}
         )
 
         agent = ResearchAgentProcess.objects.create(
@@ -372,7 +372,7 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
             workspace_id=str(self.workspace.id),
             name="Quantum Autonomous Run",
             limit=20,
-            date_range_days=14,
+            n_last_days=14,
             query_prefix="qubit",
             reprocess_existing=True
         ))
@@ -385,6 +385,52 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
         self.assertTrue(pr.configuration_override.get("autonomous"))
         self.assertEqual(pr.configuration_override.get("limit"), 20)
         self.assertTrue(pr.configuration_override.get("reprocess_existing"))
+
+    @patch("research_intelligence.tasks.orchestrator.runner.PipelineRunner.tick")
+    def test_start_pipeline_run_mcp_tool_with_date_range(self, mock_tick):
+        mock_tick.return_value = {"success": True, "status": "running", "current_stage": "search"}
+        res = self.parse_res(start_pipeline_run_logic(
+            self.admin,
+            workspace_id=str(self.workspace.id),
+            name="Date Range Run",
+            start_date="2026-08-01",
+            end_date="2026-08-15",
+            n_last_days=10
+        ))
+        self.assertEqual(res["status"], "success")
+        pr_id = res["pipeline_run_id"]
+        pr = PipelineRun.objects.get(id=pr_id)
+        self.assertEqual(pr.configuration_override.get("start_date"), "2026-08-01")
+        self.assertEqual(pr.configuration_override.get("end_date"), "2026-08-15")
+        self.assertEqual(pr.configuration_override.get("n_last_days"), 10)
+
+    @patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay")
+    def test_trigger_search_job_mcp_tool_with_date_range(self, mock_delay):
+        from research_intelligence.models import Scraper
+        mock_delay.return_value = MagicMock(id="task_123")
+        Scraper.objects.get_or_create(
+            workspace=self.workspace,
+            provider="arxiv",
+            defaults={"search_query": "machine learning", "is_active": True}
+        )
+        res = self.parse_res(trigger_search_job_logic(
+            self.admin,
+            workspace_id=str(self.workspace.id),
+            start_date="2026-07-01",
+            end_date="2026-07-10",
+            n_last_days=5
+        ))
+        self.assertTrue(res["success"])
+        pr_id = res["pipeline_run_id"]
+        pr = PipelineRun.objects.get(id=pr_id)
+        self.assertEqual(pr.configuration_override.get("start_date"), "2026-07-01")
+        self.assertEqual(pr.configuration_override.get("end_date"), "2026-07-10")
+        self.assertEqual(pr.configuration_override.get("n_last_days"), 5)
+        cr = ComponentRun.objects.filter(pipeline_run=pr, step_type="search").first()
+        self.assertIsNotNone(cr)
+        self.assertEqual(cr.input_params.get("start_date"), "2026-07-01")
+        self.assertEqual(cr.input_params.get("end_date"), "2026-07-10")
+        self.assertEqual(cr.input_params.get("n_last_days"), 5)
 
     def test_pause_resume_tick_pipeline_run_mcp_tools(self):
         pr = PipelineRun.objects.create(

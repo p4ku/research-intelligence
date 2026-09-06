@@ -310,10 +310,8 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
     metrics = {
         "total_papers": total_papers,
         "scored_count": scored_count,
-        "papers_scored": scored_count,
         "avg_signal_score": avg_score,
         "max_signal_score": max_score,
-        "top_score": max_score,
         "min_signal_score": min_score,
         "errors_count": len(errors_list),
         "errors": errors_list[:10],

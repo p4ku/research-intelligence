@@ -264,7 +264,7 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
 
     search_runs = [cr for cr in comp_runs_list if cr.step_type == 'search']
     duplicates_count = sum(
-        int((cr.metrics or {}).get("duplicates_count", (cr.metrics or {}).get("total_duplicates", (cr.metrics or {}).get("duplicates_skipped", (cr.metrics or {}).get("total_duplicates_skipped", 0)))) or 0)
+        int((cr.metrics or {}).get("duplicates_count", 0))
         for cr in search_runs
     )
 

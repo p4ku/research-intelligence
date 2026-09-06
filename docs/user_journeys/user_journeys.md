@@ -409,8 +409,8 @@ sequenceDiagram
 
         Note over Manager,RunDetails: 2. Triggering a Fresh Run
         Manager->>PipelinePage: Clicks Run Pipeline
-        PipelinePage->>Modal: Opens Run Dialog (Search query, limit, full vs reprocess)
-        Manager->>Modal: Confirms and Clicks Start Run
+        PipelinePage->>Modal: Opens Run Dialog (Date Range: start_date, end_date, n_last_days [default 7], limit, reprocess)
+        Manager->>Modal: Configures date window or accepts 7-day default, clicks Start Run
         Modal->>PipelinePage: Closes modal and registers new active Run #15
         PipelinePage-->>Manager: Run Pipeline button immediately locks with mutex active
     end
@@ -432,7 +432,12 @@ sequenceDiagram
      - Status (`Completed` ✅, `Running` 🔄, `Failed` ❌, `Halted` ⚠️).
      - Paper counts (Scraped / Screened / Extracted).
      - Cost ($ USD) & Duration.
-2. **Historic Run Details (Components level)**:
+2. **Run Pipeline Modal Dialog (Manager Only)**:
+   - **Date Filtering Strategy**:
+     - *Lookback Window (`n_last_days`)*: Number of past days to crawl (defaults to **7 days**, calculating `now() - 7 days` to `now()`).
+     - *Explicit Custom Date Range (`start_date`, `end_date`)*: Custom ISO calendar dates (`YYYY-MM-DD`) restricting literature searches.
+   - **Execution Options**: `limit` (max papers), `reprocess_existing` (re-screen existing library), and breakpoint `stopped_at_stage`.
+3. **Historic Run Details (Components level)**:
    - Center Panel: Run status banner, overall status message, error logs (if failed), and direct links to view the generated Briefing or Browse Screened Papers.
    - Right Panel: **List of Component Runs** (`List of Component Runs with Status / Time`):
      - Chronological list of each pipeline stage.

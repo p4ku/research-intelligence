@@ -48,6 +48,7 @@ The platform implements an 8-stage Directed Acyclic Graph (DAG) pipeline designe
 
 1.  **Search & Ingestion** (`SearchNode`):
     *   Queries external repositories (**arXiv**, **OpenAlex**, **Lens.org**) based on workspace scrapers.
+    *   Supports dynamic date range filtering via `start_date`, `end_date`, and `n_last_days` (defaulting to a 7-day lookback `now() - 7 days` to `now()` if dates are omitted).
     *   Performs real-time deduplication across Title, DOI, and arXiv ID against existing workspace papers.
     *   Creates candidate `Paper` records with `screening_status='pending'`.
 2.  **Abstract Screening** (`AbstractScreeningNode`):

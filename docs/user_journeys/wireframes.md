@@ -316,6 +316,33 @@ Across all authenticated views, the application renders a persistent two-tier co
 +---------------------------------------------------------------------------------------------------------------+
 ```
 
+#### Run Pipeline Modal Dialog (Manager Only)
+Clicking `[ ▶ Run Pipeline ]` opens a focused modal allowing the Manager to configure the search date window and execution parameters:
+
+```
++---------------------------------------------------------------------------------------------------------------+
+|  MODAL: RUN PIPELINE (MANAGER ONLY)                                                                           |
+|  -----------------------------------------------------------------------------------------------------------  |
+|  Workspace: Quantum Computing                                                                                 |
+|                                                                                                               |
+|  Run Name (Optional):  [ Q1-2026 Breakthrough Scouting Review                      ]                         |
+|                                                                                                               |
+|  Date Filtering Strategy:                                                                                     |
+|  (•) Lookback Window (N Last Days)      ( ) Explicit Custom Date Range                                        |
+|      Lookback Days: [ 7        ] days (Default: 7 days, crawls now() - N days to now())                       |
+|                                                                                                               |
+|  - OR -                                                                                                       |
+|      Start Date:    [ YYYY-MM-DD  ]   (e.g., 2026-08-01 — from beginning of day)                             |
+|      End Date:      [ YYYY-MM-DD  ]   (e.g., 2026-08-31 — to end of day, defaults to now() if empty)        |
+|                                                                                                               |
+|  Execution Scope:                                                                                             |
+|  [ ] Reprocess Existing Papers (Re-screen and re-extract previously harvested papers)                          |
+|  [ ] Breakpoint (Stopped Stage): [ End-to-End (Execute All Stages) ▾ ]                                        |
+|                                                                                                               |
+|                                                     [ Cancel ]   [ ▶ Start Pipeline Execution ]               |
++---------------------------------------------------------------------------------------------------------------+
+```
+
 ---
 
 ## 7. Screen 6: Account & Workspace Settings (`/settings`)

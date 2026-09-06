@@ -306,7 +306,7 @@ class WorkspaceMemberInline(admin.TabularInline):
 class ScraperInline(admin.TabularInline):
     model = Scraper
     extra = 1
-    fields = ('provider', 'search_query', 'is_active', 'created_at')
+    fields = ('provider', 'search_query', 'n_last_days', 'is_active', 'created_at')
     readonly_fields = ('created_at',)
 
 
@@ -1000,7 +1000,7 @@ class APIKeyAdmin(admin.ModelAdmin):
 
 @admin.register(Scraper)
 class ScraperAdmin(admin.ModelAdmin):
-    list_display = ('workspace', 'provider_badge', 'search_query', 'status_badge', 'created_at')
+    list_display = ('workspace', 'provider_badge', 'search_query', 'n_last_days', 'status_badge', 'created_at')
     list_filter = ('provider', 'is_active', 'workspace')
     search_fields = ('workspace__name', 'search_query')
 

@@ -178,7 +178,7 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
         component_run.completed_at = timezone.now()
         component_run.metrics = {
             "ocr_provider": None,
-            "converted": 0,
+            "total_converted": 0,
             "skipped": 0,
             "failed": 0,
             "skipped_reason": "Direct multimodal PDF mode active (ocr_provider is None)"
@@ -284,7 +284,7 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
             "ocr_provider": workspace.ocr_provider,
             "parallel_workers": worker_concurrency,
             "total_processed": len(papers),
-            "converted": converted_count,
+            "total_converted": converted_count,
             "skipped": skipped_count,
             "failed": failed_count,
             "duration_seconds": job_duration_sec

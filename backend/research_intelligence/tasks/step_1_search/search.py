@@ -69,23 +69,47 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
 
     try:
         start_time = time.time()
-        provider = get_scraper_provider(scraper.provider)
+        input_params = component_run.input_params or {}
+        config_override = getattr(pipeline_run, 'configuration_override', {}) or {}
+
+        start_date = input_params.get('start_date') or config_override.get('start_date')
+        end_date = input_params.get('end_date') or config_override.get('end_date')
+        n_last_days_raw = input_params.get('n_last_days')
+        if n_last_days_raw is None:
+            n_last_days_raw = config_override.get('n_last_days')
+        if n_last_days_raw is None:
+            n_last_days_raw = getattr(scraper, 'n_last_days', 7)
+        try:
+            n_last_days = int(n_last_days_raw) if n_last_days_raw is not None else 7
+        except (ValueError, TypeError):
+            n_last_days = 7
+
+        provider = get_scraper_provider(scraper.provider, n_last_days=n_last_days)
         final_limit = limit if limit is not None else (getattr(scraper, 'limit', 50) or 50)
         sort_by = getattr(scraper, 'sort_by', 'relevance')
         sort_order = getattr(scraper, 'sort_order', 'desc')
 
         logger.info(
             f"🔎 [SEARCH START] Querying '{scraper.provider}' for workspace '{workspace.name}' | "
-            f"Limit: {final_limit} | Sort: {sort_by} ({sort_order}) | Query: {scraper.search_query[:120]}..."
+            f"Limit: {final_limit} | Sort: {sort_by} ({sort_order}) | "
+            f"Date Range: {start_date} to {end_date} (n_last_days={n_last_days}) | "
+            f"Query: {scraper.search_query[:120]}..."
         )
 
-        results = provider.search(scraper.search_query, limit=final_limit, sort_by=sort_by, sort_order=sort_order)
+        results = provider.search(
+            scraper.search_query,
+            limit=final_limit,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            start_date=start_date,
+            end_date=end_date,
+            n_last_days=n_last_days
+        )
         fetch_elapsed = round(time.time() - start_time, 2)
         logger.info(f"📦 [SEARCH FETCHED] Provider '{scraper.provider}' returned {len(results)} candidate papers in {fetch_elapsed}s.")
         
         # 1. Update component run metrics
         component_run.metrics['total_fetched'] = len(results)
-        component_run.metrics['total_found'] = len(results)
         component_run.save(update_fields=['metrics'])
 
         # 2. Prepare in-memory deduplication index
@@ -240,17 +264,12 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
         duration_sec = round(time.time() - start_time, 2)
         component_run.metrics['total_fetched'] = len(results)
         component_run.metrics['total_created'] = created_count
-        component_run.metrics['ingested_new'] = created_count
-        component_run.metrics['total_duplicates'] = skipped_count
         component_run.metrics['duplicates_count'] = skipped_count
-        component_run.metrics['duplicates'] = skipped_count
-        component_run.metrics['total_duplicates_skipped'] = skipped_count
-        component_run.metrics['duplicates_skipped'] = skipped_count
         component_run.metrics['total_duration_seconds'] = duration_sec
         component_run.output_data = {
             "total_results": len(results),
             "total_created": created_count,
-            "total_duplicates": skipped_count,
+            "duplicates_count": skipped_count,
             "created_paper_ids": created_paper_ids,
             "papers_preview": fetched_papers_sample,
             "total_duration_seconds": duration_sec
@@ -325,6 +344,7 @@ def execute_workspace_search(workspace_id, pipeline_run_id, limit=50):
 
     created_ids = []
     active_scrapers = workspace.scrapers.filter(is_active=True)
+    config_override = getattr(pipeline_run, 'configuration_override', {}) or {}
     for scraper in active_scrapers:
         scraper_limit = limit if limit is not None else getattr(scraper, 'limit', 50)
         comp_run = ComponentRun.objects.create(
@@ -337,7 +357,10 @@ def execute_workspace_search(workspace_id, pipeline_run_id, limit=50):
                 "limit": scraper_limit,
                 "sort_by": getattr(scraper, 'sort_by', 'relevance'),
                 "sort_order": getattr(scraper, 'sort_order', 'desc'),
-                "search_query": scraper.search_query
+                "search_query": scraper.search_query,
+                "start_date": config_override.get('start_date'),
+                "end_date": config_override.get('end_date'),
+                "n_last_days": config_override.get('n_last_days') or getattr(scraper, 'n_last_days', 7)
             }
         )
         execute_scraper_run_job(str(comp_run.id), limit=scraper_limit)

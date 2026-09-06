@@ -1,4 +1,6 @@
+from datetime import datetime
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from research_intelligence.models import PipelineRun, ComponentRun, Paper, Extraction, PaperMetric
 from mcp_server.tools.pipeline_runs.status import _get_run_storage_stats
 
@@ -35,6 +37,12 @@ class PipelineRunSerializer(serializers.ModelSerializer):
     workspace_name = serializers.CharField(source='workspace.name', read_only=True)
     triggered_by_username = serializers.CharField(source='triggered_by.username', read_only=True, default=None)
     schedule_name = serializers.CharField(source='schedule.name', read_only=True, default=None)
+    period = serializers.SerializerMethodField()
+    total_papers_screened = serializers.IntegerField(source='total_papers_fetched', read_only=True)
+
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_period(self, obj):
+        return getattr(obj, 'period', None)
 
     class Meta:
         model = PipelineRun
@@ -52,7 +60,9 @@ class PipelineRunSerializer(serializers.ModelSerializer):
             'configuration_override',
             'stage_results',
             'step_history',
+            'period',
             'total_papers_fetched',
+            'total_papers_screened',
             'total_papers_passed_screening',
             'tokens_in',
             'tokens_out',
@@ -69,6 +79,7 @@ class PipelineRunSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             'id',
+            'period',
             'run_date',
             'started_at',
             'completed_at',
@@ -78,6 +89,7 @@ class PipelineRunSerializer(serializers.ModelSerializer):
             'triggered_by_username',
             'schedule_name',
             'total_papers_fetched',
+            'total_papers_screened',
             'total_papers_passed_screening',
             'tokens_in',
             'tokens_out',
@@ -117,7 +129,7 @@ class PipelineRunDetailSerializer(PipelineRunSerializer):
     def get_duplicates_count(self, obj):
         search_runs = [cr for cr in obj.component_runs.all() if cr.step_type == 'search']
         return sum(
-            int((cr.metrics or {}).get("duplicates_count", (cr.metrics or {}).get("total_duplicates", (cr.metrics or {}).get("duplicates_skipped", (cr.metrics or {}).get("total_duplicates_skipped", 0)))) or 0)
+            int((cr.metrics or {}).get("duplicates_count", 0))
             for cr in search_runs
         )
 
@@ -125,17 +137,36 @@ class PipelineRunDetailSerializer(PipelineRunSerializer):
         return Extraction.objects.filter(paper__metrics__pipeline_run=obj).distinct().count()
 
 
+def validate_iso_date(value: str, field_name: str) -> str:
+    if not value:
+        return value
+    clean = str(value).strip()
+    for fmt in ("%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%SZ", "%Y%m%d", "%Y/%m/%d"):
+        try:
+            datetime.strptime(clean, fmt)
+            return clean
+        except ValueError:
+            continue
+    try:
+        datetime.fromisoformat(clean)
+        return clean
+    except Exception:
+        raise serializers.ValidationError(
+            f"Invalid date format for {field_name}: '{value}'. Expected ISO-8601 string (e.g. '2026-09-01')."
+        )
+
+
 class TriggerStepSerializer(serializers.Serializer):
     step_type = serializers.ChoiceField(
         choices=[
-            ('search', 'Search & Ingestion'),
+            ('search', 'Academic Search & Ingestion'),
+            ('screening', 'Dual-Stage LLM Screening (Abstract or Full-Text)'),
             ('abstract_screening', 'Abstract Screening'),
-            ('download', 'PDF Binary Download'),
-            ('ocr', 'Layout OCR Extraction'),
-            ('full_text_screening', 'Full-Text Screening'),
-            ('screening', 'Abstract & Full-Text Screening (Legacy)'),
-            ('extraction', 'Dynamic Parameter Extraction'),
-            ('signal_score', 'Signal Score Evaluation'),
+            ('full_text_screening', 'Multimodal Full-Text Screening'),
+            ('download', 'PDF Paper Downloader'),
+            ('ocr', 'Document Layout OCR Analysis'),
+            ('extraction', 'Dynamic Structured Parameter Extraction'),
+            ('signal_score', 'Python Composite Signal Scoring'),
             ('reporting', 'Executive Narrative & Notification Dispatch'),
         ],
         required=True,
@@ -162,12 +193,6 @@ class TriggerStepSerializer(serializers.Serializer):
         default=False,
         help_text="If True during screening step, screens full-text directly"
     )
-    date_range_days = serializers.IntegerField(
-        required=False,
-        min_value=1,
-        max_value=365,
-        help_text="Days range for search step query"
-    )
     query_prefix = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -178,6 +203,34 @@ class TriggerStepSerializer(serializers.Serializer):
         allow_blank=True,
         help_text="Recipient email for step completion notification"
     )
+    start_date = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        default=None,
+        help_text="Start date for search query (e.g. '2026-09-01' or '2026-09-01T00:00:00Z')"
+    )
+    end_date = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        default=None,
+        help_text="End date for search query (e.g. '2026-09-06' or '2026-09-06T23:59:59Z')"
+    )
+    n_last_days = serializers.IntegerField(
+        required=False,
+        default=None,
+        allow_null=True,
+        min_value=1,
+        max_value=3650,
+        help_text="Default number of past days if dates are omitted (default: 7)"
+    )
+
+    def validate_start_date(self, value):
+        return validate_iso_date(value, "start_date")
+
+    def validate_end_date(self, value):
+        return validate_iso_date(value, "end_date")
 
 
 class CreatePipelineRunSerializer(serializers.Serializer):
@@ -193,3 +246,110 @@ class CreatePipelineRunSerializer(serializers.Serializer):
         max_length=255,
         help_text="Descriptive run name"
     )
+    start_date = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        default=None,
+        help_text="Start date for search query"
+    )
+    end_date = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        default=None,
+        help_text="End date for search query"
+    )
+    n_last_days = serializers.IntegerField(
+        required=False,
+        default=None,
+        allow_null=True,
+        min_value=1,
+        max_value=3650,
+        help_text="Default number of past days if dates are omitted (default: 7)"
+    )
+
+    def validate_start_date(self, value):
+        return validate_iso_date(value, "start_date")
+
+    def validate_end_date(self, value):
+        return validate_iso_date(value, "end_date")
+
+
+class StartPipelineRunSerializer(serializers.Serializer):
+    workspace_id = serializers.UUIDField(required=True, help_text="Target Workspace UUID")
+    name = serializers.CharField(
+        required=False,
+        default=None,
+        allow_null=True,
+        allow_blank=True,
+        max_length=255,
+        help_text="Descriptive run name"
+    )
+    start_date = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        default=None,
+        help_text="ISO start date (e.g. '2026-09-01' or '2026-09-01T00:00:00Z') for scrapers"
+    )
+    end_date = serializers.CharField(
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        default=None,
+        help_text="ISO end date (e.g. '2026-09-06' or '2026-09-06T23:59:59Z') for scrapers"
+    )
+    n_last_days = serializers.IntegerField(
+        required=False,
+        default=None,
+        allow_null=True,
+        min_value=1,
+        max_value=3650,
+        help_text="Default number of past days to query if start_date is not specified (default: 7)"
+    )
+    limit = serializers.IntegerField(
+        required=False,
+        min_value=1,
+        max_value=1000,
+        default=None,
+        allow_null=True,
+        help_text="Maximum number of papers to fetch/process"
+    )
+    reprocess_existing = serializers.BooleanField(
+        required=False,
+        default=False,
+        help_text="If True, reprocess existing workspace papers"
+    )
+    autonomous = serializers.BooleanField(
+        required=False,
+        default=True,
+        help_text="If True, automatically cascades through pipeline stages"
+    )
+    skip_abstract_screening = serializers.BooleanField(
+        required=False,
+        default=None,
+        allow_null=True,
+        help_text="Skip abstract screening and screen full text directly"
+    )
+    notification_email = serializers.EmailField(
+        required=False,
+        allow_blank=True,
+        default=None,
+        allow_null=True,
+        help_text="Recipient email for completion notification"
+    )
+    query_prefix = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        default=None,
+        allow_null=True,
+        help_text="Optional search query modifier"
+    )
+
+    def validate_start_date(self, value):
+        return validate_iso_date(value, "start_date")
+
+    def validate_end_date(self, value):
+        return validate_iso_date(value, "end_date")
+

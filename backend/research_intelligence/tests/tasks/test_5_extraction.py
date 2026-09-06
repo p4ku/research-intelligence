@@ -118,7 +118,7 @@ class ExtractionTaskTestCase(TestCase):
         self.assertIn("extraction_definitions", node.input_contract)
         self.assertIn("extractions", node.output_contract)
 
-        self.component_run.metrics = {"extracted_count": 8, "papers_processed": 4}
+        self.component_run.metrics = {"extractions_created": 8, "total_papers": 4}
         summary = node.generate_stage_summary(self.component_run, status="completed")
         self.assertIn("8 parameters extracted", summary)
 

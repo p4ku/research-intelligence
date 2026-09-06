@@ -2,6 +2,7 @@ import urllib.request
 import urllib.parse
 import json
 import logging
+from datetime import datetime
 from django.conf import settings
 from .base import BaseScraperProvider
 
@@ -12,17 +13,32 @@ class LensScraperProvider(BaseScraperProvider):
     Scraper provider implementing Lens.org scholarly API search and paper download.
     """
 
-    def search(self, query: str, limit: int = 10, sort_by: str = "relevance", sort_order: str = "desc") -> list[dict]:
+    def search(
+        self,
+        query: str,
+        limit: int = 10,
+        sort_by: str = "relevance",
+        sort_order: str = "desc",
+        start_date: str | datetime | None = None,
+        end_date: str | datetime | None = None,
+        n_last_days: int | None = None,
+    ) -> list[dict]:
         api_key = getattr(settings, "LENS_API_KEY", None)
         if not api_key:
             logger.warning("LENS_API_KEY not configured in settings. Returning empty results.")
             return []
             
+        start_dt, end_dt = self.resolve_date_range(start_date, end_date, n_last_days)
+        start_iso, end_iso = self.format_iso_date_range(start_dt, end_dt)
+
         url = "https://api.lens.org/scholarly/search"
         payload = {
             "query": {
-                "query_string": {
-                    "query": query
+                "bool": {
+                    "must": [
+                        {"query_string": {"query": query}},
+                        {"range": {"date_published": {"gte": start_iso, "lte": end_iso}}}
+                    ]
                 }
             },
             "size": int(limit or 10)

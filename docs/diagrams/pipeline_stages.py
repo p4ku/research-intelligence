@@ -23,7 +23,7 @@ with Diagram(
     direction="TB",
     graph_attr=graph_attr
 ):
-    search = Celery("1. Search & Deduplication\n(arXiv, OpenAlex, Lens.org)")
+    search = Celery("1. Search & Deduplication\n(arXiv, OpenAlex, Lens.org)\n[start_date, end_date, n_last_days]")
     abstract_screen = Celery("2. Abstract Screening\n(AI Triage via Gemini 3.7)")
     download = Celery("3. Parallel PDF Download\n(DocumentRegistry SHA-256 Cache)")
     ocr = Celery("4. Layout OCR\n(PyPDF / Mistral / Gemini OCR)")

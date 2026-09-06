@@ -16,7 +16,7 @@ class SignalScoreNode(BaseWorkflowNode):
         - Extracted variables mapped to snake_case (e.g. `fit_score`, `novelty_score`, `trl_level`).
     Outputs:
         - Created/updated PaperMetric.signal_score (float) and signal_score_details.
-        - ComponentRun.metrics: papers_scored, avg_signal_score, top_score.
+        - ComponentRun.metrics: scored_count, avg_signal_score, max_signal_score.
     """
     name = "signal_score"
     step_type = "signal_score"
@@ -36,16 +36,16 @@ class SignalScoreNode(BaseWorkflowNode):
             "PaperMetric.signal_score_details": "dict (variable audit)",
         },
         "component_run_metrics": {
-            "papers_scored": "int",
+            "scored_count": "int",
             "avg_signal_score": "float",
-            "top_score": "float",
+            "max_signal_score": "float",
         },
     }
 
     def generate_stage_summary(self, comp_run, status: str = "pending") -> str:
         if status == 'completed' and comp_run:
             metrics = comp_run.metrics or {}
-            scored = metrics.get('scored_count', metrics.get('papers_scored', 0))
+            scored = metrics.get('scored_count', 0)
             return f"Signal Scoring: Computed scores for {scored} paper(s)."
         return super().generate_stage_summary(comp_run, status=status)
 

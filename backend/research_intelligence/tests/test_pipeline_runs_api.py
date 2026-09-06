@@ -298,4 +298,68 @@ class PipelineRunsAPITestCase(APITestCase):
         self.assertEqual(res_own.data['status'], 'success')
         mock_execute.assert_called_once()
 
+    @patch('research_intelligence.tasks.orchestrator.runner.PipelineRunner.tick')
+    def test_start_pipeline_run_endpoint_with_date_range(self, mock_tick):
+        """User A starts an autonomous pipeline run with custom date range and n_last_days."""
+        mock_tick.return_value = {"success": True, "status": "running"}
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_a}')
+        payload = {
+            "workspace_id": str(self.workspace_a.id),
+            "name": "Date Filtered Review",
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-15",
+            "n_last_days": 14,
+            "autonomous": True
+        }
+        res = self.client.post('/api/pipeline-runs/start/', payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertIn("pipeline_run_id", res.data)
+        pr = PipelineRun.objects.get(id=res.data["pipeline_run_id"])
+        self.assertEqual(pr.configuration_override.get("start_date"), "2026-08-01")
+        self.assertEqual(pr.configuration_override.get("end_date"), "2026-08-15")
+        self.assertEqual(pr.configuration_override.get("n_last_days"), 14)
+
+    @patch('research_intelligence.tasks.orchestrator.runner.PipelineRunner.tick')
+    def test_workspace_run_pipeline_endpoint_with_date_range(self, mock_tick):
+        """User A triggers an autonomous pipeline run via workspace action with date parameters."""
+        mock_tick.return_value = {"success": True, "status": "running"}
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_a}')
+        payload = {
+            "start_date": "2026-07-01",
+            "end_date": "2026-07-20",
+            "n_last_days": 10
+        }
+        res = self.client.post(f'/api/workspaces/{self.workspace_a.id}/run-pipeline/', payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+        self.assertIn("pipeline_run_id", res.data)
+        pr = PipelineRun.objects.get(id=res.data["pipeline_run_id"])
+        self.assertEqual(pr.configuration_override.get("start_date"), "2026-07-01")
+        self.assertEqual(pr.configuration_override.get("end_date"), "2026-07-20")
+        self.assertEqual(pr.configuration_override.get("n_last_days"), 10)
+
+    @patch('research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay')
+    def test_trigger_search_step_endpoint_with_date_range(self, mock_delay):
+        """Triggering search step on an existing run forwards date parameters."""
+        mock_delay.return_value = MagicMock(id="celery_123")
+        Scraper.objects.get_or_create(
+            workspace=self.workspace_a,
+            provider="arxiv",
+            defaults={"search_query": "deep learning", "is_active": True}
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_a}')
+        payload = {
+            "step_type": "search",
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-10",
+            "n_last_days": 5
+        }
+        res = self.client.post(f'/api/pipeline-runs/{self.run_a.id}/trigger-step/', payload, format='json')
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        new_pr_id = res.data.get("pipeline_run_id")
+        cr = ComponentRun.objects.filter(pipeline_run_id=new_pr_id, step_type="search").first()
+        self.assertIsNotNone(cr)
+        self.assertEqual(cr.input_params.get("start_date"), "2026-08-01")
+        self.assertEqual(cr.input_params.get("end_date"), "2026-08-10")
+        self.assertEqual(cr.input_params.get("n_last_days"), 5)
+
 

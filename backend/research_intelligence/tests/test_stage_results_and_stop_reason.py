@@ -73,7 +73,7 @@ class StageResultsAndStopReasonTestCase(TestCase):
         comp_run = ComponentRun.objects.filter(pipeline_run=pr, step_type="search").last()
         self.assertIsNotNone(comp_run)
         comp_run.status = "completed"
-        comp_run.metrics = {"total_found": 5, "ingested_new": 0, "duplicates_skipped": 5}
+        comp_run.metrics = {"total_fetched": 5, "total_created": 0, "duplicates_count": 5}
         comp_run.save()
 
         # 2. Second tick triggers DAG evaluation -> detects 0 papers and halts cleanly
@@ -139,7 +139,7 @@ class StageResultsAndStopReasonTestCase(TestCase):
         )
         search_comp = ComponentRun.objects.filter(pipeline_run=pr, step_type="search").last()
         search_comp.status = "completed"
-        search_comp.metrics = {"total_found": 1, "ingested_new": 1, "duplicates_skipped": 0}
+        search_comp.metrics = {"total_fetched": 1, "total_created": 1, "duplicates_count": 0}
         search_comp.save()
 
         # Simulate Download completed
@@ -148,7 +148,7 @@ class StageResultsAndStopReasonTestCase(TestCase):
             step_type="download",
             component_name="pdf_download",
             status="completed",
-            metrics={"downloaded": 1, "cached": 0, "failed": 0}
+            metrics={"downloaded": 1, "from_cache": 0, "failed": 0}
         )
 
         # Simulate Screening failed with 429 quota exception
@@ -210,12 +210,12 @@ class StageResultsAndStopReasonTestCase(TestCase):
             title="Complete Paper"
         )
         PaperMetric.objects.create(paper=p1, pipeline_run=pr, workspace=self.workspace, screening_status="accepted")
-        ComponentRun.objects.create(pipeline_run=pr, step_type="search", status="completed", metrics={"total_found": 1, "ingested_new": 1})
+        ComponentRun.objects.create(pipeline_run=pr, step_type="search", status="completed", metrics={"total_fetched": 1, "total_created": 1, "duplicates_count": 0})
         ComponentRun.objects.create(pipeline_run=pr, step_type="screening", component_name="abstract_screening", status="completed", metrics={"passed": 1, "total_screened": 1})
         ComponentRun.objects.create(pipeline_run=pr, step_type="download", status="completed", metrics={"downloaded": 1})
         ComponentRun.objects.create(pipeline_run=pr, step_type="ocr", status="skipped")
         ComponentRun.objects.create(pipeline_run=pr, step_type="screening", component_name="full_text_screening", status="completed", metrics={"passed": 1, "total_screened": 1})
-        ComponentRun.objects.create(pipeline_run=pr, step_type="extraction", status="completed", metrics={"extractions_count": 4, "papers_processed": 1})
+        ComponentRun.objects.create(pipeline_run=pr, step_type="extraction", status="completed", metrics={"extractions_created": 4, "total_papers": 1})
         ComponentRun.objects.create(pipeline_run=pr, step_type="signal_score", status="completed", metrics={"scored_count": 1})
         ComponentRun.objects.create(pipeline_run=pr, step_type="reporting", status="completed", metrics={"report_id": str(uuid.uuid4())})
 

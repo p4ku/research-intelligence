@@ -130,7 +130,7 @@ class MemoryGuardAndChunkedBatchingTestCase(TestCase):
 
         comp_run.refresh_from_db()
         self.assertEqual(comp_run.status, "completed")
-        self.assertEqual(comp_run.metrics["converted"], 5)
+        self.assertEqual(comp_run.metrics["total_converted"], 5)
         # 5 papers with chunk size 2 -> 3 chunks -> 3 reclaim_ram invocations
         self.assertEqual(mock_reclaim.call_count, 3)
 

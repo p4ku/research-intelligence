@@ -25,6 +25,7 @@ from mcp_server.tools.agents import (
     get_research_agent_status_logic,
 )
 from mcp_server.tools.pipeline_runs import trigger_search_job_logic, get_pipeline_run_status_logic
+from mcp_server.tools.pipeline_runs.triggers import start_pipeline_run_logic
 from mcp_server.tools.extractions import get_paper_extractions_matrix_logic
 from mcp_server.tools.workspaces.crud import list_workspaces_logic, get_workspace_logic, create_workspace_logic, update_workspace_logic
 from rest_framework.test import APIClient
@@ -549,3 +550,488 @@ class WorkspaceReprocessFlagTestCase(TestCase):
         self.assertEqual(pm_1.abstract_screening_reasoning, "Passed in Run 1")
         self.assertIn(run_2, paper_1.reprocessed_runs.all())
         self.assertIn(paper_1, run_2.get_papers())
+
+
+class PipelineDateRangeAndResultsPaginationE2ETestCase(TestCase):
+    """
+    End-to-End Test Suite validating:
+    1. Pipeline execution with relative lookback (n_last_days) propagated to scrapers and stored in config.
+    2. Pipeline execution with explicit date range (start_date, end_date) propagated to scrapers and stored in config.
+    3. Proper formatting of the 'period' field ('Last 14 days' vs '2026-08-01 - 2026-08-15').
+    4. Multi-page pagination of Briefings (PipelineRuns) with filtering by domain name.
+    5. Multi-page pagination of resulting Papers within a briefing (page 1, page 2, page 3, prev/next links).
+    6. Search query combined with pagination on briefing papers.
+    7. REST API endpoints /api/pipeline-runs/start/ and /api/workspaces/{id}/run-pipeline/ with date parameters.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="e2e_dates_user", email="dates@example.com", password="password123")
+        self.workspace = Workspace.objects.create(
+            name="Physical AI Lab",
+            screening_llm_model="google/gemini-3.8-flash",
+            ocr_provider=None,  # Direct multimodal PDF screening
+            skip_abstract_screening=True,  # Direct Full-Text Screening
+            full_text_acceptance_criteria="Accept quantum and physical AI computing architectures.",
+            full_text_rejection_criteria="Reject unrelated software frameworks.",
+            signal_score_code="score = 0.6 * trl_level + 0.4 * novelty_score\nreturn round(score, 2)"
+        )
+        WorkspaceMember.objects.create(workspace=self.workspace, user=self.user, role='admin')
+
+        self.scraper = Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="physical AI embodied robotics",
+            limit=10,
+            is_active=True
+        )
+
+        self.ext_def_trl = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="TRL Level",
+            system_prompt="Extract technology readiness level 1-9.",
+            user_prompt_template="Extract TRL from paper: {paper_text}",
+            response_schema={"type": "object", "properties": {"trl": {"type": "integer"}}, "required": ["trl"]},
+            exit_metric="trl"
+        )
+
+        self.ext_def_nov = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Novelty Score",
+            system_prompt="Rate novelty 1-10.",
+            user_prompt_template="Extract novelty score from paper: {paper_text}",
+            response_schema={"type": "object", "properties": {"score": {"type": "number"}}, "required": ["score"]},
+            exit_metric="score"
+        )
+
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+        self.sample_papers = [
+            {
+                "hash_id": f"arxiv_pai_{i}",
+                "arxiv_id": f"2601.000{i}v1",
+                "doi": f"10.1000/arxiv.2601.000{i}",
+                "title": f"Physical AI and Embodied Robotics Paradigm Part {i}",
+                "authors": f"Dr. Scientist {i}, Prof. Researcher",
+                "abstract": f"Abstract describing experimental robotics and neural physical synthesis {i}.",
+                "source_database": "arxiv",
+                "pdf_url": f"https://arxiv.org/pdf/2601.000{i}.pdf",
+                "meta": {"published": f"2026-08-0{i}T12:00:00Z"}
+            }
+            for i in range(1, 6)
+        ]
+
+    def _mock_helpers(self):
+        mock_pdf_resp = MagicMock()
+        mock_pdf_resp.status_code = 200
+        mock_pdf_resp.content = b"%PDF-1.5 Mock PDF Binary Content for Testing"
+        mock_pdf_resp.headers = {"Content-Type": "application/pdf"}
+
+        def mock_llm_generate(*args, **kwargs):
+            prompt_str = str(kwargs.get("prompt", "") or (args[0] if len(args) > 0 else ""))
+            sys_str = str(kwargs.get("system_instruction", "") or (args[1] if len(args) > 1 else ""))
+
+            if "screening" in sys_str.lower() or "full_text" in prompt_str.lower() or "screening" in prompt_str.lower():
+                return {
+                    "passed": True,
+                    "reasoning": "Strong methodology with physical AI experiments.",
+                    "evidence_quotes": ["Real-world robotic trial with 99.4% accuracy."],
+                    "decision_category": "ACCEPTED"
+                }
+            elif "trl" in sys_str.lower() or "trl" in prompt_str.lower():
+                return {"trl": 6}
+            elif "novelty" in sys_str.lower() or "novelty" in prompt_str.lower():
+                return {"score": 8.0}
+            return {"passed": True, "value": 7.0}
+
+        return mock_pdf_resp, mock_llm_generate
+
+    def _drive_agent_to_completion(self, process_id: str, max_ticks: int = 15):
+        for _ in range(max_ticks):
+            res_str = check_run_status_logic(user=self.user, process_id=process_id)
+            res = json.loads(res_str)
+            if res.get("is_finished") or res.get("status") in ["completed", "failed", "aborted"]:
+                return res
+        return json.loads(check_run_status_logic(user=self.user, process_id=process_id))
+
+    def _drive_pipeline_run_to_completion(self, pipeline_run_id: str, max_ticks: int = 15):
+        from research_intelligence.tasks.orchestrator.runner import PipelineRunner
+        for _ in range(max_ticks):
+            pr = PipelineRun.objects.get(id=pipeline_run_id)
+            if pr.status in ['completed', 'failed', 'aborted']:
+                return pr
+            PipelineRunner.tick(pipeline_run_id)
+        return PipelineRun.objects.get(id=pipeline_run_id)
+
+    def test_e2e_pipeline_with_n_last_days_and_briefing_papers_pagination(self):
+        """
+        Scenario 1:
+        1. Launches an autonomous pipeline run with n_last_days=14.
+        2. Asserts scraper receives n_last_days=14 and returns 5 candidate papers.
+        3. Executes all stages E2E to completion.
+        4. Verifies configuration_override, period ('Last 14 days'), and metrics.
+        5. Tests Briefings API pagination (?status=completed&page=1&page_size=1).
+        6. Tests Papers API multi-page pagination (?page=1&page_size=2, page 2, page 3).
+        7. Tests Papers API search combined with pagination.
+        """
+        mock_pdf_resp, mock_llm_generate = self._mock_helpers()
+
+        with patch("requests.get", return_value=mock_pdf_resp), \
+             patch("research_intelligence.tasks.step_1_search.search.get_scraper_provider") as mock_scraper, \
+             patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate", side_effect=mock_llm_generate):
+
+            provider_inst = MagicMock()
+            provider_inst.search.return_value = self.sample_papers
+            mock_scraper.return_value = provider_inst
+
+            # 1. Start agent with n_last_days=14
+            res_str = start_research_agent_logic(
+                user=self.user,
+                workspace_id=str(self.workspace.id),
+                name="Robotics N-Days Review",
+                n_last_days=14
+            )
+            run_info = json.loads(res_str)
+            self.assertEqual(run_info["status"], "success")
+            proc_id = run_info["process_id"]
+
+            # 2. Drive to completion across all stages (search -> download -> screening -> extraction -> signal_score -> reporting)
+            wait_res = self._drive_agent_to_completion(proc_id)
+            self.assertEqual(wait_res["agent_status"], "completed")
+
+            proc = ResearchAgentProcess.objects.get(id=proc_id)
+            pr = proc.pipeline_run
+            self.assertEqual(pr.status, "completed")
+            self.assertEqual(pr.current_stage, "completed")
+
+            # Verify scraper received n_last_days=14
+            search_call_kwargs = provider_inst.search.call_args[1]
+            self.assertEqual(search_call_kwargs.get("n_last_days"), 14)
+
+            # Verify configuration_override and period formatting
+            self.assertEqual(pr.configuration_override.get("n_last_days"), 14)
+            self.assertEqual(pr.period, "Last 14 days")
+            self.assertEqual(pr.total_papers_fetched, 5)
+            self.assertEqual(pr.total_papers_passed_screening, 5)
+
+            # Check signal scores: 0.6 * 6 + 0.4 * 8 = 6.8
+            metrics = PaperMetric.objects.filter(pipeline_run=pr)
+            self.assertEqual(metrics.count(), 5)
+            for m in metrics:
+                self.assertEqual(float(m.signal_score), 6.8)
+
+            # 3. Test Briefings API Pagination (Screen 6 / Screen 2)
+            res_briefings = self.client.get(
+                f"/api/pipeline-runs/?domain=Physical AI Lab&status=completed&page=1&page_size=1"
+            )
+            self.assertEqual(res_briefings.status_code, status.HTTP_200_OK)
+            b_data = res_briefings.json()
+            self.assertIn("count", b_data)
+            self.assertEqual(len(b_data["results"]), 1)
+            first_briefing = b_data["results"][0]
+            self.assertEqual(first_briefing["id"], str(pr.id))
+            self.assertEqual(first_briefing["workspace_name"], "Physical AI Lab")
+            self.assertEqual(first_briefing["period"], "Last 14 days")
+            self.assertEqual(first_briefing["total_papers_screened"], 5)
+            self.assertEqual(first_briefing["total_papers_passed_screening"], 5)
+
+            # 4. Test Papers API Pagination for this Briefing (Screen 3)
+            # Page 1: 2 items, next link exists, previous is null
+            res_p1 = self.client.get(f"/api/papers/?pipeline_run={pr.id}&page=1&page_size=2")
+            self.assertEqual(res_p1.status_code, status.HTTP_200_OK)
+            d_p1 = res_p1.json()
+            self.assertEqual(d_p1["count"], 5)
+            self.assertEqual(len(d_p1["results"]), 2)
+            self.assertIsNotNone(d_p1["next"])
+            self.assertIsNone(d_p1["previous"])
+            self.assertIn("page=2", d_p1["next"])
+            # Check convenience fields on papers
+            self.assertEqual(d_p1["results"][0]["pipeline_run_name"], "Robotics N-Days Review")
+            self.assertIsNotNone(d_p1["results"][0]["published_date"])
+            self.assertEqual(d_p1["results"][0]["signal_score"], 6.8)
+
+            # Page 2: 2 items, both previous and next exist
+            res_p2 = self.client.get(f"/api/papers/?pipeline_run={pr.id}&page=2&page_size=2")
+            self.assertEqual(res_p2.status_code, status.HTTP_200_OK)
+            d_p2 = res_p2.json()
+            self.assertEqual(len(d_p2["results"]), 2)
+            self.assertIsNotNone(d_p2["next"])
+            self.assertIsNotNone(d_p2["previous"])
+            self.assertIn("page=3", d_p2["next"])
+
+            # Page 3: 1 item, previous exists, next is null
+            res_p3 = self.client.get(f"/api/papers/?pipeline_run={pr.id}&page=3&page_size=2")
+            self.assertEqual(res_p3.status_code, status.HTTP_200_OK)
+            d_p3 = res_p3.json()
+            self.assertEqual(len(d_p3["results"]), 1)
+            self.assertIsNone(d_p3["next"])
+            self.assertIsNotNone(d_p3["previous"])
+
+            # 5. Test Search combined with Pagination within briefing
+            res_search = self.client.get(f"/api/papers/?pipeline_run={pr.id}&search=Part 3&page=1&page_size=2")
+            self.assertEqual(res_search.status_code, status.HTTP_200_OK)
+            d_search = res_search.json()
+            self.assertEqual(d_search["count"], 1)
+            self.assertEqual(len(d_search["results"]), 1)
+            self.assertIn("Part 3", d_search["results"][0]["title"])
+
+    def test_e2e_pipeline_with_explicit_start_end_dates_and_results_pagination(self):
+        """
+        Scenario 2:
+        1. Launches an autonomous pipeline run via REST API (/api/pipeline-runs/start/)
+           specifying explicit start_date='2026-08-01' and end_date='2026-08-15'.
+        2. Asserts scraper receives start_date and end_date.
+        3. Drives the DAG execution through all stages to completion.
+        4. Verifies period formatting ('2026-08-01 - 2026-08-15').
+        5. Tests Briefings API domain filtering and paginated paper retrieval.
+        """
+        mock_pdf_resp, mock_llm_generate = self._mock_helpers()
+
+        with patch("requests.get", return_value=mock_pdf_resp), \
+             patch("research_intelligence.tasks.step_1_search.search.get_scraper_provider") as mock_scraper, \
+             patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate", side_effect=mock_llm_generate):
+
+            provider_inst = MagicMock()
+            provider_inst.search.return_value = self.sample_papers
+            mock_scraper.return_value = provider_inst
+
+            # 1. Start via REST API
+            payload = {
+                "workspace_id": str(self.workspace.id),
+                "name": "Date Range Robotics Review",
+                "start_date": "2026-08-01",
+                "end_date": "2026-08-15"
+            }
+            res = self.client.post("/api/pipeline-runs/start/", payload, format="json")
+            self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+            pr_id = res.data["pipeline_run_id"]
+
+            # 2. Drive PipelineRun to completion via DAG tick engine
+            pr = self._drive_pipeline_run_to_completion(pr_id)
+            self.assertEqual(pr.status, "completed")
+            self.assertEqual(pr.current_stage, "completed")
+
+            # Verify scraper was called with explicit date range
+            search_call_kwargs = provider_inst.search.call_args[1]
+            self.assertEqual(search_call_kwargs.get("start_date"), "2026-08-01")
+            self.assertEqual(search_call_kwargs.get("end_date"), "2026-08-15")
+
+            # Verify period formatting
+            self.assertEqual(pr.configuration_override.get("start_date"), "2026-08-01")
+            self.assertEqual(pr.configuration_override.get("end_date"), "2026-08-15")
+            self.assertEqual(pr.period, "2026-08-01 - 2026-08-15")
+            self.assertEqual(pr.total_papers_screened, 5)
+            self.assertEqual(pr.total_papers_passed_screening, 5)
+
+            # 3. Test Briefings API with domain filter and pagination
+            res_briefing = self.client.get(
+                f"/api/pipeline-runs/?domain=Physical AI Lab&status=completed&page=1&page_size=5"
+            )
+            self.assertEqual(res_briefing.status_code, status.HTTP_200_OK)
+            b_items = res_briefing.json()["results"]
+            matched_run = next(r for r in b_items if r["id"] == str(pr.id))
+            self.assertEqual(matched_run["period"], "2026-08-01 - 2026-08-15")
+            self.assertEqual(matched_run["total_papers_screened"], 5)
+            self.assertEqual(matched_run["total_papers_passed_screening"], 5)
+
+            # 4. Test Papers API pagination
+            res_papers = self.client.get(f"/api/papers/?pipeline_run={pr.id}&page=1&page_size=3")
+            self.assertEqual(res_papers.status_code, status.HTTP_200_OK)
+            p_data = res_papers.json()
+            self.assertEqual(p_data["count"], 5)
+            self.assertEqual(len(p_data["results"]), 3)
+            self.assertIsNotNone(p_data["next"])
+            self.assertEqual(p_data["results"][0]["pipeline_run_name"], "Date Range Robotics Review")
+
+            # Page 2 has the remaining 2 papers
+            res_papers_p2 = self.client.get(f"/api/papers/?pipeline_run={pr.id}&page=2&page_size=3")
+            self.assertEqual(res_papers_p2.status_code, status.HTTP_200_OK)
+            p_data_p2 = res_papers_p2.json()
+            self.assertEqual(len(p_data_p2["results"]), 2)
+            self.assertIsNone(p_data_p2["next"])
+
+    def test_workspace_run_pipeline_action_e2e_with_date_range(self):
+        """
+        Scenario 3:
+        Validates the /api/workspaces/{id}/run-pipeline/ endpoint triggers an autonomous run
+        with start_date, end_date, and n_last_days, and verifies workspace papers listing pagination.
+        """
+        mock_pdf_resp, mock_llm_generate = self._mock_helpers()
+
+        with patch("requests.get", return_value=mock_pdf_resp), \
+             patch("research_intelligence.tasks.step_1_search.search.get_scraper_provider") as mock_scraper, \
+             patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate", side_effect=mock_llm_generate):
+
+            provider_inst = MagicMock()
+            provider_inst.search.return_value = self.sample_papers
+            mock_scraper.return_value = provider_inst
+
+            payload = {
+                "start_date": "2026-07-01",
+                "end_date": "2026-07-20",
+                "n_last_days": 10
+            }
+            res = self.client.post(f"/api/workspaces/{self.workspace.id}/run-pipeline/", payload, format="json")
+            self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+            pr_id = res.data["pipeline_run_id"]
+
+            pr = self._drive_pipeline_run_to_completion(pr_id)
+            self.assertEqual(pr.status, "completed")
+            self.assertEqual(pr.period, "2026-07-01 - 2026-07-20")
+
+            # Test /api/workspaces/{id}/papers/ with pagination
+            res_ws_papers = self.client.get(f"/api/workspaces/{self.workspace.id}/papers/?page=1&page_size=3")
+            self.assertEqual(res_ws_papers.status_code, status.HTTP_200_OK)
+            ws_p_data = res_ws_papers.json()
+            self.assertEqual(ws_p_data["count"], 5)
+            self.assertEqual(len(ws_p_data["results"]), 3)
+            self.assertIsNotNone(ws_p_data["next"])
+
+    def test_e2e_pipeline_with_omitted_date_parameters_defaults_to_7_days(self):
+        """
+        Scenario 4 (Omitted Date & Day Parameters):
+        1. Launches an autonomous pipeline run via REST API (/api/pipeline-runs/start/)
+           WITHOUT providing start_date, end_date, or n_last_days (complete absence).
+        2. Asserts scraper receives start_date=None, end_date=None, and default n_last_days=7.
+        3. Drives the DAG execution through all stages to completion.
+        4. Verifies period formatting defaults gracefully to 'Last 7 days'.
+        5. Tests Briefings API and paginated paper retrieval.
+        """
+        mock_pdf_resp, mock_llm_generate = self._mock_helpers()
+
+        with patch("requests.get", return_value=mock_pdf_resp), \
+             patch("research_intelligence.tasks.step_1_search.search.get_scraper_provider") as mock_scraper, \
+             patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate", side_effect=mock_llm_generate):
+
+            provider_inst = MagicMock()
+            provider_inst.search.return_value = self.sample_papers
+            mock_scraper.return_value = provider_inst
+
+            # 1. Start via REST API with date parameters completely omitted
+            payload = {
+                "workspace_id": str(self.workspace.id),
+                "name": "Omitted Dates Robotics Review"
+            }
+            res = self.client.post("/api/pipeline-runs/start/", payload, format="json")
+            self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+            pr_id = res.data["pipeline_run_id"]
+
+            # 2. Drive PipelineRun to completion
+            pr = self._drive_pipeline_run_to_completion(pr_id)
+            self.assertEqual(pr.status, "completed")
+            self.assertEqual(pr.current_stage, "completed")
+
+            # Verify scraper called with default n_last_days=7 and no explicit dates
+            search_call_kwargs = provider_inst.search.call_args[1]
+            self.assertIsNone(search_call_kwargs.get("start_date"))
+            self.assertIsNone(search_call_kwargs.get("end_date"))
+            self.assertEqual(search_call_kwargs.get("n_last_days"), 7)
+
+            # Verify period formatting
+            self.assertEqual(pr.period, "Last 7 days")
+            self.assertEqual(pr.total_papers_screened, 5)
+            self.assertEqual(pr.total_papers_passed_screening, 5)
+
+            # 3. Test Briefings API returns period 'Last 7 days'
+            res_briefing = self.client.get(
+                f"/api/pipeline-runs/?domain=Physical AI Lab&status=completed&page=1&page_size=5"
+            )
+            self.assertEqual(res_briefing.status_code, status.HTTP_200_OK)
+            b_items = res_briefing.json()["results"]
+            matched_run = next(r for r in b_items if r["id"] == str(pr.id))
+            self.assertEqual(matched_run["period"], "Last 7 days")
+
+            # 4. Test Papers API pagination
+            res_papers = self.client.get(f"/api/papers/?pipeline_run={pr.id}&page=1&page_size=2")
+            self.assertEqual(res_papers.status_code, status.HTTP_200_OK)
+            p_data = res_papers.json()
+            self.assertEqual(p_data["count"], 5)
+            self.assertEqual(len(p_data["results"]), 2)
+            self.assertIsNotNone(p_data["next"])
+            self.assertIsNone(p_data["previous"])
+
+    def test_e2e_pipeline_with_explicit_none_dates_and_days(self):
+        """
+        Scenario 5 (Explicit None Values for Date & Day Parameters):
+        Validates that passing null / None explicitly for start_date, end_date, and n_last_days
+        does not fail validation and defaults seamlessly to 7 days lookback.
+        """
+        mock_pdf_resp, mock_llm_generate = self._mock_helpers()
+
+        with patch("requests.get", return_value=mock_pdf_resp), \
+             patch("research_intelligence.tasks.step_1_search.search.get_scraper_provider") as mock_scraper, \
+             patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate", side_effect=mock_llm_generate):
+
+            provider_inst = MagicMock()
+            provider_inst.search.return_value = self.sample_papers
+            mock_scraper.return_value = provider_inst
+
+            payload = {
+                "workspace_id": str(self.workspace.id),
+                "name": "Explicit None Dates Review",
+                "start_date": None,
+                "end_date": None,
+                "n_last_days": None
+            }
+            res = self.client.post("/api/pipeline-runs/start/", payload, format="json")
+            self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+            pr_id = res.data["pipeline_run_id"]
+
+            pr = self._drive_pipeline_run_to_completion(pr_id)
+            self.assertEqual(pr.status, "completed")
+
+            search_call_kwargs = provider_inst.search.call_args[1]
+            self.assertIsNone(search_call_kwargs.get("start_date"))
+            self.assertIsNone(search_call_kwargs.get("end_date"))
+            self.assertEqual(search_call_kwargs.get("n_last_days"), 7)
+            self.assertEqual(pr.period, "Last 7 days")
+
+    def test_e2e_pipeline_with_partial_date_ranges(self):
+        """
+        Scenario 6 (Partial Date Ranges):
+        Validates runs with only start_date (period: 'From YYYY-MM-DD')
+        and only end_date with n_last_days (period: 'Until YYYY-MM-DD').
+        """
+        mock_pdf_resp, mock_llm_generate = self._mock_helpers()
+
+        with patch("requests.get", return_value=mock_pdf_resp), \
+             patch("research_intelligence.tasks.step_1_search.search.get_scraper_provider") as mock_scraper, \
+             patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate", side_effect=mock_llm_generate):
+
+            provider_inst = MagicMock()
+            provider_inst.search.return_value = self.sample_papers
+            mock_scraper.return_value = provider_inst
+
+            # Sub-test A: Only start_date provided
+            payload_a = {
+                "workspace_id": str(self.workspace.id),
+                "name": "Only Start Date Review",
+                "start_date": "2026-06-01"
+            }
+            res_a = self.client.post("/api/pipeline-runs/start/", payload_a, format="json")
+            self.assertEqual(res_a.status_code, status.HTTP_201_CREATED)
+            pr_a = self._drive_pipeline_run_to_completion(res_a.data["pipeline_run_id"])
+            self.assertEqual(pr_a.status, "completed")
+            self.assertEqual(pr_a.period, "From 2026-06-01")
+            search_a = provider_inst.search.call_args[1]
+            self.assertEqual(search_a.get("start_date"), "2026-06-01")
+            self.assertIsNone(search_a.get("end_date"))
+
+            # Sub-test B: Only end_date provided with n_last_days=10
+            payload_b = {
+                "workspace_id": str(self.workspace.id),
+                "name": "Only End Date Review",
+                "end_date": "2026-06-30",
+                "n_last_days": 10
+            }
+            res_b = self.client.post("/api/pipeline-runs/start/", payload_b, format="json")
+            self.assertEqual(res_b.status_code, status.HTTP_201_CREATED)
+            pr_b = self._drive_pipeline_run_to_completion(res_b.data["pipeline_run_id"])
+            self.assertEqual(pr_b.status, "completed")
+            self.assertEqual(pr_b.period, "Until 2026-06-30")
+            search_b = provider_inst.search.call_args[1]
+            self.assertIsNone(search_b.get("start_date"))
+            self.assertEqual(search_b.get("end_date"), "2026-06-30")
+            self.assertEqual(search_b.get("n_last_days"), 10)
+
+

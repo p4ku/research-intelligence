@@ -174,7 +174,7 @@ class PipelineTestHarness:
         for run in search_runs:
             run.status = 'completed'
             run.completed_at = timezone.now()
-            run.metrics = {'total_created': len(papers_data), 'total_duplicates_skipped': 0}
+            run.metrics = {'total_fetched': len(papers_data), 'total_created': len(papers_data), 'duplicates_count': 0}
             run.save()
 
         for idx, item in enumerate(papers_data, 1):

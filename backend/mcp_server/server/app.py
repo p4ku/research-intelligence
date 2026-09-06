@@ -228,7 +228,7 @@ When asked to run research, review literature, or execute the full pipeline:
    - Call `list_workspaces()` or `create_workspace(name="...", abstract_acceptance_criteria="...", ...)`.
    - Call `create_scraper(workspace_id="...", provider="arxiv", search_query="...")` if no active scrapers exist.
 2. LAUNCH AUTONOMOUS ORCHESTRATOR:
-   - Call `start_research_agent(workspace_id="<WS_ID>", limit=50, date_range_days=30)`.
+   - Call `start_research_agent(workspace_id="<WS_ID>", limit=50, n_last_days=30)`.
    - The state engine automatically orchestrates the pipeline sequentially:
      Search & Deduplication -> Abstract Screening (skippable) -> PDF Download -> Layout OCR (skippable) -> Full-Text Screening -> Parameter Extraction -> Composite Signal Score -> Executive Reporting -> Completed.
 3. MONITOR STATUS:
@@ -364,10 +364,6 @@ def check_scope(api_key_instance, required_scope: str):
 
 
 # ==========================================
-# 3. MCP Prompts Registration (AI Client Workflows)
-# ==========================================
-
-# ==========================================
 # 3. MCP Prompts Registration (AI Client Workflows & Playbooks)
 # ==========================================
 
@@ -397,10 +393,12 @@ Follow this standard 5-step operational protocol:
 
 ### 2. Configure Academic Scrapers (If New Workspace)
 - Call `create_scraper(workspace_id="<WORKSPACE_ID>", provider="arxiv", search_query='cat:cs.NE AND "neuromorphic"')`
-- Optionally add OpenAlex, Lens, or PubMed scrapers for multi-source ingestion.
+- Optionally add OpenAlex or Lens scrapers for multi-source ingestion.
 
 ### 3. Launch Autonomous State Machine Agent
-- Call `start_research_agent(workspace_id="<WORKSPACE_ID>", limit=50, date_range_days=180)`
+- Date Filtering Options:
+  * Option A (Relative Days): `start_research_agent(workspace_id="<WORKSPACE_ID>", limit=50, n_last_days=180)`
+  * Option B (Explicit Range): `start_research_agent(workspace_id="<WORKSPACE_ID>", limit=50, start_date="2026-03-01", end_date="2026-09-01")`
 - Returns a `process_id` and starts the DAG workflow engine (Search -> Abstract Screening -> Download -> OCR -> Full-Text Screening -> Extraction -> Signal Score -> Reporting).
 
 ### 4. Check Live Progress & Status
@@ -416,24 +414,29 @@ Follow this standard 5-step operational protocol:
 def autonomous_research_agent_workflow(
     workspace_id: str,
     limit: str = "50",
-    date_range_days: str = "30",
+    n_last_days: str = "7",
+    start_date: str = "",
+    end_date: str = "",
     notification_email: str = None
 ) -> str:
     """Playbook guiding AI clients through starting, monitoring, pausing, resuming, and checking status for an autonomous Research Agent process."""
+    date_desc = f"Explicit range [{start_date} to {end_date}]" if (start_date or end_date) else f"{n_last_days} days lookback"
     return f"""
 # 🤖 Autonomous Research Agent Process Management Guide
 
 Target Execution:
 - Workspace ID: {workspace_id}
 - Limit: {limit} papers
-- Date Window: {date_range_days} days
+- Date Window: {date_desc}
 - Notification Email: {notification_email or 'Active workspace subscribers'}
 
 ### 1. Launch Agent
 Call `start_research_agent(
     workspace_id="{workspace_id}",
     limit={limit},
-    date_range_days={date_range_days},
+    n_last_days={n_last_days if not (start_date or end_date) else 'None'},
+    start_date={f'"{start_date}"' if start_date else 'None'},
+    end_date={f'"{end_date}"' if end_date else 'None'},
     notification_email={f'"{notification_email}"' if notification_email else 'None'},
     reprocess_existing=False
 )`
@@ -728,7 +731,7 @@ def add_workspace_member(
 def list_scrapers(workspace_id: str) -> str:
     """
     [DISCOVERY - SCRAPERS]
-    List all search query scrapers configured for a workspace (e.g. ArXiv, OpenAlex, Lens, PubMed).
+    List all search query scrapers configured for a workspace (e.g. ArXiv, OpenAlex, Lens).
     
     WHEN TO USE:
     - Call to check which queries and academic sources are active before starting a research agent run.
@@ -764,6 +767,7 @@ def create_scraper(
     limit: int = 50,
     sort_by: str = "relevance",
     sort_order: str = "desc",
+    n_last_days: int = 7,
     is_active: bool = True
 ) -> str:
     """
@@ -773,11 +777,15 @@ def create_scraper(
     WHEN TO USE:
     - Use when configuring which academic sources and query strings should be ingested during search & ingestion.
     
+    DEFAULT DATE LOOKBACK CONFIGURATION:
+    - `n_last_days` (default: 7): Sets the baseline lookback window in days for this scraper.
+      When a pipeline run or agent runs without explicit start_date / end_date, it queries papers published
+      within the last N days (`now() - N days` to `now()`).
+    
     SUPPORTED PROVIDERS & QUERY SYNTAX:
     - 'arxiv': Standard ArXiv syntax, e.g. `cat:cs.AI AND "machine learning"` or `all:"solid state battery"`.
     - 'openalex': Keywords and titles, e.g. `quantum computing error correction`.
     - 'lens': Open scholarly query syntax for patents and literature.
-    - 'pubmed': Medical / life sciences MeSH query.
     
     NEXT STEPS:
     - After creating a scraper, call `start_research_agent(workspace_id=...)` to begin ingestion.
@@ -787,7 +795,7 @@ def create_scraper(
         check_scope(api_key, "scrapers:write")
     except Exception as e:
         return str(e)
-    return create_scraper_logic(user, workspace_id, provider, search_query, limit, sort_by, sort_order, is_active)
+    return create_scraper_logic(user, workspace_id, provider, search_query, limit, sort_by, sort_order, n_last_days, is_active)
 
 
 @mcp.tool()
@@ -799,17 +807,24 @@ def update_scraper(
     limit: int | None = None,
     sort_by: str | None = None,
     sort_order: str | None = None,
+    n_last_days: int | None = None,
     is_active: bool | None = None
 ) -> str:
     """
-    Update an existing scraper query, provider, limit, or active status.
+    Update an existing scraper query, provider, limit, default lookback days (n_last_days), or active status.
+    
+    PARAMETERS:
+    - scraper_id: UUID of the scraper to update (required).
+    - n_last_days: Default past days lookback window (e.g. 7, 14, 30) used when pipeline runs omit explicit start_date / end_date.
+    - limit: Max candidate results to fetch per run.
+    - is_active: Enable (True) or disable (False) this scraper.
     """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:write")
     except Exception as e:
         return str(e)
-    return update_scraper_logic(user, scraper_id, provider, search_query, limit, sort_by, sort_order, is_active)
+    return update_scraper_logic(user, scraper_id, provider, search_query, limit, sort_by, sort_order, n_last_days, is_active)
 
 
 @mcp.tool()
@@ -828,20 +843,56 @@ def delete_scraper(scraper_id: str) -> str:
 
 @mcp.tool()
 @with_db_connection
-def preview_search_query(provider: str, search_query: str, limit: int = 10) -> str:
+def preview_search_query(
+    provider: str,
+    search_query: str,
+    limit: int = 10,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    n_last_days: int | None = 7,
+) -> str:
     """
     [DRY RUN SEARCH]
     Execute a live search query against a provider (arXiv, OpenAlex, Lens) to inspect results without downloading PDFs or saving to DB.
     
     WHEN TO USE:
     - Use when designing and tuning queries to check the volume and quality of results before creating a scraper.
+    
+    DATE FILTERING MODES (EITHER RELATIVE DAYS OR EXPLICIT DATES):
+    You can test queries using EITHER a relative lookback window OR explicit calendar dates:
+    1. RELATIVE LOOKBACK (Option A):
+       - Pass `n_last_days` (e.g. 7, 14, 30). Searches literature published from `now() - N days` to `now()`.
+       - Defaults to 7 if start_date and end_date are omitted.
+    2. EXPLICIT DATE RANGE (Option B):
+       - Pass `start_date` ('YYYY-MM-DD') and/or `end_date` ('YYYY-MM-DD').
+       - If both provided: searches precisely within [start_date TO end_date].
+       - If only start_date: searches from start_date to now().
+       - If only end_date: searches from (end_date - n_last_days) to end_date.
+    
+    PARAMETERS:
+    - provider: Academic provider ('arxiv', 'openalex', 'lens').
+    - search_query: Query string to test against the provider.
+    - limit: Max candidate results to return (1-50, default: 10).
+    - start_date: Optional ISO start date string (e.g. '2026-08-01').
+    - end_date: Optional ISO end date string (e.g. '2026-08-31').
+    - n_last_days: Optional lookback window in days (default: 7).
     """
+
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "scrapers:read")
     except Exception as e:
         return str(e)
-    return preview_search_query_logic(user, provider, search_query, limit)
+    return preview_search_query_logic(
+        user,
+        provider,
+        search_query,
+        limit=limit,
+        start_date=start_date,
+        end_date=end_date,
+        n_last_days=n_last_days
+    )
+
 
 
 @mcp.tool()
@@ -1011,28 +1062,54 @@ def trigger_search_job(
     scraper_id: str | None = None,
     limit: int = None,
     reprocess_existing: bool = None,
-    date_range_days: int | None = None,
-    query_prefix: str | None = None
+    query_prefix: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    n_last_days: int | None = None
 ) -> str:
     """
     [MANUAL COMPONENT ONLY] Trigger Search & Academic Metadata Ingestion for a workspace.
     
+    DATE FILTERING OPTIONS (CHOOSE ONE MODE):
+    You can filter scraped papers by publication date using EITHER relative days OR explicit dates:
+    - MODE 1: Relative Lookback Days (Default)
+      Pass `n_last_days` (e.g. 7, 14, 30). Ingests literature published from `now() - N days` to `now()`.
+      Defaults to 7 days if neither start_date nor end_date is specified.
+    - MODE 2: Explicit Date Range
+      Pass `start_date` ('YYYY-MM-DD') and/or `end_date` ('YYYY-MM-DD').
+      * Both provided: Ingests literature published within [start_date TO end_date].
+      * Only start_date provided: Ingests from start_date to now().
+      * Only end_date provided: Ingests from (end_date - n_last_days) to end_date.
+    
     PARAMETERS:
-    - workspace_id: Target workspace UUID.
-    - scraper_id: Optional UUID of a specific scraper (if omitted, triggers all active scrapers).
+    - workspace_id: Target workspace UUID (required).
+    - scraper_id: Optional UUID of a specific scraper (if omitted, triggers all active scrapers in workspace).
     - limit: Max papers to ingest per scraper (default: None = all available).
-    - reprocess_existing: If True, forces re-screening of existing papers. If None, inherits the workspace default policy (`workspace.reprocess_existing`).
-    - date_range_days: Ingestion date window filter (e.g. 30, 90, 180).
+    - start_date: ISO format start date (e.g. '2026-08-01' or '2026-08-01T00:00:00Z'). Used in explicit date mode.
+    - end_date: ISO format end date (e.g. '2026-08-31' or '2026-08-31T23:59:59Z'). Used in explicit date mode.
+    - n_last_days: Relative past days window (e.g. 7, 14, 30). Used in relative mode (default: 7).
     - query_prefix: Optional keyword prepended to active scraper queries.
+    - reprocess_existing: If True, forces re-screening of existing papers. If None, inherits workspace default policy.
     
     NOTE: To run the full end-to-end pipeline automatically, use `start_research_agent` instead.
     """
+
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "runs:write")
     except Exception as e:
         return str(e)
-    return trigger_search_job_logic(user, workspace_id, scraper_id, limit, reprocess_existing, date_range_days, query_prefix)
+    return trigger_search_job_logic(
+        user,
+        workspace_id=workspace_id,
+        scraper_id=scraper_id,
+        limit=limit,
+        reprocess_existing=reprocess_existing,
+        query_prefix=query_prefix,
+        start_date=start_date,
+        end_date=end_date,
+        n_last_days=n_last_days
+    )
 
 
 @mcp.tool()
@@ -1339,17 +1416,43 @@ def start_pipeline_run(
     workspace_id: str,
     name: str | None = None,
     limit: int | None = None,
-    date_range_days: int | None = None,
     query_prefix: str | None = None,
     skip_abstract_screening: bool | None = None,
     notification_email: str | None = None,
     reprocess_existing: bool | None = None,
-    autonomous: bool = True
+    autonomous: bool = True,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    n_last_days: int | None = None
 ) -> str:
     """
     [AUTONOMOUS PIPELINE EXECUTION - RECOMMENDED]
     Launch an autonomous end-to-end PipelineRun for a workspace.
     Executes the full SLR state machine (Search -> Screening -> Download -> OCR -> Extraction -> Signal Score -> Reporting).
+    
+    DATE FILTERING OPTIONS (CHOOSE ONE MODE):
+    You can filter scraped papers by publication date using EITHER relative days OR explicit dates:
+    - MODE 1: Relative Lookback Days (Default)
+      Pass `n_last_days` (e.g. 7, 14, 30). Ingests literature published from `now() - N days` to `now()`.
+      Defaults to 7 days if neither start_date nor end_date is specified.
+    - MODE 2: Explicit Date Range
+      Pass `start_date` ('YYYY-MM-DD') and/or `end_date` ('YYYY-MM-DD').
+      * Both provided: Ingests literature published within [start_date TO end_date].
+      * Only start_date provided: Ingests from start_date to now().
+      * Only end_date provided: Ingests from (end_date - n_last_days) to end_date.
+    
+    PARAMETERS:
+    - workspace_id: Target workspace UUID (required).
+    - name: Optional descriptive name for the pipeline run.
+    - limit: Optional max papers limit across scrapers (e.g. 50, 100).
+    - start_date: ISO start date string (e.g. '2026-08-01' or '2026-08-01T00:00:00Z'). Used in explicit date mode.
+    - end_date: ISO end date string (e.g. '2026-08-31' or '2026-08-31T23:59:59Z'). Used in explicit date mode.
+    - n_last_days: Relative past days window (e.g. 7, 14, 30). Used in relative mode or when start_date is omitted (default: 7).
+    - query_prefix: Optional keyword prepended to active scraper queries.
+    - skip_abstract_screening: If True, skips Abstract Screening and routes candidate papers directly to Full-Text Screening.
+    - notification_email: Optional single-run email override to receive Mailgun completion report.
+    - reprocess_existing: If True, forces re-screening of existing papers even if no new papers are found.
+    - autonomous: If True (default), automatically advances stages upon completion.
     """
     try:
         user, workspace, api_key = get_auth_context()
@@ -1361,12 +1464,14 @@ def start_pipeline_run(
         workspace_id=workspace_id,
         name=name,
         limit=limit,
-        date_range_days=date_range_days,
         query_prefix=query_prefix,
         skip_abstract_screening=skip_abstract_screening,
         notification_email=notification_email,
         reprocess_existing=reprocess_existing,
-        autonomous=autonomous
+        autonomous=autonomous,
+        start_date=start_date,
+        end_date=end_date,
+        n_last_days=n_last_days
     )
 
 
@@ -1419,7 +1524,9 @@ def start_research_agent(
     workspace_id: str,
     name: str = None,
     limit: int = None,
-    date_range_days: int = None,
+    start_date: str = None,
+    end_date: str = None,
+    n_last_days: int = None,
     query_prefix: str = None,
     skip_abstract_screening: bool = None,
     notification_email: str = None,
@@ -1433,10 +1540,24 @@ def start_research_agent(
     WHEN TO USE:
     - Primary entrypoint to run a systematic review. Do not trigger individual manual steps unless debugging.
     
+    DATE FILTERING OPTIONS (CHOOSE ONE MODE):
+    You can filter harvested literature by publication date using EITHER relative days OR explicit dates:
+    - MODE 1: Relative Lookback Days (Default)
+      Pass `n_last_days` (e.g. 7, 14, 30). Searches literature published from `now() - N days` to `now()`.
+      Defaults to 7 days (or the scraper's configured default) if neither start_date nor end_date is specified.
+    - MODE 2: Explicit Date Range
+      Pass `start_date` ('YYYY-MM-DD') and/or `end_date` ('YYYY-MM-DD').
+      * Both provided: Ingests literature published within [start_date TO end_date].
+      * Only start_date provided: Ingests from start_date to now().
+      * Only end_date provided: Ingests from (end_date - n_last_days) to end_date.
+    
     KEY PARAMETERS:
-    - workspace_id: The target workspace UUID.
+    - workspace_id: The target workspace UUID (required).
+    - name: Optional human-readable name for the research process.
     - limit: Optional maximum number of papers to ingest and process across all steps (default: None = all papers found by scrapers).
-    - date_range_days: Optional date window filter (e.g. 30, 90, 180, 365).
+    - start_date: ISO start date string (e.g. '2026-08-01' or '2026-08-01T00:00:00Z'). Used in explicit date mode.
+    - end_date: ISO end date string (e.g. '2026-08-31' or '2026-08-31T23:59:59Z'). Used in explicit date mode.
+    - n_last_days: Relative past days lookback window (e.g. 7, 14, 30). Used in relative mode (default: 7).
     - query_prefix: Optional query modifier prepended to workspace scrapers.
     - reprocess_existing: Reprocessing policy override. When None (default), inherits the workspace-level default policy (`workspace.reprocess_existing`). Set explicitly to True to re-screen and re-extract all existing workspace papers even if no new papers were found; set False to only process newly scraped papers.
     - notification_email: Optional single-run email override to receive Mailgun completion report (default: sends to all active workspace Subscribers).
@@ -1445,12 +1566,25 @@ def start_research_agent(
     NEXT STEPS:
     - Immediately after calling this, call `check_run_status(process_id=...)` to check real-time progress without blocking, or query `get_paper_extractions_matrix(process_id=...)` once complete.
     """
+
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "workspaces:write")
     except Exception as e:
         return str(e)
-    return start_research_agent_logic(user, workspace_id, name, limit, date_range_days, query_prefix, skip_abstract_screening, notification_email, reprocess_existing)
+    return start_research_agent_logic(
+        user=user,
+        workspace_id=workspace_id,
+        name=name,
+        limit=limit,
+        start_date=start_date,
+        end_date=end_date,
+        n_last_days=n_last_days,
+        query_prefix=query_prefix,
+        skip_abstract_screening=skip_abstract_screening,
+        notification_email=notification_email,
+        reprocess_existing=reprocess_existing
+    )
 
 
 @mcp.tool()

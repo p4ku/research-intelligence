@@ -105,7 +105,7 @@ class ResearchAgentProcessTest(TestCase):
             name="Test Ingestion Cycle",
             status="running",
             current_step="initialized",
-            configuration_override={"limit": 10, "date_range_days": 30}
+            configuration_override={"limit": 10, "n_last_days": 30}
         )
 
         # Step 1: Initialized -> Search
@@ -281,7 +281,7 @@ class ResearchAgentProcessTest(TestCase):
             workspace_id=str(self.workspace.id),
             name="MCP Agent Process",
             limit=20,
-            date_range_days=14,
+            n_last_days=14,
             query_prefix="arxiv:cs.AI"
         ))
         self.assertEqual(start_res["status"], "success")
@@ -326,10 +326,10 @@ class ResearchAgentProcessTest(TestCase):
         """
         # Start agent via REST API
         post_data = {
-            "workspace": str(self.workspace.id),
+            "workspace_id": str(self.workspace.id),
             "name": "REST API Agent Process",
             "limit": 15,
-            "date_range_days": 30
+            "n_last_days": 30
         }
         response = self.client.post("/api/agents/", post_data, format="json")
         self.assertEqual(response.status_code, 201)
@@ -616,7 +616,7 @@ class ResearchAgentProcessTest(TestCase):
         """
         # 1. Test POST /api/agents/
         res = self.client.post("/api/agents/", {
-            "workspace": str(self.workspace.id),
+            "workspace_id": str(self.workspace.id),
             "name": "API Agent Review",
             "limit": 25,
             "skip_abstract_screening": True,

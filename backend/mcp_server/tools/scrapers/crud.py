@@ -25,6 +25,7 @@ def list_scrapers_logic(user, workspace_id: str) -> str:
             "limit": getattr(s, 'limit', 50),
             "sort_by": getattr(s, 'sort_by', 'relevance'),
             "sort_order": getattr(s, 'sort_order', 'desc'),
+            "n_last_days": getattr(s, 'n_last_days', 7),
             "is_active": s.is_active,
             "created_at": s.created_at.isoformat()
         })
@@ -58,6 +59,7 @@ def get_scraper_logic(user, scraper_id: str) -> str:
         "limit": getattr(scraper, 'limit', 50),
         "sort_by": getattr(scraper, 'sort_by', 'relevance'),
         "sort_order": getattr(scraper, 'sort_order', 'desc'),
+        "n_last_days": getattr(scraper, 'n_last_days', 7),
         "is_active": scraper.is_active,
         "created_at": scraper.created_at.isoformat()
     }
@@ -72,6 +74,7 @@ def create_scraper_logic(
     limit: int = 50,
     sort_by: str = "relevance",
     sort_order: str = "desc",
+    n_last_days: int = 7,
     is_active: bool = True
 ) -> str:
     """Create a new data scraper configuration (arXiv, OpenAlex, or Lens.org) for a workspace."""
@@ -94,6 +97,7 @@ def create_scraper_logic(
             limit=limit,
             sort_by=sort_by,
             sort_order=sort_order,
+            n_last_days=n_last_days if n_last_days is not None else 7,
             is_active=is_active
         )
         return json.dumps({
@@ -105,6 +109,7 @@ def create_scraper_logic(
             "limit": scraper.limit,
             "sort_by": scraper.sort_by,
             "sort_order": scraper.sort_order,
+            "n_last_days": scraper.n_last_days,
             "is_active": scraper.is_active
         }, indent=2)
     except Exception as e:
@@ -119,6 +124,7 @@ def update_scraper_logic(
     limit: int = None,
     sort_by: str = None,
     sort_order: str = None,
+    n_last_days: int = None,
     is_active: bool = None
 ) -> str:
     """Update an existing scraper configuration."""
@@ -156,6 +162,9 @@ def update_scraper_logic(
     if sort_order is not None:
         scraper.sort_order = sort_order
 
+    if n_last_days is not None:
+        scraper.n_last_days = n_last_days
+
     if is_active is not None:
         scraper.is_active = is_active
 
@@ -170,6 +179,7 @@ def update_scraper_logic(
         "limit": scraper.limit,
         "sort_by": scraper.sort_by,
         "sort_order": scraper.sort_order,
+        "n_last_days": scraper.n_last_days,
         "is_active": scraper.is_active
     }, indent=2)
 

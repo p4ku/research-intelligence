@@ -68,7 +68,7 @@ class PipelineRun(models.Model):
     configuration_override = models.JSONField(
         default=dict,
         blank=True,
-        help_text="Overrides e.g. limit, date_range_days, query_prefix, skip_abstract_screening, notification_email, reprocess_existing"
+        help_text="Overrides e.g. limit, n_last_days, query_prefix, skip_abstract_screening, notification_email, reprocess_existing"
     )
     step_history = models.JSONField(
         default=list,
@@ -178,6 +178,28 @@ class PipelineRun(models.Model):
     @stop_reason.setter
     def stop_reason(self, value):
         self.status_message = value
+
+    @property
+    def period(self) -> Optional[str]:
+        cfg = self.configuration_override or {}
+        s_date = cfg.get('start_date')
+        e_date = cfg.get('end_date')
+        if s_date and e_date:
+            return f"{str(s_date)[:10]} - {str(e_date)[:10]}"
+        if s_date:
+            return f"From {str(s_date)[:10]}"
+        if e_date:
+            return f"Until {str(e_date)[:10]}"
+        days = cfg.get('n_last_days')
+        if days:
+            return f"Last {days} days"
+        if self.run_date:
+            return str(self.run_date)
+        return None
+
+    @property
+    def total_papers_screened(self) -> int:
+        return self.total_papers_fetched
 
     def tick(self) -> dict:
         """Executes a single state transition tick for this PipelineRun via the DAG engine."""

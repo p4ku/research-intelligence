@@ -503,6 +503,7 @@ class Scraper(models.Model):
     limit = models.IntegerField(default=50, help_text="Max results to fetch for this scraper")
     sort_by = models.CharField(max_length=50, default="relevance", choices=[('relevance', 'Relevance'), ('date', 'Date')], help_text="Sorting criteria")
     sort_order = models.CharField(max_length=10, default="desc", choices=[('desc', 'Descending'), ('asc', 'Ascending')], help_text="Sort order")
+    n_last_days = models.IntegerField(default=7, help_text="Default days lookback window when date range is omitted")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

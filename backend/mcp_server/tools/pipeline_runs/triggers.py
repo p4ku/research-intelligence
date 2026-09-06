@@ -30,13 +30,19 @@ def trigger_search_job_logic(
     scraper_id: str = None,
     limit: int = None,
     reprocess_existing: bool = None,
-    date_range_days: int = None,
-    query_prefix: str = None
+    query_prefix: str = None,
+    start_date: str = None,
+    end_date: str = None,
+    n_last_days: int = None,
 ) -> str:
     """
     Trigger a Celery background scraping job for a workspace within a PipelineRun.
     Creates ComponentRun records to track execution lifecycle, raw storage, and metrics.
     Set reprocess_existing=True to re-screen and re-extract existing workspace papers.
+
+    Date Filtering Modes:
+    - Mode 1 (Relative Lookback Days): Pass `n_last_days` (default: 7). Queries `now() - N days` to `now()`.
+    - Mode 2 (Explicit Date Range): Pass `start_date` and/or `end_date` (ISO strings). Overrides relative days.
     """
     workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
     if error:
@@ -60,13 +66,16 @@ def trigger_search_job_logic(
         if not scrapers.exists():
             return json.dumps({"status": "error", "error": f"No active scrapers configured for workspace '{workspace.name}'. Please create a scraper first."}, indent=2)
 
+    effective_n_last_days = n_last_days if n_last_days is not None else 7
     reprocess_val = reprocess_existing if reprocess_existing is not None else getattr(workspace, 'reprocess_existing', False)
 
     config_override = {
         "limit": limit,
-        "date_range_days": date_range_days,
+        "n_last_days": effective_n_last_days,
         "query_prefix": query_prefix,
-        "reprocess_existing": bool(reprocess_val)
+        "reprocess_existing": bool(reprocess_val),
+        "start_date": start_date,
+        "end_date": end_date,
     }
 
     # Create new PipelineRun
@@ -93,8 +102,10 @@ def trigger_search_job_logic(
         input_params = {
             "limit": limit,
             "search_query": query_text,
-            "date_range_days": date_range_days,
-            "query_prefix": query_prefix
+            "n_last_days": effective_n_last_days,
+            "query_prefix": query_prefix,
+            "start_date": start_date,
+            "end_date": end_date,
         }
 
         comp_run = ComponentRun.objects.create(
@@ -641,17 +652,23 @@ def start_pipeline_run_logic(
     workspace_id: str,
     name: str = None,
     limit: int = None,
-    date_range_days: int = None,
     query_prefix: str = None,
     skip_abstract_screening: bool = None,
     notification_email: str = None,
     reprocess_existing: bool = None,
-    autonomous: bool = True
+    autonomous: bool = True,
+    start_date: str = None,
+    end_date: str = None,
+    n_last_days: int = None,
 ) -> str:
     """
     Start a new autonomous PipelineRun executing the end-to-end SLR cycle
     (Search & Ingestion -> Abstract Screening -> PDF Download -> Layout OCR ->
      Full-Text Screening -> Parameter Extraction -> Signal Scoring -> Reporting).
+
+    Date Filtering Modes:
+    - Mode 1 (Relative Lookback Days): Pass `n_last_days` (default: 7). Queries `now() - N days` to `now()`.
+    - Mode 2 (Explicit Date Range): Pass `start_date` and/or `end_date` (ISO strings). Overrides relative days.
     """
     workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
     if error:
@@ -663,14 +680,17 @@ def start_pipeline_run_logic(
 
     run_name = name or f"Autonomous Pipeline Run - {timezone.now().strftime('%Y-%m-%d %H:%M')}"
 
+    effective_n_last_days = n_last_days if n_last_days is not None else 7
     config_override = {
         "limit": limit,
-        "date_range_days": date_range_days,
+        "n_last_days": effective_n_last_days,
         "query_prefix": query_prefix,
         "skip_abstract_screening": skip_abstract_screening if skip_abstract_screening is not None else workspace.skip_abstract_screening,
         "notification_email": notification_email,
         "reprocess_existing": bool(reprocess_existing if reprocess_existing is not None else getattr(workspace, 'reprocess_existing', False)),
-        "autonomous": bool(autonomous)
+        "autonomous": bool(autonomous),
+        "start_date": start_date,
+        "end_date": end_date,
     }
 
     pipeline_run = PipelineRun.objects.create(
