@@ -103,6 +103,7 @@ def run_direct_full_text_and_subscribers_scenario(config: Optional[E2EConfig] = 
             scrapers=scrapers,
         )
         workspace_id = ws_data["id"]
+        validator.validate_uuid(workspace_id, "workspace_id")
         assert ws_data.get("skip_abstract_screening") is True, "Workspace skip_abstract_screening should be True"
 
         # Step 2: Register subscribers across all 4 subscription types
@@ -140,6 +141,7 @@ def run_direct_full_text_and_subscribers_scenario(config: Optional[E2EConfig] = 
             autonomous=True,
         )
         pipeline_run_id = run_data["pipeline_run_id"]
+        validator.validate_uuid(pipeline_run_id, "pipeline_run_id")
         logger.info(f"✅ Pipeline run launched with ID: {pipeline_run_id}")
 
         # Step 4: Poll run to completion
@@ -167,6 +169,8 @@ def run_direct_full_text_and_subscribers_scenario(config: Optional[E2EConfig] = 
         papers = pipeline_svc.list_papers(workspace_id=workspace_id)
         logger.info(f"  Total Ingested Papers: {len(papers)}")
         assert len(papers) > 0, "No papers were ingested by scraper"
+        for p in papers:
+            validator.validate_paper_schema(p)
 
         # Step 6: Verify Subscriber Notification Dispatch
         logger.info("📍 Step 6: Verifying subscriber notification resolution...")

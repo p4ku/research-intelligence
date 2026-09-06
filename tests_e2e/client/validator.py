@@ -20,6 +20,9 @@ class DataConsistencyValidator:
     Core validator for E2E payloads, schemas, mathematical evaluations, and data invariants.
     """
 
+    def __init__(self, client: Optional[Any] = None) -> None:
+        self.client = client
+
     @staticmethod
     def validate_uuid(val: Any, field_name: str = "id") -> str:
         """Asserts that val is a valid hexadecimal UUID string."""
