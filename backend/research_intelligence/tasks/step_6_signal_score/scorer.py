@@ -83,11 +83,11 @@ def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -
                 if ed.postprocessing_code and ed.postprocessing_code.strip():
                     context[f"{name_slug}_postprocessed"] = 0.0
                     context[f"{name_slug}_computed"] = 0.0
-            if ed.exit_metric:
-                exit_metrics = ed.get_exit_metrics_list() if hasattr(ed, 'get_exit_metrics_list') else [_sanitize_identifier(x.strip()) for x in ed.exit_metric.split(',') if x.strip()]
+            if ed.exit_metrics:
+                exit_metrics = ed.get_exit_metrics_list()
                 for exit_m in exit_metrics:
                     context[exit_m] = 0.0
-                primary_exit = ed.get_primary_exit_metric() if hasattr(ed, 'get_primary_exit_metric') else (exit_metrics[0] if exit_metrics else "")
+                primary_exit = ed.get_primary_exit_metric()
                 if primary_exit and ed.postprocessing_code and ed.postprocessing_code.strip():
                     context[f"{primary_exit}_postprocessed"] = 0.0
                     context[f"{primary_exit}_computed"] = 0.0
@@ -107,10 +107,10 @@ def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -
             key_name = _sanitize_identifier(ext.extraction_definition.name)
             context[key_name] = parsed_val
 
-        # 2. Map by exit_metric keys if configured (e.g. 'rigour_score, param1, param2')
-        if ext.extraction_definition and ext.extraction_definition.exit_metric:
-            exit_metrics = ext.extraction_definition.get_exit_metrics_list() if hasattr(ext.extraction_definition, 'get_exit_metrics_list') else [_sanitize_identifier(x.strip()) for x in ext.extraction_definition.exit_metric.split(',') if x.strip()]
-            primary_m = ext.extraction_definition.get_primary_exit_metric() if hasattr(ext.extraction_definition, 'get_primary_exit_metric') else (exit_metrics[0] if exit_metrics else "")
+        # 2. Map by exit_metrics keys if configured (e.g. 'rigour_score, param1, param2')
+        if ext.extraction_definition and ext.extraction_definition.exit_metrics:
+            exit_metrics = ext.extraction_definition.get_exit_metrics_list()
+            primary_m = ext.extraction_definition.get_primary_exit_metric()
             for exit_m in exit_metrics:
                 val_for_m = None
                 if ext.fields_data and isinstance(ext.fields_data, dict):

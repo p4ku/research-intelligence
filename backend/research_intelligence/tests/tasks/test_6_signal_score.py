@@ -58,7 +58,7 @@ class SignalScoreTaskTestCase(TestCase):
         self.def_fit = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Schwarz Fit",
-            exit_metric="fit_score",
+            exit_metrics="fit_score",
             system_prompt="Extract fit",
             user_prompt_template="{paper_text}",
             response_schema={"type": "object", "properties": {"fit_score": {"type": "number"}}}
@@ -66,7 +66,7 @@ class SignalScoreTaskTestCase(TestCase):
         self.def_novelty = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Novelty Score",
-            exit_metric="novelty_score",
+            exit_metrics="novelty_score",
             system_prompt="Extract novelty",
             user_prompt_template="{paper_text}",
             response_schema={"type": "object", "properties": {"novelty_score": {"type": "number"}}}
@@ -74,7 +74,7 @@ class SignalScoreTaskTestCase(TestCase):
         self.def_trl = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="TRL Level",
-            exit_metric="trl_level",
+            exit_metrics="trl_level",
             system_prompt="Extract TRL",
             user_prompt_template="{paper_text}",
             response_schema={"type": "object", "properties": {"trl_level": {"type": "number"}}}
@@ -169,7 +169,7 @@ class ScorerSingleSourceOfTruthTests(TestCase):
         self.def_fit = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Fit",
-            exit_metric="fit",
+            exit_metrics="fit",
             system_prompt="Extract fit",
             user_prompt_template="{paper_text}",
             response_schema={"type": "object"}
@@ -305,7 +305,7 @@ else:
         self.def_fit = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Fit Score",
-            exit_metric="fit_score",
+            exit_metrics="fit_score",
             system_prompt="Extract relevance fit (1-10)",
             user_prompt_template="{paper_text}",
             response_schema={"type": "object"}
@@ -313,7 +313,7 @@ else:
         self.def_novelty = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Novelty Score",
-            exit_metric="novelty_score",
+            exit_metrics="novelty_score",
             system_prompt="Extract novelty (1-10)",
             user_prompt_template="{paper_text}",
             response_schema={"type": "object"}
@@ -321,7 +321,7 @@ else:
         self.def_trl = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="TRL Level",
-            exit_metric="trl_level",
+            exit_metrics="trl_level",
             system_prompt="Extract TRL level (1-9)",
             user_prompt_template="{paper_text}",
             response_schema={"type": "object"}

@@ -111,7 +111,7 @@ class ArchitecturalConsistencyTestCase(TestCase):
         definition = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Tensile Strength Target",
-            exit_metric="tensile_strength_mpa",
+            exit_metrics="tensile_strength_mpa",
             llm_model="google/gemini-3.8-flash",
             response_schema={"type": "object", "properties": {"tensile_strength_mpa": {"type": "number"}}}
         )

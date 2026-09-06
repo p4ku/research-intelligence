@@ -96,14 +96,14 @@ def create_extraction_definition_logic(
     # Resolve exit_metrics list
     if exit_metrics is not None:
         if isinstance(exit_metrics, (list, tuple)):
-            target_exit_metric = ", ".join(str(m).strip() for m in exit_metrics if m and str(m).strip())
+            target_exit_metrics = ", ".join(str(m).strip() for m in exit_metrics if m and str(m).strip())
         elif isinstance(exit_metrics, str):
             parts = [part.strip() for part in exit_metrics.split(',') if part.strip()]
-            target_exit_metric = ", ".join(parts) if parts else None
+            target_exit_metrics = ", ".join(parts) if parts else None
         else:
-            target_exit_metric = None
+            target_exit_metrics = None
     else:
-        target_exit_metric = None
+        target_exit_metrics = None
 
     if postprocessing_code is not None:
         code_str = postprocessing_code.strip() if isinstance(postprocessing_code, str) else ""
@@ -130,7 +130,7 @@ def create_extraction_definition_logic(
     definition = ExtractionDefinition(
         workspace=workspace,
         name=name,
-        exit_metric=target_exit_metric,
+        exit_metrics=target_exit_metrics,
         postprocessing_code=postprocessing_code,
         system_prompt=system_prompt,
         user_prompt_template=user_prompt_template,
@@ -143,7 +143,7 @@ def create_extraction_definition_logic(
     try:
         definition.clean()
     except ValidationError as val_err:
-        err_msg = val_err.message_dict.get('exit_metric', [str(val_err)]) if hasattr(val_err, 'message_dict') else str(val_err)
+        err_msg = val_err.message_dict.get('exit_metrics', [str(val_err)]) if hasattr(val_err, 'message_dict') else str(val_err)
         return f"Error: {err_msg if isinstance(err_msg, str) else err_msg[0]}"
 
     definition.save()
@@ -198,14 +198,14 @@ def update_extraction_definition_logic(
         updated_fields.append('name')
     if exit_metrics is not None:
         if isinstance(exit_metrics, (list, tuple)):
-            target_exit_metric = ", ".join(str(m).strip() for m in exit_metrics if m and str(m).strip())
+            target_exit_metrics = ", ".join(str(m).strip() for m in exit_metrics if m and str(m).strip())
         elif isinstance(exit_metrics, str):
             parts = [part.strip() for part in exit_metrics.split(',') if part.strip()]
-            target_exit_metric = ", ".join(parts) if parts else ""
+            target_exit_metrics = ", ".join(parts) if parts else ""
         else:
-            target_exit_metric = ""
-        definition.exit_metric = target_exit_metric or None
-        updated_fields.append('exit_metric')
+            target_exit_metrics = ""
+        definition.exit_metrics = target_exit_metrics or None
+        updated_fields.append('exit_metrics')
     if postprocessing_code is not None:
         code_str = postprocessing_code.strip() if isinstance(postprocessing_code, str) else ""
         if code_str:
@@ -252,7 +252,7 @@ def update_extraction_definition_logic(
     try:
         definition.clean()
     except ValidationError as val_err:
-        err_msg = val_err.message_dict.get('exit_metric', [str(val_err)]) if hasattr(val_err, 'message_dict') else str(val_err)
+        err_msg = val_err.message_dict.get('exit_metrics', [str(val_err)]) if hasattr(val_err, 'message_dict') else str(val_err)
         return f"Error: {err_msg if isinstance(err_msg, str) else err_msg[0]}"
 
     definition.save(update_fields=updated_fields)

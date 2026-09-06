@@ -61,7 +61,7 @@ class StoragePurgeAndDeleteLifecycleTestCase(TestCase):
         ext_def = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Del Def",
-            exit_metric="metric",
+            exit_metrics="metric",
             system_prompt="Prompt",
             user_prompt_template="Template",
             response_schema={}

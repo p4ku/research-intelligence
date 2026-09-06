@@ -86,7 +86,7 @@ class PipelineMatrixCombinationsTestCase(TestCase):
             .add_scraper(provider="arxiv", search_query="quantum variational")
             .add_extraction_definition(
                 name="Quantum Benchmark",
-                exit_metric="fidelity",
+                exit_metrics="fidelity",
                 response_schema={"type": "object", "properties": {"fidelity": {"type": "number"}}}
             )
             .start_agent("Direct FT Multimodal Agent")
@@ -148,7 +148,7 @@ class PipelineMatrixCombinationsTestCase(TestCase):
             .add_scraper(provider="arxiv", search_query="quantum processors")
             .add_extraction_definition(
                 name="Processor Specs",
-                exit_metric="qubit_count",
+                exit_metrics="qubit_count",
                 response_schema={"type": "object", "properties": {"qubit_count": {"type": "integer"}}}
             )
             .start_agent("2-Stage OCR Agent")
@@ -208,7 +208,7 @@ class PipelineMatrixCombinationsTestCase(TestCase):
             .add_scraper(provider="arxiv", search_query="quantum step-by-step")
             .add_extraction_definition(
                 name="Granular Metric",
-                exit_metric="score",
+                exit_metrics="score",
                 response_schema={"type": "object", "properties": {"score": {"type": "number"}}}
             )
         )
@@ -324,7 +324,7 @@ class PipelineMatrixCombinationsTestCase(TestCase):
             .add_scraper(provider="arxiv", search_query="quantum simulation")
             .add_extraction_definition(
                 name="Simulation Metrics",
-                exit_metric="runtime_seconds",
+                exit_metrics="runtime_seconds",
                 response_schema={"type": "object", "properties": {"runtime_seconds": {"type": "number"}}}
             )
             .start_agent("Metrics Audit Agent")

@@ -166,7 +166,7 @@ class ExtractionPostprocessingTaskIntegrationTests(TestCase):
         definition = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Fit & Novelty",
-            exit_metric="fit_score",
+            exit_metrics="fit_score",
             system_prompt="Extract metrics",
             user_prompt_template="Title: {{paper_title}}",
             response_schema={"type": "object"},
@@ -212,7 +212,7 @@ class ExtractionPostprocessingTaskIntegrationTests(TestCase):
         definition = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Error Def",
-            exit_metric="fit_score",
+            exit_metrics="fit_score",
             response_schema={},
             postprocessing_code="return 100 / fit_score"
         )
@@ -298,7 +298,7 @@ class PostprocessedSignalScorePipelineIntegrationTests(TestCase):
         definition = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Fit Assessment",
-            exit_metric="fit_score",
+            exit_metrics="fit_score",
             response_schema={},
             postprocessing_code="return fit_score * 2.5"
         )
@@ -332,7 +332,7 @@ class PostprocessedSignalScorePipelineIntegrationTests(TestCase):
         definition = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Schwarz Strategic Fit",
-            exit_metric="fit_score",
+            exit_metrics="fit_score",
             system_prompt="Test prompt",
             user_prompt_template="Test template",
             response_schema={"type": "object"},
@@ -357,21 +357,21 @@ class PostprocessedSignalScorePipelineIntegrationTests(TestCase):
     def test_duplicate_exit_metric_consistency_check_and_red_badge(self):
         from django.core.exceptions import ValidationError
 
-        # 1. First definition with exit_metric = "novelty_score"
+        # 1. First definition with exit_metrics = "novelty_score"
         def1 = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Novelty Definition 1",
-            exit_metric="novelty_score",
+            exit_metrics="novelty_score",
             system_prompt="Extract novelty",
             user_prompt_template="Prompt",
             response_schema={}
         )
 
-        # 2. Second definition in same workspace with duplicate exit_metric = "novelty_score"
+        # 2. Second definition in same workspace with duplicate exit_metrics = "novelty_score"
         def2 = ExtractionDefinition(
             workspace=self.workspace,
             name="Novelty Definition 2",
-            exit_metric="novelty_score",
+            exit_metrics="novelty_score",
             system_prompt="Extract novelty duplicate",
             user_prompt_template="Prompt",
             response_schema={}
@@ -380,8 +380,8 @@ class PostprocessedSignalScorePipelineIntegrationTests(TestCase):
         # Calling clean() on duplicate definition in same workspace MUST raise ValidationError
         with self.assertRaises(ValidationError) as ctx:
             def2.clean()
-        self.assertIn("exit_metric", ctx.exception.message_dict)
-        self.assertIn("Consistency Error", str(ctx.exception.message_dict["exit_metric"]))
+        self.assertIn("exit_metrics", ctx.exception.message_dict)
+        self.assertIn("Consistency Error", str(ctx.exception.message_dict["exit_metrics"]))
 
         # 3. Save def2 directly to test admin changelist red highlight
         def2.save()
@@ -414,7 +414,7 @@ class PostprocessedSignalScorePipelineIntegrationTests(TestCase):
         def3 = ExtractionDefinition(
             workspace=other_workspace,
             name="Other Workspace Novelty",
-            exit_metric="novelty_score",
+            exit_metrics="novelty_score",
             system_prompt="Prompt",
             user_prompt_template="Prompt",
             response_schema={}
@@ -436,11 +436,11 @@ class PostprocessedSignalScorePipelineIntegrationTests(TestCase):
         )
         mock_get_llm.return_value = mock_provider
 
-        # 1. Create definition with comma-separated exit_metric and spaces: "rigour_score,  param1 , param2 "
+        # 1. Create definition with comma-separated exit_metrics and spaces: "rigour_score,  param1 , param2 "
         definition = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Methodology Evaluation",
-            exit_metric="rigour_score,  param1 , param2 ",
+            exit_metrics="rigour_score,  param1 , param2 ",
             system_prompt="Extract methodology scores",
             user_prompt_template="Prompt: {{paper_title}}",
             response_schema={},
@@ -489,9 +489,9 @@ class SignalScoreVariableVisibilityScenariosTests(TestCase):
     Dedicated test suite covering all 4 exit parameter configurations and validating
     variable visibility in Signal Score (extract_paper_parameters, get_signal_score_prompt_snapshot,
     and compute_paper_signal_score):
-      1) No exit parameters (exit_metric=None / empty)
-      2) Single exit parameter (exit_metric="rigour_score")
-      3) Multiple exit parameters (exit_metric="rigour_score, param1, param2")
+      1) No exit parameters (exit_metrics=None / empty)
+      2) Single exit parameter (exit_metrics=["rigour_score"])
+      3) Multiple exit parameters (exit_metrics=["rigour_score", "param1", "param2"])
       4) Single or multiple exit parameters WITH postprocessing code
     """
 
@@ -521,7 +521,7 @@ class SignalScoreVariableVisibilityScenariosTests(TestCase):
         definition = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Novelty Evaluation",
-            exit_metric="",  # No exit parameter configured
+            exit_metrics="",  # No exit parameter configured
             system_prompt="Extract novelty",
             user_prompt_template="Title: {{paper_title}}",
             response_schema={}
@@ -566,7 +566,7 @@ class SignalScoreVariableVisibilityScenariosTests(TestCase):
         definition = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Methodology Rigour",
-            exit_metric="rigour_score",  # Single exit parameter
+            exit_metrics="rigour_score",  # Single exit parameter
             system_prompt="Extract rigour",
             user_prompt_template="Title: {{paper_title}}",
             response_schema={}
@@ -609,7 +609,7 @@ class SignalScoreVariableVisibilityScenariosTests(TestCase):
         definition = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Dataset & Experiment Stats",
-            exit_metric="rigour_score,  sample_size ,   p_value ",  # Multiple with messy spaces
+            exit_metrics="rigour_score,  sample_size ,   p_value ",  # Multiple with messy spaces
             system_prompt="Extract stats",
             user_prompt_template="Title: {{paper_title}}",
             response_schema={}
@@ -667,7 +667,7 @@ class SignalScoreVariableVisibilityScenariosTests(TestCase):
         def_single = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Commercial Viability",
-            exit_metric="market_fit",
+            exit_metrics="market_fit",
             system_prompt="Extract market fit",
             user_prompt_template="Title: {{paper_title}}",
             response_schema={},
@@ -678,7 +678,7 @@ class SignalScoreVariableVisibilityScenariosTests(TestCase):
         def_multiple = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Clinical Rigour",
-            exit_metric="cohort_size, control_ratio, confidence_index",
+            exit_metrics="cohort_size, control_ratio, confidence_index",
             system_prompt="Extract clinical data",
             user_prompt_template="Title: {{paper_title}}",
             response_schema={},
@@ -784,7 +784,7 @@ class FullPipelineE2EVariableMathTests(TestCase):
         def_none = ExtractionDefinition.objects.create(
             workspace=workspace,
             name="Novelty",
-            exit_metric="",
+            exit_metrics="",
             system_prompt="Prompt for novelty",
             user_prompt_template="Prompt: {{paper_title}}",
             response_schema={},
@@ -795,7 +795,7 @@ class FullPipelineE2EVariableMathTests(TestCase):
         def_single = ExtractionDefinition.objects.create(
             workspace=workspace,
             name="Methodology Rigour",
-            exit_metric="rigour_score",
+            exit_metrics="rigour_score",
             system_prompt="Prompt for rigour",
             user_prompt_template="Prompt: {{paper_title}}",
             response_schema={},
@@ -806,7 +806,7 @@ class FullPipelineE2EVariableMathTests(TestCase):
         def_multi = ExtractionDefinition.objects.create(
             workspace=workspace,
             name="Dataset Metrics",
-            exit_metric="sample_size,   control_groups ,  p_value ",
+            exit_metrics="sample_size,   control_groups ,  p_value ",
             system_prompt="Prompt for dataset metrics",
             user_prompt_template="Prompt: {{paper_title}}",
             response_schema={},
@@ -817,7 +817,7 @@ class FullPipelineE2EVariableMathTests(TestCase):
         def_post = ExtractionDefinition.objects.create(
             workspace=workspace,
             name="Market Viability",
-            exit_metric="market_fit, growth_potential",
+            exit_metrics="market_fit, growth_potential",
             postprocessing_code="return (market_fit * 1.5) + growth_potential",
             system_prompt="Prompt for market viability",
             user_prompt_template="Prompt: {{paper_title}}",

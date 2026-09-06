@@ -180,11 +180,11 @@ def _run_single_extraction_impl(paper, definition, workspace):
                     logger.debug(f"JSON schema validation error check: {val_e}")
             
             exit_metric_missing = False
-            if definition.exit_metric:
+            if definition.exit_metrics:
                 exit_metrics = (
                     definition.get_exit_metrics_list()
                     if hasattr(definition, "get_exit_metrics_list")
-                    else [definition.exit_metric.strip().lower().replace(" ", "_")]
+                    else [str(definition.exit_metrics).strip().lower().replace(" ", "_")]
                 )
                 if isinstance(fields_dict, dict):
                     extracted_keys = {k.strip().lower().replace(" ", "_") for k in fields_dict.keys()}
@@ -204,7 +204,7 @@ def _run_single_extraction_impl(paper, definition, workspace):
                     if primary_metric in missing_metrics or len(missing_metrics) == len(exit_metrics):
                         exit_metric_missing = True
                     schema_validation_errors.append(
-                        f"Expected exit_metric(s) '{', '.join(missing_metrics)}' were missing from extracted fields."
+                        f"Expected exit_metrics '{', '.join(missing_metrics)}' were missing from extracted fields."
                     )
 
             review_required = False
@@ -248,8 +248,8 @@ def _run_single_extraction_impl(paper, definition, workspace):
                         timeout_seconds=2.0
                     )
                     primary_exit = definition.get_primary_exit_metric() if hasattr(definition, 'get_primary_exit_metric') else ""
-                    if not primary_exit and definition.exit_metric:
-                        primary_exit = _sanitize_identifier(definition.exit_metric.split(',')[0].strip())
+                    if not primary_exit and definition.exit_metrics:
+                        primary_exit = _sanitize_identifier(str(definition.exit_metrics).split(',')[0].strip())
 
                     if isinstance(fields_dict, dict):
                         if isinstance(post_res, dict):
@@ -272,8 +272,8 @@ def _run_single_extraction_impl(paper, definition, workspace):
                     logger.warning(f"⚠️ [EXTRACTION POSTPROCESSING ERROR] Definition '{definition.name}' for Paper '{paper.id}': {post_err}")
                     version_info["postprocessing_error"] = str(post_err)
                     primary_exit = definition.get_primary_exit_metric() if hasattr(definition, 'get_primary_exit_metric') else ""
-                    if not primary_exit and definition.exit_metric:
-                        primary_exit = _sanitize_identifier(definition.exit_metric.split(',')[0].strip())
+                    if not primary_exit and definition.exit_metrics:
+                        primary_exit = _sanitize_identifier(str(definition.exit_metrics).split(',')[0].strip())
                     if isinstance(fields_dict, dict):
                         fields_dict[f"{def_slug}_postprocessed"] = 0.0
                         fields_dict[f"{def_slug}_computed"] = 0.0

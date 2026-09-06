@@ -2,10 +2,10 @@
 Signal Score Variables & Mathematical Verification E2E Scenario.
 
 Validates the complete variable lifecycle across all 4 configurations:
-1. No exit parameters (exit_metric="" / None) -> mapped via definition name slug or raw field.
-2. Single exit parameter (exit_metric="rigour_score").
-3. Multiple comma-separated exit parameters with whitespace (exit_metric="sample_size,  control_groups ,  p_value ").
-4. Exit parameters with custom Python sandboxed postprocessing snippet (exit_metric="market_fit, growth_potential",
+1. No exit parameters (exit_metrics=[] / None) -> mapped via definition name slug or raw field.
+2. Single exit parameter (exit_metrics=["rigour_score"]).
+3. Multiple exit parameters (exit_metrics=["sample_size", "control_groups", "p_value"]).
+4. Exit parameters with custom Python sandboxed postprocessing snippet (exit_metrics=["market_fit", "growth_potential"],
    postprocessing_code="return (market_fit * 1.5) + growth_potential").
 
 Retrieves all variables in "Signal score code" and verifies the mathematical computation with 100% precision.
@@ -55,10 +55,10 @@ def run_signal_score_variables_scenario(config: Optional[E2EConfig] = None) -> D
 
     # 1. Define Extraction Definitions covering all 4 scenarios
     definitions = [
-        # 1) Scenario 1: No exit parameters (exit_metric is empty / None)
+        # 1) Scenario 1: No exit parameters (exit_metrics is empty / None)
         {
             "name": "Novelty Evaluation",
-            "exit_metric": "",
+            "exit_metrics": [],
             "llm_model": "google/gemini-3.8-flash",
             "system_prompt": "Evaluate paper novelty from 1.0 to 10.0 and return JSON.",
             "user_prompt_template": "Paper Title: {title}\nEvaluate novelty score (1-10).",
@@ -74,7 +74,7 @@ def run_signal_score_variables_scenario(config: Optional[E2EConfig] = None) -> D
         # 2) Scenario 2: Single exit parameter
         {
             "name": "Methodology Rigour",
-            "exit_metric": "rigour_score",
+            "exit_metrics": ["rigour_score"],
             "llm_model": "google/gemini-3.8-flash",
             "system_prompt": "Evaluate methodology rigour from 1.0 to 10.0 and return JSON.",
             "user_prompt_template": "Paper Title: {title}\nEvaluate rigour score (1-10).",
@@ -86,10 +86,10 @@ def run_signal_score_variables_scenario(config: Optional[E2EConfig] = None) -> D
             },
             "is_active": True,
         },
-        # 3) Scenario 3: Multiple exit parameters (comma-separated with whitespace)
+        # 3) Scenario 3: Multiple exit parameters (list of parameters)
         {
             "name": "Dataset Statistics",
-            "exit_metric": "sample_size,  control_groups ,  p_value ",
+            "exit_metrics": ["sample_size", "control_groups", "p_value"],
             "llm_model": "google/gemini-3.8-flash",
             "system_prompt": "Extract dataset parameters (sample size, control groups count, p-value).",
             "user_prompt_template": "Paper Title: {title}\nExtract dataset metrics.",
@@ -106,7 +106,7 @@ def run_signal_score_variables_scenario(config: Optional[E2EConfig] = None) -> D
         # 4) Scenario 4: Single or multiple exit parameters with custom Python postprocessing snippet
         {
             "name": "Commercial Traction",
-            "exit_metric": "market_fit, growth_potential",
+            "exit_metrics": ["market_fit", "growth_potential"],
             "postprocessing_code": "return (market_fit * 1.5) + growth_potential",
             "llm_model": "google/gemini-3.8-flash",
             "system_prompt": "Evaluate market fit (1-10) and growth potential (1-10).",

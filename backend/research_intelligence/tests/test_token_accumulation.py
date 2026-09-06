@@ -57,7 +57,7 @@ class PipelineTokenAccumulationTestCase(TestCase):
         self.extraction_def = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Threshold Extraction",
-            exit_metric="error_threshold",
+            exit_metrics="error_threshold",
             system_prompt="Extract physical error threshold percentage.",
             user_prompt_template="Paper text: {paper_text}",
             response_schema={

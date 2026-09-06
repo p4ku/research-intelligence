@@ -478,7 +478,7 @@ Workspace: {workspace_id}
           }},
           "required": ["trl_level", "fit_score", "novelty_score"]
       }},
-      exit_metric="fit_score"
+      exit_metrics=["fit_score"]
   )`
 
 ### 2. Define Custom Signal Score Formula (AST Sandboxed Python)

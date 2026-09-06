@@ -68,7 +68,7 @@ class EmailDigestTaskTests(TestCase):
             system_prompt="Extract qubit counts",
             user_prompt_template="Extract qubits: {paper_text}",
             response_schema={"type": "object", "properties": {"qubits": {"type": "integer"}}},
-            exit_metric="qubits"
+            exit_metrics="qubits"
         )
 
         self.paper = Paper.objects.create(
@@ -219,7 +219,7 @@ class EmailCompositionBuilderTests(TestCase):
             system_prompt="Extract TRL",
             user_prompt_template="{paper_text}",
             response_schema={"type": "object", "properties": {"trl": {"type": "integer"}}},
-            exit_metric="trl"
+            exit_metrics="trl"
         )
         self.def_material = ExtractionDefinition.objects.create(
             workspace=self.workspace,
@@ -227,7 +227,7 @@ class EmailCompositionBuilderTests(TestCase):
             system_prompt="Extract compound",
             user_prompt_template="{paper_text}",
             response_schema={"type": "object", "properties": {"compound": {"type": "string"}}},
-            exit_metric="compound"
+            exit_metrics="compound"
         )
 
     def test_multi_paper_html_and_text_composition(self):
@@ -418,7 +418,7 @@ class EmailCompositionBuilderTests(TestCase):
         def_fit = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Schwarz Fit",
-            exit_metric="fit_score",
+            exit_metrics="fit_score",
             system_prompt="Fit",
             user_prompt_template="Fit",
             response_schema={"type": "object"}
@@ -426,7 +426,7 @@ class EmailCompositionBuilderTests(TestCase):
         def_novelty = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Novelty Score",
-            exit_metric="novelty",
+            exit_metrics="novelty",
             system_prompt="Novelty",
             user_prompt_template="Novelty",
             response_schema={"type": "object"}
@@ -558,7 +558,7 @@ class EmailCompositionBuilderTests(TestCase):
         def_test = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Commercial Viability",
-            exit_metric="market_score",
+            exit_metrics="market_score",
             system_prompt="Test",
             user_prompt_template="Test",
             response_schema={"type": "object"}
@@ -576,7 +576,7 @@ class EmailCompositionBuilderTests(TestCase):
         def_empty_exit = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Novelty Assessment Score",
-            exit_metric="",
+            exit_metrics="",
             system_prompt="Test",
             user_prompt_template="Test",
             response_schema={"type": "object"}
@@ -607,7 +607,7 @@ class EmailCompositionBuilderTests(TestCase):
         def_trl = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="TRL (Technology Readiness Level)",
-            exit_metric="trl_level",
+            exit_metrics="trl_level",
             system_prompt="TRL",
             user_prompt_template="{paper_text}",
             response_schema={}
@@ -615,7 +615,7 @@ class EmailCompositionBuilderTests(TestCase):
         def_novelty = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Novelty",
-            exit_metric="novelty_score",
+            exit_metrics="novelty_score",
             system_prompt="Novelty",
             user_prompt_template="{paper_text}",
             response_schema={}
@@ -623,7 +623,7 @@ class EmailCompositionBuilderTests(TestCase):
         def_fit = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Schwarz Fit",
-            exit_metric="fit_score",
+            exit_metrics="fit_score",
             system_prompt="Fit",
             user_prompt_template="{paper_text}",
             response_schema={}

@@ -2379,15 +2379,15 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.JSONField: {'widget': PrettyJSONWidget},
     }
-    list_display = ('name', 'exit_metric_status', 'workspace', 'version', 'llm_model', 'has_postprocessing_code', 'requires_consensus', 'is_active', 'created_at')
+    list_display = ('name', 'exit_metrics_status', 'workspace', 'version', 'llm_model', 'has_postprocessing_code', 'requires_consensus', 'is_active', 'created_at')
     ordering = ('-created_at', '-id')
     list_filter = ('is_active', 'requires_consensus', 'workspace')
-    search_fields = ('name', 'exit_metric', 'system_prompt', 'user_prompt_template', 'postprocessing_code')
+    search_fields = ('name', 'exit_metrics', 'system_prompt', 'user_prompt_template', 'postprocessing_code')
     readonly_fields = ('postprocessed_variable_preview',)
     fields = (
         'workspace',
         'name',
-        'exit_metric',
+        'exit_metrics',
         'system_prompt',
         'user_prompt_template',
         'response_schema',
@@ -2406,9 +2406,9 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('workspace')
 
-    @admin.display(description="Exit Metric(s)", ordering="exit_metric")
-    def exit_metric_status(self, obj):
-        if not obj.exit_metric or not obj.exit_metric.strip():
+    @admin.display(description="Exit Metrics", ordering="exit_metrics")
+    def exit_metrics_status(self, obj):
+        if not obj.exit_metrics or not obj.exit_metrics.strip():
             return mark_safe("<span style='color: #94a3b8; font-style: italic;'>-</span>")
 
         my_metrics = obj.get_exit_metrics_list()
@@ -2454,13 +2454,13 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
-        if 'exit_metric' in form.base_fields:
+        if 'exit_metrics' in form.base_fields:
             default_help = (
                 "Comma-separated list of field keys to unpack from extracted data for Signal Score (e.g. 'rigour_score, param1, param2'). "
                 "Spaces are automatically stripped. The first key is used for postprocessing naming. "
                 "Each metric must be unique across extraction definitions in this workspace."
             )
-            if obj and obj.exit_metric and obj.workspace_id:
+            if obj and obj.exit_metrics and obj.workspace_id:
                 my_metrics = obj.get_exit_metrics_list()
                 duplicates = ExtractionDefinition.objects.filter(workspace_id=obj.workspace_id).exclude(pk=obj.pk)
                 conflicts = []
@@ -2470,16 +2470,16 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
                         conflicts.append(f"'{d.name}' (shared: {', '.join(sorted(shared))})")
                 if conflicts:
                     conflict_str = "; ".join(conflicts)
-                    form.base_fields['exit_metric'].help_text = mark_safe(
+                    form.base_fields['exit_metrics'].help_text = mark_safe(
                         f"<div style='color: #dc2626; background: #fee2e2; border: 1px solid #ef4444; padding: 6px 10px; border-radius: 4px; font-weight: bold; margin-top: 4px;'>"
                         f"🚨 CONSISTENCY ERROR: One or more exit metrics from this list are already defined in this workspace by {conflict_str}! "
                         f"Please change duplicate values to prevent Signal Score variable collisions."
                         f"</div><div style='margin-top: 4px;'>{default_help}</div>"
                     )
                 else:
-                    form.base_fields['exit_metric'].help_text = default_help
+                    form.base_fields['exit_metrics'].help_text = default_help
             else:
-                form.base_fields['exit_metric'].help_text = default_help
+                form.base_fields['exit_metrics'].help_text = default_help
 
         if 'postprocessing_code' in form.base_fields:
             if obj and obj.name:
@@ -2550,7 +2550,7 @@ class ExtractionAdmin(admin.ModelAdmin):
     list_display = (
         'paper',
         'extraction_definition',
-        'exit_metric_badge',
+        'exit_metrics_badge',
         'validation_confidence_badge',
         'workspace',
         'pipeline_run_link',
@@ -2565,7 +2565,7 @@ class ExtractionAdmin(admin.ModelAdmin):
     ordering = ('-created_at', '-id')
     list_filter = ('validation_status', 'workspace')
     search_fields = ('paper__title', 'category', 'extraction_definition__name')
-    readonly_fields = ('exit_metric_preview', 'extraction_system_prompt', 'extraction_user_prompt_template', 'created_at')
+    readonly_fields = ('exit_metrics_preview', 'extraction_system_prompt', 'extraction_user_prompt_template', 'created_at')
 
     fieldsets = (
         ('Extraction Target & Definition', {
@@ -2580,7 +2580,7 @@ class ExtractionAdmin(admin.ModelAdmin):
         }),
         ('Extracted Data & Evidence', {
             'fields': (
-                'exit_metric_preview',
+                'exit_metrics_preview',
                 'fields_data',
                 'validation_status',
                 'confidence_score',
@@ -2667,8 +2667,8 @@ class ExtractionAdmin(admin.ModelAdmin):
         return format_html('<a href="{}" title="Component Run: {}"><code>{}</code></a>', url, str(cr.id), str(cr.id)[:8] + '...')
     component_run_link.short_description = "Component Run"
 
-    def exit_metric_badge(self, obj):
-        metric_str = obj.get_exit_metric()
+    def exit_metrics_badge(self, obj):
+        metric_str = obj.get_exit_metrics()
         if not metric_str or metric_str == "-":
             return mark_safe('<span style="color: #6c757d; font-size: 0.85em;">-</span>')
 
@@ -2695,12 +2695,14 @@ class ExtractionAdmin(admin.ModelAdmin):
             'box-shadow: 0 1px 3px rgba(0,0,0,0.12);" title="{}">{}</span>',
             bg, color, metric_str, metric_str
         )
-    exit_metric_badge.short_description = "Exit Metric / Output"
+    exit_metrics_badge.short_description = "Exit Metrics / Output"
+    exit_metric_badge = exit_metrics_badge
 
-    def exit_metric_preview(self, obj):
-        metric_str = obj.get_exit_metric()
+    def exit_metrics_preview(self, obj):
+        metric_str = obj.get_exit_metrics()
         return format_html('<strong style="font-size: 1.1em; color: #0d6efd;">{}</strong>', metric_str)
-    exit_metric_preview.short_description = "Primary Exit Metric"
+    exit_metrics_preview.short_description = "Exit Metrics"
+    exit_metric_preview = exit_metrics_preview
 
     @admin.action(description="🔄 Re-run selected extraction(s)")
     def rerun_selected_extractions(self, request, queryset):

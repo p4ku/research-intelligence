@@ -90,7 +90,7 @@ class LogicalInconsistenciesFixesTestCase(TestCase):
         ext_def = ExtractionDefinition.objects.create(
             workspace=self.workspace_a,
             name="trl_score",
-            exit_metric="trl_score",
+            exit_metrics="trl_score",
             response_schema={"type": "object"}
         )
         Extraction.objects.create(
@@ -250,7 +250,7 @@ class LogicalInconsistenciesFixesTestCase(TestCase):
         self.assertNotIn("pipeline_run_link", admin.list_display)
         self.assertIn("runs_count_badge", admin.list_display)
         badge_html = admin.runs_count_badge(self.paper_1)
-        self.assertIn("2 runy", badge_html)
+        self.assertIn("2 runs", badge_html)
         link_html = admin.pipeline_run_link(self.paper_1)
         self.assertIn(str(run_new.id), link_html)
 
@@ -366,7 +366,7 @@ class LogicalInconsistenciesFixesTestCase(TestCase):
             system_prompt="Assess novelty.",
             user_prompt_template="Assess: {paper_text}",
             response_schema={"type": "object", "properties": {"score": {"type": "number"}}},
-            exit_metric="score"
+            exit_metrics="score"
         )
         PaperMetric.objects.create(
             paper=self.paper_1,
@@ -572,9 +572,9 @@ score = clamp(trl_val) * 0.5 + 4.0
             full_text_screening_reasoning=None
         )
         empty_abs_html = admin.abstract_screening_reasoning_display(pm_empty)
-        self.assertIn("Brak uzasadnienia dla etapu abstraktu", empty_abs_html)
+        self.assertIn("No rationale for abstract stage", empty_abs_html)
         empty_ft_html = admin.full_text_screening_reasoning_display(pm_empty)
-        self.assertIn("Brak uzasadnienia dla etapu pełnego tekstu", empty_ft_html)
+        self.assertIn("No rationale for full-text stage", empty_ft_html)
 
         # 7. PaperMetricAdmin hides duplicate raw textboxes in favor of styled readonly boxes
         screening_fieldset = next(fs for name, fs in admin.fieldsets if name == 'Screening Decision & Verification')

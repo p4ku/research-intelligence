@@ -21,7 +21,7 @@ class WorkspaceService:
         return [
             {
                 "name": f"{prefix}fit_score",
-                "exit_metric": "fit_score",
+                "exit_metrics": ["fit_score"],
                 "llm_model": "google/gemini-3.8-flash",
                 "system_prompt": "Evaluate strategic fit for enterprise research from 0.0 to 100.0.",
                 "user_prompt_template": "Paper Title: {title}\nAbstract/Content:\n{content}\nEvaluate strategic fit (0-100).",
@@ -37,7 +37,7 @@ class WorkspaceService:
             },
             {
                 "name": f"{prefix}novelty_score",
-                "exit_metric": "novelty_score",
+                "exit_metrics": ["novelty_score"],
                 "llm_model": "google/gemini-3.8-flash",
                 "system_prompt": "Evaluate scientific novelty and originality from 0.0 to 100.0.",
                 "user_prompt_template": "Paper Title: {title}\nAbstract/Content:\n{content}\nEvaluate novelty score (0-100).",
@@ -53,7 +53,7 @@ class WorkspaceService:
             },
             {
                 "name": f"{prefix}trl_level",
-                "exit_metric": "trl_level",
+                "exit_metrics": ["trl_level"],
                 "llm_model": "google/gemini-3.8-flash",
                 "system_prompt": "Evaluate Technology Readiness Level from 1 to 9.",
                 "user_prompt_template": "Paper Title: {title}\nAbstract/Content:\n{content}\nEvaluate TRL level (1-9).",
@@ -199,20 +199,25 @@ class WorkspaceService:
         system_prompt: str,
         user_prompt_template: str,
         response_schema: Dict[str, Any],
-        exit_metric: str,
+        exit_metrics: list[str] | str,
         llm_model: str = "google/gemini-3.8-flash",
     ) -> Optional[Dict[str, Any]]:
+        metrics_list = (
+            [m.strip() for m in exit_metrics.split(',') if m.strip()]
+            if isinstance(exit_metrics, str)
+            else (list(exit_metrics) if exit_metrics else [])
+        )
         payload = {
             "workspace": workspace_id,
             "name": name,
             "system_prompt": system_prompt,
             "user_prompt_template": user_prompt_template,
             "response_schema": response_schema,
-            "exit_metric": exit_metric,
+            "exit_metrics": metrics_list,
             "llm_model": llm_model,
             "is_active": True,
         }
-        logger.info(f"📊 Defining Extraction Target '{name}' (exit_metric: '{exit_metric}')...")
+        logger.info(f"📊 Defining Extraction Target '{name}' (exit_metrics: '{metrics_list}')...")
         resp = self.client.post("/api/extraction-definitions/", json_data=payload)
         if resp.status_code == 201:
             data = resp.json()

@@ -57,7 +57,7 @@ return round(min(base, 10.0), 2)
         self.def_trl = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="TRL Level",
-            exit_metric="trl_level",
+            exit_metrics="trl_level",
             system_prompt="Extract TRL level with exact quote.",
             user_prompt_template="Analyze this text: {paper_text}",
             response_schema={
@@ -74,7 +74,7 @@ return round(min(base, 10.0), 2)
         self.def_fit = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Fit Score",
-            exit_metric="fit_score",
+            exit_metrics="fit_score",
             system_prompt="Extract Fit Score.",
             user_prompt_template="Analyze this text: {paper_text}",
             response_schema={
@@ -91,7 +91,7 @@ return round(min(base, 10.0), 2)
         self.def_novelty = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Novelty Score",
-            exit_metric="novelty_score",
+            exit_metrics="novelty_score",
             system_prompt="Extract Novelty Score.",
             user_prompt_template="Analyze this text: {paper_text}",
             response_schema={

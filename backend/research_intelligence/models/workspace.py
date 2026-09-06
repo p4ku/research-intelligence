@@ -234,7 +234,7 @@ class Workspace(models.Model):
                 "name": d.name,
                 "system_prompt": d.system_prompt,
                 "user_prompt_template": d.user_prompt_template,
-                "exit_metric": d.exit_metric,
+                "exit_metrics": d.get_exit_metrics_list(),
                 "llm_model": d.llm_model or self.screening_llm_model,
                 "response_schema": d.response_schema,
                 "version": d.version,
@@ -260,28 +260,25 @@ class Workspace(models.Model):
         available_vars = []
         for d in active_defs:
             clean_name = d.name.strip().lower().replace(" ", "_") if d.name else ""
-            metrics_list = d.get_exit_metrics_list() if hasattr(d, 'get_exit_metrics_list') else ([m.strip() for m in d.exit_metric.split(',') if m.strip()] if d.exit_metric else [])
+            metrics_list = d.get_exit_metrics_list()
             if metrics_list:
                 for exit_m in metrics_list:
                     available_vars.append({
                         "definition_id": str(d.id),
                         "definition_name": d.name,
-                        "exit_metric": exit_m,
                         "variable_name": exit_m
                     })
             else:
                 available_vars.append({
                     "definition_id": str(d.id),
                     "definition_name": d.name,
-                    "exit_metric": clean_name,
                     "variable_name": clean_name
                 })
             if d.postprocessing_code and d.postprocessing_code.strip():
-                primary_exit = d.get_primary_exit_metric() if hasattr(d, 'get_primary_exit_metric') else (metrics_list[0] if metrics_list else clean_name)
+                primary_exit = d.get_primary_exit_metric() or clean_name
                 available_vars.append({
                     "definition_id": str(d.id),
                     "definition_name": f"{d.name} (Postprocessed)",
-                    "exit_metric": f"{primary_exit}_postprocessed",
                     "variable_name": f"{primary_exit}_postprocessed",
                     "is_postprocessed": True
                 })
@@ -307,7 +304,7 @@ class Workspace(models.Model):
 
         for d in active_defs:
             clean_name = d.name.strip().lower().replace(" ", "_") if d.name else ""
-            metrics_list = d.get_exit_metrics_list() if hasattr(d, 'get_exit_metrics_list') else ([m.strip() for m in d.exit_metric.split(',') if m.strip()] if d.exit_metric else [])
+            metrics_list = d.get_exit_metrics_list()
             target_vars = metrics_list if metrics_list else [clean_name or f"def_{d.id}"]
 
             for var_name in target_vars:

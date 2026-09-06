@@ -182,7 +182,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
         extraction_definitions_payload = [
             {
                 "name": f"test_e2e_novelty_{random_suffix}",
-                "exit_metric": "novelty_score",
+                "exit_metrics": ["novelty_score"],
                 "llm_model": "google/gemini-3.8-flash",
                 "system_prompt": (
                     "You are an expert peer reviewer evaluating scientific novelty according to NeurIPS reviewer guidelines.\n\n"
@@ -212,7 +212,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             },
             {
                 "name": f"test_e2e_rigour_{random_suffix}",
-                "exit_metric": "rigour_score",
+                "exit_metrics": ["rigour_score"],
                 "llm_model": "google/gemini-3.8-flash",
                 "system_prompt": (
                     "You are an expert scientific peer reviewer assessing scientific Rigour and technical soundness based on NeurIPS review guidelines.\n\n"
@@ -240,7 +240,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             },
             {
                 "name": f"test_e2e_schwarz_fit_{random_suffix}",
-                "exit_metric": "fit_score",
+                "exit_metrics": ["fit_score"],
                 "llm_model": "google/gemini-3.8-flash",
                 "system_prompt": (
                     "You are a specialized enterprise technology evaluator assessing how closely research papers map to strategic business needs of the Schwarz Group.\n\n"
@@ -263,7 +263,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             },
             {
                 "name": f"test_e2e_significance_{random_suffix}",
-                "exit_metric": "significance_score",
+                "exit_metrics": ["significance_score"],
                 "llm_model": "google/gemini-3.8-flash",
                 "system_prompt": (
                     "You are an expert scientific evaluator reviewing paper significance based on NeurIPS reviewer guidelines.\n\n"
@@ -287,7 +287,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             },
             {
                 "name": f"test_e2e_trl_{random_suffix}",
-                "exit_metric": "trl_level",
+                "exit_metrics": ["trl_level"],
                 "llm_model": "google/gemini-3.8-flash",
                 "system_prompt": (
                     "You are an expert scientific evaluator responsible for extracting and evaluating the Technology Readiness Level (TRL) of research papers based on the European Commission definition (Horizon Europe General Annex G).\n\n"
@@ -359,7 +359,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
                 ws_svc.create_extraction_definition(
                     workspace_id=workspace_id,
                     name=ed_payload["name"],
-                    exit_metric=ed_payload["exit_metric"],
+                    exit_metrics=ed_payload["exit_metrics"],
                     system_prompt=ed_payload["system_prompt"],
                     user_prompt_template=ed_payload["user_prompt_template"],
                     response_schema=ed_payload["response_schema"],

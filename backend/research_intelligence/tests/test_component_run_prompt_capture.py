@@ -229,7 +229,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
             name="Novelty Evaluation",
             system_prompt="Extract research novelty score and key contributions.",
             user_prompt_template="Paper Content: {paper_text}",
-            exit_metric="novelty_score",
+            exit_metrics="novelty_score",
             llm_model="google/gemini-3.8-flash",
             response_schema={"type": "object", "properties": {"novelty_score": {"type": "number"}}}
         )
@@ -238,7 +238,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
             name="TRL Level",
             system_prompt="Assess Technology Readiness Level (1-9).",
             user_prompt_template="Full Text: {full_text}",
-            exit_metric="trl_level",
+            exit_metrics="trl_level",
             llm_model="google/gemini-3.8-flash",
             response_schema={"type": "object", "properties": {"trl_level": {"type": "integer"}}}
         )
@@ -256,7 +256,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         self.assertIn("TRL Level", def_names)
 
         novelty_def = next(d for d in defs if d["name"] == "Novelty Evaluation")
-        self.assertEqual(novelty_def["exit_metric"], "novelty_score")
+        self.assertEqual(novelty_def["exit_metrics"], ["novelty_score"])
         self.assertEqual(novelty_def["system_prompt"], "Extract research novelty score and key contributions.")
         self.assertEqual(novelty_def["user_prompt_template"], "Paper Content: {paper_text}")
         self.assertIn("novelty_score", novelty_def["response_schema"]["properties"])
@@ -274,7 +274,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
             name="Schwarz Strategic Fit",
             system_prompt="Assess corporate fit with retail logistics.",
             user_prompt_template="Evaluate: {paper_text}",
-            exit_metric="fit_score",
+            exit_metrics="fit_score",
             llm_model="google/gemini-3.8-flash",
             response_schema={"type": "object", "properties": {"fit_score": {"type": "number"}}}
         )
@@ -292,7 +292,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         self.assertEqual(comp_run.input_params["stage"], "extraction")
         self.assertEqual(comp_run.input_params["total_definitions"], 1)
         self.assertEqual(comp_run.input_params["extraction_definitions"][0]["name"], "Schwarz Strategic Fit")
-        self.assertEqual(comp_run.input_params["extraction_definitions"][0]["exit_metric"], "fit_score")
+        self.assertEqual(comp_run.input_params["extraction_definitions"][0]["exit_metrics"], ["fit_score"])
         self.assertEqual(comp_run.input_params["limit"], 5)
 
     def test_signal_score_node_get_input_params(self):
@@ -308,7 +308,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
             name="Strategic Fit",
             system_prompt="Fit",
             user_prompt_template="Fit",
-            exit_metric="fit_score",
+            exit_metrics="fit_score",
             response_schema={"type": "object"}
         )
         ExtractionDefinition.objects.create(
@@ -316,7 +316,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
             name="Novelty",
             system_prompt="Nov",
             user_prompt_template="Nov",
-            exit_metric="novelty_score",
+            exit_metrics="novelty_score",
             response_schema={"type": "object"}
         )
 
@@ -334,7 +334,6 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         self.assertIn("novelty_score", var_names)
 
         fit_var = next(v for v in params["scoring_variables"] if v["definition_name"] == "Strategic Fit")
-        self.assertEqual(fit_var["exit_metric"], "fit_score")
         self.assertEqual(fit_var["variable_name"], "fit_score")
 
     @patch("mcp_server.tools.pipeline_runs.triggers.execute_signal_score_job")
@@ -386,7 +385,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
                     "name": "Custom Metric Fit",
                     "system_prompt": "Evaluate custom fit.",
                     "user_prompt_template": "Paper: {paper_text}",
-                    "exit_metric": "custom_fit",
+                    "exit_metrics": ["custom_fit"],
                     "response_schema": {"type": "object", "properties": {"custom_fit": {"type": "number"}}},
                 }
             ]
@@ -398,7 +397,7 @@ class ComponentRunPromptCaptureTestCase(TestCase):
         self.assertEqual(ws.extraction_definitions.count(), 1)
         ext_def = ws.extraction_definitions.first()
         self.assertEqual(ext_def.name, "Custom Metric Fit")
-        self.assertEqual(ext_def.exit_metric, "custom_fit")
+        self.assertEqual(ext_def.exit_metrics, "custom_fit")
 
         snapshot = ws.get_extraction_prompt_snapshot()
         self.assertEqual(snapshot["total_definitions"], 1)

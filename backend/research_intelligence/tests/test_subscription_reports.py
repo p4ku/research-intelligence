@@ -82,7 +82,7 @@ class SubscriptionReportsTestCase(TestCase):
             system_prompt="Extract TRL",
             user_prompt_template="Paper: {title}",
             response_schema={"type": "object", "properties": {"trl": {"type": "string"}}},
-            exit_metric="trl"
+            exit_metrics="trl"
         )
 
         self.paper1 = Paper.objects.create(
@@ -254,7 +254,7 @@ class SubscriptionReportsTestCase(TestCase):
             system_prompt="Assess Novelty",
             user_prompt_template="Paper: {title}",
             response_schema={"type": "object"},
-            exit_metric="novelty_score"
+            exit_metrics="novelty_score"
         )
         def_rigour = ExtractionDefinition.objects.create(
             workspace=self.workspace,
@@ -262,7 +262,7 @@ class SubscriptionReportsTestCase(TestCase):
             system_prompt="Assess Rigour",
             user_prompt_template="Paper: {title}",
             response_schema={"type": "object"},
-            exit_metric="rigour"
+            exit_metrics="rigour"
         )
 
         paper2 = Paper.objects.create(

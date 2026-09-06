@@ -120,7 +120,7 @@ class PipelineTestHarness:
     def add_extraction_definition(
         self,
         name: str = "Extracted Targets",
-        exit_metric: str | None = None,
+        exit_metrics: list[str] | str | None = None,
         response_schema: dict | None = None
     ) -> "PipelineTestHarness":
         """Adds a dynamic parameter extraction target to the workspace."""
@@ -128,7 +128,7 @@ class PipelineTestHarness:
         definition = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name=name,
-            exit_metric=exit_metric,
+            exit_metrics=exit_metrics,
             llm_model=self.workspace.screening_llm_model,
             system_prompt=f"Extract parameters for {name}.",
             response_schema=schema,

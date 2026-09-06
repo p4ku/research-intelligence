@@ -87,7 +87,7 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
             system_prompt="Assess strategic fit",
             user_prompt_template="Title: {title}",
             response_schema={"type": "object", "properties": {"fit_score": {"type": "number"}}},
-            exit_metric="fit_score"
+            exit_metrics="fit_score"
         )
         scraper = Scraper.objects.create(
             workspace=self.workspace,

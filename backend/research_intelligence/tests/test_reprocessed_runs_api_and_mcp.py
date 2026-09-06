@@ -58,7 +58,7 @@ class ReprocessedRunsAPIMCPTests(TestCase):
             system_prompt="Extract benchmark fidelity metrics.",
             user_prompt_template="Analyze: {paper_text}",
             response_schema={"type": "object", "properties": {"metric": {"type": "string"}}},
-            exit_metric="metric",
+            exit_metrics="metric",
             is_active=True
         )
 

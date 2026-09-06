@@ -74,7 +74,7 @@ class ReprocessExistingPipelineE2ETestCase(TestCase):
             system_prompt="Extract technology readiness level 1-9.",
             user_prompt_template="Extract TRL from paper: {paper_text}",
             response_schema={"type": "object", "properties": {"trl": {"type": "integer"}}, "required": ["trl"]},
-            exit_metric="trl"
+            exit_metrics="trl"
         )
 
         self.ext_def_nov = ExtractionDefinition.objects.create(
@@ -83,7 +83,7 @@ class ReprocessExistingPipelineE2ETestCase(TestCase):
             system_prompt="Rate novelty 1-10.",
             user_prompt_template="Extract novelty score from paper: {paper_text}",
             response_schema={"type": "object", "properties": {"score": {"type": "number"}}, "required": ["score"]},
-            exit_metric="score"
+            exit_metrics="score"
         )
 
         self.raw_scraped_items = [
@@ -591,7 +591,7 @@ class PipelineDateRangeAndResultsPaginationE2ETestCase(TestCase):
             system_prompt="Extract technology readiness level 1-9.",
             user_prompt_template="Extract TRL from paper: {paper_text}",
             response_schema={"type": "object", "properties": {"trl": {"type": "integer"}}, "required": ["trl"]},
-            exit_metric="trl"
+            exit_metrics="trl"
         )
 
         self.ext_def_nov = ExtractionDefinition.objects.create(
@@ -600,7 +600,7 @@ class PipelineDateRangeAndResultsPaginationE2ETestCase(TestCase):
             system_prompt="Rate novelty 1-10.",
             user_prompt_template="Extract novelty score from paper: {paper_text}",
             response_schema={"type": "object", "properties": {"score": {"type": "number"}}, "required": ["score"]},
-            exit_metric="score"
+            exit_metrics="score"
         )
 
         self.client = APIClient()

@@ -56,7 +56,7 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
         self.ext_def = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Qubit Count Extraction",
-            exit_metric="qubits",
+            exit_metrics="qubits",
             system_prompt="Extract qubit count",
             user_prompt_template="Paper: {paper_text}",
             response_schema={"type": "object", "properties": {"qubits": {"type": "integer"}}}

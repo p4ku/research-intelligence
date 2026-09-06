@@ -182,7 +182,7 @@ def serialize_workspace_configuration(workspace: Workspace) -> dict:
                 "system_prompt": ed.system_prompt,
                 "user_prompt_template": ed.user_prompt_template,
                 "response_schema": ed.response_schema,
-                "exit_metric": ed.exit_metric,
+                "exit_metrics": ed.get_exit_metrics_list(),
                 "llm_model": ed.llm_model,
                 "version": ed.version,
                 "requires_consensus": ed.requires_consensus,
@@ -310,11 +310,17 @@ def import_workspace_configuration_bundle(
             if not isinstance(ed_data, dict) or not ed_data.get("name"):
                 continue
             ed_name = ed_data["name"].strip()
+            exit_m = ed_data.get("exit_metrics")
+            if isinstance(exit_m, list):
+                exit_m = ", ".join(str(m).strip() for m in exit_m if str(m).strip())
+            elif exit_m:
+                exit_m = str(exit_m)
+
             ed_fields = {
                 "system_prompt": ed_data.get("system_prompt", ""),
                 "user_prompt_template": ed_data.get("user_prompt_template", ""),
                 "response_schema": ed_data.get("response_schema", {}),
-                "exit_metric": ed_data.get("exit_metric"),
+                "exit_metrics": exit_m,
                 "postprocessing_code": ed_data.get("postprocessing_code"),
                 "llm_model": ed_data.get("llm_model", "google/gemini-3.8-flash"),
                 "version": ed_data.get("version", 1),

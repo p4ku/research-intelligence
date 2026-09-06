@@ -71,7 +71,7 @@ return round(score * 10.0, 2)
         self.def_trl = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="TRL Level",
-            exit_metric="trl_level",
+            exit_metrics="trl_level",
             system_prompt="Extract technology readiness level (1-9).",
             user_prompt_template="Analyze: {paper_text}",
             response_schema={"type": "object", "properties": {"trl_level": {"type": "number"}}, "required": ["trl_level"]},
@@ -80,7 +80,7 @@ return round(score * 10.0, 2)
         self.def_fit = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Fit Score",
-            exit_metric="fit_score",
+            exit_metrics="fit_score",
             system_prompt="Extract domain fit score (0-10).",
             user_prompt_template="Analyze: {paper_text}",
             response_schema={"type": "object", "properties": {"fit_score": {"type": "number"}}, "required": ["fit_score"]},
@@ -89,7 +89,7 @@ return round(score * 10.0, 2)
         self.def_nov = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Novelty Score",
-            exit_metric="novelty_score",
+            exit_metrics="novelty_score",
             system_prompt="Extract technical novelty score (0-10).",
             user_prompt_template="Analyze: {paper_text}",
             response_schema={"type": "object", "properties": {"novelty_score": {"type": "number"}}, "required": ["novelty_score"]},

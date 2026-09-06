@@ -16,7 +16,7 @@ class ExtractionDefinition(models.Model):
     system_prompt = models.TextField(help_text="System instructions enforcing extraction perspective")
     user_prompt_template = models.TextField(help_text="User prompt with placeholders like {paper_text}")
     response_schema = models.JSONField(help_text="JSON schema describing fields to extract")
-    exit_metric = models.CharField(
+    exit_metrics = models.CharField(
         max_length=512,
         blank=True,
         null=True,
@@ -35,12 +35,24 @@ class ExtractionDefinition(models.Model):
     class Meta:
         app_label = 'research_intelligence'
 
+    def __init__(self, *args, **kwargs):
+        if 'exit_metrics' in kwargs:
+            val = kwargs['exit_metrics']
+            if isinstance(val, (list, tuple)):
+                kwargs['exit_metrics'] = ", ".join(str(m).strip() for m in val if m and str(m).strip())
+            elif val is None:
+                kwargs['exit_metrics'] = ""
+        super().__init__(*args, **kwargs)
+
     def get_exit_metrics_list(self) -> list[str]:
         """Returns ordered, unique list of sanitized exit metric keys without spaces."""
-        if not self.exit_metric:
+        if not self.exit_metrics:
             return []
         from ..tasks.step_6_signal_score.scorer import _sanitize_identifier
-        raw_items = [part.strip() for part in self.exit_metric.split(',') if part.strip()]
+        if isinstance(self.exit_metrics, (list, tuple)):
+            raw_items = [str(part).strip() for part in self.exit_metrics if str(part).strip()]
+        else:
+            raw_items = [part.strip() for part in str(self.exit_metrics).split(',') if part.strip()]
         seen = set()
         res = []
         for item in raw_items:
@@ -57,7 +69,9 @@ class ExtractionDefinition(models.Model):
 
     def clean(self):
         super().clean()
-        if self.exit_metric and self.exit_metric.strip() and self.workspace_id:
+        if self.exit_metrics and isinstance(self.exit_metrics, (list, tuple)):
+            self.exit_metrics = ", ".join(str(m).strip() for m in self.exit_metrics if m and str(m).strip())
+        if self.exit_metrics and str(self.exit_metrics).strip() and self.workspace_id:
             my_metrics = self.get_exit_metrics_list()
             duplicates = ExtractionDefinition.objects.filter(workspace_id=self.workspace_id).exclude(pk=self.pk)
             conflicts = []
@@ -69,7 +83,7 @@ class ExtractionDefinition(models.Model):
             if conflicts:
                 conflict_details = "; ".join(conflicts)
                 raise ValidationError({
-                    'exit_metric': (
+                    'exit_metrics': (
                         f"Consistency Error: One or more exit metrics are already used in this workspace by: {conflict_details}. "
                         f"Each exit metric must be unique within a workspace to avoid Signal Score collisions."
                     )
@@ -123,8 +137,8 @@ class Extraction(models.Model):
             if "fields" in data and isinstance(data["fields"], dict):
                 data = data["fields"]
 
-            # 1. Match on configured extraction_definition.exit_metric (supports comma-separated list)
-            if self.extraction_definition and self.extraction_definition.exit_metric:
+            # 1. Match on configured extraction_definition.exit_metrics (supports comma-separated list)
+            if self.extraction_definition and self.extraction_definition.exit_metrics:
                 exit_keys = self.extraction_definition.get_exit_metrics_list()
                 for exit_key in exit_keys:
                     val = data.get(exit_key)
@@ -180,8 +194,15 @@ class Extraction(models.Model):
 
         return "-"
 
+    @property
+    def exit_metrics(self) -> str:
+        return self.exit_metric
+
     def get_exit_metric(self) -> str:
         return self.exit_metric
+
+    def get_exit_metrics(self) -> str:
+        return self.exit_metrics
 
     class Meta:
         app_label = 'research_intelligence'

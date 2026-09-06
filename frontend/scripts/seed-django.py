@@ -64,12 +64,12 @@ workspace, created = Workspace.objects.get_or_create(
 )
 WorkspaceMember.objects.get_or_create(workspace=workspace, user=user, defaults={"role": "admin"})
 
-def definition(name, exit_metric, prompt):
+def definition(name, exit_metrics, prompt):
     obj, _ = ExtractionDefinition.objects.get_or_create(
         workspace=workspace,
         name=name,
         defaults=dict(
-            exit_metric=exit_metric,
+            exit_metrics=exit_metrics,
             system_prompt=prompt,
             user_prompt_template="{paper_text}",
             response_schema={"type": "object"},

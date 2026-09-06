@@ -67,7 +67,7 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
                     "cycle_life": {"type": "number"}
                 }
             },
-            exit_metric="energy_density",
+            exit_metrics="energy_density",
             is_active=True
         )
 
