@@ -26,6 +26,14 @@ class E2EConfig:
     cleanup_before: bool = os.getenv("E2E_CLEANUP_BEFORE", "true").lower() in ("true", "1", "yes")
     delete_after: bool = os.getenv("E2E_CLEANUP_AFTER", "false").lower() in ("true", "1", "yes")
 
+    @property
+    def timeout_sec(self) -> int:
+        return self.max_timeout_sec
+
+    @property
+    def poll_interval(self) -> float:
+        return self.poll_interval_sec
+
     @classmethod
     def from_env(cls, target: str = None) -> "E2EConfig":
         env_name = (target or os.getenv("E2E_TARGET_ENV", "prod")).lower()

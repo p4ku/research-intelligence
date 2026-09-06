@@ -159,8 +159,8 @@ def run_ask_paper_journey_scenario(
         t_start = time.time()
         agent_svc.poll_until_complete(
             agent_proc["id"],
-            max_timeout_sec=cfg.timeout_sec,
-            poll_interval_sec=cfg.poll_interval,
+            max_timeout_sec=cfg.max_timeout_sec,
+            poll_interval_sec=cfg.poll_interval_sec,
         )
         logger.info(f"✅ Ingestion completed in {time.time() - t_start:.1f}s.")
 
