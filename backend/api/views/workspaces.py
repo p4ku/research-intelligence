@@ -156,6 +156,73 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
 
         return Response(res_data, status=status.HTTP_201_CREATED)
 
+    @extend_schema(
+        tags=['Workspaces Management'],
+        description="Export full workspace configuration as a portable JSON template bundle.",
+        responses={
+            200: OpenApiResponse(description="Workspace configuration template bundle"),
+            403: OpenApiResponse(description="Forbidden - Insufficient permissions"),
+            404: OpenApiResponse(description="Workspace not found"),
+        }
+    )
+    @action(detail=True, methods=['get'], url_path='export-configuration')
+    def export_configuration(self, request, pk=None):
+        from research_intelligence.services.workspace_service import serialize_workspace_configuration
+        from django.utils.timezone import now
+        workspace = self.get_object()
+        ws_data = serialize_workspace_configuration(workspace)
+        export_payload = {
+            "version": "1.0",
+            "exported_at": now().isoformat(),
+            "workspaces_count": 1,
+            "workspaces": [ws_data],
+            "workspace": ws_data,
+        }
+        return Response(export_payload, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        tags=['Workspaces Management'],
+        description="Import workspace configuration from a JSON template bundle (creates or updates workspaces, definitions, scrapers, subscribers).",
+        responses={
+            200: OpenApiResponse(description="Workspace configuration successfully imported"),
+            400: OpenApiResponse(description="Bad request / Invalid JSON bundle"),
+            403: OpenApiResponse(description="Forbidden - Insufficient permissions"),
+        }
+    )
+    @action(detail=False, methods=['post'], url_path='import-configuration')
+    def import_configuration(self, request):
+        from research_intelligence.services.workspace_service import import_workspace_configuration_bundle
+        data = request.data
+        if not data or not isinstance(data, (dict, list)):
+            return Response({"error": "Invalid or missing JSON payload."}, status=status.HTTP_400_BAD_REQUEST)
+
+        update_existing = True
+        if isinstance(data, dict):
+            update_existing = bool(data.get('overwrite_existing', data.get('update_existing', True)))
+
+        try:
+            stats = import_workspace_configuration_bundle(
+                data=data,
+                user=request.user,
+                update_existing=update_existing,
+            )
+            serializable_stats = dict(stats)
+            if "workspaces" in serializable_stats and isinstance(serializable_stats["workspaces"], list):
+                serializable_stats["workspaces"] = [
+                    {"id": str(w.id), "name": w.name} if hasattr(w, "id") else w
+                    for w in serializable_stats["workspaces"]
+                ]
+            return Response({
+                "status": "success",
+                "message": "Workspace configuration imported successfully.",
+                "stats": serializable_stats,
+            }, status=status.HTTP_200_OK)
+        except Exception as exc:
+            return Response({
+                "status": "error",
+                "error": str(exc),
+            }, status=status.HTTP_400_BAD_REQUEST)
+
 
 @extend_schema(tags=['Extraction Definitions'])
 class ExtractionDefinitionViewSet(viewsets.ModelViewSet):

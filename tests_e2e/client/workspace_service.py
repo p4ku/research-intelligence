@@ -294,3 +294,79 @@ class WorkspaceService:
         except Exception as e:
             logger.warning(f"Could not complete pre-cleanup of old extraction definitions: {e}")
             return 0
+
+    def update_workspace(self, workspace_id: str, **kwargs) -> Dict[str, Any]:
+        """Update workspace fields via PATCH."""
+        resp = self.client.patch(f"/api/workspaces/{workspace_id}/", json_data=kwargs, expected_status=200)
+        return resp.json()
+
+    def export_configuration(self, workspace_id: str) -> Dict[str, Any]:
+        """Export complete workspace configuration as a portable JSON template bundle."""
+        logger.info(f"📦 Exporting configuration bundle for workspace '{workspace_id}'...")
+        resp = self.client.get(f"/api/workspaces/{workspace_id}/export-configuration/", expected_status=200)
+        data = resp.json()
+        logger.info(f"✅ Exported configuration bundle successfully (version: {data.get('version')}).")
+        return data
+
+    def import_configuration(
+        self,
+        bundle: Any,
+        update_existing: bool = True,
+    ) -> Dict[str, Any]:
+        """Import workspace configuration bundle (creates or updates workspaces and components)."""
+        logger.info(f"📥 Importing workspace configuration bundle (update_existing={update_existing})...")
+        payload = bundle if isinstance(bundle, (dict, list)) else {"workspaces": [bundle]}
+        if isinstance(payload, dict):
+            payload["overwrite_existing"] = update_existing
+            payload["update_existing"] = update_existing
+        resp = self.client.post("/api/workspaces/import-configuration/", json_data=payload, expected_status=200)
+        data = resp.json()
+        stats = data.get("stats", {})
+        logger.info(
+            f"✅ Import completed: "
+            f"{stats.get('created_workspaces', 0)} ws created, {stats.get('updated_workspaces', 0)} ws updated | "
+            f"{stats.get('created_extractions', 0)} ext created | "
+            f"{stats.get('created_scrapers', 0)} scrapers created | "
+            f"{stats.get('created_subscribers', 0)} subscribers created"
+        )
+        return data
+
+    def create_subscriber(
+        self,
+        workspace_id: str,
+        email: str,
+        name: str = "",
+        subscription_type: str = "result_report",
+        is_active: bool = True,
+    ) -> Dict[str, Any]:
+        """Create a subscriber for workspace notifications."""
+        payload = {
+            "workspace": workspace_id,
+            "email": email,
+            "name": name,
+            "subscription_type": subscription_type,
+            "is_active": is_active,
+        }
+        logger.info(f"📧 Adding subscriber '{email}' [{subscription_type}] to workspace '{workspace_id}'...")
+        resp = self.client.post("/api/subscribers/", json_data=payload, expected_status=201)
+        data = resp.json()
+        logger.info(f"✅ Subscriber registered with ID: {data.get('id')}")
+        return data
+
+    def list_subscribers(self, workspace_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List subscribers, optionally scoped by workspace."""
+        params = {}
+        if workspace_id:
+            params["workspace"] = workspace_id
+        resp = self.client.get("/api/subscribers/", params=params, expected_status=200)
+        data = resp.json()
+        results = data.get("results", data) if isinstance(data, dict) else data
+        if workspace_id and isinstance(results, list):
+            results = [s for s in results if str(s.get("workspace")) == str(workspace_id)]
+        return results
+
+    def delete_subscriber(self, subscriber_id: str) -> bool:
+        """Delete subscriber by ID."""
+        resp = self.client.delete(f"/api/subscribers/{subscriber_id}/")
+        return resp.status_code in (200, 204)
+

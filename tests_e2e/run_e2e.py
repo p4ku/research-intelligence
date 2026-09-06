@@ -43,6 +43,9 @@ from tests_e2e.scenarios import (
     run_date_range_and_pagination_scenario,
     run_ask_paper_journey_scenario,
     run_signal_score_variables_scenario,
+    run_workspace_import_export_scenario,
+    run_direct_full_text_and_subscribers_scenario,
+    run_hitl_validation_journey_scenario,
 )
 
 # Configure rich colored terminal logging
@@ -66,9 +69,17 @@ def parse_args():
     )
     parser.add_argument(
         "--scenario",
-        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard", "concurrent", "parallel", "schedule", "evidence", "researcher", "briefing", "date_range", "pagination", "ask", "ask_paper", "variables", "signal_score_variables", "scoring_math", "all"],
+        choices=[
+            "slr", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard",
+            "concurrent", "parallel", "schedule", "evidence", "researcher", "briefing",
+            "date_range", "pagination", "ask", "ask_paper", "variables", "signal_score_variables", "scoring_math",
+            "impexp", "import_export", "template",
+            "direct_ft", "direct_full_text", "subscribers",
+            "hitl", "hitl_validation", "correction",
+            "all"
+        ],
         default="slr",
-        help="Target test scenario to execute (slr, lifecycle, reprocess, dedup, quota, mcp, isolation, rerun, guard, concurrent, parallel, schedule, evidence, researcher, briefing, date_range, ask_paper, variables/signal_score_variables, all)",
+        help="Target test scenario to execute (slr, impexp, direct_ft, hitl, date_range, ask_paper, variables, all)",
     )
     parser.add_argument(
         "--provider",
@@ -449,6 +460,21 @@ def main():
             total_elapsed = time.time() - t0
             print(f"\n✅ SIGNAL SCORE VARIABLES & MATH SCENARIO COMPLETED in {total_elapsed:.1f}s (Verified Papers: {res.get('verified_papers_count')})\n")
 
+        elif args.scenario in ("impexp", "import_export", "template"):
+            res = run_workspace_import_export_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ WORKSPACE TEMPLATE EXPORT & IMPORT SCENARIO COMPLETED in {total_elapsed:.1f}s (Definitions: {res.get('definitions_count')}, Scrapers: {res.get('scrapers_count')}, Subs: {res.get('subscribers_count')})\n")
+
+        elif args.scenario in ("direct_ft", "direct_full_text", "subscribers"):
+            res = run_direct_full_text_and_subscribers_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ DIRECT FULL-TEXT SCREENING & SUBSCRIBERS SCENARIO COMPLETED in {total_elapsed:.1f}s (Papers: {res.get('papers_count')}, Subscribers: {res.get('subscribers_count')})\n")
+
+        elif args.scenario in ("hitl", "hitl_validation", "correction"):
+            res = run_hitl_validation_journey_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ HUMAN-IN-THE-LOOP (HITL) VALIDATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Extraction ID: {res.get('extraction_id')})\n")
+
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")
             suite_results = []
@@ -529,6 +555,15 @@ def main():
 
             # 15. Signal Score Variables & Math Verification
             _run_and_track("Signal Score Variables & Math", run_signal_score_variables_scenario, config)
+
+            # 16. Workspace Template Export & Import Journey
+            _run_and_track("Workspace Template Export & Import", run_workspace_import_export_scenario, config)
+
+            # 17. Direct Full-Text Screening & Subscriber Lifecycle
+            _run_and_track("Direct Full-Text & Subscribers", run_direct_full_text_and_subscribers_scenario, config)
+
+            # 18. Human-in-the-Loop Validation Journey
+            _run_and_track("Human-in-the-Loop Validation", run_hitl_validation_journey_scenario, config)
 
             total_elapsed = time.time() - t0
             print_suite_summary(suite_results, total_elapsed, config=config)

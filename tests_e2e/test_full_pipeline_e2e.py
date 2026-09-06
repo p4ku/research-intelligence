@@ -26,6 +26,11 @@ from tests_e2e.scenarios import (
     run_researcher_rbac_guard_scenario,
     run_executive_briefing_export_scenario,
     run_signal_score_variables_scenario,
+    run_date_range_and_pagination_scenario,
+    run_ask_paper_journey_scenario,
+    run_workspace_import_export_scenario,
+    run_direct_full_text_and_subscribers_scenario,
+    run_hitl_validation_journey_scenario,
 )
 
 
@@ -187,3 +192,47 @@ class TestFullPipelineE2E:
         assert results["workspace_id"] is not None
         assert "4_postprocessing_snippet_and_math" in results["scenarios_checked"]
         assert "5_signal_score_code_math_retrieval" in results["scenarios_checked"]
+
+    @pytest.mark.e2e
+    def test_workspace_import_export_journey(self):
+        config = E2EConfig.from_env()
+        results = run_workspace_import_export_scenario(config)
+        assert results["status"] == "PASSED"
+        assert results["source_workspace_id"] is not None
+        assert results["target_workspace_id"] is not None
+        assert results["definitions_count"] >= 2
+        assert results["scrapers_count"] >= 2
+        assert results["subscribers_count"] >= 2
+
+    @pytest.mark.e2e
+    def test_direct_full_text_and_subscribers(self):
+        config = E2EConfig.from_env()
+        results = run_direct_full_text_and_subscribers_scenario(config)
+        assert results["status"] == "PASSED"
+        assert results["workspace_id"] is not None
+        assert results["pipeline_run_id"] is not None
+        assert results["subscribers_count"] >= 4
+
+    @pytest.mark.e2e
+    def test_hitl_validation_journey(self):
+        config = E2EConfig.from_env()
+        results = run_hitl_validation_journey_scenario(config)
+        assert results["status"] == "PASSED"
+        assert results["workspace_id"] is not None
+        assert results["extraction_id"] is not None
+        assert results["correction_id"] is not None
+
+    @pytest.mark.e2e
+    def test_date_range_and_pagination(self):
+        config = E2EConfig.from_env()
+        results = run_date_range_and_pagination_scenario(config)
+        assert results["status"] == "passed"
+        assert results["workspace_id"] is not None
+
+    @pytest.mark.e2e
+    def test_ask_paper_journey(self):
+        config = E2EConfig.from_env()
+        results = run_ask_paper_journey_scenario(config)
+        assert results["status"] == "passed"
+        assert results["paper_id"] is not None
+        assert results["turns_count"] >= 1

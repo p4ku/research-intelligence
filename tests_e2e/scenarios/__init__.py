@@ -20,6 +20,9 @@ from .executive_briefing_export import run_executive_briefing_export_scenario
 from .date_range_and_pagination import run_date_range_and_pagination_scenario
 from .ask_paper_journey import run_ask_paper_journey_scenario
 from .signal_score_variables import run_signal_score_variables_scenario
+from .workspace_import_export import run_workspace_import_export_scenario
+from .direct_full_text_and_subscribers import run_direct_full_text_and_subscribers_scenario
+from .hitl_validation_journey import run_hitl_validation_journey_scenario
 
 __all__ = [
     "run_full_slr_pipeline_scenario",
@@ -41,4 +44,7 @@ __all__ = [
     "run_date_range_and_pagination_scenario",
     "run_ask_paper_journey_scenario",
     "run_signal_score_variables_scenario",
+    "run_workspace_import_export_scenario",
+    "run_direct_full_text_and_subscribers_scenario",
+    "run_hitl_validation_journey_scenario",
 ]

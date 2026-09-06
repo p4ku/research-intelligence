@@ -8,6 +8,7 @@ from drf_spectacular.views import (
 
 from .views.workspaces import WorkspaceViewSet, ExtractionDefinitionViewSet
 from .views.scrapers import ScraperViewSet
+from .views.subscribers import SubscriberViewSet
 from .views.papers import PaperViewSet, PaperMetricViewSet
 from .views.extractions import ExtractionViewSet
 from .views.hitl import HITLViewSet
@@ -29,6 +30,7 @@ router.register(r'pipeline-runs', PipelineRunViewSet, basename='pipeline-run')
 router.register(r'component-runs', ComponentRunViewSet, basename='component-run')
 router.register(r'agents', ResearchAgentViewSet, basename='agent')
 router.register(r'scrapers', ScraperViewSet, basename='scraper')
+router.register(r'subscribers', SubscriberViewSet, basename='subscriber')
 router.register(r'papers', PaperViewSet, basename='paper')
 router.register(r'paper-metrics', PaperMetricViewSet, basename='paper-metric')
 router.register(r'extractions', ExtractionViewSet, basename='extraction')

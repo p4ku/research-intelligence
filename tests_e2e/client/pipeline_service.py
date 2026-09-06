@@ -117,12 +117,23 @@ class PipelineService:
 
     def list_extractions(
         self,
-        workspace_id: str,
+        workspace_id: str = None,
+        paper_id: str = None,
+        definition_id: str = None,
+        pipeline_run_id: str = None,
         page: int = None,
         page_size: int = None,
         return_full_response: bool = False,
     ) -> Any:
-        params = {"workspace": workspace_id}
+        params = {}
+        if workspace_id:
+            params["workspace"] = workspace_id
+        if paper_id:
+            params["paper"] = paper_id
+        if definition_id:
+            params["definition"] = definition_id
+        if pipeline_run_id:
+            params["pipeline_run"] = pipeline_run_id
         if page is not None:
             params["page"] = page
         if page_size is not None:
@@ -150,3 +161,56 @@ class PipelineService:
         if return_full_response:
             return data
         return data.get("results", data) if isinstance(data, dict) else data
+
+    def get_extraction(self, extraction_id: str) -> Dict[str, Any]:
+        """Fetch single extraction record by ID."""
+        resp = self.client.get(f"/api/extractions/{extraction_id}/", expected_status=200)
+        return resp.json()
+
+    def create_hitl_correction(
+        self,
+        extraction_id: str,
+        action: str,
+        original_value: Any,
+        corrected_value: Any = None,
+        reason: str = "",
+    ) -> Dict[str, Any]:
+        """Submit Human-in-the-Loop (HITL) analyst override."""
+        payload = {
+            "extraction": extraction_id,
+            "action": action,
+            "original_value": original_value,
+            "corrected_value": corrected_value,
+            "reason": reason,
+        }
+        logger.info(f"👨‍🔬 Submitting HITL override '{action}' on extraction '{extraction_id}'...")
+        resp = self.client.post("/api/hitl/", json_data=payload, expected_status=201)
+        data = resp.json()
+        logger.info(f"✅ HITL override recorded with ID: {data.get('id')}")
+        return data
+
+    def list_hitl_corrections(
+        self,
+        workspace_id: str = None,
+        extraction_id: str = None,
+    ) -> List[Dict[str, Any]]:
+        """List HITL corrections, optionally filtered by workspace or extraction."""
+        params = {}
+        if workspace_id:
+            params["workspace"] = workspace_id
+        if extraction_id:
+            params["extraction"] = extraction_id
+        resp = self.client.get("/api/hitl/", params=params, expected_status=200)
+        data = resp.json()
+        return data.get("results", data) if isinstance(data, dict) else data
+
+    def get_hitl_correction(self, correction_id: str) -> Dict[str, Any]:
+        """Get HITL correction record by ID."""
+        resp = self.client.get(f"/api/hitl/{correction_id}/", expected_status=200)
+        return resp.json()
+
+    def delete_hitl_correction(self, correction_id: str) -> bool:
+        """Delete HITL correction record by ID."""
+        resp = self.client.delete(f"/api/hitl/{correction_id}/")
+        return resp.status_code in (200, 204)
+
