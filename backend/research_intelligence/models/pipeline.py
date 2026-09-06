@@ -1,5 +1,6 @@
 import uuid
 import logging
+from typing import Optional, Dict, Any, List
 from django.db import models
 from django.conf import settings
 
