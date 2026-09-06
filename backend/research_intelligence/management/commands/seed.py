@@ -105,7 +105,7 @@ class Command(BaseCommand):
             workspace=ws,
             name="Schwarz Strategic Fit",
             defaults={
-                "exit_metric": "fit_score",
+                "exit_metrics": "fit_score",
                 "system_prompt": "Evaluate strategic fit for Schwarz Group retail logistics, edge inference, and supply chain automation.",
                 "user_prompt_template": "Paper: {{paper_title}}\nAbstract: {{abstract}}\nFull Text: {{full_text}}\nEvaluate fit from 0 to 100.",
                 "response_schema": {
@@ -125,7 +125,7 @@ class Command(BaseCommand):
             workspace=ws,
             name="TRL Assessment",
             defaults={
-                "exit_metric": "trl_level",
+                "exit_metrics": "trl_level",
                 "system_prompt": "Assess Technology Readiness Level from TRL 1 (basic principles) to TRL 9 (proven in operational environment).",
                 "user_prompt_template": "Assess TRL for: {{paper_title}}\n{{full_text}}",
                 "response_schema": {
@@ -145,7 +145,7 @@ class Command(BaseCommand):
             workspace=ws,
             name="Novelty Score",
             defaults={
-                "exit_metric": "novelty_score",
+                "exit_metrics": "novelty_score",
                 "system_prompt": "Assess architectural novelty and algorithmic originality from 0.0 to 100.0.",
                 "user_prompt_template": "Evaluate novelty for: {{paper_title}}\n{{full_text}}",
                 "response_schema": {

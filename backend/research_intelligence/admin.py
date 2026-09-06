@@ -320,7 +320,7 @@ class SubscriberInline(admin.TabularInline):
 class ExtractionDefinitionInline(admin.TabularInline):
     model = ExtractionDefinition
     extra = 0
-    fields = ('name', 'llm_model', 'is_active', 'created_at')
+    fields = ('name', 'exit_metrics', 'llm_model', 'is_active', 'created_at')
     readonly_fields = ('created_at',)
     show_change_link = True
 

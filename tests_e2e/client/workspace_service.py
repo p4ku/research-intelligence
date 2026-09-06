@@ -262,7 +262,10 @@ class WorkspaceService:
         if resp.status_code == 404:
             return []
         data = resp.json()
-        return data.get("results", data) if isinstance(data, dict) else data
+        results = data.get("results", data) if isinstance(data, dict) else data
+        if workspace_id and isinstance(results, list):
+            results = [d for d in results if str(d.get("workspace")) == str(workspace_id)]
+        return results
 
     def delete_extraction_definition(self, definition_id: str) -> bool:
         resp = self.client.delete(f"/api/extraction-definitions/{definition_id}/")

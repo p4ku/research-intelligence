@@ -39,7 +39,7 @@ class ExtractionDefinitionSerializer(serializers.ModelSerializer):
         return ret
 
     def validate(self, attrs):
-        if 'exit_metric' in self.initial_data and 'exit_metrics' not in self.initial_data:
+        if 'exit_metric' in self.initial_data:
             raise serializers.ValidationError({
                 "exit_metrics": "Field 'exit_metric' is discontinued. Use 'exit_metrics' (list of metric keys) instead."
             })
@@ -139,6 +139,10 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         if isinstance(extraction_defs_data, list):
             for ed in extraction_defs_data:
                 if isinstance(ed, dict) and ed.get('name'):
+                    if 'exit_metric' in ed:
+                        raise serializers.ValidationError({
+                            "extraction_definitions": "Field 'exit_metric' is discontinued. Use 'exit_metrics' (list of metric keys) instead."
+                        })
                     exit_m = ed.get('exit_metrics')
                     if isinstance(exit_m, list):
                         exit_m = ", ".join(str(m).strip() for m in exit_m if str(m).strip())
@@ -162,6 +166,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         if isinstance(scrapers_data, list):
             for sc in scrapers_data:
                 if isinstance(sc, dict) and sc.get('provider') and sc.get('search_query'):
+                    n_days = sc.get('n_last_days')
                     Scraper.objects.create(
                         workspace=workspace,
                         provider=sc.get('provider'),
@@ -169,6 +174,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
                         limit=sc.get('limit', 50),
                         sort_by=sc.get('sort_by', 'relevance'),
                         sort_order=sc.get('sort_order', 'desc'),
+                        n_last_days=n_days if n_days is not None else 7,
                         is_active=bool(sc.get('is_active', True)),
                     )
 

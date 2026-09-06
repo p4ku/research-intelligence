@@ -1052,4 +1052,137 @@ class ExtractionDefinitionAPITests(TestCase):
         self.assertIn("exit_metrics", res2.json())
         self.assertIn("already used in this workspace", res2.json()["exit_metrics"][0])
 
+    def test_api_create_workspace_rejects_nested_legacy_exit_metric(self):
+        ws_url = "/api/workspaces/"
+        payload = {
+            "name": f"Legacy Nested WS {uuid.uuid4().hex[:8]}",
+            "abstract_acceptance_criteria": "Accept AI papers",
+            "abstract_rejection_criteria": "Reject hardware",
+            "full_text_acceptance_criteria": "Accept AI papers",
+            "full_text_rejection_criteria": "Reject hardware",
+            "extraction_definitions": [
+                {
+                    "name": "Legacy Nested Target",
+                    "system_prompt": "Extract parameters",
+                    "user_prompt_template": "{paper_text}",
+                    "response_schema": {"type": "object"},
+                    "exit_metric": "legacy_nested_param"
+                }
+            ]
+        }
+        res = self.client.post(ws_url, payload, format="json")
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("extraction_definitions", res.json())
+        self.assertIn("is discontinued", str(res.json()["extraction_definitions"]))
+
+    def test_workspace_configuration_export_import_roundtrip_preserves_postprocessing(self):
+        from research_intelligence.services.workspace_service import (
+            serialize_workspace_configuration,
+            import_workspace_configuration_bundle
+        )
+        from research_intelligence.models import ExtractionDefinition, Scraper
+
+        # 1. Add an extraction definition with postprocessing_code & exit_metrics
+        ed = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Bundle Target",
+            system_prompt="Extract metrics",
+            user_prompt_template="{paper_text}",
+            response_schema={"type": "object"},
+            exit_metrics="speed_qps, latency_ms",
+            postprocessing_code="return speed_qps / max(1.0, latency_ms)"
+        )
+        # 2. Add a scraper with n_last_days
+        sc = Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="cat:cs.AI",
+            limit=25,
+            n_last_days=14
+        )
+
+        # 3. Export bundle
+        bundle = serialize_workspace_configuration(self.workspace)
+        self.assertIn("extraction_definitions", bundle)
+        exported_ed = next(item for item in bundle["extraction_definitions"] if item["name"] == "Bundle Target")
+        self.assertEqual(exported_ed["exit_metrics"], ["speed_qps", "latency_ms"])
+        self.assertEqual(exported_ed["postprocessing_code"], "return speed_qps / max(1.0, latency_ms)")
+
+        self.assertIn("scrapers", bundle)
+        exported_sc = next(item for item in bundle["scrapers"] if item["search_query"] == "cat:cs.AI")
+        self.assertEqual(exported_sc["n_last_days"], 14)
+
+        # 4. Import bundle under a new workspace name
+        bundle["name"] = f"Cloned WS {uuid.uuid4().hex[:8]}"
+        stats = import_workspace_configuration_bundle(data=bundle, user=self.user)
+        self.assertEqual(stats["created_workspaces"], 1)
+
+        imported_ws = stats["workspaces"][0]
+        imported_ed = ExtractionDefinition.objects.get(workspace=imported_ws, name="Bundle Target")
+        self.assertEqual(imported_ed.get_exit_metrics_list(), ["speed_qps", "latency_ms"])
+        self.assertEqual(imported_ed.postprocessing_code, "return speed_qps / max(1.0, latency_ms)")
+
+        imported_sc = Scraper.objects.get(workspace=imported_ws, search_query="cat:cs.AI")
+        self.assertEqual(imported_sc.n_last_days, 14)
+
+    def test_mcp_get_workspace_returns_all_screening_and_extraction_definition_fields(self):
+        from mcp_server.tools.workspaces.crud import get_workspace_logic
+        from research_intelligence.models import ExtractionDefinition, Scraper
+
+        # Set custom screening fields on workspace
+        self.workspace.abstract_screening_system_prompt = "Custom system prompt for abstract"
+        self.workspace.abstract_screening_exit_metric = "relevance_score"
+        self.workspace.full_text_screening_exit_metric = "fit_score"
+        self.workspace.save()
+
+        ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="MCP Target Detail",
+            system_prompt="Prompt",
+            user_prompt_template="{paper_text}",
+            response_schema={"type": "object"},
+            exit_metrics=["metric_alpha", "metric_beta"],
+            postprocessing_code="return metric_alpha + metric_beta"
+        )
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="biorxiv",
+            search_query="genomics",
+            limit=10,
+            n_last_days=7
+        )
+
+        raw = get_workspace_logic(self.user, str(self.workspace.id))
+        ws_dict = json.loads(raw)
+
+        # Verify screening fields
+        self.assertEqual(ws_dict["abstract_screening_system_prompt"], "Custom system prompt for abstract")
+        self.assertEqual(ws_dict["abstract_screening_exit_metric"], "relevance_score")
+        self.assertEqual(ws_dict["full_text_screening_exit_metric"], "fit_score")
+
+        # Verify extraction definitions in get_workspace
+        matched_ed = next(d for d in ws_dict["extraction_definitions"] if d["name"] == "MCP Target Detail")
+        self.assertEqual(matched_ed["exit_metrics"], ["metric_alpha", "metric_beta"])
+        self.assertTrue(matched_ed["has_postprocessing_code"])
+        self.assertEqual(matched_ed["postprocessing_code"], "return metric_alpha + metric_beta")
+
+        # Verify scraper in get_workspace
+        matched_sc = next(s for s in ws_dict["scrapers"] if s["search_query"] == "genomics")
+        self.assertEqual(matched_sc["n_last_days"], 7)
+
+    def test_management_command_seed_runs_cleanly(self):
+        from django.core.management import call_command
+        from research_intelligence.models import Workspace, ExtractionDefinition
+
+        call_command('seed')
+
+        demo_ws = Workspace.objects.filter(name="[Demo] Neuromorphic Computing & AI Acceleration").first()
+        self.assertIsNotNone(demo_ws)
+
+        defs = ExtractionDefinition.objects.filter(workspace=demo_ws)
+        self.assertTrue(defs.filter(name="Schwarz Strategic Fit").exists())
+        self.assertEqual(defs.get(name="Schwarz Strategic Fit").get_exit_metrics_list(), ["fit_score"])
+        self.assertEqual(defs.get(name="TRL Assessment").get_exit_metrics_list(), ["trl_level"])
+        self.assertEqual(defs.get(name="Novelty Score").get_exit_metrics_list(), ["novelty_score"])
+
 

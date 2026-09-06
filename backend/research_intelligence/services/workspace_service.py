@@ -183,6 +183,7 @@ def serialize_workspace_configuration(workspace: Workspace) -> dict:
                 "user_prompt_template": ed.user_prompt_template,
                 "response_schema": ed.response_schema,
                 "exit_metrics": ed.get_exit_metrics_list(),
+                "postprocessing_code": ed.postprocessing_code or "",
                 "llm_model": ed.llm_model,
                 "version": ed.version,
                 "requires_consensus": ed.requires_consensus,
@@ -197,6 +198,7 @@ def serialize_workspace_configuration(workspace: Workspace) -> dict:
                 "limit": sc.limit,
                 "sort_by": sc.sort_by,
                 "sort_order": sc.sort_order,
+                "n_last_days": sc.n_last_days,
                 "is_active": sc.is_active,
             }
             for sc in workspace.scrapers.all().order_by("provider", "search_query")
@@ -346,10 +348,12 @@ def import_workspace_configuration_bundle(
                 continue
             sc_provider = sc_data["provider"].strip().lower()
             sc_query = sc_data["search_query"].strip()
+            n_days = sc_data.get("n_last_days")
             sc_fields = {
                 "limit": sc_data.get("limit", 50),
                 "sort_by": sc_data.get("sort_by", "relevance"),
                 "sort_order": sc_data.get("sort_order", "desc"),
+                "n_last_days": n_days if n_days is not None else 7,
                 "is_active": bool(sc_data.get("is_active", True)),
             }
             existing_sc = ws.scrapers.filter(provider=sc_provider, search_query=sc_query).first()

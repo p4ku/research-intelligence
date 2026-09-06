@@ -70,8 +70,16 @@ def get_workspace_logic(user, workspace_id: str) -> str:
         "usd_spent_this_month": float(getattr(workspace, 'usd_spent_this_month', 0.0)),
         "abstract_acceptance_criteria": workspace.get_abstract_acceptance_criteria(),
         "abstract_rejection_criteria": workspace.get_abstract_rejection_criteria(),
+        "abstract_screening_system_prompt": workspace.abstract_screening_system_prompt,
+        "abstract_screening_user_prompt_template": workspace.abstract_screening_user_prompt_template,
+        "abstract_screening_response_schema": workspace.abstract_screening_response_schema,
+        "abstract_screening_exit_metric": workspace.abstract_screening_exit_metric,
         "full_text_acceptance_criteria": workspace.get_full_text_acceptance_criteria(),
         "full_text_rejection_criteria": workspace.get_full_text_rejection_criteria(),
+        "full_text_screening_system_prompt": workspace.full_text_screening_system_prompt,
+        "full_text_screening_user_prompt_template": workspace.full_text_screening_user_prompt_template,
+        "full_text_screening_response_schema": workspace.full_text_screening_response_schema,
+        "full_text_screening_exit_metric": workspace.full_text_screening_exit_metric,
         "created_at": workspace.created_at.isoformat(),
         "updated_at": getattr(workspace, 'updated_at', workspace.created_at).isoformat(),
         "members": [
@@ -90,6 +98,7 @@ def get_workspace_logic(user, workspace_id: str) -> str:
                 "provider_name": s.get_provider_display(),
                 "search_query": s.search_query,
                 "limit": s.limit,
+                "n_last_days": s.n_last_days,
                 "is_active": s.is_active
             }
             for s in scrapers
@@ -98,9 +107,15 @@ def get_workspace_logic(user, workspace_id: str) -> str:
             {
                 "definition_id": str(d.id),
                 "name": d.name,
+                "exit_metrics": d.get_exit_metrics_list(),
+                "has_postprocessing_code": bool(d.postprocessing_code),
+                "postprocessing_code": d.postprocessing_code or "",
                 "system_prompt": d.system_prompt,
+                "user_prompt_template": d.user_prompt_template,
                 "response_schema": d.response_schema,
                 "llm_model": d.llm_model,
+                "version": d.version,
+                "requires_consensus": d.requires_consensus,
                 "is_active": d.is_active
             }
             for d in extraction_defs

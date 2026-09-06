@@ -150,18 +150,30 @@ DB_SCHEMA_DETAILED_MERMAID = """erDiagram
     Workspace {
         uuid id PK
         string name
-        text description
         string ocr_provider
         string llm_provider
         string screening_llm_model
+        string reasoning_effort
+        boolean skip_abstract_screening
+        boolean reprocess_existing
         text abstract_acceptance_criteria
         text abstract_rejection_criteria
+        text abstract_screening_system_prompt
+        text abstract_screening_user_prompt_template
+        json abstract_screening_response_schema
+        string abstract_screening_exit_metric
         text full_text_acceptance_criteria
         text full_text_rejection_criteria
-        int monthly_token_quota
+        text full_text_screening_system_prompt
+        text full_text_screening_user_prompt_template
+        json full_text_screening_response_schema
+        string full_text_screening_exit_metric
+        text signal_score_code
+        int monthly_token_limit
         int tokens_consumed_this_month
+        decimal monthly_usd_limit
+        decimal usd_spent_this_month
         datetime created_at
-        datetime updated_at
     }
 
     WorkspaceMember {
@@ -223,14 +235,16 @@ DB_SCHEMA_DETAILED_MERMAID = """erDiagram
         uuid id PK
         uuid workspace_id FK
         string name
-        string exit_metric
+        string exit_metrics
+        text postprocessing_code
         string llm_model
+        int version
+        boolean requires_consensus
+        boolean is_active
         text system_prompt
         text user_prompt_template
         json response_schema
-        json example_json
         datetime created_at
-        datetime updated_at
     }
 
     Subscriber {
