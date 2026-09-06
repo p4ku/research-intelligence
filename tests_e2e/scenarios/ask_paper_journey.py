@@ -368,7 +368,7 @@ def run_ask_paper_journey_scenario(
     logger.info(f"🎉 ASK PAPER E2E USER JOURNEY FULLY VERIFIED (2 Turns • {total_tokens:,} tokens • ${total_cost:.4f} USD)")
     logger.info("=================================================================")
 
-    if created_new_workspace and cfg.cleanup_after and target_workspace_id:
+    if created_new_workspace and getattr(cfg, "cleanup_after", getattr(cfg, "delete_after", False)) and target_workspace_id:
         logger.info(f"🧹 Cleaning up test workspace '{target_workspace_id}' (--cleanup-after requested)...")
         try:
             ws_svc.delete_workspace(target_workspace_id)

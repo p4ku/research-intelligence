@@ -237,7 +237,7 @@ def run_hitl_validation_journey_scenario(config: Optional[E2EConfig] = None) -> 
 
     finally:
         # Step 8: Post-cleanup
-        if cfg.cleanup_after and workspace_id:
+        if getattr(cfg, "cleanup_after", getattr(cfg, "delete_after", False)) and workspace_id:
             logger.info("🧹 Performing post-scenario workspace cleanup...")
             try:
                 ws_svc.delete_workspace(workspace_id)

@@ -236,3 +236,29 @@ class TestFullPipelineE2E:
         assert results["status"] == "passed"
         assert results["paper_id"] is not None
         assert results["turns_count"] >= 1
+
+
+class TestE2EConfig:
+    """Unit validation for E2EConfig attributes and options."""
+
+    def test_cleanup_after_and_delete_after_interchangeable(self):
+        cfg1 = E2EConfig(delete_after=True)
+        assert cfg1.cleanup_after is True
+        assert cfg1.delete_after is True
+
+        cfg2 = E2EConfig(cleanup_after=True)
+        assert cfg2.cleanup_after is True
+        assert cfg2.delete_after is True
+
+        cfg3 = E2EConfig(delete_after=False)
+        assert cfg3.cleanup_after is False
+        assert cfg3.delete_after is False
+        cfg3.cleanup_after = True
+        assert cfg3.delete_after is True
+        assert cfg3.cleanup_after is True
+
+        cfg4 = E2EConfig.from_env()
+        assert hasattr(cfg4, "cleanup_after")
+        assert hasattr(cfg4, "delete_after")
+        assert cfg4.cleanup_after == cfg4.delete_after
+

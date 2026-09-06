@@ -271,7 +271,7 @@ def run_workspace_import_export_scenario(config: Optional[E2EConfig] = None) -> 
 
     finally:
         # Step 6: Post-cleanup
-        if cfg.cleanup_after:
+        if getattr(cfg, "cleanup_after", getattr(cfg, "delete_after", False)):
             logger.info("🧹 Performing post-scenario workspace cleanup...")
             if source_ws_id:
                 try:

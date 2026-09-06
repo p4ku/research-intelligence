@@ -202,7 +202,7 @@ def run_direct_full_text_and_subscribers_scenario(config: Optional[E2EConfig] = 
 
     finally:
         # Step 7: Post-cleanup
-        if cfg.cleanup_after and workspace_id:
+        if getattr(cfg, "cleanup_after", getattr(cfg, "delete_after", False)) and workspace_id:
             logger.info("🧹 Performing post-scenario workspace cleanup...")
             try:
                 ws_svc.delete_workspace(workspace_id)
