@@ -76,6 +76,62 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
 
         delete_extraction_definition_logic(self.admin, definition_id=d_id)
 
+    def test_extraction_definition_exit_metrics_list_and_postprocessing_manipulation(self):
+        """
+        Verify MCP tools support creating and updating extraction definitions
+        with an explicit list of exit parameters (exit_metrics: list[str]) and Python postprocessing snippets.
+        """
+        # 1. Create with exit_metrics as a list of strings
+        res = self.parse_res(create_extraction_definition_logic(
+            self.admin,
+            workspace_id=str(self.workspace.id),
+            name="Multi Metric Target",
+            exit_metrics=["market_fit", "growth_potential", "risk_factor"],
+            system_prompt="Extract market metrics",
+            user_prompt_template="Paper: {paper_text}",
+            response_schema={"type": "object"},
+            postprocessing_code="return (market_fit * 2.0) + growth_potential - risk_factor"
+        ))
+        self.assertEqual(res["status"], "success")
+        self.assertEqual(res["exit_metric"], "market_fit, growth_potential, risk_factor")
+        self.assertEqual(res["exit_metrics"], ["market_fit", "growth_potential", "risk_factor"])
+        self.assertTrue(res["has_postprocessing_code"])
+        d_id = res["definition_id"]
+
+        # 2. Get details and inspect exit_metrics list + postprocessing_code
+        details = self.parse_res(get_extraction_definition_logic(self.admin, definition_id=d_id))
+        self.assertEqual(details["exit_metric"], "market_fit, growth_potential, risk_factor")
+        self.assertEqual(details["exit_metrics"], ["market_fit", "growth_potential", "risk_factor"])
+        self.assertEqual(details["postprocessing_code"], "return (market_fit * 2.0) + growth_potential - risk_factor")
+
+        # 3. List definitions
+        defs = self.parse_res(list_extraction_definitions_logic(self.admin, workspace_id=str(self.workspace.id)))
+        found = next(d for d in defs if d["definition_id"] == d_id)
+        self.assertEqual(found["exit_metrics"], ["market_fit", "growth_potential", "risk_factor"])
+        self.assertTrue(found["has_postprocessing_code"])
+
+        # 4. Update exit_metrics with a new list and update postprocessing snippet
+        up_res = self.parse_res(update_extraction_definition_logic(
+            self.admin,
+            definition_id=d_id,
+            exit_metrics=["market_fit", "roi_ratio"],
+            postprocessing_code="return market_fit * roi_ratio"
+        ))
+        self.assertEqual(up_res["status"], "success")
+        self.assertEqual(up_res["exit_metrics"], ["market_fit", "roi_ratio"])
+        self.assertEqual(up_res["postprocessing_code"], "return market_fit * roi_ratio")
+
+        # 5. Verify invalid syntax handling
+        err_res = update_extraction_definition_logic(
+            self.admin,
+            definition_id=d_id,
+            postprocessing_code="def broken_syntax(:"
+        )
+        self.assertIn("Invalid Python syntax", err_res)
+
+        # 6. Clean up
+        delete_extraction_definition_logic(self.admin, definition_id=d_id)
+
     def test_list_and_get_extractions_mcp_tools(self):
         run = PipelineRun.objects.create(workspace=self.workspace)
         p = Paper.objects.create(

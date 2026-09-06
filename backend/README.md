@@ -87,9 +87,8 @@ graph TD
 * **Abstract Screening**: Fast AI triage evaluating title & abstract against `abstract_acceptance_criteria` with Indirect Prompt Injection guard.
 * **Parallel PDF Download**: Multi-threaded document fetching for passed papers with SHA-256 caching and SSRF private IP protection.
 * **Layout OCR Parsing**: Layout Markdown parsing (skipped by default for multimodal Gemini).
-* **Full-Text Screening**: Multimodal deep PDF analysis against `full_text_acceptance_criteria`.
-* **Dynamic Parameter Extraction**: Schema-validated parameter extraction with evidence quotes and confidence scores.
-* **Composite Signal Scoring**: Sandboxed mathematical formula execution (`workspace.signal_score_code`).
+* **Dynamic Parameter Extraction & Multi-Metric Postprocessing**: Schema-validated parameter extraction with evidence quotes, confidence scores, multi-exit parameter lists (`exit_metrics`), and AST-sandboxed Python postprocessing snippets (`postprocessing_code`). Fully configurable via `/api/extraction-definitions/` and FastMCP tools (`create_extraction_definition`, `update_extraction_definition`).
+* **Composite Signal Scoring**: Sandboxed mathematical formula execution (`workspace.signal_score_code`) combining direct extracted parameters, multi-exit metric variables, and postcalculated metrics (`<primary_metric>_postprocessed`).
 * **Executive Reporting & Notification Dispatch**: Narrative synthesis and email delivery via Mailgun.
 
 ---

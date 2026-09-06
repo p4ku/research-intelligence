@@ -965,6 +965,7 @@ def create_extraction_definition(
     user_prompt_template: str,
     response_schema: dict,
     exit_metric: str = None,
+    exit_metrics: list[str] | str = None,
     postprocessing_code: str = None,
     llm_model: str = "google/gemini-3.8-flash",
     version: int = 1,
@@ -984,8 +985,9 @@ def create_extraction_definition(
     - system_prompt: Guidance for the LLM on how to extract and evaluate fields.
     - user_prompt_template: Template with variables `{{paper_title}}`, `{{abstract}}`, `{{full_text}}`.
     - response_schema: JSON Schema dictionary defining the expected structure, field types, and constraints.
-    - exit_metric: Primary key to expose in summary matrices and snake_case variable for signal scoring (e.g. 'fit_score', 'novelty_score', 'trl_level').
-    - postprocessing_code: Optional Python snippet executed on extracted `fields_data` in sandbox.
+    - exit_metric: Primary key or comma-separated keys to expose for signal scoring (e.g. 'fit_score' or 'rigour_score, param1, param2').
+    - exit_metrics: Optional list of field keys (e.g. ['rigour_score', 'param1', 'param2']) or comma-separated string to expose for Signal Score.
+    - postprocessing_code: Optional Python snippet executed in a secure AST sandbox with full access to `data`, `response`, `json_response` and extracted fields. Computes an extra variable `<primary_metric>_postprocessed` for Signal Score.
     - llm_model: Default 'google/gemini-3.8-flash'.
     """
     try:
@@ -1001,6 +1003,7 @@ def create_extraction_definition(
         user_prompt_template=user_prompt_template,
         response_schema=response_schema,
         exit_metric=exit_metric,
+        exit_metrics=exit_metrics,
         postprocessing_code=postprocessing_code,
         llm_model=llm_model,
         version=version,
@@ -1015,6 +1018,7 @@ def update_extraction_definition(
     definition_id: str,
     name: str | None = None,
     exit_metric: str | None = None,
+    exit_metrics: list[str] | str | None = None,
     postprocessing_code: str | None = None,
     system_prompt: str | None = None,
     user_prompt_template: str | None = None,
@@ -1024,7 +1028,16 @@ def update_extraction_definition(
     requires_consensus: bool | None = None,
     is_active: bool | None = None
 ) -> str:
-    """Update an existing extraction definition's schema, prompts, exit_metric key, postprocessing code, or LLM configuration."""
+    """
+    [PARAMETER DEFINITION UPDATE]
+    Update an existing extraction definition's schema, prompts, exit metrics list, postprocessing code, or LLM configuration.
+    
+    PARAMETERS:
+    - definition_id: UUID of the extraction definition.
+    - exit_metric: Single or comma-separated exit metric parameter keys.
+    - exit_metrics: List of exit parameter keys (e.g. ['rigour_score', 'param1']) or comma-separated string.
+    - postprocessing_code: Python snippet executed in secure AST sandbox. Set empty string to clear.
+    """
     try:
         user, workspace, api_key = get_auth_context()
         check_scope(api_key, "prompts:write")
@@ -1035,6 +1048,7 @@ def update_extraction_definition(
         definition_id=definition_id,
         name=name,
         exit_metric=exit_metric,
+        exit_metrics=exit_metrics,
         postprocessing_code=postprocessing_code,
         system_prompt=system_prompt,
         user_prompt_template=user_prompt_template,

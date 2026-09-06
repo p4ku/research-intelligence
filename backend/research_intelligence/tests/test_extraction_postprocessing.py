@@ -902,3 +902,110 @@ class FullPipelineE2EVariableMathTests(TestCase):
         self.assertEqual(vars_dict.get("growth_potential"), 10.0)
         self.assertEqual(vars_dict.get("market_fit_postprocessed"), 19.0)
 
+
+class ExtractionDefinitionAPITests(TestCase):
+    """
+    Tests validating REST API endpoints for ExtractionDefinition:
+    - Support for list of exit parameters (`exit_metrics: list[str]`)
+    - Support for Python postprocessing code snippets (`postprocessing_code: str`)
+    - Syntax validation and error reporting on invalid Python code
+    - Unpacking in nested Workspace creation
+    """
+
+    def setUp(self):
+        from rest_framework.test import APIClient
+        from research_intelligence.models import WorkspaceMember
+        self.client = APIClient()
+        self.user = User.objects.create_user(username=f"api_test_{uuid.uuid4().hex[:8]}", password="password123")
+        self.workspace = Workspace.objects.create(name=f"API Test Workspace {uuid.uuid4().hex[:8]}")
+        WorkspaceMember.objects.create(workspace=self.workspace, user=self.user, role="admin")
+        self.client.force_authenticate(user=self.user)
+
+    def test_api_create_and_update_extraction_definition_with_exit_metrics_and_postprocessing(self):
+        url = "/api/extraction-definitions/"
+        payload = {
+            "workspace": str(self.workspace.id),
+            "name": "Market Evaluation",
+            "system_prompt": "Extract market and risk metrics.",
+            "user_prompt_template": "Paper text: {paper_text}",
+            "response_schema": {
+                "type": "object",
+                "properties": {
+                    "market_fit": {"type": "number"},
+                    "risk_factor": {"type": "number"}
+                }
+            },
+            "exit_metrics": ["market_fit", "risk_factor"],
+            "postprocessing_code": "return market_fit * 2.0 - risk_factor"
+        }
+
+        # 1. Create via POST
+        res = self.client.post(url, payload, format="json")
+        self.assertEqual(res.status_code, 201)
+        data = res.json()
+        defn_id = data["id"]
+        self.assertEqual(data["exit_metric"], "market_fit, risk_factor")
+        self.assertEqual(data["exit_metrics"], ["market_fit", "risk_factor"])
+        self.assertEqual(data["postprocessing_code"], "return market_fit * 2.0 - risk_factor")
+        self.assertTrue(data["has_postprocessing_code"])
+
+        # 2. Retrieve via GET
+        detail_url = f"/api/extraction-definitions/{defn_id}/"
+        get_res = self.client.get(detail_url)
+        self.assertEqual(get_res.status_code, 200)
+        get_data = get_res.json()
+        self.assertEqual(get_data["exit_metrics"], ["market_fit", "risk_factor"])
+        self.assertEqual(get_data["postprocessing_code"], "return market_fit * 2.0 - risk_factor")
+        self.assertTrue(get_data["has_postprocessing_code"])
+
+        # 3. Update via PATCH with new exit metrics list and postprocessing code
+        patch_payload = {
+            "exit_metrics": ["market_fit", "growth_score"],
+            "postprocessing_code": "return market_fit + growth_score"
+        }
+        patch_res = self.client.patch(detail_url, patch_payload, format="json")
+        self.assertEqual(patch_res.status_code, 200)
+        patch_data = patch_res.json()
+        self.assertEqual(patch_data["exit_metrics"], ["market_fit", "growth_score"])
+        self.assertEqual(patch_data["exit_metric"], "market_fit, growth_score")
+        self.assertEqual(patch_data["postprocessing_code"], "return market_fit + growth_score")
+
+        # 4. Test syntax error validation in postprocessing_code
+        bad_payload = {
+            "postprocessing_code": "def broken(:"
+        }
+        bad_res = self.client.patch(detail_url, bad_payload, format="json")
+        self.assertEqual(bad_res.status_code, 400)
+        self.assertIn("postprocessing_code", bad_res.json())
+        self.assertIn("Invalid Python syntax", bad_res.json()["postprocessing_code"][0])
+
+    def test_api_create_workspace_with_nested_extraction_definitions(self):
+        from research_intelligence.models import ExtractionDefinition
+        ws_url = "/api/workspaces/"
+        payload = {
+            "name": f"Nested Defs Workspace {uuid.uuid4().hex[:8]}",
+            "abstract_acceptance_criteria": "Accept AI papers",
+            "abstract_rejection_criteria": "Reject hardware",
+            "full_text_acceptance_criteria": "Accept AI papers",
+            "full_text_rejection_criteria": "Reject hardware",
+            "extraction_definitions": [
+                {
+                    "name": "Nested Target",
+                    "system_prompt": "Extract parameters",
+                    "user_prompt_template": "{paper_text}",
+                    "response_schema": {"type": "object"},
+                    "exit_metrics": ["param_one", "param_two"],
+                    "postprocessing_code": "return param_one + param_two"
+                }
+            ]
+        }
+
+        res = self.client.post(ws_url, payload, format="json")
+        self.assertEqual(res.status_code, 201)
+        ws_id = res.json()["id"]
+
+        nested_def = ExtractionDefinition.objects.get(workspace_id=ws_id, name="Nested Target")
+        self.assertEqual(nested_def.get_exit_metrics_list(), ["param_one", "param_two"])
+        self.assertEqual(nested_def.postprocessing_code, "return param_one + param_two")
+
+

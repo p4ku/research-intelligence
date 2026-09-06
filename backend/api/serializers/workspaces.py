@@ -13,13 +13,73 @@ class ScraperSerializer(serializers.ModelSerializer):
         fields = ['id', 'workspace', 'provider', 'search_query', 'limit', 'sort_by', 'sort_order', 'n_last_days', 'is_active', 'created_at']
 
 class ExtractionDefinitionSerializer(serializers.ModelSerializer):
+    exit_metrics = serializers.ListField(
+        child=serializers.CharField(max_length=100),
+        required=False,
+        allow_empty=True,
+        help_text="Ordered list of exit parameter keys to expose for Signal Score."
+    )
+    has_postprocessing_code = serializers.BooleanField(read_only=True)
+
     class Meta:
         model = ExtractionDefinition
         fields = [
             'id', 'workspace', 'name', 'system_prompt', 'user_prompt_template',
-            'response_schema', 'exit_metric', 'postprocessing_code', 'llm_model', 'version',
+            'response_schema', 'exit_metric', 'exit_metrics', 'postprocessing_code',
+            'has_postprocessing_code', 'llm_model', 'version',
             'requires_consensus', 'is_active', 'created_at'
         ]
+
+    def to_representation(self, instance):
+        ret = super().to_representation(instance)
+        ret['exit_metrics'] = instance.get_exit_metrics_list()
+        ret['has_postprocessing_code'] = bool(instance.postprocessing_code)
+        if ret.get('postprocessing_code') is None:
+            ret['postprocessing_code'] = ""
+        return ret
+
+    def validate(self, attrs):
+        # Resolve exit_metrics vs exit_metric
+        raw_exit_metrics = attrs.pop('exit_metrics', None)
+        if raw_exit_metrics is None and 'exit_metrics' in self.initial_data:
+            raw_exit_metrics = self.initial_data.get('exit_metrics')
+
+        if raw_exit_metrics is not None:
+            if isinstance(raw_exit_metrics, (list, tuple)):
+                attrs['exit_metric'] = ", ".join(str(m).strip() for m in raw_exit_metrics if str(m).strip())
+            elif isinstance(raw_exit_metrics, str):
+                parts = [part.strip() for part in raw_exit_metrics.split(',') if part.strip()]
+                attrs['exit_metric'] = ", ".join(parts) if parts else ""
+        elif 'exit_metric' in attrs and attrs['exit_metric']:
+            parts = [part.strip() for part in str(attrs['exit_metric']).split(',') if part.strip()]
+            attrs['exit_metric'] = ", ".join(parts) if parts else ""
+
+        # Validate postprocessing_code syntax
+        code = attrs.get('postprocessing_code')
+        if code and code.strip():
+            import ast
+            try:
+                ast.parse(code.strip())
+            except SyntaxError as e:
+                raise serializers.ValidationError({"postprocessing_code": f"Invalid Python syntax: {e.msg} (line {e.lineno})"})
+
+        # Validate duplicate exit metrics within workspace
+        workspace = attrs.get('workspace') or (self.instance.workspace if self.instance else None)
+        exit_m = attrs.get('exit_metric', self.instance.exit_metric if self.instance else None)
+        if workspace and exit_m:
+            dummy = ExtractionDefinition(
+                workspace=workspace,
+                name=attrs.get('name', self.instance.name if self.instance else ""),
+                exit_metric=exit_m,
+                id=self.instance.id if self.instance else None
+            )
+            from django.core.exceptions import ValidationError
+            try:
+                dummy.clean()
+            except ValidationError as val_err:
+                raise serializers.ValidationError(val_err.message_dict if hasattr(val_err, 'message_dict') else str(val_err))
+
+        return attrs
 
 class WorkspaceSerializer(serializers.ModelSerializer):
     subscribers = SubscriberSerializer(many=True, read_only=True)
@@ -78,13 +138,20 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         if isinstance(extraction_defs_data, list):
             for ed in extraction_defs_data:
                 if isinstance(ed, dict) and ed.get('name'):
+                    exit_m = ed.get('exit_metric')
+                    if not exit_m and ed.get('exit_metrics'):
+                        if isinstance(ed['exit_metrics'], list):
+                            exit_m = ", ".join(str(m).strip() for m in ed['exit_metrics'] if str(m).strip())
+                        else:
+                            exit_m = str(ed['exit_metrics'])
                     ExtractionDefinition.objects.create(
                         workspace=workspace,
                         name=ed.get('name'),
                         system_prompt=ed.get('system_prompt', ''),
                         user_prompt_template=ed.get('user_prompt_template', ''),
                         response_schema=ed.get('response_schema', {}),
-                        exit_metric=ed.get('exit_metric'),
+                        exit_metric=exit_m,
+                        postprocessing_code=ed.get('postprocessing_code'),
                         llm_model=ed.get('llm_model', workspace.screening_llm_model),
                         version=ed.get('version', 1),
                         requires_consensus=bool(ed.get('requires_consensus', False)),

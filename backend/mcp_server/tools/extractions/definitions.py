@@ -21,10 +21,12 @@ def list_extraction_definitions_logic(user, workspace_id: str) -> str:
             "definition_id": str(d.id),
             "name": d.name,
             "exit_metric": d.exit_metric,
+            "exit_metrics": d.get_exit_metrics_list(),
             "llm_model": d.llm_model,
             "version": d.version,
             "requires_consensus": d.requires_consensus,
             "has_postprocessing_code": bool(d.postprocessing_code),
+            "postprocessing_code": d.postprocessing_code or "",
             "is_active": d.is_active,
             "created_at": d.created_at.isoformat(),
             "system_prompt_snippet": d.system_prompt[:120] + "..." if len(d.system_prompt) > 120 else d.system_prompt
@@ -59,6 +61,7 @@ def get_extraction_definition_logic(user, definition_id: str) -> str:
         "workspace_name": definition.workspace.name,
         "name": definition.name,
         "exit_metric": definition.exit_metric,
+        "exit_metrics": definition.get_exit_metrics_list(),
         "system_prompt": definition.system_prompt,
         "user_prompt_template": definition.user_prompt_template,
         "response_schema": definition.response_schema,
@@ -66,6 +69,7 @@ def get_extraction_definition_logic(user, definition_id: str) -> str:
         "version": definition.version,
         "requires_consensus": definition.requires_consensus,
         "postprocessing_code": definition.postprocessing_code or "",
+        "has_postprocessing_code": bool(definition.postprocessing_code),
         "is_active": definition.is_active,
         "created_at": definition.created_at.isoformat()
     }
@@ -81,6 +85,7 @@ def create_extraction_definition_logic(
     response_schema: dict,
     exit_metric: str = None,
     exit_metric_key: str = None,
+    exit_metrics: list = None,
     postprocessing_code: str = None,
     llm_model: str = "google/gemini-3.8-flash",
     version: int = 1,
@@ -92,7 +97,27 @@ def create_extraction_definition_logic(
     if error:
         return error
 
-    target_exit_metric = exit_metric or exit_metric_key
+    # Resolve exit_metrics or exit_metric (accepts list of strings or comma-separated string)
+    raw_exit = exit_metrics if exit_metrics is not None else (exit_metric if exit_metric is not None else exit_metric_key)
+    if isinstance(raw_exit, (list, tuple)):
+        target_exit_metric = ", ".join(str(m).strip() for m in raw_exit if m and str(m).strip())
+    elif isinstance(raw_exit, str):
+        parts = [part.strip() for part in raw_exit.split(',') if part.strip()]
+        target_exit_metric = ", ".join(parts) if parts else None
+    else:
+        target_exit_metric = None
+
+    if postprocessing_code is not None:
+        code_str = postprocessing_code.strip() if isinstance(postprocessing_code, str) else ""
+        if code_str:
+            import ast
+            try:
+                ast.parse(code_str)
+            except SyntaxError as syn_err:
+                return f"Error: Invalid Python syntax in 'postprocessing_code': {syn_err.msg} (line {syn_err.lineno})"
+            postprocessing_code = code_str
+        else:
+            postprocessing_code = None
 
     if not isinstance(response_schema, dict):
         if isinstance(response_schema, str):
@@ -103,7 +128,8 @@ def create_extraction_definition_logic(
         else:
             return "Error: 'response_schema' must be a JSON dictionary object."
 
-    definition = ExtractionDefinition.objects.create(
+    from django.core.exceptions import ValidationError
+    definition = ExtractionDefinition(
         workspace=workspace,
         name=name,
         exit_metric=target_exit_metric,
@@ -116,6 +142,13 @@ def create_extraction_definition_logic(
         requires_consensus=requires_consensus,
         is_active=is_active
     )
+    try:
+        definition.clean()
+    except ValidationError as val_err:
+        err_msg = val_err.message_dict.get('exit_metric', [str(val_err)]) if hasattr(val_err, 'message_dict') else str(val_err)
+        return f"Error: {err_msg if isinstance(err_msg, str) else err_msg[0]}"
+
+    definition.save()
 
     response = {
         "status": "success",
@@ -124,6 +157,8 @@ def create_extraction_definition_logic(
         "workspace_id": str(workspace.id),
         "name": definition.name,
         "exit_metric": definition.exit_metric,
+        "exit_metrics": definition.get_exit_metrics_list(),
+        "postprocessing_code": definition.postprocessing_code or "",
         "has_postprocessing_code": bool(definition.postprocessing_code),
         "llm_model": definition.llm_model
     }
@@ -136,6 +171,7 @@ def update_extraction_definition_logic(
     name: str = None,
     exit_metric: str = None,
     exit_metric_key: str = None,
+    exit_metrics: list = None,
     system_prompt: str = None,
     user_prompt_template: str = None,
     response_schema: dict = None,
@@ -161,17 +197,33 @@ def update_extraction_definition_logic(
     if error:
         return error
 
-    target_exit_metric = exit_metric if exit_metric is not None else exit_metric_key
+    raw_exit = exit_metrics if exit_metrics is not None else (exit_metric if exit_metric is not None else exit_metric_key)
 
     updated_fields = []
     if name is not None:
         definition.name = name
         updated_fields.append('name')
-    if target_exit_metric is not None:
-        definition.exit_metric = target_exit_metric
+    if raw_exit is not None:
+        if isinstance(raw_exit, (list, tuple)):
+            target_exit_metric = ", ".join(str(m).strip() for m in raw_exit if m and str(m).strip())
+        elif isinstance(raw_exit, str):
+            parts = [part.strip() for part in raw_exit.split(',') if part.strip()]
+            target_exit_metric = ", ".join(parts) if parts else ""
+        else:
+            target_exit_metric = ""
+        definition.exit_metric = target_exit_metric or None
         updated_fields.append('exit_metric')
     if postprocessing_code is not None:
-        definition.postprocessing_code = postprocessing_code
+        code_str = postprocessing_code.strip() if isinstance(postprocessing_code, str) else ""
+        if code_str:
+            import ast
+            try:
+                ast.parse(code_str)
+            except SyntaxError as syn_err:
+                return f"Error: Invalid Python syntax in 'postprocessing_code': {syn_err.msg} (line {syn_err.lineno})"
+            definition.postprocessing_code = code_str
+        else:
+            definition.postprocessing_code = None
         updated_fields.append('postprocessing_code')
     if system_prompt is not None:
         definition.system_prompt = system_prompt
@@ -203,13 +255,24 @@ def update_extraction_definition_logic(
     if not updated_fields:
         return json.dumps({"message": "No fields were provided to update."}, indent=2)
 
+    from django.core.exceptions import ValidationError
+    try:
+        definition.clean()
+    except ValidationError as val_err:
+        err_msg = val_err.message_dict.get('exit_metric', [str(val_err)]) if hasattr(val_err, 'message_dict') else str(val_err)
+        return f"Error: {err_msg if isinstance(err_msg, str) else err_msg[0]}"
+
     definition.save(update_fields=updated_fields)
 
     response = {
         "status": "success",
         "message": f"Extraction definition '{definition.name}' updated successfully.",
         "definition_id": str(definition.id),
-        "updated_fields": updated_fields
+        "updated_fields": updated_fields,
+        "exit_metric": definition.exit_metric,
+        "exit_metrics": definition.get_exit_metrics_list(),
+        "postprocessing_code": definition.postprocessing_code or "",
+        "has_postprocessing_code": bool(definition.postprocessing_code)
     }
     return json.dumps(response, indent=2, cls=DjangoJSONEncoder)
 

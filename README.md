@@ -128,12 +128,16 @@ graph TD
 - **Zero-Compute OCR Fastpath**: Caches layout Markdown in `cache/documents/{sha256}/ocr_{provider}.md`, skipping expensive OCR parser execution for previously converted documents.
 - **Strict Storage Isolation**: Workspace run deletions purge only their local workspace run folder (`workspaces/{ws_id}/runs/{run_id}/`), keeping canonical registry binaries and other workspaces' files 100% intact.
 
-### 4. Dynamic Parameter Extraction
-- **Schema-Validated Extraction**: Evaluates papers against `ExtractionDefinition` prompts and JSON schemas.
+### 4. Dynamic Parameter Extraction & Multi-Metric Postprocessing
+- **Schema-Validated Extraction**: Evaluates papers against `ExtractionDefinition` prompts and JSON schemas using Gemini 3.7 Flash.
+- **Multiple Exit Metrics**: Allows unpacking multiple parameters (e.g. `exit_metrics: ["rigour_score", "sample_size", "p_value"]` or comma-separated `exit_metric: "rigour_score, sample_size, p_value"`) to expose multiple distinct variables from a single extraction definition into Signal Scoring.
+- **Python AST-Sandboxed Postprocessing Snippet**: Optional Python code (`postprocessing_code`) executed in a secure sandbox with full access to the raw LLM JSON response (`data`, `response`, `json_response`) and extracted variables. Automatically injects a derived variable `<primary_exit_metric>_postprocessed` into the scoring environment.
 - **Evidence & Confidence Scores**: Stores results in `Extraction` objects containing exact evidence quotes, normalized values, confidence scores, and validation statuses (`pass`, `warn`, `fail`).
+- **REST API & FastMCP Tools**: Full programmatic manipulation via `/api/extraction-definitions/` and FastMCP tools (`create_extraction_definition`, `update_extraction_definition`, `get_extraction_definition`, `list_extraction_definitions`).
 
 ### 5. Custom Python AST Signal Scoring
 - Evaluates sandboxed mathematical ranking formulas (`workspace.signal_score_code`) securely using Python AST analysis.
+- Consumes all extracted variables, multi-exit parameters, and postprocessed metrics (e.g. `score = (0.4 * market_fit_postprocessed) + (0.3 * novelty) + (0.3 * sample_size)`).
 
 ### 6. Workspace Configuration Export & Import (Staging ➔ Production Sync)
 - Export full workspace configurations as JSON bundles (criteria, prompts, schemas, scrapers, subscribers, formulas).
@@ -141,7 +145,7 @@ graph TD
 
 ### 7. Dual Protocol Interface
 - **FastMCP SSE Interface (Port 8001)**: Exposes workspace tools, scrapers, state machine controls, parameter extraction, and document registry stats to LLM clients (Claude, Gemini, Cursor, Antigravity) via `@mcp.tool()` and `@mcp.prompt()`.
-- **Django REST API (Port 8000)**: Exposes `/api/workspaces/`, `/api/agents/`, `/api/extractions/`, `/api/pipeline-runs/`, and `/api/chat/` endpoints for web frontends.
+- **Django REST API (Port 8000)**: Exposes `/api/workspaces/`, `/api/extraction-definitions/`, `/api/agents/`, `/api/extractions/`, `/api/pipeline-runs/`, and `/api/chat/` endpoints for web frontends.
 
 ### 8. The 5 Pipeline Triggering Pathways & Concurrency Controls
 The Systematic Literature Review (SLR) pipeline can be dispatched through **5 distinct, enterprise-grade execution channels**, all converging into the unified `ResearchAgentRunner` and `WorkflowDAG` orchestrator:

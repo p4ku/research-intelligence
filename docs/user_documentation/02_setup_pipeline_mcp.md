@@ -130,12 +130,13 @@ Inspect live search results and tune queries with optional date filters before p
 ### Step 4: Define Dynamic Extraction Schemas (`create_extraction_definition`)
 Specify the exact structured JSON fields the AI must extract from screened full-text papers.
 
-#### Extraction Target 1: Battery Performance Specifications
+#### Extraction Target 1: Battery Performance Specifications (Multi-Metric & Postprocessing)
 ```json
 {
   "workspace_id": "7b8e1a90-3f2d-4b5c-8a1e-9d0c2e3f4a5b",
   "name": "Battery Specs",
-  "exit_metric": "energy_density_wh_kg",
+  "exit_metrics": ["energy_density_wh_kg", "room_temp_conductivity_ms_cm", "cycle_retention_pct"],
+  "postprocessing_code": "return (energy_density_wh_kg * 0.7) + (room_temp_conductivity_ms_cm * 10.0)",
   "system_prompt": "You are an expert electrochemist and materials scientist. Extract quantitative battery performance metrics with verbatim quotes from the full text.",
   "user_prompt_template": "Extract key electrochemical metrics from the paper:\nTitle: {{paper_title}}\nFull Text: {{full_text}}",
   "response_schema": {
@@ -152,6 +153,7 @@ Specify the exact structured JSON fields the AI must extract from screened full-
   }
 }
 ```
+*(Note: `exit_metrics` unpacks all 3 variables for Signal Score, and `postprocessing_code` creates `energy_density_wh_kg_postprocessed`).*
 
 #### Extraction Target 2: Technology Readiness Level (TRL)
 ```json
