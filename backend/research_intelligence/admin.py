@@ -320,9 +320,13 @@ class SubscriberInline(admin.TabularInline):
 class ExtractionDefinitionInline(admin.TabularInline):
     model = ExtractionDefinition
     extra = 0
-    fields = ('name', 'exit_metrics', 'llm_model', 'is_active', 'created_at')
-    readonly_fields = ('created_at',)
+    fields = ('name', 'exit_metrics', 'has_postprocessing', 'llm_model', 'is_active', 'created_at')
+    readonly_fields = ('has_postprocessing', 'created_at')
     show_change_link = True
+
+    @admin.display(boolean=True, description="Postprocess Code")
+    def has_postprocessing(self, obj):
+        return bool(obj.postprocessing_code and obj.postprocessing_code.strip())
 
 
 class WorkflowScheduleInline(admin.TabularInline):
@@ -1003,6 +1007,7 @@ class ScraperAdmin(admin.ModelAdmin):
     list_display = ('workspace', 'provider_badge', 'search_query', 'n_last_days', 'status_badge', 'created_at')
     list_filter = ('provider', 'is_active', 'workspace')
     search_fields = ('workspace__name', 'search_query')
+    fields = ('workspace', 'provider', 'search_query', 'limit', 'sort_by', 'sort_order', 'n_last_days', 'is_active')
 
     def provider_badge(self, obj):
         colors = {
@@ -2638,8 +2643,8 @@ class ExtractionAdmin(admin.ModelAdmin):
 
     def pipeline_run_link(self, obj):
         pr = None
-        if obj.paper and obj.paper.pipeline_run:
-            pr = obj.paper.pipeline_run
+        if obj.paper:
+            pr = getattr(obj.paper, 'latest_pipeline_run', None) or obj.paper.pipeline_run
         if not pr and obj.workspace:
             pr = PipelineRun.objects.filter(workspace=obj.workspace).order_by('-started_at').first()
         if not pr:
@@ -2650,12 +2655,15 @@ class ExtractionAdmin(admin.ModelAdmin):
 
     def component_run_link(self, obj):
         cr = None
-        if obj.paper and obj.paper.pipeline_run:
-            cr = obj.paper.pipeline_run.component_runs.filter(
+        pr = None
+        if obj.paper:
+            pr = getattr(obj.paper, 'latest_pipeline_run', None) or obj.paper.pipeline_run
+        if pr:
+            cr = pr.component_runs.filter(
                 Q(step_type='extraction') | Q(component_name__icontains='extract')
             ).order_by('-started_at').first()
             if not cr:
-                cr = obj.paper.pipeline_run.component_runs.order_by('-started_at').first()
+                cr = pr.component_runs.order_by('-started_at').first()
         if not cr and obj.workspace:
             cr = ComponentRun.objects.filter(
                 pipeline_run__workspace=obj.workspace,
@@ -2668,7 +2676,7 @@ class ExtractionAdmin(admin.ModelAdmin):
     component_run_link.short_description = "Component Run"
 
     def exit_metrics_badge(self, obj):
-        metric_str = obj.get_exit_metrics()
+        metric_str = obj.exit_metric
         if not metric_str or metric_str == "-":
             return mark_safe('<span style="color: #6c757d; font-size: 0.85em;">-</span>')
 
@@ -2696,13 +2704,11 @@ class ExtractionAdmin(admin.ModelAdmin):
             bg, color, metric_str, metric_str
         )
     exit_metrics_badge.short_description = "Exit Metrics / Output"
-    exit_metric_badge = exit_metrics_badge
 
     def exit_metrics_preview(self, obj):
-        metric_str = obj.get_exit_metrics()
+        metric_str = obj.exit_metric
         return format_html('<strong style="font-size: 1.1em; color: #0d6efd;">{}</strong>', metric_str)
     exit_metrics_preview.short_description = "Exit Metrics"
-    exit_metric_preview = exit_metrics_preview
 
     @admin.action(description="🔄 Re-run selected extraction(s)")
     def rerun_selected_extractions(self, request, queryset):

@@ -223,7 +223,7 @@ class Workspace(models.Model):
     def get_extraction_prompt_snapshot(self) -> dict:
         """
         Returns a comprehensive snapshot of all active dynamic parameter extraction targets:
-        - extraction_definitions: list of {id, name, system_prompt, user_prompt_template, exit_metric, llm_model, response_schema, version, requires_consensus}
+        - extraction_definitions: list of {id, name, system_prompt, user_prompt_template, exit_metrics, llm_model, response_schema, version, requires_consensus}
         - total_definitions: count
         - llm_model / llm_provider / reasoning_effort
         """

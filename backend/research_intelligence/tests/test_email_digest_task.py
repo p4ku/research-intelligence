@@ -541,7 +541,7 @@ class EmailCompositionBuilderTests(TestCase):
     def test_smart_exit_metric_resolution_variants(self):
         """
         Tests that Extraction.exit_metric unpacks correctly across various JSON formats:
-        - Direct extraction_definition.exit_metric key match
+        - Direct extraction_definition.exit_metrics key match
         - Nested fields wrapper {'fields': {'key': 'value'}}
         - Nested value object {'key': {'value': 8.5}}
         - Fallback snake_case candidate keys
@@ -572,7 +572,7 @@ class EmailCompositionBuilderTests(TestCase):
         e2 = Extraction(workspace=self.workspace, paper=paper, extraction_definition=def_test, fields_data={"fields": {"market_score": {"value": "Tier 1"}}})
         self.assertEqual(e2.exit_metric, "Tier 1")
 
-        # 3. Snake_case fallback when definition exit_metric is empty or mismatched
+        # 3. Snake_case fallback when definition exit_metrics is empty or mismatched
         def_empty_exit = ExtractionDefinition.objects.create(
             workspace=self.workspace,
             name="Novelty Assessment Score",

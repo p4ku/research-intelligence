@@ -376,7 +376,7 @@ def get_pipeline_run_status_logic(user, pipeline_run_id: str) -> str:
                 "evaluation_label": (next(iter(p.metrics.all()), None).evaluation_label if p.metrics.all() else None),
                 "signal_score": (next(iter(p.metrics.all()), None).signal_score if p.metrics.all() else None),
                 "metrics": {
-                    (e.extraction_definition.name if e.extraction_definition else e.category): (e.exit_metric or e.get_exit_metric())
+                    (e.extraction_definition.name if e.extraction_definition else e.category): e.exit_metric
                     for e in p.extractions.all()
                     if (e.extraction_definition or e.category)
                 }

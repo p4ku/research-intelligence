@@ -145,7 +145,7 @@ def build_paper_extractions_matrix(
 
         for ext in extractions:
             def_name = ext.extraction_definition.name if ext.extraction_definition else ext.category
-            metric_val = ext.exit_metric or ext.get_exit_metric()
+            metric_val = ext.exit_metric
             if def_name:
                 metrics_summary[def_name] = metric_val
 

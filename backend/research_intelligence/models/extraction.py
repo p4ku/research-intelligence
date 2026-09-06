@@ -126,7 +126,7 @@ class Extraction(models.Model):
     @property
     def exit_metric(self) -> str:
         """
-        Dynamically unpacks the exit metric value from fields_data using extraction_definition.exit_metric key
+        Dynamically unpacks the exit metric value from fields_data using extraction_definition.exit_metrics keys
         with smart fallbacks for key variants and scalar values.
         """
         if self.validation_status == 'fail':
@@ -155,7 +155,7 @@ class Extraction(models.Model):
                                 return str(v)
                 return "-"
 
-            # 2. Case-insensitive / snake_case candidate keys when exit_metric not set
+            # 2. Case-insensitive / snake_case candidate keys when exit_metrics not set
             candidates = []
             if self.extraction_definition:
                 cand_name = self.extraction_definition.name.lower().replace(" ", "_")

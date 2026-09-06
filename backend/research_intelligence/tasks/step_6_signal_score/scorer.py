@@ -99,7 +99,7 @@ def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -
         if ext.validation_status == 'fail':
             continue
 
-        raw_val = ext.exit_metric or ext.get_exit_metric() or ""
+        raw_val = ext.exit_metric or ""
         parsed_val = _parse_numeric_value(raw_val)
 
         # 1. Map by ExtractionDefinition name (e.g. 'TRL Level' -> 'trl_level')

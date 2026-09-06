@@ -584,7 +584,7 @@ def check_run_status_logic(
             for ext in ap.extractions.all():
                 dname = ext.extraction_definition.name if ext.extraction_definition else ext.category
                 if dname:
-                    ext_map[dname] = ext.exit_metric or ext.get_exit_metric()
+                    ext_map[dname] = ext.exit_metric
             pm = next(iter(ap.metrics.all()), None)
             matrix_preview.append({
                 "paper_id": str(ap.id),

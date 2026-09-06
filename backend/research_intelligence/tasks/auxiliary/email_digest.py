@@ -150,7 +150,7 @@ def build_pipeline_run_digest_payload(
         for ext in paper_exts:
             def_obj = ext.extraction_definition
             def_name = def_obj.name if def_obj else (ext.category or "Parameter")
-            metric_val = ext.exit_metric or ext.get_exit_metric()
+            metric_val = ext.exit_metric
             if not metric_val or metric_val == "-":
                 if ext.fields_data and isinstance(ext.fields_data, dict):
                     data = ext.fields_data.get("fields", ext.fields_data)
