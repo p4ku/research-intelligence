@@ -301,6 +301,7 @@ class Workspace(models.Model):
             seen.add(clean)
             variables.append({
                 "name": clean,
+                "variable_name": clean,
                 "original_name": name,
                 "category": category,
                 "source": source,
@@ -443,14 +444,45 @@ class Workspace(models.Model):
         """
         Returns a consolidated dictionary snapshot of the signal score formula and scoring parameters.
         """
-        all_vars = self.get_available_signal_variables()
+        from ..tasks.step_6_signal_score.scorer import _sanitize_identifier
+        available_vars = []
+        if self.pk:
+            active_defs = self.extraction_definitions.all().order_by('created_at', 'name')
+            for d in active_defs:
+                clean_name = _sanitize_identifier(d.name) if d.name else ""
+                metrics_list = d.get_exit_metrics_list()
+                if metrics_list:
+                    for exit_m in metrics_list:
+                        available_vars.append({
+                            "definition_id": str(d.id),
+                            "definition_name": d.name,
+                            "variable_name": exit_m,
+                            "name": exit_m
+                        })
+                else:
+                    available_vars.append({
+                        "definition_id": str(d.id),
+                        "definition_name": d.name,
+                        "variable_name": clean_name,
+                        "name": clean_name
+                    })
+                if d.postprocessing_code and d.postprocessing_code.strip():
+                    primary_exit = d.get_primary_exit_metric() or clean_name
+                    available_vars.append({
+                        "definition_id": str(d.id),
+                        "definition_name": f"{d.name} (Postprocessed)",
+                        "variable_name": f"{primary_exit}_postprocessed",
+                        "name": f"{primary_exit}_postprocessed",
+                        "is_postprocessed": True
+                    })
+
         return {
             "stage": "signal_score",
             "evaluation_engine": "AST Sandboxed Python 3",
             "signal_score_code": (self.signal_score_code or "").strip(),
             "has_custom_formula": bool(self.signal_score_code and self.signal_score_code.strip()),
-            "total_scoring_variables": len(all_vars),
-            "scoring_variables": all_vars,
+            "total_scoring_variables": len(available_vars),
+            "scoring_variables": available_vars,
         }
 
 

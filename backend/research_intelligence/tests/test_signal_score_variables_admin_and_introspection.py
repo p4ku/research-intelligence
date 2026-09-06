@@ -122,13 +122,13 @@ class SignalScoreVariablesAdminAndIntrospectionTestCase(TestCase):
         self.assertEqual(schema_item["category"], "Schema Property")
 
     def test_workspace_get_signal_score_prompt_snapshot(self):
-        """Verify the prompt snapshot generator incorporates all deduced variables."""
+        """Verify the prompt snapshot generator incorporates extraction-scoped scoring variables."""
         snapshot = self.workspace.get_signal_score_prompt_snapshot()
-        var_names = [v["name"] for v in snapshot.get("scoring_variables", [])]
-        self.assertIn("fit_score", var_names)
+        var_names = [v["variable_name"] for v in snapshot.get("scoring_variables", [])]
         self.assertIn("qubit_count", var_names)
         self.assertIn("trl_score", var_names)
         self.assertIn("two_qubit_gate_fidelity", var_names)
+        self.assertIn("qubit_count_postprocessed", var_names)
         self.assertTrue(snapshot.get("has_custom_formula"))
 
     def test_signal_score_code_widget_rendering(self):
