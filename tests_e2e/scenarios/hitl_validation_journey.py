@@ -52,7 +52,7 @@ def run_hitl_validation_journey_scenario(config: Optional[E2EConfig] = None) -> 
     start_time = time.time()
 
     # Pre-cleanup
-    if not cfg.no_cleanup_before:
+    if cfg.cleanup_before:
         ws_svc.cleanup_old_test_workspaces(prefix="test_e2e_hitl_")
 
     workspace_id = None

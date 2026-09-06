@@ -59,12 +59,24 @@ class E2EConfig:
         return self.max_timeout_sec
 
     @property
+    def timeout(self) -> int:
+        return self.max_timeout_sec
+
+    @property
+    def limit(self) -> int:
+        return self.paper_limit
+
+    @property
     def poll_interval(self) -> float:
         return self.poll_interval_sec
 
     @property
     def cleanup_after(self) -> bool:
         return self.delete_after
+
+    @property
+    def no_cleanup_before(self) -> bool:
+        return not self.cleanup_before
 
     @cleanup_after.setter
     def cleanup_after(self, val: bool) -> None:

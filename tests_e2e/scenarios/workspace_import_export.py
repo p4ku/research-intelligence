@@ -48,7 +48,7 @@ def run_workspace_import_export_scenario(config: Optional[E2EConfig] = None) -> 
     start_time = time.time()
 
     # Pre-cleanup
-    if not cfg.no_cleanup_before:
+    if cfg.cleanup_before:
         ws_svc.cleanup_old_test_workspaces(prefix="test_e2e_impexp_")
 
     source_ws_id = None

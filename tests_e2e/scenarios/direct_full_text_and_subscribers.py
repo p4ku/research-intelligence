@@ -56,7 +56,7 @@ def run_direct_full_text_and_subscribers_scenario(config: Optional[E2EConfig] = 
     start_time = time.time()
 
     # Pre-cleanup
-    if not cfg.no_cleanup_before:
+    if cfg.cleanup_before:
         ws_svc.cleanup_old_test_workspaces(prefix="test_e2e_direct_ft_")
 
     workspace_id = None
