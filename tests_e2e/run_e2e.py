@@ -42,6 +42,7 @@ from tests_e2e.scenarios import (
     run_executive_briefing_export_scenario,
     run_date_range_and_pagination_scenario,
     run_ask_paper_journey_scenario,
+    run_signal_score_variables_scenario,
 )
 
 # Configure rich colored terminal logging
@@ -65,9 +66,9 @@ def parse_args():
     )
     parser.add_argument(
         "--scenario",
-        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard", "concurrent", "parallel", "schedule", "evidence", "researcher", "briefing", "date_range", "pagination", "ask", "ask_paper", "all"],
+        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard", "concurrent", "parallel", "schedule", "evidence", "researcher", "briefing", "date_range", "pagination", "ask", "ask_paper", "variables", "signal_score_variables", "scoring_math", "all"],
         default="slr",
-        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Multi-Source Deduplication, quota: Quota Guard, mcp: FastMCP SSE Tools, isolation: RBAC Multi-Tenancy, rerun: Mid-Step Rerun, guard: Hallucination Guard, concurrent: Parallel Agents Load, parallel: Concurrent Runs in Single Workspace, schedule: Workflow Schedule, evidence: Paper Scorecard & PDF, researcher: Researcher RBAC Safety, briefing: Executive Briefing Export, date_range/pagination: Scraper Date Range & Multi-Page Pagination, ask/ask_paper: Ask Paper User Journey, all: Run all)",
+        help="Target test scenario to execute (slr, lifecycle, reprocess, dedup, quota, mcp, isolation, rerun, guard, concurrent, parallel, schedule, evidence, researcher, briefing, date_range, ask_paper, variables/signal_score_variables, all)",
     )
     parser.add_argument(
         "--provider",
@@ -443,6 +444,11 @@ def main():
             if res.get("cost_metrics"):
                 print_llm_cost_summary(res["cost_metrics"], total_elapsed=total_elapsed)
 
+        elif args.scenario in ("variables", "signal_score_variables", "scoring_math"):
+            res = run_signal_score_variables_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ SIGNAL SCORE VARIABLES & MATH SCENARIO COMPLETED in {total_elapsed:.1f}s (Verified Papers: {res.get('verified_papers_count')})\n")
+
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")
             suite_results = []
@@ -520,6 +526,9 @@ def main():
 
             # 14. Ask Paper Complete User Journey
             _run_and_track("Ask Paper Complete Journey", run_ask_paper_journey_scenario, config, workspace_id=slr_results.get("workspace_id"))
+
+            # 15. Signal Score Variables & Math Verification
+            _run_and_track("Signal Score Variables & Math", run_signal_score_variables_scenario, config)
 
             total_elapsed = time.time() - t0
             print_suite_summary(suite_results, total_elapsed, config=config)

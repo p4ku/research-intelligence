@@ -448,3 +448,227 @@ def execute_sandboxed_snippet(
         return float(result)
     except (ValueError, TypeError) as e:
         raise SandboxExecutionError(f"Signal score returned non-numeric value '{result}': {e}")
+
+
+def _wrap_postprocessing_snippet_to_callable(code_snippet: str) -> str:
+    """
+    Wraps a user's extraction postprocessing snippet into a callable Python function body.
+    Supports:
+    - Snippets with top-level `return <expr>`
+    - Snippets assigning to `result`, `output`, `computed`, `score`, `postprocessed`, or `value`
+    - Single expressions (e.g. `fit_score * 1.5 + 5` or `{"adjusted": fit_score * 2}`)
+    - Explicit function definitions (e.g. `def postprocess(...)` or `def calculate(...)`)
+    """
+    stripped = code_snippet.strip()
+    if not stripped:
+        return "def __postprocess_calc__(fields_data=None, fields=None, extractions=None, **kwargs):\n    return None"
+
+    # Check if user defined top-level canonical or standalone postprocessing functions
+    try:
+        parsed = ast.parse(stripped)
+        top_functions = {
+            node.name: node for node in parsed.body if isinstance(node, ast.FunctionDef)
+        }
+        for candidate in ("postprocess", "calculate", "compute", "process", "postprocessing", "execute"):
+            if candidate in top_functions:
+                return stripped
+
+        has_top_level_code = any(
+            not isinstance(node, (ast.FunctionDef, ast.Import, ast.ImportFrom))
+            for node in parsed.body
+        )
+        if top_functions and not has_top_level_code:
+            return stripped
+    except SyntaxError:
+        pass
+
+    # Try parsing as a pure expression first (e.g. `fit_score * 1.5` or `{"normalized": fit_score / 100}`)
+    try:
+        ast.parse(stripped, mode='eval')
+        return f"def __postprocess_calc__(fields_data=None, fields=None, extractions=None, data=None, json_data=None, raw_data=None, **kwargs):\n    return ({stripped})"
+    except SyntaxError:
+        pass
+
+    # Indent lines for function body
+    lines = stripped.split("\n")
+    indented_lines = "\n".join(f"    {line}" for line in lines)
+
+    wrapper = (
+        "def __postprocess_calc__(fields_data=None, fields=None, extractions=None, data=None, json_data=None, raw_data=None, **kwargs):\n"
+        "    __loop_iter__ = 0\n"
+        "    result = None\n"
+        "    output = None\n"
+        "    computed = None\n"
+        "    postprocessed = None\n"
+        "    score = None\n"
+        "    val = None\n"
+        "    value = None\n"
+        f"{indented_lines}\n"
+        "    for _v in (result, output, computed, postprocessed, score, val, value):\n"
+        "        if _v is not None:\n"
+        "            return _v\n"
+        "    return None\n"
+    )
+    return wrapper
+
+
+def execute_sandboxed_postprocessing(
+    code_snippet: str,
+    fields_data: Dict[str, Any],
+    context_vars: Optional[Dict[str, Any]] = None,
+    timeout_seconds: float = 2.0
+) -> Any:
+    """
+    Executes a user-supplied postprocessing Python snippet in a sandboxed execution scope.
+    Operates on extracted fields_data to compute additional parameters.
+    Returns the computed scalar (float, int, str, bool) or dictionary of parameters.
+    """
+    if not code_snippet or not code_snippet.strip():
+        return None
+
+    wrapped_code = _wrap_postprocessing_snippet_to_callable(code_snippet)
+    ast_tree = sanitize_and_validate_ast(wrapped_code)
+
+    raw_fields = dict(fields_data if isinstance(fields_data, dict) else {})
+    valid_vars: Dict[str, Any] = {}
+
+    if context_vars and isinstance(context_vars, dict):
+        for k, v in context_vars.items():
+            if isinstance(k, str) and k.isidentifier() and not k.startswith("_") and k not in FORBIDDEN_NAMES:
+                valid_vars[k] = v
+
+    for k, v in raw_fields.items():
+        if isinstance(k, str) and k.isidentifier() and not k.startswith("_") and k not in FORBIDDEN_NAMES:
+            if isinstance(v, dict) and "value" in v:
+                valid_vars[k] = v["value"]
+            else:
+                valid_vars[k] = v
+
+    EXCLUDED_NAMES = {
+        *SAFE_BUILTINS.keys(),
+        *FORBIDDEN_NAMES,
+        "SandboxExecutionError",
+        "SandboxSecurityError",
+        "math",
+        "fields_data",
+        "fields",
+        "extractions",
+        "data",
+        "json_data",
+        "raw_data",
+        "result",
+        "output",
+        "computed",
+        "postprocessed",
+        "score",
+        "val",
+        "value",
+        "__loop_iter__",
+    }
+
+    locally_defined = set()
+    called_funcs = set()
+    for node in ast.walk(ast_tree):
+        if isinstance(node, ast.FunctionDef):
+            locally_defined.add(node.name)
+            for arg in node.args.args:
+                locally_defined.add(arg.arg)
+            if node.args.vararg:
+                locally_defined.add(node.args.vararg.arg)
+            if node.args.kwarg:
+                locally_defined.add(node.args.kwarg.arg)
+            for kwonly in node.args.kwonlyargs:
+                locally_defined.add(kwonly.arg)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            locally_defined.add(node.id)
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            called_funcs.add(node.func.id)
+
+    for node in ast.walk(ast_tree):
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            var_name = node.id
+            if (
+                var_name not in valid_vars
+                and var_name not in EXCLUDED_NAMES
+                and var_name not in locally_defined
+                and var_name not in called_funcs
+                and not var_name.startswith("__")
+                and var_name.isidentifier()
+            ):
+                valid_vars[var_name] = None
+
+    exec_scope: Dict[str, Any] = {
+        "__builtins__": SAFE_BUILTINS,
+        "math": math,
+        "SandboxExecutionError": SandboxExecutionError,
+        "SandboxSecurityError": SandboxSecurityError,
+        "fields_data": raw_fields,
+        "fields": raw_fields,
+        "extractions": raw_fields,
+        "data": raw_fields,
+        "json_data": raw_fields,
+        "raw_data": raw_fields,
+        **valid_vars,
+    }
+
+    try:
+        compiled_code = compile(ast_tree, "<extraction_postprocessing_sandbox>", "exec")
+    except Exception as e:
+        raise SandboxExecutionError(f"Compilation error in postprocessing code: {e}")
+
+    try:
+        exec(compiled_code, exec_scope)
+    except SandboxExecutionError:
+        raise
+    except SandboxSecurityError:
+        raise
+    except Exception as e:
+        raise SandboxExecutionError(f"Error during postprocessing definition: {e}")
+
+    calc_fn = None
+    if "__postprocess_calc__" in exec_scope and callable(exec_scope["__postprocess_calc__"]):
+        calc_fn = exec_scope["__postprocess_calc__"]
+    else:
+        for candidate in ("postprocess", "calculate", "compute", "process", "postprocessing", "execute"):
+            if candidate in exec_scope and callable(exec_scope[candidate]):
+                calc_fn = exec_scope[candidate]
+                break
+        if not calc_fn:
+            for key, val in exec_scope.items():
+                if callable(val) and not key.startswith("_") and key not in EXCLUDED_NAMES:
+                    calc_fn = val
+                    break
+
+    if not calc_fn or not callable(calc_fn):
+        raise SandboxExecutionError("No executable function or calculation result found in postprocessing snippet.")
+
+    def _run_calc():
+        import inspect
+        try:
+            sig = inspect.signature(calc_fn)
+            params = sig.parameters
+            has_var_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
+            if has_var_kw:
+                return calc_fn(fields_data=raw_fields, fields=raw_fields, extractions=raw_fields, data=raw_fields, json_data=raw_fields, raw_data=raw_fields, **valid_vars)
+
+            call_kwargs = {}
+            for param_name, param in params.items():
+                if param_name in ("fields_data", "fields", "extractions", "data", "json_data", "raw_data"):
+                    call_kwargs[param_name] = raw_fields
+                elif param_name in valid_vars:
+                    call_kwargs[param_name] = valid_vars[param_name]
+                elif param.default is inspect.Parameter.empty:
+                    call_kwargs[param_name] = None
+            return calc_fn(**call_kwargs)
+        except (ValueError, TypeError):
+            return calc_fn(fields_data=raw_fields, fields=raw_fields, extractions=raw_fields, data=raw_fields, json_data=raw_fields, raw_data=raw_fields, **valid_vars)
+
+    effective_timeout = max(0.1, float(timeout_seconds or 2.0))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_run_calc)
+        try:
+            result = future.result(timeout=effective_timeout)
+        except concurrent.futures.TimeoutError:
+            raise SandboxExecutionError(f"Postprocessing execution timed out ({effective_timeout:.1f}s limit exceeded).")
+
+    return result

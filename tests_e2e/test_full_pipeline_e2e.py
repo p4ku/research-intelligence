@@ -25,6 +25,7 @@ from tests_e2e.scenarios import (
     run_paper_evidence_and_pdf_scenario,
     run_researcher_rbac_guard_scenario,
     run_executive_briefing_export_scenario,
+    run_signal_score_variables_scenario,
 )
 
 
@@ -177,3 +178,12 @@ class TestFullPipelineE2E:
         config = E2EConfig.from_env()
         results = run_concurrent_runs_in_workspace_scenario(config)
         assert results["status"] == "passed"
+
+    @pytest.mark.e2e
+    def test_signal_score_variables_and_math(self):
+        config = E2EConfig.from_env()
+        results = run_signal_score_variables_scenario(config)
+        assert results["status"] == "PASSED"
+        assert results["workspace_id"] is not None
+        assert "4_postprocessing_snippet_and_math" in results["scenarios_checked"]
+        assert "5_signal_score_code_math_retrieval" in results["scenarios_checked"]

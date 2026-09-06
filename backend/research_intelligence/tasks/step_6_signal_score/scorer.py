@@ -78,9 +78,19 @@ def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -
     if paper.workspace:
         for ed in paper.workspace.extraction_definitions.all():
             if ed.name:
-                context[_sanitize_identifier(ed.name)] = 0.0
+                name_slug = _sanitize_identifier(ed.name)
+                context[name_slug] = 0.0
+                if ed.postprocessing_code and ed.postprocessing_code.strip():
+                    context[f"{name_slug}_postprocessed"] = 0.0
+                    context[f"{name_slug}_computed"] = 0.0
             if ed.exit_metric:
-                context[_sanitize_identifier(ed.exit_metric)] = 0.0
+                exit_metrics = ed.get_exit_metrics_list() if hasattr(ed, 'get_exit_metrics_list') else [_sanitize_identifier(x.strip()) for x in ed.exit_metric.split(',') if x.strip()]
+                for exit_m in exit_metrics:
+                    context[exit_m] = 0.0
+                primary_exit = ed.get_primary_exit_metric() if hasattr(ed, 'get_primary_exit_metric') else (exit_metrics[0] if exit_metrics else "")
+                if primary_exit and ed.postprocessing_code and ed.postprocessing_code.strip():
+                    context[f"{primary_exit}_postprocessed"] = 0.0
+                    context[f"{primary_exit}_computed"] = 0.0
 
     extractions = list(paper.extractions.all().select_related('extraction_definition'))
 
@@ -97,10 +107,23 @@ def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -
             key_name = _sanitize_identifier(ext.extraction_definition.name)
             context[key_name] = parsed_val
 
-        # 2. Map by exit_metric key if configured (e.g. 'fit_score')
+        # 2. Map by exit_metric keys if configured (e.g. 'rigour_score, param1, param2')
         if ext.extraction_definition and ext.extraction_definition.exit_metric:
-            key_metric = _sanitize_identifier(ext.extraction_definition.exit_metric)
-            context[key_metric] = parsed_val
+            exit_metrics = ext.extraction_definition.get_exit_metrics_list() if hasattr(ext.extraction_definition, 'get_exit_metrics_list') else [_sanitize_identifier(x.strip()) for x in ext.extraction_definition.exit_metric.split(',') if x.strip()]
+            primary_m = ext.extraction_definition.get_primary_exit_metric() if hasattr(ext.extraction_definition, 'get_primary_exit_metric') else (exit_metrics[0] if exit_metrics else "")
+            for exit_m in exit_metrics:
+                val_for_m = None
+                if ext.fields_data and isinstance(ext.fields_data, dict):
+                    f_dict = ext.fields_data.get("fields", ext.fields_data)
+                    if isinstance(f_dict, dict):
+                        for k, v in f_dict.items():
+                            if _sanitize_identifier(k) == exit_m:
+                                val_for_m = _parse_numeric_value(v)
+                                break
+                if val_for_m is None and exit_m == primary_m:
+                    val_for_m = parsed_val
+                if val_for_m is not None:
+                    context[exit_m] = val_for_m
 
         # 3. Map by category if available
         if ext.category:
@@ -108,14 +131,27 @@ def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -
             if key_cat not in context:
                 context[key_cat] = parsed_val
 
-        # Also store raw field data values if available
+        # 4. Map postprocessed and raw field data values if available
         if ext.fields_data and isinstance(ext.fields_data, dict):
             fields_dict = ext.fields_data.get("fields", ext.fields_data)
             if isinstance(fields_dict, dict):
                 for f_k, f_v in fields_dict.items():
                     sanitized_f_k = _sanitize_identifier(f_k)
-                    if sanitized_f_k not in context:
+                    # Always set postprocessed / computed parameters or any field with non-zero or new value
+                    if (
+                        sanitized_f_k.endswith(("_postprocessed", "_computed"))
+                        or sanitized_f_k not in context
+                        or context[sanitized_f_k] == 0.0
+                    ):
                         context[sanitized_f_k] = _parse_numeric_value(f_v)
+
+            # Explicitly map definition-scoped postprocessed keys if present
+            if ext.extraction_definition and ext.extraction_definition.name:
+                d_slug = _sanitize_identifier(ext.extraction_definition.name)
+                for suffix in ("_postprocessed", "_computed"):
+                    post_k = f"{d_slug}{suffix}"
+                    if post_k in fields_dict:
+                        context[post_k] = _parse_numeric_value(fields_dict[post_k])
 
     # 4. Fallback: check exit metrics stored during Abstract or Full-Text Screening in PaperMetric
     if pipeline_run:

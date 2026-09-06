@@ -315,6 +315,7 @@ def import_workspace_configuration_bundle(
                 "user_prompt_template": ed_data.get("user_prompt_template", ""),
                 "response_schema": ed_data.get("response_schema", {}),
                 "exit_metric": ed_data.get("exit_metric"),
+                "postprocessing_code": ed_data.get("postprocessing_code"),
                 "llm_model": ed_data.get("llm_model", "google/gemini-3.8-flash"),
                 "version": ed_data.get("version", 1),
                 "requires_consensus": bool(ed_data.get("requires_consensus", False)),

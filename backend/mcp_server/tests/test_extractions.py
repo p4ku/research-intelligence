@@ -37,6 +37,45 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
         self.assertEqual(del_res["status"], "success")
         self.assertEqual(ExtractionDefinition.objects.filter(workspace=self.workspace).count(), 0)
 
+    def test_extraction_definition_postprocessing_crud(self):
+        # 1. Create with postprocessing_code
+        res = self.parse_res(create_extraction_definition_logic(
+            self.admin,
+            workspace_id=str(self.workspace.id),
+            name="Fit Definition",
+            exit_metric="fit_score",
+            system_prompt="Extract fit score",
+            user_prompt_template="Paper: {paper_text}",
+            response_schema={"type": "object"},
+            postprocessing_code="return fit_score * 2.5"
+        ))
+        self.assertEqual(res["status"], "success")
+        self.assertTrue(res["has_postprocessing_code"])
+        d_id = res["definition_id"]
+
+        # 2. Get detailed view
+        details = self.parse_res(get_extraction_definition_logic(self.admin, definition_id=d_id))
+        self.assertEqual(details["postprocessing_code"], "return fit_score * 2.5")
+
+        # 3. List
+        defs = self.parse_res(list_extraction_definitions_logic(self.admin, workspace_id=str(self.workspace.id)))
+        self.assertEqual(len(defs), 1)
+        self.assertTrue(defs[0]["has_postprocessing_code"])
+
+        # 4. Update postprocessing_code
+        up_res = self.parse_res(update_extraction_definition_logic(
+            self.admin,
+            definition_id=d_id,
+            postprocessing_code="return fit_score * 3.0"
+        ))
+        self.assertEqual(up_res["status"], "success")
+        self.assertIn("postprocessing_code", up_res["updated_fields"])
+
+        details_updated = self.parse_res(get_extraction_definition_logic(self.admin, definition_id=d_id))
+        self.assertEqual(details_updated["postprocessing_code"], "return fit_score * 3.0")
+
+        delete_extraction_definition_logic(self.admin, definition_id=d_id)
+
     def test_list_and_get_extractions_mcp_tools(self):
         run = PipelineRun.objects.create(workspace=self.workspace)
         p = Paper.objects.create(

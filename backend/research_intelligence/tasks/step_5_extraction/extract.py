@@ -178,22 +178,33 @@ def _run_single_extraction_impl(paper, definition, workspace):
                         schema_validation_errors.append(err.message)
                 except Exception as val_e:
                     logger.debug(f"JSON schema validation error check: {val_e}")
-
+            
             exit_metric_missing = False
             if definition.exit_metric:
-                em_key = definition.exit_metric.strip().lower().replace(" ", "_")
+                exit_metrics = (
+                    definition.get_exit_metrics_list()
+                    if hasattr(definition, "get_exit_metrics_list")
+                    else [definition.exit_metric.strip().lower().replace(" ", "_")]
+                )
                 if isinstance(fields_dict, dict):
-                    exit_metric_found = any(
-                        k.strip().lower().replace(" ", "_") == em_key
-                        for k in fields_dict.keys()
-                    )
+                    extracted_keys = {k.strip().lower().replace(" ", "_") for k in fields_dict.keys()}
+                    missing_metrics = [
+                        em for em in exit_metrics
+                        if em.lower().replace(" ", "_") not in extracted_keys
+                    ]
                 else:
-                    exit_metric_found = False
+                    missing_metrics = list(exit_metrics)
 
-                if not exit_metric_found:
-                    exit_metric_missing = True
+                if missing_metrics:
+                    primary_metric = (
+                        definition.get_primary_exit_metric()
+                        if hasattr(definition, "get_primary_exit_metric")
+                        else (exit_metrics[0] if exit_metrics else "")
+                    )
+                    if primary_metric in missing_metrics or len(missing_metrics) == len(exit_metrics):
+                        exit_metric_missing = True
                     schema_validation_errors.append(
-                        f"Expected exit_metric '{definition.exit_metric}' was missing from extracted fields."
+                        f"Expected exit_metric(s) '{', '.join(missing_metrics)}' were missing from extracted fields."
                     )
 
             review_required = False
@@ -216,6 +227,59 @@ def _run_single_extraction_impl(paper, definition, workspace):
                 "provider": workspace.llm_provider,
                 "validation_errors": schema_validation_errors
             }
+
+            # Code-based postprocessing on extracted fields if configured
+            if definition.postprocessing_code and definition.postprocessing_code.strip():
+                try:
+                    from ...utils.sandbox import execute_sandboxed_postprocessing
+                    from ..step_6_signal_score.scorer import _sanitize_identifier
+
+                    def_slug = _sanitize_identifier(definition.name)
+                    raw_context = dict(fields_dict) if isinstance(fields_dict, dict) else {}
+                    post_res = execute_sandboxed_postprocessing(
+                        code_snippet=definition.postprocessing_code,
+                        fields_data=raw_context,
+                        context_vars={
+                            "title": paper.title or "",
+                            "abstract": paper.abstract or "",
+                            "arxiv_id": paper.arxiv_id or "",
+                            "doi": paper.doi or ""
+                        },
+                        timeout_seconds=2.0
+                    )
+                    primary_exit = definition.get_primary_exit_metric() if hasattr(definition, 'get_primary_exit_metric') else ""
+                    if not primary_exit and definition.exit_metric:
+                        primary_exit = _sanitize_identifier(definition.exit_metric.split(',')[0].strip())
+
+                    if isinstance(fields_dict, dict):
+                        if isinstance(post_res, dict):
+                            fields_dict.update(post_res)
+                            first_val = next(iter(post_res.values()), None)
+                            if first_val is not None:
+                                fields_dict[f"{def_slug}_postprocessed"] = first_val
+                                fields_dict[f"{def_slug}_computed"] = first_val
+                                if primary_exit:
+                                    fields_dict[f"{primary_exit}_postprocessed"] = first_val
+                                    fields_dict[f"{primary_exit}_computed"] = first_val
+                        elif post_res is not None:
+                            fields_dict[f"{def_slug}_postprocessed"] = post_res
+                            fields_dict[f"{def_slug}_computed"] = post_res
+                            if primary_exit:
+                                fields_dict[f"{primary_exit}_postprocessed"] = post_res
+                                fields_dict[f"{primary_exit}_computed"] = post_res
+                        logger.info(f"✨ [EXTRACTION POSTPROCESSING] Paper '{paper.title[:30]}...' -> '{def_slug}_postprocessed': {fields_dict.get(f'{def_slug}_postprocessed')}")
+                except Exception as post_err:
+                    logger.warning(f"⚠️ [EXTRACTION POSTPROCESSING ERROR] Definition '{definition.name}' for Paper '{paper.id}': {post_err}")
+                    version_info["postprocessing_error"] = str(post_err)
+                    primary_exit = definition.get_primary_exit_metric() if hasattr(definition, 'get_primary_exit_metric') else ""
+                    if not primary_exit and definition.exit_metric:
+                        primary_exit = _sanitize_identifier(definition.exit_metric.split(',')[0].strip())
+                    if isinstance(fields_dict, dict):
+                        fields_dict[f"{def_slug}_postprocessed"] = 0.0
+                        fields_dict[f"{def_slug}_computed"] = 0.0
+                        if primary_exit:
+                            fields_dict[f"{primary_exit}_postprocessed"] = 0.0
+                            fields_dict[f"{primary_exit}_computed"] = 0.0
 
             # Save or update Extraction model atomically
             with transaction.atomic():

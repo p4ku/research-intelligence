@@ -19,6 +19,7 @@ from .researcher_rbac_guard import run_researcher_rbac_guard_scenario
 from .executive_briefing_export import run_executive_briefing_export_scenario
 from .date_range_and_pagination import run_date_range_and_pagination_scenario
 from .ask_paper_journey import run_ask_paper_journey_scenario
+from .signal_score_variables import run_signal_score_variables_scenario
 
 __all__ = [
     "run_full_slr_pipeline_scenario",
@@ -39,4 +40,5 @@ __all__ = [
     "run_executive_briefing_export_scenario",
     "run_date_range_and_pagination_scenario",
     "run_ask_paper_journey_scenario",
+    "run_signal_score_variables_scenario",
 ]

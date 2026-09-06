@@ -249,6 +249,212 @@ class ScreeningTasksTestCase(TestCase):
         self.assertIn("abstract_screening", pm.metrics_data)
         self.assertEqual(pm.metrics_data["abstract_screening"]["exit_metric_value"], 9.5)
 
+    @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
+    def test_abstract_screening_with_only_accept_reject_criteria_and_empty_prompts_passed(self, mock_generate):
+        """
+        Verify that when Abstract screening system prompt, user prompt template, response schema,
+        and exit metric are completely empty (None), abstract screening operates properly
+        using built-in fallback defaults and workspace acceptance/rejection criteria.
+        Tests the passing decision branch.
+        """
+        # Ensure all prompt/schema/exit metric fields are None
+        self.workspace.abstract_screening_system_prompt = None
+        self.workspace.abstract_screening_user_prompt_template = None
+        self.workspace.abstract_screening_response_schema = None
+        self.workspace.abstract_screening_exit_metric = None
+        self.workspace.abstract_acceptance_criteria = "Focus on agentic workflows and reasoning loops."
+        self.workspace.abstract_rejection_criteria = "Exclude studies focused strictly on physical robotics hardware."
+        self.workspace.save()
+
+        # 1. Verify model getter methods return robust fallback defaults
+        default_sys_prompt = self.workspace.get_abstract_screening_system_prompt()
+        self.assertIn("You are an expert AI Research Scanner.", default_sys_prompt)
+        self.assertIn("<UNTRUSTED_DOCUMENT_CONTENT>", default_sys_prompt)
+
+        default_user_template = self.workspace.get_abstract_screening_user_prompt_template()
+        self.assertIn("<UNTRUSTED_DOCUMENT_CONTENT>", default_user_template)
+        self.assertIn("{title}", default_user_template)
+        self.assertIn("{acceptance_criteria}", default_user_template)
+
+        default_schema = self.workspace.get_abstract_screening_response_schema()
+        self.assertIsInstance(default_schema, dict)
+        self.assertIn("passed", default_schema.get("properties", {}))
+        self.assertIn("reasoning", default_schema.get("properties", {}))
+        self.assertIn("decision_category", default_schema.get("properties", {}))
+
+        default_exit_metric = self.workspace.get_abstract_screening_exit_metric()
+        self.assertEqual(default_exit_metric, "decision_category")
+
+        # 2. Mock LLM response for a paper that passes screening
+        mock_generate.return_value = {
+            "passed": True,
+            "reasoning": "Paper demonstrates agentic reasoning loops.",
+            "evidence_quotes": ["framework for agentic workflows"],
+            "decision_category": "ACCEPTED: Core scope match"
+        }
+
+        # 3. Execute abstract screening task
+        result = screen_abstract(self.paper.id, self.workspace.id)
+
+        # 4. Verify task result structure
+        self.assertTrue(result["success"])
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["screening_status"], "abstract_passed")
+        self.assertEqual(result["exit_metric_key"], "decision_category")
+        self.assertEqual(result["exit_metric_value"], "ACCEPTED: Core scope match")
+        self.assertEqual(result["reasoning"], "Paper demonstrates agentic reasoning loops.")
+
+        # 5. Verify LLM call arguments were populated with defaults and formatted criteria
+        call_kwargs = mock_generate.call_args.kwargs
+        self.assertEqual(call_kwargs.get("system_instruction"), default_sys_prompt)
+        self.assertEqual(call_kwargs.get("response_schema"), default_schema)
+        formatted_prompt = call_kwargs.get("prompt", "")
+        self.assertIn("Title: Reasoning loop architectures", formatted_prompt)
+        self.assertIn("Focus on agentic workflows and reasoning loops.", formatted_prompt)
+        self.assertIn("Exclude studies focused strictly on physical robotics hardware.", formatted_prompt)
+
+        # 6. Verify PaperMetric persistence in the database
+        pm = PaperMetric.objects.get(paper=self.paper, pipeline_run=self.pipeline_run)
+        self.assertEqual(pm.screening_status, "abstract_passed")
+        self.assertEqual(pm.abstract_screening_reasoning, "Paper demonstrates agentic reasoning loops.")
+        self.assertIn("abstract_screening", pm.metrics_data)
+        self.assertTrue(pm.metrics_data["abstract_screening"]["passed"])
+        self.assertEqual(pm.metrics_data["abstract_screening"]["decision_category"], "ACCEPTED: Core scope match")
+        self.assertEqual(pm.metrics_data["abstract_screening"]["exit_metric_key"], "decision_category")
+        self.assertEqual(pm.metrics_data["abstract_screening"]["exit_metric_value"], "ACCEPTED: Core scope match")
+
+    @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
+    def test_abstract_screening_with_only_accept_reject_criteria_and_empty_prompts_rejected(self, mock_generate):
+        """
+        Verify that when Abstract screening prompt and schema fields are empty (None),
+        the screening task correctly marks failing papers as 'rejected' and halts them.
+        """
+        self.workspace.abstract_screening_system_prompt = None
+        self.workspace.abstract_screening_user_prompt_template = None
+        self.workspace.abstract_screening_response_schema = None
+        self.workspace.abstract_screening_exit_metric = None
+        self.workspace.abstract_acceptance_criteria = "Focus on agentic workflows and reasoning loops."
+        self.workspace.abstract_rejection_criteria = "Exclude studies focused strictly on physical robotics hardware."
+        self.workspace.save()
+
+        mock_generate.return_value = {
+            "passed": False,
+            "reasoning": "Paper focuses purely on physical robotic arm hardware.",
+            "evidence_quotes": ["robotic arm hardware"],
+            "decision_category": "REJECTED: Physical robotics hardware"
+        }
+
+        result = screen_abstract(self.paper.id, self.workspace.id)
+
+        self.assertTrue(result["success"])
+        self.assertFalse(result["passed"])
+        self.assertEqual(result["screening_status"], "rejected")
+        self.assertEqual(result["exit_metric_key"], "decision_category")
+        self.assertEqual(result["exit_metric_value"], "REJECTED: Physical robotics hardware")
+
+        pm = PaperMetric.objects.get(paper=self.paper, pipeline_run=self.pipeline_run)
+        self.assertEqual(pm.screening_status, "rejected")
+        self.assertEqual(pm.abstract_screening_reasoning, "Paper focuses purely on physical robotic arm hardware.")
+        self.assertFalse(pm.metrics_data["abstract_screening"]["passed"])
+
+    @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
+    def test_abstract_screening_with_blank_whitespace_strings_and_empty_dict(self, mock_generate):
+        """
+        Verify that when fields are submitted as empty strings ('') or empty dicts ({})
+        from Django admin forms, fallback defaults are safely applied without exceptions.
+        """
+        self.workspace.abstract_screening_system_prompt = "   "
+        self.workspace.abstract_screening_user_prompt_template = ""
+        self.workspace.abstract_screening_response_schema = {}
+        self.workspace.abstract_screening_exit_metric = "  "
+        self.workspace.save()
+
+        # Check model getters handle whitespace/empty dict cleanly
+        self.assertIn("You are an expert AI Research Scanner.", self.workspace.get_abstract_screening_system_prompt())
+        self.assertIn("<UNTRUSTED_DOCUMENT_CONTENT>", self.workspace.get_abstract_screening_user_prompt_template())
+        self.assertIn("passed", self.workspace.get_abstract_screening_response_schema()["properties"])
+        self.assertEqual(self.workspace.get_abstract_screening_exit_metric(), "decision_category")
+
+        mock_generate.return_value = {
+            "passed": True,
+            "reasoning": "Passed with default schema fallback.",
+            "decision_category": "ACCEPTED: Scope match"
+        }
+
+        result = screen_abstract(self.paper.id, self.workspace.id)
+        self.assertTrue(result["success"])
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["screening_status"], "abstract_passed")
+
+    @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")
+    def test_abstract_screening_with_all_custom_prompts_templates_schema_and_exit_metric(self, mock_generate):
+        """
+        Verify that when all four fields (system prompt, user prompt template, response schema, exit metric)
+        are populated with custom definitions, the task passes them directly to the LLM and extracts
+        the custom exit metric.
+        """
+        custom_system_prompt = "You are a specialized Clinical Trial Abstract Screener."
+        custom_template = "INSPECT_TITLE: {title}\nINSPECT_ABSTRACT: {abstract}\nINCLUDE: {acceptance_criteria}\nEXCLUDE: {rejection_criteria}"
+        custom_schema = {
+            "type": "object",
+            "properties": {
+                "passed": {"type": "boolean"},
+                "clinical_relevance_score": {"type": "number"},
+                "reasoning": {"type": "string"},
+                "decision_category": {"type": "string"}
+            },
+            "required": ["passed", "clinical_relevance_score", "reasoning"]
+        }
+        custom_exit_metric = "clinical_relevance_score"
+
+        self.workspace.abstract_screening_system_prompt = custom_system_prompt
+        self.workspace.abstract_screening_user_prompt_template = custom_template
+        self.workspace.abstract_screening_response_schema = custom_schema
+        self.workspace.abstract_screening_exit_metric = custom_exit_metric
+        self.workspace.abstract_acceptance_criteria = "Randomized controlled trials in oncology."
+        self.workspace.abstract_rejection_criteria = "Animal studies or in-vitro experiments."
+        self.workspace.save()
+
+        # Check model getters return custom values
+        self.assertEqual(self.workspace.get_abstract_screening_system_prompt(), custom_system_prompt)
+        self.assertEqual(self.workspace.get_abstract_screening_user_prompt_template(), custom_template)
+        self.assertEqual(self.workspace.get_abstract_screening_response_schema(), custom_schema)
+        self.assertEqual(self.workspace.get_abstract_screening_exit_metric(), custom_exit_metric)
+
+        # Mock LLM return matching custom schema
+        mock_generate.return_value = {
+            "passed": True,
+            "clinical_relevance_score": 9.75,
+            "reasoning": "High relevance oncology clinical trial.",
+            "decision_category": "ACCEPTED: Phase 3 Trial"
+        }
+
+        result = screen_abstract(self.paper.id, self.workspace.id)
+
+        self.assertTrue(result["success"])
+        self.assertTrue(result["passed"])
+        self.assertEqual(result["screening_status"], "abstract_passed")
+        self.assertEqual(result["exit_metric_key"], "clinical_relevance_score")
+        self.assertEqual(result["exit_metric_value"], 9.75)
+        self.assertEqual(result["dynamic_data"]["clinical_relevance_score"], 9.75)
+
+        # Check prompt args passed to provider
+        call_kwargs = mock_generate.call_args.kwargs
+        self.assertEqual(call_kwargs.get("system_instruction"), custom_system_prompt)
+        self.assertEqual(call_kwargs.get("response_schema"), custom_schema)
+        sent_prompt = call_kwargs.get("prompt", "")
+        self.assertIn("INSPECT_TITLE: Reasoning loop architectures", sent_prompt)
+        self.assertIn("INCLUDE: Randomized controlled trials in oncology.", sent_prompt)
+        self.assertIn("EXCLUDE: Animal studies or in-vitro experiments.", sent_prompt)
+
+        # Check PaperMetric storage
+        pm = PaperMetric.objects.get(paper=self.paper, pipeline_run=self.pipeline_run)
+        self.assertEqual(pm.screening_status, "abstract_passed")
+        self.assertEqual(pm.metrics_data["abstract_screening"]["exit_metric_key"], "clinical_relevance_score")
+        self.assertEqual(pm.metrics_data["abstract_screening"]["exit_metric_value"], 9.75)
+        self.assertEqual(pm.metrics_data["abstract_screening"]["dynamic_data"]["clinical_relevance_score"], 9.75)
+
+
     @patch("django.core.files.storage.default_storage.exists", return_value=True)
     @patch("django.core.files.storage.default_storage.open")
     @patch("research_intelligence.llm_providers.google.GoogleAgentAPIProvider.generate")

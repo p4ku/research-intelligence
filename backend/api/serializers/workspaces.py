@@ -17,7 +17,7 @@ class ExtractionDefinitionSerializer(serializers.ModelSerializer):
         model = ExtractionDefinition
         fields = [
             'id', 'workspace', 'name', 'system_prompt', 'user_prompt_template',
-            'response_schema', 'exit_metric', 'llm_model', 'version',
+            'response_schema', 'exit_metric', 'postprocessing_code', 'llm_model', 'version',
             'requires_consensus', 'is_active', 'created_at'
         ]
 

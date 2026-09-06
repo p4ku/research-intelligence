@@ -24,6 +24,7 @@ def list_extraction_definitions_logic(user, workspace_id: str) -> str:
             "llm_model": d.llm_model,
             "version": d.version,
             "requires_consensus": d.requires_consensus,
+            "has_postprocessing_code": bool(d.postprocessing_code),
             "is_active": d.is_active,
             "created_at": d.created_at.isoformat(),
             "system_prompt_snippet": d.system_prompt[:120] + "..." if len(d.system_prompt) > 120 else d.system_prompt
@@ -64,6 +65,7 @@ def get_extraction_definition_logic(user, definition_id: str) -> str:
         "llm_model": definition.llm_model,
         "version": definition.version,
         "requires_consensus": definition.requires_consensus,
+        "postprocessing_code": definition.postprocessing_code or "",
         "is_active": definition.is_active,
         "created_at": definition.created_at.isoformat()
     }
@@ -79,6 +81,7 @@ def create_extraction_definition_logic(
     response_schema: dict,
     exit_metric: str = None,
     exit_metric_key: str = None,
+    postprocessing_code: str = None,
     llm_model: str = "google/gemini-3.8-flash",
     version: int = 1,
     requires_consensus: bool = False,
@@ -104,6 +107,7 @@ def create_extraction_definition_logic(
         workspace=workspace,
         name=name,
         exit_metric=target_exit_metric,
+        postprocessing_code=postprocessing_code,
         system_prompt=system_prompt,
         user_prompt_template=user_prompt_template,
         response_schema=response_schema,
@@ -120,6 +124,7 @@ def create_extraction_definition_logic(
         "workspace_id": str(workspace.id),
         "name": definition.name,
         "exit_metric": definition.exit_metric,
+        "has_postprocessing_code": bool(definition.postprocessing_code),
         "llm_model": definition.llm_model
     }
     return json.dumps(response, indent=2, cls=DjangoJSONEncoder)
@@ -135,6 +140,7 @@ def update_extraction_definition_logic(
     user_prompt_template: str = None,
     response_schema: dict = None,
     llm_model: str = None,
+    postprocessing_code: str = None,
     version: int = None,
     requires_consensus: bool = None,
     is_active: bool = None
@@ -164,6 +170,9 @@ def update_extraction_definition_logic(
     if target_exit_metric is not None:
         definition.exit_metric = target_exit_metric
         updated_fields.append('exit_metric')
+    if postprocessing_code is not None:
+        definition.postprocessing_code = postprocessing_code
+        updated_fields.append('postprocessing_code')
     if system_prompt is not None:
         definition.system_prompt = system_prompt
         updated_fields.append('system_prompt')

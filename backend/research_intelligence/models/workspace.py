@@ -239,6 +239,7 @@ class Workspace(models.Model):
                 "response_schema": d.response_schema,
                 "version": d.version,
                 "requires_consensus": d.requires_consensus,
+                "postprocessing_code": (d.postprocessing_code or "").strip(),
             }
             for d in active_defs
         ]
@@ -259,13 +260,31 @@ class Workspace(models.Model):
         available_vars = []
         for d in active_defs:
             clean_name = d.name.strip().lower().replace(" ", "_") if d.name else ""
-            clean_exit = d.exit_metric.strip().lower().replace(" ", "_") if d.exit_metric else ""
-            available_vars.append({
-                "definition_id": str(d.id),
-                "definition_name": d.name,
-                "exit_metric": d.exit_metric or clean_name,
-                "variable_name": clean_exit or clean_name
-            })
+            metrics_list = d.get_exit_metrics_list() if hasattr(d, 'get_exit_metrics_list') else ([m.strip() for m in d.exit_metric.split(',') if m.strip()] if d.exit_metric else [])
+            if metrics_list:
+                for exit_m in metrics_list:
+                    available_vars.append({
+                        "definition_id": str(d.id),
+                        "definition_name": d.name,
+                        "exit_metric": exit_m,
+                        "variable_name": exit_m
+                    })
+            else:
+                available_vars.append({
+                    "definition_id": str(d.id),
+                    "definition_name": d.name,
+                    "exit_metric": clean_name,
+                    "variable_name": clean_name
+                })
+            if d.postprocessing_code and d.postprocessing_code.strip():
+                primary_exit = d.get_primary_exit_metric() if hasattr(d, 'get_primary_exit_metric') else (metrics_list[0] if metrics_list else clean_name)
+                available_vars.append({
+                    "definition_id": str(d.id),
+                    "definition_name": f"{d.name} (Postprocessed)",
+                    "exit_metric": f"{primary_exit}_postprocessed",
+                    "variable_name": f"{primary_exit}_postprocessed",
+                    "is_postprocessed": True
+                })
 
         return {
             "stage": "signal_score",
@@ -288,28 +307,26 @@ class Workspace(models.Model):
 
         for d in active_defs:
             clean_name = d.name.strip().lower().replace(" ", "_") if d.name else ""
-            clean_exit = d.exit_metric.strip().lower().replace(" ", "_") if d.exit_metric else ""
-            var_name = clean_exit or clean_name or f"def_{d.id}"
+            metrics_list = d.get_exit_metrics_list() if hasattr(d, 'get_exit_metrics_list') else ([m.strip() for m in d.exit_metric.split(',') if m.strip()] if d.exit_metric else [])
+            target_vars = metrics_list if metrics_list else [clean_name or f"def_{d.id}"]
 
-            prop_type = "number"
-            desc = d.name
-            if d.response_schema and isinstance(d.response_schema, dict):
-                props = d.response_schema.get("properties", {})
-                if var_name in props and isinstance(props[var_name], dict):
-                    prop_type = props[var_name].get("type", "number")
-                    desc = props[var_name].get("description", d.name)
-                elif d.exit_metric and d.exit_metric in props and isinstance(props[d.exit_metric], dict):
-                    prop_type = props[d.exit_metric].get("type", "number")
-                    desc = props[d.exit_metric].get("description", d.name)
+            for var_name in target_vars:
+                prop_type = "number"
+                desc = d.name
+                if d.response_schema and isinstance(d.response_schema, dict):
+                    props = d.response_schema.get("properties", {})
+                    if var_name in props and isinstance(props[var_name], dict):
+                        prop_type = props[var_name].get("type", "number")
+                        desc = props[var_name].get("description", d.name)
 
-            properties[var_name] = {
-                "type": prop_type,
-                "description": desc,
-                "definition_id": str(d.id),
-                "definition_name": d.name,
-                "default": 0.0 if prop_type == "number" else ""
-            }
-            required.append(var_name)
+                properties[var_name] = {
+                    "type": prop_type,
+                    "description": desc,
+                    "definition_id": str(d.id),
+                    "definition_name": d.name,
+                    "default": 0.0 if prop_type == "number" else ""
+                }
+                required.append(var_name)
 
         return {
             "$schema": "http://json-schema.org/draft-07/schema#",

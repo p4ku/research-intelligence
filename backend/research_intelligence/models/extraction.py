@@ -1,6 +1,7 @@
 import uuid
 import logging
 from django.db import models
+from django.core.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,17 @@ class ExtractionDefinition(models.Model):
     system_prompt = models.TextField(help_text="System instructions enforcing extraction perspective")
     user_prompt_template = models.TextField(help_text="User prompt with placeholders like {paper_text}")
     response_schema = models.JSONField(help_text="JSON schema describing fields to extract")
-    exit_metric = models.CharField(max_length=100, blank=True, null=True, help_text="Field key to unpack from extracted data as the exit metric (e.g. 'fit_score', 'trl_score')")
+    exit_metric = models.CharField(
+        max_length=512,
+        blank=True,
+        null=True,
+        help_text="Comma-separated field keys to unpack from extracted data for Signal Score (e.g. 'rigour_score, param1, param2'). The first metric is used for postprocessing naming."
+    )
+    postprocessing_code = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Custom Python snippet to postprocess extracted fields and compute an additional parameter accessible in Signal Score."
+    )
     llm_model = models.CharField(max_length=100, default="google/gemini-3.8-flash", help_text="LLM model used for this specific extraction")
     version = models.IntegerField(default=1, help_text="Tracks prompt/schema evolution")
     requires_consensus = models.BooleanField(default=False, help_text="Requires multi-sample self-consistency for difficult fields")
@@ -23,6 +34,46 @@ class ExtractionDefinition(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         app_label = 'research_intelligence'
+
+    def get_exit_metrics_list(self) -> list[str]:
+        """Returns ordered, unique list of sanitized exit metric keys without spaces."""
+        if not self.exit_metric:
+            return []
+        from ..tasks.step_6_signal_score.scorer import _sanitize_identifier
+        raw_items = [part.strip() for part in self.exit_metric.split(',') if part.strip()]
+        seen = set()
+        res = []
+        for item in raw_items:
+            clean_item = _sanitize_identifier(item)
+            if clean_item and clean_item not in seen:
+                seen.add(clean_item)
+                res.append(clean_item)
+        return res
+
+    def get_primary_exit_metric(self) -> str:
+        """Returns the first exit metric from the list, used for primary exit metric lookups and _postprocessed suffix."""
+        metrics = self.get_exit_metrics_list()
+        return metrics[0] if metrics else ""
+
+    def clean(self):
+        super().clean()
+        if self.exit_metric and self.exit_metric.strip() and self.workspace_id:
+            my_metrics = self.get_exit_metrics_list()
+            duplicates = ExtractionDefinition.objects.filter(workspace_id=self.workspace_id).exclude(pk=self.pk)
+            conflicts = []
+            for d in duplicates:
+                other_metrics = set(d.get_exit_metrics_list())
+                shared = set(my_metrics) & other_metrics
+                if shared:
+                    conflicts.append(f"'{d.name}' (shared: {', '.join(sorted(shared))})")
+            if conflicts:
+                conflict_details = "; ".join(conflicts)
+                raise ValidationError({
+                    'exit_metric': (
+                        f"Consistency Error: One or more exit metrics are already used in this workspace by: {conflict_details}. "
+                        f"Each exit metric must be unique within a workspace to avoid Signal Score collisions."
+                    )
+                })
 
     def __str__(self):
         return f"{self.workspace.name} - {self.name}"
@@ -72,31 +123,43 @@ class Extraction(models.Model):
             if "fields" in data and isinstance(data["fields"], dict):
                 data = data["fields"]
 
-            # 1. Exact match on configured extraction_definition.exit_metric
+            # 1. Match on configured extraction_definition.exit_metric (supports comma-separated list)
             if self.extraction_definition and self.extraction_definition.exit_metric:
-                exit_key = self.extraction_definition.exit_metric
-                val = data.get(exit_key)
-                if isinstance(val, dict) and "value" in val:
-                    return str(val["value"])
-                if val is not None:
-                    return str(val)
-                # Case-insensitive / snake_case lookup for the configured exit_key
-                for k, v in data.items():
-                    if k.lower().replace(" ", "_") == exit_key.lower().replace(" ", "_"):
-                        if isinstance(v, dict) and "value" in v:
-                            return str(v["value"])
-                        elif v is not None:
-                            return str(v)
+                exit_keys = self.extraction_definition.get_exit_metrics_list()
+                for exit_key in exit_keys:
+                    val = data.get(exit_key)
+                    if isinstance(val, dict) and "value" in val:
+                        return str(val["value"])
+                    if val is not None:
+                        return str(val)
+                    # Case-insensitive / snake_case lookup for the configured exit_key
+                    for k, v in data.items():
+                        if k.lower().replace(" ", "_") == exit_key.lower().replace(" ", "_"):
+                            if isinstance(v, dict) and "value" in v:
+                                return str(v["value"])
+                            elif v is not None:
+                                return str(v)
                 return "-"
 
             # 2. Case-insensitive / snake_case candidate keys when exit_metric not set
             candidates = []
             if self.extraction_definition:
                 cand_name = self.extraction_definition.name.lower().replace(" ", "_")
-                candidates.extend([cand_name, cand_name.replace("_extraction", ""), cand_name.replace("_score", "")])
+                candidates.extend([
+                    f"{cand_name}_postprocessed",
+                    f"{cand_name}_computed",
+                    cand_name,
+                    cand_name.replace("_extraction", ""),
+                    cand_name.replace("_score", "")
+                ])
             if self.category:
                 cat_name = self.category.lower().replace(" ", "_")
-                candidates.extend([cat_name, cat_name.replace("_extraction", "")])
+                candidates.extend([
+                    f"{cat_name}_postprocessed",
+                    f"{cat_name}_computed",
+                    cat_name,
+                    cat_name.replace("_extraction", "")
+                ])
 
             for ck in candidates:
                 for k, v in data.items():

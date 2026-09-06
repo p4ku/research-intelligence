@@ -2333,12 +2333,12 @@ class PaperAdmin(admin.ModelAdmin):
             count = obj.metrics.filter(pipeline_run__isnull=False).values('pipeline_run').distinct().count()
 
         if count == 0:
-            return format_html('<span style="color: #adb5bd; font-size: 11px;">0 runów</span>')
+            return format_html('<span style="color: #adb5bd; font-size: 11px;">0 runs</span>')
 
-        label = "1 run" if count == 1 else f"{count} runy" if 2 <= count <= 4 else f"{count} runów"
+        label = "1 run" if count == 1 else f"{count} runs"
         url = reverse("admin:research_intelligence_papermetric_changelist")
         return format_html(
-            '<a href="{}?paper__id__exact={}" style="text-decoration: none;" title="Pokaż metryki ze wszystkich {} runów">'
+            '<a href="{}?paper__id__exact={}" style="text-decoration: none;" title="Show metrics from all {} runs">'
             '<span style="background-color: #0d6efd; color: #ffffff; padding: 2px 8px; border-radius: 12px; font-weight: 700; font-size: 11px; white-space: nowrap;">⚡ {}</span>'
             '</a>',
             url,
@@ -2379,10 +2379,11 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.JSONField: {'widget': PrettyJSONWidget},
     }
-    list_display = ('name', 'exit_metric', 'workspace', 'version', 'llm_model', 'requires_consensus', 'is_active', 'created_at')
+    list_display = ('name', 'exit_metric_status', 'workspace', 'version', 'llm_model', 'has_postprocessing_code', 'requires_consensus', 'is_active', 'created_at')
     ordering = ('-created_at', '-id')
     list_filter = ('is_active', 'requires_consensus', 'workspace')
-    search_fields = ('name', 'exit_metric', 'system_prompt', 'user_prompt_template')
+    search_fields = ('name', 'exit_metric', 'system_prompt', 'user_prompt_template', 'postprocessing_code')
+    readonly_fields = ('postprocessed_variable_preview',)
     fields = (
         'workspace',
         'name',
@@ -2390,11 +2391,155 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
         'system_prompt',
         'user_prompt_template',
         'response_schema',
+        'postprocessing_code',
+        'postprocessed_variable_preview',
         'llm_model',
         'version',
         'requires_consensus',
         'is_active'
     )
+
+    def changelist_view(self, request, extra_context=None):
+        self._ws_exit_metrics_cache = {}
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('workspace')
+
+    @admin.display(description="Exit Metric(s)", ordering="exit_metric")
+    def exit_metric_status(self, obj):
+        if not obj.exit_metric or not obj.exit_metric.strip():
+            return mark_safe("<span style='color: #94a3b8; font-style: italic;'>-</span>")
+
+        my_metrics = obj.get_exit_metrics_list()
+        if not my_metrics:
+            return mark_safe("<span style='color: #94a3b8; font-style: italic;'>-</span>")
+
+        if not hasattr(self, '_ws_exit_metrics_cache'):
+            self._ws_exit_metrics_cache = {}
+
+        if obj.workspace_id not in self._ws_exit_metrics_cache:
+            defs = ExtractionDefinition.objects.filter(workspace_id=obj.workspace_id)
+            mapping = {}
+            for d in defs:
+                for m in d.get_exit_metrics_list():
+                    mapping.setdefault(m, []).append(d)
+            self._ws_exit_metrics_cache[obj.workspace_id] = mapping
+
+        rendered_badges = []
+        for m in my_metrics:
+            duplicates = [
+                d for d in self._ws_exit_metrics_cache[obj.workspace_id].get(m, [])
+                if str(d.id) != str(obj.id)
+            ]
+            if duplicates:
+                conflict_names = ", ".join([d.name for d in duplicates])
+                rendered_badges.append(
+                    f"<span style='background: #fee2e2; border: 1px solid #ef4444; color: #b91c1c; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: bold; display: inline-block; margin: 1px 2px;' "
+                    f"title='COLLISION: \"{m}\" is duplicated in this workspace with {conflict_names}'>"
+                    f"🚨 {m} (Duplicate: {conflict_names})</span>"
+                )
+            else:
+                rendered_badges.append(
+                    f"<span style='background: #f1f5f9; color: #0369a1; border: 1px solid #cbd5e1; padding: 2px 7px; border-radius: 4px; font-family: monospace; font-size: 11px; font-weight: 600; display: inline-block; margin: 1px 2px;'>"
+                    f"{m}</span>"
+                )
+
+        return mark_safe("".join(rendered_badges))
+
+    def formfield_for_dbfield(self, db_field, **kwargs):
+        if db_field.name == 'postprocessing_code':
+            kwargs['widget'] = PrettyPythonCodeWidget
+        return super().formfield_for_dbfield(db_field, **kwargs)
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        if 'exit_metric' in form.base_fields:
+            default_help = (
+                "Comma-separated list of field keys to unpack from extracted data for Signal Score (e.g. 'rigour_score, param1, param2'). "
+                "Spaces are automatically stripped. The first key is used for postprocessing naming. "
+                "Each metric must be unique across extraction definitions in this workspace."
+            )
+            if obj and obj.exit_metric and obj.workspace_id:
+                my_metrics = obj.get_exit_metrics_list()
+                duplicates = ExtractionDefinition.objects.filter(workspace_id=obj.workspace_id).exclude(pk=obj.pk)
+                conflicts = []
+                for d in duplicates:
+                    shared = set(my_metrics) & set(d.get_exit_metrics_list())
+                    if shared:
+                        conflicts.append(f"'{d.name}' (shared: {', '.join(sorted(shared))})")
+                if conflicts:
+                    conflict_str = "; ".join(conflicts)
+                    form.base_fields['exit_metric'].help_text = mark_safe(
+                        f"<div style='color: #dc2626; background: #fee2e2; border: 1px solid #ef4444; padding: 6px 10px; border-radius: 4px; font-weight: bold; margin-top: 4px;'>"
+                        f"🚨 CONSISTENCY ERROR: One or more exit metrics from this list are already defined in this workspace by {conflict_str}! "
+                        f"Please change duplicate values to prevent Signal Score variable collisions."
+                        f"</div><div style='margin-top: 4px;'>{default_help}</div>"
+                    )
+                else:
+                    form.base_fields['exit_metric'].help_text = default_help
+            else:
+                form.base_fields['exit_metric'].help_text = default_help
+
+        if 'postprocessing_code' in form.base_fields:
+            if obj and obj.name:
+                from research_intelligence.tasks.step_6_signal_score.scorer import _sanitize_identifier
+                def_slug = _sanitize_identifier(obj.name)
+                primary_exit = obj.get_primary_exit_metric()
+                primary_var = f"{def_slug}_postprocessed"
+                bold_vars = f"<b><code>{primary_var}</code></b>"
+                if primary_exit and primary_exit != def_slug:
+                    bold_vars += f" and <b><code>{primary_exit}_postprocessed</code></b> (from 1st exit metric)"
+                form.base_fields['postprocessing_code'].help_text = mark_safe(
+                    f"Optional Python snippet executed on extracted <code>fields_data</code>. "
+                    f"The computed value will be directly accessible in <b>Signal Score</b> (Calculate score) as variable: {bold_vars}."
+                )
+            else:
+                form.base_fields['postprocessing_code'].help_text = mark_safe(
+                    "Optional Python snippet executed on extracted <code>fields_data</code>. "
+                    "The computed value will be directly accessible in <b>Signal Score</b> (Calculate score) as: <b><code>{definition_name}_postprocessed</code></b>."
+                )
+        return form
+
+    @admin.display(description="Signal Score Variable Name(s)")
+    def postprocessed_variable_preview(self, obj):
+        if not obj or not obj.name:
+            return mark_safe("<span style='color: #64748b;'>Save this extraction definition to generate variable name preview.</span>")
+        from research_intelligence.tasks.step_6_signal_score.scorer import _sanitize_identifier
+        def_slug = _sanitize_identifier(obj.name)
+        primary_var = f"{def_slug}_postprocessed"
+        vars_badges = [
+            f"<code style='font-size: 14px; font-weight: bold; background: #0f172a; color: #38bdf8; padding: 3px 8px; border-radius: 4px;'>{primary_var}</code>"
+        ]
+        primary_exit = obj.get_primary_exit_metric()
+        if primary_exit and primary_exit != def_slug:
+            vars_badges.append(
+                f"<code style='font-size: 14px; font-weight: bold; background: #0f172a; color: #38bdf8; padding: 3px 8px; border-radius: 4px;'>{primary_exit}_postprocessed</code> <small style='color: #64748b;'>(from 1st exit metric)</small>"
+            )
+        badges_html = " &nbsp;and&nbsp; ".join(vars_badges)
+
+        extra_metrics = obj.get_exit_metrics_list()
+        extra_html = ""
+        if extra_metrics:
+            raw_vars_html = ", ".join([f"<code><b>{m}</b></code>" for m in extra_metrics])
+            extra_html = (
+                f"<div style='margin-top: 8px; font-size: 12px; color: var(--body-fg, #334155); border-top: 1px dashed var(--hairline-color, #cbd5e1); padding-top: 6px;'>"
+                f"📥 Raw exit metric variable(s) passed to Signal Score: {raw_vars_html}"
+                f"</div>"
+            )
+
+        return mark_safe(
+            f"<div style='background: var(--darkened-bg, #f0f9ff); border: 1px solid var(--hairline-color, #bae6fd); "
+            f"border-left: 4px solid #0284c7; padding: 12px 16px; border-radius: 6px; font-size: 13px; color: var(--body-fg, #0f172a); max-width: 850px;'>"
+            f"💡 In <b>Signal Score</b> (Calculate score), this computed postprocessing value is accessible as: "
+            f"{badges_html}"
+            f"{extra_html}"
+            f"</div>"
+        )
+
+    @admin.display(boolean=True, description="Postprocess Code")
+    def has_postprocessing_code(self, obj):
+        return bool(obj.postprocessing_code and obj.postprocessing_code.strip())
 
 
 @admin.register(Extraction)
@@ -2651,7 +2796,7 @@ class PaperMetricAdmin(admin.ModelAdmin):
 
     def abstract_screening_reasoning_display(self, obj):
         if not obj.abstract_screening_reasoning:
-            return mark_safe('<span style="color: #adb5bd; font-style: italic;">Brak uzasadnienia dla etapu abstraktu</span>')
+            return mark_safe('<span style="color: #adb5bd; font-style: italic;">No rationale for abstract stage</span>')
         return format_html(
             '<div style="background: #f0fbfc; border-left: 4px solid #0dcaf0; padding: 8px 12px; border-radius: 4px; font-size: 13px; line-height: 1.5; color: #212529;">'
             '<strong style="color: #055160;">📄 Abstract Screening Reasoning:</strong><br/><div style="margin-top: 4px;">{}</div>'
@@ -2662,7 +2807,7 @@ class PaperMetricAdmin(admin.ModelAdmin):
 
     def full_text_screening_reasoning_display(self, obj):
         if not obj.full_text_screening_reasoning:
-            return mark_safe('<span style="color: #adb5bd; font-style: italic;">Brak uzasadnienia dla etapu pełnego tekstu (np. odrzucony na etapie abstraktu)</span>')
+            return mark_safe('<span style="color: #adb5bd; font-style: italic;">No rationale for full-text stage (e.g. rejected at abstract stage)</span>')
         return format_html(
             '<div style="background: #f0fdf4; border-left: 4px solid #198754; padding: 8px 12px; border-radius: 4px; font-size: 13px; line-height: 1.5; color: #212529;">'
             '<strong style="color: #0f5132;">📑 Full-Text Screening Reasoning:</strong><br/><div style="margin-top: 4px;">{}</div>'
@@ -2901,7 +3046,7 @@ class PaperMetricAdmin(admin.ModelAdmin):
 
         if len(filtered_items) > 6:
             more_count = len(filtered_items) - 6
-            rendered_lines.append(f'<div style="color: #6c757d; font-size: 10px; margin-top: 1px;">+ {more_count} więcej w detalu...</div>')
+            rendered_lines.append(f'<div style="color: #6c757d; font-size: 10px; margin-top: 1px;">+ {more_count} more in detail...</div>')
 
         return mark_safe("".join(rendered_lines))
     metrics_preview.short_description = "Extracted Metrics"
