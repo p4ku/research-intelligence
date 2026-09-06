@@ -8,6 +8,32 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
+def get_default_signal_variables() -> list[dict]:
+    """
+    Returns default scoring variables available across workspaces before custom extractions are defined.
+    """
+    return [
+        {
+            "name": "fit_score",
+            "original_name": "fit_score",
+            "category": "Screening Exit Metric",
+            "source": "Abstract Screening Stage",
+            "type": "numeric (float)",
+            "description": "Relevance / acceptance fit score from Abstract Screening stage (0.0 - 10.0)",
+            "default": 8.5
+        },
+        {
+            "name": "novelty_score",
+            "original_name": "novelty_score",
+            "category": "Screening Exit Metric",
+            "source": "Full-Text Screening Stage",
+            "type": "numeric (float)",
+            "description": "In-depth quality / novelty score from Full-Text Screening stage (0.0 - 10.0)",
+            "default": 7.0
+        },
+    ]
+
+
 class Workspace(models.Model):
     """
     Represents a specific research project (e.g., 'Agentic AI Research Scanner').
@@ -252,45 +278,181 @@ class Workspace(models.Model):
             "extraction_definitions": definitions_list,
         }
 
+    def get_available_signal_variables(self) -> list[dict]:
+        """
+        Deduces all accessible sandbox variables for this Workspace's signal_score_code from:
+          1. Abstract Screening Exit Metric (workspace.abstract_screening_exit_metric / fit_score)
+          2. Full-Text Screening Exit Metric (workspace.full_text_screening_exit_metric / novelty_score)
+          3. Extraction Definitions (name slug, e.g. TRL Level -> trl_level)
+          4. Exit Metrics list (multi-metric parameters unpacked from extractions)
+          5. Postprocessed variables (<slug>_postprocessed, <slug>_computed, <exit_m>_postprocessed)
+          6. Schema properties from ExtractionDefinition.response_schema
+          7. Real runtime variables from recent PaperMetric.metrics_data in this workspace
+        """
+        from ..tasks.step_6_signal_score.scorer import _sanitize_identifier
+
+        variables = []
+        seen = set()
+
+        def _add(name: str, category: str, source: str, var_type: str = "numeric (float)", description: str = "", default_val=0.0):
+            clean = _sanitize_identifier(name)
+            if not clean or clean in seen:
+                return
+            seen.add(clean)
+            variables.append({
+                "name": clean,
+                "original_name": name,
+                "category": category,
+                "source": source,
+                "type": var_type,
+                "description": description,
+                "default": default_val
+            })
+
+        # 1. Screening Exit Metrics
+        abs_exit = (self.abstract_screening_exit_metric or "").strip() or "fit_score"
+        _add(
+            abs_exit,
+            "Screening Exit Metric",
+            "🎯 Abstract Screening Stage",
+            "numeric (float)",
+            "Relevance / acceptance metric from Abstract Screening stage (0.0 - 10.0)",
+            8.5
+        )
+
+        ft_exit = (self.full_text_screening_exit_metric or "").strip() or "novelty_score"
+        _add(
+            ft_exit,
+            "Screening Exit Metric",
+            "🎯 Full-Text Screening Stage",
+            "numeric (float)",
+            "In-depth quality / novelty score from Full-Text Screening stage (0.0 - 10.0)",
+            7.0
+        )
+
+        # Standard defaults if not already registered
+        _add("fit_score", "Screening Exit Metric", "Default Abstract Stage", "numeric (float)", "Standard screening fit score (0.0 - 10.0)", 8.5)
+        _add("novelty_score", "Screening Exit Metric", "Default Full-Text Stage", "numeric (float)", "Standard screening novelty score (0.0 - 10.0)", 7.0)
+
+        # 2. Extraction Definitions (active & configured for this workspace)
+        if self.pk:
+            active_defs = self.extraction_definitions.all().order_by('created_at', 'name')
+            for d in active_defs:
+                clean_name = _sanitize_identifier(d.name) if d.name else ""
+                if clean_name:
+                    _add(
+                        clean_name,
+                        "Extraction Definition",
+                        f"🔬 Extraction: '{d.name}'",
+                        "numeric (float | str)",
+                        f"Primary extracted value for '{d.name}' (default: 0.0)",
+                        6.0 if "trl" in clean_name else 5.0
+                    )
+
+                # Exit Metrics list
+                metrics_list = d.get_exit_metrics_list()
+                primary_exit = d.get_primary_exit_metric()
+                for exit_m in metrics_list:
+                    _add(
+                        exit_m,
+                        "Exit Metric",
+                        f"⚡ Exit Metric of '{d.name}'",
+                        "numeric (float)",
+                        f"Unpacked parameter metric defined in '{d.name}' exit metrics",
+                        5.0
+                    )
+
+                # Postprocessed variables
+                if d.postprocessing_code and d.postprocessing_code.strip():
+                    if clean_name:
+                        _add(
+                            f"{clean_name}_postprocessed",
+                            "Postprocessed Metric",
+                            f"🪄 Postprocessing of '{d.name}'",
+                            "numeric (float)",
+                            f"Calculated by Python postprocessing snippet for '{d.name}'",
+                            5.5
+                        )
+                        _add(
+                            f"{clean_name}_computed",
+                            "Postprocessed Metric",
+                            f"🪄 Postprocessing of '{d.name}'",
+                            "numeric (float)",
+                            f"Alternative computed variable for '{d.name}'",
+                            5.5
+                        )
+                    if primary_exit and primary_exit != clean_name:
+                        _add(
+                            f"{primary_exit}_postprocessed",
+                            "Postprocessed Metric",
+                            f"🪄 Postprocessing of '{primary_exit}'",
+                            "numeric (float)",
+                            f"Postprocessed metric for primary exit metric '{primary_exit}'",
+                            5.5
+                        )
+                        _add(
+                            f"{primary_exit}_computed",
+                            "Postprocessed Metric",
+                            f"🪄 Postprocessing of '{primary_exit}'",
+                            "numeric (float)",
+                            f"Alternative computed variable for '{primary_exit}'",
+                            5.5
+                        )
+
+                # Schema properties
+                if d.response_schema and isinstance(d.response_schema, dict):
+                    props = d.response_schema.get("properties", {})
+                    if isinstance(props, dict):
+                        for prop_k, prop_spec in props.items():
+                            p_type = prop_spec.get("type", "value") if isinstance(prop_spec, dict) else "value"
+                            p_desc = prop_spec.get("description", "") if isinstance(prop_spec, dict) else ""
+                            desc = f"Extracted JSON field '{prop_k}' from '{d.name}' schema"
+                            if p_desc:
+                                desc += f" ({p_desc})"
+                            _add(
+                                prop_k,
+                                "Schema Property",
+                                f"📋 Field '{prop_k}' in '{d.name}'",
+                                f"{p_type}",
+                                desc,
+                                1.0 if p_type in ("number", "integer") else "sample"
+                            )
+
+            # 3. Runtime observed metrics from recent PaperMetric records
+            try:
+                from .paper import PaperMetric
+                sample_metrics = PaperMetric.objects.filter(workspace=self).exclude(metrics_data={}).values_list('metrics_data', flat=True)[:5]
+                for sm in sample_metrics:
+                    if isinstance(sm, dict):
+                        for k, v in sm.items():
+                            if isinstance(k, str) and not k.startswith("_") and k not in ("raw", "abstract_screening", "full_text_screening"):
+                                _add(
+                                    k,
+                                    "Runtime Metric",
+                                    "📈 Observed from Workspace Papers",
+                                    type(v).__name__,
+                                    f"Live parameter observed in paper extractions (sample value: {v})",
+                                    v if isinstance(v, (int, float)) else 0.0
+                                )
+            except Exception:
+                pass
+
+        return variables
+
     def get_signal_score_prompt_snapshot(self) -> dict:
         """
         Returns a consolidated dictionary snapshot of the signal score formula and scoring parameters.
         """
-        active_defs = self.extraction_definitions.filter(is_active=True).order_by('created_at', 'name')
-        available_vars = []
-        for d in active_defs:
-            clean_name = d.name.strip().lower().replace(" ", "_") if d.name else ""
-            metrics_list = d.get_exit_metrics_list()
-            if metrics_list:
-                for exit_m in metrics_list:
-                    available_vars.append({
-                        "definition_id": str(d.id),
-                        "definition_name": d.name,
-                        "variable_name": exit_m
-                    })
-            else:
-                available_vars.append({
-                    "definition_id": str(d.id),
-                    "definition_name": d.name,
-                    "variable_name": clean_name
-                })
-            if d.postprocessing_code and d.postprocessing_code.strip():
-                primary_exit = d.get_primary_exit_metric() or clean_name
-                available_vars.append({
-                    "definition_id": str(d.id),
-                    "definition_name": f"{d.name} (Postprocessed)",
-                    "variable_name": f"{primary_exit}_postprocessed",
-                    "is_postprocessed": True
-                })
-
+        all_vars = self.get_available_signal_variables()
         return {
             "stage": "signal_score",
             "evaluation_engine": "AST Sandboxed Python 3",
             "signal_score_code": (self.signal_score_code or "").strip(),
             "has_custom_formula": bool(self.signal_score_code and self.signal_score_code.strip()),
-            "total_scoring_variables": len(available_vars),
-            "scoring_variables": available_vars,
+            "total_scoring_variables": len(all_vars),
+            "scoring_variables": all_vars,
         }
+
 
     def get_composite_extraction_schema(self) -> dict:
         """
