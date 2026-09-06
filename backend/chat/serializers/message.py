@@ -3,11 +3,16 @@ from chat.models import PaperChatMessage
 
 
 class PaperChatMessageSerializer(serializers.ModelSerializer):
+    paper_id = serializers.UUIDField(source='session.paper_id', read_only=True, allow_null=True)
+    paper_title = serializers.CharField(source='session.paper.title', read_only=True, allow_null=True, default=None)
+
     class Meta:
         model = PaperChatMessage
         fields = [
             'id',
             'session',
+            'paper_id',
+            'paper_title',
             'sender',
             'status',
             'deep_thinking',

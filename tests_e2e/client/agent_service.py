@@ -24,17 +24,28 @@ class AgentService:
         skip_abstract_screening: bool = False,
         reprocess_existing: bool = False,
         notification_email: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
     ) -> Dict[str, Any]:
-        payload = {
+        payload: Dict[str, Any] = {
+            "workspace_id": workspace_id,
             "workspace": workspace_id,
             "name": name,
             "limit": limit,
-            "n_last_days": n_last_days,
-            "query_prefix": query_prefix,
             "skip_abstract_screening": skip_abstract_screening,
             "reprocess_existing": reprocess_existing,
-            "notification_email": notification_email,
         }
+        if n_last_days is not None:
+            payload["n_last_days"] = n_last_days
+        if query_prefix is not None:
+            payload["query_prefix"] = query_prefix
+        if notification_email is not None:
+            payload["notification_email"] = notification_email
+        if start_date is not None:
+            payload["start_date"] = start_date
+        if end_date is not None:
+            payload["end_date"] = end_date
+
         logger.info(f"🚀 Launching Autonomous Research Agent in workspace '{workspace_id}' (limit: {limit})...")
         resp = self.client.post("/api/agents/", json_data=payload, expected_status=201)
         data = resp.json()

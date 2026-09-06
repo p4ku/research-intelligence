@@ -195,12 +195,16 @@ class TriggerStepSerializer(serializers.Serializer):
     )
     query_prefix = serializers.CharField(
         required=False,
+        allow_null=True,
         allow_blank=True,
+        default="",
         help_text="Optional search query modifier"
     )
     notification_email = serializers.EmailField(
         required=False,
+        allow_null=True,
         allow_blank=True,
+        default=None,
         help_text="Recipient email for step completion notification"
     )
     start_date = serializers.CharField(

@@ -76,7 +76,7 @@ def run_quota_guard_scenario(config: Optional[E2EConfig] = None) -> Dict[str, An
 
         # Phase 3: Attempt to launch another review
         logger.info("🚀 Phase 3: Launching second review; verifying Quota Guard enforcement...")
-        launch_resp = client.post("/api/agents/", json_data={"workspace": workspace_id, "limit": 2})
+        launch_resp = client.post("/api/agents/", json_data={"workspace_id": workspace_id, "workspace": workspace_id, "limit": 2})
 
         if launch_resp.status_code == 400 and ("limit exceeded" in launch_resp.text.lower() or "quota" in launch_resp.text.lower()):
             logger.info(f"✅ Quota Guard immediately rejected run at API gateway: {launch_resp.text}")

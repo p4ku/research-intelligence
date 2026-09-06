@@ -240,7 +240,7 @@ class PaperChatEngine:
             message.save(update_fields=['status'])
 
             # Initial metadata SSE event
-            yield f"event: metadata\ndata: {json.dumps({'message_id': str(message.id), 'session_id': str(session.id), 'status': 'processing'})}\n\n"
+            yield f"event: metadata\ndata: {json.dumps({'message_id': str(message.id), 'session_id': str(session.id), 'paper_id': str(paper.id) if paper else None, 'paper_title': paper.title if paper else None, 'status': 'processing'})}\n\n"
 
             # 1. Build context & history
             context_text, pdf_bytes, mime_type = self.context_builder.build(paper, workspace=workspace)

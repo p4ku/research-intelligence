@@ -40,6 +40,8 @@ from tests_e2e.scenarios import (
     run_paper_evidence_and_pdf_scenario,
     run_researcher_rbac_guard_scenario,
     run_executive_briefing_export_scenario,
+    run_date_range_and_pagination_scenario,
+    run_ask_paper_journey_scenario,
 )
 
 # Configure rich colored terminal logging
@@ -63,9 +65,9 @@ def parse_args():
     )
     parser.add_argument(
         "--scenario",
-        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard", "concurrent", "parallel", "schedule", "evidence", "researcher", "briefing", "all"],
+        choices=["slr", "lifecycle", "reprocess", "dedup", "quota", "mcp", "isolation", "rerun", "guard", "concurrent", "parallel", "schedule", "evidence", "researcher", "briefing", "date_range", "pagination", "ask", "ask_paper", "all"],
         default="slr",
-        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Multi-Source Deduplication, quota: Quota Guard, mcp: FastMCP SSE Tools, isolation: RBAC Multi-Tenancy, rerun: Mid-Step Rerun, guard: Hallucination Guard, concurrent: Parallel Agents Load, parallel: Concurrent Runs in Single Workspace, schedule: Workflow Schedule, evidence: Paper Scorecard & PDF, researcher: Researcher RBAC Safety, briefing: Executive Briefing Export, all: Run all)",
+        help="Target test scenario to execute (slr: Full SLR + Chat, lifecycle: Pause/Resume, reprocess: Reprocessing, dedup: Multi-Source Deduplication, quota: Quota Guard, mcp: FastMCP SSE Tools, isolation: RBAC Multi-Tenancy, rerun: Mid-Step Rerun, guard: Hallucination Guard, concurrent: Parallel Agents Load, parallel: Concurrent Runs in Single Workspace, schedule: Workflow Schedule, evidence: Paper Scorecard & PDF, researcher: Researcher RBAC Safety, briefing: Executive Briefing Export, date_range/pagination: Scraper Date Range & Multi-Page Pagination, ask/ask_paper: Ask Paper User Journey, all: Run all)",
     )
     parser.add_argument(
         "--provider",
@@ -429,6 +431,18 @@ def main():
             total_elapsed = time.time() - t0
             print(f"\n✅ EXECUTIVE BRIEFING GENERATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Report: '{res.get('report_title')}')\n")
 
+        elif args.scenario in ("date_range", "pagination"):
+            res = run_date_range_and_pagination_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ SCRAPER DATE RANGE & RESULTS PAGINATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Total Papers: {res.get('total_papers')})\n")
+
+        elif args.scenario in ("ask", "ask_paper"):
+            res = run_ask_paper_journey_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ ASK PAPER E2E USER JOURNEY COMPLETED in {total_elapsed:.1f}s (Paper: '{res.get('paper_title')}', Turns: 2, Tokens: {res.get('total_tokens')})\n")
+            if res.get("cost_metrics"):
+                print_llm_cost_summary(res["cost_metrics"], total_elapsed=total_elapsed)
+
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")
             suite_results = []
@@ -500,6 +514,12 @@ def main():
 
             # 12. Workflow Schedule & Observability
             _run_and_track("Workflow Schedule & Observability", run_workflow_schedule_scenario, config)
+
+            # 13. Scraper Date Range & Results Pagination
+            _run_and_track("Scraper Date Range & Results Pagination", run_date_range_and_pagination_scenario, config)
+
+            # 14. Ask Paper Complete User Journey
+            _run_and_track("Ask Paper Complete Journey", run_ask_paper_journey_scenario, config, workspace_id=slr_results.get("workspace_id"))
 
             total_elapsed = time.time() - t0
             print_suite_summary(suite_results, total_elapsed, config=config)

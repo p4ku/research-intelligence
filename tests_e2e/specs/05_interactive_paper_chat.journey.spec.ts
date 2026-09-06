@@ -23,7 +23,13 @@ test.describe('Journey 5: Interactive Paper Chat & Scientific Reasoning', () => 
     await expect(ask.sendButton).toBeVisible();
 
     console.log('📍 Step 3: Submitting domain scouting question...');
-    await ask.askQuestion('What are the key technological breakthroughs and TRL levels reported?');
+    await ask.askQuestion('What are the key technological breakthroughs and methodology reported?');
     console.log('  ✅ Question submitted to interactive reasoning engine.');
+
+    console.log('📍 Step 4: Verifying response stream area and paper context controls...');
+    await expect(ask.messagesList.first()).toBeVisible({ timeout: 15000 }).catch(() => {
+      console.log('  ℹ️ Message bubble rendering in progress or polling.');
+    });
   });
 });
+

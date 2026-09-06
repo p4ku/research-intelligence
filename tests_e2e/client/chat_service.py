@@ -4,7 +4,7 @@ Chat & Knowledge Explorer Service for E2E Tests.
 
 import logging
 import time
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from .api_client import APIClient
 
 logger = logging.getLogger("e2e_chat")
@@ -59,4 +59,27 @@ class ChatService:
             time.sleep(2.0)
 
         raise TimeoutError(f"Chat message '{message_id}' timed out after {timeout_sec}s.")
+
+    def list_sessions(
+        self,
+        workspace_id: Optional[str] = None,
+        paper_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        params = {}
+        if workspace_id:
+            params["workspace_id"] = workspace_id
+        if paper_id:
+            params["paper_id"] = paper_id
+        resp = self.client.get("/api/chat/sessions/", params=params, expected_status=200)
+        data = resp.json()
+        return data.get("results", data) if isinstance(data, dict) else data
+
+    def get_session(self, session_id: str) -> Dict[str, Any]:
+        resp = self.client.get(f"/api/chat/sessions/{session_id}/", expected_status=200)
+        return resp.json()
+
+    def delete_session(self, session_id: str) -> bool:
+        resp = self.client.delete(f"/api/chat/sessions/{session_id}/")
+        return resp.status_code in (200, 204)
+
 
