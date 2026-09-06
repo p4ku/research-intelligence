@@ -152,6 +152,67 @@ def run_signal_score_variables_scenario(config: Optional[E2EConfig] = None) -> D
     workspace_id = ws_data["id"]
 
     try:
+        # 2.1 Validate Extraction Definitions REST API & exit_metrics invariants
+        logger.info("🔍 2.1 Validating Extraction Definitions REST API and exit_metrics contracts...")
+        listed_defs = ws_svc.list_extraction_definitions(workspace_id=workspace_id)
+        assert len(listed_defs) == 4, f"Expected 4 definitions via REST API, got: {len(listed_defs)}"
+        for d in listed_defs:
+            assert "exit_metric" not in d, f"Discontinued key 'exit_metric' found in API definition response: {d}"
+            assert isinstance(d.get("exit_metrics"), list), f"Expected 'exit_metrics' to be a list in {d['name']}, got: {type(d.get('exit_metrics'))}"
+
+        logger.info("   ✅ All 4 extraction definitions confirmed in REST API with clean exit_metrics lists and no exit_metric keys.")
+
+        # Test Dynamic API Creation with exit_metrics & postprocessing snippet
+        temp_def = ws_svc.create_extraction_definition(
+            workspace_id=workspace_id,
+            name=f"temp_target_{random_suffix}",
+            system_prompt="Extract benchmark metrics.",
+            user_prompt_template="Paper: {title}",
+            response_schema={"type": "object"},
+            exit_metrics=["benchmark_f1", "inference_latency"],
+            postprocessing_code="return (benchmark_f1 * 100.0) - inference_latency"
+        )
+        if temp_def:
+            temp_id = temp_def["id"]
+            assert "exit_metric" not in temp_def, "Key 'exit_metric' must not exist in created definition"
+            assert temp_def["exit_metrics"] == ["benchmark_f1", "inference_latency"]
+            assert temp_def["postprocessing_code"] == "return (benchmark_f1 * 100.0) - inference_latency"
+            assert temp_def["has_postprocessing_code"] is True
+            logger.info("   ✅ Dynamic Extraction Definition created with exit_metrics list and postprocessing_code.")
+
+            # Test PATCH update
+            up_def = ws_svc.update_extraction_definition(
+                temp_id,
+                exit_metrics=["benchmark_f1", "throughput_qps"],
+                postprocessing_code="return benchmark_f1 * throughput_qps"
+            )
+            assert "exit_metric" not in up_def
+            assert up_def["exit_metrics"] == ["benchmark_f1", "throughput_qps"]
+            assert up_def["postprocessing_code"] == "return benchmark_f1 * throughput_qps"
+            logger.info("   ✅ Dynamic Extraction Definition successfully updated via PATCH.")
+
+            # Test Syntax Error Validation (should return 400)
+            bad_syntax_resp = client.patch(f"/api/extraction-definitions/{temp_id}/", json_data={"postprocessing_code": "def bad(:"})
+            assert bad_syntax_resp.status_code == 400, f"Expected 400 for bad Python syntax, got: {bad_syntax_resp.status_code}"
+            logger.info("   ✅ Invalid Python syntax rejected with HTTP 400.")
+
+            # Test Legacy exit_metric Rejection (should return 400)
+            bad_metric_resp = client.post("/api/extraction-definitions/", json_data={
+                "workspace": workspace_id,
+                "name": "Legacy Field Test",
+                "system_prompt": "Test",
+                "user_prompt_template": "Test",
+                "response_schema": {},
+                "exit_metric": "legacy_name"
+            })
+            assert bad_metric_resp.status_code == 400, f"Expected 400 for legacy exit_metric, got: {bad_metric_resp.status_code}"
+            logger.info("   ✅ Discontinued exit_metric field rejected with HTTP 400.")
+
+            # Delete temporary definition
+            deleted = ws_svc.delete_extraction_definition(temp_id)
+            assert deleted is True, "Failed to delete temporary extraction definition"
+            logger.info("   ✅ Temporary definition cleaned up successfully.")
+
         # Create Scraper targeting research papers
         ws_svc.create_scraper(
             workspace_id=workspace_id,

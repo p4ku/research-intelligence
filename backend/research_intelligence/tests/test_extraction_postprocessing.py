@@ -1009,4 +1009,47 @@ class ExtractionDefinitionAPITests(TestCase):
         self.assertEqual(nested_def.get_exit_metrics_list(), ["param_one", "param_two"])
         self.assertEqual(nested_def.postprocessing_code, "return param_one + param_two")
 
+    def test_api_rejects_legacy_exit_metric_field(self):
+        url = "/api/extraction-definitions/"
+        payload = {
+            "workspace": str(self.workspace.id),
+            "name": "Legacy Parameter Target",
+            "system_prompt": "Extract legacy metric.",
+            "user_prompt_template": "Paper text: {paper_text}",
+            "response_schema": {"type": "object"},
+            "exit_metric": "legacy_field"
+        }
+        res = self.client.post(url, payload, format="json")
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("exit_metrics", res.json())
+        self.assertIn("is discontinued", res.json()["exit_metrics"][0])
+
+    def test_api_enforces_exit_metrics_uniqueness_in_workspace(self):
+        url = "/api/extraction-definitions/"
+        # 1. Create first definition with fit_score
+        payload1 = {
+            "workspace": str(self.workspace.id),
+            "name": "Target One",
+            "system_prompt": "Extract fit",
+            "user_prompt_template": "{paper_text}",
+            "response_schema": {"type": "object"},
+            "exit_metrics": ["fit_score", "novelty_score"]
+        }
+        res1 = self.client.post(url, payload1, format="json")
+        self.assertEqual(res1.status_code, 201)
+
+        # 2. Attempt to create second definition with overlapping fit_score
+        payload2 = {
+            "workspace": str(self.workspace.id),
+            "name": "Target Two",
+            "system_prompt": "Extract fit duplicate",
+            "user_prompt_template": "{paper_text}",
+            "response_schema": {"type": "object"},
+            "exit_metrics": ["fit_score", "risk_index"]
+        }
+        res2 = self.client.post(url, payload2, format="json")
+        self.assertEqual(res2.status_code, 400)
+        self.assertIn("exit_metrics", res2.json())
+        self.assertIn("already used in this workspace", res2.json()["exit_metrics"][0])
+
 

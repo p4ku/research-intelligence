@@ -39,6 +39,11 @@ class ExtractionDefinitionSerializer(serializers.ModelSerializer):
         return ret
 
     def validate(self, attrs):
+        if 'exit_metric' in self.initial_data and 'exit_metrics' not in self.initial_data:
+            raise serializers.ValidationError({
+                "exit_metrics": "Field 'exit_metric' is discontinued. Use 'exit_metrics' (list of metric keys) instead."
+            })
+
         raw_exit_metrics = attrs.get('exit_metrics')
         if raw_exit_metrics is None and 'exit_metrics' in self.initial_data:
             raw_exit_metrics = self.initial_data.get('exit_metrics')

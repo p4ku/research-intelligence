@@ -200,6 +200,7 @@ class WorkspaceService:
         user_prompt_template: str,
         response_schema: Dict[str, Any],
         exit_metrics: list[str] | str,
+        postprocessing_code: Optional[str] = None,
         llm_model: str = "google/gemini-3.8-flash",
     ) -> Optional[Dict[str, Any]]:
         metrics_list = (
@@ -217,7 +218,10 @@ class WorkspaceService:
             "llm_model": llm_model,
             "is_active": True,
         }
-        logger.info(f"📊 Defining Extraction Target '{name}' (exit_metrics: '{metrics_list}')...")
+        if postprocessing_code is not None:
+            payload["postprocessing_code"] = postprocessing_code
+
+        logger.info(f"📊 Defining Extraction Target '{name}' (exit_metrics: '{metrics_list}', postprocessing: {bool(postprocessing_code)})...")
         resp = self.client.post("/api/extraction-definitions/", json_data=payload)
         if resp.status_code == 201:
             data = resp.json()
@@ -228,6 +232,27 @@ class WorkspaceService:
             return None
         else:
             raise AssertionError(f"Failed to create extraction definition: {resp.status_code} - {resp.text}")
+
+    def update_extraction_definition(
+        self,
+        definition_id: str,
+        exit_metrics: Optional[list[str] | str] = None,
+        postprocessing_code: Optional[str] = None,
+        **kwargs
+    ) -> Dict[str, Any]:
+        payload = dict(kwargs)
+        if exit_metrics is not None:
+            payload["exit_metrics"] = (
+                [m.strip() for m in exit_metrics.split(',') if m.strip()]
+                if isinstance(exit_metrics, str)
+                else list(exit_metrics)
+            )
+        if postprocessing_code is not None:
+            payload["postprocessing_code"] = postprocessing_code
+
+        resp = self.client.patch(f"/api/extraction-definitions/{definition_id}/", json_data=payload)
+        assert resp.status_code == 200, f"Failed to update extraction definition: {resp.status_code} - {resp.text}"
+        return resp.json()
 
     def list_extraction_definitions(self, workspace_id: Optional[str] = None) -> List[Dict[str, Any]]:
         params = {}
