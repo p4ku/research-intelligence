@@ -192,7 +192,7 @@ def run_direct_full_text_and_subscribers_scenario(config: Optional[E2EConfig] = 
         logger.info("=================================================================")
 
         return {
-            "status": "PASSED",
+            "status": "passed",
             "workspace_id": workspace_id,
             "pipeline_run_id": pipeline_run_id,
             "papers_count": len(papers),

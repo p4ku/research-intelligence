@@ -227,7 +227,7 @@ def run_hitl_validation_journey_scenario(config: Optional[E2EConfig] = None) -> 
         logger.info("=================================================================")
 
         return {
-            "status": "PASSED",
+            "status": "passed",
             "workspace_id": workspace_id,
             "pipeline_run_id": pipeline_run_id,
             "extraction_id": target_ext_id,

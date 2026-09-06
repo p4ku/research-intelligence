@@ -188,7 +188,7 @@ class TestFullPipelineE2E:
     def test_signal_score_variables_and_math(self):
         config = E2EConfig.from_env()
         results = run_signal_score_variables_scenario(config)
-        assert results["status"] == "PASSED"
+        assert results["status"].lower() in ("passed", "completed")
         assert results["workspace_id"] is not None
         assert "4_postprocessing_snippet_and_math" in results["scenarios_checked"]
         assert "5_signal_score_code_math_retrieval" in results["scenarios_checked"]
@@ -197,7 +197,7 @@ class TestFullPipelineE2E:
     def test_workspace_import_export_journey(self):
         config = E2EConfig.from_env()
         results = run_workspace_import_export_scenario(config)
-        assert results["status"] == "PASSED"
+        assert results["status"].lower() in ("passed", "completed")
         assert results["source_workspace_id"] is not None
         assert results["target_workspace_id"] is not None
         assert results["definitions_count"] >= 2
@@ -208,7 +208,7 @@ class TestFullPipelineE2E:
     def test_direct_full_text_and_subscribers(self):
         config = E2EConfig.from_env()
         results = run_direct_full_text_and_subscribers_scenario(config)
-        assert results["status"] == "PASSED"
+        assert results["status"].lower() in ("passed", "completed")
         assert results["workspace_id"] is not None
         assert results["pipeline_run_id"] is not None
         assert results["subscribers_count"] >= 4
@@ -217,7 +217,7 @@ class TestFullPipelineE2E:
     def test_hitl_validation_journey(self):
         config = E2EConfig.from_env()
         results = run_hitl_validation_journey_scenario(config)
-        assert results["status"] == "PASSED"
+        assert results["status"].lower() in ("passed", "completed")
         assert results["workspace_id"] is not None
         assert results["extraction_id"] is not None
         assert results["correction_id"] is not None

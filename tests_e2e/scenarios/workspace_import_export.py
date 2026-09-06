@@ -259,7 +259,7 @@ def run_workspace_import_export_scenario(config: Optional[E2EConfig] = None) -> 
         logger.info("=================================================================")
 
         return {
-            "status": "PASSED",
+            "status": "passed",
             "source_workspace_id": source_ws_id,
             "target_workspace_id": target_ws_id,
             "export_bundle_version": export_bundle.get("version"),

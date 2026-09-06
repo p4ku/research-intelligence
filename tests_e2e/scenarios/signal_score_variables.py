@@ -311,7 +311,7 @@ def run_signal_score_variables_scenario(config: Optional[E2EConfig] = None) -> D
         logger.info("=================================================================")
 
         return {
-            "status": "PASSED",
+            "status": "passed",
             "workspace_id": workspace_id,
             "verified_papers_count": verified_papers_count,
             "scenarios_checked": [

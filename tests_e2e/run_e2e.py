@@ -215,7 +215,7 @@ def print_suite_summary(scenario_results: list, total_elapsed: float, config=Non
 
     for idx, s in enumerate(scenario_results, start=1):
         s_name = s.get("scenario_name", f"Scenario {idx}")
-        s_status = "✅ PASS" if s.get("status") in ("passed", "completed") else "❌ FAIL"
+        s_status = "✅ PASS" if str(s.get("status", "")).lower() in ("passed", "completed") else "❌ FAIL"
         if "PASS" in s_status:
             passed_count += 1
         s_time = f"{s.get('elapsed_sec', 0.0):.1f}s"
@@ -354,6 +354,7 @@ def main():
         max_timeout_sec=args.timeout,
         cleanup_before=not args.no_cleanup_before,
         delete_after=args.cleanup_after,
+        cleanup_after=args.cleanup_after,
     )
 
     t0 = time.time()
