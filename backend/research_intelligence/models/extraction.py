@@ -67,6 +67,186 @@ class ExtractionDefinition(models.Model):
         metrics = self.get_exit_metrics_list()
         return metrics[0] if metrics else ""
 
+    def get_available_postprocessing_variables(self) -> list[dict]:
+        """
+        Deduces all accessible sandbox variables for this ExtractionDefinition's postprocessing_code:
+          1. Schema Properties defined in response_schema['properties']
+          2. Exit Metrics configured in exit_metrics
+          3. Paper Metadata Context (title, abstract, arxiv_id, doi)
+          4. Extracted Fields Dictionaries (fields, data, extractions, fields_data, json_data, raw_data)
+        """
+        from ..tasks.step_6_signal_score.scorer import _sanitize_identifier
+
+        variables = []
+        seen = set()
+
+        def _add(name: str, category: str, source: str, var_type: str = "numeric (float)", description: str = "", default_val=0.0):
+            clean = _sanitize_identifier(name)
+            if not clean or clean in seen:
+                return
+            seen.add(clean)
+            variables.append({
+                "name": clean,
+                "variable_name": clean,
+                "original_name": name,
+                "category": category,
+                "source": source,
+                "type": var_type,
+                "description": description,
+                "default": default_val
+            })
+
+        # 1. Schema Properties (from response_schema)
+        if self.response_schema and isinstance(self.response_schema, dict):
+            props = self.response_schema.get("properties", {})
+            if isinstance(props, dict):
+                for prop_k, prop_spec in props.items():
+                    if not isinstance(prop_spec, dict):
+                        p_type = "any"
+                        p_desc = ""
+                    else:
+                        p_type = prop_spec.get("type", "any")
+                        p_desc = prop_spec.get("description", "")
+
+                    if p_type in ("number", "float"):
+                        def_val = 8.5
+                        friendly_type = "numeric (float)"
+                    elif p_type in ("integer", "int"):
+                        def_val = 3
+                        friendly_type = "integer"
+                    elif p_type in ("boolean", "bool"):
+                        def_val = True
+                        friendly_type = "boolean"
+                    elif p_type in ("array", "list"):
+                        def_val = ["sample_1", "sample_2"]
+                        friendly_type = "array (list)"
+                    elif p_type in ("object", "dict"):
+                        def_val = {"key": "sample_value"}
+                        friendly_type = "object (dict)"
+                    elif p_type in ("string", "str"):
+                        def_val = f"sample_{prop_k}"
+                        friendly_type = "string"
+                    else:
+                        def_val = 5.0
+                        friendly_type = str(p_type)
+
+                    desc = f"Extracted parameter '{prop_k}'"
+                    if p_desc:
+                        desc += f": {p_desc}"
+
+                    _add(
+                        prop_k,
+                        "Schema Property",
+                        f"📋 Schema Property of '{self.name or 'Extraction'}'",
+                        friendly_type,
+                        desc,
+                        def_val
+                    )
+
+        # 2. Exit Metrics configured for this extraction definition
+        for exit_m in self.get_exit_metrics_list():
+            _add(
+                exit_m,
+                "Exit Metric",
+                f"⚡ Exit Metric of '{self.name or 'Extraction'}'",
+                "numeric (float)",
+                f"Unpacked exit metric '{exit_m}'",
+                7.5
+            )
+
+        # 3. Paper Metadata Context
+        _add(
+            "title",
+            "Paper Metadata Context",
+            "📄 Paper Metadata Context",
+            "string",
+            "Title of the paper being evaluated",
+            "Deep Learning for Scientific Discovery"
+        )
+        _add(
+            "abstract",
+            "Paper Metadata Context",
+            "📄 Paper Metadata Context",
+            "string",
+            "Abstract text of the paper",
+            "We present a novel neural architecture..."
+        )
+        _add(
+            "arxiv_id",
+            "Paper Metadata Context",
+            "📄 Paper Metadata Context",
+            "string",
+            "arXiv identifier of the paper (e.g. 2401.01234)",
+            "2401.01234"
+        )
+        _add(
+            "doi",
+            "Paper Metadata Context",
+            "📄 Paper Metadata Context",
+            "string",
+            "Digital Object Identifier (DOI) of the paper",
+            "10.1016/j.jbi.2024.104200"
+        )
+
+        # 4. Extracted Fields Dictionaries
+        mock_dict = {}
+        for v in variables:
+            if v["category"] in ("Schema Property", "Exit Metric"):
+                mock_dict[v["name"]] = v["default"]
+        if not mock_dict:
+            mock_dict = {"score": 8.5, "confidence": 0.92}
+
+        _add(
+            "fields",
+            "Extracted Fields Dictionary",
+            "📦 Global Extraction Scope",
+            "dict",
+            "Direct dictionary containing all raw extracted fields: fields['property']",
+            mock_dict
+        )
+        _add(
+            "data",
+            "Extracted Fields Dictionary",
+            "📦 Global Extraction Scope",
+            "dict",
+            "Alias dictionary of all raw extracted fields: data['property']",
+            mock_dict
+        )
+        _add(
+            "extractions",
+            "Extracted Fields Dictionary",
+            "📦 Global Extraction Scope",
+            "dict",
+            "Alias dictionary for extracted parameters: extractions['property']",
+            mock_dict
+        )
+        _add(
+            "fields_data",
+            "Extracted Fields Dictionary",
+            "📦 Global Extraction Scope",
+            "dict",
+            "Raw extraction fields payload dictionary",
+            mock_dict
+        )
+        _add(
+            "json_data",
+            "Extracted Fields Dictionary",
+            "📦 Global Extraction Scope",
+            "dict",
+            "Alias for parsed extraction JSON data dictionary",
+            mock_dict
+        )
+        _add(
+            "raw_data",
+            "Extracted Fields Dictionary",
+            "📦 Global Extraction Scope",
+            "dict",
+            "Raw extracted parameters dictionary",
+            mock_dict
+        )
+
+        return variables
+
     def clean(self):
         super().clean()
         if self.exit_metrics and isinstance(self.exit_metrics, (list, tuple)):
@@ -91,6 +271,145 @@ class ExtractionDefinition(models.Model):
 
     def __str__(self):
         return f"{self.workspace.name} - {self.name}"
+
+
+def get_default_postprocessing_variables() -> list[dict]:
+    """
+    Returns default candidate variables available for Extraction postprocessing snippets
+    when no specific response schema is configured yet.
+    """
+    return [
+        {
+            "name": "score",
+            "variable_name": "score",
+            "original_name": "score",
+            "category": "Schema Property",
+            "source": "Default Schema Field",
+            "type": "numeric (float)",
+            "description": "Standard numerical score property (0.0 - 10.0)",
+            "default": 8.5
+        },
+        {
+            "name": "confidence",
+            "variable_name": "confidence",
+            "original_name": "confidence",
+            "category": "Schema Property",
+            "source": "Default Schema Field",
+            "type": "numeric (float)",
+            "description": "Extraction confidence indicator (0.0 - 1.0)",
+            "default": 0.92
+        },
+        {
+            "name": "category",
+            "variable_name": "category",
+            "original_name": "category",
+            "category": "Schema Property",
+            "source": "Default Schema Field",
+            "type": "string",
+            "description": "Extracted classification label or string tag",
+            "default": "high_impact"
+        },
+        {
+            "name": "title",
+            "variable_name": "title",
+            "original_name": "title",
+            "category": "Paper Metadata Context",
+            "source": "📄 Paper Metadata Context",
+            "type": "string",
+            "description": "Title of the research paper being evaluated",
+            "default": "Deep Learning for Scientific Discovery"
+        },
+        {
+            "name": "abstract",
+            "variable_name": "abstract",
+            "original_name": "abstract",
+            "category": "Paper Metadata Context",
+            "source": "📄 Paper Metadata Context",
+            "type": "string",
+            "description": "Full abstract text of the research paper",
+            "default": "We present a novel benchmark and evaluation protocol..."
+        },
+        {
+            "name": "arxiv_id",
+            "variable_name": "arxiv_id",
+            "original_name": "arxiv_id",
+            "category": "Paper Metadata Context",
+            "source": "📄 Paper Metadata Context",
+            "type": "string",
+            "description": "arXiv identifier of the paper (e.g. 2401.01234)",
+            "default": "2401.01234"
+        },
+        {
+            "name": "doi",
+            "variable_name": "doi",
+            "original_name": "doi",
+            "category": "Paper Metadata Context",
+            "source": "📄 Paper Metadata Context",
+            "type": "string",
+            "description": "Digital Object Identifier of the paper",
+            "default": "10.1016/j.jbi.2024.104200"
+        },
+        {
+            "name": "fields",
+            "variable_name": "fields",
+            "original_name": "fields",
+            "category": "Extracted Fields Dictionary",
+            "source": "📦 Global Extraction Dictionary",
+            "type": "dict",
+            "description": "Direct dictionary of all raw extracted fields: fields['key']",
+            "default": {"score": 8.5, "confidence": 0.92}
+        },
+        {
+            "name": "data",
+            "variable_name": "data",
+            "original_name": "data",
+            "category": "Extracted Fields Dictionary",
+            "source": "📦 Global Extraction Dictionary",
+            "type": "dict",
+            "description": "Alias for the raw extraction dictionary: data['key']",
+            "default": {"score": 8.5, "confidence": 0.92}
+        },
+        {
+            "name": "extractions",
+            "variable_name": "extractions",
+            "original_name": "extractions",
+            "category": "Extracted Fields Dictionary",
+            "source": "📦 Global Extraction Dictionary",
+            "type": "dict",
+            "description": "Alias for raw extraction dictionary",
+            "default": {"score": 8.5, "confidence": 0.92}
+        },
+        {
+            "name": "fields_data",
+            "variable_name": "fields_data",
+            "original_name": "fields_data",
+            "category": "Extracted Fields Dictionary",
+            "source": "📦 Global Extraction Dictionary",
+            "type": "dict",
+            "description": "Full fields_data dictionary payload",
+            "default": {"score": 8.5, "confidence": 0.92}
+        },
+        {
+            "name": "json_data",
+            "variable_name": "json_data",
+            "original_name": "json_data",
+            "category": "Extracted Fields Dictionary",
+            "source": "📦 Global Extraction Dictionary",
+            "type": "dict",
+            "description": "Alias for parsed extraction JSON dictionary",
+            "default": {"score": 8.5, "confidence": 0.92}
+        },
+        {
+            "name": "raw_data",
+            "variable_name": "raw_data",
+            "original_name": "raw_data",
+            "category": "Extracted Fields Dictionary",
+            "source": "📦 Global Extraction Dictionary",
+            "type": "dict",
+            "description": "Alias for raw JSON data payload",
+            "default": {"score": 8.5, "confidence": 0.92}
+        }
+    ]
 
 
 class Extraction(models.Model):

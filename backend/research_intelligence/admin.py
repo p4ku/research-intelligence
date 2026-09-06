@@ -708,7 +708,7 @@ class SignalScoreCodeWidget(PrettyPythonCodeWidget):
 
                 // Detect locally assigned variables
                 var assigned = {{}};
-                var assignRegex = /\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:=|\+=|-=|\\*=)/g;
+                var assignRegex = /\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:=|[+]=|[-]=|[*]=)/g;
                 var assignMatch;
                 while ((assignMatch = assignRegex.exec(code)) !== null) {{
                     assigned[assignMatch[1]] = true;
@@ -785,6 +785,581 @@ class SignalScoreCodeWidget(PrettyPythonCodeWidget):
                 }});
             }}
             setTimeout(observeInlineExtractions, 500);
+        }})();
+        </script>
+        """
+        return mark_safe(html)
+
+
+class PostprocessingCodeWidget(PrettyPythonCodeWidget):
+    """
+    Advanced interactive Python code editor widget for Extraction postprocessing calculations in ExtractionDefinitionAdmin.
+    Features:
+      - Automatic deduction and visual presentation of all available extraction variables
+        (Schema Properties, Exit Metrics, Paper Metadata Context, Extracted Fields Dictionaries, Safe Math Builtins).
+      - Interactive click-to-insert chips at editor cursor position with visual pulse feedback.
+      - Real-time client-side variable linter checking referenced variables against schema properties and scope.
+      - Interactive 'Test Postprocessing Code (Dry Run)' button executing safe AST sandbox with mock fields.
+      - Dynamic synchronization with the response_schema and exit_metrics fields on the same change form.
+      - Detailed expandable schema and variable reference table.
+    """
+    def __init__(self, attrs=None, available_variables=None, extraction_definition=None):
+        super().__init__(attrs=attrs)
+        self.available_variables = available_variables or []
+        self.extraction_definition = extraction_definition
+
+    def render(self, name, value, attrs=None, renderer=None):
+        from research_intelligence.models.extraction import get_default_postprocessing_variables
+
+        raw_code = value if value is not None else ""
+        attrs = attrs or {}
+        widget_id = attrs.get('id', f'postprocess_widget_{name}')
+
+        # Deduce variables if not provided
+        if not self.available_variables and self.extraction_definition:
+            self.available_variables = self.extraction_definition.get_available_postprocessing_variables()
+        elif not self.available_variables:
+            self.available_variables = get_default_postprocessing_variables()
+
+        # Resolve test endpoint URL
+        if self.extraction_definition and getattr(self.extraction_definition, 'pk', None):
+            try:
+                test_url = reverse('admin:research_intelligence_extractiondefinition_test_postprocessing', args=[str(self.extraction_definition.pk)])
+            except Exception:
+                test_url = f"/admin/research_intelligence/extractiondefinition/{self.extraction_definition.pk}/test-postprocessing/"
+        else:
+            try:
+                test_url = reverse('admin:research_intelligence_extractiondefinition_test_postprocessing_generic')
+            except Exception:
+                test_url = "/admin/research_intelligence/extractiondefinition/test-postprocessing/"
+
+        category_meta = {
+            "Schema Property": {
+                "icon": "📋",
+                "bg": "rgba(57, 197, 207, 0.15)",
+                "border": "#39c5cf",
+                "color": "#56d4dd",
+                "order": 1,
+            },
+            "Exit Metric": {
+                "icon": "⚡",
+                "bg": "rgba(137, 87, 229, 0.15)",
+                "border": "#8957e5",
+                "color": "#d2a8ff",
+                "order": 2,
+            },
+            "Paper Metadata Context": {
+                "icon": "📄",
+                "bg": "rgba(9, 105, 218, 0.15)",
+                "border": "#388bfd",
+                "color": "#58a6ff",
+                "order": 3,
+            },
+            "Extracted Fields Dictionary": {
+                "icon": "📦",
+                "bg": "rgba(187, 128, 9, 0.15)",
+                "border": "#bb8009",
+                "color": "#e3b341",
+                "order": 4,
+            },
+        }
+
+        math_builtins = [
+            ("round(val, 2)", "Round value to 2 decimal places"),
+            ("min(a, b)", "Minimum of two values"),
+            ("max(a, b)", "Maximum of two values"),
+            ("abs(x)", "Absolute value of x"),
+            ("sum(iterable)", "Sum of elements"),
+            ("len(obj)", "Length of list, dict, or string"),
+            ("int(x)", "Cast to integer"),
+            ("float(x)", "Cast to float"),
+            ("str(x)", "Cast to string"),
+            ("bool(x)", "Cast to boolean"),
+            ("math.sqrt(x)", "Square root of x"),
+            ("math.log(x)", "Natural logarithm of x"),
+            ("math.exp(x)", "Exponential of x"),
+            ("math.pow(x, y)", "x to power y"),
+        ]
+
+        grouped_vars = {}
+        for v in self.available_variables:
+            cat = v.get("category", "Schema Property")
+            grouped_vars.setdefault(cat, []).append(v)
+
+        sorted_categories = sorted(
+            grouped_vars.keys(),
+            key=lambda c: category_meta.get(c, {}).get("order", 99)
+        )
+
+        chips_html_parts = []
+        table_rows_parts = []
+
+        for cat in sorted_categories:
+            cat_info = category_meta.get(cat, {"icon": "📌", "bg": "rgba(110, 118, 129, 0.15)", "border": "#6e7681", "color": "#c9d1d9"})
+            cat_icon = cat_info["icon"]
+            cat_bg = cat_info["bg"]
+            cat_border = cat_info["border"]
+            cat_color = cat_info["color"]
+            v_list = grouped_vars[cat]
+            chips_for_cat = []
+            for v in v_list:
+                v_name = v["name"]
+                v_type = v.get("type", "float")
+                v_desc = v.get("description", "")
+                v_default = v.get("default", "0.0")
+                v_source = v.get("source", "")
+                tooltip = f"{v_source} • Default: {v_default}"
+                if v_desc:
+                    tooltip += f" — {v_desc}"
+
+                chip = (
+                    f'<span class="sri-postprocess-chip" data-var="{escape(v_name)}" '
+                    f'onclick="window.insertPostprocessVar(\'{widget_id}\', \'{escape(v_name)}\', this)" '
+                    f'title="{escape(tooltip)}" '
+                    f'style="cursor: pointer; display: inline-flex; align-items: center; gap: 5px; '
+                    f'padding: 4px 10px; border-radius: 6px; font-family: \'SFMono-Regular\', Consolas, Menlo, monospace; '
+                    f'font-size: 12px; font-weight: 600; margin: 3px; background: {cat_bg}; '
+                    f'border: 1px solid {cat_border}; color: {cat_color}; '
+                    f'user-select: none; transition: transform 0.1s, filter 0.15s;" '
+                    f'onmouseover="this.style.filter=\'brightness(1.3)\'; this.style.transform=\'scale(1.03)\'" '
+                    f'onmouseout="this.style.filter=\'brightness(1)\'; this.style.transform=\'scale(1)\'">'
+                    f'<code>{escape(v_name)}</code>'
+                    f'<small style="font-size: 10px; font-weight: normal; opacity: 0.85;">({escape(v_type)})</small>'
+                    f'</span>'
+                )
+                chips_for_cat.append(chip)
+
+                row = (
+                    f'<tr style="border-bottom: 1px solid #21262d;">'
+                    f'<td style="padding: 7px 10px; font-family: monospace; font-weight: bold; color: {cat_color};">{escape(v_name)}</td>'
+                    f'<td style="padding: 7px 10px;"><span style="background: {cat_bg}; border: 1px solid {cat_border}; color: {cat_color}; padding: 2px 7px; border-radius: 4px; font-size: 11px; font-weight: 600;">{cat_icon} {escape(cat)}</span></td>'
+                    f'<td style="padding: 7px 10px; color: #8b949e;">{escape(v_source)}</td>'
+                    f'<td style="padding: 7px 10px; color: #79c0ff; font-family: monospace;">{escape(v_type)} ({escape(str(v_default))})</td>'
+                    f'<td style="padding: 7px 10px; color: #c9d1d9;">{escape(v_desc)}</td>'
+                    f'<td style="padding: 7px 10px; text-align: center;">'
+                    f'<button type="button" class="button" onclick="window.insertPostprocessVar(\'{widget_id}\', \'{escape(v_name)}\', null)" style="padding: 3px 9px; font-size: 11px; cursor: pointer; background: #238636; color: white; border: none; border-radius: 4px;">Insert</button>'
+                    f'</td>'
+                    f'</tr>'
+                )
+                table_rows_parts.append(row)
+
+            chips_html_parts.append(
+                f'<div class="sri-var-category-block" style="margin-bottom: 8px;">'
+                f'<div style="font-size: 11px; font-weight: 600; color: #8b949e; margin-bottom: 4px; display: flex; align-items: center; gap: 5px;">'
+                f'<span>{cat_icon}</span> <span>{escape(cat)} ({len(v_list)}):</span>'
+                f'</div>'
+                f'<div style="display: flex; flex-wrap: wrap; align-items: center;">{"".join(chips_for_cat)}</div>'
+                f'</div>'
+            )
+
+        # Math builtins chips
+        math_chips = []
+        for fn_name, fn_desc in math_builtins:
+            math_chips.append(
+                f'<span class="sri-postprocess-chip" data-var="{escape(fn_name)}" '
+                f'onclick="window.insertPostprocessVar(\'{widget_id}\', \'{escape(fn_name)}\', this)" '
+                f'title="{escape(fn_desc)} • Click to insert" '
+                f'style="cursor: pointer; display: inline-flex; align-items: center; padding: 3px 9px; '
+                f'border-radius: 6px; font-family: monospace; font-size: 11px; margin: 3px; '
+                f'background: #21262d; border: 1px solid #30363d; color: #c9d1d9; '
+                f'transition: all 0.15s ease-in-out;" onmouseover="this.style.filter=\'brightness(1.25)\'" onmouseout="this.style.filter=\'brightness(1)\'">'
+                f'<code>{escape(fn_name)}</code>'
+                f'</span>'
+            )
+        chips_html_parts.append(
+            f'<div class="sri-var-category-block" style="margin-bottom: 4px;">'
+            f'<div style="font-size: 11px; font-weight: 600; color: #8b949e; margin-bottom: 4px; display: flex; align-items: center; gap: 5px;">'
+            f'<span>🐍</span> <span>Safe Math & Builtins:</span>'
+            f'</div>'
+            f'<div style="display: flex; flex-wrap: wrap; align-items: center;">{"".join(math_chips)}</div>'
+            f'</div>'
+        )
+
+        vars_json = json.dumps(self.available_variables, ensure_ascii=False)
+        attrs['style'] = "width: 100%; min-height: 250px; font-family: 'Fira Code', 'SFMono-Regular', Consolas, Menlo, monospace; font-size: 13px; line-height: 1.5; background-color: #0d1117; color: #e6edf3; padding: 12px; border-radius: 6px; border: 1px solid #30363d; tab-size: 4;"
+        textarea_html = forms.Textarea.render(self, name, raw_code, attrs, renderer)
+
+        html = f"""
+        <div class="pretty-python-container" style="margin: 8px 0; width: 100%; max-width: 950px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+            <!-- 1. Variables Explorer Panel -->
+            <div id="{widget_id}_vars_panel" style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 14px; margin-bottom: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 10px;">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 16px;">🧩</span>
+                        <strong style="color: #f0f6fc; font-size: 13px; letter-spacing: 0.2px;">Available Variables & Context for Postprocessing</strong>
+                        <span id="{widget_id}_count_badge" style="background: #238636; color: #ffffff; font-size: 11px; padding: 2px 9px; border-radius: 12px; font-weight: 600;">{len(self.available_variables)} Variables Configured</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <input type="text" id="{widget_id}_filter_input" placeholder="🔍 Filter variables..." oninput="window.filterPostprocessVars('{widget_id}', this.value)" style="background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; padding: 5px 10px; font-size: 11px; width: 160px; outline: none;">
+                        <button type="button" class="button" onclick="window.togglePostprocessVarsTable('{widget_id}')" style="background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 6px; padding: 5px 12px; font-size: 11px; cursor: pointer; transition: background 0.2s;">📋 View Schema Table</button>
+                    </div>
+                </div>
+                <div style="font-size: 11px; color: #8b949e; line-height: 1.5; margin-bottom: 12px; border-bottom: 1px solid #21262d; padding-bottom: 8px;">
+                    💡 <strong>Quick Click-to-Insert:</strong> Click any variable chip below to insert it at your cursor position in the code editor. Schema properties are extracted directly into local variables. You can return a single scalar or a dictionary of metrics.
+                </div>
+                <div id="{widget_id}_chips_box">
+                    {"".join(chips_html_parts)}
+                </div>
+
+                <!-- Expandable Detailed Schema Table -->
+                <div id="{widget_id}_table_drawer" style="display: none; margin-top: 12px; border-top: 1px solid #30363d; padding-top: 10px; max-height: 380px; overflow-y: auto;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 11px; color: #c9d1d9;">
+                        <thead>
+                            <tr style="border-bottom: 2px solid #30363d; color: #8b949e; text-align: left;">
+                                <th style="padding: 6px 8px;">Variable Name</th>
+                                <th style="padding: 6px 8px;">Category</th>
+                                <th style="padding: 6px 8px;">Origin / Source</th>
+                                <th style="padding: 6px 8px;">Type & Default</th>
+                                <th style="padding: 6px 8px;">Description</th>
+                                <th style="padding: 6px 8px; text-align: center;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {"".join(table_rows_parts)}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 2. Real-time Code Linter & Safety Validator Banner -->
+            <div id="{widget_id}_linter_box" style="margin-bottom: 10px; padding: 9px 14px; border-radius: 6px; font-size: 12px; border: 1px solid #30363d; background: #0d1117; display: flex; align-items: center; justify-content: space-between; transition: all 0.2s;">
+                <div id="{widget_id}_linter_msg" style="display: flex; align-items: center; gap: 8px; color: #8b949e;">
+                    <span>🔍</span>
+                    <span>Ready to evaluate custom postprocessing formula...</span>
+                </div>
+                <div id="{widget_id}_linter_status_badge" style="font-size: 11px; font-family: monospace; color: #8b949e;">
+                    AST Sandbox Guard
+                </div>
+            </div>
+
+            <!-- 3. Toolbar -->
+            <div style="margin-bottom: 8px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                <button type="button" class="button" onclick="togglePythonView('{widget_id}')" style="padding: 5px 12px; font-size: 11px; cursor: pointer; background: #0d6efd; color: white; border: none; border-radius: 4px;">⇄ Switch View (Editor / Highlighted Code)</button>
+                <button type="button" class="button" onclick="copyPythonCode('{widget_id}')" style="padding: 5px 12px; font-size: 11px; cursor: pointer; background: #495057; color: white; border: none; border-radius: 4px;">📋 Copy Python Code</button>
+                <button type="button" class="button" id="{widget_id}_test_btn" onclick="window.testPostprocessingCode('{widget_id}', '{test_url}')" style="padding: 5px 14px; font-size: 11px; cursor: pointer; background: #238636; color: white; font-weight: 600; border: none; border-radius: 4px; box-shadow: 0 2px 6px rgba(35,134,54,0.3);">🧪 Test Postprocessing Code (Dry Run)</button>
+                <span style="font-size: 11px; color: #8b949e; font-family: monospace;">🐍 Python AST Sandboxed</span>
+            </div>
+
+            <!-- 4. Dry Run Sandbox Results Banner -->
+            <div id="{widget_id}_test_result" style="display: none; margin-bottom: 10px; border-radius: 6px; overflow: hidden; transition: all 0.2s;"></div>
+
+            <!-- 5. Editor and Highlighted View -->
+            <div id="{widget_id}_raw" style="display: block;">
+                {textarea_html}
+            </div>
+            <pre id="{widget_id}_pretty" style="display: none; background: #0d1117; color: #c9d1d9; padding: 14px; border-radius: 8px; border: 1px solid #30363d; font-family: 'Fira Code', 'SFMono-Regular', Consolas, Menlo, monospace; font-size: 13px; line-height: 1.5; max-height: 500px; overflow: auto; margin: 0; white-space: pre-wrap; word-break: break-word;"></pre>
+        </div>
+
+        <script>
+        (function() {{
+            var varsData = {vars_json};
+            var availableVarsMap = {{}};
+            for (var i = 0; i < varsData.length; i++) {{
+                availableVarsMap[varsData[i].name] = varsData[i];
+            }}
+
+            if (typeof window.insertPostprocessVar !== 'function') {{
+                window.insertPostprocessVar = function(widgetId, snippet, chipEl) {{
+                    var rawEl = document.getElementById(widgetId);
+                    if (!rawEl) return;
+                    var start = rawEl.selectionStart || 0;
+                    var end = rawEl.selectionEnd || 0;
+                    var val = rawEl.value;
+                    rawEl.value = val.substring(0, start) + snippet + val.substring(end);
+                    rawEl.selectionStart = rawEl.selectionEnd = start + snippet.length;
+                    rawEl.focus();
+                    rawEl.dispatchEvent(new Event('input'));
+
+                    if (chipEl) {{
+                        var origBg = chipEl.style.background;
+                        var origBorder = chipEl.style.borderColor;
+                        chipEl.style.background = '#238636';
+                        chipEl.style.borderColor = '#3fb950';
+                        chipEl.style.color = '#ffffff';
+                        chipEl.style.transform = 'scale(1.1)';
+                        setTimeout(function() {{
+                            chipEl.style.background = origBg;
+                            chipEl.style.borderColor = origBorder;
+                            chipEl.style.color = '';
+                            chipEl.style.transform = 'scale(1)';
+                        }}, 300);
+                    }}
+                }};
+
+                window.filterPostprocessVars = function(widgetId, query) {{
+                    query = (query || '').toLowerCase().trim();
+                    var panel = document.getElementById(widgetId + '_vars_panel');
+                    if (!panel) return;
+                    var chips = panel.querySelectorAll('.sri-postprocess-chip');
+                    for (var i = 0; i < chips.length; i++) {{
+                        var c = chips[i];
+                        var v = (c.getAttribute('data-var') || '').toLowerCase();
+                        var text = (c.innerText || '').toLowerCase();
+                        if (!query || v.indexOf(query) !== -1 || text.indexOf(query) !== -1) {{
+                            c.style.display = 'inline-flex';
+                        }} else {{
+                            c.style.display = 'none';
+                        }}
+                    }}
+                }};
+
+                window.togglePostprocessVarsTable = function(widgetId) {{
+                    var drawer = document.getElementById(widgetId + '_table_drawer');
+                    if (drawer) {{
+                        drawer.style.display = drawer.style.display === 'none' ? 'block' : 'none';
+                    }}
+                }};
+
+                window.testPostprocessingCode = function(widgetId, testUrl) {{
+                    var rawEl = document.getElementById(widgetId);
+                    var resultBox = document.getElementById(widgetId + '_test_result');
+                    var btn = document.getElementById(widgetId + '_test_btn');
+                    if (!rawEl || !resultBox) return;
+
+                    var code = (rawEl.value || '').trim();
+                    if (!code) {{
+                        alert('Please enter a Python snippet to test postprocessing.');
+                        return;
+                    }}
+
+                    if (btn) {{
+                        btn.disabled = true;
+                        btn.innerHTML = '⏳ Executing in Sandbox...';
+                    }}
+
+                    resultBox.style.display = 'block';
+                    resultBox.innerHTML = '<div style="background: #161b22; border: 1px solid #30363d; padding: 12px; border-radius: 6px; color: #8b949e; font-family: monospace; font-size: 12px;">⏳ Running postprocessing snippet securely in AST Sandbox with mock extracted fields...</div>';
+
+                    var csrfToken = '';
+                    var csrfEl = document.querySelector('input[name="csrfmiddlewaretoken"]');
+                    if (csrfEl) csrfToken = csrfEl.value;
+
+                    // Dynamically read schema from form if present
+                    var schemaVal = null;
+                    var schemaEl = document.getElementById('id_response_schema');
+                    if (schemaEl && schemaEl.value) {{
+                        try {{
+                            schemaVal = JSON.parse(schemaEl.value);
+                        }} catch (e) {{}}
+                    }}
+
+                    var exitMetricsVal = null;
+                    var exitMetricsEl = document.getElementById('id_exit_metrics');
+                    if (exitMetricsEl && exitMetricsEl.value) {{
+                        exitMetricsVal = exitMetricsEl.value;
+                    }}
+
+                    fetch(testUrl, {{
+                        method: 'POST',
+                        headers: {{
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': csrfToken
+                        }},
+                        body: JSON.stringify({{
+                            code: code,
+                            schema: schemaVal,
+                            exit_metrics: exitMetricsVal
+                        }})
+                    }})
+                    .then(function(response) {{ return response.json(); }})
+                    .then(function(data) {{
+                        if (btn) {{
+                            btn.disabled = false;
+                            btn.innerHTML = '🧪 Test Postprocessing Code (Dry Run)';
+                        }}
+
+                        if (data.success) {{
+                            var varList = [];
+                            var varsEval = data.fields_evaluated || {{}};
+                            for (var k in varsEval) {{
+                                var valDisplay = typeof varsEval[k] === 'object' ? JSON.stringify(varsEval[k]) : varsEval[k];
+                                varList.push('<code style="color: #79c0ff;">' + k + '</code>=' + valDisplay);
+                            }}
+                            var varsStr = varList.slice(0, 8).join(', ') + (varList.length > 8 ? ' ...' : '');
+
+                            var resDisplay = typeof data.result === 'object' ? JSON.stringify(data.result, null, 2) : String(data.result);
+
+                            resultBox.innerHTML = 
+                                '<div style="background: #042612; border: 1px solid #238636; border-radius: 6px; padding: 12px 14px; box-shadow: 0 4px 14px rgba(35,134,54,0.2);">' +
+                                    '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">' +
+                                        '<div style="display: flex; align-items: center; gap: 8px;">' +
+                                            '<span style="font-size: 16px;">🎉</span>' +
+                                            '<strong style="color: #3fb950; font-size: 13px;">SANDBOX DRY RUN PASSED: Output Type = ' + data.result_type + '</strong>' +
+                                        '</div>' +
+                                        '<span style="background: #238636; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">' + data.execution_time_ms + 'ms</span>' +
+                                    '</div>' +
+                                    '<div style="background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 8px 12px; margin: 6px 0; font-family: monospace; font-size: 12px; color: #58a6ff; white-space: pre-wrap;">' +
+                                        resDisplay +
+                                    '</div>' +
+                                    '<div style="font-size: 11px; color: #8b949e; margin-top: 6px; font-family: monospace;">' +
+                                        'Fields evaluated: ' + varsStr +
+                                    '</div>' +
+                                '</div>';
+                        }} else {{
+                            var errTitle = data.error_type || 'SandboxExecutionError';
+                            var lineStr = data.line_number ? ' (Line ' + data.line_number + ')' : '';
+                            resultBox.innerHTML = 
+                                '<div style="background: #2b1114; border: 1px solid #da3633; border-radius: 6px; padding: 12px 14px; box-shadow: 0 4px 14px rgba(218,54,51,0.2);">' +
+                                    '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">' +
+                                        '<div style="display: flex; align-items: center; gap: 8px;">' +
+                                            '<span style="font-size: 16px;">❌</span>' +
+                                            '<strong style="color: #f85149; font-size: 13px;">' + errTitle + lineStr + '</strong>' +
+                                        '</div>' +
+                                        '<span style="background: #da3633; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">' + (data.execution_time_ms || 0) + 'ms</span>' +
+                                    '</div>' +
+                                    '<div style="font-size: 12px; color: #ff7b72; font-family: monospace; line-height: 1.4; margin-bottom: 6px; white-space: pre-wrap; word-break: break-word;">' +
+                                        data.error +
+                                    '</div>' +
+                                    '<div style="font-size: 11px; color: #8b949e;">' +
+                                        '💡 <em>Tip: Return a numeric value or dictionary (e.g. <code>return round(score, 2)</code> or <code>return {{"computed": 10}}</code>).</em>' +
+                                    '</div>' +
+                                '</div>';
+                        }}
+                    }})
+                    .catch(function(err) {{
+                        if (btn) {{
+                            btn.disabled = false;
+                            btn.innerHTML = '🧪 Test Postprocessing Code (Dry Run)';
+                        }}
+                        resultBox.innerHTML = '<div style="background: #2b1114; border: 1px solid #da3633; padding: 10px; border-radius: 6px; color: #f85149; font-size: 12px;">Network error while testing postprocessing snippet: ' + err + '</div>';
+                    }});
+                }};
+            }}
+
+            // Real-time Postprocessing Variable Linter
+            function runLiveLinter() {{
+                var rawEl = document.getElementById('{widget_id}');
+                var linterBox = document.getElementById('{widget_id}_linter_box');
+                var linterMsg = document.getElementById('{widget_id}_linter_msg');
+                var linterBadge = document.getElementById('{widget_id}_linter_status_badge');
+                if (!rawEl || !linterBox || !linterMsg) return;
+
+                var code = (rawEl.value || '').trim();
+                if (!code) {{
+                    linterBox.style.borderColor = '#30363d';
+                    linterBox.style.background = '#0d1117';
+                    linterMsg.innerHTML = '<span style="color: #8b949e;">💡 Write Python code postprocessing extracted fields (e.g. <code>return round(score * 1.5, 2)</code>).</span>';
+                    if (linterBadge) linterBadge.innerHTML = '<span style="color: #8b949e;">AST Sandboxed</span>';
+                    return;
+                }}
+
+                var pyKeywords = ['def', 'return', 'if', 'elif', 'else', 'for', 'while', 'in', 'and', 'or', 'not', 'is', 'None', 'True', 'False', 'class', 'try', 'except', 'with', 'as', 'pass', 'break', 'continue', 'lambda', 'result', 'output', 'computed', 'postprocessed', 'score', 'val', 'value', 'postprocess', 'calculate', 'compute', 'process'];
+                var pyBuiltins = ['min', 'max', 'abs', 'round', 'sum', 'pow', 'len', 'int', 'float', 'str', 'bool', 'math', 'sqrt', 'log', 'exp', 'ceil', 'floor'];
+                var contextVars = ['title', 'abstract', 'arxiv_id', 'doi', 'fields', 'data', 'extractions', 'fields_data', 'json_data', 'raw_data'];
+
+                // Detect locally assigned variables
+                var assigned = {{}};
+                var assignRegex = /\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?:=|[+]=|[-]=|[*]=)/g;
+                var assignMatch;
+                while ((assignMatch = assignRegex.exec(code)) !== null) {{
+                    assigned[assignMatch[1]] = true;
+                }}
+
+                // Find all identifiers
+                var idRegex = /\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b/g;
+                var match;
+                var usedVars = {{}};
+                var unrecognizedVars = [];
+
+                while ((match = idRegex.exec(code)) !== null) {{
+                    var id = match[1];
+                    if (pyKeywords.indexOf(id) !== -1 || pyBuiltins.indexOf(id) !== -1 || contextVars.indexOf(id) !== -1 || assigned[id]) {{
+                        continue;
+                    }}
+                    if (availableVarsMap[id]) {{
+                        usedVars[id] = true;
+                    }} else {{
+                        if (unrecognizedVars.indexOf(id) === -1) {{
+                            unrecognizedVars.push(id);
+                        }}
+                    }}
+                }}
+
+                var usedKeys = Object.keys(usedVars);
+
+                if (unrecognizedVars.length > 0) {{
+                    linterBox.style.borderColor = '#d29922';
+                    linterBox.style.background = 'rgba(187, 128, 9, 0.12)';
+                    var unrecStr = unrecognizedVars.map(function(u) {{ return '<code>' + u + '</code>'; }}).join(', ');
+                    linterMsg.innerHTML = '<span style="font-size: 15px;">⚠️</span> <span style="color: #e3b341;"><strong>Unrecognized variable:</strong> ' + unrecStr + ' is not found in extraction schema or context! Verify spelling or define it in schema.</span>';
+                    if (linterBadge) linterBadge.innerHTML = '<span style="color: #d29922; font-weight: bold;">Unmatched Signals</span>';
+                }} else if (usedKeys.length > 0) {{
+                    linterBox.style.borderColor = '#238636';
+                    linterBox.style.background = 'rgba(35, 134, 54, 0.12)';
+                    var validStr = usedKeys.map(function(k) {{ return '<code>' + k + '</code>'; }}).join(', ');
+                    linterMsg.innerHTML = '<span style="font-size: 15px;">✅</span> <span style="color: #3fb950;"><strong>Valid variables referenced:</strong> ' + validStr + ' (All mapped to schema properties).</span>';
+                    if (linterBadge) linterBadge.innerHTML = '<span style="color: #3fb950; font-weight: bold;">All Verified</span>';
+                }} else {{
+                    linterBox.style.borderColor = '#388bfd';
+                    linterBox.style.background = 'rgba(9, 105, 218, 0.1)';
+                    linterMsg.innerHTML = '<span style="font-size: 15px;">ℹ️</span> <span style="color: #58a6ff;">Code syntax ready. Click any variable above to incorporate it into your postprocessing formula.</span>';
+                    if (linterBadge) linterBadge.innerHTML = '<span style="color: #58a6ff;">Ready</span>';
+                }}
+            }}
+
+            var rawEl = document.getElementById('{widget_id}');
+            var prettyEl = document.getElementById('{widget_id}_pretty');
+            if (rawEl) {{
+                rawEl.addEventListener('input', function() {{
+                    if (prettyEl && window.syntaxHighlightPython) {{
+                        prettyEl.innerHTML = window.syntaxHighlightPython(rawEl.value);
+                    }}
+                    runLiveLinter();
+                }});
+                setTimeout(runLiveLinter, 100);
+            }}
+
+            // Dynamic Response Schema & Exit Metrics Observer
+            function observeResponseSchema() {{
+                var schemaEl = document.getElementById('id_response_schema');
+                var exitMetricsEl = document.getElementById('id_exit_metrics');
+
+                function syncFromSchema() {{
+                    if (!schemaEl) return;
+                    try {{
+                        var parsed = JSON.parse(schemaEl.value);
+                        if (parsed && parsed.properties && typeof parsed.properties === 'object') {{
+                            var newCount = 0;
+                            for (var propKey in parsed.properties) {{
+                                var clean = propKey.toLowerCase().replace(/[^a-zA-Z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+                                if (clean && !availableVarsMap[clean]) {{
+                                    var pDef = parsed.properties[propKey] || {{}};
+                                    availableVarsMap[clean] = {{
+                                        name: clean,
+                                        category: 'Schema Property',
+                                        type: pDef.type || 'any',
+                                        source: 'Live Form Schema'
+                                    }};
+                                    newCount++;
+                                }}
+                            }}
+                            if (newCount > 0) {{
+                                runLiveLinter();
+                            }}
+                        }}
+                    }} catch (e) {{}}
+                }}
+
+                if (schemaEl) {{
+                    schemaEl.addEventListener('input', syncFromSchema);
+                    schemaEl.addEventListener('change', syncFromSchema);
+                }}
+
+                if (exitMetricsEl) {{
+                    exitMetricsEl.addEventListener('input', function() {{
+                        var val = exitMetricsEl.value || '';
+                        var parts = val.split(',');
+                        for (var i = 0; i < parts.length; i++) {{
+                            var clean = parts[i].trim().toLowerCase().replace(/[^a-zA-Z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+                            if (clean && !availableVarsMap[clean]) {{
+                                availableVarsMap[clean] = {{ name: clean, category: 'Exit Metric', source: 'Live Exit Metrics' }};
+                            }}
+                        }}
+                        runLiveLinter();
+                    }});
+                }}
+            }}
+            setTimeout(observeResponseSchema, 500);
         }})();
         </script>
         """
@@ -3148,7 +3723,7 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
 
     def formfield_for_dbfield(self, db_field, **kwargs):
         if db_field.name == 'postprocessing_code':
-            kwargs['widget'] = PrettyPythonCodeWidget
+            kwargs['widget'] = PostprocessingCodeWidget
         return super().formfield_for_dbfield(db_field, **kwargs)
 
     def get_form(self, request, obj=None, **kwargs):
@@ -3198,7 +3773,169 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
                     "Optional Python snippet executed on extracted <code>fields_data</code>. "
                     "The computed value will be directly accessible in <b>Signal Score</b> (Calculate score) as: <b><code>{definition_name}_postprocessed</code></b>."
                 )
+
+            if obj:
+                available_vars = obj.get_available_postprocessing_variables()
+            else:
+                from research_intelligence.models.extraction import get_default_postprocessing_variables
+                available_vars = get_default_postprocessing_variables()
+
+            form.base_fields['postprocessing_code'].widget = PostprocessingCodeWidget(
+                available_variables=available_vars,
+                extraction_definition=obj
+            )
+
         return form
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<path:object_id>/test-postprocessing/',
+                self.admin_site.admin_view(self.test_postprocessing_view),
+                name='research_intelligence_extractiondefinition_test_postprocessing'
+            ),
+            path(
+                'test-postprocessing/',
+                self.admin_site.admin_view(self.test_postprocessing_view),
+                name='research_intelligence_extractiondefinition_test_postprocessing_generic'
+            ),
+        ]
+        return custom_urls + urls
+
+    def test_postprocessing_view(self, request, object_id=None):
+        """
+        AJAX endpoint allowing admins to execute a dry-run test of the extraction postprocessing
+        Python snippet within the sandboxed scope using deduced or mocked extracted fields.
+        """
+        import json
+        import time
+        from django.http import JsonResponse
+        from research_intelligence.utils.sandbox import execute_sandboxed_postprocessing, SandboxSecurityError, SandboxExecutionError
+        from research_intelligence.models.extraction import get_default_postprocessing_variables
+
+        if request.method != 'POST':
+            return JsonResponse({'success': False, 'error': 'POST request required for testing postprocessing code.'}, status=405)
+
+        try:
+            payload = json.loads(request.body.decode('utf-8'))
+        except Exception:
+            payload = request.POST
+
+        code = payload.get('code', '').strip()
+        if not code:
+            return JsonResponse({
+                'success': False,
+                'error_type': 'EmptyCodeError',
+                'error': 'No Python code snippet was provided for evaluation.',
+                'execution_time_ms': 0
+            })
+
+        definition = None
+        if object_id:
+            try:
+                definition = self.get_object(request, object_id)
+            except Exception:
+                definition = None
+
+        # Build mock extracted fields dictionary
+        mock_fields = {}
+        client_schema = payload.get('schema')
+        schema_to_use = None
+        if isinstance(client_schema, dict) and 'properties' in client_schema:
+            schema_to_use = client_schema
+        elif definition and definition.response_schema and isinstance(definition.response_schema, dict):
+            schema_to_use = definition.response_schema
+
+        if schema_to_use and isinstance(schema_to_use.get('properties'), dict):
+            for prop_k, prop_spec in schema_to_use['properties'].items():
+                if not isinstance(prop_k, str) or not prop_k.isidentifier():
+                    continue
+                p_type = prop_spec.get('type', 'number') if isinstance(prop_spec, dict) else 'number'
+                if p_type in ('number', 'float'):
+                    mock_fields[prop_k] = 8.5
+                elif p_type in ('integer', 'int'):
+                    mock_fields[prop_k] = 3
+                elif p_type in ('boolean', 'bool'):
+                    mock_fields[prop_k] = True
+                elif p_type in ('array', 'list'):
+                    mock_fields[prop_k] = ["sample_1", "sample_2"]
+                elif p_type in ('object', 'dict'):
+                    mock_fields[prop_k] = {"key": "sample_value"}
+                elif p_type in ('string', 'str'):
+                    mock_fields[prop_k] = f"sample_{prop_k}"
+                else:
+                    mock_fields[prop_k] = 5.0
+
+        # Include exit metrics
+        client_exit = payload.get('exit_metrics')
+        exit_keys = []
+        if client_exit:
+            exit_keys = [k.strip() for k in str(client_exit).split(',') if k.strip()]
+        elif definition:
+            exit_keys = definition.get_exit_metrics_list()
+
+        for em in exit_keys:
+            if em and em.isidentifier() and em not in mock_fields:
+                mock_fields[em] = 7.5
+
+        if not mock_fields:
+            if definition:
+                for v in definition.get_available_postprocessing_variables():
+                    if v.get('category') in ('Schema Property', 'Exit Metric'):
+                        mock_fields[v['name']] = v.get('default', 5.0)
+            if not mock_fields:
+                mock_fields = {"score": 8.5, "confidence": 0.92, "label": "high_impact"}
+
+        # Custom mock overrides
+        custom_mock = payload.get('mock_variables')
+        if isinstance(custom_mock, dict):
+            mock_fields.update(custom_mock)
+
+        mock_context = {
+            "title": "Deep Learning for Scientific Discovery",
+            "abstract": "We present a novel benchmark and evaluation protocol...",
+            "arxiv_id": "2401.01234",
+            "doi": "10.1016/j.jbi.2024.104200"
+        }
+
+        t0 = time.perf_counter()
+        try:
+            result = execute_sandboxed_postprocessing(
+                code_snippet=code,
+                fields_data=mock_fields,
+                context_vars=mock_context,
+                timeout_seconds=2.0
+            )
+            exec_time_ms = round((time.perf_counter() - t0) * 1000, 2)
+
+            if result is None:
+                return JsonResponse({
+                    'success': False,
+                    'error_type': 'NullResultWarning',
+                    'error': 'The snippet executed without exceptions but returned None (or did not include a return statement or assignment). Make sure to return a value or dictionary, e.g.: return round(score, 2) or return {"metric": 10}',
+                    'execution_time_ms': exec_time_ms,
+                    'fields_evaluated': mock_fields
+                })
+
+            return JsonResponse({
+                'success': True,
+                'result': result,
+                'result_type': type(result).__name__,
+                'execution_time_ms': exec_time_ms,
+                'fields_evaluated': mock_fields
+            })
+
+        except (SandboxSecurityError, SandboxExecutionError, Exception) as e:
+            exec_time_ms = round((time.perf_counter() - t0) * 1000, 2)
+            return JsonResponse({
+                'success': False,
+                'error_type': type(e).__name__,
+                'error': str(e),
+                'execution_time_ms': exec_time_ms,
+                'fields_evaluated': mock_fields
+            })
 
     @admin.display(description="Signal Score Variable Name(s)")
     def postprocessed_variable_preview(self, obj):
