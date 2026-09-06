@@ -20,7 +20,6 @@ def list_extraction_definitions_logic(user, workspace_id: str) -> str:
         results.append({
             "definition_id": str(d.id),
             "name": d.name,
-            "exit_metric": d.exit_metric,
             "exit_metrics": d.get_exit_metrics_list(),
             "llm_model": d.llm_model,
             "version": d.version,
@@ -60,7 +59,6 @@ def get_extraction_definition_logic(user, definition_id: str) -> str:
         "workspace_id": str(definition.workspace.id),
         "workspace_name": definition.workspace.name,
         "name": definition.name,
-        "exit_metric": definition.exit_metric,
         "exit_metrics": definition.get_exit_metrics_list(),
         "system_prompt": definition.system_prompt,
         "user_prompt_template": definition.user_prompt_template,
@@ -83,8 +81,6 @@ def create_extraction_definition_logic(
     system_prompt: str,
     user_prompt_template: str,
     response_schema: dict,
-    exit_metric: str = None,
-    exit_metric_key: str = None,
     exit_metrics: list = None,
     postprocessing_code: str = None,
     llm_model: str = "google/gemini-3.8-flash",
@@ -97,13 +93,15 @@ def create_extraction_definition_logic(
     if error:
         return error
 
-    # Resolve exit_metrics or exit_metric (accepts list of strings or comma-separated string)
-    raw_exit = exit_metrics if exit_metrics is not None else (exit_metric if exit_metric is not None else exit_metric_key)
-    if isinstance(raw_exit, (list, tuple)):
-        target_exit_metric = ", ".join(str(m).strip() for m in raw_exit if m and str(m).strip())
-    elif isinstance(raw_exit, str):
-        parts = [part.strip() for part in raw_exit.split(',') if part.strip()]
-        target_exit_metric = ", ".join(parts) if parts else None
+    # Resolve exit_metrics list
+    if exit_metrics is not None:
+        if isinstance(exit_metrics, (list, tuple)):
+            target_exit_metric = ", ".join(str(m).strip() for m in exit_metrics if m and str(m).strip())
+        elif isinstance(exit_metrics, str):
+            parts = [part.strip() for part in exit_metrics.split(',') if part.strip()]
+            target_exit_metric = ", ".join(parts) if parts else None
+        else:
+            target_exit_metric = None
     else:
         target_exit_metric = None
 
@@ -156,7 +154,6 @@ def create_extraction_definition_logic(
         "definition_id": str(definition.id),
         "workspace_id": str(workspace.id),
         "name": definition.name,
-        "exit_metric": definition.exit_metric,
         "exit_metrics": definition.get_exit_metrics_list(),
         "postprocessing_code": definition.postprocessing_code or "",
         "has_postprocessing_code": bool(definition.postprocessing_code),
@@ -169,8 +166,6 @@ def update_extraction_definition_logic(
     user,
     definition_id: str,
     name: str = None,
-    exit_metric: str = None,
-    exit_metric_key: str = None,
     exit_metrics: list = None,
     system_prompt: str = None,
     user_prompt_template: str = None,
@@ -197,17 +192,15 @@ def update_extraction_definition_logic(
     if error:
         return error
 
-    raw_exit = exit_metrics if exit_metrics is not None else (exit_metric if exit_metric is not None else exit_metric_key)
-
     updated_fields = []
     if name is not None:
         definition.name = name
         updated_fields.append('name')
-    if raw_exit is not None:
-        if isinstance(raw_exit, (list, tuple)):
-            target_exit_metric = ", ".join(str(m).strip() for m in raw_exit if m and str(m).strip())
-        elif isinstance(raw_exit, str):
-            parts = [part.strip() for part in raw_exit.split(',') if part.strip()]
+    if exit_metrics is not None:
+        if isinstance(exit_metrics, (list, tuple)):
+            target_exit_metric = ", ".join(str(m).strip() for m in exit_metrics if m and str(m).strip())
+        elif isinstance(exit_metrics, str):
+            parts = [part.strip() for part in exit_metrics.split(',') if part.strip()]
             target_exit_metric = ", ".join(parts) if parts else ""
         else:
             target_exit_metric = ""
@@ -269,7 +262,6 @@ def update_extraction_definition_logic(
         "message": f"Extraction definition '{definition.name}' updated successfully.",
         "definition_id": str(definition.id),
         "updated_fields": updated_fields,
-        "exit_metric": definition.exit_metric,
         "exit_metrics": definition.get_exit_metrics_list(),
         "postprocessing_code": definition.postprocessing_code or "",
         "has_postprocessing_code": bool(definition.postprocessing_code)

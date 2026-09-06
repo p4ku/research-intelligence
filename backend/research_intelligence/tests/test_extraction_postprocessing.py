@@ -944,7 +944,7 @@ class ExtractionDefinitionAPITests(TestCase):
         self.assertEqual(res.status_code, 201)
         data = res.json()
         defn_id = data["id"]
-        self.assertEqual(data["exit_metric"], "market_fit, risk_factor")
+        self.assertNotIn("exit_metric", data)
         self.assertEqual(data["exit_metrics"], ["market_fit", "risk_factor"])
         self.assertEqual(data["postprocessing_code"], "return market_fit * 2.0 - risk_factor")
         self.assertTrue(data["has_postprocessing_code"])
@@ -954,6 +954,7 @@ class ExtractionDefinitionAPITests(TestCase):
         get_res = self.client.get(detail_url)
         self.assertEqual(get_res.status_code, 200)
         get_data = get_res.json()
+        self.assertNotIn("exit_metric", get_data)
         self.assertEqual(get_data["exit_metrics"], ["market_fit", "risk_factor"])
         self.assertEqual(get_data["postprocessing_code"], "return market_fit * 2.0 - risk_factor")
         self.assertTrue(get_data["has_postprocessing_code"])
@@ -966,8 +967,8 @@ class ExtractionDefinitionAPITests(TestCase):
         patch_res = self.client.patch(detail_url, patch_payload, format="json")
         self.assertEqual(patch_res.status_code, 200)
         patch_data = patch_res.json()
+        self.assertNotIn("exit_metric", patch_data)
         self.assertEqual(patch_data["exit_metrics"], ["market_fit", "growth_score"])
-        self.assertEqual(patch_data["exit_metric"], "market_fit, growth_score")
         self.assertEqual(patch_data["postprocessing_code"], "return market_fit + growth_score")
 
         # 4. Test syntax error validation in postprocessing_code

@@ -160,7 +160,7 @@ Specify the exact structured JSON fields the AI must extract from screened full-
 {
   "workspace_id": "7b8e1a90-3f2d-4b5c-8a1e-9d0c2e3f4a5b",
   "name": "TRL Assessment",
-  "exit_metric": "trl_level",
+  "exit_metrics": ["trl_level"],
   "system_prompt": "Assess the Technology Readiness Level (1-9) of the battery prototype.",
   "user_prompt_template": "Assess TRL for {{paper_title}}:\n{{full_text}}",
   "response_schema": {

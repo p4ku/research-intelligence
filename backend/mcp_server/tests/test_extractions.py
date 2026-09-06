@@ -18,17 +18,21 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
             self.admin,
             workspace_id=str(self.workspace.id),
             name="TRL Level",
-            exit_metric="trl_score",
+            exit_metrics=["trl_score"],
             system_prompt="Extract technology readiness level between 1-9",
             user_prompt_template="Paper: {paper_text}",
             response_schema={"type": "object", "properties": {"trl": {"type": "integer"}}}
         ))
         self.assertEqual(res["status"], "success")
+        self.assertNotIn("exit_metric", res)
+        self.assertEqual(res["exit_metrics"], ["trl_score"])
         d_id = res["definition_id"]
 
         defs = self.parse_res(list_extraction_definitions_logic(self.admin, workspace_id=str(self.workspace.id)))
         self.assertEqual(len(defs), 1)
         self.assertEqual(defs[0]["name"], "TRL Level")
+        self.assertNotIn("exit_metric", defs[0])
+        self.assertEqual(defs[0]["exit_metrics"], ["trl_score"])
 
         up_res = self.parse_res(update_extraction_definition_logic(self.admin, definition_id=d_id, system_prompt="Updated prompt"))
         self.assertEqual(up_res["status"], "success")
@@ -43,7 +47,7 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
             self.admin,
             workspace_id=str(self.workspace.id),
             name="Fit Definition",
-            exit_metric="fit_score",
+            exit_metrics=["fit_score"],
             system_prompt="Extract fit score",
             user_prompt_template="Paper: {paper_text}",
             response_schema={"type": "object"},
@@ -51,16 +55,22 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
         ))
         self.assertEqual(res["status"], "success")
         self.assertTrue(res["has_postprocessing_code"])
+        self.assertNotIn("exit_metric", res)
+        self.assertEqual(res["exit_metrics"], ["fit_score"])
         d_id = res["definition_id"]
 
         # 2. Get detailed view
         details = self.parse_res(get_extraction_definition_logic(self.admin, definition_id=d_id))
         self.assertEqual(details["postprocessing_code"], "return fit_score * 2.5")
+        self.assertNotIn("exit_metric", details)
+        self.assertEqual(details["exit_metrics"], ["fit_score"])
 
         # 3. List
         defs = self.parse_res(list_extraction_definitions_logic(self.admin, workspace_id=str(self.workspace.id)))
         self.assertEqual(len(defs), 1)
         self.assertTrue(defs[0]["has_postprocessing_code"])
+        self.assertNotIn("exit_metric", defs[0])
+        self.assertEqual(defs[0]["exit_metrics"], ["fit_score"])
 
         # 4. Update postprocessing_code
         up_res = self.parse_res(update_extraction_definition_logic(
@@ -93,14 +103,14 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
             postprocessing_code="return (market_fit * 2.0) + growth_potential - risk_factor"
         ))
         self.assertEqual(res["status"], "success")
-        self.assertEqual(res["exit_metric"], "market_fit, growth_potential, risk_factor")
+        self.assertNotIn("exit_metric", res)
         self.assertEqual(res["exit_metrics"], ["market_fit", "growth_potential", "risk_factor"])
         self.assertTrue(res["has_postprocessing_code"])
         d_id = res["definition_id"]
 
         # 2. Get details and inspect exit_metrics list + postprocessing_code
         details = self.parse_res(get_extraction_definition_logic(self.admin, definition_id=d_id))
-        self.assertEqual(details["exit_metric"], "market_fit, growth_potential, risk_factor")
+        self.assertNotIn("exit_metric", details)
         self.assertEqual(details["exit_metrics"], ["market_fit", "growth_potential", "risk_factor"])
         self.assertEqual(details["postprocessing_code"], "return (market_fit * 2.0) + growth_potential - risk_factor")
 

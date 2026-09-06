@@ -130,7 +130,7 @@ graph TD
 
 ### 4. Dynamic Parameter Extraction & Multi-Metric Postprocessing
 - **Schema-Validated Extraction**: Evaluates papers against `ExtractionDefinition` prompts and JSON schemas using Gemini 3.7 Flash.
-- **Multiple Exit Metrics**: Allows unpacking multiple parameters (e.g. `exit_metrics: ["rigour_score", "sample_size", "p_value"]` or comma-separated `exit_metric: "rigour_score, sample_size, p_value"`) to expose multiple distinct variables from a single extraction definition into Signal Scoring.
+- **Exit Metrics List**: Directly accepts an explicit list of parameters (`exit_metrics: ["rigour_score", "sample_size", "p_value"]`) to unpack multiple distinct variables from a single extraction definition into Signal Scoring.
 - **Python AST-Sandboxed Postprocessing Snippet**: Optional Python code (`postprocessing_code`) executed in a secure sandbox with full access to the raw LLM JSON response (`data`, `response`, `json_response`) and extracted variables. Automatically injects a derived variable `<primary_exit_metric>_postprocessed` into the scoring environment.
 - **Evidence & Confidence Scores**: Stores results in `Extraction` objects containing exact evidence quotes, normalized values, confidence scores, and validation statuses (`pass`, `warn`, `fail`).
 - **REST API & FastMCP Tools**: Full programmatic manipulation via `/api/extraction-definitions/` and FastMCP tools (`create_extraction_definition`, `update_extraction_definition`, `get_extraction_definition`, `list_extraction_definitions`).

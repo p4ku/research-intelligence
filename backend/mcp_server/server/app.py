@@ -964,8 +964,7 @@ def create_extraction_definition(
     system_prompt: str,
     user_prompt_template: str,
     response_schema: dict,
-    exit_metric: str = None,
-    exit_metrics: list[str] | str = None,
+    exit_metrics: list[str] = None,
     postprocessing_code: str = None,
     llm_model: str = "google/gemini-3.8-flash",
     version: int = 1,
@@ -985,8 +984,7 @@ def create_extraction_definition(
     - system_prompt: Guidance for the LLM on how to extract and evaluate fields.
     - user_prompt_template: Template with variables `{{paper_title}}`, `{{abstract}}`, `{{full_text}}`.
     - response_schema: JSON Schema dictionary defining the expected structure, field types, and constraints.
-    - exit_metric: Primary key or comma-separated keys to expose for signal scoring (e.g. 'fit_score' or 'rigour_score, param1, param2').
-    - exit_metrics: Optional list of field keys (e.g. ['rigour_score', 'param1', 'param2']) or comma-separated string to expose for Signal Score.
+    - exit_metrics: List of field keys (e.g. ['rigour_score', 'param1', 'param2']) to unpack from extracted JSON for Signal Score.
     - postprocessing_code: Optional Python snippet executed in a secure AST sandbox with full access to `data`, `response`, `json_response` and extracted fields. Computes an extra variable `<primary_metric>_postprocessed` for Signal Score.
     - llm_model: Default 'google/gemini-3.8-flash'.
     """
@@ -1002,7 +1000,6 @@ def create_extraction_definition(
         system_prompt=system_prompt,
         user_prompt_template=user_prompt_template,
         response_schema=response_schema,
-        exit_metric=exit_metric,
         exit_metrics=exit_metrics,
         postprocessing_code=postprocessing_code,
         llm_model=llm_model,
@@ -1017,8 +1014,7 @@ def create_extraction_definition(
 def update_extraction_definition(
     definition_id: str,
     name: str | None = None,
-    exit_metric: str | None = None,
-    exit_metrics: list[str] | str | None = None,
+    exit_metrics: list[str] | None = None,
     postprocessing_code: str | None = None,
     system_prompt: str | None = None,
     user_prompt_template: str | None = None,
@@ -1034,8 +1030,7 @@ def update_extraction_definition(
     
     PARAMETERS:
     - definition_id: UUID of the extraction definition.
-    - exit_metric: Single or comma-separated exit metric parameter keys.
-    - exit_metrics: List of exit parameter keys (e.g. ['rigour_score', 'param1']) or comma-separated string.
+    - exit_metrics: List of exit parameter keys (e.g. ['rigour_score', 'param1']) to expose for Signal Score.
     - postprocessing_code: Python snippet executed in secure AST sandbox. Set empty string to clear.
     """
     try:
@@ -1047,7 +1042,6 @@ def update_extraction_definition(
         user=user,
         definition_id=definition_id,
         name=name,
-        exit_metric=exit_metric,
         exit_metrics=exit_metrics,
         postprocessing_code=postprocessing_code,
         system_prompt=system_prompt,
