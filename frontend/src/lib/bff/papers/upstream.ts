@@ -29,7 +29,15 @@ export const paperMetricDTO = z.looseObject({
   created_at: z.string(),
 })
 
-/** PaperSerializer — note: no `signal_score`; it lives on the nested metrics[]. */
+/**
+ * PaperSerializer. The list faces (`/api/papers/`, `/api/workspaces/{id}/papers/`)
+ * answer with `PaperListSerializer`: same fields, but `metrics[]` holds only
+ * the target run's metric — the one `pipeline_run`, `screening_status` and
+ * `signal_score` are read from — so a row no longer grows with the number of
+ * runs that scored the paper (one entry, or none). `/api/papers/{id}/` keeps
+ * every metric. The BFF reads the row-level fields and never indexes
+ * `metrics[]`, so one shape covers both faces.
+ */
 export const paperDTO = z.looseObject({
   id: z.string(),
   workspace: z.string(),

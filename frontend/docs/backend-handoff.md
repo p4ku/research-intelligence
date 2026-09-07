@@ -89,9 +89,16 @@ because your team will want to triage them (file references from
 5. **Medium — inconsistent error shapes.** `{error}`, DRF field errors,
    `{message}`, and serializer errors on 401 refresh coexist; a problem+json
    `EXCEPTION_HANDLER` fixes this for old and new endpoints at once.
-6. **Medium — unbounded lists.** No `DEFAULT_PAGINATION_CLASS`; `/api/papers/`
-   returns the entire membership-scoped table with all metrics nested; no
-   `?workspace=` on papers/extractions/reports.
+6. **Medium — unbounded lists.** No `DEFAULT_PAGINATION_CLASS`: pagination
+   is opt-in per request via `page`/`page_size` (`backend/api/pagination.py`,
+   50 per page by default, 500 at most), so a bare `/api/papers/` still
+   returns the whole membership-scoped table. The rows have stopped growing,
+   though: `/api/pipeline-runs/` answers with `PipelineRunListSerializer`
+   (no `step_history`/`stage_results`), and `/api/papers/` and
+   `/api/workspaces/{id}/papers/` with `PaperListSerializer` (`metrics[]`
+   holds the target run's metric only — one entry, or none). The detail
+   endpoints keep everything. Papers, extractions and reports all take
+   `?workspace=` now.
 7. **Low** — sessions PATCH silently no-ops (all-read-only serializer);
    the chat generator keeps running after client disconnect (LLM cost);
    `GET /health/diagnostics/` is unauthenticated, calls Gemini, leaks the

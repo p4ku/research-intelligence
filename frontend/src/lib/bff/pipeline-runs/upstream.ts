@@ -2,6 +2,11 @@
  * zod transcription of `PipelineRunSerializer` as it exists today. `.loose()`:
  * extra fields pass; missing/mistyped fields fail as 502 `upstream-shape`.
  * Pure — the conformance script imports this.
+ *
+ * `GET /api/pipeline-runs/` answers with `PipelineRunListSerializer`: the
+ * same scalars minus `step_history` and `stage_results`, the two blobs that
+ * grew with run length. Detail (below) keeps both. Nothing here reads
+ * either, so one shape covers both faces.
  */
 import * as z from 'zod'
 
@@ -68,10 +73,11 @@ export const startRunResponseDTO = z.looseObject({
 })
 
 /**
- * `PipelineRunDetailSerializer` — the list shape plus per-run counts and
- * storage stats. `storage_stats` is loose because the serializer's success
- * path returns `size_bytes` while its exception fallback returns
- * `total_bytes`; the service reads whichever is present.
+ * `PipelineRunDetailSerializer` — the list shape plus `step_history`,
+ * `stage_results`, per-run counts and storage stats. `storage_stats` is
+ * loose because the serializer's success path returns `size_bytes` while
+ * its exception fallback returns `total_bytes`; the service reads whichever
+ * is present.
  */
 export const pipelineRunDetailDTO = pipelineRunDTO.extend({
   papers_count: z.number(),
