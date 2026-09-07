@@ -1,31 +1,30 @@
-import { Card, PageHeader, SectionLabel, StatBand } from '@/components/scanner-ui'
-import { SectionAnchors } from '@/components/top-bar'
+import { PageHeader } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
 import { getSessionUser } from '@/lib/auth/session'
 import { fmt } from '@/lib/i18n'
 import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
-import Link from 'next/link'
+import type { Metadata } from 'next'
 import { Suspense, ViewTransition } from 'react'
-import { funnelCopy } from './data'
-import { Brief, BriefLink, Funnel, Papers, TodayDomain, TodayEyebrow } from './sections'
-import { BriefSkeleton, FunnelSkeleton, PapersSkeleton } from './skeletons'
+import { SearchField } from './search-field'
+import { LedgerSection, MastheadSection } from './sections'
+import { LedgerSkeletonRegion, MastheadSkeletonRegion } from './skeletons'
 
 export const dynamic = 'force-dynamic'
 
-const anchors = [
-  { id: 'today', label: 'Today in brief' },
-  { id: 'the-papers', label: 'The papers' },
-]
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getT()
+  return { title: t('Home') }
+}
 
 /**
- * The dashboard streams in three sections (funnel, brief, papers), each its
- * own Suspense boundary over ./sections. The shell — header, section labels,
- * anchors — renders immediately; loading.tsx shows the same skeletons on
- * navigation. <ViewTransition> pairs animate the skeleton → content handoff
- * (bone-exit/bone-enter in styles/tailwind.css); default="none" keeps them
- * quiet during every other transition, including RunPapers' sort transitions.
- * "Today" is the newest completed run in any of the user's domains.
+ * Home: the search across every paper, the Current briefing read first (the
+ * masthead), then Recent Briefings beside Start New Briefing. The shell —
+ * header, search — renders immediately; the masthead and the ledger grid
+ * stream in behind their own Suspense boundaries, and loading.tsx shows the
+ * same skeletons on navigation. <ViewTransition> pairs animate the
+ * skeleton → content handoff (bone-exit/bone-enter in styles/tailwind.css);
+ * default="none" keeps them quiet during every other transition.
  */
 export default async function DashboardPage() {
   const [user, state, t, lang] = await Promise.all([
@@ -35,136 +34,52 @@ export default async function DashboardPage() {
     getLang(),
   ])
   const name = user?.name.split(' ')[0] || t('there')
+  const header = <PageHeader eyebrow={t('Home')} title={fmt(t('Good morning, {name}'), { name })} />
 
-  if (state.kind === 'unavailable') {
-    // An outage is not a zero-paper day: no zeroed stats, no membership copy.
+  if (state.kind !== 'ok') {
+    // An outage is not an empty Home, and no domain means nothing to read
+    // or to run: the notice says which, with Retry for the outage.
     return (
-      <div className="space-y-10">
-        <PageHeader eyebrow={t('Today')} title={fmt(t('Good morning, {name}'), { name })} />
-        <WorkspaceNotice kind="unavailable" />
+      <div className="space-y-8">
+        {header}
+        <WorkspaceNotice kind={state.kind} />
       </div>
     )
   }
 
-  if (state.kind === 'none') {
-    // No domain to read from: nothing to fetch, so no boundaries — the page
-    // renders in one pass with the membership copy.
-    const funnel = funnelCopy(t).map((c) => ({ value: 0, ...c }))
-    return (
-      <div className="space-y-10">
-        <SectionAnchors anchors={anchors} />
-        <PageHeader eyebrow={t('Today')} title={fmt(t('Good morning, {name}'), { name })} />
-        <section id="today" className="scroll-mt-28">
-          <StatBand items={funnel} flow className="lg:grid-cols-3!" />
-          <div className="mt-8">
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <SectionLabel size="sm">{t('Today in brief')}</SectionLabel>
-            </div>
-            <p className="mt-4 max-w-3xl text-base leading-relaxed text-pretty text-zinc-600 dark:text-zinc-300">
-              {t('No domains yet')}
-            </p>
-          </div>
-        </section>
-        <section id="the-papers" className="scroll-mt-28">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <SectionLabel size="sm">{t('The papers')}</SectionLabel>
-            <Link
-              href="/papers"
-              className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
-            >
-              {t('All papers →')}
-            </Link>
-          </div>
-          <div className="mt-5">
-            <Card>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                {t("You don't have access to any domain yet. Ask an administrator for access.")}
-              </p>
-            </Card>
-          </div>
-        </section>
-      </div>
-    )
-  }
+  const domains = state.all.map((w) => ({ id: w.id, name: w.name }))
+  // The form's "To" defaults to today; the server's day, so the first
+  // client render agrees with the HTML it hydrates.
+  const today = new Date().toISOString().slice(0, 10)
+
   return (
-    <div className="space-y-10">
-      <SectionAnchors anchors={anchors} />
+    <div className="space-y-8">
+      {header}
+      <SearchField />
 
-      <PageHeader
-        eyebrow={
-          <Suspense fallback={t('Today')}>
-            <TodayEyebrow t={t} lang={lang} />
-          </Suspense>
-        }
-        title={fmt(t('Good morning, {name}'), { name })}
-        actions={
-          // The badge needs the latest run, so it streams; the skeleton shows
-          // no actions, and neither does this until the run is known.
-          <Suspense fallback={null}>
-            <TodayDomain />
-          </Suspense>
-        }
-      />
-
-      {/* ------------------------------ Today in brief ---------------------------- */}
-      <section id="today" className="scroll-mt-28">
-        <Suspense
-          fallback={
-            <ViewTransition exit="bone-exit" default="none">
-              <FunnelSkeleton t={t} />
-            </ViewTransition>
-          }
-        >
-          <ViewTransition enter="bone-enter" default="none">
-            <Funnel t={t} />
+      <Suspense
+        fallback={
+          <ViewTransition exit="bone-exit" default="none">
+            <MastheadSkeletonRegion t={t} />
           </ViewTransition>
-        </Suspense>
-        <div className="mt-8">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <SectionLabel size="sm">{t('Today in brief')}</SectionLabel>
-            <Suspense fallback={null}>
-              <BriefLink t={t} lang={lang} />
-            </Suspense>
-          </div>
-          <Suspense
-            fallback={
-              <ViewTransition exit="bone-exit" default="none">
-                <BriefSkeleton t={t} />
-              </ViewTransition>
-            }
-          >
-            <ViewTransition enter="bone-enter" default="none">
-              <Brief t={t} lang={lang} />
-            </ViewTransition>
-          </Suspense>
-        </div>
-      </section>
+        }
+      >
+        <ViewTransition enter="bone-enter" default="none">
+          <MastheadSection t={t} lang={lang} />
+        </ViewTransition>
+      </Suspense>
 
-      {/* -------------------------------- The papers ------------------------------ */}
-      <section id="the-papers" className="scroll-mt-28">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <SectionLabel size="sm">{t('The papers')}</SectionLabel>
-          <Link
-            href="/papers"
-            className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
-          >
-            {t('All papers →')}
-          </Link>
-        </div>
-        <div className="mt-5">
-          <Suspense
-            fallback={
-              <ViewTransition exit="bone-exit" default="none">
-                <PapersSkeleton t={t} />
-              </ViewTransition>
-            }
-          >
-            <ViewTransition enter="bone-enter" default="none">
-              <Papers t={t} />
-            </ViewTransition>
-          </Suspense>
-        </div>
-      </section>
+      <Suspense
+        fallback={
+          <ViewTransition exit="bone-exit" default="none">
+            <LedgerSkeletonRegion t={t} />
+          </ViewTransition>
+        }
+      >
+        <ViewTransition enter="bone-enter" default="none">
+          <LedgerSection t={t} lang={lang} domains={domains} today={today} />
+        </ViewTransition>
+      </Suspense>
     </div>
   )
 }

@@ -192,6 +192,16 @@ Things learned:
   `briefings.listAll`, `briefings.getByDate`) is what makes sibling sections
   cheap; without it, `source=django` would fetch once per section.
 
+## Done (pass 4) — Home (7 Sep 2026)
+
+Home was rebuilt around the MVP spec (search, the Current briefing as a
+masthead, Recent Briefings beside Start New Briefing). Two boundaries:
+`MastheadSection` and `LedgerSection` (the ledger and the form share one,
+because the form's disabled state depends on the same run list). Pairs
+`home-masthead`, `home-ledger` and `home-run-card` in the gallery; the
+`run-papers` pair went with the old page. The ledger's expanded row
+(`data-row="brief"`) has no skeleton — it only opens on a click.
+
 ## Later, not now
 
 Still on `KNOWN_UNCOVERED`: `/papers` (the `--stream` negative control above —

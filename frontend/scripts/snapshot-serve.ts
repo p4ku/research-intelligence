@@ -8,10 +8,14 @@
  *          `?paper=`, `?status=` (any `key=value`) applied to list responses.
  * - POST /api/auth/login/ and /refresh/ → dev-signed JWTs with a real `exp`
  *          (the proxy only reads `exp`; rotation is mirrored like production).
+ * - POST /api/pipeline-runs/start/ → a simulated run: `running` at the top
+ *          of the list at once, `completed` (or `failed`, see env) after
+ *          SNAPSHOT_RUN_MS. In memory only; restart to forget it.
  * - Anything else that writes → 501, in Django's error shape.
  *
  * Env: SNAPSHOT_DIR (default: newest folder under local-data/), SNAPSHOT_PORT
- * (default 8010).
+ * (default 8010), SNAPSHOT_RUN_MS (default 8000), SNAPSHOT_RUN_OUTCOME
+ * (`completed` | `failed`).
  */
 import { createHmac, randomUUID } from 'node:crypto'
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -22,6 +26,8 @@ const ROOT = join(import.meta.dir, '..', 'local-data')
 const PORT = Number(process.env.SNAPSHOT_PORT ?? 8010)
 const DIR = process.env.SNAPSHOT_DIR ?? newestSnapshot()
 const SECRET = 'snapshot-dev-secret'
+const RUN_MS = Number(process.env.SNAPSHOT_RUN_MS ?? 8000)
+const RUN_OUTCOME = process.env.SNAPSHOT_RUN_OUTCOME === 'failed' ? 'failed' : 'completed'
 
 function newestSnapshot(): string {
   if (!existsSync(ROOT)) fail(`No ${ROOT}. Run \`bun run snapshot:pull\` first.`)
@@ -85,6 +91,92 @@ function filterRows(rows: unknown[], query: URLSearchParams): unknown[] {
   })
 }
 
+type Row = Record<string, unknown>
+
+/** Runs started through the replay, newest first; served ahead of the capture. */
+const startedRuns: Row[] = []
+
+function readJson(req: IncomingMessage): Promise<unknown> {
+  return new Promise((resolve) => {
+    let text = ''
+    req.setEncoding('utf8')
+    req.on('data', (chunk: string) => (text += chunk))
+    req.on('end', () => {
+      try {
+        resolve(text ? (JSON.parse(text) as unknown) : {})
+      } catch {
+        resolve({})
+      }
+    })
+  })
+}
+
+function capturedRuns(): Row[] {
+  const body = load('/api/pipeline-runs/')
+  return Array.isArray(body) ? (body as Row[]) : []
+}
+
+/** A run in the list serializer's shape, modelled on the capture's first row. */
+function simulateRun(
+  ws: { id: string; name: string },
+  input: { start_date?: string | null; end_date?: string | null; n_last_days?: number | null },
+): Row {
+  const now = new Date().toISOString()
+  const template = capturedRuns()[0] ?? {}
+  const cfg = {
+    start_date: input.start_date ?? null,
+    end_date: input.end_date ?? null,
+    n_last_days: input.start_date || input.end_date ? null : (input.n_last_days ?? 7),
+    autonomous: true,
+  }
+  return {
+    ...template,
+    id: randomUUID(),
+    name: `Autonomous Pipeline Run - ${now.slice(0, 16).replace('T', ' ')}`,
+    workspace: ws.id,
+    workspace_name: ws.name,
+    run_date: now.slice(0, 10),
+    status: 'running',
+    current_stage: 'search',
+    configuration_override: cfg,
+    period: cfg.start_date && cfg.end_date ? `${cfg.start_date} - ${cfg.end_date}` : null,
+    total_papers_fetched: 0,
+    total_papers_passed_screening: 0,
+    tokens_in: 0,
+    tokens_out: 0,
+    tokens_consumed: 0,
+    usd_cost: '0.0000',
+    triggered_by: 1,
+    triggered_by_username: 'admin',
+    status_message: 'Searching sources.',
+    started_at: now,
+    completed_at: null,
+    duration_seconds: null,
+    execution_time_display: '⏱ running',
+  }
+}
+
+/** After RUN_MS: the outcome, with the counters of the domain's last real run. */
+function finishRun(run: Row) {
+  const now = new Date()
+  const started = new Date(String(run.started_at))
+  const previous = capturedRuns().find(
+    (r) => r.workspace === run.workspace && r.status === 'completed',
+  )
+  run.status = RUN_OUTCOME
+  run.completed_at = now.toISOString()
+  run.duration_seconds = (now.getTime() - started.getTime()) / 1000
+  if (RUN_OUTCOME === 'completed') {
+    run.current_stage = 'completed'
+    run.total_papers_fetched = previous?.total_papers_fetched ?? 0
+    run.total_papers_passed_screening = previous?.total_papers_passed_screening ?? 0
+    run.status_message = 'Simulated run finished (snapshot replay).'
+  } else {
+    run.current_stage = 'abstract_screening'
+    run.status_message = 'Simulated failure (SNAPSHOT_RUN_OUTCOME=failed).'
+  }
+}
+
 function send(res: ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { 'content-type': 'application/json' })
   res.end(JSON.stringify(body))
@@ -103,7 +195,7 @@ const me = load('/api/auth/me/') ?? {
   is_staff: true,
 }
 
-function handle(req: IncomingMessage, res: ServerResponse) {
+async function handle(req: IncomingMessage, res: ServerResponse) {
   const url = new URL(req.url ?? '/', `http://localhost:${PORT}`)
   const pathname = url.pathname.endsWith('/') ? url.pathname : `${url.pathname}/`
   const method = req.method ?? 'GET'
@@ -127,10 +219,36 @@ function handle(req: IncomingMessage, res: ServerResponse) {
   if (method === 'POST' && pathname === '/api/auth/refresh/')
     return (log(200), send(res, 200, tokenPair()))
   if (method === 'POST' && pathname === '/api/auth/logout/') return (log(200), send(res, 200, {}))
+  if (method === 'POST' && pathname === '/api/pipeline-runs/start/') {
+    const input = (await readJson(req)) as {
+      workspace_id?: string
+      start_date?: string | null
+      end_date?: string | null
+      n_last_days?: number | null
+    }
+    const workspaces = load('/api/workspaces/')
+    const ws = (Array.isArray(workspaces) ? (workspaces as Row[]) : []).find(
+      (w) => w.id === input.workspace_id,
+    ) as { id: string; name: string } | undefined
+    if (!ws) return (log(403), djangoError(res, 403, 'Access denied: not a workspace member.'))
+    if (input.start_date && input.end_date && input.start_date > input.end_date)
+      return (log(400), send(res, 400, { status: 'error', error: 'end_date precedes start_date' }))
+    const run = simulateRun(ws, input)
+    startedRuns.unshift(run)
+    setTimeout(() => finishRun(run), RUN_MS)
+    log(201)
+    return send(res, 201, {
+      status: 'success',
+      pipeline_run_id: run.id,
+      workspace_id: ws.id,
+      run_status: 'running',
+    })
+  }
   if (method !== 'GET') return (log(501), djangoError(res, 501, 'Snapshot replay is read-only.'))
 
-  const body = load(pathname)
+  let body = load(pathname)
   if (body === undefined) return (log(404), djangoError(res, 404, 'Not found.'))
+  if (pathname === '/api/pipeline-runs/' && Array.isArray(body)) body = [...startedRuns, ...body]
   const out = Array.isArray(body) && url.search ? filterRows(body, url.searchParams) : body
   log(200)
   send(res, 200, out)

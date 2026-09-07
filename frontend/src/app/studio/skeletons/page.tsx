@@ -33,7 +33,8 @@ import {
   EditionBrowserSkeleton,
   type BrowserEdition,
 } from '../../(sidebar)/briefing/edition-browser'
-import { RunPapers, RunPapersSkeleton } from '../../(sidebar)/dashboard/run-papers'
+import { Ledger, LedgerSkeleton, type HomeRow } from '../../(sidebar)/dashboard/ledger'
+import { Masthead, MastheadSkeleton, type MastheadLead } from '../../(sidebar)/dashboard/masthead'
 import {
   PaperHeader,
   PaperHeaderSkeleton,
@@ -85,6 +86,69 @@ const fivePapers = Array.from({ length: 5 }, (_, i) => ({
 
 // Studio is English-only; the shared components take a translator.
 const t: T = (s) => s
+
+// Home: the fixture edition as the Current briefing, and a ledger with one
+// row in each state (processing, current, failed) so every cell shape shows.
+const homeEdition = fixtureEditions[0]
+const homeTop = fivePapers.slice(0, 3).map((p) => ({
+  id: p.id,
+  title: p.title,
+  authors: p.authors.slice(0, 3).join(', '),
+  score: p.signal_score,
+}))
+const homeHref = `/briefing/${homeEdition.date}?domain=${fixtureWorkspace.id}`
+const homeLead: MastheadLead = {
+  domain: fixtureWorkspace.name,
+  period: '1–31 Aug 2026',
+  generated: '31 Aug 2026',
+  href: homeHref,
+  inBrief: homeEdition.in_brief,
+  template: true,
+  screened: homeEdition.funnel.fetched,
+  included: homeEdition.funnel.surfaced,
+  top: homeTop,
+}
+const homeRows: HomeRow[] = [
+  {
+    id: fixtureRuns[2].id,
+    domain: fixtureWorkspace.name,
+    status: 'processing',
+    period: 'Last 7 days',
+    generated: null,
+    startedClock: '08:26',
+    papers: null,
+    retry: null,
+    brief: null,
+  },
+  {
+    id: fixtureRuns[0].id,
+    domain: fixtureWorkspace.name,
+    status: 'current',
+    period: '1–31 Aug 2026',
+    generated: '31 Aug 2026',
+    startedClock: '08:26',
+    papers: homeEdition.funnel.surfaced,
+    retry: null,
+    brief: {
+      href: homeHref,
+      inBrief: homeEdition.in_brief,
+      screened: homeEdition.funnel.fetched,
+      included: homeEdition.funnel.surfaced,
+      top: homeTop,
+    },
+  },
+  {
+    id: fixtureRuns[1].id,
+    domain: fixtureWorkspace.name,
+    status: 'failed',
+    period: '1–30 Aug 2026',
+    generated: null,
+    startedClock: '08:26',
+    papers: null,
+    retry: { workspace_id: fixtureWorkspace.id, start_date: '2026-08-01', end_date: '2026-08-30' },
+    brief: null,
+  },
+]
 
 // Three sessions on two days: the fixture pair plus a question long enough
 // to wrap, so the rail pair exercises both a day break and the two-line title.
@@ -272,11 +336,19 @@ export default async function SkeletonsPage({
       />
 
       <Pair
-        shape="run-papers"
-        title="Run papers list"
-        status="Loading the papers"
-        loaded={<RunPapers papers={fivePapers} workspace={fixtureWorkspace} />}
-        skeleton={<RunPapersSkeleton />}
+        shape="home-masthead"
+        title="Home masthead"
+        status="Loading the briefing"
+        loaded={<Masthead lead={homeLead} t={t} />}
+        skeleton={<MastheadSkeleton t={t} />}
+      />
+
+      <Pair
+        shape="home-ledger"
+        title="Home ledger"
+        status="Loading recent briefings"
+        loaded={<Ledger rows={homeRows} busy={false} />}
+        skeleton={<LedgerSkeleton rows={homeRows.length} />}
       />
 
       <Pair

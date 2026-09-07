@@ -14,9 +14,16 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t('Papers') }
 }
 
-/** Every paper from every domain the user belongs to, one browser over all of them. */
-export default async function PapersPage() {
-  const [t, state] = await Promise.all([getT(), getWorkspacesState()])
+/**
+ * Every paper from every domain the user belongs to, one browser over all of
+ * them. `?q=` is Home's search, pre-filled into the browser's field.
+ */
+export default async function PapersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>
+}) {
+  const [t, state, { q }] = await Promise.all([getT(), getWorkspacesState(), searchParams])
 
   if (state.kind !== 'ok') {
     return (
@@ -40,7 +47,11 @@ export default async function PapersPage() {
           <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('No papers yet.')}</p>
         </Card>
       ) : (
-        <PapersBrowser papers={corpus.papers} workspaces={corpus.workspaces} />
+        <PapersBrowser
+          papers={corpus.papers}
+          workspaces={corpus.workspaces}
+          initialSearch={q?.trim() ?? ''}
+        />
       )}
     </div>
   )

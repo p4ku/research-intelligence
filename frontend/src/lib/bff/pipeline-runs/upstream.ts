@@ -29,6 +29,30 @@ export const pipelineRunDTO = z.looseObject({
   duration_seconds: z.number().nullable(),
   /** Pre-formatted with an emoji; prefer duration_seconds. */
   execution_time_display: z.string(),
+  /**
+   * The engine's inputs, written at creation: the search window as
+   * `start_date`/`end_date` (ISO strings) or `n_last_days`. Absent from
+   * captures taken before the serializer exposed it, hence optional.
+   */
+  configuration_override: z
+    .looseObject({
+      start_date: z.string().nullish(),
+      end_date: z.string().nullish(),
+      n_last_days: z.number().nullish(),
+    })
+    .nullish(),
+  /** Django's own rendering of the window ("2026-08-01 - 2026-09-05"); the BFF reads the raw dates instead. */
+  period: z.string().nullish(),
+})
+
+/**
+ * `POST /api/pipeline-runs/start/` — the autonomous-run trigger answers with
+ * a status envelope, not the run serializer. Only the id matters to the UI;
+ * the page re-reads the list for the row.
+ */
+export const startRunResponseDTO = z.looseObject({
+  status: z.string().optional(),
+  pipeline_run_id: z.string(),
 })
 
 /**
