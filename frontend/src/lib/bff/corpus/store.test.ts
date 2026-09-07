@@ -112,7 +112,7 @@ describe('createSnapshotStore', () => {
     expect(calls).toEqual({ probe: 2, load: 2 })
   })
 
-  test('a cold load whose data settled before the version is served once, never kept', async () => {
+  test('a cold load whose data settled before the version is kept unconfirmed, then settles', async () => {
     const c = clock()
     const calls = { probe: 0, load: 0 }
     let releaseProbe = () => {}
@@ -133,10 +133,23 @@ describe('createSnapshotStore', () => {
     await Promise.resolve()
     releaseProbe()
     expect(await pending).toBe(1)
-    // Nothing trusted was kept, so the next read loads again under a settled version.
+    // The version could not be trusted, so the next read reloads under one it
+    // can. It reaches the probe through the entry, so let it get there first.
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0))
     const next = store.get('k')
+    await flush()
     releaseProbe()
     expect(await next).toBe(2)
+    // And it converges: once a load carries a settled version the store stops
+    // reloading. Discarding the unconfirmed entry instead would reload here
+    // too, and on every read after — a store whose load outruns its probe
+    // would never cache at all, and never recover.
+    c.tick(1)
+    const third = store.get('k')
+    await flush()
+    releaseProbe()
+    expect(await third).toBe(2)
+    expect(calls.load).toBe(2)
   })
 
   test('a failed load is not kept', async () => {

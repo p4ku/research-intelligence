@@ -17,9 +17,14 @@
  * The cold load stamps the probe's version only when the probe settled
  * first: data that arrived after the version can only be newer than it,
  * which the next probe catches. Data that arrived before the version could
- * be older, so it is served once and never kept. An outage therefore never
- * reads as "no data": a miss surfaces exactly the problem it surfaces
- * today. Pure apart from the injected functions.
+ * be older, so the entry is kept unconfirmed (`version: null`) instead —
+ * it is never served again without a probe, and the next read reloads it
+ * under a version it can trust. Discarding it outright would mean a store
+ * whose load is faster than the probe never caches at all, and never
+ * recovers: the small workspaces list against a growing run ledger is
+ * exactly that shape. An outage therefore never reads as "no data": a miss
+ * surfaces exactly the problem it surfaces today. Pure apart from the
+ * injected functions.
  */
 import { isUnauthenticated } from '../core/problem'
 import { TtlCache } from '../core/ttl-cache'
@@ -50,7 +55,7 @@ export interface SnapshotStore<T> {
 }
 
 interface Entry<T> {
-  /** null when the version could not be trusted: served once, never kept. */
+  /** null when the version could not be trusted: never served without a probe first. */
   version: string | null
   checkedAt: number
   value: T
@@ -103,11 +108,7 @@ export function createSnapshotStore<T>({
     async get(key, { trustMs = 0 } = {}) {
       if (key === null) return load()
       const hit = cache.peek(key)
-      if (!hit) {
-        const entry = await cache.get(key, cold)
-        if (entry.version === null) cache.delete(key)
-        return entry.value
-      }
+      if (!hit) return (await cache.get(key, cold)).value
       const entry = await hit
       // Confirmed this very moment (a concurrent request's cold load) counts as trusted.
       if (entry.version !== null && now() - entry.checkedAt <= trustMs) return entry.value
