@@ -21,8 +21,8 @@ import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import {
   ArrowDownIcon,
-  ChevronUpDownIcon,
   PaperAirplaneIcon,
+  PencilSquareIcon,
   StopIcon,
   XMarkIcon,
 } from '@heroicons/react/16/solid'
@@ -31,21 +31,24 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import {
-  AskLayout,
+  AskCanvas,
   BODY_CLASS,
+  BODY_PUSHED,
   ComposerFrame,
-  ConsoleFrame,
-  ConsoleNote,
   DOCK_WRAP,
-  EMPTY_BODY_PAD,
+  EMPTY_BODY,
   FIELD_CLASS,
   GREETING_WRAP,
   Greeting,
+  ICON_BUTTON,
+  PanelRightIcon,
   RAISED,
+  TopBar,
 } from './console-frame'
-import { HistoryList, HistoryRail } from './history-rail'
-import { MiniScore, PaperPicker, pickable, scoreColor } from './paper-picker'
-import { AskedHeading, FollowUps, LiveAnswer, SettledAnswer } from './scanner-turn'
+import { HistorySidecar } from './history-sidecar'
+import { PaperPicker, pickable, scoreColor } from './paper-picker'
+import { AskedBubble, FollowUps, LiveAnswer, SettledAnswer } from './scanner-turn'
+import { ToolMenu } from './tool-menu'
 import {
   shortTitle,
   timeOf,
@@ -87,12 +90,15 @@ function autogrow(el: HTMLTextAreaElement) {
 }
 
 /**
- * The Ask console. Conversations are scoped to one paper: until a paper is
- * chosen the composer is the picker; once chosen, the paper rides in the
- * composer as a chip and questions go to its full text. The composer starts
- * in the upper third of the empty console and docks at the bottom on the
- * first question; the transcript above it anchors each new question to the
- * top and follows the streamed answer.
+ * The Ask canvas — a general chat surface, and the home for every agentic
+ * tool the assistant grows. Today the one tool that is wired is "attach a
+ * paper", so conversations are still scoped to one paper's full text: ask
+ * with nothing attached and the picker opens holding your question, then
+ * sends it the moment you choose. The paper then rides in the composer as a
+ * removable chip. The composer starts centred on the empty canvas and docks
+ * at the bottom on the first question; the transcript above it anchors each
+ * new question to the top and follows the streamed answer. Past conversations
+ * live in a sidecar that slides over the right gutter, hidden by default.
  */
 export function Ask({
   entries,
@@ -118,6 +124,11 @@ export function Ask({
   const [input, setInput] = useState('')
   const [pickQuery, setPickQuery] = useState('')
   const [cursor, setCursor] = useState(0)
+  // The composer becomes the paper picker on demand, not by default.
+  const [picking, setPicking] = useState(false)
+  // A question asked before a paper was attached; it sends itself once one is.
+  const [held, setHeld] = useState<string | null>(null)
+  const [sidecarOpen, setSidecarOpen] = useState(false)
   const [openingId, setOpeningId] = useState<string | null>(null)
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
   const [railStale, setRailStale] = useState(false)
@@ -148,7 +159,7 @@ export function Ask({
   const listRef = useRef<HTMLDivElement>(null)
 
   const busy = liveQuestion !== null
-  const mode: 'pick' | 'ask' = target ? 'ask' : 'pick'
+  const mode: 'pick' | 'ask' = picking ? 'pick' : 'ask'
   const hasConversation = turns.length > 0
   const groups = groupTurns(turns)
 
@@ -296,6 +307,8 @@ export function Ask({
       setTarget(paper)
       scopeRef.current = detail.paper_id
       setInput('')
+      setPicking(false)
+      setHeld(null)
       setPickQuery('')
       setCursor(0)
       transcriptRef.current?.scrollTo({ top: 0 })
@@ -325,6 +338,8 @@ export function Ask({
     setTarget(null)
     scopeRef.current = null
     setInput('')
+    setPicking(false)
+    setHeld(null)
     setPickQuery('')
     setCursor(0)
     focusField()
@@ -362,6 +377,7 @@ export function Ask({
 
   function pick(entry: PaletteEntry) {
     setTarget(entry)
+    setPicking(false)
     setPickQuery('')
     setCursor(0)
     // A different paper mid-conversation starts a fresh session on the next
@@ -373,30 +389,53 @@ export function Ask({
         { kind: 'target', scope: { paper_id: entry.id, title: entry.title } },
       ])
     }
+    // A question that was waiting on a paper goes now — the reader already
+    // pressed send once; the picker was the interruption, not a new step.
+    if (held) {
+      setHeld(null)
+      ask(held, entry)
+      return
+    }
     focusField()
   }
 
+  /** Leave the picker with nothing chosen; a held question returns to the field. */
+  function cancelPick() {
+    setPicking(false)
+    setPickQuery('')
+    setCursor(0)
+    if (held) {
+      setInput((cur) => (cur === '' ? held : cur))
+      setHeld(null)
+    }
+    focusField()
+  }
+
+  /** Detach the paper. The next question re-opens the picker holding itself. */
   function unpick() {
     if (busy) return
     setTarget(null)
-    setPickQuery('')
-    setCursor(0)
     focusField()
   }
 
   /* ------------------------------- Asking ------------------------------- */
 
-  function ask(q: string) {
-    if (busy || !target) return
-    const scope: AskScope = { paper_id: target.id, title: target.title }
-    scopeRef.current = target.id
+  /**
+   * `on` lets `pick` send a held question with the paper it just chose:
+   * `target` state has not landed yet on that path.
+   */
+  function ask(q: string, on?: PaletteEntry) {
+    const paper = on ?? target
+    if (busy || !paper) return
+    const scope: AskScope = { paper_id: paper.id, title: paper.title }
+    scopeRef.current = paper.id
     setTurns((prev) => [...prev, { kind: 'question', text: q, askedAt: nowTime(), scope }])
     setLiveQuestion(q)
     setAskSeq((n) => n + 1)
     setInput('')
     void send({
       question: q,
-      paper_id: target.id,
+      paper_id: paper.id,
       session_id: activeSessionId ?? undefined,
       deep_thinking: false,
     })
@@ -432,13 +471,30 @@ export function Ask({
     stopStream()
   }
 
+  /** Open the picker; `holding` is a question that will send on choosing. */
+  function startPick(holding?: string) {
+    if (busy) return
+    setHeld(holding ?? null)
+    setPickQuery('')
+    setCursor(0)
+    setPicking(true)
+    focusField()
+  }
+
   function submit() {
     if (mode === 'pick') {
-      focusField()
+      const row = pickable(entries, pickQuery)[cursor]
+      if (row) pick(row)
       return
     }
     const q = input.trim()
     if (!q || busy) return
+    // Nothing attached yet: hold the question and ask which paper it is about.
+    if (!target) {
+      setInput('')
+      startPick(q)
+      return
+    }
     ask(q)
   }
 
@@ -450,10 +506,10 @@ export function Ask({
       setCursor(0)
       return
     }
-    // @ on its own is the way back to the picker.
+    // @ on its own opens the picker.
     if (value.trim() === '@') {
       setInput('')
-      unpick()
+      startPick()
       return
     }
     setInput(value)
@@ -474,8 +530,7 @@ export function Ask({
         if (row) pick(row)
       } else if (e.key === 'Escape') {
         e.preventDefault()
-        setPickQuery('')
-        setCursor(0)
+        cancelPick()
       }
       return
     }
@@ -487,68 +542,97 @@ export function Ask({
 
   const lastGroup = groups[groups.length - 1]
   const sendLive = busy || (mode === 'ask' && input.trim() !== '')
+  const firstQuestion = turns.find((x): x is QuestionTurn => x.kind === 'question')
+  // The thread's name: the saved title once there is a session, otherwise the
+  // question that opened it — the same thing the sidecar will file it under.
+  const threadTitle =
+    sessions.find((s) => s.id === activeSessionId)?.title ?? firstQuestion?.text ?? t('New chat')
 
   // The chrome lives in ./console-frame so the loading skeleton shares it.
   return (
-    <AskLayout
-      railLabel={t('Conversation history')}
-      console={
-        <ConsoleFrame
-          label={t('Ask console')}
-          eyebrow={t('Ask', 'console')}
-          aside={
-            target ? (
-              <button
-                type="button"
-                onClick={unpick}
-                disabled={busy}
-                title={t('Change paper')}
-                className="hover:bg-foreground/5 flex max-w-80 min-w-0 items-center gap-1.5 rounded-sm px-1.5 py-0.5 text-left transition-colors duration-150 ease-out disabled:cursor-default disabled:hover:bg-transparent"
-              >
-                <MiniScore score={target.signal_score} />
-                <span className="text-foreground truncate text-[11px] font-medium">
-                  {shortTitle(target.title)}
-                </span>
-                <ChevronUpDownIcon className="text-muted-foreground size-3 shrink-0" />
-              </button>
-            ) : (
-              <ConsoleNote>{t('No paper yet')}</ConsoleNote>
-            )
-          }
-        >
-          {/* Transitions only — never a live region on the streamed markdown,
+    <>
+      <AskCanvas
+        label={t('Ask console')}
+        top={
+          <TopBar
+            title={threadTitle}
+            actions={
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSidecarOpen((open) => !open)}
+                  data-open={sidecarOpen || undefined}
+                  aria-expanded={sidecarOpen}
+                  aria-label={t('Recent chats')}
+                  title={t('Recent chats')}
+                  className={ICON_BUTTON}
+                >
+                  <PanelRightIcon className="size-[18px]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={newThread}
+                  aria-label={t('New chat')}
+                  title={t('New chat')}
+                  className={ICON_BUTTON}
+                >
+                  <PencilSquareIcon className="size-4" />
+                </button>
+              </>
+            }
+          />
+        }
+        sidecar={
+          <HistorySidecar
+            open={sidecarOpen}
+            threads={sessions}
+            activeId={activeSessionId}
+            openingId={openingId}
+            rowError={rowError}
+            stale={railStale}
+            onRefresh={() => void refreshSessions()}
+            onOpen={openThread}
+            onDelete={requestDelete}
+          />
+        }
+      >
+        {/* Transitions only — never a live region on the streamed markdown,
             which re-renders every animation frame. */}
-          <p role="status" className="sr-only">
-            {busy
-              ? t('Reading the full text…')
-              : lastGroup?.kind === 'qa' && lastGroup.answer
-                ? lastGroup.answer.error
-                  ? t('The answer failed.')
-                  : t('Answer ready')
-                : ''}
-          </p>
+        <p role="status" className="sr-only">
+          {busy
+            ? t('Reading the full text…')
+            : lastGroup?.kind === 'qa' && lastGroup.answer
+              ? lastGroup.answer.error
+                ? t('The answer failed.')
+                : t('Answer ready')
+              : ''}
+        </p>
 
-          <div ref={bodyRef} className={clsx(BODY_CLASS, !hasConversation && EMPTY_BODY_PAD)}>
-            {hasConversation && (
-              <div
-                ref={transcriptRef}
-                onScroll={onScroll}
-                className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-2 lg:px-8"
-              >
-                <div ref={listRef} className="mx-auto max-w-[800px]">
-                  {groups.map((g) =>
-                    g.kind === 'target' ? (
-                      <TargetLine key={g.key} scope={g.scope} />
-                    ) : (
-                      <article
-                        key={g.key}
-                        data-live={!g.answer && busy ? '' : undefined}
-                        className={clsx(
-                          'border-line-soft border-t pt-[18px] pb-2 first:border-t-0 last:min-h-(--turn-min)',
-                          !g.answer && busy && 'animate-rise-in motion-reduce:animate-none',
-                        )}
-                      >
-                        <AskedHeading turn={g.question} />
+        <div
+          ref={bodyRef}
+          className={clsx(BODY_CLASS, !hasConversation && EMPTY_BODY, sidecarOpen && BODY_PUSHED)}
+        >
+          {hasConversation && (
+            <div
+              ref={transcriptRef}
+              onScroll={onScroll}
+              className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 pt-2"
+            >
+              <div ref={listRef} className="mx-auto w-[min(100%,768px)]">
+                {groups.map((g) =>
+                  g.kind === 'target' ? (
+                    <TargetLine key={g.key} scope={g.scope} />
+                  ) : (
+                    <article
+                      key={g.key}
+                      data-live={!g.answer && busy ? '' : undefined}
+                      className={clsx(
+                        'pt-7 pb-2 last:min-h-(--turn-min)',
+                        !g.answer && busy && 'animate-rise-in motion-reduce:animate-none',
+                      )}
+                    >
+                      <AskedBubble turn={g.question} />
+                      <div className="mt-5">
                         {g.answer ? (
                           <>
                             <SettledAnswer
@@ -573,228 +657,198 @@ export function Ask({
                             onRevealed={onRevealed}
                           />
                         ) : null}
-                      </article>
-                    ),
-                  )}
-                </div>
+                      </div>
+                    </article>
+                  ),
+                )}
               </div>
-            )}
+            </div>
+          )}
 
-            <AnimatePresence>
-              {jump && (
-                <motion.button
-                  key="jump"
-                  type="button"
-                  onClick={jumpToLatest}
-                  initial={{ opacity: 0, y: 6, scale: 0.94 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 6, scale: 0.94 }}
-                  transition={{ duration: reduceMotion ? 0 : 0.2, ease: EASE_OUT }}
+          <AnimatePresence>
+            {jump && (
+              <motion.button
+                key="jump"
+                type="button"
+                onClick={jumpToLatest}
+                initial={{ opacity: 0, y: 6, scale: 0.94 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.94 }}
+                transition={{ duration: reduceMotion ? 0 : 0.2, ease: EASE_OUT }}
+                className={clsx(
+                  'border-line-strong bg-surface text-foreground absolute bottom-[calc(var(--dock-h,6rem)+0.75rem)] left-1/2 z-[6] flex -translate-x-1/2 items-center gap-1.5 rounded-sm border py-1.5 pr-2.5 pl-2 text-xs font-medium',
+                  RAISED,
+                )}
+              >
+                <ArrowDownIcon className="size-3" />
+                {t('Jump to latest')}
+              </motion.button>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence initial={false} mode="popLayout">
+            {!hasConversation && (
+              <motion.div
+                key="greeting"
+                exit={{ opacity: 0 }}
+                transition={{ duration: reduceMotion ? 0 : 0.15 }}
+                className={GREETING_WRAP}
+              >
+                <Greeting lead={t('What should we look into?')} />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* The dock: composer + picker. Same element before and after the first question — it travels. */}
+          <motion.div
+            ref={dockRef}
+            layout="position"
+            transition={{ layout: { duration: reduceMotion ? 0 : 0.42, ease: EASE_IN_OUT } }}
+            className={clsx(
+              DOCK_WRAP,
+              hasConversation &&
+                'before:to-surface pt-3 before:pointer-events-none before:absolute before:-top-7 before:-right-6 before:-left-6 before:h-10 before:bg-gradient-to-b before:from-transparent',
+            )}
+          >
+            <ComposerFrame
+              onSubmit={(e) => {
+                e.preventDefault()
+                submit()
+              }}
+              attachment={
+                target && (
+                  <motion.span
+                    initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.18, ease: EASE_OUT }}
+                    className="bg-foreground/5 inline-flex max-w-full items-center gap-1.5 rounded-sm py-[3px] pr-1 pl-2"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="size-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: scoreColor(target.signal_score) }}
+                    />
+                    <span className="text-foreground truncate text-xs font-medium">
+                      {shortTitle(target.title)}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={unpick}
+                      disabled={busy}
+                      aria-label={t('Remove this paper')}
+                      className="text-muted-foreground hover:bg-foreground/10 hover:text-foreground grid size-[18px] shrink-0 place-items-center rounded-full transition-colors duration-100 ease-out disabled:opacity-50"
+                    >
+                      <XMarkIcon className="size-3" />
+                    </button>
+                  </motion.span>
+                )
+              }
+              leading={<ToolMenu onAttach={() => startPick()} disabled={busy} />}
+              field={
+                <textarea
+                  ref={fieldRef}
+                  name="question"
+                  rows={1}
+                  value={mode === 'pick' ? pickQuery : input}
+                  onChange={onFieldChange}
+                  onKeyDown={onFieldKeyDown}
+                  role={mode === 'pick' ? 'combobox' : undefined}
+                  aria-expanded={mode === 'pick' ? true : undefined}
+                  aria-controls={mode === 'pick' ? 'paper-picker' : undefined}
+                  aria-autocomplete={mode === 'pick' ? 'list' : undefined}
+                  aria-label={mode === 'pick' ? t('Find a paper') : t('Ask a question')}
+                  placeholder={
+                    mode === 'pick'
+                      ? t('Which paper? Type a title, author, or source…')
+                      : target
+                        ? t('Ask about this paper…')
+                        : t('Ask anything')
+                  }
+                  autoComplete="off"
+                  spellCheck={false}
                   className={clsx(
-                    'border-line-strong bg-surface text-foreground absolute bottom-[calc(var(--dock-h,6rem)+0.75rem)] left-1/2 z-[6] flex -translate-x-1/2 items-center gap-1.5 rounded-sm border py-1.5 pr-2.5 pl-2 text-xs font-medium',
-                    RAISED,
+                    FIELD_CLASS,
+                    'text-foreground placeholder:text-muted-foreground focus:outline-none',
+                  )}
+                />
+              }
+              trailing={
+                <button
+                  type={busy ? 'button' : 'submit'}
+                  onClick={busy ? stop : undefined}
+                  aria-label={busy ? t('Stop') : t('Send')}
+                  className={clsx(
+                    'focus-visible:outline-accent relative flex size-8 shrink-0 items-center justify-center rounded-sm transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.94]',
+                    sendLive
+                      ? 'bg-foreground text-background hover:bg-foreground/85'
+                      : 'bg-foreground/10 text-muted-foreground',
                   )}
                 >
-                  <ArrowDownIcon className="size-3" />
-                  {t('Jump to latest')}
-                </motion.button>
-              )}
-            </AnimatePresence>
+                  {busy ? (
+                    <StopIcon className="size-3.5" />
+                  ) : (
+                    <PaperAirplaneIcon className="size-4" />
+                  )}
+                </button>
+              }
+            />
 
-            <AnimatePresence initial={false} mode="popLayout">
-              {!hasConversation && (
-                <motion.div
-                  key="greeting"
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: reduceMotion ? 0 : 0.15 }}
-                  className={GREETING_WRAP}
-                >
-                  <Greeting lead={t('Ask a paper.')} />
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            {/* The dock: composer + picker. Same element before and after the first question — it travels. */}
-            <motion.div
-              ref={dockRef}
-              layout="position"
-              transition={{ layout: { duration: reduceMotion ? 0 : 0.42, ease: EASE_IN_OUT } }}
-              className={clsx(
-                DOCK_WRAP,
-                hasConversation &&
-                  'before:to-surface pt-3 before:pointer-events-none before:absolute before:-top-7 before:-right-6 before:-left-6 before:h-10 before:bg-gradient-to-b before:from-transparent',
-              )}
-            >
-              <ComposerFrame
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  submit()
-                }}
-                field={
-                  <textarea
-                    ref={fieldRef}
-                    name="question"
-                    rows={1}
-                    value={mode === 'pick' ? pickQuery : input}
-                    onChange={onFieldChange}
-                    onKeyDown={onFieldKeyDown}
-                    role={mode === 'pick' ? 'combobox' : undefined}
-                    aria-expanded={mode === 'pick' ? true : undefined}
-                    aria-controls={mode === 'pick' ? 'paper-picker' : undefined}
-                    aria-autocomplete={mode === 'pick' ? 'list' : undefined}
-                    aria-label={mode === 'pick' ? t('Find a paper') : t('Ask a question')}
-                    placeholder={
-                      mode === 'pick'
-                        ? t('Which paper? Type a title, author, or source…')
-                        : t('Ask about this paper…')
-                    }
-                    autoComplete="off"
-                    spellCheck={false}
-                    className={clsx(
-                      FIELD_CLASS,
-                      'text-foreground placeholder:text-muted-foreground focus:outline-none',
-                    )}
-                  />
-                }
-                footer={
-                  <>
-                    {target && (
-                      <motion.span
-                        initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.18, ease: EASE_OUT }}
-                        className="bg-foreground/5 flex max-w-[70%] items-center gap-1.5 rounded-sm py-[3px] pr-1 pl-2"
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="size-1.5 shrink-0 rounded-full"
-                          style={{ backgroundColor: scoreColor(target.signal_score) }}
-                        />
-                        <span className="text-foreground truncate text-xs font-medium">
-                          {shortTitle(target.title)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={unpick}
-                          disabled={busy}
-                          aria-label={t('Choose a different paper')}
-                          className="text-muted-foreground hover:bg-foreground/10 hover:text-foreground grid size-[18px] shrink-0 place-items-center rounded-full transition-colors duration-100 ease-out disabled:opacity-50"
-                        >
-                          <XMarkIcon className="size-3" />
-                        </button>
-                      </motion.span>
-                    )}
-                    <span className="flex-1" />
-                    <button
-                      type={busy ? 'button' : 'submit'}
-                      onClick={busy ? stop : undefined}
-                      aria-label={busy ? t('Stop') : t('Send')}
-                      className={clsx(
-                        'focus-visible:outline-accent relative flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.94]',
-                        sendLive
-                          ? 'bg-foreground text-background hover:bg-foreground/85'
-                          : 'bg-foreground/10 text-muted-foreground',
-                      )}
-                    >
-                      {busy ? (
-                        <StopIcon className="size-3.5" />
-                      ) : (
-                        <PaperAirplaneIcon className="size-4" />
-                      )}
-                    </button>
-                  </>
-                }
+            {mode === 'pick' && (
+              <PaperPicker
+                entries={entries}
+                query={pickQuery}
+                cursor={cursor}
+                placement={hasConversation ? 'above' : 'below'}
+                onCursor={setCursor}
+                onPick={pick}
               />
+            )}
+          </motion.div>
+        </div>
+      </AskCanvas>
 
-              {mode === 'pick' && (
-                <PaperPicker
-                  entries={entries}
-                  query={pickQuery}
-                  cursor={cursor}
-                  placement={hasConversation ? 'above' : 'below'}
-                  onCursor={setCursor}
-                  onPick={pick}
-                />
-              )}
-            </motion.div>
-          </div>
-        </ConsoleFrame>
-      }
-      rail={
-        <HistoryRail
-          threads={sessions}
-          activeId={activeSessionId}
-          openingId={openingId}
-          rowError={rowError}
-          stale={railStale}
-          onRefresh={() => void refreshSessions()}
-          onOpen={openThread}
-          onNew={newThread}
-          onDelete={requestDelete}
-        />
-      }
-      mobileTitle={t('History')}
-      mobileCount={
-        sessions.length === 1 ? t('1 question') : fmt(t('{n} questions'), { n: sessions.length })
-      }
-      mobileList={
-        <HistoryList
-          threads={sessions}
-          activeId={activeSessionId}
-          openingId={openingId}
-          rowError={rowError}
-          onOpen={openThread}
-          onDelete={requestDelete}
-        />
-      }
-      after={
-        // One dialog serves both delete triggers (rail + mobile list). A
-        // failure keeps it open — a destructive action never fails silently.
-        <AlertDialog
-          open={pendingDelete !== null}
-          onOpenChange={(open) => {
-            if (!open && !deleting) {
-              setPendingDelete(null)
-              setDeleteError(null)
-            }
+      {/* A failure keeps it open — a destructive action never fails silently. */}
+      <AlertDialog
+        open={pendingDelete !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleting) {
+            setPendingDelete(null)
+            setDeleteError(null)
+          }
+        }}
+      >
+        <AlertDialogContent
+          onCloseAutoFocus={(event) => {
+            event.preventDefault()
+            deleteTriggerRef.current?.focus()
           }}
         >
-          <AlertDialogContent
-            onCloseAutoFocus={(event) => {
-              event.preventDefault()
-              deleteTriggerRef.current?.focus()
-            }}
-          >
-            <AlertDialogHeader>
-              <AlertDialogTitle>{t('Delete this conversation?')}</AlertDialogTitle>
-              <AlertDialogDescription>
-                {fmt(
-                  t('"{title}" and every answer in it will be deleted. This cannot be undone.'),
-                  {
-                    title: pendingDelete ? shortTitle(pendingDelete.title) : '',
-                  },
-                )}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            {deleteError && <ErrorNote>{deleteError}</ErrorNote>}
-            <AlertDialogFooter>
-              <AlertDialogCancel disabled={deleting}>{t('Cancel')}</AlertDialogCancel>
-              <AlertDialogAction
-                disabled={deleting}
-                onClick={(event) => {
-                  // Radix closes on Action by default; we close only on success.
-                  event.preventDefault()
-                  void confirmDelete()
-                }}
-              >
-                {deleting && <Spinner className="size-3.5" aria-hidden="true" />}
-                {deleting ? t('Deleting…') : t('Delete')}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      }
-    />
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('Delete this conversation?')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {fmt(t('"{title}" and every answer in it will be deleted. This cannot be undone.'), {
+                title: pendingDelete ? shortTitle(pendingDelete.title) : '',
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {deleteError && <ErrorNote>{deleteError}</ErrorNote>}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>{t('Cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              onClick={(event) => {
+                // Radix closes on Action by default; we close only on success.
+                event.preventDefault()
+                void confirmDelete()
+              }}
+            >
+              {deleting && <Spinner className="size-3.5" aria-hidden="true" />}
+              {deleting ? t('Deleting…') : t('Delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   )
 }
 

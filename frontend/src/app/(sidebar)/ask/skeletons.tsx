@@ -1,27 +1,27 @@
-import { PageHeader } from '@/components/scanner-ui'
 import { Bone, Skeleton } from '@/components/skeleton'
 import type { T } from '@/lib/i18n'
+import { PlusIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import {
-  AskLayout,
+  AskCanvas,
   BODY_CLASS,
   ComposerFrame,
-  ConsoleFrame,
-  ConsoleNote,
   DOCK_WRAP,
-  EMPTY_BODY_PAD,
+  EMPTY_BODY,
   FIELD_CLASS,
   GREETING_WRAP,
   Greeting,
+  ICON_BUTTON,
+  PanelRightIcon,
+  TopBar,
 } from './console-frame'
-import { HistoryRailSkeleton } from './history-rail'
-import { PaperPickerSkeleton } from './paper-picker'
 
 /**
- * The console before its data arrives: the real chrome (strip, greeting,
- * composer box) with bones only where the corpus and the history would show —
- * the picker rows under the composer and the session rows in the rail. Used
- * as the page's Suspense fallback and, under the header, as loading.tsx.
+ * The canvas before its data arrives: the real chrome (top bar, greeting,
+ * composer box) with a bone only where the typed question would go. The
+ * sidecar is closed by default, so there is nothing to bone there — the
+ * corpus behind the picker is not on screen either until the reader asks
+ * for it. Used as the page's Suspense fallback and as loading.tsx.
  */
 
 /** The page's flex column is a fixed viewport height; the region must pass it down. */
@@ -30,53 +30,54 @@ const FILL = 'flex min-h-0 flex-1 flex-col'
 export function AskConsoleSkeleton({ t }: { t: T }) {
   return (
     <Skeleton.Region status={t('Loading the assistant')} className={FILL} innerClassName={FILL}>
-      <AskLayout
-        railLabel={t('Conversation history')}
-        console={
-          <ConsoleFrame
-            label={t('Ask console')}
-            eyebrow={t('Ask', 'console')}
-            aside={<ConsoleNote>{t('No paper yet')}</ConsoleNote>}
-          >
-            <div className={clsx(BODY_CLASS, EMPTY_BODY_PAD)}>
-              <div className={GREETING_WRAP}>
-                <Greeting lead={t('Ask a paper.')} />
-              </div>
-              <div className={DOCK_WRAP}>
-                <ComposerFrame
-                  field={
-                    <div className={FIELD_CLASS}>
-                      <Bone.Text widths={['34ch']} />
-                    </div>
-                  }
-                  footer={
-                    <>
-                      <span className="flex-1" />
-                      <Bone.Block className="size-8" round />
-                    </>
-                  }
-                />
-                <PaperPickerSkeleton placement="below" />
-              </div>
-            </div>
-          </ConsoleFrame>
+      <AskCanvas
+        label={t('Ask console')}
+        top={
+          <TopBar
+            title={t('New chat')}
+            actions={
+              <>
+                <span className={ICON_BUTTON}>
+                  <PanelRightIcon className="size-[18px]" />
+                </span>
+                <span className={ICON_BUTTON}>
+                  <Bone.Block className="size-4" />
+                </span>
+              </>
+            }
+          />
         }
-        rail={<HistoryRailSkeleton />}
-        mobileTitle={t('History')}
-        mobileCount={<Bone.Text widths={['11ch']} />}
-        mobileList={null}
-      />
+      >
+        <div className={clsx(BODY_CLASS, EMPTY_BODY)}>
+          <div className={GREETING_WRAP}>
+            <Greeting lead={t('What should we look into?')} />
+          </div>
+          <div className={DOCK_WRAP}>
+            <ComposerFrame
+              leading={
+                <span className={ICON_BUTTON}>
+                  <PlusIcon className="size-4" />
+                </span>
+              }
+              field={
+                <div className={FIELD_CLASS}>
+                  <Bone.Text widths={['22ch']} />
+                </div>
+              }
+              trailing={<Bone.Block className="size-8" />}
+            />
+          </div>
+        </div>
+      </AskCanvas>
     </Skeleton.Region>
   )
 }
 
-/** The loading.tsx shell: the real header over the console skeleton. */
+/** The loading.tsx shell: the canvas skeleton at the page's own height. */
 export function AskPageSkeleton({ t }: { t: T }) {
   return (
-    <div className="flex h-[calc(100dvh-6.5rem)] flex-col gap-6 lg:h-[calc(100dvh-6rem)]">
-      <div className="shrink-0">
-        <PageHeader eyebrow={t('Assistant')} title={t('Ask Research Intelligence')} />
-      </div>
+    <div className="flex h-[calc(100dvh-4rem)] flex-col lg:h-[calc(100dvh-3.5rem)]">
+      <h1 className="sr-only">{t('Ask Research Intelligence')}</h1>
       <AskConsoleSkeleton t={t} />
     </div>
   )

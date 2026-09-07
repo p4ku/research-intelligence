@@ -16,36 +16,28 @@ import { shortTitle, type AnswerTurn, type QuestionTurn } from './types'
 const EASE_OUT = [0.23, 1, 0.32, 1] as const
 
 /**
- * A user question as the turn's heading: a mono eyebrow carrying time + scope,
- * then the question itself. It sticks to the top of the transcript while its
- * answer scrolls beneath it, and gets a hairline only while stuck (the scroll
- * model toggles `data-stuck`).
+ * A user question, right-aligned in a quiet bubble. The scope it was asked
+ * under is a title attribute rather than a visible eyebrow: on a chat canvas
+ * the paper is already named in the composer's chip and in the sidecar row,
+ * and a mono line over every question turned the transcript into a ledger.
  */
-export function AskedHeading({ turn }: { turn: QuestionTurn }) {
+export function AskedBubble({ turn }: { turn: QuestionTurn }) {
   const t = useT()
+  const scope = turn.scope.title
+    ? fmt(t('Asked {time} · {title} · full text'), {
+        time: turn.askedAt,
+        title: shortTitle(turn.scope.title),
+      })
+    : fmt(t('Asked {time} · all papers'), { time: turn.askedAt })
   return (
-    <header
-      data-q-head
-      className="bg-surface data-stuck:border-line-soft sticky top-0 z-[3] -mt-[18px] border-b border-transparent pt-[18px] pb-2.5 transition-colors duration-150 ease-out"
-    >
-      <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 font-mono text-[11px] tracking-[0.07em] uppercase tabular-nums">
-        <span className="shrink-0">{fmt(t('Asked {time}'), { time: turn.askedAt })}</span>
-        <span aria-hidden="true">·</span>
-        {turn.scope.title ? (
-          <>
-            <span className="bg-accent size-1.5 shrink-0 rounded-full" />
-            <span className="min-w-0 truncate">{shortTitle(turn.scope.title)}</span>
-            <span aria-hidden="true">·</span>
-            <span className="shrink-0">{t('full text')}</span>
-          </>
-        ) : (
-          <span className="truncate">{t('All papers')}</span>
-        )}
-      </p>
-      <h3 className="text-foreground mt-1.5 text-[15px] font-semibold tracking-tight text-pretty">
+    <div className="flex justify-end">
+      <h3
+        title={scope}
+        className="bg-foreground/6 text-foreground max-w-[80%] rounded-sm px-3.5 py-2 text-[15px] leading-relaxed font-normal text-pretty"
+      >
         {turn.text}
       </h3>
-    </header>
+    </div>
   )
 }
 
@@ -123,7 +115,7 @@ export function LiveAnswer({
       caret={false}
       citations={state.visualCitations}
       t={t}
-      className="text-foreground/75 text-sm"
+      className="text-foreground text-[15px]"
     />
   )
 }
@@ -154,7 +146,7 @@ export function SettledAnswer({
             text={turn.text}
             citations={[]}
             t={t}
-            className="text-foreground/75 mb-3 text-sm"
+            className="text-foreground mb-3 text-[15px]"
           />
         )}
         <ErrorNote
@@ -182,7 +174,7 @@ export function SettledAnswer({
         citations={turn.visualCitations}
         citationAnchor={anchor}
         t={t}
-        className="text-foreground/75 text-sm"
+        className="text-foreground text-[15px]"
       />
       {turn.stopped && (
         <p className="text-muted-foreground mt-2 font-mono text-[11px]">{t('Stopped')}</p>
