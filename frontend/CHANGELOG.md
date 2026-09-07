@@ -1,5 +1,27 @@
 # Changelog
 
+## 2026-09-07 (stars demo flag)
+
+- Every star affordance is behind the same per-browser demo switch. `stars` off
+  and no curation control renders: the corner star on paper cards and archive
+  rail rows, the labelled toggle on `/papers/[id]`, `/briefing/[date]` and the
+  archive reader, and all four **Starred** filter chips (papers browser,
+  briefings ledger, archive rail, edition paper list).
+- The ledger loses its whole star **column**, not just the button: `'star'`
+  leaves `COLUMNS`, so header cell, body cell, the expanded brief's `colSpan`
+  and the skeleton's per-row footprint all follow, and no 28px gutter is left
+  behind. Skeletons drop their star bones with them, so nothing flashes.
+- Every `starredOnly` derivation is **forced false** rather than merely losing
+  its control (`features.stars && state`), in all four lists. A flip taken with
+  a Starred filter engaged widens the list back instead of leaving it silently
+  narrowed with nothing on screen to clear it. On `/briefing` that state lives
+  in the URL, so `?starred=1` survives the flip — a reload with the flag off
+  still shows the full ledger.
+- Deliberately kept: `GET`/`PUT /bff/stars`, the service, codec, schema and
+  contract entries, `stars` in `/bff/status`, every German key, and above all
+  the `rs-stars` cookie, which is **not** cleared — flipping the flag back on
+  restores the analyst's own stars on the next refresh.
+
 ## 2026-09-07 (all_papers demo flag)
 
 - The **Papers** list is behind a per-browser demo switch. `all_papers` off and

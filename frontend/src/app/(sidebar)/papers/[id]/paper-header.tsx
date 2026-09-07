@@ -75,7 +75,7 @@ export function PaperHeader({
   paper,
   t,
   lang,
-  features: _features = ALL_ON,
+  features = ALL_ON,
 }: {
   paper: ScoredPaper
   t: T
@@ -115,12 +115,15 @@ export function PaperHeader({
       }
       title={paper.title}
       authors={paper.authors.join(', ') || paper.authors_raw}
-      action={<StarToggle kind="paper" id={paper.id} />}
+      // Withheld, not rendered null: PaperHeaderFrame's `{action && …}` would
+      // otherwise wrap an empty node in a shrink-0 flex item and open a gap
+      // beside the masthead on a narrow viewport.
+      action={features.stars ? <StarToggle kind="paper" id={paper.id} /> : undefined}
     />
   )
 }
 
-export function PaperHeaderSkeleton({ features: _features = ALL_ON }: { features?: Features }) {
+export function PaperHeaderSkeleton({ features = ALL_ON }: { features?: Features }) {
   return (
     <PaperHeaderFrame
       state="skeleton"
@@ -137,7 +140,7 @@ export function PaperHeaderSkeleton({ features: _features = ALL_ON }: { features
       }
       title={<Bone.Text lines={2} widths={['92%', '55%']} />}
       authors={<Bone.Text widths={['60%']} />}
-      action={<Bone.Block className="h-[30px] w-24" />}
+      action={features.stars ? <Bone.Block className="h-[30px] w-24" /> : undefined}
     />
   )
 }

@@ -1,4 +1,6 @@
 import { fixturePapers } from '@/lib/bff/papers/fixtures'
+import { ALL_ON } from '@/lib/features'
+import { FeaturesContext } from '@/lib/features-client'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { PaperCard, PaperCardSkeleton } from './paper-card'
@@ -26,6 +28,22 @@ describe('PaperCard', () => {
     expect(out).toContain('aria-pressed="false"')
     // The button closes after the link: a sibling in the group wrapper.
     expect(out.indexOf('</a>')).toBeLessThan(out.indexOf('aria-label="Star this paper"'))
+  })
+
+  test('drops the star when the provider says the stars flag is off', () => {
+    // The sibling of the case above: with no provider every flag reads ON, so
+    // this is the only render that proves the gate is wired to the flag and
+    // not to something else. The link and its chrome are untouched.
+    const off = renderToStaticMarkup(
+      <FeaturesContext.Provider
+        value={{ features: { ...ALL_ON, stars: false }, setFeature: () => {} }}
+      >
+        <PaperCard paper={paper} />
+      </FeaturesContext.Provider>,
+    )
+    expect(off).not.toContain('aria-label="Star this paper"')
+    expect(off).not.toContain('aria-pressed')
+    expect(off).toContain(`href="/papers/${paper.id}"`)
   })
 
   test('names the domain in the meta row only when given one', () => {

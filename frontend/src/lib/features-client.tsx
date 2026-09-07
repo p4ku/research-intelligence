@@ -26,7 +26,16 @@ interface FeaturesValue {
   setFeature: (key: FeatureKey, on: boolean) => void
 }
 
-const FeaturesContext = createContext<FeaturesValue>({ features: ALL_ON, setFeature: () => {} })
+/**
+ * Exported for tests only. `FeaturesProvider` calls useRouter()/usePathname(),
+ * which throw outside a mounted App Router, so a unit render that needs a
+ * flag-off subtree (src/components/paper-card.test.tsx) provides the context
+ * directly rather than mocking next/navigation.
+ */
+export const FeaturesContext = createContext<FeaturesValue>({
+  features: ALL_ON,
+  setFeature: () => {},
+})
 
 export function FeaturesProvider({
   features,

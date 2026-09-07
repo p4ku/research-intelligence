@@ -2,6 +2,7 @@ import { AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { PaperCardSkeleton } from '@/components/paper-card'
 import { Breadcrumbs, SectionLabel, StatBandSkeleton } from '@/components/scanner-ui'
 import { Bone, Skeleton } from '@/components/skeleton'
+import type { Features } from '@/lib/features'
 import type { Lang, T } from '@/lib/i18n'
 import Link from 'next/link'
 import { editionHref, formatEditionDate } from '../format'
@@ -12,6 +13,10 @@ import { funnelCopy } from './sections'
  * stacked, the loading.tsx shell. The page knows the date (and, from
  * `?domain=`, the domain) from the URL and passes them so the crumb and the
  * log link are real; loading.tsx does not get params, so there they are bones.
+ *
+ * All three take the flags as a required prop — nothing outside this route
+ * renders them — and must mirror the page: with `stars` off there is no star
+ * toggle and no Starred chip, so neither gets a bone.
  */
 
 export function EditionHeadSkeleton({
@@ -19,11 +24,13 @@ export function EditionHeadSkeleton({
   lang,
   date,
   domain,
+  features,
 }: {
   t: T
   lang: Lang
   date?: string
   domain?: string
+  features: Features
 }) {
   const copy = funnelCopy(t)
   const dateLabel = date ? formatEditionDate(date, lang) : null
@@ -52,7 +59,7 @@ export function EditionHeadSkeleton({
             <Bone.Text widths={['60%']} />
           </h1>
           {/* The briefing's star toggle. */}
-          <Bone.Block className="mt-px h-[30px] w-28 shrink-0" />
+          {features.stars && <Bone.Block className="mt-px h-[30px] w-28 shrink-0" />}
         </div>
       </div>
 
@@ -80,12 +87,14 @@ export function EditionPapersSkeleton({
   date,
   wsId,
   cards = 5,
+  features,
 }: {
   t: T
   date?: string
   /** The domain from the URL; without it the log link resolves the day's newest edition. */
   wsId?: string
   cards?: number
+  features: Features
 }) {
   return (
     <Skeleton.Region status={t('Loading the papers')}>
@@ -97,7 +106,7 @@ export function EditionPapersSkeleton({
               <Bone.Text widths={['8ch']} />
             </span>
             {/* The Starred filter chip. */}
-            <Bone.Chip width={82} />
+            {features.stars && <Bone.Chip width={82} />}
             {date ? (
               <Link
                 href={wsId ? editionHref(date, wsId, 'run') : `/briefing/${date}/run`}
@@ -123,11 +132,19 @@ export function EditionPapersSkeleton({
 }
 
 /** The loading.tsx shell. */
-export function EditionPageSkeleton({ t, lang }: { t: T; lang: Lang }) {
+export function EditionPageSkeleton({
+  t,
+  lang,
+  features,
+}: {
+  t: T
+  lang: Lang
+  features: Features
+}) {
   return (
     <div className="space-y-10">
-      <EditionHeadSkeleton t={t} lang={lang} />
-      <EditionPapersSkeleton t={t} />
+      <EditionHeadSkeleton t={t} lang={lang} features={features} />
+      <EditionPapersSkeleton t={t} features={features} />
     </div>
   )
 }

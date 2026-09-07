@@ -4,6 +4,7 @@ import { StarToggle } from '@/components/star'
 import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import { papers as papersService } from '@/lib/bff/papers/service'
+import type { Features } from '@/lib/features'
 import type { Lang, T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { notFound } from 'next/navigation'
@@ -32,6 +33,7 @@ export async function EditionHead({
   lang,
   t,
   domains,
+  features,
 }: {
   wsId?: string
   date: string
@@ -39,6 +41,8 @@ export async function EditionHead({
   t: T
   /** Domain names by workspace id, for the crumb. */
   domains: Record<string, string>
+  /** Required: page.tsx is the only caller, and its skeleton must agree. */
+  features: Features
 }) {
   const edition = await forPage(briefings.findByDate(date, lang, wsId))
   // A date with no edition is a true 404 — rendered in-stream now that the
@@ -69,7 +73,7 @@ export async function EditionHead({
           <h1 className="min-w-0 flex-1 text-[26px]/8 font-semibold tracking-tight text-zinc-950 dark:text-white">
             {edition.title}
           </h1>
-          <StarToggle kind="briefing" id={edition.run_id} className="mt-px" />
+          {features.stars && <StarToggle kind="briefing" id={edition.run_id} className="mt-px" />}
         </div>
       </div>
 
