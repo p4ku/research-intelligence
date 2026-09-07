@@ -255,8 +255,11 @@ function SidecarFrame({
       // rows out of the tab order and off the accessibility tree while the
       // transform still has something to animate.
       inert={!open}
-      style={{ top: TOP_BAR_H }}
-      className="absolute right-0 bottom-0 left-0 z-10 flex translate-x-full flex-col border-l border-line-soft bg-surface transition-transform duration-[260ms] ease-out will-change-transform motion-reduce:transition-none md:left-auto md:w-[17rem] data-open:translate-x-0 data-open:shadow-[-12px_0_28px_-22px_rgba(19,19,17,0.5)]"
+      // The panel overlays the conversation, so it stops at the dock's top
+      // edge: covering the composer would put the send and stop buttons out of
+      // reach at exactly the moment you want them (`--dock-h`, set in ask.tsx).
+      style={{ top: TOP_BAR_H, bottom: 'var(--dock-top, 6rem)' }}
+      className="absolute right-0 left-0 z-10 flex translate-x-full flex-col border-l border-line-soft bg-surface transition-transform duration-[260ms] ease-out will-change-transform motion-reduce:transition-none md:left-auto md:w-[17rem] data-open:translate-x-0 data-open:shadow-[-12px_0_28px_-22px_rgba(19,19,17,0.5)]"
     >
       <div className="flex items-baseline gap-2 px-3 pt-3.5 pb-1">
         <SectionLabel className="!text-[11px]">{label}</SectionLabel>

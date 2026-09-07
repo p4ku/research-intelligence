@@ -178,17 +178,34 @@ export function Ask({
   } = useTranscriptScroll(reduceMotion)
   useEffect(() => setBusy(busy), [busy, setBusy])
 
-  // The jump button sits just above the dock, whatever height the field has.
+  // How far the dock's top sits above the canvas floor. The jump button and
+  // the recents panel both stop there, whatever height the field has and
+  // wherever the dock is — centred on an empty canvas, docked once a
+  // conversation exists. `offsetTop` is the layout position, so this reads the
+  // settled geometry even mid-FLIP, when a rect would still carry the
+  // travelling transform. The variable goes on the canvas rather than the body
+  // because the panel is the body's sibling, not its descendant.
+  //
+  // Re-fitting the field here is what keeps a wrapped question readable when
+  // the window narrows: `autogrow` freezes an inline height, and the dock
+  // resizing is the signal that the measure changed. It settles in one extra
+  // pass — the re-fit either leaves the height alone or reports it once more.
   useEffect(() => {
     const dock = dockRef.current
     const body = bodyRef.current
-    if (!dock || !body) return
-    const measure = () => body.style.setProperty('--dock-h', `${dock.offsetHeight}px`)
+    const canvas = body?.parentElement
+    if (!dock || !body || !canvas) return
+    const measure = () => {
+      const floor = canvas.clientHeight - (body.offsetTop + dock.offsetTop)
+      canvas.style.setProperty('--dock-top', `${floor}px`)
+      if (fieldRef.current) autogrow(fieldRef.current)
+    }
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(dock)
+    ro.observe(canvas)
     return () => ro.disconnect()
-  }, [])
+  }, [hasConversation])
 
   // The field shrinks back when its value is cleared from code.
   useEffect(() => {
@@ -677,7 +694,7 @@ export function Ask({
                 exit={{ opacity: 0, y: 6, scale: 0.94 }}
                 transition={{ duration: reduceMotion ? 0 : 0.2, ease: EASE_OUT }}
                 className={clsx(
-                  'absolute bottom-[calc(var(--dock-h,6rem)+0.75rem)] left-1/2 z-[6] flex -translate-x-1/2 items-center gap-1.5 rounded-sm border border-line-strong bg-surface py-1.5 pr-2.5 pl-2 text-xs font-medium text-foreground',
+                  'absolute bottom-[calc(var(--dock-top,6rem)+0.75rem)] left-1/2 z-[6] flex -translate-x-1/2 items-center gap-1.5 rounded-sm border border-line-strong bg-surface py-1.5 pr-2.5 pl-2 text-xs font-medium text-foreground',
                   RAISED,
                 )}
               >
