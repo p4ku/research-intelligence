@@ -94,10 +94,16 @@ export const runs = {
     return rows.map(toRun)
   }),
 
-  /** Runs for one domain, newest first — a filter over `listEverywhere`. */
+  /**
+   * Runs for one domain, newest first — a filter over the unfiltered
+   * `listEverywhere`, status included, so every page shares the one fetch
+   * that also versions the corpus snapshot (../corpus/snapshot.ts).
+   */
   listAll: cache(async (workspaceId: string, status?: RunStatus): Promise<PipelineRun[]> => {
-    const all = await runs.listEverywhere(status)
-    return all.filter((run) => run.workspace_id === workspaceId)
+    const all = await runs.listEverywhere()
+    return all.filter(
+      (run) => run.workspace_id === workspaceId && (status === undefined || run.status === status),
+    )
   }),
 
   /**
