@@ -307,5 +307,40 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
         self.assertEqual(sched_data["consecutive_failures_count"], 0)
         self.assertEqual(sched_data["max_consecutive_failures"], 5)
 
+    def test_workspace_narrative_report_prompt_mcp_lifecycle(self):
+        """Test configuring, reading, and updating executive narrative report prompts via MCP."""
+        res = self.parse_res(create_workspace_logic(
+            self.admin,
+            name="Narrative Prompt WS",
+            narrative_report_prompt="Synthesize top {top_n_papers_count} papers: {papers}",
+            narrative_report_system_prompt="You are an elite research briefing strategist.",
+            narrative_report_top_n_papers=15
+        ))
+        self.assertEqual(res["status"], "success")
+        ws_id = res["workspace_id"]
+
+        ws = Workspace.objects.get(id=ws_id)
+        self.assertEqual(ws.narrative_report_prompt, "Synthesize top {top_n_papers_count} papers: {papers}")
+        self.assertEqual(ws.narrative_report_system_prompt, "You are an elite research briefing strategist.")
+        self.assertEqual(ws.narrative_report_top_n_papers, 15)
+
+        ws_details = self.parse_res(get_workspace_logic(self.admin, workspace_id=ws_id))
+        self.assertEqual(ws_details["narrative_report_prompt"], "Synthesize top {top_n_papers_count} papers: {papers}")
+        self.assertEqual(ws_details["narrative_report_system_prompt"], "You are an elite research briefing strategist.")
+        self.assertEqual(ws_details["narrative_report_top_n_papers"], 15)
+
+        up_res = self.parse_res(update_workspace_logic(
+            self.admin,
+            workspace_id=ws_id,
+            narrative_report_prompt="Updated briefing prompt: {papers_json}",
+            narrative_report_top_n_papers=20
+        ))
+        self.assertEqual(up_res["status"], "success")
+
+        ws.refresh_from_db()
+        self.assertEqual(ws.narrative_report_prompt, "Updated briefing prompt: {papers_json}")
+        self.assertEqual(ws.narrative_report_top_n_papers, 20)
+
+
 
 

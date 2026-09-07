@@ -79,6 +79,9 @@ def create_workspace_record(
     full_text_screening_user_prompt_template: Optional[str] = None,
     full_text_screening_response_schema: Optional[dict] = None,
     full_text_screening_exit_metric: Optional[str] = None,
+    narrative_report_prompt: Optional[str] = None,
+    narrative_report_system_prompt: Optional[str] = None,
+    narrative_report_top_n_papers: Optional[int] = 10,
     ocr_provider: Optional[str] = None,
     llm_provider: str = "google",
     screening_llm_model: str = "google/gemini-3.8-flash",
@@ -126,6 +129,9 @@ def create_workspace_record(
         full_text_screening_user_prompt_template=full_text_screening_user_prompt_template,
         full_text_screening_response_schema=full_text_screening_response_schema,
         full_text_screening_exit_metric=full_text_screening_exit_metric,
+        narrative_report_prompt=narrative_report_prompt,
+        narrative_report_system_prompt=narrative_report_system_prompt,
+        narrative_report_top_n_papers=narrative_report_top_n_papers if narrative_report_top_n_papers is not None else 10,
         ocr_provider=ocr_provider,
         llm_provider=llm_provider,
         screening_llm_model=screening_llm_model,
@@ -176,6 +182,9 @@ def serialize_workspace_configuration(workspace: Workspace) -> dict:
         "full_text_screening_user_prompt_template": workspace.full_text_screening_user_prompt_template,
         "full_text_screening_response_schema": workspace.full_text_screening_response_schema,
         "full_text_screening_exit_metric": workspace.full_text_screening_exit_metric,
+        "narrative_report_prompt": workspace.narrative_report_prompt,
+        "narrative_report_system_prompt": workspace.narrative_report_system_prompt,
+        "narrative_report_top_n_papers": workspace.narrative_report_top_n_papers,
         "extraction_definitions": [
             {
                 "name": ed.name,
@@ -281,6 +290,9 @@ def import_workspace_configuration_bundle(
             "full_text_screening_user_prompt_template": ws_data.get("full_text_screening_user_prompt_template"),
             "full_text_screening_response_schema": ws_data.get("full_text_screening_response_schema"),
             "full_text_screening_exit_metric": ws_data.get("full_text_screening_exit_metric"),
+            "narrative_report_prompt": ws_data.get("narrative_report_prompt"),
+            "narrative_report_system_prompt": ws_data.get("narrative_report_system_prompt"),
+            "narrative_report_top_n_papers": ws_data.get("narrative_report_top_n_papers", 10),
         }
 
         existing_ws = Workspace.objects.filter(name=name).first()

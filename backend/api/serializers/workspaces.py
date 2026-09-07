@@ -99,6 +99,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             'abstract_screening_response_schema', 'abstract_screening_exit_metric',
             'full_text_screening_system_prompt', 'full_text_screening_user_prompt_template',
             'full_text_screening_response_schema', 'full_text_screening_exit_metric',
+            'narrative_report_prompt', 'narrative_report_system_prompt', 'narrative_report_top_n_papers',
             'signal_score_code', 'skip_abstract_screening', 'reprocess_existing',
             'extraction_definitions', 'ocr_provider',
             'screening_llm_model', 'llm_provider', 'reasoning_effort', 'digest_schedule',

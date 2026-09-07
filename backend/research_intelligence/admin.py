@@ -1845,6 +1845,14 @@ class WorkspaceAdmin(admin.ModelAdmin):
             'fields': ('signal_score_code',),
             'description': 'Custom Python snippet evaluated on paper extracted parameters (e.g. <code>k = fit_score + 2*novelty_score; return 5 if k > 10 else 99</code>). All available variables deduced from Extraction Definitions and Screening Stages are displayed below with click-to-insert, live linter, and real-time dry-run sandbox testing.'
         }),
+        ('📊 Executive Briefing & Narrative Report Prompting', {
+            'fields': (
+                'narrative_report_top_n_papers',
+                'narrative_report_system_prompt',
+                'narrative_report_prompt',
+            ),
+            'description': 'Configure executive briefing generation for Step 7. When <code>narrative_report_prompt</code> is provided, an LLM synthesizes an executive briefing based on the top N accepted papers ranked by signal score. Placeholders available in prompt: <code>{papers}</code> (formatted catalog), <code>{papers_json}</code> (structured JSON list), <code>{score_vectors_summary}</code>, <code>{workspace_name}</code>, <code>{run_date}</code>, <code>{run_id}</code>, <code>{total_papers}</code>, <code>{accepted_papers_count}</code>, <code>{rejected_papers_count}</code>, <code>{avg_signal_score}</code>, <code>{top_n_papers_count}</code>. If prompt is blank, a standard deterministic summary is generated.'
+        }),
         ('Monthly Quotas & Budgets', {
             'fields': (
                 'monthly_token_limit',
