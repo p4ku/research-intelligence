@@ -1,14 +1,14 @@
 import { AnswerMarkdown } from '@/components/answer-markdown'
-import { PaperCard } from '@/components/paper-card'
 import { Breadcrumbs, SectionLabel, StatBand } from '@/components/scanner-ui'
+import { StarToggle } from '@/components/star'
 import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import { papers as papersService } from '@/lib/bff/papers/service'
-import { fmt, type Lang, type T } from '@/lib/i18n'
+import type { Lang, T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
-import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { editionHref, formatEditionDate } from '../format'
+import { EditionPaperList } from './edition-paper-list'
 
 /**
  * One edition's streamed sections. The head needs the edition; the papers
@@ -64,9 +64,13 @@ export async function EditionHead({
           ]}
           t={t}
         />
-        <h1 className="text-[26px]/8 font-semibold tracking-tight text-zinc-950 dark:text-white">
-          {edition.title}
-        </h1>
+        {/* The briefing's star sits at the title's right; a briefing is starred by its run. */}
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <h1 className="min-w-0 flex-1 text-[26px]/8 font-semibold tracking-tight text-zinc-950 dark:text-white">
+            {edition.title}
+          </h1>
+          <StarToggle kind="briefing" id={edition.run_id} className="mt-px" />
+        </div>
       </div>
 
       <StatBand items={funnel} flow className="lg:grid-cols-3!" />
@@ -82,17 +86,15 @@ export async function EditionHead({
   )
 }
 
-/** The papers that passed, as cards, with the link to the screening log. */
+/** The papers that passed, as cards with their stars, and the link to the screening log. */
 export async function EditionPapers({
   wsId,
   date,
   lang,
-  t,
 }: {
   wsId?: string
   date: string
   lang: Lang
-  t: T
 }) {
   const edition = await forPage(briefings.findByDate(date, lang, wsId))
   if (!edition) notFound()
@@ -104,26 +106,9 @@ export async function EditionPapers({
     .filter((p): p is ScoredPaper => Boolean(p))
 
   return (
-    <section>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <SectionLabel size="sm">{t('The papers')}</SectionLabel>
-        <span className="flex items-baseline gap-4">
-          <span className="font-mono text-[11px] text-zinc-400 tabular-nums dark:text-zinc-500">
-            {cards.length === 1 ? t('1 paper') : fmt(t('{n} papers'), { n: cards.length })}
-          </span>
-          <Link
-            href={editionHref(edition.date, edition.workspace_id, 'run')}
-            className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
-          >
-            {t('Screening log →')}
-          </Link>
-        </span>
-      </div>
-      <div className="mt-5 space-y-3">
-        {cards.map((p) => (
-          <PaperCard key={p.id} paper={p} />
-        ))}
-      </div>
-    </section>
+    <EditionPaperList
+      papers={cards}
+      logHref={editionHref(edition.date, edition.workspace_id, 'run')}
+    />
   )
 }

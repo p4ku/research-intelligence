@@ -32,6 +32,8 @@
      panels and new turns rise in. Both stay on opacity/filter/transform. */
   --animate-unveil: unveil 900ms var(--ease-out) both;
   --animate-rise-in: rise-in 220ms var(--ease-out) both;
+  /* A star just filled: one overshoot and settle (components/star.tsx). */
+  --animate-star-pop: star-pop 260ms var(--ease-out) both;
 
   @keyframes unveil {
     from {
@@ -51,6 +53,17 @@
     to {
       opacity: 1;
       transform: none;
+    }
+  }
+  @keyframes star-pop {
+    0% {
+      transform: scale(0.6);
+    }
+    55% {
+      transform: scale(1.22);
+    }
+    100% {
+      transform: scale(1);
     }
   }
 }
