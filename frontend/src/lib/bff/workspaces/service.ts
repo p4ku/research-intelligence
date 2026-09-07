@@ -12,15 +12,16 @@ import { cache } from 'react'
 import { paginate, type ListQuery, type Page } from '../core/pagination'
 import type { Problem } from '../core/problem'
 import { problemResult } from '../core/result'
-import { corpusSnapshot } from '../corpus/snapshot'
+import { workspacesSnapshot } from '../corpus/snapshot'
 import type { WorkspaceSummary } from './schema'
 
 /**
  * Raw DTOs for other BFF services (papers composition needs the full
- * extraction definitions). From the user's corpus snapshot, held across
- * requests (../corpus/snapshot.ts); deduped per request.
+ * extraction definitions). From the user's workspaces snapshot, held across
+ * requests (../corpus/snapshot.ts) apart from the heavier papers, so a page
+ * that never reads papers neither waits on them nor fails with them.
  */
-export const listWorkspacesRaw = cache(async () => (await corpusSnapshot()).workspaces)
+export const listWorkspacesRaw = cache(() => workspacesSnapshot())
 
 export type WorkspacesResult =
   | { ok: true; workspaces: WorkspaceSummary[] }

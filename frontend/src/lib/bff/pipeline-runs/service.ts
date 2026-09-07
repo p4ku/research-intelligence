@@ -83,14 +83,12 @@ export const runs = {
   /**
    * Every run the user can see, newest first, across all their domains: one
    * call (Django scopes the list to memberships when `workspace` is omitted).
-   * Cached per request and status, so the per-domain view below and the
-   * briefings composed on top of it share the fetch.
+   * Always unfiltered and cached per request, so the per-domain and
+   * per-status views below, the briefings composed on top of it, and the
+   * corpus snapshot's version probe all share the one fetch.
    */
-  listEverywhere: cache(async (status?: RunStatus): Promise<PipelineRun[]> => {
-    const params = new URLSearchParams()
-    if (status) params.set('status', status)
-    const qs = params.toString()
-    const rows = await django(`/api/pipeline-runs/${qs ? `?${qs}` : ''}`, z.array(pipelineRunDTO))
+  listEverywhere: cache(async (): Promise<PipelineRun[]> => {
+    const rows = await django('/api/pipeline-runs/', z.array(pipelineRunDTO))
     return rows.map(toRun)
   }),
 
@@ -131,7 +129,9 @@ export const runs = {
   async list(query: RunsQuery): Promise<Page<PipelineRun>> {
     const all = query.workspace_id
       ? await runs.listAll(query.workspace_id, query.status)
-      : await runs.listEverywhere(query.status)
+      : (await runs.listEverywhere()).filter(
+          (run) => query.status === undefined || run.status === query.status,
+        )
     const extra: Record<string, string> = {}
     if (query.workspace_id) extra.workspace_id = query.workspace_id
     if (query.status) extra.status = query.status
