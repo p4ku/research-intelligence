@@ -1,10 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { clock } from './test-clock'
 import { TtlCache } from './ttl-cache'
-
-function clock(start = 1_000) {
-  let t = start
-  return { now: () => t, tick: (ms: number) => (t += ms) }
-}
 
 describe('TtlCache', () => {
   test('a fresh key shares one load', async () => {

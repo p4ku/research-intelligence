@@ -1,11 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { problem } from '../core/problem'
+import { clock } from '../core/test-clock'
 import { createSnapshotStore } from './store'
-
-function clock(start = 1_000) {
-  let t = start
-  return { now: () => t, tick: (ms: number) => (t += ms) }
-}
 
 /** A store over counters, so every test can say exactly what was called. */
 function harness({

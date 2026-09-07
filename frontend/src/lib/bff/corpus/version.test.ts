@@ -1,29 +1,10 @@
 import { describe, expect, test } from 'bun:test'
+import { fixtureRuns } from '../pipeline-runs/fixtures'
 import type { PipelineRun } from '../pipeline-runs/schema'
 import { corpusVersion } from './version'
 
-function run(over: Partial<PipelineRun> = {}): PipelineRun {
-  return {
-    id: 'r1',
-    workspace_id: 'w1',
-    workspace_name: 'Hybrid Computing',
-    run_date: '2026-08-31',
-    status: 'completed',
-    current_stage: null,
-    total_papers_fetched: 40,
-    total_papers_passed_screening: 12,
-    status_message: null,
-    duration_seconds: 120,
-    usd_cost: 0.5,
-    started_at: '2026-08-31T09:00:00Z',
-    completed_at: '2026-08-31T09:02:00Z',
-    period_start: null,
-    period_end: null,
-    lookback_days: null,
-    retryable: false,
-    ...over,
-  }
-}
+/** A completed fixture run, overridden per case. */
+const run = (over: Partial<PipelineRun> = {}): PipelineRun => ({ ...fixtureRuns[0], ...over })
 
 describe('corpusVersion', () => {
   test('is order-independent', () => {

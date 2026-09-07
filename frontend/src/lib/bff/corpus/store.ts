@@ -17,7 +17,7 @@
  * An outage therefore never reads as "no data": a miss surfaces exactly the
  * problem it surfaces today. Pure apart from the injected functions.
  */
-import { ProblemError } from '../core/problem'
+import { isUnauthenticated } from '../core/problem'
 import { TtlCache } from '../core/ttl-cache'
 
 export interface SnapshotStoreOptions<T> {
@@ -46,10 +46,6 @@ interface Entry<T> {
   value: T
 }
 
-function isUnauthorized(error: unknown): boolean {
-  return error instanceof ProblemError && error.problem.status === 401
-}
-
 export function createSnapshotStore<T>({
   probe,
   load,
@@ -65,7 +61,7 @@ export function createSnapshotStore<T>({
   async function cold(): Promise<Entry<T>> {
     const [version, value] = await Promise.all([
       probe().catch((error: unknown) => {
-        if (isUnauthorized(error)) throw error
+        if (isUnauthenticated(error)) throw error
         return null
       }),
       load(),
@@ -78,7 +74,7 @@ export function createSnapshotStore<T>({
     try {
       version = await probe()
     } catch (error) {
-      if (isUnauthorized(error)) throw error
+      if (isUnauthenticated(error)) throw error
       return entry
     }
     if (version === entry.version) {
