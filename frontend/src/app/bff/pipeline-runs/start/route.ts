@@ -8,7 +8,7 @@ import { runs } from '@/lib/bff/pipeline-runs/service'
 export const dynamic = 'force-dynamic'
 
 /**
- * Home's "Run pipeline" and a failed row's Retry: one domain, one search
+ * Home's "Start" (New briefing) and a failed row's Retry: one domain, one search
  * window. One run at a time across all analysts is the spec's rule and
  * Django does not enforce it, so it is checked here against the live list
  * — a stale Home (another analyst started a run since it rendered) gets a
