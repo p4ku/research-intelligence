@@ -660,5 +660,94 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
         print(f"\n[BENCHMARK] /api/auth/me/ executed {query_count} queries.")
         self.assertLessEqual(query_count, 3, f"Expected <= 3 queries for profile view, got {query_count}")
 
+    def test_dag_orchestrator_query_efficiency(self):
+        """
+        Verify that WorkflowDAG.get_node_status_map and sync_pipeline_run_stage_results
+        evaluate component runs in memory, reducing 50+ queries to 1 single query.
+        """
+        from research_intelligence.tasks.orchestrator.dag.pipelines import build_default_slr_dag
+        from research_intelligence.tasks.orchestrator.dag.engine import sync_pipeline_run_stage_results
 
+        dag = build_default_slr_dag(self.workspace)
 
+        # Measure queries for get_node_status_map
+        with CaptureQueriesContext(connection) as ctx:
+            status_map = dag.get_node_status_map(self.run_1)
+        
+        status_queries = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] dag.get_node_status_map executed {status_queries} query (was 25+).")
+        self.assertLessEqual(status_queries, 1, f"Expected <= 1 query, got {status_queries}")
+        self.assertIsInstance(status_map, dict)
+        self.assertTrue("search" in status_map)
+
+        # Measure queries for sync_pipeline_run_stage_results
+        with CaptureQueriesContext(connection) as ctx:
+            stage_results = sync_pipeline_run_stage_results(self.run_1, dag.nodes)
+
+        sync_queries = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] sync_pipeline_run_stage_results executed {sync_queries} query (was 16+).")
+        self.assertLessEqual(sync_queries, 1, f"Expected <= 1 query, got {sync_queries}")
+        self.assertIsInstance(stage_results, dict)
+
+        # When comp_runs is passed in-memory, 0 queries should be executed!
+        comp_runs = list(ComponentRun.objects.filter(pipeline_run=self.run_1))
+        with CaptureQueriesContext(connection) as ctx:
+            mem_status_map = dag.get_node_status_map(self.run_1, comp_runs=comp_runs)
+            mem_stage_results = sync_pipeline_run_stage_results(self.run_1, dag.nodes, comp_runs=comp_runs)
+            ready_nodes = dag.get_ready_nodes(self.run_1, self.workspace, status_map=mem_status_map, comp_runs=comp_runs)
+
+        zero_queries = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] In-memory DAG evaluation executed {zero_queries} queries (pure RAM execution).")
+        self.assertEqual(zero_queries, 0, f"Expected 0 queries when passing comp_runs, got {zero_queries}")
+
+    def test_screening_node_should_halt_query_efficiency(self):
+        """
+        Verify that AbstractScreeningNode and FullTextScreeningNode check halting
+        conditions using a single PaperMetric query instead of 4 separate DISTINCT joins.
+        """
+        from research_intelligence.tasks.step_4_screening.node import AbstractScreeningNode, FullTextScreeningNode
+
+        abstract_node = AbstractScreeningNode()
+        full_text_node = FullTextScreeningNode()
+
+        with CaptureQueriesContext(connection) as ctx:
+            halt, reason = abstract_node.should_halt_pipeline(self.run_1, self.workspace, {})
+
+        query_count = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] AbstractScreeningNode.should_halt_pipeline executed {query_count} queries (was 4+).")
+        self.assertLessEqual(query_count, 2, f"Expected <= 2 queries, got {query_count}")
+
+        with CaptureQueriesContext(connection) as ctx:
+            halt_ft, reason_ft = full_text_node.should_halt_pipeline(self.run_1, self.workspace, {})
+
+        query_count_ft = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] FullTextScreeningNode.should_halt_pipeline executed {query_count_ft} queries (was 4+).")
+        self.assertLessEqual(query_count_ft, 2, f"Expected <= 2 queries, got {query_count_ft}")
+
+    def test_search_node_should_halt_query_efficiency(self):
+        """
+        Verify that SearchNode.should_halt_pipeline evaluates component runs in memory.
+        """
+        from research_intelligence.tasks.step_1_search.node import SearchNode
+
+        search_node = SearchNode()
+        with CaptureQueriesContext(connection) as ctx:
+            halt, reason = search_node.should_halt_pipeline(self.run_1, self.workspace, {})
+
+        query_count = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] SearchNode.should_halt_pipeline executed {query_count} queries.")
+        self.assertLessEqual(query_count, 2, f"Expected <= 2 queries, got {query_count}")
+
+    def test_runner_handle_component_completion_efficiency(self):
+        """
+        Verify that PipelineRunner.handle_component_completion fetches component runs once.
+        """
+        from research_intelligence.tasks.orchestrator.runner import PipelineRunner
+
+        with CaptureQueriesContext(connection) as ctx:
+            PipelineRunner.handle_component_completion(self.run_1)
+
+        query_count = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] PipelineRunner.handle_component_completion executed {query_count} queries.")
+        # Minimal queries: fetch pipeline_run (or passed obj), comp_runs.all(), agent_processes
+        self.assertLessEqual(query_count, 4, f"Expected <= 4 queries, got {query_count}")

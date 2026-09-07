@@ -40,14 +40,15 @@ class SearchNode(BaseWorkflowNode):
 
     def should_halt_pipeline(self, pipeline_run, workspace, config: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
         from research_intelligence.models import ComponentRun, Paper
-        search_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run, step_type='search')
+        search_runs = list(ComponentRun.objects.filter(pipeline_run=pipeline_run, step_type='search'))
 
         # If any parallel search run is still active (running or pending), do NOT halt.
-        if search_runs.filter(status__in=['running', 'pending']).exists():
+        if any(cr.status in ('running', 'pending') for cr in search_runs):
             return False, None
 
         # Only check search halt condition if at least one search run was completed for this pipeline run
-        if not search_runs.filter(status='completed').exists():
+        completed_runs = [cr for cr in search_runs if cr.status == 'completed']
+        if not completed_runs:
             return False, None
 
         reprocess = config.get("reprocess_existing", getattr(pipeline_run, 'reprocess_existing', getattr(workspace, 'reprocess_existing', False)))
@@ -57,7 +58,7 @@ class SearchNode(BaseWorkflowNode):
             # Aggregate metrics across all completed scraper runs
             total_fetched = 0
             duplicates = 0
-            for s_run in search_runs.filter(status='completed'):
+            for s_run in completed_runs:
                 m = s_run.metrics or {}
                 total_fetched += m.get("total_fetched", 0)
                 duplicates += m.get("duplicates_count", 0)

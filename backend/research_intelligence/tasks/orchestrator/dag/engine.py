@@ -8,26 +8,29 @@ from .base_node import BaseWorkflowNode
 logger = logging.getLogger(__name__)
 
 
-def sync_pipeline_run_stage_results(pipeline_run, dag_nodes, config=None, agent_process=None) -> Dict[str, Any]:
+def sync_pipeline_run_stage_results(pipeline_run, dag_nodes, config=None, agent_process=None, comp_runs=None) -> Dict[str, Any]:
     """
     Synchronizes all stage results into pipeline_run.stage_results (and optionally
     agent_process.stage_results) by delegating to each node's get_stage_result_entry implementation.
     """
     from research_intelligence.models import ComponentRun
     stage_results = dict(pipeline_run.stage_results or (agent_process.stage_results if agent_process else {}))
-    comp_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run).order_by('started_at', 'id')
+    if comp_runs is None:
+        comp_runs = list(ComponentRun.objects.filter(pipeline_run=pipeline_run).order_by('started_at', 'id'))
+    else:
+        comp_runs = list(comp_runs)
     cfg = config or {}
 
     for name, node in dag_nodes.items():
         if name == 'abstract_screening':
-            node_runs = comp_runs.filter(component_name='abstract_screening')
+            node_runs = [cr for cr in comp_runs if cr.component_name == 'abstract_screening']
         elif name == 'full_text_screening':
-            node_runs = comp_runs.filter(component_name='full_text_screening')
+            node_runs = [cr for cr in comp_runs if cr.component_name == 'full_text_screening']
         else:
-            node_runs = comp_runs.filter(step_type=node.step_type)
+            node_runs = [cr for cr in comp_runs if cr.step_type == node.step_type]
 
-        if node_runs.exists():
-            last_run = node_runs.last()
+        if node_runs:
+            last_run = node_runs[-1]
             stage_results[name] = node.get_stage_result_entry(comp_run=last_run)
         elif node.is_skippable(pipeline_run, pipeline_run.workspace, cfg):
             stage_results[name] = node.get_stage_result_entry(status="skipped")
@@ -128,34 +131,38 @@ class WorkflowDAG:
         collect(start_node_name)
         return downstream
 
-    def get_node_status_map(self, pipeline_run, config: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+    def get_node_status_map(self, pipeline_run, config: Optional[Dict[str, Any]] = None, comp_runs: Optional[List] = None) -> Dict[str, str]:
         """
         Queries the database and returns a mapping of node_name -> status
         ('pending', 'running', 'completed', 'skipped', 'failed').
         """
         from research_intelligence.models import ComponentRun
-        comp_runs = ComponentRun.objects.filter(pipeline_run=pipeline_run).order_by('started_at', 'id')
+        if comp_runs is None:
+            comp_runs = list(ComponentRun.objects.filter(pipeline_run=pipeline_run).order_by('started_at', 'id'))
+        else:
+            comp_runs = list(comp_runs)
 
         status_map = {name: "pending" for name in self.nodes}
         cfg = config or {}
 
         for node_name, node in self.nodes.items():
             if node_name == 'abstract_screening':
-                matching_runs = comp_runs.filter(component_name='abstract_screening')
+                matching_runs = [cr for cr in comp_runs if cr.component_name == 'abstract_screening']
             elif node_name == 'full_text_screening':
-                matching_runs = comp_runs.filter(component_name='full_text_screening')
+                matching_runs = [cr for cr in comp_runs if cr.component_name == 'full_text_screening']
             elif node_name == 'screening':
-                matching_runs = comp_runs.filter(step_type='screening')
+                matching_runs = [cr for cr in comp_runs if cr.step_type == 'screening']
             else:
-                matching_runs = comp_runs.filter(step_type=node.step_type)
+                matching_runs = [cr for cr in comp_runs if cr.step_type == node.step_type]
 
-            if matching_runs.filter(status='running').exists():
+            m_statuses = {cr.status for cr in matching_runs}
+            if 'running' in m_statuses:
                 status_map[node_name] = "running"
-            elif matching_runs.filter(status='failed').exists() and not matching_runs.filter(status='completed').exists():
+            elif 'failed' in m_statuses and 'completed' not in m_statuses:
                 status_map[node_name] = "failed"
-            elif matching_runs.filter(status='completed').exists():
+            elif 'completed' in m_statuses:
                 status_map[node_name] = "completed"
-            elif matching_runs.filter(status='skipped').exists():
+            elif 'skipped' in m_statuses:
                 status_map[node_name] = "skipped"
             else:
                 # If no matching runs for this node, but any downstream node has started or completed,
@@ -165,15 +172,15 @@ class WorkflowDAG:
                 for d in downstream:
                     d_node = self.nodes[d]
                     if d == 'abstract_screening':
-                        d_matches = comp_runs.filter(component_name='abstract_screening')
+                        d_matches = [cr for cr in comp_runs if cr.component_name == 'abstract_screening']
                     elif d == 'full_text_screening':
-                        d_matches = comp_runs.filter(component_name='full_text_screening')
+                        d_matches = [cr for cr in comp_runs if cr.component_name == 'full_text_screening']
                     elif d == 'screening':
-                        d_matches = comp_runs.filter(step_type='screening')
+                        d_matches = [cr for cr in comp_runs if cr.step_type == 'screening']
                     else:
-                        d_matches = comp_runs.filter(step_type=d_node.step_type)
+                        d_matches = [cr for cr in comp_runs if cr.step_type == d_node.step_type]
 
-                    if d_matches.filter(status__in=['running', 'completed', 'skipped']).exists():
+                    if any(cr.status in ('running', 'completed', 'skipped') for cr in d_matches):
                         downstream_started = True
                         break
 
@@ -184,13 +191,14 @@ class WorkflowDAG:
 
         return status_map
 
-    def get_ready_nodes(self, pipeline_run, workspace, config: Optional[Dict[str, Any]] = None) -> List[BaseWorkflowNode]:
+    def get_ready_nodes(self, pipeline_run, workspace, config: Optional[Dict[str, Any]] = None, status_map: Optional[Dict[str, str]] = None, comp_runs: Optional[List] = None) -> List[BaseWorkflowNode]:
         """
         Calculates all nodes whose dependencies are all satisfied ('completed' or 'skipped')
         and are currently 'pending'.
         """
         cfg = config or {}
-        status_map = self.get_node_status_map(pipeline_run, config=cfg)
+        if status_map is None:
+            status_map = self.get_node_status_map(pipeline_run, config=cfg, comp_runs=comp_runs)
         ready = []
 
         for name, node in self.nodes.items():
@@ -258,8 +266,9 @@ class WorkflowDAG:
                         "message": f"Process in terminal or paused state: {agent_process.status}"
                     }
 
-            status_map = self.get_node_status_map(pipeline_run, config=cfg)
-            sync_pipeline_run_stage_results(pipeline_run, self.nodes, config=cfg, agent_process=agent_process)
+            comp_runs = list(ComponentRun.objects.filter(pipeline_run=pipeline_run).order_by('started_at', 'id'))
+            status_map = self.get_node_status_map(pipeline_run, config=cfg, comp_runs=comp_runs)
+            sync_pipeline_run_stage_results(pipeline_run, self.nodes, config=cfg, agent_process=agent_process, comp_runs=comp_runs)
 
             # 0. Check Workspace Monthly Quota & Budget Enforcement
             is_exceeded, quota_reason = workspace.is_quota_exceeded()
@@ -402,7 +411,7 @@ class WorkflowDAG:
                             }
 
             # 3. Resolve Ready Nodes and Dispatch
-            ready_nodes = self.get_ready_nodes(pipeline_run, workspace, config=cfg)
+            ready_nodes = self.get_ready_nodes(pipeline_run, workspace, config=cfg, status_map=status_map)
             dispatched = []
 
             # First pass: mark all skippable ready nodes as skipped
@@ -518,14 +527,14 @@ class WorkflowDAG:
                 from decimal import Decimal
                 comp_costs = sum(
                     float((cr.metrics or {}).get("usd_cost") or 0.0)
-                    for cr in pipeline_run.component_runs.all()
+                    for cr in comp_runs
                 )
                 if comp_costs > float(pipeline_run.usd_cost or 0.0):
                     pipeline_run.usd_cost = Decimal(str(round(comp_costs, 4)))
 
-                comp_tokens_in = sum(int((cr.metrics or {}).get("tokens_in", (cr.metrics or {}).get("total_prompt_tokens", 0)) or 0) for cr in pipeline_run.component_runs.all())
-                comp_tokens_out = sum(int((cr.metrics or {}).get("tokens_out", (cr.metrics or {}).get("total_candidates_tokens", 0)) or 0) for cr in pipeline_run.component_runs.all())
-                comp_tokens = sum(int((cr.metrics or {}).get("tokens_consumed", (cr.metrics or {}).get("total_tokens", (cr.metrics or {}).get("total_tokens_consumed", 0))) or 0) for cr in pipeline_run.component_runs.all())
+                comp_tokens_in = sum(int((cr.metrics or {}).get("tokens_in", (cr.metrics or {}).get("total_prompt_tokens", 0)) or 0) for cr in comp_runs)
+                comp_tokens_out = sum(int((cr.metrics or {}).get("tokens_out", (cr.metrics or {}).get("total_candidates_tokens", 0)) or 0) for cr in comp_runs)
+                comp_tokens = sum(int((cr.metrics or {}).get("tokens_consumed", (cr.metrics or {}).get("total_tokens", (cr.metrics or {}).get("total_tokens_consumed", 0))) or 0) for cr in comp_runs)
 
                 if comp_tokens > (pipeline_run.tokens_consumed or 0):
                     pipeline_run.tokens_consumed = comp_tokens
