@@ -155,6 +155,26 @@ export const paletteEntry = z
   .meta({ id: 'PaletteEntry' })
 export type PaletteEntry = z.infer<typeof paletteEntry>
 
-/** Best signal first, unscored papers last. */
-export const palette = z.object({ papers: z.array(paletteEntry) }).meta({ id: 'Palette' })
+/**
+ * What the picker asks for: the reader's text (empty warms the corpus and
+ * returns the top rows by signal) through the shared matcher, at most
+ * `limit` rows. Never the whole corpus — the picker is a typeahead.
+ */
+export const paletteQuery = z.object({
+  q: z.string().trim().max(200).default(''),
+  limit: z.coerce.number().int().min(1).max(50).catch(20).default(20),
+})
+export type PaletteQuery = z.infer<typeof paletteQuery>
+
+/** Best signal first for an empty query, best match first otherwise; unscored papers last. */
+export const palette = z
+  .object({
+    query: z.string(),
+    papers: z.array(paletteEntry),
+    /** Rows the query matched before the limit. */
+    matched: z.number().int().min(0),
+    /** Papers the reader can see at all. */
+    total: z.number().int().min(0),
+  })
+  .meta({ id: 'Palette' })
 export type Palette = z.infer<typeof palette>

@@ -1,6 +1,8 @@
 import { bff } from '@/lib/bff/core/handler'
+import { parseQuery } from '@/lib/bff/core/validate'
 import { trustCorpusFor } from '@/lib/bff/corpus/snapshot'
 import { toPalette } from '@/lib/bff/papers/palette'
+import { paletteQuery } from '@/lib/bff/papers/schema'
 import { papers } from '@/lib/bff/papers/service'
 
 export const dynamic = 'force-dynamic'
@@ -9,11 +11,13 @@ export const dynamic = 'force-dynamic'
 const PICKER_TRUST_MS = 10_000
 
 /**
- * The Ask picker's corpus: every paper the user can see, slimmed to what a
- * row shows. Scored from the per-user corpus snapshot, so the console can
- * ask for it the moment it has painted, and again on every visit for pennies.
+ * The Ask picker's rows: the papers the reader's text matches, slimmed to
+ * what a row shows and cut at `limit`. Scored from the per-user corpus
+ * snapshot, so the console can ask on every keystroke for pennies and never
+ * holds more than a screenful.
  */
-export const GET = bff('papers', async () => {
+export const GET = bff('papers', async (request) => {
   trustCorpusFor(PICKER_TRUST_MS)
-  return Response.json(toPalette(await papers.listEverywhere()))
+  const query = parseQuery(paletteQuery, request.nextUrl)
+  return Response.json(toPalette(await papers.listEverywhere(), query))
 })

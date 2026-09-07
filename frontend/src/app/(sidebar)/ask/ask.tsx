@@ -124,8 +124,6 @@ export function Ask({
 }) {
   const t = useT()
   const reduceMotion = useReducedMotion() ?? false
-  const { entries, status: paletteStatus, retry: retryPalette } = usePalette()
-
   const [target, setTarget] = useState<ScopeTarget | null>(initialTarget)
   const [turns, setTurns] = useState<Turn[]>([])
   const [sessions, setSessions] = useState<ChatSession[]>([])
@@ -136,6 +134,14 @@ export function Ask({
   const [cursor, setCursor] = useState(0)
   // The composer becomes the paper picker on demand, not by default.
   const [picking, setPicking] = useState(false)
+  // The rows for what is being typed into the picker; the empty palette otherwise.
+  const {
+    entries,
+    matched: paletteMatched,
+    total: paletteTotal,
+    status: paletteStatus,
+    retry: retryPalette,
+  } = usePalette(picking ? pickQuery : '')
   // A question asked before a paper was attached; it sends itself once one is.
   const [held, setHeld] = useState<string | null>(null)
   const [sidecarOpen, setSidecarOpen] = useState(false)
@@ -836,6 +842,8 @@ export function Ask({
             {mode === 'pick' && (
               <PaperPicker
                 entries={entries}
+                matched={paletteMatched}
+                total={paletteTotal}
                 status={paletteStatus}
                 query={pickQuery}
                 cursor={cursor}

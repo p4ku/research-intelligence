@@ -6,7 +6,7 @@
 import * as z from 'zod'
 import type { Operation } from '../core/contract-types'
 import { workspace } from '../workspaces/schema'
-import { palette, paperPage, papersQuery, scoredPaper } from './schema'
+import { palette, paletteQuery, paperPage, papersQuery, scoredPaper } from './schema'
 import { extractionDTO, paperDTO } from './upstream'
 
 export const papersOperations: Operation[] = [
@@ -85,7 +85,8 @@ export const papersOperations: Operation[] = [
     method: 'GET',
     path: '/bff/papers/palette',
     summary:
-      "The Ask picker's corpus: every paper the user can see as a slim row (title, first author, source, signal), best signal first. Served from a short per-user cache.",
+      "The Ask picker's rows: the papers `q` matches (the shared matcher; empty = best signal first), at most `limit`, as slim rows (title, first author, source, signal) with the matched and total counts. Served from a short per-user cache.",
+    query: paletteQuery,
     responses: { 200: palette },
   },
 ]
