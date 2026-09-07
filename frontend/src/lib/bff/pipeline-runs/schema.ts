@@ -31,9 +31,45 @@ export const pipelineRun = z
     usd_cost: z.number(),
     started_at: z.iso.datetime({ offset: true }).nullable(),
     completed_at: z.iso.datetime({ offset: true }).nullable(),
+    /** The search window's first day (YYYY-MM-DD); null when the run was given none. */
+    period_start: z.iso.date().nullable(),
+    /** The search window's last day (YYYY-MM-DD); null when the run was given none. */
+    period_end: z.iso.date().nullable(),
+    /** The relative window ("last N days") for runs started without dates. */
+    lookback_days: z.number().int().nullable(),
+    /**
+     * Whether a start with the same domain and window is the same job: false
+     * when the run carried options (a limit, a query prefix) that only the
+     * MCP tools set, so Home offers no Retry for it.
+     */
+    retryable: z.boolean(),
   })
   .meta({ id: 'PipelineRun' })
 export type PipelineRun = z.infer<typeof pipelineRun>
+
+/**
+ * What Home sends to start a briefing: the domain and the search window.
+ * Dates are calendar days; the end may not precede the start. Both optional
+ * so a Retry can resend exactly what the failed run had, including nothing.
+ */
+export const startRun = z
+  .object({
+    workspace_id: z.uuid(),
+    start_date: z.iso.date().optional(),
+    end_date: z.iso.date().optional(),
+    /** A relative window ("last N days") instead of dates — what a Retry resends. */
+    lookback_days: z.number().int().positive().optional(),
+  })
+  .refine((v) => !v.start_date || !v.end_date || v.start_date <= v.end_date, {
+    message: 'The end date must not be before the start date.',
+    path: ['end_date'],
+  })
+  .meta({ id: 'StartPipelineRun' })
+export type StartRun = z.infer<typeof startRun>
+
+/** The run that was started; the list carries everything else. */
+export const startedRun = z.object({ run_id: z.uuid() }).meta({ id: 'StartedPipelineRun' })
+export type StartedRun = z.infer<typeof startedRun>
 
 export const runsQuery = listQuery.extend({
   /** Absent = every domain the user belongs to. */
