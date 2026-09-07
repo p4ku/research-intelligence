@@ -510,7 +510,6 @@ export default async function SkeletonsPage({
           <BriefingLedger
             rows={archiveRows}
             domains={[{ id: fixtureWorkspace.id, name: fixtureWorkspace.name }, secondDomain]}
-            initial={{ domain: null, starred: false, page: 1 }}
             syncUrl={false}
           />
         }

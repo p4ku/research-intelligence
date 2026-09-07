@@ -8,6 +8,7 @@ export const dict: Record<string, string> = {
   All: 'Alle',
   'Filter by domain': 'Nach Domäne filtern',
   'No briefings for this domain yet.': 'Für diese Domäne gibt es noch keine Briefings.',
+  'Nothing starred in this domain.': 'In dieser Domäne ist nichts markiert.',
   '{screened} screened → {included} included → {inBriefing} in the briefing':
     '{screened} gesichtet → {included} aufgenommen → {inBriefing} im Briefing',
   'In brief': 'In Kürze',

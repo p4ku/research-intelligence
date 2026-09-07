@@ -73,6 +73,8 @@ export function composeRows({
   const byId = new Map(runs.map((run) => [run.id, run]))
   // If the newest completed run has no edition (a same-day rerun collapsed
   // into a newer one, or its corpus could not be read) no row is Current.
+  // Under the stub briefings source the fixture run ids match no run, so
+  // every row takes the fallbacks below and none is Current.
   const currentId = currentRunId(runs)
   return editions.map((e) => {
     const run = byId.get(e.run_id)
@@ -127,10 +129,10 @@ export function paginate<Item>(
   return { items: items.slice((current - 1) * per, current * per), page: current, pageCount }
 }
 
-/** The page's query, read once on the server. Anything unusable is the default. */
+/** The ledger's state from the URL's query. Anything unusable is the default. */
 export function stateFrom(
   params: { domain?: string; starred?: string; page?: string },
-  all: WorkspaceSummary[],
+  all: Pick<WorkspaceSummary, 'id'>[],
 ): ArchiveState {
   const page = /^\d+$/.test(params.page ?? '') ? Number(params.page) : 0
   return {

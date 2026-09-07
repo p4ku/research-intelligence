@@ -5,7 +5,7 @@ import { runs } from '@/lib/bff/pipeline-runs/service'
 import type { Lang, T } from '@/lib/i18n'
 import type { WorkspaceSummary } from '@/lib/papers/types'
 import { BriefingLedger } from './briefing-ledger'
-import { composeRows, searchOf, type ArchiveState } from './rows'
+import { composeRows } from './rows'
 import { domainNames } from './scope'
 
 /**
@@ -15,12 +15,10 @@ import { domainNames } from './scope'
  */
 export async function LedgerSection({
   workspaces,
-  initial,
   lang,
   t,
 }: {
   workspaces: WorkspaceSummary[]
-  initial: ArchiveState
   lang: Lang
   t: T
 }) {
@@ -39,14 +37,5 @@ export async function LedgerSection({
   }
 
   const rows = composeRows({ editions, runs: completed, domains: domainNames(workspaces), t, lang })
-  return (
-    // Keyed on the query: a Back navigation to a different filter or page
-    // remounts the ledger in that state; a refresh on the same URL keeps it.
-    <BriefingLedger
-      key={searchOf(initial)}
-      rows={rows}
-      domains={workspaces.map(({ id, name }) => ({ id, name }))}
-      initial={initial}
-    />
-  )
+  return <BriefingLedger rows={rows} domains={workspaces.map(({ id, name }) => ({ id, name }))} />
 }

@@ -4,7 +4,6 @@ import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { Suspense, ViewTransition } from 'react'
-import { stateFrom } from './rows'
 import { LedgerSection } from './sections'
 import { LedgerSkeletonRegion } from './skeletons'
 
@@ -18,23 +17,15 @@ export async function generateMetadata(): Promise<Metadata> {
 // /briefing is the archive of every completed briefing — the spec's ledger:
 // domain, period, generated, screened, included; the Current one highlighted;
 // a domain filter, a star per row, twenty a page. Each row opens to its brief
-// and leads to /briefing/[date]?domain=. Filter and page ride in the URL.
+// and leads to /briefing/[date]?domain=. Filter and page ride in the URL,
+// read by the ledger itself (useSearchParams), so this page ignores them.
 //
 // The header renders with the shell; the ledger streams in behind one
 // Suspense boundary. loading.tsx shows the same skeleton on navigation.
 // The reading room this replaced lives on at /briefing-archive.
 
-export default async function BriefingsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ domain?: string; starred?: string; page?: string }>
-}) {
-  const [t, lang, state, params] = await Promise.all([
-    getT(),
-    getLang(),
-    getWorkspacesState(),
-    searchParams,
-  ])
+export default async function BriefingsPage() {
+  const [t, lang, state] = await Promise.all([getT(), getLang(), getWorkspacesState()])
 
   return (
     <div className="space-y-8">
@@ -50,12 +41,7 @@ export default async function BriefingsPage({
           }
         >
           <ViewTransition enter="bone-enter" default="none">
-            <LedgerSection
-              workspaces={state.all}
-              initial={stateFrom(params, state.all)}
-              lang={lang}
-              t={t}
-            />
+            <LedgerSection workspaces={state.all} lang={lang} t={t} />
           </ViewTransition>
         </Suspense>
       )}

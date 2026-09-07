@@ -7,9 +7,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useT } from '@/lib/i18n-client'
 import { useStars } from '@/lib/stars-client'
 import clsx from 'clsx'
+import { useSearchParams } from 'next/navigation'
 import { useMemo, useState, type ReactNode } from 'react'
 import { BriefPanel, StatusLabel } from '../dashboard/ledger'
-import { filterRows, paginate, searchOf, type ArchiveRow, type ArchiveState } from './rows'
+import {
+  filterRows,
+  paginate,
+  searchOf,
+  stateFrom,
+  type ArchiveRow,
+  type ArchiveState,
+} from './rows'
 
 /**
  * The Briefings archive: every completed briefing across the user's domains
@@ -17,7 +25,8 @@ import { filterRows, paginate, searchOf, type ArchiveRow, type ArchiveState } fr
  * chips and the Starred filter above, twenty rows a page below. A row is a
  * disclosure: click it (or press Enter on the domain) and its brief and top
  * papers open beneath the cells, one at a time; the way into the briefing is
- * the panel's link. Filter and page live in the URL, so Back restores them.
+ * the panel's link. Filter and page live in the URL — the ledger reads them
+ * from it on every render — so Back and Forward show what the address says.
  */
 
 // One entry per column: the classes of its header and body cells. Both the
@@ -159,24 +168,29 @@ function Row({ row, open, onToggle }: { row: ArchiveRow; open: boolean; onToggle
 
 /* -------------------------------- Ledger -------------------------------- */
 
+const DEFAULT_STATE: ArchiveState = { domain: null, starred: false, page: 1 }
+
 export function BriefingLedger({
   rows,
   domains,
-  initial,
   syncUrl = true,
 }: {
   /** Every completed briefing, newest first. */
   rows: ArchiveRow[]
   /** The user's domains; the chips show only when there is more than one. */
   domains: { id: string; name: string }[]
-  /** From the URL; the ledger owns the state from here on. */
-  initial: ArchiveState
-  /** Mirror filter and page into the URL (off in the gallery). */
+  /** Keep filter and page in the URL (off in the gallery, which holds them locally). */
   syncUrl?: boolean
 }) {
   const t = useT()
   const { isStarred } = useStars()
-  const [state, setState] = useState<ArchiveState>(initial)
+  // The URL is the state. The App Router updates useSearchParams on the
+  // replaceState below and on Back/Forward, and a traversal restores the
+  // page from its cache without a server render — so nothing is seeded
+  // from a prop that could go stale.
+  const params = useSearchParams()
+  const [local, setLocal] = useState<ArchiveState>(DEFAULT_STATE)
+  const state = syncUrl ? stateFrom(Object.fromEntries(params), domains) : local
   const [openId, setOpenId] = useState<string | null>(null)
 
   const starredIds = useMemo(
@@ -190,16 +204,17 @@ export function BriefingLedger({
     const next = { ...state, ...patch }
     // A narrower or wider list starts again from its first page.
     if ('domain' in patch || 'starred' in patch) next.page = 1
-    setState(next)
     // No navigation, no refetch: the App Router picks the query up from
     // history, and the server reads it again on the next real visit.
     if (syncUrl) window.history.replaceState(null, '', window.location.pathname + searchOf(next))
+    else setLocal(next)
   }
 
-  const emptyCopy =
-    state.starred && starredIds.size === 0
+  const emptyCopy = !state.starred
+    ? t('No briefings for this domain yet.')
+    : starredIds.size === 0
       ? t('Nothing starred yet.')
-      : t('No briefings for this domain yet.')
+      : t('Nothing starred in this domain.')
 
   return (
     <LedgerFrame
