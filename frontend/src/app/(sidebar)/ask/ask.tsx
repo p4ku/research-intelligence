@@ -33,7 +33,6 @@ import { toast } from 'sonner'
 import {
   AskCanvas,
   BODY_CLASS,
-  BODY_PUSHED,
   ComposerFrame,
   DOCK_WRAP,
   EMPTY_BODY,
@@ -613,10 +612,7 @@ export function Ask({
               : ''}
         </p>
 
-        <div
-          ref={bodyRef}
-          className={clsx(BODY_CLASS, !hasConversation && EMPTY_BODY, sidecarOpen && BODY_PUSHED)}
-        >
+        <div ref={bodyRef} className={clsx(BODY_CLASS, !hasConversation && EMPTY_BODY)}>
           {hasConversation && (
             <div
               ref={transcriptRef}
