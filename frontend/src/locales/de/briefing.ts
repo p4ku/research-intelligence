@@ -21,6 +21,10 @@ export const dict: Record<string, string> = {
   'Once a pipeline run completes in any of your domains, its briefing appears here.':
     'Sobald ein Pipeline-Lauf in einer Ihrer Domänen abschließt, erscheint sein Briefing hier.',
   'Open briefing →': 'Briefing öffnen →',
+  // The ledger's row link and its chevron.
+  'Open briefing': 'Briefing öffnen',
+  'Show brief': 'Kurzfassung anzeigen',
+  'Hide brief': 'Kurzfassung ausblenden',
   'Search briefings by subject, summary, or paper…':
     'Briefings nach Betreff, Zusammenfassung oder Paper durchsuchen…',
   'Search the digest archive': 'Das Digest-Archiv durchsuchen',
