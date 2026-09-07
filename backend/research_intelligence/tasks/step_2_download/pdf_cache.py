@@ -51,7 +51,7 @@ def register_document_pdf(paper: Paper, file_bytes: bytes, run_storage_path: str
         defaults={
             "doi": paper.doi,
             "arxiv_id": paper.arxiv_id,
-            "source_url": getattr(paper, 'source_url', None),
+            "source_url": paper.source_url,
             "title": paper.title,
             "primary_source": paper.source_database or "arxiv",
             "canonical_pdf_path": canonical_cache_path,
@@ -73,7 +73,7 @@ def register_document_pdf(paper: Paper, file_bytes: bytes, run_storage_path: str
         if paper.arxiv_id and not doc_reg.arxiv_id:
             doc_reg.arxiv_id = paper.arxiv_id
             updates.append("arxiv_id")
-        if getattr(paper, 'source_url', None) and not doc_reg.source_url:
+        if paper.source_url and not doc_reg.source_url:
             doc_reg.source_url = paper.source_url
             updates.append("source_url")
         if paper.meta and not doc_reg.meta:
