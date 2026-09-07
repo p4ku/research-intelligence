@@ -121,13 +121,6 @@ function Provenance({ paper, t, lang }: { paper: ScoredPaper; t: T; lang: Lang }
       </a>,
     )
   }
-  if (paper.pdf_key || paper.markdown_key) {
-    parts.push(
-      <span key="archive">
-        {t('Stored in the research archive — download is not yet available.')}
-      </span>,
-    )
-  }
   parts.push(
     <span key="added">
       {t('Ingested')} {formatDate(paper.created_at, lang)}
