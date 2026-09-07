@@ -154,3 +154,8 @@ curl -si https://<host>/health/        # Django, via the router
 # Sign in in a browser: /bff/status lists every resource and its source,
 # and a question in Ask streams (watch for `: ping` heartbeat comments).
 ```
+
+These checks assume the default browser state: no `rs-features` cookie, so
+every demo flag is on (`docs/design/feature-flags.md`). With `all_papers` off
+`/papers` is a 404 by design, and with `ask` off `/ask` renders the not-found
+card; `/bff/status` reports the caller's flags under `features`.
