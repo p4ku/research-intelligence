@@ -8,6 +8,10 @@ export const dict: Record<string, string> = {
   'nav|Papers': 'Papers',
   'nav|Ask': 'Fragen',
   'nav|Runs': 'Runs',
+  // Account-menu demo toggles (src/lib/features.ts). The labels reach t()
+  // dynamically, so src/lib/features.test.ts guards them instead of i18n.test.ts.
+  'Demo features': 'Demo-Funktionen',
+  Stars: 'Markierungen',
   Settings: 'Einstellungen',
   'Hide core concepts': 'Kernkonzepte ausblenden',
   'Hide extra concepts': 'Zusatzkonzepte ausblenden',

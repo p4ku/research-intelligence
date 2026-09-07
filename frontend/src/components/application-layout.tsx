@@ -7,9 +7,11 @@ import {
   Dropdown,
   DropdownButton,
   DropdownDivider,
+  DropdownHeading,
   DropdownItem,
   DropdownLabel,
   DropdownMenu,
+  DropdownSection,
 } from '@/components/dropdown'
 import { NavIcon } from '@/components/nav-icon'
 import {
@@ -27,6 +29,8 @@ import { Spinner } from '@/components/ui/spinner'
 import { VersionStamp } from '@/components/version-stamp'
 import type { SessionUser } from '@/lib/auth/cookies'
 import { performSignOut } from '@/lib/auth/leave'
+import { FEATURE_KEYS, FEATURES, isVisible, type FeatureKey, type Features } from '@/lib/features'
+import { FeaturesProvider, useFeatures, useSetFeature } from '@/lib/features-client'
 import type { Lang } from '@/lib/i18n'
 import { LanguageProvider, useLanguage, useT } from '@/lib/i18n-client'
 import {
@@ -42,6 +46,7 @@ import {
   NewspaperIcon,
   PlayCircleIcon,
   Squares2X2Icon,
+  StarIcon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -52,6 +57,8 @@ interface ShellNavItem {
   Icon: React.ComponentType<{ className?: string }>
   /** Match the path exactly rather than by prefix (for index routes). */
   exact?: boolean
+  /** Demo flag that hides this item when off (src/lib/features.ts). */
+  feature?: FeatureKey
 }
 
 // The spec's header — Home | Briefings | Papers | Ask — plus Runs. Tuning is
@@ -82,6 +89,17 @@ export type ShellArea = keyof typeof NAVS
 /** Badge shown beside the wordmark; the reading app is the unmarked default. */
 const AREA_BADGE: Record<ShellArea, string | null> = { core: null, studio: 'Studio' }
 
+/**
+ * Icons for the demo-flag rows in the account menu. Kept here beside the nav
+ * icons for the same serialisability reason; reuses the 20px set the nav
+ * already imports (DropdownItem sizes icons itself).
+ */
+const FEATURE_ICONS: Record<FeatureKey, React.ComponentType<{ className?: string }>> = {
+  all_papers: DocumentTextIcon,
+  stars: StarIcon,
+  ask: ChatBubbleLeftRightIcon,
+}
+
 function AccountDropdownMenu({
   anchor,
   signingOut,
@@ -92,6 +110,8 @@ function AccountDropdownMenu({
   onSignOut: () => void
 }) {
   const { lang, toggle: toggleLanguage } = useLanguage()
+  const features = useFeatures()
+  const setFeature = useSetFeature()
   const t = useT()
   return (
     <DropdownMenu className="min-w-64" anchor={anchor}>
@@ -117,6 +137,37 @@ function AccountDropdownMenu({
           className="pointer-events-none ml-auto"
         />
       </DropdownItem>
+      <DropdownDivider />
+      {/* Demo flags: hide a feature live and put it back. These rows are never
+          hidden themselves — they are how a feature comes back — and they show
+          in the Studio menu too. */}
+      <DropdownSection>
+        <DropdownHeading>{t('Demo features')}</DropdownHeading>
+        {FEATURE_KEYS.map((key) => {
+          const Icon = FEATURE_ICONS[key]
+          const def = FEATURES[key]
+          return (
+            <DropdownItem
+              key={key}
+              onClick={(e: React.MouseEvent) => {
+                // Same trick as the language row: the menu stays open, so two
+                // flags can be flipped without reopening it.
+                e.preventDefault()
+                setFeature(key, !features[key])
+              }}
+            >
+              <Icon />
+              <DropdownLabel>{t(def.label, def.ctx)}</DropdownLabel>
+              <Switch
+                as="span"
+                checked={features[key]}
+                color="dark/zinc"
+                className="pointer-events-none ml-auto"
+              />
+            </DropdownItem>
+          )
+        })}
+      </DropdownSection>
       <DropdownDivider />
       <DropdownItem
         disabled={signingOut}
@@ -164,16 +215,25 @@ interface ShellProps {
   area?: ShellArea
 }
 
-export function ApplicationLayout({ lang, ...props }: ShellProps & { lang: Lang }) {
+export function ApplicationLayout({
+  lang,
+  features,
+  ...props
+}: ShellProps & { lang: Lang; features: Features }) {
   return (
     <LanguageProvider lang={lang}>
-      <ApplicationLayoutInner {...props} />
+      <FeaturesProvider features={features}>
+        <ApplicationLayoutInner {...props} />
+      </FeaturesProvider>
     </LanguageProvider>
   )
 }
 
 function ApplicationLayoutInner({ user, children, area = 'core' }: ShellProps) {
-  const nav = NAVS[area]
+  const features = useFeatures()
+  // One render site feeds both the desktop rail and the mobile drawer
+  // (sidebar-layout mounts the same node twice), so filtering here covers both.
+  const nav = NAVS[area].filter((item) => isVisible(item, features))
   const areaBadge = AREA_BADGE[area]
   const t = useT()
   const pathname = usePathname()

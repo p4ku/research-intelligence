@@ -1,5 +1,8 @@
 import { ApplicationLayout } from '@/components/application-layout'
 import { getSessionUser } from '@/lib/auth/session'
+import { ALL_ON } from '@/lib/features'
+import { FeaturesProvider } from '@/lib/features-client'
+import { getFeatures } from '@/lib/features-server'
 import { getLang } from '@/lib/i18n-server'
 import { redirect } from 'next/navigation'
 
@@ -16,10 +19,15 @@ export default async function StudioLayout({ children }: { children: React.React
   // is unusable, not absent — say so on the login page.
   if (!user) redirect('/?reason=expired')
 
-  const lang = await getLang()
+  const [lang, features] = await Promise.all([getLang(), getFeatures()])
   return (
-    <ApplicationLayout lang={lang} user={user} area="studio">
-      {children}
+    <ApplicationLayout lang={lang} features={features} user={user} area="studio">
+      {/* The account menu (inside the shell) shows the real switches, so the
+          operator can flip flags from here. Everything Studio renders is
+          pinned all-on by this nested provider: the skeleton gallery must show
+          every shape whatever the demo cookie says, and skeleton:drift must
+          never measure a cookie. Nested context wins for the subtree. */}
+      <FeaturesProvider features={ALL_ON}>{children}</FeaturesProvider>
     </ApplicationLayout>
   )
 }

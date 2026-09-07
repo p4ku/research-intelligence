@@ -34,7 +34,9 @@ Flip with `BFF_SOURCE_<RESOURCE>=stub|composed|django` (see `.env.example`).
 Every BFF response carries `X-BFF-Source`. `GET /bff/status` (signed in)
 shows the active source per resource and probes whether each requested Django
 endpoint exists yet. **Flipping a resource's default to `django` is the "done"
-signal for its contract.**
+signal for its contract.** The `features` field on that response is a different
+thing: the caller's per-browser demo flags (`rs-features` cookie, `src/lib/features.ts`),
+a UI preference that never changes which source answers or gates a BFF route.
 
 ## Conventions (ours, and what we ask of new Django endpoints)
 
