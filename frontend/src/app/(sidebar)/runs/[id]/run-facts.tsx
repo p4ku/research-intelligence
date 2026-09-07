@@ -1,7 +1,7 @@
 import { Bone } from '@/components/skeleton'
 import { stageLabel, type PipelineRunDetail } from '@/lib/bff/pipeline-runs/schema'
 import type { ReactNode } from 'react'
-import { formatDuration, formatTokens, formatUsd } from '../../run-presentation'
+import { formatDuration, formatTokens, formatUsd } from '../run-presentation'
 
 /**
  * UTC, explicitly — see the note in `../runs-table.tsx`. Server components

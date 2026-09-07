@@ -13,7 +13,7 @@ covered, what was learned, and the short debt list are at the bottom.
 ## The four rules
 
 **1. Scan sweep, never `animate-pulse`.** `animate-pulse` already means "this run
-or step is executing" (`studio/run-presentation.tsx`, `studio/runs/[id]/step-timeline.tsx`)
+or step is executing" (`(sidebar)/runs/run-presentation.tsx`, `(sidebar)/runs/[id]/step-timeline.tsx`)
 and the streaming caret in `answer-markdown.tsx`. Reusing it for loading would
 conflate two meanings. The sweep is a single `[data-skeleton]::after` gradient
 per region in `styles/tailwind.css`, driven by an animated `@property --bone-x`
@@ -92,19 +92,19 @@ dashboard streaming in three sections.
 
 ## Done (pass 2) — the Studio surfaces
 
-`/studio/runs` streams band + filter strip + table behind one boundary (they
+`/runs` streams band + filter strip + table behind one boundary (they
 all read the one list): `runs/runs-table.tsx` (`RunsTable` / `RunsTableSkeleton`
 over a frame that also owns the column list), `runs/run-tabs.tsx`,
 `runs/sections.tsx`, `runs/skeletons.tsx`, `runs/loading.tsx`.
 
-`/studio/runs/[id]` streams two sections — the head (header, band, facts) on
+`/runs/[id]` streams two sections — the head (header, band, facts) on
 the run record and the steps on the component-run list: `[id]/run-facts.tsx`,
 `[id]/step-timeline.tsx` (`StepTimelineFrame` takes the rail dot's colour as a
 slot, so the running step's `animate-pulse` stays with the loaded list),
 `[id]/sections.tsx`, `[id]/skeletons.tsx`, `[id]/loading.tsx`. The failed-steps
 notice moved from above the band to directly above the Steps section, where the
 steps it names are. `StepSummarySkeleton` lives with `StepSummary` in
-`studio/run-presentation.tsx`.
+`(sidebar)/runs/run-presentation.tsx`.
 
 Fixtures for the gallery: `lib/bff/pipeline-runs/fixtures.ts` and
 `lib/bff/component-runs/fixtures.ts`, schema-checked by `lib/bff/fixtures.test.ts`.
@@ -125,8 +125,8 @@ Things learned:
 - **`PageHeader` title/description and `Breadcrumbs` labels are nodes** so a
   `loading.tsx`, which gets no params, can bone the run id.
 - **A `loading.tsx` on a dynamic segment changes the not-found status.** Next
-  wraps the page in the loading boundary, so a dead `/studio/runs/<id>` now
-  streams the shell with HTTP 200 and renders `studio/not-found.tsx` in-stream
+  wraps the page in the loading boundary, so a dead `/runs/<id>` now
+  streams the shell with HTTP 200 and renders `(sidebar)/not-found.tsx` in-stream
   with `noindex`. Accepted for this route (behind auth; the not-found page still
   shows), decided 2026-09-02. Any route that must keep a genuine 404 must call
   `notFound()` in a layout above the loading boundary, or skip `loading.tsx`.

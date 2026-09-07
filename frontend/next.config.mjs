@@ -31,6 +31,13 @@ const nextConfig = {
     root: resolve(__dirname),
   },
   devIndicators: false,
+  // Runs moved from the Studio into the reading app; old links keep working.
+  async redirects() {
+    return [
+      { source: '/studio/runs', destination: '/runs', permanent: true },
+      { source: '/studio/runs/:id', destination: '/runs/:id', permanent: true },
+    ]
+  },
   async headers() {
     return [
       {

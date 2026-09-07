@@ -198,11 +198,11 @@ const SCREENS: Screen[] = [
   { name: 'paper-detail', route: '/papers/[id]', auth: true },
   { name: 'ask', route: '/ask', auth: true },
   { name: 'tuning', route: '/tuning', auth: true },
+  { name: 'runs', route: '/runs', auth: true },
+  { name: 'run', route: '/runs/[run]', auth: true },
   { name: 'settings', route: '/settings', auth: true },
   // The skeleton gallery (loaded and skeleton panes side by side, sweep frozen)
   // so loading states ride the same review loop as every other screen.
-  { name: 'studio-runs', route: '/studio/runs', auth: true },
-  { name: 'studio-run', route: '/studio/runs/[run]', auth: true },
   { name: 'skeletons', route: '/studio/skeletons?motion=static', auth: true },
 ]
 
@@ -253,11 +253,11 @@ async function discover(
   const briefing =
     (await firstHref('/briefing', '/briefing/')) ?? (await firstHref('/dashboard', '/briefing/'))
   const paper = await firstHref('/papers', '/papers/')
-  const run = await firstHref('/studio/runs', '/studio/runs/')
+  const run = await firstHref('/runs', '/runs/')
   await ctx.close()
   const date = briefing?.split('/')[2] ?? null
   const id = paper?.split('/')[2] ?? null
-  const runId = run?.split('/')[3] ?? null
+  const runId = run?.split('/')[2] ?? null
   return { date, id, runId }
 }
 

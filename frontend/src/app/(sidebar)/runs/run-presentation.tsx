@@ -1,9 +1,9 @@
 /**
  * Shared presentation for run and step state. Server components, no client JS.
  *
- * The Studio is an operator surface and is written in English; `t()` falls back
- * to the source string, so switching the app to German leaves these untouched
- * until someone who knows the domain terms supplies them.
+ * The runs pages are an operator surface and are written in English for now;
+ * `t()` falls back to the source string, so switching the app to German leaves
+ * these untouched until someone who knows the domain terms supplies them.
  */
 import { Bone } from '@/components/skeleton'
 import type { ComponentRun, ComponentSummary } from '@/lib/bff/component-runs/schema'

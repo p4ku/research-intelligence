@@ -40,9 +40,9 @@ import {
   SignalHeading,
 } from '../../(sidebar)/papers/[id]/paper-header'
 import { DIMENSION_ROWS } from '../../(sidebar)/papers/[id]/skeletons'
-import { RunFacts, RunFactsSkeleton } from '../runs/[id]/run-facts'
-import { StepTimeline, StepTimelineSkeleton } from '../runs/[id]/step-timeline'
-import { RunsTable, RunsTableSkeleton } from '../runs/runs-table'
+import { RunFacts, RunFactsSkeleton } from '../../(sidebar)/runs/[id]/run-facts'
+import { StepTimeline, StepTimelineSkeleton } from '../../(sidebar)/runs/[id]/step-timeline'
+import { RunsTable, RunsTableSkeleton } from '../../(sidebar)/runs/runs-table'
 import { HistoryRailDemo, PaperPickerDemo } from './gallery-clients'
 
 /**

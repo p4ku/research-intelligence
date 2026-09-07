@@ -3,7 +3,7 @@
 import { RouteError } from '@/components/route-error'
 import { useT } from '@/lib/i18n-client'
 
-export default function StudioRunsError({
+export default function RunsError({
   error,
   retry,
 }: {
@@ -15,10 +15,10 @@ export default function StudioRunsError({
     <RouteError
       error={error}
       retry={retry}
-      scope="studio-runs"
+      scope="runs"
       heading={t("Couldn't load this page.")}
       description={t('Nothing was lost. Try again in a moment.')}
-      back={{ href: '/studio', label: 'Back to Studio' }}
+      back={{ href: '/runs', label: t('Back to Runs') }}
     />
   )
 }

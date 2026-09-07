@@ -2,7 +2,7 @@ import { Bone } from '@/components/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { stageLabel, type PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { ReactNode } from 'react'
-import { formatDuration, formatUsd, RunStatus as RunStatusPill } from '../run-presentation'
+import { formatDuration, formatUsd, RunStatus as RunStatusPill } from './run-presentation'
 
 /**
  * UTC, explicitly and labelled in the column header.
@@ -95,7 +95,7 @@ export function RunsTable({ runs }: { runs: PipelineRun[] }) {
   const rows = runs.map(
     (run): RunRow => ({
       key: run.id,
-      href: `/studio/runs/${run.id}`,
+      href: `/runs/${run.id}`,
       title: `Run ${run.id}`,
       cells: [
         timestampUtc(run.started_at),

@@ -5,7 +5,7 @@ import { ProblemError } from '@/lib/bff/core/problem'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import type { WorkspaceSummary } from '@/lib/bff/workspaces/schema'
 import { notFound } from 'next/navigation'
-import { formatUsd, RunStatus, shortId } from '../../run-presentation'
+import { formatUsd, RunStatus, shortId } from '../run-presentation'
 import { RunFacts } from './run-facts'
 import { StepTimeline } from './step-timeline'
 

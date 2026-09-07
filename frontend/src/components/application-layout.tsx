@@ -44,6 +44,7 @@ import {
   HomeIcon,
   NewspaperIcon,
   PlayCircleIcon,
+  Squares2X2Icon,
 } from '@heroicons/react/20/solid'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
@@ -62,10 +63,11 @@ const coreNav: ShellNavItem[] = [
   { href: '/papers', label: 'Papers', Icon: DocumentTextIcon },
   { href: '/ask', label: 'Ask', Icon: ChatBubbleLeftRightIcon },
   { href: '/tuning', label: 'Tuning', Icon: AdjustmentsHorizontalIcon },
+  { href: '/runs', label: 'Runs', Icon: PlayCircleIcon },
 ]
 
 const studioNav: ShellNavItem[] = [
-  { href: '/studio/runs', label: 'Runs', Icon: PlayCircleIcon },
+  { href: '/studio/skeletons', label: 'Skeletons', Icon: Squares2X2Icon },
   { href: '/dashboard', label: 'Briefings app', Icon: HomeIcon, exact: true },
 ]
 

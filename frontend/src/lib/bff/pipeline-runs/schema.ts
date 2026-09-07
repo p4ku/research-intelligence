@@ -43,7 +43,7 @@ export const runPage = pageSchema(pipelineRun).meta({ id: 'PipelineRunPage' })
 
 /**
  * One run in full: the list shape plus what it produced, what it cost and
- * where its artefacts landed. Backs `/studio/runs/[id]`.
+ * where its artefacts landed. Backs `/runs/[id]`.
  */
 export const pipelineRunDetail = pipelineRun
   .extend({

@@ -35,14 +35,14 @@ export function RunsSectionSkeleton() {
 
 /**
  * The loading.tsx shell. The eyebrow is the workspace name on the page, which
- * needs a backend call, so the shell says "Studio" the way the page's own
+ * needs a backend call, so the shell says "Pipeline" the way the page's own
  * no-workspace branch does.
  */
 export function RunsPageSkeleton() {
   return (
     <div className="space-y-8">
       <PageHeader
-        eyebrow="Studio"
+        eyebrow="Pipeline"
         title={runsPageCopy.title}
         description={runsPageCopy.description}
       />

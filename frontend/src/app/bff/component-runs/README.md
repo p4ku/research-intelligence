@@ -2,7 +2,7 @@
 
 ## Purpose
 
-The Studio's run detail (`/studio/runs/[id]`): the per-step timeline of one
+The run detail page (`/runs/[id]`): the per-step timeline of one
 pipeline run — what each step did, how long it took, what it cost, and why it
 failed.
 
