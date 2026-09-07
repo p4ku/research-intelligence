@@ -88,6 +88,7 @@ def run_date_range_and_pagination_scenario(config: Optional[E2EConfig] = None) -
             name=f"Lookback 14 Days - {workspace_name}",
             limit=4,
             n_last_days=14,
+            reprocess_existing=True,
         )
         proc1_id = proc1["id"]
         logger.info(f"   • Agent process started: {proc1_id}")
@@ -117,6 +118,7 @@ def run_date_range_and_pagination_scenario(config: Optional[E2EConfig] = None) -
             limit=4,
             start_date="2026-08-01",
             end_date="2026-08-15",
+            reprocess_existing=True,
         )
         proc2_id = proc2["id"]
         logger.info(f"   • Historical agent process started: {proc2_id}")

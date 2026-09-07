@@ -155,6 +155,7 @@ def run_ask_paper_journey_scenario(
             workspace_id=target_workspace_id,
             name=f"Ask Paper Ingestion - {workspace_name}",
             limit=2,
+            reprocess_existing=True,
         )
         t_start = time.time()
         agent_svc.poll_until_complete(

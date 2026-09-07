@@ -27,6 +27,7 @@ class E2EConfig:
     max_timeout_sec: int = int(os.getenv("E2E_TIMEOUT_SEC", "900"))  # 15 minutes max
     cleanup_before: bool = os.getenv("E2E_CLEANUP_BEFORE", "true").lower() in ("true", "1", "yes")
     delete_after: bool = os.getenv("E2E_CLEANUP_AFTER", "false").lower() in ("true", "1", "yes")
+    reprocess_existing: bool = os.getenv("E2E_REPROCESS_EXISTING", "true").lower() in ("true", "1", "yes")
 
     def __init__(
         self,
@@ -41,6 +42,7 @@ class E2EConfig:
         cleanup_before: Optional[bool] = None,
         delete_after: Optional[bool] = None,
         cleanup_after: Optional[bool] = None,
+        reprocess_existing: Optional[bool] = None,
     ):
         self.target_env = target_env if target_env is not None else os.getenv("E2E_TARGET_ENV", "prod").lower()
         self.base_url = base_url if base_url is not None else os.getenv("E2E_API_URL", ENV_TARGETS.get(self.target_env, "https://sri-prod.apps.01.cf.eu01.onstackit.cloud"))
@@ -53,6 +55,7 @@ class E2EConfig:
         self.cleanup_before = cleanup_before if cleanup_before is not None else (os.getenv("E2E_CLEANUP_BEFORE", "true").lower() in ("true", "1", "yes"))
         resolved_delete = cleanup_after if cleanup_after is not None else delete_after
         self.delete_after = resolved_delete if resolved_delete is not None else (os.getenv("E2E_CLEANUP_AFTER", "false").lower() in ("true", "1", "yes"))
+        self.reprocess_existing = reprocess_existing if reprocess_existing is not None else (os.getenv("E2E_REPROCESS_EXISTING", "true").lower() in ("true", "1", "yes"))
 
     @property
     def timeout_sec(self) -> int:

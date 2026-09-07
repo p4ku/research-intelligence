@@ -63,7 +63,7 @@ def run_mid_step_rerun_scenario(config: Optional[E2EConfig] = None) -> Dict[str,
 
         # 1. Initial complete run
         logger.info("🚀 Phase 1: Launching initial baseline review run...")
-        proc1 = agent_svc.start_research_agent(workspace_id=workspace_id, limit=3)
+        proc1 = agent_svc.start_research_agent(workspace_id=workspace_id, limit=3, reprocess_existing=True)
         completed1 = agent_svc.poll_until_complete(proc1["id"], max_timeout_sec=cfg.max_timeout_sec)
         assert completed1.get("status") == "completed", f"Initial run failed: {completed1}"
 

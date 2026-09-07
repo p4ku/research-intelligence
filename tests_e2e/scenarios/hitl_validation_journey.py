@@ -114,6 +114,7 @@ def run_hitl_validation_journey_scenario(config: Optional[E2EConfig] = None) -> 
             workspace_id=workspace_id,
             name=f"{workspace_name}_run",
             limit=2,
+            reprocess_existing=True,
             autonomous=True,
         )
         pipeline_run_id = run_data["pipeline_run_id"]

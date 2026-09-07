@@ -75,6 +75,7 @@ def run_paper_evidence_and_pdf_scenario(config: Optional[E2EConfig] = None) -> D
             workspace_id=workspace_id,
             name=f"Scorecard Verification - {workspace_name}",
             limit=3,
+            reprocess_existing=True,
         )
 
         # Poll until complete

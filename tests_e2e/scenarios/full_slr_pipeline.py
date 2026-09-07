@@ -371,7 +371,7 @@ def run_full_slr_pipeline_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             workspace_id=workspace_id,
             name=f"E2E Review Run - {workspace_name}",
             limit=cfg.paper_limit,
-            reprocess_existing=False,
+            reprocess_existing=True,
         )
         process_id = agent_proc["id"]
         pipeline_run_id = agent_proc.get("pipeline_run")

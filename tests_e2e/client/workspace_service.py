@@ -89,7 +89,7 @@ class WorkspaceService:
         ocr_provider: Optional[str] = None,
         reasoning_effort: str = "medium",
         skip_abstract_screening: bool = False,
-        reprocess_existing: bool = False,
+        reprocess_existing: bool = True,
         extraction_definitions: Optional[List[Dict[str, Any]]] = None,
         scrapers: Optional[List[Dict[str, Any]]] = None,
         subscribers: Optional[List[Dict[str, Any]]] = None,

@@ -227,6 +227,7 @@ def run_signal_score_variables_scenario(config: Optional[E2EConfig] = None) -> D
             workspace_id=workspace_id,
             name=f"Variables & Math Run - {workspace_name}",
             limit=2,
+            reprocess_existing=True,
         )
 
         completed_agent = agent_svc.poll_until_complete(

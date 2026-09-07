@@ -133,6 +133,11 @@ def parse_args():
         action="store_true",
         help="Delete the test workspace and storage artifacts immediately after test completion (default: keep for inspection)",
     )
+    parser.add_argument(
+        "--no-reprocess",
+        action="store_true",
+        help="Disable reprocess_existing (default: enabled so repeated runs reprocess existing papers)",
+    )
     return parser.parse_args()
 
 
@@ -355,6 +360,7 @@ def main():
         cleanup_before=not args.no_cleanup_before,
         delete_after=args.cleanup_after,
         cleanup_after=args.cleanup_after,
+        reprocess_existing=not args.no_reprocess,
     )
 
     t0 = time.time()

@@ -19,7 +19,7 @@ class PipelineService:
         name: str = "Autonomous Pipeline Run",
         limit: int = 10,
         skip_abstract_screening: bool = False,
-        reprocess_existing: bool = False,
+        reprocess_existing: bool = True,
         autonomous: bool = True,
         **kwargs,
     ) -> Dict[str, Any]:

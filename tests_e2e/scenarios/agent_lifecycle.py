@@ -65,6 +65,7 @@ def run_agent_lifecycle_scenario(config: Optional[E2EConfig] = None) -> Dict[str
             workspace_id=workspace_id,
             name=f"Lifecycle Test Run - {workspace_name}",
             limit=5,
+            reprocess_existing=True,
         )
         process_id = proc["id"]
         logger.info(f"🚀 Started Agent Process '{process_id}' (State: {proc.get('status')})")

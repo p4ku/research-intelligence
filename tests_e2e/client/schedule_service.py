@@ -24,7 +24,7 @@ class ScheduleService:
         one_off_datetime: Optional[str] = None,
         prevent_overlap: bool = True,
         max_consecutive_failures: int = 3,
-        reprocess_existing: bool = False,
+        reprocess_existing: bool = True,
         configuration_override: Optional[Dict[str, Any]] = None,
         is_active: bool = True,
     ) -> Dict[str, Any]:

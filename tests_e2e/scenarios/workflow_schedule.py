@@ -83,7 +83,7 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
             timezone_name="UTC",
             prevent_overlap=True,
             max_consecutive_failures=3,
-            reprocess_existing=False,
+            reprocess_existing=True,
             configuration_override={"limit": 3},
             is_active=True,
         )

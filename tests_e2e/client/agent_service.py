@@ -22,7 +22,7 @@ class AgentService:
         n_last_days: Optional[int] = None,
         query_prefix: Optional[str] = None,
         skip_abstract_screening: bool = False,
-        reprocess_existing: bool = False,
+        reprocess_existing: bool = True,
         notification_email: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
@@ -61,7 +61,7 @@ class AgentService:
         name: str = "E2E Literature Review Run",
         limit: int = 10,
         skip_abstract_screening: bool = False,
-        reprocess_existing: bool = False,
+        reprocess_existing: bool = True,
         autonomous: bool = True,
         **kwargs: Any,
     ) -> Dict[str, Any]:

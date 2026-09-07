@@ -146,6 +146,7 @@ def run_direct_full_text_and_subscribers_scenario(config: Optional[E2EConfig] = 
             name=f"{workspace_name}_run",
             limit=min(cfg.limit, 3),
             skip_abstract_screening=True,
+            reprocess_existing=True,
             autonomous=True,
         )
         pipeline_run_id = run_data["pipeline_run_id"]
