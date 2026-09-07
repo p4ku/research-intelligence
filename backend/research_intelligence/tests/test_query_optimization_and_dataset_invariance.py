@@ -751,3 +751,229 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
         print(f"\n[BENCHMARK] PipelineRunner.handle_component_completion executed {query_count} queries.")
         # Minimal queries: fetch pipeline_run (or passed obj), comp_runs.all(), agent_processes
         self.assertLessEqual(query_count, 4, f"Expected <= 4 queries, got {query_count}")
+
+    def test_signal_scoring_batch_query_efficiency(self):
+        """
+        Verify that execute_signal_score_job prefetches extraction definitions and extractions,
+        avoiding N+1 queries per paper.
+        """
+        from research_intelligence.tasks.step_6_signal_score.scorer import execute_signal_score_job
+
+        # Create ComponentRun for signal scoring
+        comp_run = ComponentRun.objects.create(
+            pipeline_run=self.run_1,
+            step_type='signal_score',
+            component_name='signal_score_evaluator',
+            status='pending'
+        )
+
+        with CaptureQueriesContext(connection) as ctx:
+            res = execute_signal_score_job(str(comp_run.id))
+
+        self.assertTrue(res.get("success"))
+        query_count = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] execute_signal_score_job executed {query_count} queries for 10 papers (was 120+).")
+        # Pre-fetching and single save per paper keeps total queries <= 30 (includes component_run updates, metric saves, completion ticks)
+        self.assertLessEqual(query_count, 30, f"Expected <= 30 queries, got {query_count}")
+
+    def test_download_paper_task_withdrawn_optimization(self):
+        """
+        Verify that _download_paper_task with preloaded withdrawn_info_map executes 0 queries for withdrawn check.
+        """
+        from research_intelligence.tasks.step_2_download.fetch import _download_paper_task
+
+        paper = self.papers[0]
+        withdrawn_map = {paper.id: "Withdrawn by authors"}
+
+        with CaptureQueriesContext(connection) as ctx:
+            res = _download_paper_task(paper, self.workspace, self.run_1, withdrawn_info_map=withdrawn_map)
+
+        self.assertEqual(res["status"], "withdrawn")
+        query_count = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] _download_paper_task with withdrawn map executed {query_count} queries.")
+        self.assertEqual(query_count, 0, f"Expected 0 queries, got {query_count}")
+
+    def test_hitl_and_reports_unaffiliated_workspace_short_circuit(self):
+        """
+        Verify that /api/hitl/ and /api/reports/ short-circuit on unauthorized workspace query.
+        """
+        import uuid
+        foreign_ws_id = str(uuid.uuid4())
+
+        # Test HITL short-circuit
+        with CaptureQueriesContext(connection) as ctx:
+            resp_hitl = self.client.get(f"/api/hitl/?workspace_id={foreign_ws_id}")
+            self.assertEqual(resp_hitl.status_code, 200)
+            data_hitl = resp_hitl.json()
+            results_hitl = data_hitl["results"] if isinstance(data_hitl, dict) and "results" in data_hitl else data_hitl
+            self.assertEqual(len(results_hitl), 0)
+
+        hitl_queries = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] /api/hitl/ with unauthorized workspace executed {hitl_queries} queries.")
+        self.assertLessEqual(hitl_queries, 3, f"Expected <= 3 queries, got {hitl_queries}")
+
+        # Test Reports short-circuit
+        with CaptureQueriesContext(connection) as ctx:
+            resp_rep = self.client.get(f"/api/reports/?workspace_id={foreign_ws_id}")
+            self.assertEqual(resp_rep.status_code, 200)
+            data_rep = resp_rep.json()
+            results_rep = data_rep["results"] if isinstance(data_rep, dict) and "results" in data_rep else data_rep
+            self.assertEqual(len(results_rep), 0)
+
+        rep_queries = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] /api/reports/ with unauthorized workspace executed {rep_queries} queries.")
+        self.assertLessEqual(rep_queries, 3, f"Expected <= 3 queries, got {rep_queries}")
+
+    def test_workspace_default_scoring_context_caching(self):
+        """
+        Verify get_workspace_default_scoring_context extracts default variables
+        and pre-populates the scoring AST dictionary once.
+        """
+        from research_intelligence.tasks.step_6_signal_score.scorer import get_workspace_default_scoring_context
+        from research_intelligence.models import ExtractionDefinition
+
+        # Create sample extraction definitions
+        ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Sample Target Metric",
+            system_prompt="Test system prompt",
+            user_prompt_template="Extract from {paper_text}",
+            response_schema={},
+            exit_metrics="sample_score, computed_val",
+            postprocessing_code="return {'computed_val': 42.0}"
+        )
+
+        ctx_1 = get_workspace_default_scoring_context(self.workspace)
+        self.assertIn("sample_target_metric", ctx_1)
+        self.assertIn("sample_score", ctx_1)
+        self.assertIn("computed_val", ctx_1)
+        self.assertEqual(ctx_1["sample_target_metric"], 0.0)
+
+        # Call again to ensure invariance
+        ctx_2 = get_workspace_default_scoring_context(self.workspace)
+        self.assertEqual(ctx_1, ctx_2)
+
+    def test_reporting_annotate_papers_efficiency(self):
+        """
+        Verify _annotate_papers in narrative.py annotates papers with PaperMetric
+        in O(1) batch query without redundant .exists() or N+1 queries.
+        """
+        from research_intelligence.tasks.step_7_reporting.narrative import _annotate_papers
+
+        # Create PaperMetric for 3 papers
+        for paper in self.papers[:3]:
+            PaperMetric.objects.update_or_create(
+                paper=paper,
+                pipeline_run=self.run_1,
+                workspace=self.workspace,
+                defaults={"screening_status": "accepted", "signal_score": 8.5}
+            )
+
+        paper_ids = [p.id for p in self.papers[:3]]
+        papers_qs = Paper.objects.filter(id__in=paper_ids)
+
+        with CaptureQueriesContext(connection) as ctx:
+            annotated = _annotate_papers(papers_qs, self.run_1)
+
+        self.assertEqual(len(annotated), 3)
+        for p in annotated:
+            self.assertEqual(p.annotated_screening_status, "accepted")
+            self.assertEqual(p.annotated_signal_score, 8.5)
+
+        query_count = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] _annotate_papers executed {query_count} queries for 3 papers.")
+        self.assertLessEqual(query_count, 3, f"Expected <= 3 queries, got {query_count}")
+
+    def test_pdf_download_safe_call_legacy_mock_compatibility(self):
+        """
+        Verify that execute_pdf_download_job can execute even when _download_paper_task
+        is mocked with a 3-argument function without kwargs.
+        """
+        from unittest.mock import patch
+        from research_intelligence.tasks.step_2_download.fetch import execute_pdf_download_job
+
+        comp_run = ComponentRun.objects.create(
+            pipeline_run=self.run_1,
+            step_type="download",
+            component_name="pdf_fetcher",
+            status="pending"
+        )
+
+        # Lambda taking only 3 positional arguments
+        def legacy_mock_task(paper, ws, pr):
+            return {"status": "success", "paper_id": str(paper.id)}
+
+        with patch("research_intelligence.tasks.step_2_download.fetch._download_paper_task", side_effect=legacy_mock_task):
+            res = execute_pdf_download_job(str(comp_run.id))
+            self.assertTrue(res)
+
+        comp_run.refresh_from_db()
+        self.assertEqual(comp_run.status, "completed")
+
+    def test_storage_stats_caching_on_pipeline_run_detail(self):
+        """
+        Verify that _get_run_storage_stats caches results in memory so repeated
+        polling by the frontend does not traverse storage on every request.
+        """
+        from unittest.mock import patch
+        from mcp_server.tools.pipeline_runs.status import _get_run_storage_stats
+        from django.core.cache import cache
+
+        run_dir = f"workspaces/{self.workspace.id}/runs/{self.run_1.id}"
+        cache.delete(f"storage_stats:{run_dir}")
+
+        with patch("django.core.files.storage.default_storage.listdir", return_value=([], ["file1.pdf"])) as mock_listdir:
+            with patch("django.core.files.storage.default_storage.size", return_value=1024):
+                res1 = _get_run_storage_stats(run_dir)
+                self.assertEqual(res1["total_files"], 1)
+                self.assertEqual(mock_listdir.call_count, 1)
+
+                # Second call should be served entirely from cache without storage calls
+                res2 = _get_run_storage_stats(run_dir)
+                self.assertEqual(res2["total_files"], 1)
+                self.assertEqual(mock_listdir.call_count, 1)
+
+    def test_component_runs_query_efficiency_for_frontend_polling(self):
+        """
+        Verify that GET /api/component-runs/?pipeline_run=... executes efficiently
+        without unnecessary joins on workspace.
+        """
+        for i in range(3):
+            ComponentRun.objects.create(
+                pipeline_run=self.run_1,
+                step_type="search",
+                component_name=f"test_comp_{i}",
+                status="completed"
+            )
+
+        with CaptureQueriesContext(connection) as ctx:
+            resp = self.client.get(f"/api/component-runs/?pipeline_run={self.run_1.id}")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            results = data["results"] if isinstance(data, dict) and "results" in data else data
+            self.assertTrue(len(results) >= 3)
+
+        query_count = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] /api/component-runs/?pipeline_run= executed {query_count} queries.")
+        self.assertLessEqual(query_count, 3, f"Expected <= 3 queries, got {query_count}")
+
+    def test_papers_unauthorized_workspace_short_circuit(self):
+        """
+        Verify that /api/papers/?workspace_id=foreign_id short-circuits with minimal queries.
+        """
+        import uuid
+        foreign_ws_id = str(uuid.uuid4())
+
+        with CaptureQueriesContext(connection) as ctx:
+            resp = self.client.get(f"/api/papers/?workspace_id={foreign_ws_id}")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            results = data["results"] if isinstance(data, dict) and "results" in data else data
+            self.assertEqual(len(results), 0)
+
+        query_count = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] /api/papers/ with unauthorized workspace executed {query_count} queries.")
+        self.assertLessEqual(query_count, 2, f"Expected <= 2 queries, got {query_count}")
+
+
+

@@ -38,13 +38,15 @@ class ReportViewSet(viewsets.ReadOnlyModelViewSet):
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if ws_id:
             if str(ws_id).lower() in ('undefined', 'null', ''):
-                return qs.none()
+                return NarrativeReport.objects.none()
             import uuid
             try:
                 ws_uuid = uuid.UUID(str(ws_id))
-                qs = qs.filter(workspace_id=ws_uuid)
             except (ValueError, TypeError):
-                return qs.none()
+                return NarrativeReport.objects.none()
+            if not getattr(user, 'is_superuser', False) and ws_uuid not in user_ws_ids:
+                return NarrativeReport.objects.none()
+            qs = qs.filter(workspace_id=ws_uuid)
 
         pipeline_run_id = (
             self.request.query_params.get('pipeline_run')

@@ -16,6 +16,18 @@ from research_intelligence.models import (
 logger = logging.getLogger(__name__)
 
 
+def _annotate_papers(papers_qs, pipeline_run: PipelineRun):
+    from django.db.models import Subquery, OuterRef
+    from research_intelligence.models import PaperMetric
+    metric_sub = PaperMetric.objects.filter(paper=OuterRef('pk'), pipeline_run=pipeline_run)
+    return list(papers_qs.annotate(
+        annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
+        annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
+        annotated_abstract_screening_reasoning=Subquery(metric_sub.values('abstract_screening_reasoning')[:1]),
+        annotated_full_text_screening_reasoning=Subquery(metric_sub.values('full_text_screening_reasoning')[:1]),
+    ).prefetch_related('extractions', 'extractions__extraction_definition').order_by('-created_at'))
+
+
 def generate_executive_narrative_report(pipeline_run: PipelineRun) -> Dict[str, Any]:
     """
     Synthesizes a structured Systematic Literature Review (SLR) executive narrative report
@@ -42,27 +54,11 @@ def generate_executive_narrative_report(pipeline_run: PipelineRun) -> Dict[str, 
     ).order_by('-created_at')
 
     # Determine truly accepted papers based on terminal screening status
-    if pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted']).exists():
-        accepted_papers = list(pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted']).annotate(
-            annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
-            annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
-            annotated_abstract_screening_reasoning=Subquery(metric_sub.values('abstract_screening_reasoning')[:1]),
-            annotated_full_text_screening_reasoning=Subquery(metric_sub.values('full_text_screening_reasoning')[:1]),
-        ).prefetch_related('extractions', 'extractions__extraction_definition').order_by('-created_at'))
-    elif pipeline_run.get_papers(screening_status='abstract_passed').exists():
-        accepted_papers = list(pipeline_run.get_papers(screening_status='abstract_passed').annotate(
-            annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
-            annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
-            annotated_abstract_screening_reasoning=Subquery(metric_sub.values('abstract_screening_reasoning')[:1]),
-            annotated_full_text_screening_reasoning=Subquery(metric_sub.values('full_text_screening_reasoning')[:1]),
-        ).prefetch_related('extractions', 'extractions__extraction_definition').order_by('-created_at'))
-    else:
-        accepted_papers = list(pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn', 'pending']).annotate(
-            annotated_signal_score=Subquery(metric_sub.values('signal_score')[:1]),
-            annotated_screening_status=Subquery(metric_sub.values('screening_status')[:1]),
-            annotated_abstract_screening_reasoning=Subquery(metric_sub.values('abstract_screening_reasoning')[:1]),
-            annotated_full_text_screening_reasoning=Subquery(metric_sub.values('full_text_screening_reasoning')[:1]),
-        ).prefetch_related('extractions', 'extractions__extraction_definition').order_by('-created_at'))
+    accepted_papers = _annotate_papers(pipeline_run.get_papers(screening_status=['full_text_passed', 'accepted']), pipeline_run)
+    if not accepted_papers:
+        accepted_papers = _annotate_papers(pipeline_run.get_papers(screening_status='abstract_passed'), pipeline_run)
+    if not accepted_papers:
+        accepted_papers = _annotate_papers(pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn', 'pending']), pipeline_run)
 
     # Sort: highest signal_score first
     accepted_papers.sort(

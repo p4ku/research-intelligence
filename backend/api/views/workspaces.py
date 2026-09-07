@@ -35,10 +35,11 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         base_qs = Workspace.objects.prefetch_related('subscribers', 'scrapers', 'extraction_definitions').order_by('-created_at')
         if getattr(user, 'is_superuser', False):
             return base_qs
-        user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
-        if not user_ws_ids:
+        user_ws_members = dict(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', 'role'))
+        if not user_ws_members:
             return Workspace.objects.none()
-        return base_qs.filter(id__in=user_ws_ids)
+        self.request._user_ws_roles = user_ws_members
+        return base_qs.filter(id__in=user_ws_members.keys())
 
     def perform_create(self, serializer):
         workspace = serializer.save()
