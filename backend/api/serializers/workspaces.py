@@ -125,9 +125,12 @@ class WorkspaceSerializer(serializers.ModelSerializer):
             return None
         if getattr(request.user, 'is_superuser', False):
             return 'admin'
-        from research_intelligence.models import WorkspaceMember
-        member = WorkspaceMember.objects.filter(workspace=obj, user=request.user).first()
-        return member.role if member else None
+        if not hasattr(self, '_user_roles_cache'):
+            from research_intelligence.models import WorkspaceMember
+            self._user_roles_cache = dict(
+                WorkspaceMember.objects.filter(user=request.user).values_list('workspace_id', 'role')
+            )
+        return self._user_roles_cache.get(obj.id)
 
     def create(self, validated_data):
         extraction_defs_data = self.initial_data.get('extraction_definitions', [])

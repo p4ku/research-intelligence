@@ -29,7 +29,9 @@ class WorkflowScheduleViewSet(viewsets.ModelViewSet):
         if getattr(user, 'is_superuser', False):
             qs = WorkflowSchedule.objects.select_related('workspace', 'created_by', 'last_pipeline_run').all()
         else:
-            user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
+            user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+            if not user_ws_ids:
+                return WorkflowSchedule.objects.none()
             qs = WorkflowSchedule.objects.select_related('workspace', 'created_by', 'last_pipeline_run').filter(
                 workspace_id__in=user_ws_ids
             )

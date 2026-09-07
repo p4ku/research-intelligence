@@ -10,6 +10,12 @@ class PaperMetricSerializer(serializers.ModelSerializer):
         if obj.pipeline_run_id:
             return str(obj.pipeline_run_id)
         if obj.workspace_id:
+            if not hasattr(self, '_ws_latest_run_cache'):
+                self._ws_latest_run_cache = {}
+            if obj.workspace_id in self._ws_latest_run_cache:
+                run_id = self._ws_latest_run_cache[obj.workspace_id]
+                return str(run_id) if run_id else None
+
             from research_intelligence.models import PipelineRun
             run_id = (
                 PipelineRun.objects.filter(workspace_id=obj.workspace_id)
@@ -25,6 +31,7 @@ class PaperMetricSerializer(serializers.ModelSerializer):
                     .values_list('id', flat=True)
                     .first()
                 )
+            self._ws_latest_run_cache[obj.workspace_id] = run_id
             if run_id:
                 return str(run_id)
         return None
@@ -76,13 +83,11 @@ class PaperSerializer(serializers.ModelSerializer):
         self._ws_latest_run_cache[workspace_id] = run_id
         return run_id
 
-    def _get_target_metric(self, obj):
-        if hasattr(obj, '_cached_target_metric'):
-            return obj._cached_target_metric
+    def _get_context_target_pr(self):
+        if hasattr(self, '_target_pr_cache'):
+            return self._target_pr_cache
 
-        metrics = list(obj.metrics.all())
         target_pr = None
-
         if hasattr(self, 'context') and self.context:
             req = self.context.get('request')
             if req and hasattr(req, 'query_params'):
@@ -98,48 +103,67 @@ class PaperSerializer(serializers.ModelSerializer):
             if not target_pr and self.context.get('pipeline_run_id'):
                 target_pr = str(self.context['pipeline_run_id']).replace('-', '').lower()
 
+        self._target_pr_cache = target_pr
+        return target_pr
+
+    def _get_target_metric(self, obj):
+        if hasattr(obj, '_cached_target_metric'):
+            return obj._cached_target_metric
+
+        metrics = list(obj.metrics.all())
+        if not metrics:
+            obj._cached_target_metric = None
+            return None
+
+        target_pr = self._get_context_target_pr()
+
         if not target_pr:
             ann_pr = getattr(obj, 'annotated_pipeline_run', None) or getattr(obj, 'annotated_pipeline_run_id', None)
             if ann_pr:
                 target_pr = str(ann_pr).replace('-', '').lower()
 
         # If still no target_pr, check if workspace has a latest run
-        if not target_pr and obj.workspace_id and metrics:
+        if not target_pr and obj.workspace_id:
             latest_id = self._get_workspace_latest_run_id(obj.workspace_id)
             if latest_id:
                 target_pr = str(latest_id).replace('-', '').lower()
 
-        if target_pr and metrics:
+        if target_pr:
             m = next((m for m in metrics if str(m.pipeline_run_id).replace('-', '').lower() == target_pr), None)
             if m:
                 obj._cached_target_metric = m
                 return m
 
-        if metrics:
-            m = sorted(metrics, key=lambda x: x.created_at, reverse=True)[0]
-            obj._cached_target_metric = m
-            return m
+        if len(metrics) == 1:
+            obj._cached_target_metric = metrics[0]
+            return metrics[0]
 
-        obj._cached_target_metric = None
-        return None
+        m = sorted(metrics, key=lambda x: x.created_at, reverse=True)[0]
+        obj._cached_target_metric = m
+        return m
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_pipeline_run(self, obj):
+        if hasattr(obj, '_cached_pipeline_run_str'):
+            return obj._cached_pipeline_run_str
+
+        res = None
         m = self._get_target_metric(obj)
         if m and m.pipeline_run_id:
-            return str(m.pipeline_run_id)
+            res = str(m.pipeline_run_id)
+        else:
+            pr = getattr(obj, 'pipeline_run', None)
+            if pr:
+                pr_id = getattr(pr, 'id', pr)
+                if pr_id:
+                    res = str(pr_id)
+            elif obj.workspace_id:
+                latest_run_id = self._get_workspace_latest_run_id(obj.workspace_id)
+                if latest_run_id:
+                    res = str(latest_run_id)
 
-        pr = getattr(obj, 'pipeline_run', None)
-        if pr:
-            pr_id = getattr(pr, 'id', pr)
-            if pr_id:
-                return str(pr_id)
-
-        latest_run_id = self._get_workspace_latest_run_id(obj.workspace_id)
-        if latest_run_id:
-            return str(latest_run_id)
-
-        return None
+        obj._cached_pipeline_run_str = res
+        return res
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_pipeline_run_id(self, obj):

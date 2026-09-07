@@ -66,12 +66,17 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             return PipelineRun.objects.none()
 
         if getattr(user, 'is_superuser', False):
-            qs = PipelineRun.objects.select_related('workspace', 'triggered_by').prefetch_related('component_runs').all().order_by('-started_at')
+            qs = PipelineRun.objects.select_related('workspace', 'triggered_by', 'schedule').all().order_by('-started_at')
         else:
-            user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-            qs = PipelineRun.objects.select_related('workspace', 'triggered_by').prefetch_related('component_runs').filter(
+            user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+            if not user_ws_ids:
+                return PipelineRun.objects.none()
+            qs = PipelineRun.objects.select_related('workspace', 'triggered_by', 'schedule').filter(
                 workspace_id__in=user_ws_ids
             ).order_by('-started_at')
+
+        if getattr(self, 'action', None) == 'retrieve':
+            qs = qs.prefetch_related('component_runs')
 
         workspace_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if workspace_id:

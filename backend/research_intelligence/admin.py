@@ -26,6 +26,7 @@ from research_intelligence.models import (
     LLMUsageRecord,
     ResearchAgentProcess,
     WorkflowSchedule,
+    Star,
 )
 
 
@@ -2162,6 +2163,17 @@ class WorkspaceMemberAdmin(admin.ModelAdmin):
         }
         return render_badge(obj.role.upper(), colors.get(obj.role, '#6c757d'))
     role_badge.short_description = "Role"
+
+
+@admin.register(Star)
+class StarAdmin(admin.ModelAdmin):
+    list_display = ('user', 'kind', 'paper', 'pipeline_run', 'created_at')
+    list_filter = ('kind', 'created_at')
+    search_fields = ('user__username', 'user__email', 'paper__title', 'pipeline_run__name')
+    list_select_related = ('user', 'paper', 'pipeline_run')
+    raw_id_fields = ('user', 'paper', 'pipeline_run')
+    readonly_fields = ('id', 'created_at')
+    ordering = ('-created_at',)
 
 
 class APIKeyAdminForm(forms.ModelForm):

@@ -23,6 +23,7 @@ from .signal_score_variables import run_signal_score_variables_scenario
 from .workspace_import_export import run_workspace_import_export_scenario
 from .direct_full_text_and_subscribers import run_direct_full_text_and_subscribers_scenario
 from .hitl_validation_journey import run_hitl_validation_journey_scenario
+from .stars_curation_journey import run_stars_curation_journey_scenario
 
 __all__ = [
     "run_full_slr_pipeline_scenario",
@@ -47,4 +48,5 @@ __all__ = [
     "run_workspace_import_export_scenario",
     "run_direct_full_text_and_subscribers_scenario",
     "run_hitl_validation_journey_scenario",
+    "run_stars_curation_journey_scenario",
 ]

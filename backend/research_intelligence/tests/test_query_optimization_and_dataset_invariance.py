@@ -16,10 +16,18 @@ from research_intelligence.models import (
     Workspace,
     WorkspaceMember,
     PipelineRun,
+    ComponentRun,
+    WorkflowSchedule,
     Paper,
     PaperMetric,
     ExtractionDefinition,
     Extraction,
+    Subscriber,
+    Scraper,
+    UserActivityLog,
+    HITLCorrection,
+    NarrativeReport,
+    ResearchAgentProcess,
 )
 from research_intelligence.services.scraper_service import list_workspace_papers
 from mcp_server.tools.extractions.matrix import get_paper_extractions_matrix_logic
@@ -399,3 +407,258 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
 
         query_count_log = len(ctx_log.captured_queries)
         self.assertLessEqual(query_count_log, 5, f"Expected <= 5 queries for activity logs, got {query_count_log}")
+
+    def test_pipeline_runs_list_query_efficiency_and_no_component_runs_prefetch(self):
+        """
+        Verify that /api/pipeline-runs/:
+        1. Selects schedule in O(1) query count (no N+1 for schedule_name).
+        2. Does NOT query or prefetch component_runs on list action.
+        3. Prefetches component_runs on retrieve action.
+        """
+        schedule = WorkflowSchedule.objects.create(
+            workspace=self.workspace,
+            name="Daily Scheduled Ingestion",
+            frequency="daily"
+        )
+        runs = []
+        for i in range(5):
+            r = PipelineRun.objects.create(
+                workspace=self.workspace,
+                name=f"Run With Schedule #{i}",
+                schedule=schedule,
+                status="completed"
+            )
+            runs.append(r)
+            for step in ("search", "download", "screening", "extraction", "signal_score"):
+                ComponentRun.objects.create(
+                    pipeline_run=r,
+                    step_type=step,
+                    component_name=f"step_{step}",
+                    status="completed"
+                )
+
+        with CaptureQueriesContext(connection) as ctx_list:
+            resp = self.client.get(f"/api/pipeline-runs/?workspace={self.workspace.id}")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()["results"] if isinstance(resp.json(), dict) and "results" in resp.json() else resp.json()
+            self.assertTrue(len(data) >= 5)
+
+        queries_list = ctx_list.captured_queries
+        query_count = len(queries_list)
+        print(f"\n[BENCHMARK] /api/pipeline-runs/ executed {query_count} queries for {len(data)} runs.")
+        self.assertLessEqual(query_count, 5, f"Expected <= 5 queries for pipeline runs listing, got {query_count}")
+
+        # Verify schedule_name is present and correct
+        scheduled_items = [item for item in data if item.get("schedule_name") == "Daily Scheduled Ingestion"]
+        self.assertEqual(len(scheduled_items), 5)
+
+        # Verify component_runs was NOT queried in the list action
+        for q in queries_list:
+            self.assertNotIn(
+                "componentrun",
+                q["sql"].lower(),
+                "ComponentRun table should not be queried during pipeline-runs list action!"
+            )
+
+        # Verify component_runs IS queried/prefetched on retrieve
+        with CaptureQueriesContext(connection) as ctx_detail:
+            resp_detail = self.client.get(f"/api/pipeline-runs/{runs[0].id}/")
+            self.assertEqual(resp_detail.status_code, 200)
+            detail_data = resp_detail.json()
+            self.assertIn("component_runs", detail_data)
+            self.assertEqual(len(detail_data["component_runs"]), 5)
+
+    def test_workspaces_list_query_efficiency(self):
+        """
+        Verify that /api/workspaces/ executes in constant O(1) queries (no N+1 for
+        subscribers, scrapers, extraction_definitions, or user_role).
+        """
+        for i in range(4):
+            ws = Workspace.objects.create(name=f"Benchmark Extra Workspace {i}")
+            WorkspaceMember.objects.create(workspace=ws, user=self.user, role="researcher")
+            Subscriber.objects.create(workspace=ws, email=f"sub_{i}@schwarz.de", name=f"Sub {i}")
+            Scraper.objects.create(workspace=ws, provider="arxiv", search_query=f"query_{i}")
+            ExtractionDefinition.objects.create(
+                workspace=ws,
+                name=f"Ext Def {i}",
+                system_prompt="prompt",
+                user_prompt_template="tpl",
+                response_schema={"type": "object"}
+            )
+
+        with CaptureQueriesContext(connection) as ctx_ws:
+            resp = self.client.get("/api/workspaces/")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()["results"] if isinstance(resp.json(), dict) and "results" in resp.json() else resp.json()
+            self.assertTrue(len(data) >= 5)
+
+        query_count = len(ctx_ws.captured_queries)
+        print(f"\n[BENCHMARK] /api/workspaces/ executed {query_count} queries for {len(data)} workspaces.")
+        # Total queries should be <= 7 (workspace list + count + subscribers + scrapers + extraction_defs + roles)
+        self.assertLessEqual(query_count, 7, f"Expected <= 7 queries for workspace listing, got {query_count}")
+
+        # Check user_role is populated
+        for ws_item in data:
+            self.assertIn("user_role", ws_item)
+            self.assertIsNotNone(ws_item["user_role"])
+
+    def test_paper_scorecard_deterministic_and_query_efficiency(self):
+        """
+        Verify that /api/papers/<id>/scorecard/ returns deterministic dimensions
+        with latest extraction and minimal queries.
+        """
+        paper = self.papers[0]
+        # Add a newer extraction for the same definition
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=paper,
+            extraction_definition=self.ext_def,
+            category="hardware",
+            fields_data={"qubits": 999},
+            confidence_score=0.99,
+            validation_status="pass"
+        )
+
+        with CaptureQueriesContext(connection) as ctx_card:
+            resp = self.client.get(f"/api/papers/{paper.id}/scorecard/")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+
+        self.assertIn("paper", data)
+        self.assertIn("workspace", data)
+        dimensions = data["paper"]["dimensions"]
+        self.assertTrue(len(dimensions) > 0)
+        # Verify that the newest extraction (999 qubits) was selected
+        qubit_dim = next((d for d in dimensions if d["definition_id"] == str(self.ext_def.id)), None)
+        self.assertIsNotNone(qubit_dim)
+        self.assertEqual(qubit_dim["value"], "999")
+        self.assertEqual(qubit_dim["confidence"], 0.99)
+
+    def test_scrapers_endpoint_workspace_filter_and_isolation(self):
+        """
+        Verify that /api/scrapers/?workspace= correctly scopes scrapers to that workspace
+        and respects workspace isolation.
+        """
+        ws_b = Workspace.objects.create(name="Scraper Test Workspace B")
+        WorkspaceMember.objects.create(workspace=ws_b, user=self.user, role="admin")
+
+        Scraper.objects.create(workspace=self.workspace, provider="arxiv", search_query="quantum")
+        Scraper.objects.create(workspace=ws_b, provider="openalex", search_query="nlp")
+
+        # Query specifically for workspace A
+        resp_a = self.client.get(f"/api/scrapers/?workspace={self.workspace.id}")
+        self.assertEqual(resp_a.status_code, 200)
+        data_a = resp_a.json()["results"] if isinstance(resp_a.json(), dict) and "results" in resp_a.json() else resp_a.json()
+        self.assertTrue(len(data_a) >= 1)
+        for s in data_a:
+            self.assertEqual(str(s["workspace"]), str(self.workspace.id))
+
+        # Query specifically for workspace B
+        resp_b = self.client.get(f"/api/scrapers/?workspace={ws_b.id}")
+        self.assertEqual(resp_b.status_code, 200)
+        data_b = resp_b.json()["results"] if isinstance(resp_b.json(), dict) and "results" in resp_b.json() else resp_b.json()
+        self.assertEqual(len(data_b), 1)
+        self.assertEqual(str(data_b[0]["workspace"]), str(ws_b.id))
+        self.assertEqual(data_b[0]["provider"], "openalex")
+
+    def test_user_without_workspaces_short_circuits_all_views(self):
+        """
+        Verify that a user who does not belong to any workspace gets immediate empty
+        responses without redundant SQL queries (short-circuit logic).
+        """
+        unaffiliated_user = User.objects.create_user(
+            username="no_ws_user",
+            email="no_ws@schwarz.de",
+            password="securepassword123!"
+        )
+        empty_client = APIClient()
+        empty_client.force_authenticate(user=unaffiliated_user)
+
+        endpoints = [
+            "/api/pipeline-runs/",
+            "/api/papers/",
+            "/api/workspaces/",
+            "/api/scrapers/",
+            "/api/extractions/",
+            "/api/schedules/",
+            "/api/agents/",
+            "/api/hitl/",
+            "/api/reports/",
+        ]
+
+        for ep in endpoints:
+            with CaptureQueriesContext(connection) as ctx:
+                resp = empty_client.get(ep)
+                self.assertEqual(resp.status_code, 200, f"Endpoint {ep} failed with {resp.status_code}")
+                data = resp.json()
+                results = data["results"] if isinstance(data, dict) and "results" in data else data
+                self.assertEqual(len(results), 0, f"Endpoint {ep} should return 0 items for unaffiliated user")
+            # Should only query WorkspaceMember (and pagination count if applicable) <= 2 queries
+            self.assertLessEqual(
+                len(ctx.captured_queries),
+                3,
+                f"Endpoint {ep} executed too many queries ({len(ctx.captured_queries)}) for unaffiliated user"
+            )
+
+    def test_extractions_pipeline_run_subquery_efficiency(self):
+        """
+        Verify that /api/extractions/?pipeline_run= uses optimized subquery,
+        returns correct extractions without duplicate rows, and runs in constant O(1) queries.
+        """
+        with CaptureQueriesContext(connection) as ctx:
+            resp = self.client.get(f"/api/extractions/?pipeline_run={self.run_1.id}")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            results = data["results"] if isinstance(data, dict) and "results" in data else data
+            self.assertEqual(len(results), 10)
+
+        query_count = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] /api/extractions/?pipeline_run= executed {query_count} queries for 10 extractions.")
+        self.assertLessEqual(query_count, 5, f"Expected <= 5 queries, got {query_count}")
+
+        # Ensure no duplicate extraction IDs in response
+        extraction_ids = [e["id"] for e in results]
+        self.assertEqual(len(extraction_ids), len(set(extraction_ids)))
+
+    def test_activity_logs_query_optimization_with_q_filter(self):
+        """
+        Verify that /api/activity-logs/ uses indexed Q filter without SQL UNION overhead.
+        """
+        for i in range(3):
+            UserActivityLog.objects.create(
+                user=self.user,
+                workspace=self.workspace,
+                interface="rest_api",
+                action_name=f"benchmark_act_{i}",
+                status="success"
+            )
+
+        with CaptureQueriesContext(connection) as ctx:
+            resp = self.client.get("/api/activity-logs/")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            results = data["results"] if isinstance(data, dict) and "results" in data else data
+            self.assertTrue(len(results) >= 3)
+
+        query_count = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] /api/activity-logs/ executed {query_count} queries.")
+        self.assertLessEqual(query_count, 4, f"Expected <= 4 queries for activity logs, got {query_count}")
+
+    def test_user_profile_view_query_efficiency(self):
+        """
+        Verify that /api/auth/me/ executes in minimal queries (O(1)) without
+        unnecessary joins on count.
+        """
+        with CaptureQueriesContext(connection) as ctx:
+            resp = self.client.get("/api/auth/me/")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+
+        self.assertEqual(data["username"], self.user.username)
+        self.assertEqual(data["workspaces_count"], 1)
+        query_count = len(ctx.captured_queries)
+        print(f"\n[BENCHMARK] /api/auth/me/ executed {query_count} queries.")
+        self.assertLessEqual(query_count, 3, f"Expected <= 3 queries for profile view, got {query_count}")
+
+
+

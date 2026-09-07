@@ -112,7 +112,7 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
                 filter_kwargs['metrics__screening_status'] = screening_status
 
             qs = qs.filter(**filter_kwargs).distinct().prefetch_related(
-                Prefetch('metrics', queryset=PaperMetric.objects.filter(pipeline_run_id=pr_uuid).select_related('pipeline_run'))
+                Prefetch('metrics', queryset=PaperMetric.objects.filter(pipeline_run_id=pr_uuid).select_related('pipeline_run').order_by('-created_at'))
             )
 
             from django.db.models import F
@@ -126,7 +126,7 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
         # Workspace-level queries (no specific pipeline run):
         from django.db.models import Prefetch
         qs = qs.prefetch_related(
-            Prefetch('metrics', queryset=PaperMetric.objects.select_related('pipeline_run'))
+            Prefetch('metrics', queryset=PaperMetric.objects.select_related('pipeline_run').order_by('-created_at'))
         )
 
         from django.db.models import Subquery, OuterRef, F
@@ -180,14 +180,17 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
         paper_data = paper_serializer.data
 
         from research_intelligence.models import Extraction, ExtractionDefinition
-        extractions = Extraction.objects.filter(paper=paper).select_related('extraction_definition')
+        extractions = list(Extraction.objects.filter(paper=paper).select_related('extraction_definition').order_by('-created_at'))
         definitions = list(ExtractionDefinition.objects.filter(workspace=paper.workspace, is_active=True).order_by('created_at'))
 
         raw_authors = paper.authors or ''
         authors_list = [a.strip() for a in raw_authors.split(',') if a.strip()] if raw_authors else []
 
         dimensions = []
-        ext_by_def = {e.extraction_definition_id: e for e in extractions if e.extraction_definition_id}
+        ext_by_def = {}
+        for e in extractions:
+            if e.extraction_definition_id and e.extraction_definition_id not in ext_by_def:
+                ext_by_def[e.extraction_definition_id] = e
         for d in definitions:
             e = ext_by_def.get(d.id)
             val = None

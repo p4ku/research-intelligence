@@ -30,7 +30,9 @@ class HITLViewSet(viewsets.ModelViewSet):
         if getattr(user, 'is_superuser', False):
             qs = base_qs.all().order_by('-timestamp')
         else:
-            user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
+            user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+            if not user_ws_ids:
+                return HITLCorrection.objects.none()
             qs = base_qs.filter(extraction__workspace_id__in=user_ws_ids).order_by('-timestamp')
 
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
