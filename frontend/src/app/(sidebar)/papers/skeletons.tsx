@@ -3,9 +3,7 @@ import { PageHeader, SectionLabel } from '@/components/scanner-ui'
 import { SearchFrame } from '@/components/search-frame'
 import { Bone, Skeleton } from '@/components/skeleton'
 import type { T } from '@/lib/i18n'
-
-/** One page of the browser's results — the browser and its skeleton share it. */
-export const PER_PAGE = 8
+import { PER_PAGE } from '@/lib/papers/browse'
 
 /** The browser's filter groups, as label + a few option lines. */
 const FILTER_GROUPS = ['Sort by', 'Screening', 'Ingested'] as const

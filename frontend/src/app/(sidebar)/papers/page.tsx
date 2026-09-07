@@ -1,7 +1,8 @@
 import { PageHeader } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
-import { hasFeature, requireFeature } from '@/lib/features-server'
+import { getFeatures, hasFeature, requireFeature } from '@/lib/features-server'
 import { getT } from '@/lib/i18n-server'
+import { stateFrom } from '@/lib/papers/browse'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { Suspense, ViewTransition } from 'react'
@@ -20,7 +21,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * Every paper from every domain the user belongs to, one browser over all of
- * them. `?q=` is Home's search, pre-filled into the browser's field.
+ * them, a page at a time. The URL carries the browser's whole state (filters,
+ * sort, search, page — src/lib/papers/browse.ts); the server renders the page
+ * it names and the browser fetches the rest. `?q=` is Home's search handing
+ * over.
  *
 
  * The header renders with the shell; the browser streams in behind one
@@ -37,14 +41,24 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function PapersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   await requireFeature('all_papers')
-  const [t, state, { q }] = await Promise.all([getT(), getWorkspacesState(), searchParams])
+  const [t, state, params, features] = await Promise.all([
+    getT(),
+    getWorkspacesState(),
+    searchParams,
+    getFeatures(),
+  ])
   // One domain reads as itself; several read as the whole corpus, with the
   // domain filter in the browser doing the narrowing.
   const eyebrow =
     state.kind === 'ok' && state.all.length === 1 ? state.all[0].name : t('All domains')
+  const domains = state.kind === 'ok' ? state.all.map(({ id, name }) => ({ id, name })) : []
+  const browse = stateFrom(params, domains)
+  // The same forcing the browser applies: with stars off, `?starred=1` narrows
+  // nothing — and server and client must agree, or the first paint refetches.
+  if (!features.stars) browse.starred = false
 
   return (
     <div className="space-y-8">
@@ -60,7 +74,7 @@ export default async function PapersPage({
           }
         >
           <ViewTransition enter="bone-enter" default="none">
-            <PapersSection t={t} q={q} />
+            <PapersSection t={t} state={browse} domains={domains} />
           </ViewTransition>
         </Suspense>
       )}

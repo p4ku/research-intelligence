@@ -5,29 +5,29 @@ import { PaperCard } from '@/components/paper-card'
 import { SectionLabel } from '@/components/scanner-ui'
 import { SearchFrame } from '@/components/search-frame'
 import { StarredChip } from '@/components/star'
+import { bffFetch } from '@/lib/bff/client'
+import type { PapersList } from '@/lib/bff/papers/schema'
 import { useFeatures } from '@/lib/features-client'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
-import { isPassed } from '@/lib/papers/map'
 import {
-  byValueDesc,
-  dimensionByKey,
-  numericDefinitions,
-  trlDimension,
-  unionDefinitions,
-} from '@/lib/papers/select'
-import type { ScoredPaper, ScreeningStatus, WorkspaceSummary } from '@/lib/papers/types'
-import { parseQuery, rankAll } from '@/lib/search/match'
+  DEFAULT_STATE,
+  keyOf,
+  listPath,
+  PER_PAGE,
+  searchOf,
+  stateFrom,
+  type BrowseState,
+  type Screening,
+} from '@/lib/papers/browse'
 import { useStars } from '@/lib/stars-client'
 import { ChevronDownIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
-import { useMemo, useRef, useState } from 'react'
-import { PER_PAGE } from './skeletons'
+import { useSearchParams } from 'next/navigation'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 /** 'signal' | 'recent' | 'dim:<definition key>' */
 type Sort = string
-
-type Screening = 'passed' | 'borderline' | 'pending' | 'rejected' | 'withdrawn' | 'all'
 
 const screeningOptions: { id: Screening; label: string }[] = [
   { id: 'passed', label: 'Passed' },
@@ -38,15 +38,9 @@ const screeningOptions: { id: Screening; label: string }[] = [
   { id: 'all', label: 'All statuses' },
 ]
 
-function matchesScreening(status: ScreeningStatus, filter: Screening): boolean {
-  if (filter === 'all') return true
-  if (filter === 'passed') return isPassed(status)
-  return status === filter
-}
-
 // Recent-time windows count back from the newest paper's ingest time (not
 // wall-clock now), so "Last 24 hours" resolves to the freshest drop even in
-// a corpus that hasn't been refreshed today.
+// a corpus that hasn't been refreshed today. The BFF applies the rule.
 const ingestedWindows = [
   { days: 1, label: 'Last 24 hours' },
   { days: 7, label: 'Last 7 days' },
@@ -55,225 +49,205 @@ const ingestedWindows = [
   { days: 0, label: 'All time' },
 ]
 
+/** What the server rendered: the state it read from the URL and the page it answered with. */
+export interface ServedPapers {
+  state: BrowseState
+  list: PapersList
+}
+
+/** A keystroke settles into the URL after this; chips and the pager write at once. */
+const SEARCH_DEBOUNCE_MS = 150
+/** A star toggle writes twice (optimistic, then settled); one refetch covers both. */
+const STARS_SETTLE_MS = 250
+
+/**
+ * The papers browser. The URL is the state — every filter, the sort, the
+ * search and the page — read afresh on every render, so Back/Forward, a
+ * reload and Home's `?q=` all land on the same view. The server answered
+ * the first page; every change after that is a fetch of `/bff/papers` for
+ * one page plus the rail's facets, with the stale list dimmed under
+ * `data-pending` meanwhile (never bones after the first paint). The rail
+ * reads the facets, so it describes the whole corpus while the column
+ * holds eight papers of it.
+ */
 export function PapersBrowser({
-  papers,
-  workspaces,
-  initialSearch = '',
+  served,
+  domains,
 }: {
-  papers: ScoredPaper[]
-  /** The domains the corpus spans — their definitions drive the sort options. */
-  workspaces: WorkspaceSummary[]
-  /** Home's query, when the reader arrived through its search. */
-  initialSearch?: string
+  served: ServedPapers
+  /** The domains the corpus spans; the filter shows when there is more than one. */
+  domains: { id: string; name: string }[]
 }) {
   const t = useT()
-  const { isStarred } = useStars()
+  const { stars: starSet } = useStars()
   const { stars } = useFeatures()
-  const [search, setSearch] = useState(initialSearch)
-  const [domain, setDomain] = useState('all')
-  const [starredOnlyState, setStarredOnly] = useState(false)
-  // The effective filter, not the state: a reader who flips stars off with the
+  const params = useSearchParams()
+  const urlState = stateFrom(Object.fromEntries(params), domains)
+  // The effective filter, not the URL's: a reader who flips stars off with the
   // chip engaged must see the whole corpus back, not a list silently narrowed
-  // by a control that is no longer on screen. Every memo, key and branch below
-  // reads this, so the state itself needs no clearing (and comes back on).
-  const starredOnly = stars && starredOnlyState
-  const [screening, setScreening] = useState<Screening>('passed')
-  const [sort, setSort] = useState<Sort>('signal')
-  const [minTrl, setMinTrl] = useState(1)
-  const [maxTrl, setMaxTrl] = useState(9)
-  const [withinDays, setWithinDays] = useState(0) // 0 = all time
-  const [minScore, setMinScore] = useState(0) // 0 = no cutoff
-  const [page, setPage] = useState(1)
+  // by a control that is no longer on screen. The server forces the same.
+  const state: BrowseState = { ...urlState, starred: stars && urlState.starred }
+  const key = keyOf(state)
+  const urlRef = useRef(urlState)
+  urlRef.current = urlState
 
-  // Sort options come from the domains' definitions, not a fixed list: the
-  // same key once, however many domains define it.
-  const dimensionSorts = useMemo(
-    () =>
-      numericDefinitions({ definitions: unionDefinitions(workspaces) }, papers).filter(
-        (d) => !d.is_trl,
-      ),
-    [workspaces, papers],
-  )
-  const domainNames = useMemo(() => new Map(workspaces.map((w) => [w.id, w.name])), [workspaces])
-  const manyDomains = workspaces.length > 1
-  const hasTrl = useMemo(
-    () => papers.some((p) => trlDimension(p)?.value !== null && trlDimension(p) !== undefined),
-    [papers],
-  )
+  // The page in hand: the server's until a fetch replaces it. A new server
+  // render (a navigation, a refresh) re-seeds it, adjust-during-render.
+  const [held, setHeld] = useState(served)
+  const [prevServed, setPrevServed] = useState(served)
+  if (served !== prevServed) {
+    setPrevServed(served)
+    setHeld(served)
+  }
+  const stale = keyOf(held.state) !== key
+  const [failed, setFailed] = useState<string | null>(null)
+  const [attempt, setAttempt] = useState(0)
+  // A star toggle changes the starred count and, under the Starred chip, the
+  // rows; the refetch is silent (no dim) once the toggle has settled.
+  const [starsTick, setStarsTick] = useState(0)
+  const starsSeen = useRef(starSet)
+  useEffect(() => {
+    if (starsSeen.current === starSet) return
+    starsSeen.current = starSet
+    const id = setTimeout(() => setStarsTick((n) => n + 1), STARS_SETTLE_MS)
+    return () => clearTimeout(id)
+  }, [starSet])
+  const fetched = useRef({ starsTick: 0, attempt: 0 })
+
+  useEffect(() => {
+    const wanted =
+      stale || fetched.current.starsTick !== starsTick || fetched.current.attempt !== attempt
+    if (!wanted) return
+    const controller = new AbortController()
+    const snapshot = { ...state }
+    bffFetch<PapersList>(listPath(snapshot), { signal: controller.signal })
+      .then((list) => {
+        fetched.current = { starsTick, attempt }
+        setHeld({ state: snapshot, list })
+        setFailed(null)
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        console.error('[papers] page fetch failed:', error)
+        setFailed(key)
+      })
+    return () => controller.abort()
+    // `state` is derived from `key`; `starsTick`/`attempt` are the other two reasons to fetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, starsTick, attempt, stale])
+
+  const update = useCallback((patch: Partial<BrowseState>) => {
+    // From the URL's state, not the forced one: only the rendered value is
+    // forced, and a chip click must not quietly drop a `?starred=1` the
+    // reader never cleared.
+    const next = { ...urlRef.current, ...patch }
+    // A narrower or wider list starts again from its first page.
+    if (!('page' in patch)) next.page = 1
+    // No navigation: the App Router picks the query up from history and
+    // `useSearchParams` re-renders; the server reads it again on a real visit.
+    window.history.replaceState(null, '', window.location.pathname + searchOf(next))
+  }, [])
+
+  // The search text is the reader's, settling into the URL after a pause; the
+  // URL's `q` re-seeds it on Back or a Home hand-over.
+  const [text, setText] = useState(urlState.q)
+  const [prevQ, setPrevQ] = useState(urlState.q)
+  if (urlState.q !== prevQ) {
+    setPrevQ(urlState.q)
+    setText(urlState.q)
+  }
+  useEffect(() => {
+    const q = text.trim()
+    if (q === urlRef.current.q) return
+    const id = setTimeout(() => update({ q }), SEARCH_DEBOUNCE_MS)
+    return () => clearTimeout(id)
+  }, [text, update])
+  const setSearch = (value: string) => {
+    setText(value)
+    if (value === '') update({ q: '' })
+  }
+
+  const { list } = held
+  const { facets } = list
+  const count = list.count
+  const pageCount = Math.max(1, Math.ceil(count / PER_PAGE))
+  const current = Math.min(state.page, pageCount)
+  // A page past the end (filters narrowed under a stale `?page=`) folds back.
+  useEffect(() => {
+    if (!stale && count > 0 && list.results.length === 0 && state.page > 1) {
+      update({ page: pageCount })
+    }
+  }, [stale, count, list.results.length, state.page, pageCount, update])
+
+  const domainNames = new Map(domains.map((w) => [w.id, w.name]))
+  const manyDomains = domains.length > 1
+  const dimensionSorts = facets.dimension_sorts
   const sortLabel = (s: Sort) =>
     s === 'signal'
-      ? search.trim()
+      ? state.q
         ? t('Relevance')
         : t('Signal score')
       : s === 'recent'
         ? t('Most recent')
         : (dimensionSorts.find((d) => `dim:${d.key}` === s)?.name ?? t('Signal score'))
 
-  // The score slider spans 0–100 unless the workspace formula scores higher.
-  const scoreCeiling = useMemo(
-    () => Math.max(100, Math.ceil(papers.reduce((m, p) => Math.max(m, p.signal_score ?? 0), 0))),
-    [papers],
-  )
-
-  const newest = useMemo(
-    () => papers.reduce((m, p) => (p.created_at > m ? p.created_at : m), ''),
-    [papers],
-  )
-
-  const { filtered, hiddenByScreening } = useMemo(() => {
-    // Anchor the ingest window to the newest paper (pure); with no papers
-    // there is nothing to window anyway.
-    const cutoff = newest ? new Date(newest) : null
-    cutoff?.setDate(cutoff.getDate() - withinDays)
-    // The same matcher as Home's typeahead, so a search lands on what it showed.
-    const query = parseQuery(search)
-    const searching = query.intent.kind !== 'empty'
-    const relevance = new Map(
-      searching ? rankAll(papers, query).map(({ paper, hit }) => [paper.id, hit.score]) : [],
-    )
-    // Every filter but screening, so the hint below can say what screening alone hides.
-    const passesExceptScreening = (p: ScoredPaper) => {
-      if (domain !== 'all' && p.workspace_id !== domain) return false
-      if (starredOnly && !isStarred('paper', p.id)) return false
-      if (hasTrl && (minTrl > 1 || maxTrl < 9)) {
-        const trl = trlDimension(p)?.value ?? null
-        if (trl === null || trl < minTrl || trl > maxTrl) return false
-      }
-      if (withinDays > 0 && cutoff && new Date(p.created_at) < cutoff) return false
-      if (minScore > 0 && (p.signal_score === null || p.signal_score < minScore)) return false
-      if (searching && !relevance.has(p.id)) return false
-      return true
-    }
-    const candidates = papers.filter(passesExceptScreening)
-    const result = candidates.filter((p) => matchesScreening(p.screening_status, screening))
-    result.sort((a, b) => {
-      // A search reorders the default sort by relevance; an explicit sort only filters.
-      if (searching && sort === 'signal') {
-        const d = (relevance.get(b.id) ?? 0) - (relevance.get(a.id) ?? 0)
-        if (d !== 0) return d
-      }
-      if (sort === 'recent') return b.created_at.localeCompare(a.created_at)
-      if (sort.startsWith('dim:')) {
-        const key = sort.slice(4)
-        return byValueDesc(
-          dimensionByKey(a, key)?.value ?? null,
-          dimensionByKey(b, key)?.value ?? null,
-        )
-      }
-      return byValueDesc(a.signal_score, b.signal_score)
-    })
-    return {
-      filtered: result,
-      hiddenByScreening: searching ? candidates.length - result.length : 0,
-    }
-  }, [
-    papers,
-    domain,
-    search,
-    screening,
-    sort,
-    minTrl,
-    maxTrl,
-    withinDays,
-    minScore,
-    newest,
-    hasTrl,
-    starredOnly,
-    isStarred,
-  ])
-  // The Starred chip's count spans the corpus, whatever else is narrowed.
-  const starredCount = useMemo(
-    () => papers.filter((p) => isStarred('paper', p.id)).length,
-    [papers, isStarred],
-  )
-
-  // Paginate the filtered corpus, eight at a time. Any filter or sort change
-  // resets to the first page so the view never lands past the last result.
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  const filterKey = [
-    domain,
-    starredOnly,
-    search,
-    screening,
-    sort,
-    minTrl,
-    maxTrl,
-    withinDays,
-    minScore,
-  ].join('\u0000')
-  const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
-  if (prevFilterKey !== filterKey) {
-    // Adjust-during-render (not an effect): filters moved, back to page one.
-    setPrevFilterKey(filterKey)
-    setPage(1)
-  }
-  const current = Math.min(page, pageCount)
-  const paged = filtered.slice((current - 1) * PER_PAGE, current * PER_PAGE)
-
-  const trlNarrowed = hasTrl && (minTrl > 1 || maxTrl < 9)
+  const trlNarrowed = facets.has_trl && (state.minTrl > 1 || state.maxTrl < 9)
   const filtersActive =
-    domain !== 'all' ||
-    starredOnly ||
-    screening !== 'passed' ||
+    state.domain !== null ||
+    state.starred ||
+    state.screening !== 'passed' ||
     trlNarrowed ||
-    search !== '' ||
-    withinDays > 0 ||
-    minScore > 0
+    state.q !== '' ||
+    state.withinDays > 0 ||
+    state.minScore > 0
   // Narrowed filters read as removable chips above; this line carries only what
   // the chips don't say — the defaults still in force, and the query.
   const filterContext = [
-    screening === 'passed' && t('through screening'),
-    withinDays === 0 && t('full corpus'),
-    search !== '' && fmt(t('matching “{q}”'), { q: search }),
+    state.screening === 'passed' && t('through screening'),
+    state.withinDays === 0 && t('full corpus'),
+    state.q !== '' && fmt(t('matching “{q}”'), { q: state.q }),
   ]
     .filter(Boolean)
     .join(' · ')
 
   function resetFilters() {
-    setDomain('all')
-    setStarredOnly(false)
-    setSearch('')
-    setScreening('passed')
-    setMinTrl(1)
-    setMaxTrl(9)
-    setWithinDays(0)
-    setMinScore(0)
+    setText('')
+    update({ ...DEFAULT_STATE, sort: urlRef.current.sort })
   }
 
   const chips = [
-    domain !== 'all' && {
+    state.domain !== null && {
       key: 'domain',
-      label: domainNames.get(domain) ?? '',
-      clear: () => setDomain('all'),
+      label: domainNames.get(state.domain) ?? '',
+      clear: () => update({ domain: null }),
     },
-    screening !== 'passed' && {
+    state.screening !== 'passed' && {
       key: 'screening',
-      label: t(screeningOptions.find((o) => o.id === screening)?.label ?? ''),
-      clear: () => setScreening('passed'),
+      label: t(screeningOptions.find((o) => o.id === state.screening)?.label ?? ''),
+      clear: () => update({ screening: 'passed' }),
     },
-    withinDays > 0 && {
+    state.withinDays > 0 && {
       key: 'ingested',
-      label: t(ingestedWindows.find((w) => w.days === withinDays)?.label ?? ''),
-      clear: () => setWithinDays(0),
+      label: t(ingestedWindows.find((w) => w.days === state.withinDays)?.label ?? ''),
+      clear: () => update({ withinDays: 0 }),
     },
-    minScore > 0 && {
+    state.minScore > 0 && {
       key: 'signal',
-      label: fmt(t('Signal ≥ {n}'), { n: minScore }),
-      clear: () => setMinScore(0),
+      label: fmt(t('Signal ≥ {n}'), { n: state.minScore }),
+      clear: () => update({ minScore: 0 }),
     },
     trlNarrowed && {
       key: 'trl',
-      label: `TRL ${minTrl}–${maxTrl}`,
-      clear: () => {
-        setMinTrl(1)
-        setMaxTrl(9)
-      },
+      label: `TRL ${state.minTrl}–${state.maxTrl}`,
+      clear: () => update({ minTrl: 1, maxTrl: 9 }),
     },
   ].filter(Boolean) as { key: string; label: string; clear: () => void }[]
 
+  const pending = stale && failed !== key
+
   return (
     <div className="space-y-6">
-      <SearchField value={search} onChange={setSearch} resultCount={filtered.length} />
+      <SearchField value={text} onChange={setSearch} resultCount={count} />
 
       {chips.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
@@ -297,21 +271,24 @@ export function PapersBrowser({
           <div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-zinc-500 dark:text-zinc-400">
             <p>
               <span className="font-mono font-medium text-zinc-950 tabular-nums dark:text-white">
-                {filtered.length}
+                {count}
               </span>{' '}
-              {filtered.length === 1 ? t('paper') : t('papers')}
+              {count === 1 ? t('paper') : t('papers')}
               {filterContext && (
                 <span className="text-zinc-400 dark:text-zinc-500"> · {filterContext}</span>
               )}
             </p>
-            {hiddenByScreening > 0 && filtered.length > 0 && (
-              <ScreeningHint n={hiddenByScreening} onShow={() => setScreening('all')} />
+            {facets.hidden_by_screening > 0 && count > 0 && (
+              <ScreeningHint
+                n={facets.hidden_by_screening}
+                onShow={() => update({ screening: 'all' })}
+              />
             )}
             {stars && (
               <StarredChip
-                active={starredOnly}
-                count={starredCount}
-                onToggle={() => setStarredOnly((v) => !v)}
+                active={state.starred}
+                count={facets.starred_count}
+                onToggle={() => update({ starred: !urlRef.current.starred })}
               />
             )}
             {filtersActive && (
@@ -324,20 +301,47 @@ export function PapersBrowser({
               </button>
             )}
           </div>
-          <div className="space-y-3">
-            {paged.map((p) => (
+          {facets.truncated && (
+            <p className="mb-3 text-xs text-zinc-400 dark:text-zinc-500">
+              {fmt(t('Showing the newest {n} of {m} papers'), {
+                n: facets.truncated.shown,
+                m: facets.truncated.total,
+              })}
+            </p>
+          )}
+          {failed === key && (
+            <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+              {t('Could not load these papers.')}{' '}
+              <button
+                type="button"
+                onClick={() => setAttempt((n) => n + 1)}
+                className="font-medium text-zinc-700 underline-offset-2 hover:underline dark:text-zinc-200"
+              >
+                {t('Retry')}
+              </button>
+            </p>
+          )}
+          <div
+            className="space-y-3 transition-opacity duration-150 data-pending:opacity-60"
+            data-pending={pending || undefined}
+            aria-busy={pending || undefined}
+          >
+            {list.results.map((p) => (
               <PaperCard
                 key={p.id}
                 paper={p}
                 domain={manyDomains ? domainNames.get(p.workspace_id) : undefined}
               />
             ))}
-            {filtered.length === 0 && (
+            {count === 0 && (
               <div className="rounded-sm border border-dashed border-line p-10 text-center text-sm text-zinc-400">
-                {starredOnly && starredCount === 0 ? (
+                {state.starred && facets.starred_count === 0 ? (
                   t('Nothing starred yet.')
-                ) : hiddenByScreening > 0 ? (
-                  <ScreeningHint n={hiddenByScreening} onShow={() => setScreening('all')} />
+                ) : facets.hidden_by_screening > 0 ? (
+                  <ScreeningHint
+                    n={facets.hidden_by_screening}
+                    onShow={() => update({ screening: 'all' })}
+                  />
                 ) : (
                   t('No papers match these filters.')
                 )}
@@ -347,7 +351,7 @@ export function PapersBrowser({
           <PageNav
             page={current}
             pageCount={pageCount}
-            onChange={setPage}
+            onChange={(page) => update({ page })}
             className="mt-6"
             labels={{ prev: t('Previous'), next: t('Next') }}
           />
@@ -358,19 +362,21 @@ export function PapersBrowser({
           {manyDomains && (
             <FilterGroup
               label={t('Domain')}
-              value={domain === 'all' ? t('All domains') : (domainNames.get(domain) ?? '')}
+              value={
+                state.domain === null ? t('All domains') : (domainNames.get(state.domain) ?? '')
+              }
             >
               <div className="space-y-1">
                 <OptionButton
-                  active={domain === 'all'}
-                  onClick={() => setDomain('all')}
+                  active={state.domain === null}
+                  onClick={() => update({ domain: null })}
                   label={t('All domains')}
                 />
-                {workspaces.map((w) => (
+                {domains.map((w) => (
                   <OptionButton
                     key={w.id}
-                    active={domain === w.id}
-                    onClick={() => setDomain(w.id)}
+                    active={state.domain === w.id}
+                    onClick={() => update({ domain: w.id })}
                     label={w.name}
                   />
                 ))}
@@ -378,7 +384,7 @@ export function PapersBrowser({
             </FilterGroup>
           )}
 
-          <FilterGroup label={t('Sort by')} value={sortLabel(sort)}>
+          <FilterGroup label={t('Sort by')} value={sortLabel(state.sort)}>
             <div className="space-y-1">
               {[
                 { id: 'signal', label: t('Signal score') },
@@ -387,8 +393,8 @@ export function PapersBrowser({
               ].map((s) => (
                 <OptionButton
                   key={s.id}
-                  active={sort === s.id}
-                  onClick={() => setSort(s.id)}
+                  active={state.sort === s.id}
+                  onClick={() => update({ sort: s.id })}
                   label={s.label}
                 />
               ))}
@@ -397,14 +403,14 @@ export function PapersBrowser({
 
           <FilterGroup
             label={t('Screening')}
-            value={t(screeningOptions.find((o) => o.id === screening)?.label ?? '')}
+            value={t(screeningOptions.find((o) => o.id === state.screening)?.label ?? '')}
           >
             <div className="space-y-1">
               {screeningOptions.map((o) => (
                 <OptionButton
                   key={o.id}
-                  active={screening === o.id}
-                  onClick={() => setScreening(o.id)}
+                  active={state.screening === o.id}
+                  onClick={() => update({ screening: o.id })}
                   label={t(o.label)}
                 />
               ))}
@@ -413,14 +419,14 @@ export function PapersBrowser({
 
           <FilterGroup
             label={t('Ingested')}
-            value={t(ingestedWindows.find((w) => w.days === withinDays)?.label ?? '')}
+            value={t(ingestedWindows.find((w) => w.days === state.withinDays)?.label ?? '')}
           >
             <div className="space-y-1">
               {ingestedWindows.map((w) => (
                 <OptionButton
                   key={w.days}
-                  active={withinDays === w.days}
-                  onClick={() => setWithinDays(w.days)}
+                  active={state.withinDays === w.days}
+                  onClick={() => update({ withinDays: w.days })}
                   label={t(w.label)}
                 />
               ))}
@@ -429,24 +435,28 @@ export function PapersBrowser({
 
           <FilterGroup
             label={t('Signal strength')}
-            value={minScore > 0 ? `≥ ${minScore}` : t('Any')}
+            value={state.minScore > 0 ? `≥ ${state.minScore}` : t('Any')}
           >
             <div className="mb-1.5 flex items-center justify-between">
               <span className="text-xs text-zinc-500 dark:text-zinc-400">{t('Minimum score')}</span>
               <span className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
-                {minScore > 0 ? minScore : t('Any')}
+                {state.minScore > 0 ? state.minScore : t('Any')}
               </span>
             </div>
             <input
               type="range"
               aria-label={t('Minimum score')}
               min={0}
-              max={scoreCeiling}
+              max={facets.score_ceiling}
               step={5}
-              value={minScore}
-              onChange={(e) => setMinScore(Number(e.target.value))}
+              value={state.minScore}
+              onChange={(e) => update({ minScore: Number(e.target.value) })}
               className="rs-slider"
-              style={{ '--fill': `${(minScore / scoreCeiling) * 100}%` } as React.CSSProperties}
+              style={
+                {
+                  '--fill': `${(state.minScore / facets.score_ceiling) * 100}%`,
+                } as React.CSSProperties
+              }
             />
             <div className="mt-1.5 flex justify-between text-xs text-zinc-400">
               <span>{t('Any signal')}</span>
@@ -454,30 +464,30 @@ export function PapersBrowser({
             </div>
           </FilterGroup>
 
-          {hasTrl && (
+          {facets.has_trl && (
             <FilterGroup
               label={t('TRL window')}
-              value={trlNarrowed ? `TRL ${minTrl}–${maxTrl}` : t('Any')}
+              value={trlNarrowed ? `TRL ${state.minTrl}–${state.maxTrl}` : t('Any')}
             >
               <div className="mb-1.5 flex items-center justify-between">
                 <SectionLabel>{t('TRL window')}</SectionLabel>
                 <span className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
-                  {minTrl}–{maxTrl}
+                  {state.minTrl}–{state.maxTrl}
                 </span>
               </div>
               <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-300">
                 <TrlSelect
                   name="min-trl"
                   ariaLabel={t('Minimum TRL')}
-                  value={minTrl}
-                  onChange={setMinTrl}
+                  value={state.minTrl}
+                  onChange={(v) => update({ minTrl: Math.min(v, urlRef.current.maxTrl) })}
                 />
                 <span className="text-zinc-400">{t('to')}</span>
                 <TrlSelect
                   name="max-trl"
                   ariaLabel={t('Maximum TRL')}
-                  value={maxTrl}
-                  onChange={setMaxTrl}
+                  value={state.maxTrl}
+                  onChange={(v) => update({ maxTrl: Math.max(v, urlRef.current.minTrl) })}
                 />
               </div>
               <div className="mt-2 space-y-0.5 text-xs text-zinc-400">

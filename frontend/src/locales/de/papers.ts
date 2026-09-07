@@ -9,6 +9,8 @@ export const dict: Record<string, string> = {
   papers: 'Papers',
   'last {n} days': 'letzte {n} Tage',
   'full corpus': 'gesamter Korpus',
+  'Showing the newest {n} of {m} papers': 'Die neuesten {n} von {m} Papers',
+  'Could not load these papers.': 'Diese Papers konnten nicht geladen werden.',
   'matching “{q}”': 'passend zu „{q}“',
   'Reset filters': 'Filter zurücksetzen',
   'No papers match these filters.': 'Keine Papers entsprechen diesen Filtern.',

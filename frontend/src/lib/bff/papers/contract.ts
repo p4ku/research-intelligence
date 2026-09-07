@@ -6,7 +6,15 @@
 import * as z from 'zod'
 import type { Operation } from '../core/contract-types'
 import { workspace } from '../workspaces/schema'
-import { palette, paletteQuery, paperPage, papersQuery, scoredPaper } from './schema'
+import {
+  palette,
+  paletteQuery,
+  paperList,
+  paperPage,
+  papersQuery,
+  papersScorecardQuery,
+  scoredPaper,
+} from './schema'
 import { extractionDTO, paperDTO } from './upstream'
 
 export const papersOperations: Operation[] = [
@@ -40,7 +48,7 @@ export const papersOperations: Operation[] = [
     path: '/api/workspaces/{workspace_id}/papers/',
     summary:
       'Workspace-scoped, paginated scorecard: papers with signal_score and resolved dimensions inline. Port reference: src/lib/papers/map.ts + src/lib/bff/papers/compose.ts.',
-    query: papersQuery.omit({ workspace_id: true }),
+    query: papersScorecardQuery,
     responses: { 200: paperPage },
     probe: { requires: ['workspace_id'] },
   },
@@ -63,9 +71,9 @@ export const papersOperations: Operation[] = [
     method: 'GET',
     path: '/bff/papers',
     summary:
-      'Paginated scorecard (screening filter, ordering, search); ?workspace_id= narrows to one domain, otherwise every domain the user belongs to.',
+      "The Papers page, one page at a time: screening, ordering, search, starred, minimum score, TRL window and ingested window over every domain the user belongs to (?workspace_id= narrows to one), with the rail's corpus-wide facets alongside.",
     query: papersQuery,
-    responses: { 200: paperPage },
+    responses: { 200: paperList },
   },
   {
     id: 'papers.detail.bff',
