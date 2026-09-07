@@ -24,6 +24,7 @@ export type ResourceName =
   | 'briefings'
   | 'preferences'
   | 'scoring'
+  | 'stars'
 
 export interface ResourceDef {
   name: ResourceName
@@ -53,6 +54,7 @@ export const RESOURCES: Record<ResourceName, ResourceDef> = {
   briefings: def('briefings', 'BFF_SOURCE_BRIEFINGS', ['stub', 'composed', 'django'], 'composed'),
   preferences: def('preferences', 'BFF_SOURCE_PREFERENCES', ['stub', 'django'], 'stub'),
   scoring: def('scoring', 'BFF_SOURCE_SCORING', ['stub', 'composed', 'django'], 'composed'),
+  stars: def('stars', 'BFF_SOURCE_STARS', ['stub', 'django'], 'stub'),
 }
 
 const warned = new Set<ResourceName>()

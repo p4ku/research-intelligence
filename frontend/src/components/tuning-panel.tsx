@@ -23,7 +23,7 @@ export function InfluenceBar({ profile }: { profile: Influence[] }) {
   return (
     <div>
       <div
-        className="bg-line-soft relative h-3 w-full"
+        className="relative h-3 w-full bg-line-soft"
         role="img"
         aria-label={shares.map((s) => `${t(s.label)} ${pctOf(s.share!)}`).join(', ')}
       >
@@ -53,8 +53,8 @@ export function InfluenceBar({ profile }: { profile: Influence[] }) {
       </dl>
 
       {gate && (
-        <p className="border-line-soft mt-4 border-t pt-3 text-xs text-zinc-500 dark:text-zinc-400">
-          <span aria-hidden="true" className="bg-warn mr-2 inline-block size-2 align-middle" />
+        <p className="mt-4 border-t border-line-soft pt-3 text-xs text-zinc-500 dark:text-zinc-400">
+          <span aria-hidden="true" className="mr-2 inline-block size-2 bg-warn align-middle" />
           {interpolate(
             t(
               '{label} is a threshold, not a weight: below {gate} the score is 0, and at {bonusAt} or above the total is multiplied by {bonus}.',
@@ -119,7 +119,7 @@ function Row({ swatch, label, value }: { swatch: string; label: string; value: s
         <span aria-hidden="true" className={clsx('size-2 shrink-0', swatch)} />
         <span className="truncate">{label}</span>
       </dt>
-      <dd className="text-foreground shrink-0 font-mono tabular-nums">{value}</dd>
+      <dd className="shrink-0 font-mono text-foreground tabular-nums">{value}</dd>
     </div>
   )
 }
@@ -141,7 +141,7 @@ function Dial({
     <label className="block">
       <span className="flex items-baseline justify-between text-xs">
         <span className="text-zinc-500 dark:text-zinc-400">{label}</span>
-        <span className="text-foreground font-mono font-medium tabular-nums">{display}</span>
+        <span className="font-mono font-medium text-foreground tabular-nums">{display}</span>
       </span>
       <input
         type="range"
@@ -166,7 +166,7 @@ function Dial({
             className="absolute -translate-x-1/2 whitespace-nowrap"
             style={{ left: `${(m.at / max) * 100}%` }}
           >
-            <span className="bg-line-strong mx-auto mb-0.5 block h-1 w-px" />
+            <span className="mx-auto mb-0.5 block h-1 w-px bg-line-strong" />
             {m.label}
           </span>
         ))}

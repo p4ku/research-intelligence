@@ -1,94 +1,64 @@
 import { AnswerMarkdownSkeleton } from '@/components/answer-markdown'
-import {
-  Breadcrumbs,
-  Card,
-  DimensionsFrame,
-  ScoreRowSkeleton,
-  SectionLabel,
-} from '@/components/scanner-ui'
-import { SignalLedgerSkeleton } from '@/components/signal-ledger'
+import { Breadcrumbs, SectionLabel } from '@/components/scanner-ui'
 import { Bone, Skeleton } from '@/components/skeleton'
 import type { T } from '@/lib/i18n'
+import { AssessmentRowsSkeleton } from './assessment-rows'
 import { PaperChatSkeleton } from './paper-chat'
-import { PaperHeaderSkeleton, SignalHeading } from './paper-header'
+import { PaperHeaderSkeleton } from './paper-header'
+import { PaperNavSkeleton } from './paper-nav'
+import { ScoreRailSkeleton } from './score-rail'
 
 /**
  * The paper page's skeleton — the page's Suspense fallback and, with the
  * crumbs, the loading.tsx shell, so both are pixel-identical. One record,
  * one Region, one sweep.
  *
- * Two deliberate reservations: the signal card takes the ledger's shape (what
- * production workspaces render; a workspace on another formula sees the card
- * shrink on load), and the dimension rows take the fixture's shape — the first
- * explains itself with a rationale and a quote, the rest are bare numbers.
+ * It reserves production's shape: five assessment rows and five bars with a
+ * radar in the rail. A domain with fewer numeric dimensions sees the rail
+ * shorten on load.
  */
 
-export const DIMENSION_ROWS: { rationaleLines?: number; evidence?: number }[] = [
-  { rationaleLines: 2, evidence: 1 },
-  {},
-  {},
-]
+export const ASSESSMENT_ROWS = 5
 
 export function PaperRecordSkeleton({ t }: { t: T }) {
   return (
     <Skeleton.Region status={t('Loading the paper')}>
-      <div className="mt-8 grid items-start gap-8 lg:grid-cols-[2fr_1fr]">
-        <div className="min-w-0 space-y-8">
-          <PaperHeaderSkeleton />
+      <div className="mt-6">
+        <PaperNavSkeleton t={t} />
 
-          <Card>
-            <SignalLedgerSkeleton heading={<SignalHeading t={t} />} />
-          </Card>
+        <div className="mt-6 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="min-w-0 space-y-9">
+            <PaperHeaderSkeleton />
 
-          <div className="grid gap-6 lg:grid-cols-5">
-            <Card className="lg:col-span-3">
-              <div className="flex items-center justify-between">
-                <SectionLabel>{t('Dimensions')}</SectionLabel>
-                <Bone.Chip width={56} />
-              </div>
-              <p className="mt-1 text-xs text-zinc-400">
-                {t(
-                  'Scored by the domain’s extraction definitions, with the model’s rationale where it gave one.',
-                )}
+            <section>
+              <SectionLabel>{t('Screening')}</SectionLabel>
+              <AnswerMarkdownSkeleton
+                className="mt-3 max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300"
+                paragraphs={[4]}
+              />
+            </section>
+
+            <section>
+              <SectionLabel className="mb-3">{t('Assessment')}</SectionLabel>
+              <AssessmentRowsSkeleton rows={ASSESSMENT_ROWS} />
+            </section>
+
+            <section>
+              <SectionLabel>{t('Abstract')}</SectionLabel>
+              <p className="mt-3 max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300">
+                <Bone.Text
+                  lines={7}
+                  widths={['100%', '100%', '96%', '100%', '98%', '100%', '62%']}
+                />
               </p>
-              <DimensionsFrame state="skeleton" className="mt-5">
-                {DIMENSION_ROWS.map((row, i) => (
-                  <ScoreRowSkeleton key={i} {...row} />
-                ))}
-              </DimensionsFrame>
-            </Card>
-            <Card className="flex flex-col lg:col-span-2">
-              <SectionLabel>{t('Profile')}</SectionLabel>
-              <div className="flex flex-1 items-center justify-center">
-                <Bone.Block className="mt-2" style={{ width: 240, height: 240 }} />
-              </div>
-            </Card>
+            </section>
+
+            <footer className="border-t border-line pt-4 text-xs">
+              <Bone.Text widths={['44ch']} />
+            </footer>
           </div>
 
-          <Card>
-            <div className="flex items-center justify-between">
-              <SectionLabel>{t('Screening')}</SectionLabel>
-              <Bone.Chip width={104} />
-            </div>
-            <AnswerMarkdownSkeleton
-              className="mt-2 text-sm text-zinc-700 dark:text-zinc-300"
-              paragraphs={[3]}
-            />
-          </Card>
-
-          <Card>
-            <SectionLabel>{t('Abstract')}</SectionLabel>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-              <Bone.Text lines={5} widths={['100%', '100%', '96%', '100%', '62%']} />
-            </p>
-          </Card>
-
-          <Card>
-            <SectionLabel>{t('Files')}</SectionLabel>
-            <div className="mt-3 space-y-2 text-sm">
-              <Bone.Text widths={['12ch']} />
-            </div>
-          </Card>
+          <ScoreRailSkeleton t={t} />
         </div>
 
         <PaperChatSkeleton label={t('Ask this paper')} title={t('Ask this paper')} />

@@ -17,15 +17,9 @@ export class SettingsPage extends BasePage {
   readonly confirmPasswordInput: Locator;
   readonly changePasswordButton: Locator;
 
-  // Account & Workspace details
+  // Account details
   readonly accountRoleValue: Locator;
   readonly signedInWithValue: Locator;
-  readonly workspaceNameValue: Locator;
-  readonly workspaceSourcesValue: Locator;
-  readonly workspaceScreeningModelValue: Locator;
-
-  // Notification toggle
-  readonly notificationToggleSwitch: Locator;
 
   constructor(page: Page, baseURL?: string) {
     super(page, baseURL);
@@ -44,11 +38,6 @@ export class SettingsPage extends BasePage {
 
     this.accountRoleValue = page.locator("dt:has-text('Role'), dt:has-text('Rolle')").locator('..').locator('dd');
     this.signedInWithValue = page.locator("dt:has-text('Signed in with'), dt:has-text('Angemeldet mit')").locator('..').locator('dd');
-    this.workspaceNameValue = page.locator("dt:has-text('Name')").locator('..').locator('dd');
-    this.workspaceSourcesValue = page.locator("dt:has-text('Sources'), dt:has-text('Quellen')").locator('..').locator('dd');
-    this.workspaceScreeningModelValue = page.locator("dt:has-text('Screening model'), dt:has-text('Screening-Modell')").locator('..').locator('dd');
-
-    this.notificationToggleSwitch = page.locator("[data-slot='switch'], input[type='checkbox']").first();
   }
 
   async load() {
@@ -96,21 +85,23 @@ export class SettingsPage extends BasePage {
     return null;
   }
 
-  async getWorkspaceMetadata(): Promise<Record<string, string>> {
-    const data: Record<string, string> = {};
+  async getSignedInWith(): Promise<string | null> {
     try {
-      if (await this.workspaceNameValue.isVisible()) {
-        data['name'] = (await this.workspaceNameValue.textContent())?.trim() ?? '';
-      }
-      if (await this.workspaceSourcesValue.isVisible()) {
-        data['sources'] = (await this.workspaceSourcesValue.textContent())?.trim() ?? '';
-      }
-      if (await this.workspaceScreeningModelValue.isVisible()) {
-        data['screening_model'] = (await this.workspaceScreeningModelValue.textContent())?.trim() ?? '';
+      if (await this.signedInWithValue.isVisible({ timeout: 5000 })) {
+        return (await this.signedInWithValue.textContent())?.trim() ?? null;
       }
     } catch {
       // Ignored
     }
-    return data;
+    return null;
+  }
+
+  async isPasswordFormVisible(): Promise<boolean> {
+    try {
+      await this.currentPasswordInput.waitFor({ state: 'visible', timeout: 5000 });
+      return await this.changePasswordButton.isVisible();
+    } catch {
+      return false;
+    }
   }
 }

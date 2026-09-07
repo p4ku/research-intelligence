@@ -202,6 +202,22 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
                 'is_hitl': bool(e.is_hitl_validated) if e else False,
             })
 
+        # Include any extractions on this paper that don't match active definitions
+        matched_ext_ids = {e.id for e in ext_by_def.values() if e}
+        for e in extractions:
+            if e.id not in matched_ext_ids:
+                val = None
+                if e.fields_data and isinstance(e.fields_data, dict):
+                    val = next(iter(e.fields_data.values()), None)
+                dimensions.append({
+                    'key': (e.category or 'custom').lower().replace(' ', '_'),
+                    'label': e.category or 'Custom Extraction',
+                    'value': str(val) if val is not None else None,
+                    'definition_id': str(e.extraction_definition_id) if e.extraction_definition_id else None,
+                    'confidence': float(e.confidence_score) if (e and e.confidence_score is not None) else None,
+                    'is_hitl': bool(e.is_hitl_validated),
+                })
+
         scored = {
             'id': str(paper.id),
             'workspace_id': str(paper.workspace_id),

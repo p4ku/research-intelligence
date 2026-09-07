@@ -20,29 +20,29 @@ export default function RootError({
   }, [error])
 
   return (
-    <main className="bg-background text-foreground grid min-h-dvh place-items-center">
-      <div role="alert" className="bg-surface border-line m-4 max-w-md rounded-sm border px-6 py-5">
+    <main className="grid min-h-dvh place-items-center bg-background text-foreground">
+      <div role="alert" className="m-4 max-w-md rounded-sm border border-line bg-surface px-6 py-5">
         <p className="text-sm font-medium">Something went wrong loading this page.</p>
-        <p className="text-muted-foreground mt-1 text-sm">
+        <p className="mt-1 text-sm text-muted-foreground">
           Nothing was lost. Try again in a moment.
         </p>
         <div className="mt-4 flex items-center gap-3">
           <button
             type="button"
             onClick={() => retry()}
-            className="bg-foreground text-background hover:bg-foreground/85 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors"
+            className="rounded-sm bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/85"
           >
             Retry
           </button>
           <Link
             href="/"
-            className="border-line hover:bg-line-soft/60 rounded-sm border px-3 py-1.5 text-sm font-medium transition-colors"
+            className="rounded-sm border border-line px-3 py-1.5 text-sm font-medium transition-colors hover:bg-line-soft/60"
           >
             Back to sign-in
           </Link>
         </div>
         {error.digest && (
-          <p className="text-muted-foreground mt-3 font-mono text-[11px]">
+          <p className="mt-3 font-mono text-[11px] text-muted-foreground">
             Reference {error.digest}
           </p>
         )}

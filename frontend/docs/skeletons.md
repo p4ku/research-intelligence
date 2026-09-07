@@ -22,7 +22,7 @@ intact. One animation per region, however many bones it holds.
 
 **2. `FooSkeleton`, never `Foo.Skeleton`.** Dotting into a `'use client'` module
 from a Server Component throws _"Cannot access X on the server."_ `paper-card.tsx`
-and `run-papers.tsx` are client modules and `page.tsx` / `loading.tsx` are not, so
+and `dashboard/ledger.tsx` are client modules and `page.tsx` / `loading.tsx` are not, so
 the skeleton is always a separate named export, co-located in the component's own
 file. (`Bone` and `Skeleton` keep the dotted form only because
 `components/skeleton.tsx` carries no directive.)
@@ -133,14 +133,17 @@ Things learned:
 
 ## Done (pass 3) — paper detail, the assistant, the briefings
 
-`/papers/[id]` streams the whole record — header, signal card, dimensions and
-profile, screening, abstract, files, and the chat rail — behind **one**
-boundary, because every card reads the one `papers.get` (now React-cached, so
-the title crumb, `generateMetadata` and the record share the call). Files:
-`papers/[id]/paper-header.tsx`, `sections.tsx`, `skeletons.tsx`, `loading.tsx`;
-`PaperChatFrame` / `PaperChatSkeleton` in `paper-chat.tsx`; `ScoreRowFrame` /
-`ScoreRowSkeleton` and `DimensionsFrame` in `components/scanner-ui.tsx`;
-`SignalLedgerSkeleton` in `components/signal-ledger.tsx`. It has a
+`/papers/[id]` streams the whole record — the nav row, header, screening,
+assessment rows, abstract, provenance, the score rail, and the chat pill —
+behind **one** boundary, because everything reads the one `papers.get` (now
+React-cached, so the title crumb, `generateMetadata` and the record share the
+call; the nav row's neighbours come from the cached `papers.listAll`). Files:
+`papers/[id]/paper-header.tsx`, `paper-nav.tsx`, `assessment-rows.tsx`,
+`score-rail.tsx`, `sections.tsx`, `skeletons.tsx`, `loading.tsx`;
+`PaperChatFrame` / `PaperChatSkeleton` in `paper-chat.tsx` (the pill and the
+sheet it opens). Since the sidecar layout (7 Sep 2026) the rail reserves five
+bars and a radar and the assessment five rows — production's shape; a domain
+with fewer numeric dimensions sees both shorten on load. It has a
 `loading.tsx`, so a dead paper permalink now answers HTTP 200 with the
 not-found page in-stream — the same trade as the run page, decided 2026-09-02
 and pinned by `skeleton:drift --not-found`.
@@ -164,15 +167,14 @@ Things learned:
 
 - **One fetch, one boundary.** Splitting the paper page per card would have
   streamed nothing separately; the split follows the data, not the layout.
-- **Reserve the branch production takes.** The signal card is a ledger only
-  when the workspace runs the canonical formula; the skeleton reserves that
-  shape, and a workspace on another formula sees the card shrink on load. The
-  stub fixture is _not_ on the canonical formula, so stub mode and the
-  screenshot stack always show the fallback branch; the gallery pair passes
-  literal inputs.
-- **Some things get no skeleton.** `ScoreVariables` renders a collapsed
-  one-line summary in the ledger branch and `null` in several others — a bone
-  that reserves space where nothing renders is a guaranteed drift finding.
+- **Reserve the shape production takes.** The paper skeleton reserves five
+  assessment rows and five rail bars with a radar because that is what the
+  production domains score; the stub fixture has three dimensions, so stub
+  mode and the screenshot stack see the record shorten on load, and the
+  gallery pairs are built from the fixture's own length.
+- **Some things get no skeleton.** A component that renders `null` in
+  several branches (the old score-variables card did) must not get a bone
+  that reserves space where nothing renders — a guaranteed drift finding.
   `Sparkline` was already covered by `StatBandSkeleton`; `RadarChart` at a
   literal `size` is an exact `Bone.Block`. `ScoreMeter`, `QuadrantChart` and
   `HeatGrid` have no call sites.
@@ -191,6 +193,16 @@ Things learned:
 - **Per-request `cache()` on the services** (`papers.get`, `papers.listAll`,
   `briefings.listAll`, `briefings.getByDate`) is what makes sibling sections
   cheap; without it, `source=django` would fetch once per section.
+
+## Done (pass 4) — Home (7 Sep 2026)
+
+Home was rebuilt around the MVP spec (search, the Current briefing as a
+masthead, Recent Briefings beside Start New Briefing). Two boundaries:
+`MastheadSection` and `LedgerSection` (the ledger and the form share one,
+because the form's disabled state depends on the same run list). Pairs
+`home-masthead`, `home-ledger` and `home-run-card` in the gallery; the
+`run-papers` pair went with the old page. The ledger's expanded row
+(`data-row="brief"`) has no skeleton — it only opens on a click.
 
 ## Later, not now
 

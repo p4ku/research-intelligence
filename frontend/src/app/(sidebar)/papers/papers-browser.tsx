@@ -3,6 +3,7 @@
 import { PageNav } from '@/components/page-nav'
 import { PaperCard } from '@/components/paper-card'
 import { SectionLabel } from '@/components/scanner-ui'
+import { StarredChip } from '@/components/star'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { isPassed } from '@/lib/papers/map'
@@ -14,6 +15,7 @@ import {
   unionDefinitions,
 } from '@/lib/papers/select'
 import type { ScoredPaper, ScreeningStatus, WorkspaceSummary } from '@/lib/papers/types'
+import { useStars } from '@/lib/stars-client'
 import { ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import { useMemo, useRef, useState } from 'react'
@@ -54,14 +56,19 @@ const ingestedWindows = [
 export function PapersBrowser({
   papers,
   workspaces,
+  initialSearch = '',
 }: {
   papers: ScoredPaper[]
   /** The domains the corpus spans — their definitions drive the sort options. */
   workspaces: WorkspaceSummary[]
+  /** Home's query, when the reader arrived through its search. */
+  initialSearch?: string
 }) {
   const t = useT()
-  const [search, setSearch] = useState('')
+  const { isStarred } = useStars()
+  const [search, setSearch] = useState(initialSearch)
   const [domain, setDomain] = useState('all')
+  const [starredOnly, setStarredOnly] = useState(false)
   const [screening, setScreening] = useState<Screening>('passed')
   const [sort, setSort] = useState<Sort>('signal')
   const [minTrl, setMinTrl] = useState(1)
@@ -111,6 +118,7 @@ export function PapersBrowser({
     const q = search.toLowerCase()
     const result = papers.filter((p) => {
       if (domain !== 'all' && p.workspace_id !== domain) return false
+      if (starredOnly && !isStarred('paper', p.id)) return false
       if (!matchesScreening(p.screening_status, screening)) return false
       if (hasTrl && (minTrl > 1 || maxTrl < 9)) {
         const trl = trlDimension(p)?.value ?? null
@@ -155,14 +163,29 @@ export function PapersBrowser({
     minScore,
     newest,
     hasTrl,
+    starredOnly,
+    isStarred,
   ])
+  // The Starred chip's count spans the corpus, whatever else is narrowed.
+  const starredCount = useMemo(
+    () => papers.filter((p) => isStarred('paper', p.id)).length,
+    [papers, isStarred],
+  )
 
   // Paginate the filtered corpus, eight at a time. Any filter or sort change
   // resets to the first page so the view never lands past the last result.
   const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  const filterKey = [domain, search, screening, sort, minTrl, maxTrl, withinDays, minScore].join(
-    '\u0000',
-  )
+  const filterKey = [
+    domain,
+    starredOnly,
+    search,
+    screening,
+    sort,
+    minTrl,
+    maxTrl,
+    withinDays,
+    minScore,
+  ].join('\u0000')
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
   if (prevFilterKey !== filterKey) {
     // Adjust-during-render (not an effect): filters moved, back to page one.
@@ -175,6 +198,7 @@ export function PapersBrowser({
   const trlNarrowed = hasTrl && (minTrl > 1 || maxTrl < 9)
   const filtersActive =
     domain !== 'all' ||
+    starredOnly ||
     screening !== 'passed' ||
     trlNarrowed ||
     search !== '' ||
@@ -192,6 +216,7 @@ export function PapersBrowser({
 
   function resetFilters() {
     setDomain('all')
+    setStarredOnly(false)
     setSearch('')
     setScreening('passed')
     setMinTrl(1)
@@ -264,6 +289,11 @@ export function PapersBrowser({
                 <span className="text-zinc-400 dark:text-zinc-500"> · {filterContext}</span>
               )}
             </p>
+            <StarredChip
+              active={starredOnly}
+              count={starredCount}
+              onToggle={() => setStarredOnly((v) => !v)}
+            />
             {filtersActive && (
               <button
                 type="button"
@@ -283,8 +313,10 @@ export function PapersBrowser({
               />
             ))}
             {filtered.length === 0 && (
-              <div className="border-line rounded-sm border border-dashed p-10 text-center text-sm text-zinc-400">
-                {t('No papers match these filters.')}
+              <div className="rounded-sm border border-dashed border-line p-10 text-center text-sm text-zinc-400">
+                {starredOnly && starredCount === 0
+                  ? t('Nothing starred yet.')
+                  : t('No papers match these filters.')}
               </div>
             )}
           </div>
@@ -298,7 +330,7 @@ export function PapersBrowser({
         </div>
 
         {/* Filters */}
-        <aside className="divide-line divide-y max-lg:order-first lg:col-span-1">
+        <aside className="divide-y divide-line max-lg:order-first lg:col-span-1">
           {manyDomains && (
             <FilterGroup
               label={t('Domain')}
@@ -480,8 +512,8 @@ function SearchField({
   const ref = useRef<HTMLInputElement>(null)
 
   return (
-    <div className="group focus-within:border-accent/60 focus-within:ring-accent/15 border-line bg-surface relative flex items-center gap-3 rounded-md border px-4 py-3 transition focus-within:ring-4">
-      <MagnifyingGlassIcon className="group-focus-within:text-accent size-5 shrink-0 text-zinc-400 transition-colors" />
+    <div className="group relative flex items-center gap-3 rounded-md border border-line bg-surface px-4 py-3 transition focus-within:border-accent/60 focus-within:ring-4 focus-within:ring-accent/15">
+      <MagnifyingGlassIcon className="size-5 shrink-0 text-zinc-400 transition-colors group-focus-within:text-accent" />
       <input
         ref={ref}
         name="search"

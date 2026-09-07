@@ -1,53 +1,52 @@
 import 'server-only'
 
+import type { Edition } from '@/lib/bff/briefings/schema'
 import { briefings } from '@/lib/bff/briefings/service'
-import { papers as papersService } from '@/lib/bff/papers/service'
+import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
-import type { Lang, T } from '@/lib/i18n'
-import { isPassed } from '@/lib/papers/map'
-import { byValueDesc } from '@/lib/papers/select'
+import type { Lang } from '@/lib/i18n'
 import { cache } from 'react'
 
 /**
- * Per-request accessors for the dashboard's streamed sections. Each section
- * awaits only what it renders; `cache()` de-duplicates across sections (the
- * eyebrow, the domain badge and the paper list all need the latest run).
- * "Today" is the newest completed run in any of the user's domains; which
- * domain that is comes from the run itself.
+ * Per-request accessors for Home's streamed sections. Each section awaits
+ * only what it renders; `cache()` de-duplicates across sections (the
+ * masthead and the ledger both need the run list and the current edition).
+ * "Current" is the newest completed run in any of the user's domains.
  */
 
-export const latestRun = cache(
-  async () => (await runsService.listEverywhere('completed'))[0] ?? null,
+/** Exactly this many rows in Recent Briefings, newest first. */
+export const RECENT = 5
+
+/** Every run the user can see, newest first (Django's order, re-asserted). */
+export const allRuns = cache(async (): Promise<PipelineRun[]> => {
+  const list = await runsService.listEverywhere()
+  return list
+    .slice()
+    .sort((a, b) => (b.started_at ?? b.run_date).localeCompare(a.started_at ?? a.run_date))
+})
+
+export const currentRun = cache(
+  async () => (await allRuns()).find((run) => run.status === 'completed') ?? null,
 )
 
-export const runPapers = cache(async () => {
-  const latest = await latestRun()
-  const scored = latest ? await papersService.listAll(latest.workspace_id) : null
-  // The latest completed run and the papers it surfaced: the dashboard claims
-  // no more than the list below shows.
-  const papers =
-    latest && scored
-      ? scored.papers
-          .filter((p) => p.pipeline_run_id === latest.id && isPassed(p.screening_status))
-          .sort((a, b) => byValueDesc(a.signal_score, b.signal_score))
-      : []
-  return { latest, workspace: scored?.workspace ?? null, papers }
-})
+/**
+ * The edition a completed run produced, or null when none was composed
+ * for it (an older same-day rerun collapses into the newer one; a domain
+ * whose corpus could not be read yields no editions at all).
+ */
+export const editionFor = cache(
+  async (workspaceId: string, runId: string, lang: Lang): Promise<Edition | null> =>
+    (await briefings.listAll(workspaceId, lang)).find((e) => e.run_id === runId) ?? null,
+)
 
-export const editionToday = cache(async (lang: Lang) => {
-  const latest = await latestRun()
-  if (!latest) return null
-  const editions = await briefings.listAll(latest.workspace_id, lang)
-  // The edition this run produced. Same-day reruns collapse to the newest,
-  // which `latest` is, so the fallback only covers a list that has moved on.
-  return editions.find((e) => e.run_id === latest.id) ?? editions[0] ?? null
-})
-
-/** The funnel's static copy — shared by the loaded band and its skeleton. */
-export function funnelCopy(t: T) {
-  return [
-    { label: t('Screened'), sub: t('matched the focus fields') },
-    { label: t('Included'), sub: t('cleared the signal bar') },
-    { label: t('In the briefing'), sub: t('listed below') },
-  ]
-}
+export const recentRuns = cache(
+  async (lang: Lang): Promise<{ run: PipelineRun; edition: Edition | null }[]> => {
+    const recent = (await allRuns()).slice(0, RECENT)
+    const editions = await Promise.all(
+      recent.map((run) =>
+        run.status === 'completed' ? editionFor(run.workspace_id, run.id, lang) : null,
+      ),
+    )
+    return recent.map((run, i) => ({ run, edition: editions[i] }))
+  },
+)

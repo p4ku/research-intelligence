@@ -23,6 +23,10 @@ export const fixtureRuns: PipelineRun[] = [
     usd_cost: 0.7531,
     started_at: '2026-08-31T08:26:21.417680Z',
     completed_at: '2026-08-31T08:29:05.470057Z',
+    period_start: '2026-08-01',
+    period_end: '2026-08-31',
+    lookback_days: null,
+    retryable: true,
   },
   {
     id: '00000000-0000-4000-8000-000000000102',
@@ -38,6 +42,10 @@ export const fixtureRuns: PipelineRun[] = [
     usd_cost: 0.3128,
     started_at: '2026-08-30T08:26:03.000000Z',
     completed_at: '2026-08-30T08:27:40.400000Z',
+    period_start: '2026-08-01',
+    period_end: '2026-08-30',
+    lookback_days: null,
+    retryable: true,
   },
   {
     id: '00000000-0000-4000-8000-000000000103',
@@ -53,6 +61,10 @@ export const fixtureRuns: PipelineRun[] = [
     usd_cost: 0.0412,
     started_at: '2026-09-01T08:26:11.000000Z',
     completed_at: null,
+    period_start: null,
+    period_end: null,
+    lookback_days: 7,
+    retryable: true,
   },
 ]
 

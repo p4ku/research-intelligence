@@ -122,7 +122,7 @@ interface CiteCtx {
 
 function Caret() {
   return (
-    <span className="text-accent animate-pulse" aria-hidden="true">
+    <span className="animate-pulse text-accent" aria-hidden="true">
       ▍
     </span>
   )
@@ -151,7 +151,7 @@ function CitationChip({ cite, index, ctx }: { cite: CitationRef; index: number; 
       {verified && (
         <>
           <CheckCircleIcon
-            className="text-accent size-3 self-center"
+            className="size-3 self-center text-accent"
             title={t('Verified in source')}
           />
           <span className="sr-only">{t('Verified in source')}</span>
@@ -218,7 +218,7 @@ function renderString(s: string, opts: RenderOpts, cite?: CiteCtx): ReactNode[] 
           <span
             key={`${i}-${j}`}
             className={clsx(
-              'text-foreground font-mono font-medium tabular-nums',
+              'font-mono font-medium text-foreground tabular-nums',
               opts.unveil && UNVEIL,
             )}
           >
@@ -266,7 +266,7 @@ function inline(children: ReactNode, opts: RenderOpts, cite?: CiteCtx): ReactNod
 function buildComponents(opts: RenderOpts, cite?: CiteCtx): Components {
   const plain: RenderOpts = { ...opts, stats: false }
   const Heading = ({ children }: { children?: ReactNode }) => (
-    <h4 className="text-foreground pt-1 text-[11px] font-semibold tracking-[0.18em] uppercase">
+    <h4 className="pt-1 text-[11px] font-semibold tracking-[0.18em] text-foreground uppercase">
       {inline(children, opts, cite)}
     </h4>
   )
@@ -279,10 +279,10 @@ function buildComponents(opts: RenderOpts, cite?: CiteCtx): Components {
     h5: Heading,
     h6: Heading,
     ul: ({ children }) => (
-      <ul className="marker:text-muted-foreground list-disc space-y-1 pl-4">{children}</ul>
+      <ul className="list-disc space-y-1 pl-4 marker:text-muted-foreground">{children}</ul>
     ),
     ol: ({ children }) => (
-      <ol className="marker:text-muted-foreground list-decimal space-y-1 pl-4 marker:font-mono marker:tabular-nums">
+      <ol className="list-decimal space-y-1 pl-4 marker:font-mono marker:text-muted-foreground marker:tabular-nums">
         {children}
       </ol>
     ),
@@ -290,7 +290,7 @@ function buildComponents(opts: RenderOpts, cite?: CiteCtx): Components {
       <li className="pl-0.5 [&>ol]:mt-1 [&>ul]:mt-1">{inline(children, opts, cite)}</li>
     ),
     strong: ({ children }) => (
-      <strong className="text-foreground font-semibold">{inline(children, opts, cite)}</strong>
+      <strong className="font-semibold text-foreground">{inline(children, opts, cite)}</strong>
     ),
     em: ({ children }) => <em className="italic">{inline(children, opts, cite)}</em>,
     del: ({ children }) => <del className="line-through">{inline(children, opts, cite)}</del>,
@@ -310,33 +310,33 @@ function buildComponents(opts: RenderOpts, cite?: CiteCtx): Components {
         <span>{inline(children, plain, cite)}</span>
       ),
     code: ({ children }) => (
-      <code className="bg-foreground/5 rounded-xs px-1 py-px font-mono text-[0.9em]">
+      <code className="rounded-xs bg-foreground/5 px-1 py-px font-mono text-[0.9em]">
         {inline(children, plain, cite)}
       </code>
     ),
     pre: ({ children }) => (
-      <pre className="bg-foreground/3 border-line-soft overflow-x-auto rounded-sm border p-3 font-mono text-xs leading-normal whitespace-pre-wrap [&_code]:bg-transparent [&_code]:p-0">
+      <pre className="overflow-x-auto rounded-sm border border-line-soft bg-foreground/3 p-3 font-mono text-xs leading-normal whitespace-pre-wrap [&_code]:bg-transparent [&_code]:p-0">
         {children}
       </pre>
     ),
     blockquote: ({ children }) => (
-      <blockquote className="border-line text-muted-foreground border-l-2 pl-3">
+      <blockquote className="border-l-2 border-line pl-3 text-muted-foreground">
         {children}
       </blockquote>
     ),
-    hr: () => <hr className="border-line-soft my-3" />,
+    hr: () => <hr className="my-3 border-line-soft" />,
     table: ({ children }) => (
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-xs">{children}</table>
       </div>
     ),
     th: ({ children }) => (
-      <th className="border-line text-foreground border-b py-1 pr-3 text-left align-bottom font-semibold">
+      <th className="border-b border-line py-1 pr-3 text-left align-bottom font-semibold text-foreground">
         {inline(children, opts, cite)}
       </th>
     ),
     td: ({ children }) => (
-      <td className="border-line-soft border-b py-1 pr-3 align-top">
+      <td className="border-b border-line-soft py-1 pr-3 align-top">
         {inline(children, opts, cite)}
       </td>
     ),

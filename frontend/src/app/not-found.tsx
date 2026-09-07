@@ -19,20 +19,20 @@ export default async function NotFound() {
   return (
     <div className="mx-auto max-w-lg px-6 pt-24">
       <Card>
-        <p className="text-foreground text-sm font-medium">{t("We couldn't find that.")}</p>
-        <p className="text-muted-foreground mt-1 text-sm">
+        <p className="text-sm font-medium text-foreground">{t("We couldn't find that.")}</p>
+        <p className="mt-1 text-sm text-muted-foreground">
           {t('It may have been removed, or the link may be out of date.')}
         </p>
         <div className="mt-4 flex items-center gap-3">
           <Link
             href="/dashboard"
-            className="bg-foreground text-background hover:bg-foreground/85 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors"
+            className="rounded-sm bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/85"
           >
             {t('Go to Dashboard')}
           </Link>
           <Link
             href="/papers"
-            className="border-line hover:bg-line-soft/60 rounded-sm border px-3 py-1.5 text-sm font-medium transition-colors"
+            className="rounded-sm border border-line px-3 py-1.5 text-sm font-medium transition-colors hover:bg-line-soft/60"
           >
             {t('Go to Papers')}
           </Link>

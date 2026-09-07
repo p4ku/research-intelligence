@@ -77,8 +77,8 @@ export function LoginPanel({ next, notice, lang }: { next?: string; notice?: str
   return (
     <div className="w-full max-w-sm">
       <div className="flex items-center gap-2.5">
-        <ScannerMark className="text-foreground size-9" />
-        <span className="text-foreground text-base font-semibold tracking-[0.14em] uppercase">
+        <ScannerMark className="size-9 text-foreground" />
+        <span className="text-base font-semibold tracking-[0.14em] text-foreground uppercase">
           Research Intelligence
         </span>
       </div>
@@ -112,7 +112,7 @@ export function LoginPanel({ next, notice, lang }: { next?: string; notice?: str
             required
             aria-describedby={error ? ERROR_ID : undefined}
             aria-invalid={error && FIELD_ERRORS.has(error.code) ? true : undefined}
-            className="border-line bg-surface text-foreground focus:border-accent focus:ring-accent/25 dark:focus:ring-accent/25 mt-1.5 block w-full rounded-sm border px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus:ring-2 focus:outline-none"
+            className="mt-1.5 block w-full rounded-sm border border-line bg-surface px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-zinc-400 focus:border-accent focus:ring-2 focus:ring-accent/25 focus:outline-none dark:focus:ring-accent/25"
           />
         </div>
         <div>
@@ -130,7 +130,7 @@ export function LoginPanel({ next, notice, lang }: { next?: string; notice?: str
             required
             aria-describedby={error ? ERROR_ID : undefined}
             aria-invalid={error && FIELD_ERRORS.has(error.code) ? true : undefined}
-            className="border-line bg-surface text-foreground focus:border-accent focus:ring-accent/25 dark:focus:ring-accent/25 mt-1.5 block w-full rounded-sm border px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus:ring-2 focus:outline-none"
+            className="mt-1.5 block w-full rounded-sm border border-line bg-surface px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-zinc-400 focus:border-accent focus:ring-2 focus:ring-accent/25 focus:outline-none dark:focus:ring-accent/25"
           />
         </div>
         {/* Inside the form and above the button: the fields point at it with

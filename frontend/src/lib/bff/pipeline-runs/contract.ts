@@ -1,8 +1,13 @@
 /** Pipeline-runs contract registry entries. Pure. */
 import * as z from 'zod'
 import type { Operation } from '../core/contract-types'
-import { runPage, runsQuery } from './schema'
-import { pipelineRunDTO, pipelineRunDetailDTO } from './upstream'
+import { runPage, runsQuery, startedRun, startRun } from './schema'
+import {
+  pipelineRunDetailDTO,
+  pipelineRunDTO,
+  startRunRequestDTO,
+  startRunResponseDTO,
+} from './upstream'
 
 export const pipelineRunsOperations: Operation[] = [
   {
@@ -41,6 +46,18 @@ export const pipelineRunsOperations: Operation[] = [
     probe: { requires: ['run_id'] },
   },
   {
+    id: 'pipeline-runs.start.current',
+    resource: 'pipeline-runs',
+    face: 'django',
+    kind: 'current',
+    method: 'POST',
+    path: '/api/pipeline-runs/start/',
+    summary:
+      'Start an autonomous run for a workspace over a search window (start_date/end_date, YYYY-MM-DD); answers with a status envelope carrying pipeline_run_id. Never executed by the checker.',
+    body: startRunRequestDTO,
+    responses: { 201: startRunResponseDTO },
+  },
+  {
     id: 'pipeline-runs.list.bff',
     resource: 'pipeline-runs',
     face: 'bff',
@@ -51,5 +68,17 @@ export const pipelineRunsOperations: Operation[] = [
       'Paginated runs in the contract shape; ?workspace_id= narrows to one domain, otherwise every domain the user belongs to.',
     query: runsQuery,
     responses: { 200: runPage },
+  },
+  {
+    id: 'pipeline-runs.start.bff',
+    resource: 'pipeline-runs',
+    face: 'bff',
+    kind: 'bff',
+    method: 'POST',
+    path: '/bff/pipeline-runs/start',
+    summary:
+      "Start a briefing run for one of the user's domains; the new run appears at the top of /bff/pipeline-runs as `running`.",
+    body: startRun,
+    responses: { 201: startedRun },
   },
 ]

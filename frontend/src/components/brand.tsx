@@ -27,7 +27,7 @@ export function ScannerWordmark({
   return (
     <span className={clsx('inline-flex items-center gap-2', className)}>
       <ScannerMark className={clsx('size-7', markClassName)} />
-      <span className="text-foreground text-sm font-semibold tracking-[0.14em] uppercase">
+      <span className="text-sm font-semibold tracking-[0.14em] text-foreground uppercase">
         Research Intelligence
       </span>
     </span>

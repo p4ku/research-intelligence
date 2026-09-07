@@ -31,13 +31,13 @@ function MobileSidebar({
     <Headless.Dialog open={open} onClose={close} className="lg:hidden">
       <Headless.DialogBackdrop
         transition
-        className="fixed inset-0 bg-black/30 transition data-closed:opacity-0 data-enter:duration-300 data-enter:ease-out data-leave:duration-200 data-leave:ease-in"
+        className="fixed inset-0 bg-black/30 transition data-enter:duration-300 data-enter:ease-out data-leave:duration-200 data-leave:ease-in data-closed:opacity-0"
       />
       <Headless.DialogPanel
         transition
         className="fixed inset-y-0 w-full max-w-80 p-2 transition duration-300 ease-in-out data-closed:-translate-x-full"
       >
-        <div className="bg-surface ring-line flex h-full flex-col rounded-lg shadow-xs ring-1">
+        <div className="flex h-full flex-col rounded-lg bg-surface shadow-xs ring-1 ring-line">
           <div className="-mb-3 px-4 pt-3">
             <Headless.CloseButton as={NavbarItem} aria-label={t('Close navigation')}>
               <CloseMenuIcon />
@@ -59,7 +59,7 @@ export function SidebarLayout({
   const t = useT()
 
   return (
-    <div className="bg-surface lg:bg-background relative isolate flex min-h-svh w-full max-lg:flex-col">
+    <div className="relative isolate flex min-h-svh w-full bg-surface max-lg:flex-col lg:bg-background">
       {/* Sidebar on desktop */}
       <div className="fixed inset-y-0 left-0 w-64 max-lg:hidden">{sidebar}</div>
 
@@ -80,7 +80,7 @@ export function SidebarLayout({
 
       {/* Content */}
       <main className="flex flex-1 flex-col pb-2 lg:min-w-0 lg:pt-2 lg:pr-2 lg:pl-64">
-        <div className="lg:bg-surface lg:ring-line grow p-6 lg:rounded-lg lg:p-10 lg:shadow-xs lg:ring-1">
+        <div className="grow p-6 lg:rounded-lg lg:bg-surface lg:p-10 lg:shadow-xs lg:ring-1 lg:ring-line">
           <div className="mx-auto max-w-6xl">{children}</div>
         </div>
       </main>
