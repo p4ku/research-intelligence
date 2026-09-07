@@ -99,7 +99,6 @@ const homeLead: MastheadLead = {
   generated: '31 Aug 2026',
   href: homeHref,
   inBrief: homeEdition.in_brief,
-  template: true,
   screened: homeEdition.funnel.fetched,
   included: homeEdition.funnel.surfaced,
   top: homeTop,
