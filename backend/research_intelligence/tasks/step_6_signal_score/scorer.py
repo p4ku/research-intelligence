@@ -92,6 +92,20 @@ def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -
                     context[f"{primary_exit}_postprocessed"] = 0.0
                     context[f"{primary_exit}_computed"] = 0.0
 
+            if ed.postprocessing_code and ed.postprocessing_code.strip():
+                try:
+                    import ast
+                    post_ast = ast.parse(ed.postprocessing_code)
+                    for node in ast.walk(post_ast):
+                        if isinstance(node, ast.Return) and isinstance(node.value, ast.Dict):
+                            for k_node in node.value.keys:
+                                if isinstance(k_node, ast.Constant) and isinstance(k_node.value, str):
+                                    ret_k = _sanitize_identifier(k_node.value)
+                                    if ret_k and ret_k not in context:
+                                        context[ret_k] = 0.0
+                except Exception:
+                    pass
+
     extractions = list(paper.extractions.all().select_related('extraction_definition'))
 
     for ext in extractions:

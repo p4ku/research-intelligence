@@ -466,6 +466,27 @@ class Workspace(models.Model):
                             5.5
                         )
 
+                    # Also inspect AST of postprocessing_code for explicitly returned dictionary keys
+                    try:
+                        import ast
+                        post_ast = ast.parse(d.postprocessing_code)
+                        for node in ast.walk(post_ast):
+                            if isinstance(node, ast.Return) and isinstance(node.value, ast.Dict):
+                                for k_node in node.value.keys:
+                                    if isinstance(k_node, ast.Constant) and isinstance(k_node.value, str):
+                                        ret_k = _sanitize_identifier(k_node.value)
+                                        if ret_k:
+                                            _add(
+                                                ret_k,
+                                                "Postprocessed Metric",
+                                                f"🪄 Postprocessed Dict Key '{ret_k}'",
+                                                "numeric (float)",
+                                                f"Returned in dictionary by postprocessing of '{d.name}'",
+                                                6.0 if "trl" in ret_k else 5.0
+                                            )
+                    except Exception:
+                        pass
+
                 # Schema properties
                 if d.response_schema and isinstance(d.response_schema, dict):
                     props = d.response_schema.get("properties", {})
@@ -541,6 +562,25 @@ class Workspace(models.Model):
                         "name": f"{primary_exit}_postprocessed",
                         "is_postprocessed": True
                     })
+                    # Add any returned dict keys from AST
+                    try:
+                        import ast
+                        post_ast = ast.parse(d.postprocessing_code)
+                        for node in ast.walk(post_ast):
+                            if isinstance(node, ast.Return) and isinstance(node.value, ast.Dict):
+                                for k_node in node.value.keys:
+                                    if isinstance(k_node, ast.Constant) and isinstance(k_node.value, str):
+                                        ret_k = _sanitize_identifier(k_node.value)
+                                        if ret_k and ret_k != f"{primary_exit}_postprocessed":
+                                            available_vars.append({
+                                                "definition_id": str(d.id),
+                                                "definition_name": f"{d.name} (Dict Key '{ret_k}')",
+                                                "variable_name": ret_k,
+                                                "name": ret_k,
+                                                "is_postprocessed": True
+                                            })
+                    except Exception:
+                        pass
 
         return {
             "stage": "signal_score",
