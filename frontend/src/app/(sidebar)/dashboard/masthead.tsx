@@ -1,5 +1,5 @@
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
-import { DomainBadge, SectionLabel } from '@/components/scanner-ui'
+import { SectionLabel } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import { fmt, type T } from '@/lib/i18n'
 import type { ReactNode } from 'react'
@@ -10,6 +10,12 @@ import { TextLink, TopPapers, TopPapersSkeleton, type HomePaper } from './home-u
  * the search — its brief in serif, the funnel in one mono line, the three
  * strongest papers in a rail on the right. Server-rendered; `t` comes in.
  * The ledger below carries the same briefing as its highlighted row.
+ *
+ * Type discipline: three faces stack here, so each earns its line. Serif is
+ * the brief alone, mono is the funnel alone (the numbers want tabular
+ * figures), and everything else — the meta line, the title, the link — is
+ * sans. The domain is named once, in the title; the meta line carries the
+ * window, the day, and the template note without repeating it.
  */
 
 export interface MastheadLead {
@@ -38,7 +44,6 @@ function MastheadFrame({
   title,
   funnel,
   brief,
-  note,
   link,
   railLabel,
   rail,
@@ -48,7 +53,6 @@ function MastheadFrame({
   title: ReactNode
   funnel: ReactNode
   brief: ReactNode
-  note?: ReactNode
   link: ReactNode
   railLabel: ReactNode
   rail: ReactNode
@@ -61,9 +65,9 @@ function MastheadFrame({
       className="grid gap-8 border-b border-line-soft pb-8 lg:grid-cols-3"
     >
       <div className="lg:col-span-2">
-        <div data-row="meta" className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <p data-row="meta" className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
           {meta}
-        </div>
+        </p>
         <h2
           data-row="title"
           className="mt-2.5 text-2xl font-semibold tracking-tight text-zinc-950 dark:text-white"
@@ -77,7 +81,6 @@ function MastheadFrame({
           {funnel}
         </p>
         <div data-row="brief">{brief}</div>
-        {note}
         <div data-row="link" className="mt-3">
           {link}
         </div>
@@ -94,14 +97,14 @@ export function Masthead({ lead, t }: { lead: MastheadLead; t: T }) {
   return (
     <MastheadFrame
       state="loaded"
-      meta={
-        <>
-          <DomainBadge name={lead.domain} tone="quiet" />
-          <span className="font-mono text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
-            {lead.period} · {fmt(t('generated {date}'), { date: lead.generated })}
-          </span>
-        </>
-      }
+      meta={[
+        lead.period,
+        fmt(t('generated {date}'), { date: lead.generated }),
+        // The template note rides the meta line rather than taking a line of its own.
+        lead.template && lead.inBrief !== null && t('assembled automatically'),
+      ]
+        .filter(Boolean)
+        .join(' · ')}
       title={
         <>
           {lead.domain}
@@ -115,14 +118,6 @@ export function Masthead({ lead, t }: { lead: MastheadLead; t: T }) {
       })}
       brief={
         lead.inBrief !== null && <AnswerMarkdown text={lead.inBrief} className={BRIEF_CLASS} />
-      }
-      note={
-        lead.template &&
-        lead.inBrief !== null && (
-          <p className="mt-2 font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
-            {t('Assembled automatically from this run.')}
-          </p>
-        )
       }
       link={
         lead.href && (
@@ -151,23 +146,11 @@ export function MastheadSkeleton({ t }: { t: T }) {
   return (
     <MastheadFrame
       state="skeleton"
-      meta={
-        <>
-          <Bone.Chip width={104} />
-          <span className="font-mono text-xs">
-            <Bone.Number digits={34} />
-          </span>
-        </>
-      }
+      // Window · day · template note, on one line.
+      meta={<Bone.Number digits={58} />}
       title={<Bone.Text widths={['58%']} />}
       funnel={<Bone.Number digits={44} />}
       brief={<AnswerMarkdownSkeleton className={BRIEF_CLASS} paragraphs={[3]} />}
-      // The template note: present on every brief until the backend writes prose.
-      note={
-        <p className="mt-2 font-mono text-[11px]">
-          <Bone.Number digits={38} />
-        </p>
-      }
       link={
         <span className="text-xs font-medium">
           <Bone.Number digits={13} />

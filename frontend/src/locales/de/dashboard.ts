@@ -3,7 +3,7 @@ export const dict: Record<string, string> = {
   Today: 'Heute',
   'Today · {date}': 'Heute · {date}',
   'Open briefing →': 'Briefing öffnen →',
-  'Assembled automatically from this run.': 'Automatisch aus diesem Lauf zusammengestellt.',
+  'assembled automatically': 'automatisch zusammengestellt',
   'No completed runs yet.': 'Noch keine abgeschlossenen Läufe.',
   'Run of {date}: {fetched} papers fetched, {passed} passed screening, {n} listed below.':
     'Lauf vom {date}: {fetched} Papers geladen, {passed} durch das Screening, {n} unten gelistet.',
