@@ -32,7 +32,30 @@ export interface SnapshotStoreOptions<T> {
   /** How long an entry may live regardless — the backstop for changes no probe explains. */
   ttlMs: number
   maxEntries: number
+  /** Retained-size budget across users; needs `sizeOf`. */
+  maxBytes?: number
+  sizeOf?: (value: T) => number
   now?: () => number
+}
+
+/**
+ * How long a read may trust a confirmed version, given what the request has
+ * already done. A request that read the run ledger itself always probes —
+ * the probe is that ledger, already in hand, and the render that first
+ * shows a run completed must be the first with its papers. Otherwise the
+ * process-wide cooldown applies, and a request may only raise it. Pure.
+ */
+export function effectiveTrust({
+  requested,
+  cooldownMs,
+  ledgerRequested,
+}: {
+  requested: number
+  cooldownMs: number
+  ledgerRequested: boolean
+}): number {
+  if (ledgerRequested) return 0
+  return Math.max(requested, cooldownMs)
 }
 
 export interface ReadOptions {
@@ -61,9 +84,17 @@ export function createSnapshotStore<T>({
   load,
   ttlMs,
   maxEntries,
+  maxBytes,
+  sizeOf,
   now = Date.now,
 }: SnapshotStoreOptions<T>): SnapshotStore<T> {
-  const cache = new TtlCache<Entry<T>>({ ttlMs, maxEntries, now })
+  const cache = new TtlCache<Entry<T>>({
+    ttlMs,
+    maxEntries,
+    maxBytes,
+    sizeOf: sizeOf ? (entry) => sizeOf(entry.value) : undefined,
+    now,
+  })
   // One revalidation per key at a time, however many requests arrive together.
   const revalidating = new Map<string, Promise<Entry<T>>>()
 
