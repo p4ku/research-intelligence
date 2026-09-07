@@ -22,9 +22,10 @@ export async function LedgerSection({
   lang: Lang
   t: T
 }) {
-  const [editions, completed] = await forPage(
-    Promise.all([briefings.listEverywhere(lang), runs.listEverywhere('completed')]),
+  const [editions, all] = await forPage(
+    Promise.all([briefings.listEverywhere(lang), runs.listEverywhere()]),
   )
+  const completed = all.filter((run) => run.status === 'completed')
 
   if (editions.length === 0) {
     return (

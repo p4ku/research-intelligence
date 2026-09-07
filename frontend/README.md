@@ -39,8 +39,8 @@ so non-technical users can see _why_ something ranked where it did.
   - **Briefings** (`/briefing`) — one edition per completed run: funnel,
     surfaced papers, the screening log, and a brief (template-written until
     the backend's reporting step lands).
-  - **Papers** (`/papers`) — behind the `all_papers` preference, and a 404 when
-    it is off. Every paper from every domain, scored against its domain's
+  - **Papers** (`/papers`) — behind the `all_papers` preference; off, the route
+    renders the not-found card. Every paper from every domain, scored against its domain's
     extraction definitions plus the backend's composite signal score; domain,
     screening, sort, ingest-window, signal-strength and (when defined) TRL
     filters; a detail page (not flagged) with the score formula, per-dimension

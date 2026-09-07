@@ -7,13 +7,13 @@
 import 'server-only'
 
 import { redirect } from 'next/navigation'
-import { ProblemError } from './problem'
+import { isUnauthenticated } from './problem'
 
 export async function forPage<T>(work: Promise<T>): Promise<T> {
   try {
     return await work
   } catch (error) {
-    if (error instanceof ProblemError && error.problem.status === 401) {
+    if (isUnauthenticated(error)) {
       redirect('/auth/logout?reason=expired')
     }
     throw error

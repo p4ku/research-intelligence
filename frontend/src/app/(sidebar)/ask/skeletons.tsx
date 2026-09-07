@@ -76,7 +76,7 @@ export function AskConsoleSkeleton({ t }: { t: T }) {
 /** The loading.tsx shell: the canvas skeleton at the page's own height. */
 export function AskPageSkeleton({ t }: { t: T }) {
   return (
-    <div className="flex h-[calc(100dvh-4rem)] flex-col lg:h-[calc(100dvh-3.5rem)]">
+    <div data-canvas className="flex min-h-0 flex-1 flex-col">
       <h1 className="sr-only">{t('Ask Research Intelligence')}</h1>
       <AskConsoleSkeleton t={t} />
     </div>
