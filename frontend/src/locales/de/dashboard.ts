@@ -111,6 +111,7 @@ export const dict: Record<string, string> = {
   Current: 'Aktuell',
   Processing: 'In Arbeit',
   Failed: 'Fehlgeschlagen',
+  'No briefing': 'Kein Briefing',
   'started {time} UTC': 'gestartet {time} UTC',
   'failed {date}': 'fehlgeschlagen {date}',
   'From {date}': 'Ab {date}',

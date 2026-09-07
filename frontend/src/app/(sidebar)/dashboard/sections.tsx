@@ -35,6 +35,8 @@ function topPapers(edition: Edition): HomePaper[] {
 function rowStatus(run: PipelineRun, currentId: string | null): RowStatus {
   switch (run.status) {
     case 'completed':
+      // Nothing cleared screening: there is no briefing to be current.
+      if (run.total_papers_passed_screening === 0) return 'empty'
       return run.id === currentId ? 'current' : 'done'
     case 'running':
     case 'pending':
@@ -113,15 +115,16 @@ export async function LedgerSection({
               lookback_days: run.lookback_days ?? undefined,
             }
           : null,
-      brief: edition
-        ? {
-            href: editionHref(edition.date, run.workspace_id),
-            inBrief: edition.in_brief,
-            screened: run.total_papers_fetched,
-            included: run.total_papers_passed_screening,
-            top: topPapers(edition),
-          }
-        : null,
+      brief:
+        edition && status !== 'empty'
+          ? {
+              href: editionHref(edition.date, run.workspace_id),
+              inBrief: edition.in_brief,
+              screened: run.total_papers_fetched,
+              included: run.total_papers_passed_screening,
+              top: topPapers(edition),
+            }
+          : null,
     }
   })
   const processing = rows.find((row) => row.status === 'processing') ?? null

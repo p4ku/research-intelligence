@@ -18,10 +18,12 @@ import { TextLink, TopPapers, type HomePaper } from './home-ui'
  * first. A completed row is a disclosure — click it (or press Enter on the
  * domain) and its brief and top three papers open beneath the cells; one
  * row open at a time. The way into the briefing is the panel's link. A
- * failed row offers Retry, which resends the run's own parameters.
+ * failed row offers Retry, which resends the run's own parameters. A run
+ * that completed with nothing to brief is greyed out and inert: there is no
+ * briefing behind it, so the row does not pretend to open one.
  */
 
-export type RowStatus = 'current' | 'done' | 'processing' | 'failed'
+export type RowStatus = 'current' | 'done' | 'processing' | 'failed' | 'empty'
 
 export interface HomeBrief {
   /** The edition's permalink. */
@@ -48,7 +50,7 @@ export interface HomeRow {
   papers: number | null
   /** What Retry resends — the failed run's own parameters. */
   retry: StartRun | null
-  /** The disclosure content — present on completed rows whose edition exists. */
+  /** The disclosure content — present on completed rows whose edition has papers. */
   brief: HomeBrief | null
 }
 
@@ -98,15 +100,26 @@ const STATUS_CLASS: Record<Exclude<RowStatus, 'done'>, { text: string; mark: str
   current: { text: 'text-blue-700 dark:text-accent', mark: 'bg-accent' },
   processing: { text: 'text-warn-ink dark:text-warn', mark: 'bg-warn animate-pulse rounded-full' },
   failed: { text: 'text-negative', mark: 'bg-negative' },
+  // A hollow mark: the run finished, but nothing came of it.
+  empty: {
+    text: 'text-zinc-400 dark:text-zinc-500',
+    mark: 'border border-zinc-400 dark:border-zinc-500',
+  },
 }
 
-/** Current · Processing · Failed; completed briefings that are not current carry none. */
+/** Current · Processing · Failed · No briefing; completed briefings that are not current carry none. */
 function StatusLabel({ status }: { status: RowStatus }) {
   const t = useT()
   if (status === 'done') return null
   const s = STATUS_CLASS[status]
   const label =
-    status === 'current' ? t('Current') : status === 'processing' ? t('Processing') : t('Failed')
+    status === 'current'
+      ? t('Current')
+      : status === 'processing'
+        ? t('Processing')
+        : status === 'failed'
+          ? t('Failed')
+          : t('No briefing')
   return (
     <span
       className={clsx(
@@ -139,17 +152,22 @@ function Row({
   const expandable = row.brief !== null
   const panelId = `briefing-${row.id}`
   const current = row.status === 'current'
+  const empty = row.status === 'empty'
   return (
     <>
       <TableRow
         data-row="briefing"
+        data-empty={empty || undefined}
         onClick={expandable ? onToggle : undefined}
         className={clsx(
           current && 'bg-foreground/3',
           expandable && 'cursor-pointer hover:bg-zinc-950/2.5 dark:hover:bg-white/2.5',
+          // Greyed, not hidden: the run happened, it just has nothing to show.
+          // Every cell, so the row reads as one quiet line.
+          empty && '[&>td]:text-zinc-400 dark:[&>td]:text-zinc-500',
         )}
       >
-        <TableCell className={COL.domain.cell}>
+        <TableCell className={clsx(COL.domain.cell, empty && 'font-normal')}>
           <span className="flex items-center gap-2.5">
             <span
               aria-hidden="true"
