@@ -116,7 +116,9 @@ export function upstreamFieldErrors(body: unknown): Record<string, string[]> | u
   if (!body || typeof body !== 'object' || Array.isArray(body)) return undefined
   const out: Record<string, string[]> = {}
   for (const [key, value] of Object.entries(body as Record<string, unknown>)) {
-    if (key === 'error' || key === 'detail' || key === 'message') continue
+    // Envelope keys, not fields: DRF's `{detail}`, the custom handler's
+    // `{status_code, error, detail}`, the MCP tools' `{status: "error", error}`.
+    if (key === 'error' || key === 'detail' || key === 'message' || key === 'status') continue
     if (typeof value === 'string') out[key] = [value]
     else if (Array.isArray(value) && value.every((v) => typeof v === 'string')) {
       out[key] = value as string[]

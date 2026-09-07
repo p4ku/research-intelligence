@@ -56,14 +56,17 @@ const ingestedWindows = [
 export function PapersBrowser({
   papers,
   workspaces,
+  initialSearch = '',
 }: {
   papers: ScoredPaper[]
   /** The domains the corpus spans — their definitions drive the sort options. */
   workspaces: WorkspaceSummary[]
+  /** Home's query, when the reader arrived through its search. */
+  initialSearch?: string
 }) {
   const t = useT()
   const { isStarred } = useStars()
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(initialSearch)
   const [domain, setDomain] = useState('all')
   const [starredOnly, setStarredOnly] = useState(false)
   const [screening, setScreening] = useState<Screening>('passed')

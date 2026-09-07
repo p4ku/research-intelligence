@@ -1,8 +1,8 @@
 // Core settings area: profile, password, domains, and notifications
 export const dict: Record<string, string> = {
   Settings: 'Einstellungen',
-  'Your profile, your domains, and how Research Intelligence reaches you.':
-    'Ihr Profil, Ihre Domänen und wie Research Intelligence Sie erreicht.',
+  'Your profile and how you sign in to Research Intelligence.':
+    'Ihr Profil und wie Sie sich bei Research Intelligence anmelden.',
   Profile: 'Profil',
   Name: 'Name',
   'First name': 'Vorname',
