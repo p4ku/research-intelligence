@@ -44,7 +44,7 @@ export function TextLink({
 export function HomeLinks({ t, className }: { t: T; className?: string }) {
   return (
     <span className={clsx('flex items-baseline', className)}>
-      <TextLink href="/briefing">{t('all briefings')}</TextLink>
+      <TextLink href="/briefing">{t('All briefings →')}</TextLink>
     </span>
   )
 }

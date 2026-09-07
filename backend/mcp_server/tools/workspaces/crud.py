@@ -1,5 +1,7 @@
+from __future__ import annotations
 import json
 import uuid
+from typing import Optional, List, Dict, Any, Union
 from django.contrib.auth import get_user_model
 from django.core.serializers.json import DjangoJSONEncoder
 from research_intelligence.models import Workspace, WorkspaceMember
@@ -80,6 +82,9 @@ def get_workspace_logic(user, workspace_id: str) -> str:
         "full_text_screening_user_prompt_template": workspace.full_text_screening_user_prompt_template,
         "full_text_screening_response_schema": workspace.full_text_screening_response_schema,
         "full_text_screening_exit_metric": workspace.full_text_screening_exit_metric,
+        "narrative_report_prompt": workspace.narrative_report_prompt,
+        "narrative_report_system_prompt": workspace.narrative_report_system_prompt,
+        "narrative_report_top_n_papers": workspace.narrative_report_top_n_papers,
         "created_at": workspace.created_at.isoformat(),
         "updated_at": getattr(workspace, 'updated_at', workspace.created_at).isoformat(),
         "members": [
@@ -167,6 +172,9 @@ def create_workspace_logic(
     full_text_screening_user_prompt_template: str = None,
     full_text_screening_response_schema: dict = None,
     full_text_screening_exit_metric: str = None,
+    narrative_report_prompt: str = None,
+    narrative_report_system_prompt: str = None,
+    narrative_report_top_n_papers: int = 10,
     ocr_provider: str = None,
     screening_llm_model: str = 'google/gemini-3.8-flash',
     llm_provider: str = 'google',
@@ -204,6 +212,9 @@ def create_workspace_logic(
         full_text_screening_user_prompt_template=full_text_screening_user_prompt_template,
         full_text_screening_response_schema=full_text_screening_response_schema,
         full_text_screening_exit_metric=full_text_screening_exit_metric,
+        narrative_report_prompt=narrative_report_prompt,
+        narrative_report_system_prompt=narrative_report_system_prompt,
+        narrative_report_top_n_papers=narrative_report_top_n_papers,
         ocr_provider=ocr_provider,
         screening_llm_model=screening_llm_model,
         llm_provider=llm_provider,
@@ -242,6 +253,9 @@ def update_workspace_logic(
     full_text_screening_user_prompt_template: str = None,
     full_text_screening_response_schema: dict = None,
     full_text_screening_exit_metric: str = None,
+    narrative_report_prompt: str = None,
+    narrative_report_system_prompt: str = None,
+    narrative_report_top_n_papers: int = None,
     ocr_provider: str = None,
     screening_llm_model: str = None,
     llm_provider: str = None,
@@ -303,6 +317,15 @@ def update_workspace_logic(
     if full_text_screening_exit_metric is not None:
         workspace.full_text_screening_exit_metric = full_text_screening_exit_metric
         fields_to_update.append('full_text_screening_exit_metric')
+    if narrative_report_prompt is not None:
+        workspace.narrative_report_prompt = narrative_report_prompt
+        fields_to_update.append('narrative_report_prompt')
+    if narrative_report_system_prompt is not None:
+        workspace.narrative_report_system_prompt = narrative_report_system_prompt
+        fields_to_update.append('narrative_report_system_prompt')
+    if narrative_report_top_n_papers is not None:
+        workspace.narrative_report_top_n_papers = int(narrative_report_top_n_papers)
+        fields_to_update.append('narrative_report_top_n_papers')
     if skip_abstract_screening is not None:
         workspace.skip_abstract_screening = bool(skip_abstract_screening)
         fields_to_update.append('skip_abstract_screening')

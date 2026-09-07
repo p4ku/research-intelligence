@@ -15,10 +15,12 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * The header renders with the shell; the console — which needs the corpus
- * for its picker and the session history for its rail — streams in behind
- * one Suspense boundary. loading.tsx shows the same skeleton on navigation,
- * and the <ViewTransition> pair animates the handoff.
+ * The canvas is the page: no page header competing with the chat's own top
+ * bar, just a screen-reader h1 so the document still has one. The console —
+ * which needs the corpus for its picker and the session history for its
+ * sidecar — streams in behind one Suspense boundary. loading.tsx shows the
+ * same skeleton on navigation, and the <ViewTransition> pair animates the
+ * handoff.
  */
 export default async function AskPage({
   searchParams,
@@ -39,12 +41,10 @@ export default async function AskPage({
       </div>
     )
   }
-  // The console owns the viewport: the page does not scroll, the transcript does.
+  // The canvas owns the viewport: the page does not scroll, the transcript does.
   return (
-    <div className="flex h-[calc(100dvh-6.5rem)] flex-col gap-6 lg:h-[calc(100dvh-6rem)]">
-      <div className="shrink-0">
-        <PageHeader eyebrow={t('Assistant')} title={t('Ask Research Intelligence')} />
-      </div>
+    <div className="flex h-[calc(100dvh-4rem)] flex-col lg:h-[calc(100dvh-3.5rem)]">
+      <h1 className="sr-only">{t('Ask Research Intelligence')}</h1>
       <Suspense
         fallback={
           <ViewTransition exit="bone-exit" default="none">

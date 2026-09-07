@@ -27,7 +27,7 @@ export function AssessmentRowsFrame({
   children: ReactNode
 }) {
   return (
-    <div data-shape="assessment" data-state={state} className="border-line border-t">
+    <div data-shape="assessment" data-state={state} className="border-t border-line">
       {children}
     </div>
   )
@@ -49,7 +49,7 @@ export function AssessmentRowFrame({
   body?: ReactNode
 }) {
   return (
-    <div data-row="dimension" className="border-line-soft border-b">
+    <div data-row="dimension" className="border-b border-line-soft">
       <button
         type="button"
         aria-expanded={open}
@@ -148,7 +148,7 @@ function Row({ dimension: d }: { dimension: Dimension }) {
               {d.evidence.map((quote, i) => (
                 <li
                   key={i}
-                  className="border-line-soft border-l-2 pl-2.5 text-xs leading-relaxed text-zinc-500 italic dark:text-zinc-400"
+                  className="border-l-2 border-line-soft pl-2.5 text-xs leading-relaxed text-zinc-500 italic dark:text-zinc-400"
                 >
                   “{quote}”
                 </li>

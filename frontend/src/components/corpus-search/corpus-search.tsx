@@ -210,7 +210,7 @@ export function CorpusSearch({
       <SearchFrame
         leading={
           navigating || slow ? (
-            <Spinner className="text-accent size-4" aria-label={status} />
+            <Spinner className="size-4 text-accent" aria-label={status} />
           ) : undefined
         }
       >

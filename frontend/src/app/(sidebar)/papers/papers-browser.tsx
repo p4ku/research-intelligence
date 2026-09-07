@@ -325,7 +325,7 @@ export function PapersBrowser({
               />
             ))}
             {filtered.length === 0 && (
-              <div className="border-line rounded-sm border border-dashed p-10 text-center text-sm text-zinc-400">
+              <div className="rounded-sm border border-dashed border-line p-10 text-center text-sm text-zinc-400">
                 {starredOnly && starredCount === 0 ? (
                   t('Nothing starred yet.')
                 ) : hiddenByScreening > 0 ? (
@@ -346,7 +346,7 @@ export function PapersBrowser({
         </div>
 
         {/* Filters */}
-        <aside className="divide-line divide-y max-lg:order-first lg:col-span-1">
+        <aside className="divide-y divide-line max-lg:order-first lg:col-span-1">
           {manyDomains && (
             <FilterGroup
               label={t('Domain')}

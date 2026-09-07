@@ -37,7 +37,6 @@ export const dict: Record<string, string> = {
   'No papers match “{q}”.': 'Keine Papers passen zu „{q}“.',
   'Search is unavailable — press Enter to open Papers.':
     'Die Suche ist nicht verfügbar — mit Enter Papers öffnen.',
-  Recent: 'Zuletzt gesucht',
   Try: 'Vorschläge',
   'Clear recent searches': 'Letzte Suchen löschen',
   '{n} matching': '{n} passend',
@@ -48,8 +47,6 @@ export const dict: Record<string, string> = {
   'Clear search': 'Suche zurücksetzen',
   'Search papers by topic, technology, title or author':
     'Papers nach Thema, Technologie, Titel oder Autor suchen',
-  // top-bar.tsx
-  'Page sections': 'Seitenabschnitte',
   // star.tsx + stars-client.tsx — the star is the MVP's only curation.
   // "markieren" (not "Stern"): the spec's German UI marks records, it does not award them.
   Star: 'Markieren',

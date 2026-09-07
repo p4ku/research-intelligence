@@ -20,7 +20,7 @@ export function SearchFrame({
     <div {...props} className={clsx(SEARCH_FRAME, className)}>
       <span className="grid size-5 shrink-0 place-items-center">
         {leading ?? (
-          <MagnifyingGlassIcon className="group-focus-within:text-accent size-5 text-zinc-400 transition-colors" />
+          <MagnifyingGlassIcon className="size-5 text-zinc-400 transition-colors group-focus-within:text-accent" />
         )}
       </span>
       {children}

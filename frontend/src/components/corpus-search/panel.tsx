@@ -52,18 +52,18 @@ export function Segments({ segments }: { segments: Segment[] }) {
 function Body({ title, sub, extra }: { title: ReactNode; sub?: ReactNode; extra?: ReactNode }) {
   return (
     <span className="min-w-0 flex-1">
-      <span className="text-foreground block truncate text-[13px] font-medium">{title}</span>
+      <span className="block truncate text-[13px] font-medium text-foreground">{title}</span>
       {sub && (
-        <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">{sub}</span>
+        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{sub}</span>
       )}
       {extra && (
-        <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">{extra}</span>
+        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{extra}</span>
       )}
     </span>
   )
 }
 
-const Arrow = () => <ArrowRightIcon className="text-muted-foreground size-3 shrink-0" />
+const Arrow = () => <ArrowRightIcon className="size-3 shrink-0 text-muted-foreground" />
 
 function RowContent({
   row,
@@ -139,14 +139,14 @@ function RowContent({
       return (
         <>
           <ClockIcon className="size-4 shrink-0 text-zinc-400" />
-          <span className="text-foreground min-w-0 flex-1 truncate text-[13px]">{row.q}</span>
+          <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{row.q}</span>
         </>
       )
     case 'try':
       return (
         <>
           <MagnifyingGlassIcon className="size-4 shrink-0 text-zinc-400" />
-          <span className="text-foreground min-w-0 flex-1 truncate text-[13px]">{row.q}</span>
+          <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{row.q}</span>
         </>
       )
   }
@@ -198,7 +198,7 @@ export function SearchPanel({
           key={section.key}
           role="group"
           aria-label={section.label ?? undefined}
-          className={clsx(s > 0 && 'border-line-soft mt-1 border-t pt-1')}
+          className={clsx(s > 0 && 'mt-1 border-t border-line-soft pt-1')}
         >
           {section.label && (
             <div className="flex items-baseline justify-between">
@@ -209,7 +209,7 @@ export function SearchPanel({
                   tabIndex={-1}
                   onMouseDown={keepFocus}
                   onClick={onClearRecent}
-                  className="text-muted-foreground hover:text-foreground px-2.5 text-[11px]"
+                  className="px-2.5 text-[11px] text-muted-foreground hover:text-foreground"
                 >
                   {t('Clear recent searches')}
                 </button>
@@ -217,7 +217,7 @@ export function SearchPanel({
             </div>
           )}
           {section.note && (
-            <p className="text-muted-foreground px-2.5 py-3 text-sm">{section.note}</p>
+            <p className="px-2.5 py-3 text-sm text-muted-foreground">{section.note}</p>
           )}
           {section.rows.map((row, r) => {
             const i = starts[s]! + r

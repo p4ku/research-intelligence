@@ -54,15 +54,15 @@ function PickerFrame({
       data-shape="paper-picker"
       data-state={state}
       className={clsx(
-        'border-line-strong bg-surface max-h-[min(19rem,38vh)] overflow-y-auto rounded-sm border p-1.5 shadow-[0_1px_2px_rgba(19,19,17,0.05),0_5px_14px_-4px_rgba(19,19,17,0.10)]',
+        'max-h-[min(19rem,38vh)] overflow-y-auto rounded-sm border border-line-strong bg-surface p-1.5 shadow-[0_1px_2px_rgba(19,19,17,0.05),0_5px_14px_-4px_rgba(19,19,17,0.10)]',
         placement !== 'static' &&
-          'animate-rise-in absolute inset-x-0 z-30 motion-reduce:animate-none',
+          'absolute inset-x-0 z-30 animate-rise-in motion-reduce:animate-none',
         placement === 'below' && 'top-[calc(100%-0.75rem)] origin-top',
         placement === 'above' && 'bottom-[calc(100%-0.375rem)] origin-bottom',
       )}
     >
       {children}
-      <div className="border-line-soft text-muted-foreground mt-1 flex items-center gap-3 border-t px-2.5 pt-2 pb-0.5 text-[11px]">
+      <div className="mt-1 flex items-center gap-3 border-t border-line-soft px-2.5 pt-2 pb-0.5 text-[11px] text-muted-foreground">
         {footer}
       </div>
     </div>
@@ -74,8 +74,8 @@ function RowBody({ score, title, sub }: { score: ReactNode; title: ReactNode; su
     <>
       {score}
       <span className="min-w-0 flex-1">
-        <span className="text-foreground block truncate text-[13px] font-medium">{title}</span>
-        <span className="text-muted-foreground mt-0.5 block truncate text-[11px]">{sub}</span>
+        <span className="block truncate text-[13px] font-medium text-foreground">{title}</span>
+        <span className="mt-0.5 block truncate text-[11px] text-muted-foreground">{sub}</span>
       </span>
     </>
   )
@@ -160,7 +160,7 @@ export function PaperPicker({
           </button>
         ))
       ) : (
-        <p className="text-muted-foreground px-3 py-6 text-center text-sm">
+        <p className="px-3 py-6 text-center text-sm text-muted-foreground">
           {fmt(t('No papers match “{q}” — {n} papers to choose from.'), {
             q: query.trim(),
             n: entries.length,

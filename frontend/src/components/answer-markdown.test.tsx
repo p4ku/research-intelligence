@@ -1,7 +1,9 @@
 import type { VisualCitation } from '@/lib/bff/chat/schema'
 import { describe, expect, test } from 'bun:test'
+import type { ComponentProps, ReactElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { AnswerMarkdown } from './answer-markdown'
+import type { Components } from 'react-markdown'
+import { AnswerMarkdown, componentsFor } from './answer-markdown'
 
 const html = (text: string, streaming = false) =>
   renderToStaticMarkup(<AnswerMarkdown text={text} streaming={streaming} />)
@@ -198,6 +200,18 @@ describe('AnswerMarkdown citation chips', () => {
       />,
     )
   const MARKER = '[Page 7, Fig 4b, box_2d: [320, 150, 680, 890], quote: "up 31%"]'
+  /**
+   * The `components` map AnswerMarkdown hands react-markdown for one render.
+   * `memo` keeps the render function on `.type`, so this reads the real call
+   * site — the map a future edit would rebuild per render.
+   */
+  const renderOnce = AnswerMarkdown as unknown as {
+    type: (
+      props: ComponentProps<typeof AnswerMarkdown>,
+    ) => ReactElement<{ children: ReactElement<{ components: Components }> }>
+  }
+  const markdownRenderers = (props: ComponentProps<typeof AnswerMarkdown>) =>
+    renderOnce.type(props).props.children.props.components
   const leaks = (out: string) => /[]/.test(out)
 
   test('turns a marker into a p. N · label chip and leaves bare references alone', () => {
@@ -245,5 +259,23 @@ describe('AnswerMarkdown citation chips', () => {
     expect(closed).toContain('p. 7 · Fig 4b')
     expect(closed).toMatch(/y<span[^>]*>▍<\/span><\/p><\/div>$/)
     expect(leaks(closed)).toBe(false)
+  })
+
+  test('hands Markdown the same renderers as a stream grows, so it never remounts', () => {
+    // A components map rebuilt per render is a fresh element type for every <p>
+    // and <li>, so React remounts the whole answer on each token and every word
+    // replays its unveil — the answer flickers as a blur from the first chip on.
+    // Reading the map off the rendered tree pins the call site, not just the
+    // cache: it is the same object as the text grows and as citations arrive.
+    const growing = markdownRenderers({ text: `a ${MARKER}`, citations: [], streaming: true })
+    const grown = markdownRenderers({ text: `a b ${MARKER}`, citations: [], streaming: true })
+    const uncited = markdownRenderers({ text: 'a b', citations: [], streaming: true })
+    expect(growing).toBe(grown)
+    expect(growing).toBe(uncited)
+    expect(growing).toBe(componentsFor({ stats: true, unveil: false, caret: true }))
+
+    // And the chips still resolve through the tree rather than a closure.
+    expect(chips(`a ${MARKER}`, { streaming: true })).toContain('p. 7 · Fig 4b')
+    expect(chips('b [Page 2, Table 1]')).toContain('p. 2 · Table 1')
   })
 })

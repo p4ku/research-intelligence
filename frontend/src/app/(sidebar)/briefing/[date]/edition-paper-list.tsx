@@ -49,7 +49,7 @@ export function EditionPaperList({ papers, logHref }: { papers: ScoredPaper[]; l
           <PaperCard key={p.id} paper={p} />
         ))}
         {starredOnly && shown.length === 0 && (
-          <div className="border-line rounded-sm border border-dashed p-10 text-center text-sm text-zinc-400">
+          <div className="rounded-sm border border-dashed border-line p-10 text-center text-sm text-zinc-400">
             {t('Nothing starred yet.')}
           </div>
         )}

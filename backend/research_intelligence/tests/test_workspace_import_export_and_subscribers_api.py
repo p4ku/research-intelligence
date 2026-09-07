@@ -229,3 +229,49 @@ class WorkspaceImportExportAndSubscribersAPITestCase(TestCase):
         res_del = self.client.delete(f"/api/subscribers/{new_sub_id}/")
         self.assertEqual(res_del.status_code, 204)
         self.assertFalse(Subscriber.objects.filter(id=new_sub_id).exists())
+
+    def test_workspace_narrative_report_prompt_api_and_bundle_export_import(self):
+        """Verify narrative report prompt fields in WorkspaceSerializer and export/import configuration bundle."""
+        from api.serializers.workspaces import WorkspaceSerializer
+        from research_intelligence.services.workspace_service import (
+            serialize_workspace_configuration,
+            import_workspace_configuration_bundle,
+        )
+
+        self.workspace.narrative_report_prompt = "Executive prompt: {papers}"
+        self.workspace.narrative_report_system_prompt = "Executive system prompt."
+        self.workspace.narrative_report_top_n_papers = 12
+        self.workspace.save()
+
+        # 1. Serializer check
+        serializer = WorkspaceSerializer(self.workspace)
+        data = serializer.data
+        self.assertEqual(data["narrative_report_prompt"], "Executive prompt: {papers}")
+        self.assertEqual(data["narrative_report_system_prompt"], "Executive system prompt.")
+        self.assertEqual(data["narrative_report_top_n_papers"], 12)
+
+        # 2. Export bundle check
+        ws_bundle = serialize_workspace_configuration(self.workspace)
+        self.assertEqual(ws_bundle["narrative_report_prompt"], "Executive prompt: {papers}")
+        self.assertEqual(ws_bundle["narrative_report_system_prompt"], "Executive system prompt.")
+        self.assertEqual(ws_bundle["narrative_report_top_n_papers"], 12)
+
+        # 3. Import bundle into new workspace
+        ws_bundle_copy = dict(ws_bundle)
+        ws_bundle_copy["name"] = "Cloned Narrative WS"
+        bundle_payload = {
+            "version": "1.0",
+            "workspaces": [ws_bundle_copy]
+        }
+        stats = import_workspace_configuration_bundle(
+            data=bundle_payload,
+            user=self.admin_user,
+        )
+        self.assertEqual(stats["created_workspaces"], 1)
+        self.assertEqual(len(stats["workspaces"]), 1)
+        imported_ws = stats["workspaces"][0]
+        self.assertEqual(imported_ws.name, "Cloned Narrative WS")
+        self.assertEqual(imported_ws.narrative_report_prompt, "Executive prompt: {papers}")
+        self.assertEqual(imported_ws.narrative_report_system_prompt, "Executive system prompt.")
+        self.assertEqual(imported_ws.narrative_report_top_n_papers, 12)
+

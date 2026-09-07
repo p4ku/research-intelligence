@@ -559,6 +559,9 @@ def create_workspace(
     full_text_screening_user_prompt_template: str = None,
     full_text_screening_response_schema: dict = None,
     full_text_screening_exit_metric: str = None,
+    narrative_report_prompt: str = None,
+    narrative_report_system_prompt: str = None,
+    narrative_report_top_n_papers: int = 10,
     ocr_provider: str = None,
     screening_llm_model: str = "google/gemini-3.8-flash",
     llm_provider: str = "google",
@@ -589,6 +592,21 @@ def create_workspace(
     - full_text_screening_user_prompt_template: Optional custom user prompt template (supports {title}, {abstract}, {full_text}, {acceptance_criteria}, {rejection_criteria}).
     - full_text_screening_response_schema: Optional JSON schema for structured full-text screening outputs.
     - full_text_screening_exit_metric: Optional field key to extract from full-text screening as primary metric (e.g. 'decision_category', 'fit_score').
+    - narrative_report_prompt: Optional custom user prompt template for Step 7 Executive Briefing narrative generation. If set, an LLM synthesizes an executive briefing based on the top N accepted papers ranked by signal score. If empty/None, a deterministic markdown summary is generated.
+      Available prompt variables:
+      * {papers}: Formatted numbered catalog of top N papers including title, authors, publication date, DOI/URL, signal score, abstract, and extracted score vectors.
+      * {papers_json}: Structured JSON list of top papers with metadata and all score vectors/variables.
+      * {score_vectors_summary}: High-level summary of score variables and weights across top papers.
+      * {workspace_name}: Name of the workspace.
+      * {run_date}: Execution date/time of the pipeline run.
+      * {run_id}: Pipeline run UUID.
+      * {total_papers}: Total papers processed in the run.
+      * {accepted_papers_count}: Total accepted papers count.
+      * {rejected_papers_count}: Total rejected papers count.
+      * {avg_signal_score}: Average signal score across accepted papers.
+      * {top_n_papers_count}: Number of top papers provided to this prompt (e.g. 10).
+    - narrative_report_system_prompt: Optional custom system instruction for the LLM generating the narrative briefing (defaults to 'You are an elite research intelligence strategist and executive briefing specialist.').
+    - narrative_report_top_n_papers: Number of top accepted papers ranked by signal score to feed into the briefing prompt (default: 10, clamped 1-50).
     - skip_abstract_screening: Defaults to False. If True, skips Abstract Screening and downloads all candidate papers for direct Full-Text Screening.
     - reprocess_existing: Defaults to False. If True, sets default workspace policy to re-evaluate and re-screen existing papers on pipeline runs.
     - ocr_provider: Defaults to None (skips OCR and passes native PDF binary directly to multimodal Gemini 3.8 Flash). Set to 'pypdf', 'mistral', or 'gemini' only if text layout markdown is explicitly required.
@@ -618,6 +636,9 @@ def create_workspace(
         full_text_screening_user_prompt_template=full_text_screening_user_prompt_template,
         full_text_screening_response_schema=full_text_screening_response_schema,
         full_text_screening_exit_metric=full_text_screening_exit_metric,
+        narrative_report_prompt=narrative_report_prompt,
+        narrative_report_system_prompt=narrative_report_system_prompt,
+        narrative_report_top_n_papers=narrative_report_top_n_papers,
         ocr_provider=ocr_provider,
         screening_llm_model=screening_llm_model,
         llm_provider=llm_provider,
@@ -646,6 +667,9 @@ def update_workspace(
     full_text_screening_user_prompt_template: str = None,
     full_text_screening_response_schema: dict = None,
     full_text_screening_exit_metric: str = None,
+    narrative_report_prompt: str = None,
+    narrative_report_system_prompt: str = None,
+    narrative_report_top_n_papers: int = None,
     ocr_provider: str = None,
     screening_llm_model: str = None,
     llm_provider: str = None,
@@ -660,7 +684,7 @@ def update_workspace(
     Update configuration settings, dual-stage criteria, dynamic screening prompts/schemas, or sandboxed Python signal score formula for an existing workspace.
     
     WHEN TO USE:
-    - Call to refine screening inclusion/exclusion criteria, customize dynamic screening prompts/schemas, or install/update a custom `signal_score_code` mathematical ranking formula.
+    - Call to refine screening inclusion/exclusion criteria, customize dynamic screening prompts/schemas, install/update a custom `signal_score_code` mathematical ranking formula, or customize executive briefing prompts.
     
     KEY PARAMETERS:
     - workspace_id: The UUID of the target workspace.
@@ -668,6 +692,9 @@ def update_workspace(
     - abstract_screening_system_prompt / abstract_screening_user_prompt_template / abstract_screening_response_schema / abstract_screening_exit_metric: Dynamic abstract screening configuration.
     - full_text_acceptance_criteria / full_text_rejection_criteria: Inclusion/exclusion prompts for deep raw PDF screening.
     - full_text_screening_system_prompt / full_text_screening_user_prompt_template / full_text_screening_response_schema / full_text_screening_exit_metric: Dynamic full-text screening configuration.
+    - narrative_report_prompt: Custom user prompt template for Step 7 Executive Briefing narrative generation (supports {papers}, {papers_json}, {score_vectors_summary}, {workspace_name}, {run_date}, {run_id}, {total_papers}, {accepted_papers_count}, {rejected_papers_count}, {avg_signal_score}, {top_n_papers_count}).
+    - narrative_report_system_prompt: Custom system instruction for narrative briefing synthesis.
+    - narrative_report_top_n_papers: Number of top accepted papers ranked by signal score to pass to the briefing prompt (e.g. 10).
     - skip_abstract_screening: Set to True to skip Abstract Screening.
     - reprocess_existing: Set default workspace policy to re-evaluate and re-screen existing workspace papers.
     - signal_score_code: Custom Python AST snippet to calculate composite scores (e.g. 'score = 0.5*fit_score + 0.3*novelty_score + 0.2*trl_level\\nreturn round(score, 2)').
@@ -694,6 +721,9 @@ def update_workspace(
         full_text_screening_user_prompt_template=full_text_screening_user_prompt_template,
         full_text_screening_response_schema=full_text_screening_response_schema,
         full_text_screening_exit_metric=full_text_screening_exit_metric,
+        narrative_report_prompt=narrative_report_prompt,
+        narrative_report_system_prompt=narrative_report_system_prompt,
+        narrative_report_top_n_papers=narrative_report_top_n_papers,
         ocr_provider=ocr_provider,
         screening_llm_model=screening_llm_model,
         llm_provider=llm_provider,

@@ -12,7 +12,7 @@ import { XMarkIcon } from '@heroicons/react/20/solid'
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
-import { editionHref, formatEditionDate } from './format'
+import { editionHref, formatEditionDate } from '../briefing/format'
 
 export interface BrowserEdition {
   /** The run that produced it — the identity, since two domains can share a date. */
@@ -97,7 +97,7 @@ function ReaderFrame({
   return (
     <article
       data-row="reader"
-      className="border-line-soft rounded-2xl border bg-white p-6 shadow-xs sm:p-8 dark:bg-zinc-900/40"
+      className="rounded-2xl border border-line-soft bg-white p-6 shadow-xs sm:p-8 dark:bg-zinc-900/40"
     >
       {/* On desktop one line that never wraps: the date group truncates, the
           star and the link keep their width — so the loaded reader and its
@@ -121,7 +121,7 @@ function ReaderFrame({
 
       {brief}
 
-      <div className="border-line-soft mt-6 border-t pt-5">
+      <div className="mt-6 border-t border-line-soft pt-5">
         <div className="font-mono text-[11px] font-medium tracking-[0.18em] text-zinc-400 uppercase dark:text-zinc-500">
           {count}
         </div>
@@ -297,7 +297,7 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
                 <span className="shrink-0">{formatEditionDate(active.date, lang)}</span>
                 <DomainBadge name={active.domain} tone="quiet" className="min-w-0 normal-case" />
                 {active.proseSource === 'template' && (
-                  <span className="border-line shrink-0 rounded-sm border px-1 py-px normal-case">
+                  <span className="shrink-0 rounded-sm border border-line px-1 py-px normal-case">
                     {t('auto-brief')}
                   </span>
                 )}
@@ -337,7 +337,7 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
             ))}
           />
         ) : (
-          <div className="border-line rounded-sm border border-dashed p-10 text-center text-sm text-zinc-400">
+          <div className="rounded-sm border border-dashed border-line p-10 text-center text-sm text-zinc-400">
             {emptyCopy}
           </div>
         )
@@ -379,7 +379,7 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
                         <>
                           <span className="shrink-0">{formatEditionDate(e.date, lang)}</span>
                           <span className="min-w-0 truncate">· {e.domain}</span>
-                          {isToday && <span className="text-accent shrink-0">{t('Today')}</span>}
+                          {isToday && <span className="shrink-0 text-accent">{t('Today')}</span>}
                         </>
                       }
                       title={<span className="line-clamp-2 block">{e.title}</span>}
@@ -390,7 +390,7 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
               )
             })}
             {filtered.length === 0 && (
-              <li className="border-line rounded-lg border border-dashed px-4 py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">
+              <li className="rounded-lg border border-dashed border-line px-4 py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">
                 {emptyCopy}
               </li>
             )}

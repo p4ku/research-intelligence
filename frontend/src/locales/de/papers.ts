@@ -114,8 +114,6 @@ export const dict: Record<string, string> = {
   'Open DOI': 'DOI öffnen',
   'Stored PDF': 'Gespeichertes PDF',
   'Stored markdown': 'Gespeichertes Markdown',
-  'Stored in the research archive — download is not yet available.':
-    'Im Forschungsarchiv gespeichert — der Download ist noch nicht verfügbar.',
   'No files recorded.': 'Keine Dateien hinterlegt.',
   'et al.': 'et al.',
   'Why did it score {score}?': 'Warum wurde es mit {score} bewertet?',
@@ -134,7 +132,6 @@ export const dict: Record<string, string> = {
   'Confidence {n}': 'Konfidenz {n}',
   Source: 'Quelle',
   Run: 'Lauf',
-  'Continue on Ask': 'In Ask fortsetzen',
   'Generating…': 'Wird generiert…',
   'Ask a question about this paper…': 'Eine Frage zu diesem Paper stellen…',
 
@@ -145,9 +142,6 @@ export const dict: Record<string, string> = {
   'Questions here are answered from this paper alone.':
     'Fragen hier werden allein aus diesem Paper beantwortet.',
   'Ask a question about this paper': 'Eine Frage zu diesem Paper stellen',
-  "Couldn't load this paper's earlier questions.":
-    'Die früheren Fragen zu diesem Paper konnten nicht geladen werden.',
-  'A new thread will start if you ask now.': 'Wenn Sie jetzt fragen, beginnt ein neues Gespräch.',
   'Ask about this paper…': 'Zu diesem Paper fragen…',
   Send: 'Senden',
   'Loading the paper': 'Das Paper wird geladen',
