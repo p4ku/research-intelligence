@@ -167,9 +167,13 @@ class ListSerializersTestCase(TestCase):
         self.assertEqual(multi["metrics"][0]["signal_score"], multi["signal_score"])
         self.assertEqual(multi["signal_score"], 90.0)
 
+        # Scored by run_1 only while the workspace's latest run is run_2: the
+        # row's pipeline_run must be the run its one metric belongs to, or the
+        # frontend's find-by-pipeline_run misses it.
         single = by_id[str(self.paper_single.id)]
         self.assertEqual(len(single["metrics"]), 1)
         self.assertEqual(single["metrics"][0]["pipeline_run"], str(self.run_1.id))
+        self.assertEqual(single["pipeline_run"], str(self.run_1.id))
 
         bare = by_id[str(self.paper_bare.id)]
         self.assertEqual(bare["metrics"], [])
@@ -214,6 +218,25 @@ class ListSerializersTestCase(TestCase):
         self.assertEqual(multi["pipeline_run"], str(self.run_1.id))
         self.assertEqual(multi["signal_score"], 40.0)
         self.assertEqual(multi["screening_status"], "borderline")
+
+    def test_list_metric_matches_the_metric_serializer(self):
+        from api.serializers.papers import PaperListSerializer, PaperMetricSerializer, PaperSerializer
+
+        papers = list(
+            Paper.objects.filter(id__in=[self.paper_multi.id, self.paper_single.id])
+            .order_by("hash_id")
+            .prefetch_related("metrics")
+        )
+        context = {"pipeline_run_id": str(self.run_1.id)}
+        rows = PaperListSerializer(papers, many=True, context=context).data
+        for paper, row in zip(papers, rows):
+            target = PaperSerializer(paper, context=context)._get_target_metric(paper)
+            self.assertEqual(row["metrics"], [PaperMetricSerializer(target).data])
+        # The shared child is one per list, not one per row.
+        many = PaperListSerializer(papers, many=True, context=context)
+        many.data
+        self.assertIsInstance(many._metric_child, PaperMetricSerializer)
+        self.assertFalse(hasattr(many.child, "_metric_child"))
 
     def test_list_serializers_do_not_add_queries(self):
         from django.db import connection

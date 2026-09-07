@@ -35,8 +35,10 @@ export const paperMetricDTO = z.looseObject({
  * the target run's metric — the one `pipeline_run`, `screening_status` and
  * `signal_score` are read from — so a row no longer grows with the number of
  * runs that scored the paper (one entry, or none). `/api/papers/{id}/` keeps
- * every metric. The BFF reads the row-level fields and never indexes
- * `metrics[]`, so one shape covers both faces.
+ * every metric. The BFF reads the target metric through `pickMetric`
+ * (`lib/papers/map.ts`: `signal_score`, `metrics_data`,
+ * `signal_score_details`), so the list face must keep sending exactly that
+ * one element; one shape covers both faces.
  */
 export const paperDTO = z.looseObject({
   id: z.string(),

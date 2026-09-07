@@ -246,4 +246,10 @@ class PaperListSerializer(PaperSerializer):
         m = self._get_target_metric(obj)
         if m is None:
             return []
-        return [PaperMetricSerializer(m, context=self.context).data]
+        # One child serializer per list, not per row: building a
+        # ModelSerializer for every row made list serialisation ~5x slower.
+        owner = self.parent or self
+        child = getattr(owner, '_metric_child', None)
+        if child is None:
+            child = owner._metric_child = PaperMetricSerializer(context=self.context)
+        return [child.to_representation(m)]
