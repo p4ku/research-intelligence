@@ -1,6 +1,7 @@
 import json
 import time
 import logging
+from django.middleware.gzip import GZipMiddleware
 from django.utils.deprecation import MiddlewareMixin
 from research_intelligence.models import UserActivityLog
 
@@ -143,3 +144,19 @@ class UserActionAuditMiddleware(MiddlewareMixin):
             logger.warning(f"Failed to record UserActivityLog in middleware: {e}")
 
         return response
+
+
+class GZipNonStreamingMiddleware(GZipMiddleware):
+    """
+    GZipMiddleware that leaves streaming responses alone.
+
+    Django's GZipMiddleware compresses a StreamingHttpResponse chunk by chunk
+    without flushing, which holds server-sent events (the chat stream) back
+    until the generator ends. The list endpoints the frontend pulls in bulk
+    (~1 MB of papers, extractions, workspaces) still gzip about ten times.
+    """
+
+    def process_response(self, request, response):
+        if getattr(response, 'streaming', False):
+            return response
+        return super().process_response(request, response)
