@@ -107,14 +107,14 @@ const STATUS_CLASS: Record<Exclude<RowStatus, 'done'>, { text: string; mark: str
   },
 }
 
-/** Current · Processing · Failed · No briefing; completed briefings that are not current carry none. */
+/** Latest · Processing · Failed · No briefing; completed briefings that are not the latest carry none. */
 export function StatusLabel({ status }: { status: RowStatus }) {
   const t = useT()
   if (status === 'done') return null
   const s = STATUS_CLASS[status]
   const label =
     status === 'current'
-      ? t('Current')
+      ? t('Latest')
       : status === 'processing'
         ? t('Processing')
         : status === 'failed'
