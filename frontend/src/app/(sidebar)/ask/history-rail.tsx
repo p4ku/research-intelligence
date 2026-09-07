@@ -53,7 +53,7 @@ function RailHeader({
     <div className="px-3">
       <div className="flex items-baseline gap-2">
         <SectionLabel className="!text-[11px]">{label}</SectionLabel>
-        <span className="text-muted-foreground ml-auto shrink-0 font-mono text-[11px] tabular-nums">
+        <span className="ml-auto shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
           {count}
         </span>
       </div>
@@ -66,7 +66,7 @@ function DayLabel({ day, count }: { day: ReactNode; count: ReactNode }) {
   return (
     <p
       data-row="day"
-      className="bg-background text-muted-foreground sticky top-0 z-10 flex items-baseline px-3 py-1 font-mono text-[10px] tracking-[0.14em] uppercase"
+      className="sticky top-0 z-10 flex items-baseline bg-background px-3 py-1 font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase"
     >
       {day}
       <span className="ml-auto tabular-nums">{count}</span>
@@ -95,7 +95,7 @@ function HistoryRowFrame({
       aria-busy={busy || undefined}
       className={clsx(
         'group flex w-full items-stretch gap-2.5 rounded-sm py-2 pr-2 pl-2',
-        active ? 'border-line bg-surface border shadow-xs' : 'hover:bg-foreground/5',
+        active ? 'border border-line bg-surface shadow-xs' : 'hover:bg-foreground/5',
       )}
     >
       <span aria-hidden="true" className={clsx('w-[3px] shrink-0 rounded-full', spine)} />
@@ -119,12 +119,12 @@ function RowBody({
       <span
         className={clsx(
           'block text-xs',
-          active ? 'text-foreground font-medium' : 'text-muted-foreground',
+          active ? 'font-medium text-foreground' : 'text-muted-foreground',
         )}
       >
         {title}
       </span>
-      <span className="text-muted-foreground mt-1 flex min-w-0 items-center gap-1.5 font-mono text-[10px] tabular-nums">
+      <span className="mt-1 flex min-w-0 items-center gap-1.5 font-mono text-[10px] text-muted-foreground tabular-nums">
         {meta}
       </span>
     </>
@@ -166,7 +166,7 @@ function HistoryRow({
             meta={
               <>
                 {opening && <Spinner aria-hidden="true" className="size-3 shrink-0" />}
-                {active && <span className="bg-accent size-1.5 shrink-0 rounded-full" />}
+                {active && <span className="size-1.5 shrink-0 rounded-full bg-accent" />}
                 <span className="shrink-0">{timeOf(session.updated_at)}</span>
                 <span aria-hidden="true">·</span>
                 {session.paper_title ? (
@@ -228,7 +228,7 @@ export function HistoryList({
 
   if (threads.length === 0) {
     return (
-      <p className="text-muted-foreground px-3 py-6 text-center text-xs">
+      <p className="px-3 py-6 text-center text-xs text-muted-foreground">
         {t('Questions you ask are filed here.')}
       </p>
     )
@@ -250,7 +250,7 @@ export function HistoryList({
                   onDelete={() => onDelete(session)}
                 />
                 {rowError?.id === session.id && (
-                  <p role="alert" className="text-negative px-2 pt-1 pb-0.5 text-[11px]">
+                  <p role="alert" className="px-2 pt-1 pb-0.5 text-[11px] text-negative">
                     {rowError.message}
                   </p>
                 )}
@@ -305,13 +305,13 @@ export function HistoryRail({
         }
       />
       {stale && (
-        <p role="status" className="text-muted-foreground mt-2 px-3 text-[11px]">
+        <p role="status" className="mt-2 px-3 text-[11px] text-muted-foreground">
           {t('History may be out of date.')}{' '}
           {onRefresh && (
             <button
               type="button"
               onClick={onRefresh}
-              className="text-foreground font-medium hover:underline"
+              className="font-medium text-foreground hover:underline"
             >
               {t('Refresh')}
             </button>

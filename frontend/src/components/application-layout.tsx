@@ -229,14 +229,14 @@ function ApplicationLayoutInner({ user, children, area = 'core' }: ShellProps) {
               wordmark so a fresh deploy is visible at a glance. */}
           <SidebarHeader>
             <div className="flex items-center gap-2.5 px-2 py-1.5">
-              <ScannerMark className="text-foreground size-7" />
+              <ScannerMark className="size-7 text-foreground" />
               <div className="flex min-w-0 flex-col">
-                <div className="text-foreground flex items-center gap-1.5 text-xs leading-snug font-semibold tracking-[0.14em] uppercase">
+                <div className="flex items-center gap-1.5 text-xs leading-snug font-semibold tracking-[0.14em] text-foreground uppercase">
                   <span className="truncate">Research Intelligence</span>
                   {/* Names the area so it is obvious which tool you are in —
                       the reading app and the Studio share this chrome. */}
                   {areaBadge && (
-                    <span className="bg-accent shrink-0 rounded-sm px-1.5 py-px text-[10px] tracking-[0.12em] text-white">
+                    <span className="shrink-0 rounded-sm bg-accent px-1.5 py-px text-[10px] tracking-[0.12em] text-white">
                       {areaBadge}
                     </span>
                   )}

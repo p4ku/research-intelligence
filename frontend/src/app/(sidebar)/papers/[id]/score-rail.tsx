@@ -46,7 +46,7 @@ export function ScoreRailFrame({
       </div>
       <ul className="mt-5 space-y-2.5">{bars}</ul>
       {radar && (
-        <div data-row="radar" className="border-line-soft mt-5 flex justify-center border-t pt-4">
+        <div data-row="radar" className="mt-5 flex justify-center border-t border-line-soft pt-4">
           {radar}
         </div>
       )}
@@ -70,7 +70,7 @@ export function ScoreBarFrame({
       className="grid grid-cols-[88px_minmax(0,1fr)_36px] items-center gap-2.5 text-xs text-zinc-600 dark:text-zinc-300"
     >
       <span className="truncate">{label}</span>
-      <span className="bg-line-soft block h-1 w-full overflow-hidden">{fill}</span>
+      <span className="block h-1 w-full overflow-hidden bg-line-soft">{fill}</span>
       <span className="text-right font-mono font-medium text-zinc-950 tabular-nums dark:text-white">
         {value}
       </span>
@@ -98,7 +98,7 @@ function ScoreBar({ dimension: d }: { dimension: Dimension }) {
         hasBar && (
           // scaleX rather than width so the glide runs off the main thread
           <span
-            className="bg-accent block h-full w-full origin-left transition-transform duration-[250ms] ease-out"
+            className="block h-full w-full origin-left bg-accent transition-transform duration-[250ms] ease-out"
             style={{ transform: `scaleX(${pct})` }}
           />
         )

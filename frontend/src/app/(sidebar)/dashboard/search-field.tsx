@@ -23,9 +23,9 @@ export function SearchField() {
         const query = q.trim()
         router.push(query ? `/papers?q=${encodeURIComponent(query)}` : '/papers')
       }}
-      className="group focus-within:border-accent/60 focus-within:ring-accent/15 border-line bg-surface relative flex items-center gap-3 rounded-md border px-4 py-3 transition focus-within:ring-4"
+      className="group relative flex items-center gap-3 rounded-md border border-line bg-surface px-4 py-3 transition focus-within:border-accent/60 focus-within:ring-4 focus-within:ring-accent/15"
     >
-      <MagnifyingGlassIcon className="group-focus-within:text-accent size-5 shrink-0 text-zinc-400 transition-colors" />
+      <MagnifyingGlassIcon className="size-5 shrink-0 text-zinc-400 transition-colors group-focus-within:text-accent" />
       <input
         name="q"
         type="search"

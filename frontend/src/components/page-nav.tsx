@@ -47,7 +47,7 @@ export function PageNav({
   return (
     <nav
       aria-label="Pagination"
-      className={clsx('border-line-soft flex items-center justify-between border-t', className)}
+      className={clsx('flex items-center justify-between border-t border-line-soft', className)}
     >
       <div className="-mt-px flex w-0 flex-1">
         <button

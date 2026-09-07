@@ -53,7 +53,7 @@ export function PaperRecordSkeleton({ t }: { t: T }) {
               </p>
             </section>
 
-            <footer className="border-line border-t pt-4 text-xs">
+            <footer className="border-t border-line pt-4 text-xs">
               <Bone.Text widths={['44ch']} />
             </footer>
           </div>
