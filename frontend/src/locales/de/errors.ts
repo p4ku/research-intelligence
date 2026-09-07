@@ -39,10 +39,11 @@ export const dict: Record<string, string> = {
   "You don't have access to any domain yet. Ask an administrator for access.":
     'Sie haben noch keinen Zugriff auf eine Domäne. Wenden Sie sich für Zugriff an die Administration.',
 
-  // Not-found page ((sidebar)/not-found.tsx)
+  // Not-found pages ((sidebar)/not-found.tsx and the root not-found.tsx)
   "We couldn't find that.": 'Das konnten wir nicht finden.',
   'It may have been removed, or the link may be out of date.':
     'Möglicherweise wurde es entfernt, oder der Link ist veraltet.',
   'Go to Papers': 'Zu den Papers',
   'Go to Briefings': 'Zu den Briefings',
+  'Go to Dashboard': 'Zum Dashboard',
 }
