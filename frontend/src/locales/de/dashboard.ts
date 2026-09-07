@@ -89,7 +89,8 @@ export const dict: Record<string, string> = {
   'Loading the papers': 'Die Papers werden geladen',
   Papers: 'Papers',
   'Not yet active': 'Noch nicht aktiv',
-  // Home (7 Sep 2026): search, the masthead, Recent Briefings, Start New Briefing.
+  // Home (7 Sep 2026): search, Recent Briefings, Start New Briefing. The masthead
+  // keys below stay for the Studio gallery, which still renders it.
   Home: 'Start',
   'Search papers by topic, technology, title or author':
     'Papers nach Thema, Technologie, Titel oder Autor suchen',
@@ -122,8 +123,8 @@ export const dict: Record<string, string> = {
   To: 'Bis',
   'Run pipeline': 'Pipeline starten',
   'Starting…': 'Wird gestartet…',
-  'One run at a time across all analysts. When it finishes, the new briefing leads the page.':
-    'Ein Lauf zur Zeit, über alle Analysten hinweg. Sobald er fertig ist, führt das neue Briefing die Seite an.',
+  'One run at a time across all analysts. When it finishes, the new briefing tops the list.':
+    'Ein Lauf zur Zeit, über alle Analysten hinweg. Sobald er fertig ist, steht das neue Briefing oben in der Liste.',
   '{domain} is running. Briefings and papers stay available meanwhile.':
     '{domain} läuft. Briefings und Papers bleiben währenddessen verfügbar.',
   "Couldn't start the run. Try again.":
