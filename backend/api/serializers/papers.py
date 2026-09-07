@@ -16,6 +16,13 @@ class PaperMetricSerializer(serializers.ModelSerializer):
                 run_id = self._ws_latest_run_cache[obj.workspace_id]
                 return str(run_id) if run_id else None
 
+            from django.core.cache import cache
+            cache_key = f"ws_latest_run:{obj.workspace_id}"
+            cached_id = cache.get(cache_key)
+            if cached_id is not None:
+                self._ws_latest_run_cache[obj.workspace_id] = cached_id
+                return str(cached_id) if cached_id else None
+
             from research_intelligence.models import PipelineRun
             run_id = (
                 PipelineRun.objects.filter(workspace_id=obj.workspace_id)
@@ -31,6 +38,7 @@ class PaperMetricSerializer(serializers.ModelSerializer):
                     .values_list('id', flat=True)
                     .first()
                 )
+            cache.set(cache_key, run_id, timeout=60)
             self._ws_latest_run_cache[obj.workspace_id] = run_id
             if run_id:
                 return str(run_id)
@@ -65,6 +73,13 @@ class PaperSerializer(serializers.ModelSerializer):
         if workspace_id in self._ws_latest_run_cache:
             return self._ws_latest_run_cache[workspace_id]
 
+        from django.core.cache import cache
+        cache_key = f"ws_latest_run:{workspace_id}"
+        cached_id = cache.get(cache_key)
+        if cached_id is not None:
+            self._ws_latest_run_cache[workspace_id] = cached_id
+            return cached_id
+
         from research_intelligence.models import PipelineRun
         run_id = (
             PipelineRun.objects.filter(workspace_id=workspace_id)
@@ -80,6 +95,7 @@ class PaperSerializer(serializers.ModelSerializer):
                 .values_list('id', flat=True)
                 .first()
             )
+        cache.set(cache_key, run_id, timeout=60)
         self._ws_latest_run_cache[workspace_id] = run_id
         return run_id
 

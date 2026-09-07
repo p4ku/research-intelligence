@@ -134,8 +134,7 @@ class PipelineRunDetailSerializer(PipelineRunSerializer):
         )
 
     def get_extractions_count(self, obj):
-        paper_ids = obj.paper_metrics.values_list('paper_id', flat=True)
-        return Extraction.objects.filter(paper_id__in=paper_ids).count()
+        return Extraction.objects.filter(paper_id__in=obj.paper_metrics.values('paper_id')).count()
 
 
 def validate_iso_date(value: str, field_name: str) -> str:

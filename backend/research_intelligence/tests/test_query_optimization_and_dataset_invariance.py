@@ -975,5 +975,239 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
         print(f"\n[BENCHMARK] /api/papers/ with unauthorized workspace executed {query_count} queries.")
         self.assertLessEqual(query_count, 2, f"Expected <= 2 queries, got {query_count}")
 
+    def test_workspace_scoring_action(self):
+        """
+        Verify GET /api/workspaces/{workspace_id}/scoring/ matches frontend schema.
+        """
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            title="Quantum Benchmark Paper",
+            authors="A. Physicist, B. Mathematician",
+            source_database="arXiv",
+            hash_id="scoring_paper_hash_1"
+        )
+        PaperMetric.objects.create(
+            paper=paper,
+            pipeline_run=self.run_1,
+            workspace=self.workspace,
+            screening_status="accepted",
+            signal_score=88.5,
+            signal_score_details={
+                "variables": {"qubits": 128},
+                "code_snippet": "score = qubits * 0.5"
+            }
+        )
+        resp = self.client.get(f"/api/workspaces/{self.workspace.id}/scoring/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["workspace_id"], str(self.workspace.id))
+        self.assertIn("variables", data)
+        self.assertIn("weights", data)
+        self.assertIsNotNone(data["example"])
+        self.assertEqual(data["example"]["title"], "Quantum Benchmark Paper")
+        self.assertEqual(data["example"]["signal_score"], 88.5)
+
+    def test_workspace_editions_and_edition_detail_actions(self):
+        """
+        Verify GET /api/workspaces/{workspace_id}/editions/ and /editions/{date}/
+        return correctly formatted editions with funnel and exclusions.
+        """
+        from datetime import datetime, timezone
+        now_dt = datetime.now(timezone.utc)
+        date_str = now_dt.strftime("%Y-%m-%d")
+        self.run_1.completed_at = now_dt
+        self.run_1.save(update_fields=['completed_at'])
+
+        paper_acc = Paper.objects.create(
+            workspace=self.workspace,
+            title="Accepted Paper",
+            authors="A. Author",
+            source_database="arXiv",
+            hash_id="ed_paper_acc_1"
+        )
+        PaperMetric.objects.create(
+            paper=paper_acc,
+            pipeline_run=self.run_1,
+            workspace=self.workspace,
+            screening_status="accepted",
+            signal_score=92.0
+        )
+
+        paper_rej = Paper.objects.create(
+            workspace=self.workspace,
+            title="Rejected Paper",
+            authors="B. Author",
+            source_database="arXiv",
+            hash_id="ed_paper_rej_1"
+        )
+        PaperMetric.objects.create(
+            paper=paper_rej,
+            pipeline_run=self.run_1,
+            workspace=self.workspace,
+            screening_status="rejected",
+            screening_reasoning="Out of scope methodology"
+        )
+
+        # 1. Test editions list
+        with CaptureQueriesContext(connection) as ctx:
+            resp = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/")
+            self.assertEqual(resp.status_code, 200)
+            data = resp.json()
+            self.assertIn("results", data)
+            self.assertGreaterEqual(data["count"], 1)
+            ed = data["results"][0]
+            self.assertEqual(ed["date"], date_str)
+            self.assertGreaterEqual(len(ed["papers"]), 1)
+            titles = [p["title"] for p in ed["papers"]]
+            self.assertIn("Accepted Paper", titles)
+            self.assertEqual(ed["funnel"]["surfaced"], len(ed["papers"]))
+
+        print(f"\n[BENCHMARK] /api/workspaces/{{id}}/editions/ executed {len(ctx.captured_queries)} queries.")
+
+        # 2. Test edition detail
+        with CaptureQueriesContext(connection) as ctx:
+            resp_detail = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{date_str}/")
+            self.assertEqual(resp_detail.status_code, 200)
+            detail = resp_detail.json()
+            self.assertEqual(detail["date"], date_str)
+            self.assertGreaterEqual(len(detail["papers"]), 1)
+            self.assertGreaterEqual(len(detail["exclusions"]), 1)
+            rej_titles = [ex["title"] for ex in detail["exclusions"]]
+            self.assertIn("Rejected Paper", rej_titles)
+
+        print(f"\n[BENCHMARK] /api/workspaces/{{id}}/editions/{{date}}/ executed {len(ctx.captured_queries)} queries.")
+
+    def test_workspace_preferences_action(self):
+        """
+        Verify GET and PUT /api/workspaces/{workspace_id}/preferences/
+        manage notification and digest subscriptions for the authenticated user.
+        """
+        # Initially False (no subscriber record)
+        resp_get = self.client.get(f"/api/workspaces/{self.workspace.id}/preferences/")
+        self.assertEqual(resp_get.status_code, 200)
+        self.assertEqual(resp_get.json(), {"digest_email": False})
+
+        # Enable digest
+        resp_put = self.client.put(
+            f"/api/workspaces/{self.workspace.id}/preferences/",
+            {"digest_email": True},
+            format="json"
+        )
+        self.assertEqual(resp_put.status_code, 200)
+        self.assertEqual(resp_put.json(), {"digest_email": True})
+        self.assertTrue(
+            Subscriber.objects.filter(workspace=self.workspace, email=self.user.email, is_active=True).exists()
+        )
+
+        # GET confirms True
+        resp_get2 = self.client.get(f"/api/workspaces/{self.workspace.id}/preferences/")
+        self.assertEqual(resp_get2.status_code, 200)
+        self.assertEqual(resp_get2.json(), {"digest_email": True})
+
+        # Disable digest
+        resp_put_off = self.client.put(
+            f"/api/workspaces/{self.workspace.id}/preferences/",
+            {"digest_email": False},
+            format="json"
+        )
+        self.assertEqual(resp_put_off.status_code, 200)
+        self.assertEqual(resp_put_off.json(), {"digest_email": False})
+        self.assertFalse(
+            Subscriber.objects.filter(workspace=self.workspace, email=self.user.email, is_active=True).exists()
+        )
+
+    def test_extractions_view_query_efficiency(self):
+        """
+        Verify GET /api/extractions/ executes with select_related('extraction_definition')
+        and without joins on 'paper' or 'workspace'.
+        """
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            title="Extractions Test Paper",
+            source_database="arXiv",
+            hash_id="ext_test_paper_hash_1"
+        )
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=paper,
+            extraction_definition=self.ext_def,
+            category="Qubit Count Extraction",
+            fields_data={"qubits": 64}
+        )
+
+        with CaptureQueriesContext(connection) as ctx:
+            resp = self.client.get(f"/api/extractions/?paper={paper.id}")
+            self.assertEqual(resp.status_code, 200)
+
+        # Ensure no query joins the Paper or Workspace tables
+        for q in ctx.captured_queries:
+            sql = q['sql'].lower()
+            if 'from "research_intelligence_extraction"' in sql or 'from `research_intelligence_extraction`' in sql or 'extraction' in sql:
+                self.assertNotIn('join "research_intelligence_paper"', sql)
+                self.assertNotIn('join "research_intelligence_workspace"', sql)
+
+    def test_workspace_latest_run_caching_in_serializers(self):
+        """
+        Verify that PaperSerializer and PaperMetricSerializer cache the workspace latest
+        PipelineRun ID in Django cache ('ws_latest_run:<workspace_id>') to eliminate
+        repeated database queries across serializer instances.
+        """
+        from django.core.cache import cache
+        from api.serializers.papers import PaperSerializer, PaperMetricSerializer
+
+        cache_key = f"ws_latest_run:{self.workspace.id}"
+        cache.delete(cache_key)
+
+        # 1. First call on PaperSerializer should query the database and write to cache
+        serializer_1 = PaperSerializer()
+        with CaptureQueriesContext(connection) as ctx1:
+            run_id_1 = serializer_1._get_workspace_latest_run_id(self.workspace.id)
+
+        self.assertIsNotNone(run_id_1)
+        self.assertGreater(len(ctx1.captured_queries), 0)
+        self.assertEqual(cache.get(cache_key), run_id_1)
+
+        # 2. Subsequent call on a brand new PaperSerializer instance must hit Django cache with 0 SQL queries
+        serializer_2 = PaperSerializer()
+        self.assertFalse(hasattr(serializer_2, '_ws_latest_run_cache'))
+        with CaptureQueriesContext(connection) as ctx2:
+            run_id_2 = serializer_2._get_workspace_latest_run_id(self.workspace.id)
+
+        self.assertEqual(run_id_2, run_id_1)
+        self.assertEqual(len(ctx2.captured_queries), 0, f"Expected 0 queries from cache hit, got {len(ctx2.captured_queries)}")
+
+        # 3. PaperMetricSerializer.get_pipeline_run on metric without pipeline_run must also use the cache with 0 queries
+        pm = PaperMetric(
+            paper=self.papers[0],
+            workspace=self.workspace,
+            pipeline_run=None
+        )
+        metric_serializer = PaperMetricSerializer()
+        with CaptureQueriesContext(connection) as ctx3:
+            res_pr_id = metric_serializer.get_pipeline_run(pm)
+
+        self.assertEqual(res_pr_id, str(run_id_1))
+        self.assertEqual(len(ctx3.captured_queries), 0, f"Expected 0 queries from cache hit in PaperMetricSerializer, got {len(ctx3.captured_queries)}")
+
+        # 4. Invalidation: when cache key is cleared, calling again repopulates it
+        cache.delete(cache_key)
+        serializer_3 = PaperSerializer()
+        with CaptureQueriesContext(connection) as ctx4:
+            run_id_3 = serializer_3._get_workspace_latest_run_id(self.workspace.id)
+
+        self.assertEqual(run_id_3, run_id_1)
+        self.assertGreater(len(ctx4.captured_queries), 0)
+        self.assertEqual(cache.get(cache_key), run_id_1)
+
+        # 5. Serialization of paper list with many=True does not query PipelineRun when cached
+        papers_qs = list(Paper.objects.filter(workspace=self.workspace).prefetch_related('metrics')[:5])
+        with CaptureQueriesContext(connection) as ctx5:
+            data = PaperSerializer(papers_qs, many=True).data
+
+        self.assertEqual(len(data), 5)
+        for q in ctx5.captured_queries:
+            sql = q['sql'].lower()
+            self.assertNotIn('pipelinerun', sql)
+
 
 

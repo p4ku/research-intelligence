@@ -42,7 +42,7 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        base_qs = Extraction.objects.select_related('paper', 'extraction_definition', 'workspace')
+        base_qs = Extraction.objects.select_related('extraction_definition')
         if getattr(user, 'is_superuser', False):
             qs = base_qs.all()
             user_ws_ids = None

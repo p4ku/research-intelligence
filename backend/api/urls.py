@@ -67,5 +67,6 @@ urlpatterns = [
     path('chat/messages/<uuid:message_id>/', ChatMessageDetailView.as_view(), name='chat-message-detail'),
 
     # REST ViewSets
+    path('workspaces/<uuid:workspace_id>/editions/<str:edition_date>/', WorkspaceViewSet.as_view({'get': 'edition_detail'}), name='workspace-edition-detail'),
     path('', include(router.urls)),
 ]
