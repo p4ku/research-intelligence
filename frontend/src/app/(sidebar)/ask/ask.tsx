@@ -55,8 +55,10 @@ import {
   type AskScope,
   type PaletteEntry,
   type QuestionTurn,
+  type ScopeTarget,
   type Turn,
 } from './types'
+import { usePalette } from './use-palette'
 import { useTranscriptScroll } from './use-transcript-scroll'
 
 const nowTime = () => timeOf(new Date().toISOString())
@@ -103,30 +105,31 @@ function autogrow(el: HTMLTextAreaElement) {
  * at the bottom on the first question; the transcript above it anchors each
  * new question to the top and follows the streamed answer. Past conversations
  * live in a sidecar that slides over the right gutter, hidden by default.
+ *
+ * The console mounts with nothing fetched. The corpus behind the picker and
+ * the history behind the sidecar both arrive after paint — each surface
+ * shows its own bones if the reader reaches it first — so the composer is
+ * ready the moment the page is.
  */
 export function Ask({
-  entries,
-  initialSessions,
-  initialPaperId,
+  initialTarget = null,
   initialSessionId,
   initialQuestion,
 }: {
-  entries: PaletteEntry[]
-  initialSessions: ChatSession[]
-  initialPaperId?: string
+  /** A `?paper=` deep link, resolved by the page to the chip's few fields. */
+  initialTarget?: ScopeTarget | null
   initialSessionId?: string
   /** Seeds the composer (Home's search handed over); the reader still presses Send. */
   initialQuestion?: string
 }) {
   const t = useT()
   const reduceMotion = useReducedMotion() ?? false
-  const initialTarget = initialPaperId
-    ? (entries.find((e) => e.id === initialPaperId) ?? null)
-    : null
+  const { entries, status: paletteStatus, retry: retryPalette } = usePalette()
 
-  const [target, setTarget] = useState<PaletteEntry | null>(initialTarget)
+  const [target, setTarget] = useState<ScopeTarget | null>(initialTarget)
   const [turns, setTurns] = useState<Turn[]>([])
-  const [sessions, setSessions] = useState<ChatSession[]>(initialSessions)
+  const [sessions, setSessions] = useState<ChatSession[]>([])
+  const [historyStatus, setHistoryStatus] = useState<'loading' | 'ready' | 'stale'>('loading')
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [input, setInput] = useState(initialQuestion ?? '')
   const [pickQuery, setPickQuery] = useState('')
@@ -138,7 +141,6 @@ export function Ask({
   const [sidecarOpen, setSidecarOpen] = useState(false)
   const [openingId, setOpeningId] = useState<string | null>(null)
   const [rowError, setRowError] = useState<{ id: string; message: string } | null>(null)
-  const [railStale, setRailStale] = useState(false)
   // The delete flow: a row only nominates; the AlertDialog confirms.
   const [pendingDelete, setPendingDelete] = useState<ChatSession | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -221,14 +223,20 @@ export function Ask({
     try {
       const page = await bffFetch<Page<ChatSession>>('/bff/chat/sessions?page_size=100')
       setSessions(page.results)
-      setRailStale(false)
+      setHistoryStatus('ready')
     } catch (error) {
       // The rail keeps its last known state — but says so instead of
       // letting a just-finished conversation silently not appear.
       console.error('[ask] session refresh failed:', error)
-      setRailStale(true)
+      setHistoryStatus('stale')
     }
   }, [])
+
+  // The history arrives after paint: the sidecar is closed until asked for,
+  // and a `?session=` deep link opens itself once the list is in (below).
+  useEffect(() => {
+    void refreshSessions()
+  }, [refreshSessions])
 
   /* ------------------------------ Settling ------------------------------ */
 
@@ -327,7 +335,15 @@ export function Ask({
       clearInFlight()
       setActiveSessionId(detail.id)
       setTurns(loaded)
-      const paper = detail.paper_id ? (entries.find((e) => e.id === detail.paper_id) ?? null) : null
+      // The thread knows its paper; the corpus row (when it has arrived)
+      // adds the signal for the chip's dot.
+      const paper: ScopeTarget | null = detail.paper_id
+        ? (entries.find((e) => e.id === detail.paper_id) ?? {
+            id: detail.paper_id,
+            title: detail.paper_title ?? t('Untitled paper'),
+            signal_score: null,
+          })
+        : null
       setTarget(paper)
       scopeRef.current = detail.paper_id
       setInput('')
@@ -448,7 +464,7 @@ export function Ask({
    * `on` lets `pick` send a held question with the paper it just chose:
    * `target` state has not landed yet on that path.
    */
-  function ask(q: string, on?: PaletteEntry) {
+  function ask(q: string, on?: ScopeTarget) {
     const paper = on ?? target
     if (busy || !paper) return
     const scope: AskScope = { paper_id: paper.id, title: paper.title }
@@ -498,6 +514,8 @@ export function Ask({
   /** Open the picker; `holding` is a question that will send on choosing. */
   function startPick(holding?: string) {
     if (busy) return
+    // A picker opened onto a failed corpus load asks again by itself.
+    if (paletteStatus === 'error') retryPalette()
     setHeld(holding ?? null)
     setPickQuery('')
     setCursor(0)
@@ -613,7 +631,8 @@ export function Ask({
             activeId={activeSessionId}
             openingId={openingId}
             rowError={rowError}
-            stale={railStale}
+            loading={historyStatus === 'loading'}
+            stale={historyStatus === 'stale'}
             onRefresh={() => void refreshSessions()}
             onOpen={openThread}
             onDelete={requestDelete}
@@ -817,11 +836,13 @@ export function Ask({
             {mode === 'pick' && (
               <PaperPicker
                 entries={entries}
+                status={paletteStatus}
                 query={pickQuery}
                 cursor={cursor}
                 placement={hasConversation ? 'above' : 'below'}
                 onCursor={setCursor}
                 onPick={pick}
+                onRetry={retryPalette}
               />
             )}
           </motion.div>
