@@ -11,7 +11,9 @@ import { domainScope } from './scope'
  * The archive's rows, filters and pages — pure, so the page composes them on
  * the server, the ledger filters them on the client, and bun tests both.
  * An edition is the row; its run (joined by id) supplies the period and the
- * counters Home shows, so the two screens never disagree.
+ * counters Home shows, so the two screens never disagree. A run that briefed
+ * nothing has no briefing to open, so it is not a row at all — Home's run log
+ * is where those show.
  */
 
 /** The spec's page size. */
@@ -32,8 +34,6 @@ export interface ArchiveRow {
   generated: string
   screened: number
   included: number
-  /** Nothing cleared screening: the edition exists, but there is no briefing to open. */
-  empty: boolean
   brief: HomeBrief
 }
 
@@ -78,22 +78,24 @@ export function composeRows({
   // Under the stub briefings source the fixture run ids match no run, so
   // every row takes the fallbacks below and none is Current.
   const currentId = currentRunId(runs)
-  return editions.map((e) => {
+  const rows: ArchiveRow[] = []
+  for (const e of editions) {
     const run = byId.get(e.run_id)
     const screened = run?.total_papers_fetched ?? e.funnel.fetched
     const included = run?.total_papers_passed_screening ?? e.funnel.passed_screening
-    // As on Home: a run with nothing to brief is never Current.
-    const empty = included === 0
-    return {
+    // Nothing cleared screening: the edition exists, but there is no briefing
+    // to open, so the archive leaves the run out (and, as on Home, it is
+    // never Current).
+    if (included === 0) continue
+    rows.push({
       id: e.run_id,
       workspaceId: e.workspace_id,
       domain: domains[e.workspace_id] ?? run?.workspace_name ?? '—',
-      current: !empty && e.run_id === currentId,
+      current: e.run_id === currentId,
       period: run ? periodLabel(run, t, lang) : formatDay(e.date, lang),
       generated: formatDay(run?.completed_at ?? e.generated_at ?? e.date, lang),
       screened,
       included,
-      empty,
       brief: {
         href: editionHref(e.date, e.workspace_id),
         inBrief: e.in_brief,
@@ -106,8 +108,9 @@ export function composeRows({
           score: p.signal_score,
         })),
       },
-    }
-  })
+    })
+  }
+  return rows
 }
 
 /** The domain and Starred filters, applied to the whole archive before paging. */
