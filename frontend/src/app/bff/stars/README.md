@@ -72,6 +72,8 @@ curl -s -X PUT localhost:3000/bff/stars -b "sri_access=…" \
 
 ## Done criteria
 
-`contract:check` PASS for `stars.get.desired` and `stars.set.desired`; the
+`contract:check` PASS for `stars.get.desired` (`stars.set.desired` shows SKIP:
+the checker never executes writes, so the PUT is covered by the backend test
+suite `research_intelligence/tests/test_stars_api.py` and the curl above); the
 default in `src/lib/bff/core/source.ts` flipped to `django`; the cookie codec
 deleted.

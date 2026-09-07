@@ -19,6 +19,7 @@ from .views.pipeline_runs import PipelineRunViewSet, ComponentRunViewSet
 from .views.schedules import WorkflowScheduleViewSet
 from .views.activity_logs import UserActivityLogViewSet
 from .views.auth import LoginView, TokenRefreshView, UserProfileView, ChangePasswordView, LogoutView
+from .views.stars import StarsView
 from .views.diagnostics import HealthCheckView, DeepDiagnosticsView
 from observability.views import TelemetryAnalyticsAPIView
 
@@ -56,6 +57,9 @@ urlpatterns = [
     path('health/', HealthCheckView.as_view(), name='health-check'),
     path('health/diagnostics/', DeepDiagnosticsView.as_view(), name='deep-diagnostics'),
     path('telemetry/', TelemetryAnalyticsAPIView.as_view(), name='api-telemetry'),
+
+    # Per-user stars on papers and briefings
+    path('stars/', StarsView.as_view(), name='stars'),
 
     # Interactive Paper Chat & Knowledge Explorer
     path('chat/', ChatSubmitView.as_view(), name='chat-submit'),

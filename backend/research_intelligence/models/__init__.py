@@ -35,6 +35,9 @@ from .audit import (
 from .schedule import (
     WorkflowSchedule,
 )
+from .star import (
+    Star,
+)
 
 # Re-export ejected Chat application models for backwards compatibility
 from chat.models import PaperChatSession, PaperChatMessage
@@ -58,6 +61,7 @@ __all__ = [
     "NarrativeReport",
     "UserActivityLog",
     "LLMUsageRecord",
+    "Star",
     "PaperChatSession",
     "PaperChatMessage",
 ]
