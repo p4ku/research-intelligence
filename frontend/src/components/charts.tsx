@@ -129,6 +129,53 @@ export function ScoreMeter({
 
 /* -------------------------------- Radar chart ------------------------------- */
 
+/**
+ * Axis-label metrics. The wrap is measured in characters rather than glyphs —
+ * no DOM, so the chart still renders on the server — using the mean advance of
+ * the 10px label face.
+ */
+const AXIS_LINE = 11 // line height
+const AXIS_CHAR = 5.3 // mean advance width
+const AXIS_GAP = 9 // vertex → first glyph
+const AXIS_EDGE = 2 // keep glyphs off the viewBox wall
+const AXIS_LINES = 3 // lines the plot radius reserves headroom for
+const AXIS_LINES_MAX = 4 // most lines one label may take where the room is there
+
+/**
+ * Greedy word wrap to a character budget: a word too long for any line breaks
+ * on a hyphen, and a label that outruns `maxLines` closes with an ellipsis
+ * (the full text stays in a title).
+ */
+export function wrapAxisLabel(label: string, maxChars: number, maxLines = AXIS_LINES): string[] {
+  const budget = Math.max(4, Math.floor(maxChars))
+  const lines: string[] = []
+  let line = ''
+  for (const word of label.split(/\s+/).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word
+    if (next.length <= budget) {
+      line = next
+      continue
+    }
+    if (line) lines.push(line)
+    line = word
+    while (line.length > budget) {
+      lines.push(`${line.slice(0, budget - 1)}-`)
+      line = line.slice(budget - 1)
+    }
+  }
+  if (line) lines.push(line)
+  if (lines.length <= maxLines) return lines
+  const kept = lines.slice(0, maxLines)
+  kept[maxLines - 1] = `${kept[maxLines - 1]!.slice(0, budget - 1).trimEnd()}…`
+  return kept
+}
+
+/**
+ * A radar with room for its own labels: each is anchored away from the plot
+ * (left of the left axes, right of the right axes, centred over the top and
+ * bottom) and wrapped to the width actually free beside it, so long dimension
+ * names stack instead of colliding with one another or leaving the card.
+ */
 export function RadarChart({
   axes,
   size = 220,
@@ -136,13 +183,17 @@ export function RadarChart({
   className,
 }: {
   axes: { label: string; value: number }[] // value 0–100
+  /** Width of the drawing box; the chart scales to its container up to this. */
   size?: number
   color?: string
   className?: string
 }) {
-  const cx = size / 2
-  const cy = size / 2
-  const r = size / 2 - 34
+  const w = size
+  const h = Math.round(size * 0.76)
+  const cx = w / 2
+  const cy = h / 2
+  // A label gutter each side, and headroom for a stacked top or bottom label.
+  const r = Math.max(28, Math.min(w / 2 - 74, h / 2 - AXIS_GAP - AXIS_LINES * AXIS_LINE))
   const n = axes.length
   const angle = (i: number) => (Math.PI * 2 * i) / n - Math.PI / 2
   const point = (i: number, radius: number) =>
@@ -154,12 +205,49 @@ export function RadarChart({
     dataPts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)} ${y.toFixed(1)}`).join(' ') +
     ' Z'
 
+  // Anchored outward, so each label leans away from the plot, not over it.
+  const anchors = axes.map((_, i) => {
+    const [x, y] = point(i, r + AXIS_GAP)
+    const ux = Math.cos(angle(i))
+    const up = Math.sin(angle(i)) < 0
+    return { x, y, up, anchor: ux > 0.34 ? 'start' : ux < -0.34 ? 'end' : 'middle' } as const
+  })
+
+  const labels = anchors.map((p, i) => {
+    const room =
+      p.anchor === 'start'
+        ? w - p.x - AXIS_EDGE
+        : p.anchor === 'end'
+          ? p.x - AXIS_EDGE
+          : 2 * Math.min(p.x, w - p.x) - 2 * AXIS_EDGE
+    // Stack only into space no neighbour on this flank wants, and never
+    // through the top or bottom of the box.
+    const gap = Math.min(
+      ...anchors.filter((q, j) => j !== i && q.anchor === p.anchor).map((q) => Math.abs(q.y - p.y)),
+    )
+    const wall =
+      p.anchor === 'middle'
+        ? (p.up ? p.y : h - p.y) - AXIS_EDGE
+        : 2 * (Math.min(p.y, h - p.y) - AXIS_EDGE)
+    const maxLines = Math.max(
+      1,
+      Math.min(AXIS_LINES_MAX, Math.floor(gap / AXIS_LINE), Math.floor(wall / AXIS_LINE) + 1),
+    )
+    const full = axes[i]!.label
+    const lines = wrapAxisLabel(full, room / AXIS_CHAR, maxLines)
+    const rise = (lines.length - 1) * AXIS_LINE
+    // Side labels centre on their vertex; top and bottom stack clear of it.
+    const y = p.anchor !== 'middle' ? p.y - rise / 2 : p.up ? p.y - rise : p.y
+    return { key: `${full}-${i}`, x: p.x, y, anchor: p.anchor, lines, full }
+  })
+
   return (
     <svg
-      viewBox={`0 0 ${size} ${size}`}
-      className={clsx('overflow-visible', className)}
-      width={size}
-      height={size}
+      viewBox={`0 0 ${w} ${h}`}
+      className={clsx('h-auto w-full', className)}
+      style={{ maxWidth: w }}
+      role="img"
+      aria-label={axes.map((a) => `${a.label} ${Math.round(a.value)}`).join(', ')}
     >
       {rings.map((t) => (
         <polygon
@@ -195,21 +283,23 @@ export function RadarChart({
       {dataPts.map(([x, y], i) => (
         <circle key={i} cx={x} cy={y} r={2.6} fill={color} />
       ))}
-      {axes.map((a, i) => {
-        const [x, y] = point(i, r + 18)
-        return (
-          <text
-            key={a.label}
-            x={x}
-            y={y}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            className="fill-zinc-500 text-[10px] font-medium dark:fill-zinc-400"
-          >
-            {a.label}
-          </text>
-        )
-      })}
+      {labels.map((l) => (
+        <text
+          key={l.key}
+          x={l.x}
+          y={l.y}
+          textAnchor={l.anchor}
+          dominantBaseline="middle"
+          className="fill-zinc-500 text-[10px] font-medium dark:fill-zinc-400"
+        >
+          {l.lines.join(' ') !== l.full && <title>{l.full}</title>}
+          {l.lines.map((line, k) => (
+            <tspan key={k} x={l.x} dy={k === 0 ? 0 : AXIS_LINE}>
+              {line}
+            </tspan>
+          ))}
+        </text>
+      ))}
     </svg>
   )
 }
