@@ -23,7 +23,7 @@ export function useTranscriptScroll(reduceMotion: boolean) {
   const [jump, setJump] = useState(false)
   const pinned = useRef(true)
   const busy = useRef(false)
-  const sc = useRef({ raf: 0, vel: 0, lastWrite: -1, anchoring: 0, stuckRaf: 0 })
+  const sc = useRef({ raf: 0, vel: 0, lastWrite: -1, anchoring: 0 })
 
   const write = useCallback((top: number) => {
     const el = ref.current
@@ -129,29 +129,14 @@ export function useTranscriptScroll(reduceMotion: boolean) {
     anchorTo(el.scrollHeight - el.clientHeight)
   }, [anchorTo])
 
-  /** Question headings get a hairline only while they are actually stuck. */
-  const markStuck = useCallback(() => {
-    sc.current.stuckRaf = 0
-    const el = ref.current
-    if (!el) return
-    const top = el.getBoundingClientRect().top
-    for (const head of el.querySelectorAll<HTMLElement>('[data-q-head]')) {
-      head.toggleAttribute(
-        'data-stuck',
-        el.scrollTop > 0 && head.getBoundingClientRect().top <= top + 0.5,
-      )
-    }
-  }, [])
-
   const onScroll = useCallback(() => {
-    if (!sc.current.stuckRaf) sc.current.stuckRaf = requestAnimationFrame(markStuck)
     if (atBottom()) {
       pinned.current = true
       setJump(false)
       return
     }
     if (busy.current && !sc.current.anchoring && readerScrolledUp()) release()
-  }, [markStuck, release])
+  }, [release])
 
   /** Whether an answer is in flight (only then does a scroll-up release). */
   const setBusy = useCallback((value: boolean) => {
@@ -169,13 +154,7 @@ export function useTranscriptScroll(reduceMotion: boolean) {
     return () => ro.disconnect()
   })
 
-  useEffect(
-    () => () => {
-      cancelAnimationFrame(sc.current.raf)
-      cancelAnimationFrame(sc.current.stuckRaf)
-    },
-    [],
-  )
+  useEffect(() => () => cancelAnimationFrame(sc.current.raf), [])
 
   return { ref, jump, onScroll, anchorTurn, follow, jumpToLatest, setBusy }
 }

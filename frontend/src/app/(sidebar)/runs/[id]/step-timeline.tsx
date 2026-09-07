@@ -40,7 +40,7 @@ interface StepRow {
  */
 function StepTimelineFrame({ rows, state }: { rows: StepRow[]; state: 'loaded' | 'skeleton' }) {
   return (
-    <ol data-shape="step-timeline" data-state={state} className="divide-line-soft divide-y">
+    <ol data-shape="step-timeline" data-state={state} className="divide-y divide-line-soft">
       {rows.map((row, index) => {
         const isLast = index === rows.length - 1
         return (
@@ -176,7 +176,7 @@ export function StepTimeline({ steps }: { steps: ComponentRun[] }) {
           className="hidden h-1 w-24 overflow-hidden rounded-full bg-zinc-100 sm:block dark:bg-zinc-800"
           aria-hidden="true"
         >
-          <div className="bg-accent h-full rounded-full" style={{ width: `${width}%` }} />
+          <div className="h-full rounded-full bg-accent" style={{ width: `${width}%` }} />
         </div>
       ),
       duration: formatDuration(step.duration_seconds),

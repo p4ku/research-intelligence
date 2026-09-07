@@ -16,36 +16,28 @@ import { shortTitle, type AnswerTurn, type QuestionTurn } from './types'
 const EASE_OUT = [0.23, 1, 0.32, 1] as const
 
 /**
- * A user question as the turn's heading: a mono eyebrow carrying time + scope,
- * then the question itself. It sticks to the top of the transcript while its
- * answer scrolls beneath it, and gets a hairline only while stuck (the scroll
- * model toggles `data-stuck`).
+ * A user question, right-aligned in a quiet bubble. The scope it was asked
+ * under is a title attribute rather than a visible eyebrow: on a chat canvas
+ * the paper is already named in the composer's chip and in the sidecar row,
+ * and a mono line over every question turned the transcript into a ledger.
  */
-export function AskedHeading({ turn }: { turn: QuestionTurn }) {
+export function AskedBubble({ turn }: { turn: QuestionTurn }) {
   const t = useT()
+  const scope = turn.scope.title
+    ? fmt(t('Asked {time} · {title} · full text'), {
+        time: turn.askedAt,
+        title: shortTitle(turn.scope.title),
+      })
+    : fmt(t('Asked {time} · all papers'), { time: turn.askedAt })
   return (
-    <header
-      data-q-head
-      className="bg-surface data-stuck:border-line-soft sticky top-0 z-[3] -mt-[18px] border-b border-transparent pt-[18px] pb-2.5 transition-colors duration-150 ease-out"
-    >
-      <p className="text-muted-foreground flex min-w-0 items-center gap-1.5 font-mono text-[11px] tracking-[0.07em] uppercase tabular-nums">
-        <span className="shrink-0">{fmt(t('Asked {time}'), { time: turn.askedAt })}</span>
-        <span aria-hidden="true">·</span>
-        {turn.scope.title ? (
-          <>
-            <span className="bg-accent size-1.5 shrink-0 rounded-full" />
-            <span className="min-w-0 truncate">{shortTitle(turn.scope.title)}</span>
-            <span aria-hidden="true">·</span>
-            <span className="shrink-0">{t('full text')}</span>
-          </>
-        ) : (
-          <span className="truncate">{t('All papers')}</span>
-        )}
-      </p>
-      <h3 className="text-foreground mt-1.5 text-[15px] font-semibold tracking-tight text-pretty">
+    <div className="flex justify-end">
+      <h3
+        title={scope}
+        className="max-w-[80%] rounded-sm bg-foreground/6 px-3.5 py-2 text-[15px] leading-relaxed font-normal text-pretty text-foreground"
+      >
         {turn.text}
       </h3>
-    </header>
+    </div>
   )
 }
 
@@ -65,10 +57,10 @@ function ScanningLine({ scopeTitle }: { scopeTitle: string | null }) {
   const t = useT()
   const ms = useElapsed(true)
   return (
-    <p className="text-muted-foreground mt-1 flex items-center gap-2 font-mono text-xs tabular-nums">
+    <p className="mt-1 flex items-center gap-2 font-mono text-xs text-muted-foreground tabular-nums">
       <span className="relative flex size-2 shrink-0">
-        <span className="bg-accent/60 absolute inset-0 animate-ping rounded-full" />
-        <span className="bg-accent relative size-2 rounded-full" />
+        <span className="absolute inset-0 animate-ping rounded-full bg-accent/60" />
+        <span className="relative size-2 rounded-full bg-accent" />
       </span>
       <span className="min-w-0 truncate">
         {scopeTitle
@@ -123,7 +115,7 @@ export function LiveAnswer({
       caret={false}
       citations={state.visualCitations}
       t={t}
-      className="text-foreground/75 text-sm"
+      className="text-[15px] text-foreground"
     />
   )
 }
@@ -154,7 +146,7 @@ export function SettledAnswer({
             text={turn.text}
             citations={[]}
             t={t}
-            className="text-foreground/75 mb-3 text-sm"
+            className="mb-3 text-[15px] text-foreground"
           />
         )}
         <ErrorNote
@@ -163,7 +155,7 @@ export function SettledAnswer({
               <button
                 type="button"
                 onClick={onRetry}
-                className="bg-foreground text-background hover:bg-foreground/85 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors"
+                className="rounded-sm bg-foreground px-3 py-1.5 text-sm font-medium text-background transition-colors hover:bg-foreground/85"
               >
                 {t('Ask again')}
               </button>
@@ -182,10 +174,10 @@ export function SettledAnswer({
         citations={turn.visualCitations}
         citationAnchor={anchor}
         t={t}
-        className="text-foreground/75 text-sm"
+        className="text-[15px] text-foreground"
       />
       {turn.stopped && (
-        <p className="text-muted-foreground mt-2 font-mono text-[11px]">{t('Stopped')}</p>
+        <p className="mt-2 font-mono text-[11px] text-muted-foreground">{t('Stopped')}</p>
       )}
       <TurnExtras turn={turn} anchor={anchor} />
     </div>
@@ -225,10 +217,10 @@ function TurnExtras({ turn, anchor }: { turn: AnswerTurn; anchor: string }) {
         <motion.div key={cite.paper_id} variants={item}>
           <Link
             href={cite.href}
-            className="border-line/70 hover:border-line flex min-w-0 items-center gap-2 rounded-sm border px-3 py-2 text-xs"
+            className="flex min-w-0 items-center gap-2 rounded-sm border border-line/70 px-3 py-2 text-xs hover:border-line"
           >
             <MiniScore score={cite.signal_score} />
-            <span className="text-foreground truncate font-medium">{cite.title}</span>
+            <span className="truncate font-medium text-foreground">{cite.title}</span>
           </Link>
         </motion.div>
       ))}
@@ -236,13 +228,13 @@ function TurnExtras({ turn, anchor }: { turn: AnswerTurn; anchor: string }) {
       {turn.visualCitations.length > 0 && (
         <motion.div
           variants={item}
-          className="border-line/70 space-y-1 rounded-sm border px-3 py-2"
+          className="space-y-1 rounded-sm border border-line/70 px-3 py-2"
         >
           {turn.visualCitations.map((v, i) => (
             <p
               key={i}
               id={`${anchor}-${i}`}
-              className="text-muted-foreground flex min-w-0 scroll-mt-24 items-baseline gap-1.5 text-[11px]"
+              className="flex min-w-0 scroll-mt-24 items-baseline gap-1.5 text-[11px] text-muted-foreground"
             >
               <span className="shrink-0 font-mono tabular-nums">
                 {v.page != null ? fmt(t('p. {n}'), { n: v.page }) : '—'}
@@ -251,7 +243,7 @@ function TurnExtras({ turn, anchor }: { turn: AnswerTurn; anchor: string }) {
               {v.quote && <span className="truncate italic">“{v.quote}”</span>}
               {v.verified_in_source && (
                 <CheckCircleIcon
-                  className="text-accent size-3.5 shrink-0 self-center"
+                  className="size-3.5 shrink-0 self-center text-accent"
                   aria-label={t('Verified in source')}
                 />
               )}
@@ -263,7 +255,7 @@ function TurnExtras({ turn, anchor }: { turn: AnswerTurn; anchor: string }) {
       {(turn.factCheck || turn.usage) && (
         <motion.p
           variants={item}
-          className="text-muted-foreground pt-0.5 font-mono text-[11px] tabular-nums"
+          className="pt-0.5 font-mono text-[11px] text-muted-foreground tabular-nums"
         >
           {turn.factCheck && (
             <>
@@ -322,7 +314,7 @@ export function FollowUps({ exclude, onAsk }: { exclude: string; onAsk: (q: stri
           variants={item}
           type="button"
           onClick={() => onAsk(q)}
-          className="border-line text-muted-foreground hover:border-line-strong hover:text-foreground hover:bg-foreground/3 rounded-sm border px-2.5 py-1.5 text-left text-xs transition-colors duration-100 ease-out active:scale-[0.98]"
+          className="rounded-sm border border-line px-2.5 py-1.5 text-left text-xs text-muted-foreground transition-colors duration-100 ease-out hover:border-line-strong hover:bg-foreground/3 hover:text-foreground active:scale-[0.98]"
         >
           {q}
         </motion.button>

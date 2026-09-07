@@ -162,7 +162,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
       }
       body={
         msgs.length === 0 && !asking && historyState !== 'failed' ? (
-          <p className="text-muted-foreground text-sm leading-relaxed text-balance">
+          <p className="text-sm leading-relaxed text-balance text-muted-foreground">
             {t('Questions here are answered from this paper alone.')}
           </p>
         ) : (
@@ -171,7 +171,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
               m.role === 'user' ? (
                 <p
                   key={i}
-                  className="text-foreground pt-1 text-[13px] font-semibold tracking-tight text-pretty"
+                  className="pt-1 text-[13px] font-semibold tracking-tight text-pretty text-foreground"
                 >
                   {m.text}
                 </p>
@@ -182,7 +182,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
                       text={m.text}
                       citations={m.visualCitations}
                       t={t}
-                      className={clsx('text-muted-foreground text-[13px]', m.error && 'mb-2')}
+                      className={clsx('text-[13px] text-muted-foreground', m.error && 'mb-2')}
                     />
                   )}
                   {m.error && (
@@ -200,13 +200,13 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
                   streaming={live.status === 'streaming'}
                   citations={live.visualCitations}
                   t={t}
-                  className="text-muted-foreground text-[13px]"
+                  className="text-[13px] text-muted-foreground"
                 />
               ) : (
-                <p className="text-muted-foreground flex items-center gap-2 font-mono text-xs">
+                <p className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
                   <span className="relative flex size-2 shrink-0">
-                    <span className="bg-accent/60 absolute inset-0 animate-ping rounded-full" />
-                    <span className="bg-accent relative size-2 rounded-full" />
+                    <span className="absolute inset-0 animate-ping rounded-full bg-accent/60" />
+                    <span className="relative size-2 rounded-full bg-accent" />
                   </span>
                   {t('Generating…')}
                 </p>
@@ -218,7 +218,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
       footer={
         <>
           {historyState === 'failed' && msgs.length === 0 && (
-            <div className="border-line-soft border-t px-4 py-3">
+            <div className="border-t border-line-soft px-4 py-3">
               <ErrorNote
                 action={
                   <button
@@ -227,7 +227,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
                       setHistoryState('loading')
                       setReloadKey((k) => k + 1)
                     }}
-                    className="bg-foreground text-background hover:bg-foreground/85 rounded-sm px-2.5 py-1 text-xs font-medium transition-colors"
+                    className="rounded-sm bg-foreground px-2.5 py-1 text-xs font-medium text-background transition-colors hover:bg-foreground/85"
                   >
                     {t('Retry')}
                   </button>
@@ -244,7 +244,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
               e.preventDefault()
               if (input.trim()) ask(input.trim())
             }}
-            className="border-line-soft focus-within:border-foreground/20 border-t transition-colors"
+            className="border-t border-line-soft transition-colors focus-within:border-foreground/20"
           >
             <div className="flex items-center gap-2 p-1.5 pl-4">
               <input
@@ -254,14 +254,14 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={t('Ask a question about this paper…')}
-                className="text-foreground placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm focus:outline-none max-sm:text-base"
+                className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none max-sm:text-base"
               />
               <button
                 type="submit"
                 aria-label={t('Send')}
                 disabled={asking}
                 className={clsx(
-                  'focus-visible:outline-accent flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
+                  'flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
                   input.trim() && !asking
                     ? 'bg-foreground text-background hover:bg-foreground/85'
                     : 'bg-foreground/10 text-muted-foreground',
@@ -321,7 +321,7 @@ export function PaperChatFrame({
         aria-expanded={open}
         className={clsx(PILL_CLASS, 'active:scale-[0.97]', open && 'pointer-events-none opacity-0')}
       >
-        <span aria-hidden="true" className="bg-accent size-1.5 rounded-full" />
+        <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
         {title}
       </button>
 
@@ -331,14 +331,14 @@ export function PaperChatFrame({
         data-shape="paper-chat"
         data-state={state}
         className={clsx(
-          'border-line-strong bg-surface fixed inset-y-0 right-0 z-40 flex w-full max-w-[440px] flex-col border-l shadow-[-12px_0_40px_-16px_rgba(19,19,17,0.25)] transition-transform duration-[260ms] ease-out motion-reduce:transition-none',
+          'fixed inset-y-0 right-0 z-40 flex w-full max-w-[440px] flex-col border-l border-line-strong bg-surface shadow-[-12px_0_40px_-16px_rgba(19,19,17,0.25)] transition-transform duration-[260ms] ease-out motion-reduce:transition-none',
           open ? 'translate-x-0' : 'translate-x-full',
         )}
       >
-        <div className="border-line-soft flex items-start justify-between gap-3 border-b py-3 pr-3 pl-[18px]">
+        <div className="flex items-start justify-between gap-3 border-b border-line-soft py-3 pr-3 pl-[18px]">
           <div className="min-w-0">
-            <div className="text-foreground flex items-center gap-2 font-mono text-[11px] font-medium tracking-[0.18em] uppercase">
-              <span aria-hidden="true" className="bg-accent size-1.5 shrink-0 rounded-full" />
+            <div className="flex items-center gap-2 font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase">
+              <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent" />
               {title}
             </div>
             {subtitle && (
@@ -353,7 +353,7 @@ export function PaperChatFrame({
             onClick={onClose}
             disabled={!onClose}
             aria-label="Close"
-            className="hover:bg-line-soft rounded-sm p-1.5 text-zinc-500 transition-colors"
+            className="rounded-sm p-1.5 text-zinc-500 transition-colors hover:bg-line-soft"
           >
             <XMarkIcon aria-hidden="true" className="size-4" />
           </button>
@@ -375,12 +375,12 @@ export function PaperChatSkeleton({ label, title }: { label: string; title: stri
       label={label}
       title={title}
       body={
-        <p className="text-muted-foreground text-sm leading-relaxed">
+        <p className="text-sm leading-relaxed text-muted-foreground">
           <Bone.Text lines={2} widths={['92%', '48%']} />
         </p>
       }
       footer={
-        <div className="border-line-soft border-t">
+        <div className="border-t border-line-soft">
           <div className="flex items-center gap-2 p-1.5 pl-4">
             <span className="min-w-0 flex-1 text-sm max-sm:text-base">
               <Bone.Text widths={['20ch']} />

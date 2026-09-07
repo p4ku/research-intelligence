@@ -79,7 +79,7 @@ function Block({
 function Dot({ size = 6, className }: { size?: number; className?: string }) {
   return (
     <span
-      className={clsx('bg-foreground/8 inline-block shrink-0 rounded-full', className)}
+      className={clsx('inline-block shrink-0 rounded-full bg-foreground/8', className)}
       style={{ width: size, height: size }}
     />
   )
@@ -97,7 +97,7 @@ function Ring({
   // Stands in for SignalScore: the track only — no arc, no number.
   return (
     <span
-      className={clsx('border-foreground/8 inline-block shrink-0 rounded-full', className)}
+      className={clsx('inline-block shrink-0 rounded-full border-foreground/8', className)}
       style={{ width: size, height: size, borderWidth: stroke }}
     />
   )

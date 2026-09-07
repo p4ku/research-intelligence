@@ -148,11 +148,13 @@ with fewer numeric dimensions sees both shorten on load. It has a
 not-found page in-stream — the same trade as the run page, decided 2026-09-02
 and pinned by `skeleton:drift --not-found`.
 
-`/ask` streams the console behind one boundary (the corpus feeds the picker,
-the sessions feed the rail; both block it). The console's chrome moved to
-`ask/console-frame.tsx` (no directive, no hooks) so `loading.tsx` renders the
-real strip, greeting and composer box with bones only where data would show:
-`PaperPickerSkeleton` under the composer and `HistoryRailSkeleton` in the rail.
+`/ask` streams the canvas behind one boundary (the corpus feeds the picker,
+the sessions feed the recent-chats sidecar; both block it). The canvas's
+chrome lives in `ask/console-frame.tsx` (no directive, no hooks) so
+`loading.tsx` renders the real top bar, greeting and composer box with a bone
+only where the typed question would go. Neither the picker nor the sidecar is
+on screen until the reader asks for them, so neither is boned here;
+`HistorySidecarSkeleton` and `PaperPickerSkeleton` exist for the gallery.
 `ask/sections.tsx`, `ask/skeletons.tsx`, `ask/loading.tsx`.
 
 `/briefing` streams the reading room behind one boundary
@@ -188,7 +190,7 @@ Things learned:
 - **A region that must fill its parent** takes `innerClassName` — the console
   is a fixed-height flex column and the bones inside have to inherit it.
 - **The gallery page is a Server Component**, so loaded panes for components
-  that take callbacks (`HistoryRail`, `PaperPicker`) come from a `'use client'`
+  that take callbacks (`HistorySidecar`, `PaperPicker`) come from a `'use client'`
   demo wrapper (`studio/skeletons/gallery-clients.tsx`).
 - **Per-request `cache()` on the services** (`papers.get`, `papers.listAll`,
   `briefings.listAll`, `briefings.getByDate`) is what makes sibling sections

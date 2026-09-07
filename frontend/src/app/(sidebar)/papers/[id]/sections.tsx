@@ -139,7 +139,7 @@ function Provenance({ paper, t, lang }: { paper: ScoredPaper; t: T; lang: Lang }
     </Link>,
   )
   return (
-    <footer className="border-line flex flex-wrap items-center gap-x-3 gap-y-1 border-t pt-4 text-xs text-zinc-400 dark:text-zinc-500">
+    <footer className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-4 text-xs text-zinc-400 dark:text-zinc-500">
       {parts.map((part, i) => (
         <span key={i} className="inline-flex items-center gap-3">
           {i > 0 && <span aria-hidden="true">·</span>}

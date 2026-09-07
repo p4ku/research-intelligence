@@ -46,7 +46,7 @@ function Field({
         {label}
       </span>
       {children}
-      {error && <span className="text-negative mt-1 block text-xs">{error}</span>}
+      {error && <span className="mt-1 block text-xs text-negative">{error}</span>}
     </label>
   )
 }
@@ -183,7 +183,7 @@ export function RunCard({
       }
       error={
         errors._ && (
-          <p role="alert" className="text-negative text-xs">
+          <p role="alert" className="text-xs text-negative">
             {errors._}
           </p>
         )

@@ -16,7 +16,7 @@ import { fixturePapers, fixtureWorkspace } from '@/lib/bff/papers/fixtures'
 import { fixtureRunDetail, fixtureRuns } from '@/lib/bff/pipeline-runs/fixtures'
 import type { T } from '@/lib/i18n'
 import type { ReactNode } from 'react'
-import { HistoryRailSkeleton } from '../../(sidebar)/ask/history-rail'
+import { HistorySidecarSkeleton } from '../../(sidebar)/ask/history-sidecar'
 import { PaperPickerSkeleton } from '../../(sidebar)/ask/paper-picker'
 import type { PaletteEntry } from '../../(sidebar)/ask/types'
 import {
@@ -40,7 +40,7 @@ import { ScoreRail, ScoreRailSkeleton } from '../../(sidebar)/papers/[id]/score-
 import { RunFacts, RunFactsSkeleton } from '../../(sidebar)/runs/[id]/run-facts'
 import { StepTimeline, StepTimelineSkeleton } from '../../(sidebar)/runs/[id]/step-timeline'
 import { RunsTable, RunsTableSkeleton } from '../../(sidebar)/runs/runs-table'
-import { HistoryRailDemo, PaperPickerDemo } from './gallery-clients'
+import { HistorySidecarDemo, PaperPickerDemo } from './gallery-clients'
 
 /**
  * The skeleton gallery: every data shape next to its loading state, on fixture
@@ -469,17 +469,19 @@ export default async function SkeletonsPage({
       />
 
       <Pair
-        shape="history-rail"
-        title="Ask · history rail"
+        shape="history-sidecar"
+        title="Ask · recent-chats sidecar"
         status="Loading the assistant"
         loaded={
-          <div className="max-w-sm">
-            <HistoryRailDemo threads={sessions} />
+          // The sidecar positions itself against the canvas, so the gallery
+          // gives it one: a relative box the width of the open panel.
+          <div className="relative h-96 w-[17rem] overflow-hidden rounded-sm border border-line bg-surface">
+            <HistorySidecarDemo threads={sessions} />
           </div>
         }
         skeleton={
-          <div className="max-w-sm">
-            <HistoryRailSkeleton groups={[1, 2]} lines={[1, 1, 2]} />
+          <div className="relative h-96 w-[17rem] overflow-hidden rounded-sm border border-line bg-surface">
+            <HistorySidecarSkeleton groups={[1, 2]} lines={[1, 1, 2]} />
           </div>
         }
       />

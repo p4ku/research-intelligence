@@ -130,8 +130,15 @@ export function StatusLabel({ status }: { status: RowStatus }) {
 export function BriefPanel({ brief }: { brief: HomeBrief }) {
   const t = useT()
   return (
-    <div className="grid gap-6 pl-3 whitespace-normal lg:grid-cols-5">
-      <div className="lg:col-span-3">
+    <div
+      className={clsx(
+        'grid gap-6 pl-3 whitespace-normal',
+        // Nothing to list beside the brief: let it run at its own
+        // measure rather than pairing it with an empty column.
+        brief.top.length > 0 && 'lg:grid-cols-5',
+      )}
+    >
+      <div className={clsx(brief.top.length > 0 && 'lg:col-span-3')}>
         <p className="font-mono text-[11px] text-zinc-500 tabular-nums dark:text-zinc-400">
           {fmt(t('{screened} screened → {included} included'), {
             screened: brief.screened,
@@ -146,15 +153,11 @@ export function BriefPanel({ brief }: { brief: HomeBrief }) {
           {t('Open briefing →')}
         </TextLink>
       </div>
-      <div className="lg:col-span-2">
-        {brief.top.length > 0 ? (
+      {brief.top.length > 0 && (
+        <div className="lg:col-span-2">
           <TopPapers papers={brief.top} dense />
-        ) : (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {t('No papers met the inclusion criteria for this briefing.')}
-          </p>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -235,7 +238,7 @@ function Row({
                   onRetry()
                 }}
                 disabled={busy}
-                className="border-line rounded-sm border px-2 py-0.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:text-zinc-200 dark:hover:text-white"
+                className="rounded-sm border border-line px-2 py-0.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:text-zinc-200 dark:hover:text-white"
               >
                 {t('Retry')}
               </button>
@@ -246,7 +249,9 @@ function Row({
 
       {open && row.brief && (
         <TableRow data-row="brief" id={panelId} className={clsx(current && 'bg-foreground/3')}>
-          <TableCell colSpan={COLUMNS.length} className="pt-0! pb-5!">
+          {/* The row above keeps its own bottom padding; the panel adds a
+              little of its own so its first line is not against the rule. */}
+          <TableCell colSpan={COLUMNS.length} className="pt-3! pb-5!">
             <BriefPanel brief={row.brief} />
           </TableCell>
         </TableRow>
@@ -312,7 +317,7 @@ export function Ledger({ rows, busy }: { rows: HomeRow[]; busy: boolean }) {
         ))}
       />
       {error && (
-        <p role="alert" className="text-negative mt-2 text-xs">
+        <p role="alert" className="mt-2 text-xs text-negative">
           {error}
         </p>
       )}

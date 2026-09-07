@@ -66,7 +66,7 @@ export function StarButton({
       className={clsx(
         'inline-flex size-7 items-center justify-center rounded-sm text-zinc-400 transition-[opacity,color] duration-150 ease-out',
         'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 aria-pressed:opacity-100',
-        'aria-pressed:text-warn hover:text-zinc-700 dark:hover:text-zinc-200',
+        'hover:text-zinc-700 aria-pressed:text-warn dark:hover:text-zinc-200',
         className,
       )}
     >
@@ -109,7 +109,7 @@ export function StarToggle({
         toggle(kind, id)
       }}
       className={clsx(
-        'group border-line bg-surface inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-sm border px-2.5 text-xs font-medium whitespace-nowrap text-zinc-600 transition-colors duration-150 ease-out',
+        'group inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-sm border border-line bg-surface px-2.5 text-xs font-medium whitespace-nowrap text-zinc-600 transition-colors duration-150 ease-out',
         'hover:border-zinc-400 hover:text-zinc-950 active:scale-[0.98] aria-pressed:text-zinc-950',
         'dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-white dark:aria-pressed:text-white',
         className,
@@ -121,7 +121,7 @@ export function StarToggle({
         onAnimationEnd={settle}
         className={clsx(
           'size-3.5 text-zinc-400 transition-colors duration-150 ease-out',
-          on && 'text-warn fill-current',
+          on && 'fill-current text-warn',
           pop && 'animate-star-pop motion-reduce:animate-none',
         )}
       />
@@ -166,7 +166,7 @@ export function StarredChip({
       <StarIcon
         aria-hidden="true"
         strokeWidth={2}
-        className={clsx('size-3', active ? 'text-warn fill-current' : 'text-zinc-400')}
+        className={clsx('size-3', active ? 'fill-current text-warn' : 'text-zinc-400')}
       />
       {t('Starred')}
       <span className={clsx('font-mono tabular-nums', !active && 'text-zinc-400')}>{count}</span>

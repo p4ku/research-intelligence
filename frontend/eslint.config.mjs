@@ -4,8 +4,10 @@ import { defineConfig } from 'eslint/config'
 
 const eslintConfig = defineConfig([
   // Agent-local build dirs (see the multi-agent build workflow); eslint-config-next
-  // only knows to ignore `.next/`.
-  { ignores: ['.next-agent*/**', '.next-build/**'] },
+  // only knows to ignore `.next/`. Matches .gitignore's `/.next-*/` — any
+  // BUILD_DIR, whatever an agent named it — so a new name can't start linting
+  // its own build output.
+  { ignores: ['.next-*/**'] },
   ...nextVitals,
   ...nextTs,
   {

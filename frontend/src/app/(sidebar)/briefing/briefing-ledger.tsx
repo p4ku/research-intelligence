@@ -148,7 +148,7 @@ function Row({ row, open, onToggle }: { row: ArchiveRow; open: boolean; onToggle
 
       {open && (
         <TableRow data-row="brief" id={panelId} className={clsx(row.current && 'bg-foreground/3')}>
-          <TableCell colSpan={COLUMNS.length} className="pt-0! pb-5!">
+          <TableCell colSpan={COLUMNS.length} className="pt-3! pb-5!">
             <BriefPanel brief={row.brief} />
           </TableCell>
         </TableRow>
@@ -239,7 +239,7 @@ export function BriefingLedger({
       ))}
       empty={
         filtered.length === 0 && (
-          <div className="border-line rounded-sm border border-dashed p-10 text-center text-sm text-zinc-400 dark:text-zinc-500">
+          <div className="rounded-sm border border-dashed border-line p-10 text-center text-sm text-zinc-400 dark:text-zinc-500">
             {emptyCopy}
           </div>
         )
