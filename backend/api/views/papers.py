@@ -5,7 +5,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 from research_intelligence.models import Paper, PaperMetric, WorkspaceMember
-from ..serializers.papers import PaperSerializer, PaperMetricSerializer
+from ..serializers.papers import PaperSerializer, PaperListSerializer, PaperMetricSerializer
 from ..pagination import StandardResultsSetPagination
 
 
@@ -28,6 +28,11 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = StandardResultsSetPagination
     ordering_fields = ['created_at', 'title', 'doi', 'arxiv_id']
     ordering = ['-created_at', '-id']
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return PaperListSerializer
+        return PaperSerializer
 
     def filter_queryset(self, queryset):
         ordering = self.request.query_params.get('ordering')

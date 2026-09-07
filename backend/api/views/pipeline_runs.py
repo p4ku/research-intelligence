@@ -13,6 +13,7 @@ from research_intelligence.models import (
 )
 from ..serializers.pipeline_runs import (
     PipelineRunSerializer,
+    PipelineRunListSerializer,
     PipelineRunDetailSerializer,
     ComponentRunSerializer,
     TriggerStepSerializer,
@@ -50,6 +51,8 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
     ordering = ['-started_at']
 
     def get_serializer_class(self):
+        if self.action == 'list':
+            return PipelineRunListSerializer
         if self.action == 'retrieve':
             return PipelineRunDetailSerializer
         if self.action == 'create':
@@ -66,12 +69,16 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             return PipelineRun.objects.none()
 
         if getattr(user, 'is_superuser', False):
-            qs = PipelineRun.objects.select_related('workspace', 'triggered_by').prefetch_related('component_runs').all().order_by('-started_at')
+            qs = PipelineRun.objects.select_related('workspace', 'triggered_by').all().order_by('-started_at')
         else:
             user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-            qs = PipelineRun.objects.select_related('workspace', 'triggered_by').prefetch_related('component_runs').filter(
+            qs = PipelineRun.objects.select_related('workspace', 'triggered_by').filter(
                 workspace_id__in=user_ws_ids
             ).order_by('-started_at')
+
+        # Only the detail serializer reads component runs; the list face never does.
+        if self.action == 'retrieve':
+            qs = qs.prefetch_related('component_runs')
 
         workspace_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if workspace_id:
@@ -93,6 +100,10 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             qs = qs.filter(status=status_param)
 
         return qs
+
+    @extend_schema(responses=PipelineRunListSerializer(many=True))
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
 
     @extend_schema(
         request=CreatePipelineRunSerializer,

@@ -84,7 +84,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
     def papers(self, request, pk=None):
         workspace = self.get_object()
         from ..views.papers import PaperViewSet
-        from ..serializers.papers import PaperSerializer
+        from ..serializers.papers import PaperListSerializer
         from rest_framework.response import Response
 
         paper_view = PaperViewSet()
@@ -99,9 +99,9 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         qs = paper_view.get_queryset().filter(workspace=workspace)
         page = paper_view.paginate_queryset(qs)
         if page is not None:
-            serializer = PaperSerializer(page, many=True, context={'request': request, 'workspace': workspace})
+            serializer = PaperListSerializer(page, many=True, context={'request': request, 'workspace': workspace})
             return paper_view.get_paginated_response(serializer.data)
-        serializer = PaperSerializer(qs, many=True, context={'request': request, 'workspace': workspace})
+        serializer = PaperListSerializer(qs, many=True, context={'request': request, 'workspace': workspace})
         return Response(serializer.data)
 
     @extend_schema(

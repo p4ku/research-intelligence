@@ -227,3 +227,23 @@ class PaperSerializer(serializers.ModelSerializer):
             'is_evaluation_benchmark', 'evaluation_label', 'signal_score', 'signal_score_details',
             'metrics', 'created_at'
         ]
+
+
+class PaperListSerializer(PaperSerializer):
+    """
+    The list face of a paper: the same fields as ``PaperSerializer``, but
+    ``metrics`` carries only the target run's metric, the one the row's
+    ``pipeline_run``, ``screening_status`` and ``signal_score`` are already
+    read from. A list row therefore stops growing with the number of runs
+    that have evaluated the paper; detail keeps every metric.
+    ``_get_target_metric`` reads the prefetched ``obj.metrics.all()``, so the
+    query count is unchanged.
+    """
+    metrics = serializers.SerializerMethodField()
+
+    @extend_schema_field(PaperMetricSerializer(many=True))
+    def get_metrics(self, obj):
+        m = self._get_target_metric(obj)
+        if m is None:
+            return []
+        return [PaperMetricSerializer(m, context=self.context).data]

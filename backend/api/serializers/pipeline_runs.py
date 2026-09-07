@@ -98,6 +98,24 @@ class PipelineRunSerializer(serializers.ModelSerializer):
         ]
 
 
+class PipelineRunListSerializer(PipelineRunSerializer):
+    """
+    The list face of a run: everything the base serializer carries except
+    ``step_history`` and ``stage_results``. List rows are fetched by every
+    corpus probe and by the Home poll, and those two JSON blobs grow with
+    the length of the run (one entry per step taken, one per stage's output)
+    while no list consumer reads them. ``PipelineRunDetailSerializer`` still
+    subclasses the base and keeps both, so ``GET /api/pipeline-runs/{id}/``
+    and the ``create`` response are unchanged.
+    """
+
+    class Meta(PipelineRunSerializer.Meta):
+        fields = [
+            f for f in PipelineRunSerializer.Meta.fields
+            if f not in ('step_history', 'stage_results')
+        ]
+
+
 class PipelineRunDetailSerializer(PipelineRunSerializer):
     component_runs = ComponentRunSerializer(many=True, read_only=True)
     storage_stats = serializers.SerializerMethodField()
