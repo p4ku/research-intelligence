@@ -96,7 +96,7 @@ export function createSnapshotStore<T>({
     now,
   })
   // One revalidation per key at a time, however many requests arrive together.
-  const revalidating = new Map<string, Promise<Entry<T>>>()
+  const revalidating = new Map<string, { promise: Promise<Entry<T>>; startedAt: number }>()
 
   async function cold(): Promise<Entry<T>> {
     let loaded = false
@@ -142,12 +142,25 @@ export function createSnapshotStore<T>({
       const entry = await hit
       // Confirmed this very moment (a concurrent request's cold load) counts as trusted.
       if (entry.version !== null && now() - entry.checkedAt <= trustMs) return entry.value
+      const at = now()
       let pending = revalidating.get(key)
+      if (pending && trustMs === 0 && pending.startedAt < at) {
+        // A read that trusts nothing must not inherit a probe that started
+        // before it: that probe may have seen the ledger just before a run
+        // completed, and this read is the render that must show the papers.
+        // Wait for it, then confirm again with a probe of this read's own.
+        // Reads that arrive in the same instant share one probe as before.
+        const settled = await pending.promise
+        return (await revalidate(key, settled)).value
+      }
       if (!pending) {
-        pending = revalidate(key, entry).finally(() => revalidating.delete(key))
+        pending = {
+          promise: revalidate(key, entry).finally(() => revalidating.delete(key)),
+          startedAt: at,
+        }
         revalidating.set(key, pending)
       }
-      return (await pending).value
+      return (await pending.promise).value
     },
     invalidate(key) {
       if (key === undefined) cache.clear()

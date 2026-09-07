@@ -17,12 +17,13 @@ import {
 } from '@/lib/papers/map'
 import type { ScoredPaper, WorkspaceSummary } from '@/lib/papers/types'
 import { cache } from 'react'
+import * as z from 'zod'
 import { django } from '../core/http'
 import { ProblemError } from '../core/problem'
 import { assertUuid } from '../core/validate'
-import { corpusSnapshot } from '../corpus/snapshot'
+import { corpusHolds, corpusSnapshot } from '../corpus/snapshot'
 import { listWorkspacesRaw } from '../workspaces/service'
-import { paperDTO } from './upstream'
+import { extractionDTO, paperDTO } from './upstream'
 
 // The lists come from the user's corpus snapshot (../corpus/snapshot.ts),
 // held across requests; a single paper is always a live GET, so a missing
@@ -74,10 +75,31 @@ export async function composeGet(
   if (!raw) return null
   const ctx = await workspaceContext(raw.workspace)
   if (!ctx) return null
+  // A paper past the snapshot's cap has no extractions there; read its own.
+  const extractions = (await corpusHolds(raw.id))
+    ? (ctx.extractionsByPaper.get(raw.id) ?? [])
+    : await django(`/api/extractions/?paper=${raw.id}`, z.array(extractionDTO))
   return {
     workspace: ctx.summary,
-    paper: toScoredPaper(raw, ctx.extractionsByPaper.get(raw.id) ?? [], ctx.contexts),
+    paper: toScoredPaper(raw, extractions, ctx.contexts),
   }
+}
+
+/**
+ * The papers of one run, scored against the workspace's definitions, read
+ * live from Django's run-scoped list — for an edition older than the
+ * snapshot's cap, whose papers the corpus no longer holds. Dimensions come
+ * from the extractions the snapshot still has (usually none this far back);
+ * titles, screening and signal come with the rows.
+ */
+export async function composeRunPapers(workspaceId: string, runId: string): Promise<ScoredPaper[]> {
+  const ctx = await workspaceContext(workspaceId)
+  if (!ctx) return []
+  const rows = await django(
+    `/api/papers/?pipeline_run=${assertUuid(runId, 'run id')}`,
+    z.array(paperDTO),
+  )
+  return rows.map((p) => toScoredPaper(p, ctx.extractionsByPaper.get(p.id) ?? [], ctx.contexts))
 }
 
 function groupBy(items: ExtractionDTO[], key: (item: ExtractionDTO) => string) {

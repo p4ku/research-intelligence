@@ -102,9 +102,10 @@ export async function EditionPapers({
 }) {
   const edition = await forPage(briefings.findByDate(date, lang, wsId))
   if (!edition) notFound()
-  const scored = await forPage(papersService.listAll(edition.workspace_id))
+  // The run's own rows: the corpus's, or read live past the snapshot's cap.
+  const scored = await forPage(papersService.listRun(edition.workspace_id, edition.run_id))
 
-  const byId = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
+  const byId = new Map(scored.map((p) => [p.id, p]))
   const cards = edition.papers
     .map((p) => byId.get(p.id))
     .filter((p): p is ScoredPaper => Boolean(p))
