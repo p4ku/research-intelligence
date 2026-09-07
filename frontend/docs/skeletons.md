@@ -79,7 +79,9 @@ bun test                                    # incl. the loading-convention ratch
 `--stream` compares byte positions, not arrival times: a fast local server
 delivers several boundaries in one chunk. To sanity-check that the assertion is
 real, point it at a route with no boundaries (`--stream /papers`) and watch it
-fail.
+fail. Run it cookieless: with the `all_papers` demo flag off, `/papers` is a
+404 with no boundaries either, so the control fails for the wrong reason and
+reads exactly like the assertion working.
 
 The gallery accepts `?motion=static` to freeze the sweep; `prefers-reduced-motion`
 removes it and reduces the handoff to an instant swap.
@@ -137,7 +139,11 @@ Things learned:
 assessment rows, abstract, provenance, the score rail, and the chat pill —
 behind **one** boundary, because everything reads the one `papers.get` (now
 React-cached, so the title crumb, `generateMetadata` and the record share the
-call; the nav row's neighbours come from the cached `papers.listAll`). Files:
+call; the nav row's neighbours come from the cached `papers.listAll`). Both go
+when the `all_papers` demo flag is off — no crumb trail, and `PaperNav` keeps
+its (redirected) back link but withholds the pager, so `neighboursOf` is never
+called; the skeletons take the same `features` prop and make the same call, or
+the shell paints a crumb bar that then vanishes. Files:
 `papers/[id]/paper-header.tsx`, `paper-nav.tsx`, `assessment-rows.tsx`,
 `score-rail.tsx`, `sections.tsx`, `skeletons.tsx`, `loading.tsx`;
 `PaperChatFrame` / `PaperChatSkeleton` in `paper-chat.tsx` (the pill and the
@@ -221,7 +227,9 @@ is real); `loading.tsx` bones them.
 Still on `KNOWN_UNCOVERED`: `/papers` (the `--stream` negative control above —
 covering it means naming a different boundary-free route), `/settings` (two
 forms, mostly static chrome) and `/tuning` (one fetch; an `InfluenceBar` bone
-would do it).
+would do it). `/papers` is now flag-gated as well: having no `loading.tsx` is
+what makes `all_papers` off a genuine HTTP 404 there rather than the streamed
+200 `/ask` gives, so covering it would change the flag's behaviour too.
 
 `cacheComponents` (Partial Prerendering) would make each route's shell static, so
 the skeletons ship with the HTML and the server does no work before first paint.

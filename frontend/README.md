@@ -30,19 +30,21 @@ so non-technical users can see _why_ something ranked where it did.
   user belongs to and names the domain per row; there is no switcher and no
   scope cookie (`src/lib/workspace-server.ts`).
 - **Core app**:
-  - **Home** (`/dashboard`) — one search across every paper; the Current
-    briefing (the newest completed run in any domain) read first with its
-    brief and strongest papers; Recent Briefings (the five newest runs,
+  - **Home** (`/dashboard`) — one search across every paper (a panel of corpus
+    destinations, so the whole typeahead goes when `all_papers` is off); the
+    Current briefing (the newest completed run in any domain) read first with
+    its brief and strongest papers; Recent Briefings (the five newest runs,
     each completed row expandable in place, Retry on a failed one) beside
     Start New Briefing (domain, window, Run pipeline — one run at a time).
   - **Briefings** (`/briefing`) — one edition per completed run: funnel,
     surfaced papers, the screening log, and a brief (template-written until
     the backend's reporting step lands).
-  - **Papers** (`/papers`) — every paper from every domain, scored against its
-    domain's extraction definitions plus the backend's composite signal score; domain, screening,
-    sort, ingest-window, signal-strength and (when defined) TRL filters; a detail
-    page with the score formula, per-dimension rationale and evidence, screening
-    notes, and arXiv/DOI links.
+  - **Papers** (`/papers`) — behind the `all_papers` preference, and a 404 when
+    it is off. Every paper from every domain, scored against its domain's
+    extraction definitions plus the backend's composite signal score; domain,
+    screening, sort, ingest-window, signal-strength and (when defined) TRL
+    filters; a detail page (not flagged) with the score formula, per-dimension
+    rationale and evidence, screening notes, and arXiv/DOI links.
   - **Ask** (`/ask`) — corpus- or paper-scoped Q&A streamed from the
     backend's chat engine, with citations, visual evidence, a fact-check
     verdict, and Django-backed history.
@@ -50,6 +52,11 @@ so non-technical users can see _why_ something ranked where it did.
     toggle, saved to the backend where it can.
 - **Bilingual UI** — English source strings with a German dictionary
   (`src/locales/de/`), switched from the user menu.
+- **Demo feature switches** — three per-browser flags (`all_papers`, `stars`,
+  `ask`) flipped from the same user menu and stored in one `rs-features` cookie
+  (`src/lib/features.ts`). Everything defaults on; off means removed, not
+  disabled — the nav row goes, every link into the feature goes, and the route
+  itself 404s. Nothing in env, CI or the proxy, and the BFF stays live.
 
 ## Documentation
 
@@ -89,6 +96,7 @@ src/
     papers/             # pure derivation rules (the backend port reference; bun test)
     workspace-server.ts # the user's domains (all memberships), read by pages
     i18n*.ts            # demo-scale i18n: t() over the German dictionary (chrome only)
+    features*.ts        # demo feature flags: registry + cookie codec, server read, provider
   locales/de/           # German dictionary, one module per app area
   fonts/                # self-hosted Switzer + IBM Plex Mono
   components/

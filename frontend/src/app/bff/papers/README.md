@@ -12,7 +12,9 @@ dashboard's run list, and the Ask paper palette.
 - **Papers list** (`src/app/(sidebar)/papers/`): title, authors, screening
   status, ingest date, signal score, TRL + numeric dimensions; filter by
   screening (default: passed), sort by signal / recency / any dimension,
-  full-text search.
+  full-text search. This consumer is behind the `all_papers` demo flag
+  (`src/lib/features.ts`); the route below is not, and keeps serving detail,
+  briefings, scoring and status whatever the cookie says.
 - **Detail** (`/papers/[id]`): everything above plus the score formula and
   variables, per-dimension rationale/evidence/confidence, screening
   reasoning, arXiv/DOI links, storage keys.

@@ -3,6 +3,7 @@ import { scanTopics } from '@/components/corpus-search/topics'
 import { PageHeader } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
 import { getSessionUser } from '@/lib/auth/session'
+import { getFeatures } from '@/lib/features-server'
 import { fmt } from '@/lib/i18n'
 import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
@@ -26,13 +27,20 @@ export async function generateMetadata(): Promise<Metadata> {
  * same skeletons on navigation. <ViewTransition> pairs animate the
  * skeleton → content handoff (bone-exit/bone-enter in styles/tailwind.css);
  * default="none" keeps them quiet during every other transition.
+ *
+ * The search is the corpus typeahead: every row it offers is a /papers
+ * destination, so `all_papers` off removes the whole panel rather than
+ * leaving a field with nowhere to go — and with it Home's Ask row.
+ * dashboard/skeletons.tsx must make the same call or the shell paints a
+ * search that then vanishes.
  */
 export default async function DashboardPage() {
-  const [user, state, t, lang] = await Promise.all([
+  const [user, state, t, lang, features] = await Promise.all([
     getSessionUser(),
     getWorkspacesState(),
     getT(),
     getLang(),
+    getFeatures(),
   ])
   const name = user?.name.split(' ')[0] || t('there')
   const header = <PageHeader eyebrow={t('Home')} title={fmt(t('Good morning, {name}'), { name })} />
@@ -56,7 +64,9 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       {header}
-      <CorpusSearch domains={domains} suggestions={scanTopics(state.all)} />
+      {features.all_papers && (
+        <CorpusSearch domains={domains} suggestions={scanTopics(state.all)} />
+      )}
 
       <Suspense
         fallback={

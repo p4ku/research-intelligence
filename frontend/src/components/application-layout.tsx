@@ -65,7 +65,7 @@ interface ShellNavItem {
 const coreNav: ShellNavItem[] = [
   { href: '/dashboard', label: 'Home', Icon: HomeIcon, exact: true },
   { href: '/briefing', label: 'Briefings', Icon: NewspaperIcon },
-  { href: '/papers', label: 'Papers', Icon: DocumentTextIcon },
+  { href: '/papers', label: 'Papers', Icon: DocumentTextIcon, feature: 'all_papers' },
   { href: '/ask', label: 'Ask', Icon: ChatBubbleLeftRightIcon },
   { href: '/runs', label: 'Runs', Icon: PlayCircleIcon },
 ]

@@ -1,6 +1,7 @@
 import { ScreeningPill } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import { StarToggle } from '@/components/star'
+import { ALL_ON, type Features } from '@/lib/features'
 import { formatDate, type Lang, type T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { ArrowUpRightIcon } from '@heroicons/react/16/solid'
@@ -11,6 +12,11 @@ import type { ReactNode } from 'react'
  * link out to the original paper), the title, the authors, and the star at
  * the right. PaperHeaderFrame owns the layout so PaperHeader and
  * PaperHeaderSkeleton cannot drift.
+ *
+ * Both take the demo flags, defaulting to ALL_ON because the skeleton gallery
+ * renders them directly with no such prop. Nothing in the masthead answers to
+ * `all_papers`; the prop is here so the star affordance in the `action` slot
+ * has the flags to read when `stars` is wired.
  */
 
 const META = 'text-xs text-zinc-400'
@@ -58,7 +64,17 @@ export function PaperHeaderFrame({
   )
 }
 
-export function PaperHeader({ paper, t, lang }: { paper: ScoredPaper; t: T; lang: Lang }) {
+export function PaperHeader({
+  paper,
+  t,
+  lang,
+  features: _features = ALL_ON,
+}: {
+  paper: ScoredPaper
+  t: T
+  lang: Lang
+  features?: Features
+}) {
   return (
     <PaperHeaderFrame
       meta={
@@ -97,7 +113,7 @@ export function PaperHeader({ paper, t, lang }: { paper: ScoredPaper; t: T; lang
   )
 }
 
-export function PaperHeaderSkeleton() {
+export function PaperHeaderSkeleton({ features: _features = ALL_ON }: { features?: Features }) {
   return (
     <PaperHeaderFrame
       state="skeleton"
