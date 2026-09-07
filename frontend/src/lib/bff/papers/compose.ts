@@ -69,7 +69,8 @@ export async function composeListAll(
 export async function composeGet(
   id: string,
 ): Promise<{ workspace: WorkspaceSummary; paper: ScoredPaper } | null> {
-  const raw = await getPaperRaw(id)
+  // The snapshot does not depend on the paper, so the two loads overlap.
+  const [raw] = await Promise.all([getPaperRaw(id), corpusSnapshot()])
   if (!raw) return null
   const ctx = await workspaceContext(raw.workspace)
   if (!ctx) return null

@@ -129,8 +129,9 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     # Compress responses for clients that accept it: the frontend pulls the
     # whole corpus (~1 MB of JSON) over the public hostname, which gzips ~10x.
-    # Django's implementation carries the BREACH mitigation.
-    'django.middleware.gzip.GZipMiddleware',
+    # Django's implementation carries the BREACH mitigation; the subclass
+    # skips streaming responses so server-sent events are not held back.
+    'api.middleware.GZipNonStreamingMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',

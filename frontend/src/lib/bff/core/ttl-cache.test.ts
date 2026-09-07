@@ -57,18 +57,16 @@ describe('TtlCache', () => {
     expect(cache.size).toBe(0)
   })
 
-  test('evicts the oldest key past maxEntries and clears', async () => {
+  test('evicts the least recently used key past maxEntries and clears', async () => {
     const cache = new TtlCache<string>({ ttlMs: 100, maxEntries: 2 })
     await cache.get('a', async () => 'a')
     await cache.get('b', async () => 'b')
+    // A hit on the older key keeps it; the untouched one goes.
+    expect(await cache.peek('a')).toBe('a')
     await cache.get('c', async () => 'c')
     expect(cache.size).toBe(2)
-    let reloaded = false
-    await cache.get('a', async () => {
-      reloaded = true
-      return 'a2'
-    })
-    expect(reloaded).toBe(true)
+    expect(await cache.peek('a')).toBe('a')
+    expect(cache.peek('b')).toBeUndefined()
     cache.clear()
     expect(cache.size).toBe(0)
   })

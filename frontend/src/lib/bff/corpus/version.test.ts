@@ -22,10 +22,10 @@ describe('corpusVersion', () => {
     expect(corpusVersion([run(), run({ id: 'r2' })])).not.toBe(base)
   })
 
-  test('ignores the stage a running run is in', () => {
+  test('moves with the stage a running run is in', () => {
     const a = run({ status: 'running', current_stage: 'screening' })
     const b = run({ status: 'running', current_stage: 'scoring' })
-    expect(corpusVersion([a])).toBe(corpusVersion([b]))
+    expect(corpusVersion([a])).not.toBe(corpusVersion([b]))
   })
 
   test('an empty ledger is stable and short', () => {

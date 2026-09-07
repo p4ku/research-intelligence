@@ -58,11 +58,15 @@ export function PapersSkeletonRegion({ t }: { t: T }) {
   )
 }
 
-/** The loading.tsx shell: real header, skeleton browser. */
+/**
+ * The loading.tsx shell: the title, an eyebrow bone where the page will
+ * name the domain (or "All domains") once the workspaces are known, and the
+ * skeleton browser.
+ */
 export function PapersSkeleton({ t }: { t: T }) {
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow={t('Corpus')} title={t('Papers')} />
+      <PageHeader eyebrow={<Bone.Text widths={['11ch']} />} title={t('Papers')} />
       <PapersSkeletonRegion t={t} />
     </div>
   )
