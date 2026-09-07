@@ -1,5 +1,6 @@
 import { ScreeningPill, SectionLabel } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
+import { StarToggle } from '@/components/star'
 import { formatDate, type Lang, type T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
 import type { ReactNode } from 'react'
@@ -21,11 +22,14 @@ export function PaperHeaderFrame({
   meta,
   title,
   authors,
+  action,
 }: {
   state?: 'loaded' | 'skeleton'
   meta: ReactNode
   title: ReactNode
   authors: ReactNode
+  /** The star toggle, right of the masthead. */
+  action?: ReactNode
 }) {
   return (
     <div
@@ -47,6 +51,7 @@ export function PaperHeaderFrame({
           {authors}
         </p>
       </div>
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   )
 }
@@ -71,6 +76,7 @@ export function PaperHeader({ paper, t, lang }: { paper: ScoredPaper; t: T; lang
       }
       title={paper.title}
       authors={paper.authors.join(', ') || paper.authors_raw}
+      action={<StarToggle kind="paper" id={paper.id} />}
     />
   )
 }
@@ -90,6 +96,7 @@ export function PaperHeaderSkeleton() {
       }
       title={<Bone.Text widths={['85%']} />}
       authors={<Bone.Text widths={['60%']} />}
+      action={<Bone.Block className="h-[30px] w-24" />}
     />
   )
 }

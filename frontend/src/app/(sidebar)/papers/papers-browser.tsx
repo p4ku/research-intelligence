@@ -3,6 +3,7 @@
 import { PageNav } from '@/components/page-nav'
 import { PaperCard } from '@/components/paper-card'
 import { SectionLabel } from '@/components/scanner-ui'
+import { StarredChip } from '@/components/star'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { isPassed } from '@/lib/papers/map'
@@ -14,6 +15,7 @@ import {
   unionDefinitions,
 } from '@/lib/papers/select'
 import type { ScoredPaper, ScreeningStatus, WorkspaceSummary } from '@/lib/papers/types'
+import { useStars } from '@/lib/stars-client'
 import { ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import { useMemo, useRef, useState } from 'react'
@@ -60,8 +62,10 @@ export function PapersBrowser({
   workspaces: WorkspaceSummary[]
 }) {
   const t = useT()
+  const { isStarred } = useStars()
   const [search, setSearch] = useState('')
   const [domain, setDomain] = useState('all')
+  const [starredOnly, setStarredOnly] = useState(false)
   const [screening, setScreening] = useState<Screening>('passed')
   const [sort, setSort] = useState<Sort>('signal')
   const [minTrl, setMinTrl] = useState(1)
@@ -111,6 +115,7 @@ export function PapersBrowser({
     const q = search.toLowerCase()
     const result = papers.filter((p) => {
       if (domain !== 'all' && p.workspace_id !== domain) return false
+      if (starredOnly && !isStarred('paper', p.id)) return false
       if (!matchesScreening(p.screening_status, screening)) return false
       if (hasTrl && (minTrl > 1 || maxTrl < 9)) {
         const trl = trlDimension(p)?.value ?? null
@@ -155,14 +160,29 @@ export function PapersBrowser({
     minScore,
     newest,
     hasTrl,
+    starredOnly,
+    isStarred,
   ])
+  // The Starred chip's count spans the corpus, whatever else is narrowed.
+  const starredCount = useMemo(
+    () => papers.filter((p) => isStarred('paper', p.id)).length,
+    [papers, isStarred],
+  )
 
   // Paginate the filtered corpus, eight at a time. Any filter or sort change
   // resets to the first page so the view never lands past the last result.
   const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  const filterKey = [domain, search, screening, sort, minTrl, maxTrl, withinDays, minScore].join(
-    '\u0000',
-  )
+  const filterKey = [
+    domain,
+    starredOnly,
+    search,
+    screening,
+    sort,
+    minTrl,
+    maxTrl,
+    withinDays,
+    minScore,
+  ].join('\u0000')
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
   if (prevFilterKey !== filterKey) {
     // Adjust-during-render (not an effect): filters moved, back to page one.
@@ -175,6 +195,7 @@ export function PapersBrowser({
   const trlNarrowed = hasTrl && (minTrl > 1 || maxTrl < 9)
   const filtersActive =
     domain !== 'all' ||
+    starredOnly ||
     screening !== 'passed' ||
     trlNarrowed ||
     search !== '' ||
@@ -192,6 +213,7 @@ export function PapersBrowser({
 
   function resetFilters() {
     setDomain('all')
+    setStarredOnly(false)
     setSearch('')
     setScreening('passed')
     setMinTrl(1)
@@ -264,6 +286,11 @@ export function PapersBrowser({
                 <span className="text-zinc-400 dark:text-zinc-500"> · {filterContext}</span>
               )}
             </p>
+            <StarredChip
+              active={starredOnly}
+              count={starredCount}
+              onToggle={() => setStarredOnly((v) => !v)}
+            />
             {filtersActive && (
               <button
                 type="button"
@@ -284,7 +311,9 @@ export function PapersBrowser({
             ))}
             {filtered.length === 0 && (
               <div className="border-line rounded-sm border border-dashed p-10 text-center text-sm text-zinc-400">
-                {t('No papers match these filters.')}
+                {starredOnly && starredCount === 0
+                  ? t('Nothing starred yet.')
+                  : t('No papers match these filters.')}
               </div>
             )}
           </div>

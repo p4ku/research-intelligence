@@ -28,4 +28,17 @@ export const dict: Record<string, string> = {
   'Created {date}': 'Erstellt {date}',
   // top-bar.tsx
   'Page sections': 'Seitenabschnitte',
+  // star.tsx + stars-client.tsx — the star is the MVP's only curation.
+  // "markieren" (not "Stern"): the spec's German UI marks records, it does not award them.
+  Star: 'Markieren',
+  Starred: 'Markiert',
+  'Star paper': 'Paper markieren',
+  'Star briefing': 'Briefing markieren',
+  'Star this paper': 'Dieses Paper markieren',
+  'Unstar this paper': 'Markierung des Papers entfernen',
+  'Star this briefing': 'Dieses Briefing markieren',
+  'Unstar this briefing': 'Markierung des Briefings entfernen',
+  'Nothing starred yet.': 'Noch nichts markiert.',
+  'Could not save the star. Try again.':
+    'Die Markierung konnte nicht gespeichert werden. Bitte erneut versuchen.',
 }

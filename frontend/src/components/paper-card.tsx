@@ -9,13 +9,16 @@ import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { DomainBadge, ScreeningPill, SignalScore, TrlBadge } from './scanner-ui'
 import { Bone } from './skeleton'
+import { StarButton } from './star'
 
-// The loaded card's chrome, exactly as before the Frame split; the hover
-// affordances apply only when the card is a link (i.e. loaded).
+// The loaded card's chrome, exactly as before the Frame split. The hover
+// affordances key off the `group` wrapper (not the link itself) so the star
+// in the corner — a sibling of the link, never inside it — keeps the card
+// raised while it is hovered.
 const CARD =
   'flex items-start gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-950/10 dark:bg-zinc-900 dark:ring-white/10'
 const CARD_HOVER =
-  'transition hover:-translate-y-px hover:shadow-md hover:ring-zinc-950/15 dark:hover:ring-white/20'
+  'transition group-hover:-translate-y-px group-hover:shadow-md group-hover:ring-zinc-950/15 dark:group-hover:ring-white/20'
 
 /**
  * Layout contract shared by PaperCard and PaperCardSkeleton: one set of slot
@@ -25,6 +28,7 @@ const CARD_HOVER =
  */
 function PaperCardFrame({
   href,
+  corner,
   score,
   meta,
   title,
@@ -33,6 +37,8 @@ function PaperCardFrame({
 }: {
   /** Present on the loaded card; the skeleton renders a plain div. */
   href?: string
+  /** The star, positioned over the card's top-right corner (loaded only). */
+  corner?: ReactNode
   score: ReactNode
   meta: ReactNode
   title: ReactNode
@@ -43,7 +49,8 @@ function PaperCardFrame({
     <>
       {score}
       <div className="min-w-0 flex-1">
-        <div data-row="meta" className="flex flex-wrap items-center gap-2">
+        {/* pr-8 keeps the meta row clear of the corner star. */}
+        <div data-row="meta" className="flex flex-wrap items-center gap-2 pr-8">
           {meta}
         </div>
         <h3
@@ -70,14 +77,17 @@ function PaperCardFrame({
     </>
   )
   return href ? (
-    <Link
-      href={href}
-      data-shape="paper-card"
-      data-state="loaded"
-      className={clsx(CARD, CARD_HOVER)}
-    >
-      {body}
-    </Link>
+    <div className="group relative">
+      <Link
+        href={href}
+        data-shape="paper-card"
+        data-state="loaded"
+        className={clsx(CARD, CARD_HOVER)}
+      >
+        {body}
+      </Link>
+      {corner}
+    </div>
   ) : (
     <div data-shape="paper-card" data-state="skeleton" className={CARD}>
       {body}
@@ -96,6 +106,7 @@ export function PaperCard({ paper, domain }: { paper: ScoredPaper; domain?: stri
   return (
     <PaperCardFrame
       href={`/papers/${paper.id}`}
+      corner={<StarButton kind="paper" id={paper.id} className="absolute top-2.5 right-2.5" />}
       score={<SignalScore score={paper.signal_score} />}
       meta={
         <>

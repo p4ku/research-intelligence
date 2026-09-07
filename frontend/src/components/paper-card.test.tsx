@@ -13,12 +13,19 @@ describe('PaperCard', () => {
 
   test('loaded card keeps its exact chrome, link and clamp', () => {
     expect(out).toContain(CARD_CLASSES)
-    expect(out).toContain('hover:-translate-y-px')
+    expect(out).toContain('group-hover:-translate-y-px')
     expect(out).toContain('data-shape="paper-card"')
     expect(out).toContain('data-state="loaded"')
     expect(out).toContain(`href="/papers/${paper.id}"`)
     expect(out).toContain('line-clamp-2')
     expect(out).toContain(paper.title)
+  })
+
+  test('carries the star beside the link, never inside it', () => {
+    expect(out).toContain('aria-label="Star this paper"')
+    expect(out).toContain('aria-pressed="false"')
+    // The button closes after the link: a sibling in the group wrapper.
+    expect(out.indexOf('</a>')).toBeLessThan(out.indexOf('aria-label="Star this paper"'))
   })
 
   test('names the domain in the meta row only when given one', () => {
@@ -31,10 +38,11 @@ describe('PaperCard', () => {
 describe('PaperCardSkeleton', () => {
   const out = renderToStaticMarkup(<PaperCardSkeleton />)
 
-  test('same frame — but no link, no hover affordances, no clamp, no pulse', () => {
+  test('same frame — but no link, no star, no hover affordances, no clamp, no pulse', () => {
     expect(out).toContain(CARD_CLASSES)
     expect(out).toContain('data-state="skeleton"')
     expect(out).not.toContain('href=')
+    expect(out).not.toContain('aria-pressed')
     expect(out).not.toContain('line-clamp-2')
     expect(out).not.toContain('hover:')
     expect(out).not.toContain('animate-pulse')

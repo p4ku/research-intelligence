@@ -74,7 +74,7 @@ export default async function BriefingEditionPage({
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <EditionPapers wsId={wsId} date={date} lang={lang} t={t} />
+          <EditionPapers wsId={wsId} date={date} lang={lang} />
         </ViewTransition>
       </Suspense>
     </div>
