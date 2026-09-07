@@ -193,3 +193,38 @@ class PaperSourceUrlTestCase(TestCase):
         self.assertIsNotNone(found)
         self.assertIn("source_url", found)
         self.assertEqual(found["source_url"], "https://arxiv.org/abs/2401.99999")
+
+    def test_source_url_persisted_to_db_and_document_registry(self):
+        """
+        Verify that source_url is stored in the database table, filterable via SQL,
+        and synced to DocumentRegistry upon PDF registration.
+        """
+        from research_intelligence.tasks.step_2_download.pdf_cache import register_document_pdf
+        from research_intelligence.models import DocumentRegistry
+
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            hash_id="db_persisted_url_test",
+            arxiv_id="2402.11111",
+            title="Database Persisted Source URL",
+            authors="Author DB",
+            source_database="arxiv"
+        )
+        # Verify it is persisted in database column
+        paper.refresh_from_db()
+        self.assertEqual(paper.source_url, "https://arxiv.org/abs/2402.11111")
+
+        # Verify SQL filtering works
+        matched = Paper.objects.filter(source_url__contains="2402.11111")
+        self.assertEqual(matched.count(), 1)
+        self.assertEqual(matched.first().id, paper.id)
+
+        # Verify DocumentRegistry sync
+        doc = register_document_pdf(
+            paper=paper,
+            file_bytes=b"%PDF-1.4 mock binary data for registry"
+        )
+        self.assertEqual(doc.source_url, "https://arxiv.org/abs/2402.11111")
+        doc.refresh_from_db()
+        self.assertEqual(doc.source_url, "https://arxiv.org/abs/2402.11111")
+

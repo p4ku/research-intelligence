@@ -17,6 +17,7 @@ class DocumentRegistry(models.Model):
     arxiv_id = models.CharField(max_length=100, blank=True, null=True, db_index=True, help_text="arXiv repository ID")
     title = models.CharField(max_length=512)
     primary_source = models.CharField(max_length=50, default="arxiv", help_text="arxiv, openalex, lens, or pubmed")
+    source_url = models.URLField(max_length=1024, blank=True, null=True, help_text="Original public web URL to article or landing page")
 
     # Canonical Storage References
     canonical_pdf_path = models.CharField(max_length=512, blank=True, null=True, help_text="Storage key of canonical PDF binary")
@@ -167,6 +168,7 @@ class Paper(models.Model):
     authors = models.TextField()
     abstract = models.TextField()
     source_database = models.CharField(max_length=50, help_text="arxiv, openalex, or lens")
+    source_url = models.URLField(max_length=1024, blank=True, null=True, help_text="Original public web URL to article landing page or repository")
     original_pdf_path = models.CharField(max_length=512, blank=True, null=True, help_text="S3 key of original PDF")
     converted_md_path = models.CharField(max_length=512, blank=True, null=True, help_text="S3 key of layout Markdown")
     
@@ -236,19 +238,22 @@ class Paper(models.Model):
                 return self.all().filter(*args, **kwargs)
         return _ReprocessedRunsShim(self)
 
-    @property
-    def source_url(self) -> str | None:
+    def resolve_source_url(self) -> str | None:
         """
         Resolves the canonical external web URL to the original paper landing page or publication.
         Handles:
-        1. DOI (works for OpenAlex, Lens, CrossRef, publishers, etc.) -> https://doi.org/{clean_doi}
-        2. arXiv ID -> https://arxiv.org/abs/{clean_arxiv}
-        3. Raw repository metadata payload (meta):
+        1. Persisted source_url if already present
+        2. DOI (works for OpenAlex, Lens, CrossRef, publishers, etc.) -> https://doi.org/{clean_doi}
+        3. arXiv ID -> https://arxiv.org/abs/{clean_arxiv}
+        4. Raw repository metadata payload (meta):
            - OpenAlex: meta['id'] (e.g. 'https://openalex.org/W2963403868')
            - OpenAlex / Publisher landing page: meta['primary_location']['landing_page_url']
            - Lens / generic URLs: meta['landing_page_url'], meta['other_url'], meta['url']
-        4. Fallback for OpenAlex / Lens database identifiers.
+        5. Fallback for OpenAlex / Lens database identifiers.
         """
+        if self.source_url:
+            return self.source_url
+
         # 1. DOI takes precedence if available
         if self.doi:
             clean_doi = str(self.doi).strip()
@@ -292,6 +297,15 @@ class Paper(models.Model):
                 return f"https://openalex.org/{raw_hash}"
 
         return None
+
+    def save(self, *args, **kwargs):
+        if not self.source_url:
+            resolved = self.resolve_source_url()
+            if resolved:
+                self.source_url = resolved[:1024]
+                if 'update_fields' in kwargs and kwargs['update_fields'] and 'source_url' not in kwargs['update_fields']:
+                    kwargs['update_fields'] = list(kwargs['update_fields']) + ['source_url']
+        super().save(*args, **kwargs)
 
     class Meta:
         app_label = 'research_intelligence'

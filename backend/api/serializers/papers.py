@@ -219,7 +219,11 @@ class PaperSerializer(serializers.ModelSerializer):
 
     @extend_schema_field(serializers.CharField(allow_null=True))
     def get_source_url(self, obj):
-        return obj.source_url
+        if hasattr(obj, 'source_url') and obj.source_url:
+            return obj.source_url
+        if hasattr(obj, 'resolve_source_url'):
+            return obj.resolve_source_url()
+        return None
 
     class Meta:
         model = Paper
