@@ -139,9 +139,6 @@ export const dict: Record<string, string> = {
   'Questions here are answered from this paper alone.':
     'Fragen hier werden allein aus diesem Paper beantwortet.',
   'Ask a question about this paper': 'Eine Frage zu diesem Paper stellen',
-  "Couldn't load this paper's earlier questions.":
-    'Die früheren Fragen zu diesem Paper konnten nicht geladen werden.',
-  'A new thread will start if you ask now.': 'Wenn Sie jetzt fragen, beginnt ein neues Gespräch.',
   'Ask about this paper…': 'Zu diesem Paper fragen…',
   Send: 'Senden',
   'Loading the paper': 'Das Paper wird geladen',

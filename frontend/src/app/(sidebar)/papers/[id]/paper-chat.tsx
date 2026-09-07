@@ -3,9 +3,7 @@
 import { AnswerMarkdown } from '@/components/answer-markdown'
 import { ErrorNote } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
-import type { ChatSession, ChatSessionDetail, VisualCitation } from '@/lib/bff/chat/schema'
-import { bffFetch } from '@/lib/bff/client'
-import type { Page } from '@/lib/bff/core/pagination'
+import type { VisualCitation } from '@/lib/bff/chat/schema'
 import { problemMessage } from '@/lib/bff/problem-copy'
 import { useChatStream } from '@/lib/chat/use-chat-stream'
 import { fmt } from '@/lib/i18n'
@@ -13,7 +11,7 @@ import { useT } from '@/lib/i18n-client'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { PaperAirplaneIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 interface Msg {
   role: 'user' | 'scanner'
@@ -27,9 +25,9 @@ interface Msg {
 /**
  * Ask this paper: a pill fixed to the bottom-right of the page that opens a
  * sheet from the right edge with a plain vertical conversation scoped to this
- * one paper, streamed from POST /bff/chat/stream. The paper's newest session
- * (if any) is loaded on mount and continued, so reopening the paper shows the
- * earlier questions. Deliberately bare — history browsing lives on Ask.
+ * one paper, streamed from POST /bff/chat/stream. Every open is a new
+ * conversation: closing the sheet drops the thread and the session with it, so
+ * the next open starts empty. Deliberately bare — history lives on Ask.
  */
 export function PaperChat({ paper }: { paper: ScoredPaper }) {
   const t = useT()
@@ -48,7 +46,11 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
 
   // Settle the finished stream into the transcript (runs from the stream
   // loop, not a render effect).
-  const { state: live, send } = useChatStream((final) => {
+  const {
+    state: live,
+    send,
+    reset,
+  } = useChatStream((final) => {
     if (!askingRef.current) return
     setMsgs((prev) => [
       ...prev,
@@ -64,49 +66,26 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
     setAsking(false)
   })
 
-  // Continue the paper's newest session, if one exists. A failed load is a
-  // failure, not "no history": it gets its own state and a Retry (bump
-  // `reloadKey`), and never dresses up as the empty state.
-  const [historyState, setHistoryState] = useState<'loading' | 'empty' | 'ready' | 'failed'>(
-    'loading',
-  )
-  const [reloadKey, setReloadKey] = useState(0)
-  useEffect(() => {
-    let cancelled = false
-    void (async () => {
-      try {
-        const page = await bffFetch<Page<ChatSession>>(
-          `/bff/chat/sessions?paper_id=${paper.id}&page_size=1`,
-        )
-        const newest = page.results[0]
-        if (!newest) {
-          if (!cancelled) setHistoryState('empty')
-          return
-        }
-        const detail = await bffFetch<ChatSessionDetail>(`/bff/chat/sessions/${newest.id}`)
-        if (cancelled) return
-        setSessionId(detail.id)
-        setMsgs(
-          detail.turns.flatMap((turn): Msg[] => [
-            { role: 'user', text: turn.question, visualCitations: [] },
-            {
-              role: 'scanner',
-              text: turn.answer ?? '',
-              visualCitations: turn.visual_citations,
-              error: turn.status === 'failed' ? (turn.error ?? t('The answer failed.')) : null,
-            },
-          ]),
-        )
-        setHistoryState('ready')
-      } catch (error) {
-        console.error('[paper-chat] history load failed:', error)
-        if (!cancelled) setHistoryState('failed')
-      }
-    })()
-    return () => {
-      cancelled = true
+  /**
+   * A sitting, not a thread. Opening clears the transcript and the session id
+   * so the next question starts a new conversation; closing drops an answer
+   * still streaming rather than letting it write into a transcript nobody
+   * will see again.
+   */
+  function openChat() {
+    setMsgs([])
+    setSessionId(null)
+    setInput('')
+    setOpen(true)
+  }
+
+  const closeChat = useCallback(() => {
+    setOpen(false)
+    if (askingRef.current) {
+      reset()
+      setAsking(false)
     }
-  }, [paper.id, reloadKey, t])
+  }, [reset])
 
   useEffect(() => {
     if (open && (msgs.length > 0 || live.text)) endRef.current?.scrollIntoView({ block: 'end' })
@@ -117,14 +96,14 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
     if (!open) return
     const timer = window.setTimeout(() => inputRef.current?.focus(), 260)
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') closeChat()
     }
     document.addEventListener('keydown', onKey)
     return () => {
       window.clearTimeout(timer)
       document.removeEventListener('keydown', onKey)
     }
-  }, [open])
+  }, [open, closeChat])
 
   function ask(q: string) {
     if (asking) return
@@ -142,13 +121,13 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
   return (
     <PaperChatFrame
       open={open}
-      onOpen={() => setOpen(true)}
-      onClose={() => setOpen(false)}
+      onOpen={openChat}
+      onClose={closeChat}
       label={fmt(t('Ask about {title}'), { title: paper.title })}
       title={t('Ask this paper')}
       subtitle={paper.title}
       body={
-        msgs.length === 0 && !asking && historyState !== 'failed' ? (
+        msgs.length === 0 && !asking ? (
           <p className="text-sm leading-relaxed text-balance text-muted-foreground">
             {t('Questions here are answered from this paper alone.')}
           </p>
@@ -203,62 +182,38 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
         )
       }
       footer={
-        <>
-          {historyState === 'failed' && msgs.length === 0 && (
-            <div className="border-t border-line-soft px-4 py-3">
-              <ErrorNote
-                action={
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setHistoryState('loading')
-                      setReloadKey((k) => k + 1)
-                    }}
-                    className="rounded-sm bg-foreground px-2.5 py-1 text-xs font-medium text-background transition-colors hover:bg-foreground/85"
-                  >
-                    {t('Retry')}
-                  </button>
-                }
-              >
-                {t("Couldn't load this paper's earlier questions.")}{' '}
-                {t('A new thread will start if you ask now.')}
-              </ErrorNote>
-            </div>
-          )}
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (input.trim()) ask(input.trim())
-            }}
-            className="border-t border-line-soft transition-colors focus-within:border-foreground/20"
-          >
-            <div className="flex items-center gap-2 p-1.5 pl-4">
-              <input
-                ref={inputRef}
-                name="question"
-                aria-label={t('Ask a question about this paper')}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={t('Ask a question about this paper…')}
-                className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none max-sm:text-base"
-              />
-              <button
-                type="submit"
-                aria-label={t('Send')}
-                disabled={asking}
-                className={clsx(
-                  'flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-                  input.trim() && !asking
-                    ? 'bg-foreground text-background hover:bg-foreground/85'
-                    : 'bg-foreground/10 text-muted-foreground',
-                )}
-              >
-                <PaperAirplaneIcon className="size-4" />
-              </button>
-            </div>
-          </form>
-        </>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (input.trim()) ask(input.trim())
+          }}
+          className="border-t border-line-soft transition-colors focus-within:border-foreground/20"
+        >
+          <div className="flex items-center gap-2 p-1.5 pl-4">
+            <input
+              ref={inputRef}
+              name="question"
+              aria-label={t('Ask a question about this paper')}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={t('Ask a question about this paper…')}
+              className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none max-sm:text-base"
+            />
+            <button
+              type="submit"
+              aria-label={t('Send')}
+              disabled={asking}
+              className={clsx(
+                'flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+                input.trim() && !asking
+                  ? 'bg-foreground text-background hover:bg-foreground/85'
+                  : 'bg-foreground/10 text-muted-foreground',
+              )}
+            >
+              <PaperAirplaneIcon className="size-4" />
+            </button>
+          </div>
+        </form>
       }
     />
   )
