@@ -82,6 +82,19 @@ class OpenAlexScraperProvider(BaseScraperProvider):
                 
                 other_url = item.get("doi") or item.get("id") or ""
                 
+                raw_doi = (item.get("doi") or "").strip()
+                if raw_doi.lower().startswith(("https://doi.org/", "http://doi.org/")):
+                    source_url = raw_doi
+                elif raw_doi:
+                    clean_doi = raw_doi
+                    for prefix in ("doi.org/", "doi:"):
+                        if clean_doi.lower().startswith(prefix):
+                            clean_doi = clean_doi[len(prefix):]
+                    source_url = f"https://doi.org/{clean_doi}"
+                else:
+                    prim_loc = item.get("primary_location") or {}
+                    source_url = prim_loc.get("landing_page_url") or item.get("id") or (f"https://openalex.org/{hash_id}" if hash_id.startswith("W") else "")
+
                 results.append({
                     "title": title,
                     "authors": authors,
@@ -89,6 +102,7 @@ class OpenAlexScraperProvider(BaseScraperProvider):
                     "hash_id": hash_id,
                     "pdf_url": pdf_url,
                     "other_url": other_url,
+                    "source_url": source_url,
                     "source_database": "openalex",
                     "published_date": published,
                     "meta": item

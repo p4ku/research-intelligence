@@ -185,7 +185,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                         if not existing_p.meta and item.get('meta'):
                             existing_p.meta = item.get('meta')
                             updated_fields.append('meta')
-                        clean_source = resolve_paper_source_url(
+                        clean_source = item.get('source_url') or resolve_paper_source_url(
                             item,
                             doi=clean_doi,
                             arxiv_id=clean_arxiv,
@@ -255,7 +255,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                     if not paper.meta and item.get('meta'):
                         paper.meta = item.get('meta')
                         updated_fields.append('meta')
-                    clean_source = resolve_paper_source_url(
+                    clean_source = item.get('source_url') or resolve_paper_source_url(
                         item,
                         doi=clean_doi,
                         arxiv_id=clean_arxiv,
@@ -267,7 +267,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                     if updated_fields:
                         paper.save(update_fields=updated_fields)
                 else:
-                    clean_source = resolve_paper_source_url(
+                    clean_source = item.get('source_url') or resolve_paper_source_url(
                         item,
                         doi=clean_doi,
                         arxiv_id=clean_arxiv,

@@ -99,6 +99,7 @@ class LensScraperProvider(BaseScraperProvider):
                     "hash_id": hash_id,
                     "pdf_url": pdf_url,
                     "other_url": other_url,
+                    "source_url": other_url,
                     "source_database": "lens",
                     "published_date": published
                 })
