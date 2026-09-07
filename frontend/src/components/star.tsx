@@ -1,6 +1,7 @@
 'use client'
 
 import type { StarKind } from '@/lib/bff/stars/schema'
+import { useFeatures } from '@/lib/features-client'
 import { useT } from '@/lib/i18n-client'
 import { useStars } from '@/lib/stars-client'
 import clsx from 'clsx'
@@ -16,6 +17,13 @@ import { useState } from 'react'
  *   `group relative`; the button positions itself with `className`.
  * - `StarToggle`  — the labelled ghost button a page header wears.
  * - `StarredChip` — the list filter: "Starred · n".
+ *
+ * All three carry a belt-and-braces `stars` flag guard, and it sits *after*
+ * every hook, immediately before the JSX: a flip re-renders mounted instances
+ * rather than unmounting them, so an early return above the hooks would be a
+ * rules-of-hooks error at lint time and "Rendered fewer hooks than expected"
+ * live. The braces are the call sites, which withhold the element itself —
+ * three of them must, for layout (docs/design/feature-flags.md §4.2).
  */
 
 function useStarLabels(kind: StarKind, on: boolean) {
@@ -50,6 +58,8 @@ export function StarButton({
   const on = isStarred(kind, id)
   const { action, state } = useStarLabels(kind, on)
   const [pop, arm, settle] = usePop()
+  const { stars } = useFeatures()
+  if (!stars) return null
   return (
     <button
       type="button"
@@ -99,6 +109,8 @@ export function StarToggle({
   const { action } = useStarLabels(kind, on)
   const [pop, arm, settle] = usePop()
   const idle = kind === 'paper' ? t('Star paper') : t('Star briefing')
+  const { stars } = useFeatures()
+  if (!stars) return null
   return (
     <button
       type="button"
@@ -150,6 +162,8 @@ export function StarredChip({
   className?: string
 }) {
   const t = useT()
+  const { stars } = useFeatures()
+  if (!stars) return null
   return (
     <button
       type="button"

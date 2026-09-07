@@ -60,6 +60,12 @@ run is not visible to the user. P2, size S.
 80 papers / 30 briefings (oldest dropped) so it fits a 4 KB cookie. Good
 enough for demos and replay; not shared across devices.
 
+The star **UI** can be hidden per browser by the `stars` demo flag
+(`docs/design/feature-flags.md`): with it off the sidebar layout does not call
+this service at all and seeds the store with `emptyStars`, while these routes
+stay live and the `rs-stars` cookie is deliberately left intact — so flipping
+the flag back on restores the same stars on the next refresh.
+
 ## Flip the flag
 
 `BFF_SOURCE_STARS=django` once the endpoint exists. No UI change: the store

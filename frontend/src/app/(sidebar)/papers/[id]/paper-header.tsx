@@ -16,14 +16,14 @@ import type { ReactNode } from 'react'
  * Both take the demo flags, defaulting to ALL_ON because the skeleton gallery
  * renders them directly with no such prop. Nothing in the masthead answers to
  * `all_papers`; the prop is here so the star affordance in the `action` slot
- * has the flags to read when `stars` is wired.
+ * has the flags to read.
  *
- * Until then it is bound as `_features` in both signatures, which is the whole
- * reason it looks inert. Wiring `stars` is therefore a rename and a read:
- * `_features` → `features` in PaperHeader and PaperHeaderSkeleton, then
- * `action={features.stars ? <StarToggle …/> : null}` (PaperHeaderFrame already
- * withholds the wrapping div when `action` is falsy). Leave the rename out and
- * the star slot keeps rendering with the flag off.
+ * `stars` is now wired, and it is wired as a withhold rather than a null
+ * render: both signatures read `features.stars` and pass `undefined` into the
+ * `action` slot when it is off, so PaperHeaderFrame drops the wrapping
+ * `shrink-0` div entirely instead of keeping an empty flex item that opens a
+ * gap beside the masthead on a narrow viewport. Same rule in the skeleton, or
+ * the bone promises a control the loaded row never grows.
  */
 
 const META = 'text-xs text-zinc-400'
@@ -75,7 +75,7 @@ export function PaperHeader({
   paper,
   t,
   lang,
-  features: _features = ALL_ON,
+  features = ALL_ON,
 }: {
   paper: ScoredPaper
   t: T
@@ -115,12 +115,15 @@ export function PaperHeader({
       }
       title={paper.title}
       authors={paper.authors.join(', ') || paper.authors_raw}
-      action={<StarToggle kind="paper" id={paper.id} />}
+      // Withheld, not rendered null: PaperHeaderFrame's `{action && …}` would
+      // otherwise wrap an empty node in a shrink-0 flex item and open a gap
+      // beside the masthead on a narrow viewport.
+      action={features.stars ? <StarToggle kind="paper" id={paper.id} /> : undefined}
     />
   )
 }
 
-export function PaperHeaderSkeleton({ features: _features = ALL_ON }: { features?: Features }) {
+export function PaperHeaderSkeleton({ features = ALL_ON }: { features?: Features }) {
   return (
     <PaperHeaderFrame
       state="skeleton"
@@ -137,7 +140,7 @@ export function PaperHeaderSkeleton({ features: _features = ALL_ON }: { features
       }
       title={<Bone.Text lines={2} widths={['92%', '55%']} />}
       authors={<Bone.Text widths={['60%']} />}
-      action={<Bone.Block className="h-[30px] w-24" />}
+      action={features.stars ? <Bone.Block className="h-[30px] w-24" /> : undefined}
     />
   )
 }

@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
+import { getFeatures } from '@/lib/features-server'
 import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
@@ -25,7 +26,12 @@ export async function generateMetadata(): Promise<Metadata> {
 // The reading room this replaced lives on at /briefing-archive.
 
 export default async function BriefingsPage() {
-  const [t, lang, state] = await Promise.all([getT(), getLang(), getWorkspacesState()])
+  const [t, lang, state, features] = await Promise.all([
+    getT(),
+    getLang(),
+    getWorkspacesState(),
+    getFeatures(),
+  ])
 
   return (
     <div className="space-y-8">
@@ -36,7 +42,11 @@ export default async function BriefingsPage() {
         <Suspense
           fallback={
             <ViewTransition exit="bone-exit" default="none">
-              <LedgerSkeletonRegion t={t} domains={state.all.map((ws) => ws.name)} />
+              <LedgerSkeletonRegion
+                t={t}
+                domains={state.all.map((ws) => ws.name)}
+                features={features}
+              />
             </ViewTransition>
           }
         >

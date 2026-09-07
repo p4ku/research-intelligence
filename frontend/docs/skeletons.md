@@ -59,7 +59,10 @@ live one.
    fallback carries `aria-busy`, a single `sr-only` status, and hides bones from
    assistive tech. Component skeletons render bones only. `status` must be an
    already-translated sentence — `skeleton.tsx` is shared and cannot call `useT`.
-4. **Add the pair to `/studio/skeletons`** so the drift check covers it.
+4. **Add the pair to `/studio/skeletons`** so the drift check covers it — and if a
+   feature flag can hide part of the shape, give the bone the optional `features`
+   prop so the gallery pane still compiles and stays all-on (see the flag-aware
+   bone rule below).
 5. **Give the route a `loading.tsx`** composed from the same section skeletons the
    page uses as fallbacks, and remove the route from `KNOWN_UNCOVERED` in
    `src/app/loading-convention.test.ts`. That list may only shrink.
@@ -181,6 +184,17 @@ Things learned:
   production domains score; the stub fixture has three dimensions, so stub
   mode and the screenshot stack see the record shorten on load, and the
   gallery pairs are built from the fixture's own length.
+- **A bone a feature flag can hide takes the flags as a prop.** Never a cookie
+  read inside a skeleton: the page or the `loading.tsx` calls `getFeatures()`
+  once and passes `features: Features` down, so a Suspense fallback and its
+  content cannot disagree mid-stream. The prop is optional, defaulting to
+  `ALL_ON`, on anything `/studio/skeletons` renders directly (`PaperHeader*`,
+  `PaperNav*`, `EditionBrowserSkeleton`, `BriefingLedgerSkeleton`), so the
+  gallery keeps every bone and `skeleton:drift` stays green whatever the demo
+  cookie says, and required everywhere else so a missed call site is a
+  typecheck failure. Where the flag removes a table column (the briefings
+  ledger's star) the bone must leave the column too, or the bones are one cell
+  wider than the loaded row. See `docs/design/feature-flags.md`.
 - **Some things get no skeleton.** A component that renders `null` in
   several branches (the old score-variables card did) must not get a bone
   that reserves space where nothing renders — a guaranteed drift finding.

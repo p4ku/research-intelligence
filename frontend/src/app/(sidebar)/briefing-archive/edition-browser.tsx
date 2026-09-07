@@ -5,6 +5,8 @@ import { DomainBadge, SignalScore } from '@/components/scanner-ui'
 import { SearchFrame } from '@/components/search-frame'
 import { Bone } from '@/components/skeleton'
 import { StarButton, StarredChip, StarToggle } from '@/components/star'
+import { ALL_ON, type Features } from '@/lib/features'
+import { useFeatures } from '@/lib/features-client'
 import { fmt, type Lang } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { useStars } from '@/lib/stars-client'
@@ -202,11 +204,18 @@ function RailRowBody({
 export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[]; lang: Lang }) {
   const t = useT()
   const { isStarred } = useStars()
+  const { stars } = useFeatures()
   const searchRef = useRef<HTMLInputElement>(null)
   const readerRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
-  const [starredOnly, setStarredOnly] = useState(false)
+  const [starredOnlyState, setStarredOnly] = useState(false)
   const [activeId, setActiveId] = useState(editions[0]?.runId)
+
+  // The effective filter, not the state. The rail has no Reset, so a flip
+  // taken with the chip engaged would otherwise leave `filtered` starred-only,
+  // `active` null and both panes saying "Nothing starred yet." with no control
+  // left to clear it — a dead end short of a hard reload.
+  const starredOnly = stars && starredOnlyState
 
   const starredCount = useMemo(
     () => editions.filter((e) => isStarred('briefing', e.runId)).length,
@@ -309,7 +318,11 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
               </Link>
             }
             title={active.title}
-            star={<StarToggle kind="briefing" id={active.runId} className="shrink-0" />}
+            // The attribute stays — ReaderFrame's `star` is required, and
+            // omitting it is a typecheck error — only the value goes.
+            star={
+              stars ? <StarToggle kind="briefing" id={active.runId} className="shrink-0" /> : null
+            }
             funnel={fmt(
               t('{screened} screened → {included} included → {inBriefing} in the briefing'),
               {
@@ -348,11 +361,13 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
             <p className={RAIL_COUNT}>
               {fmt(t('{n} of {total} briefings'), { n: filtered.length, total: editions.length })}
             </p>
-            <StarredChip
-              active={starredOnly}
-              count={starredCount}
-              onToggle={() => setStarredOnly((v) => !v)}
-            />
+            {stars && (
+              <StarredChip
+                active={starredOnly}
+                count={starredCount}
+                onToggle={() => setStarredOnly((v) => !v)}
+              />
+            )}
           </div>
           <ul className={RAIL_LIST}>
             {filtered.map((e) => {
@@ -385,7 +400,11 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
                       title={<span className="line-clamp-2 block">{e.title}</span>}
                     />
                   </button>
-                  <StarButton kind="briefing" id={e.runId} className="absolute top-2 right-1.5" />
+                  {/* The `group relative` <li> stays either way: it also drives
+                      the row's hover background. */}
+                  {stars && (
+                    <StarButton kind="briefing" id={e.runId} className="absolute top-2 right-1.5" />
+                  )}
                 </li>
               )
             })}
@@ -415,11 +434,14 @@ export function EditionBrowserSkeleton({
   papers = 5,
   briefParagraphs = [3, 2],
   railLines = [2],
+  features = ALL_ON,
 }: {
   editions?: number
   papers?: number
   briefParagraphs?: number[]
   railLines?: number[]
+  /** Optional: the Studio gallery renders this skeleton directly, all-on. */
+  features?: Features
 }) {
   const t = useT()
   return (
@@ -442,7 +464,7 @@ export function EditionBrowserSkeleton({
             </span>
           }
           title={<Bone.Text widths={['70%']} />}
-          star={<Bone.Block className="h-[30px] w-28 shrink-0" />}
+          star={features.stars ? <Bone.Block className="h-[30px] w-28 shrink-0" /> : null}
           funnel={<Bone.Text widths={['34ch']} />}
           brief={<AnswerMarkdownSkeleton className={BRIEF_CLASS} paragraphs={briefParagraphs} />}
           count={<Bone.Text widths={['8ch']} />}
@@ -465,7 +487,7 @@ export function EditionBrowserSkeleton({
             <p className={RAIL_COUNT}>
               <Bone.Text widths={['14ch']} />
             </p>
-            <Bone.Chip width={82} />
+            {features.stars && <Bone.Chip width={82} />}
           </div>
           <ul className={RAIL_LIST}>
             {Array.from({ length: editions }, (_, i) => (

@@ -5,6 +5,7 @@ import { PaperCard } from '@/components/paper-card'
 import { SectionLabel } from '@/components/scanner-ui'
 import { SearchFrame } from '@/components/search-frame'
 import { StarredChip } from '@/components/star'
+import { useFeatures } from '@/lib/features-client'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { isPassed } from '@/lib/papers/map'
@@ -67,9 +68,15 @@ export function PapersBrowser({
 }) {
   const t = useT()
   const { isStarred } = useStars()
+  const { stars } = useFeatures()
   const [search, setSearch] = useState(initialSearch)
   const [domain, setDomain] = useState('all')
-  const [starredOnly, setStarredOnly] = useState(false)
+  const [starredOnlyState, setStarredOnly] = useState(false)
+  // The effective filter, not the state: a reader who flips stars off with the
+  // chip engaged must see the whole corpus back, not a list silently narrowed
+  // by a control that is no longer on screen. Every memo, key and branch below
+  // reads this, so the state itself needs no clearing (and comes back on).
+  const starredOnly = stars && starredOnlyState
   const [screening, setScreening] = useState<Screening>('passed')
   const [sort, setSort] = useState<Sort>('signal')
   const [minTrl, setMinTrl] = useState(1)
@@ -300,11 +307,13 @@ export function PapersBrowser({
             {hiddenByScreening > 0 && filtered.length > 0 && (
               <ScreeningHint n={hiddenByScreening} onShow={() => setScreening('all')} />
             )}
-            <StarredChip
-              active={starredOnly}
-              count={starredCount}
-              onToggle={() => setStarredOnly((v) => !v)}
-            />
+            {stars && (
+              <StarredChip
+                active={starredOnly}
+                count={starredCount}
+                onToggle={() => setStarredOnly((v) => !v)}
+              />
+            )}
             {filtersActive && (
               <button
                 type="button"
