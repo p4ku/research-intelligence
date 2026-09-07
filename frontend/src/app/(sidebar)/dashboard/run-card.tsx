@@ -194,7 +194,7 @@ export function RunCard({
               domain: processing,
             })
           : t(
-              'One run at a time across all analysts. When it finishes, the new briefing leads the page.',
+              'One run at a time across all analysts. When it finishes, the new briefing tops the list.',
             )
       }
     />

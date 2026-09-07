@@ -5,8 +5,9 @@ import clsx from 'clsx'
 import Link from 'next/link'
 
 /**
- * Small pieces Home's sections share. No directive: the masthead renders on
- * the server, the ledger on the client, and both use these.
+ * Small pieces Home's ledger and the masthead (gallery only since 7 Sep
+ * 2026) share. No directive: the masthead renders on the server, the ledger
+ * on the client, and both use these.
  */
 
 /** One of the strongest papers in a briefing, as Home lists it. */

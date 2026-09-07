@@ -9,8 +9,8 @@ import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { Suspense, ViewTransition } from 'react'
-import { LedgerSection, MastheadSection } from './sections'
-import { LedgerSkeletonRegion, MastheadSkeletonRegion } from './skeletons'
+import { LedgerSection } from './sections'
+import { LedgerSkeletonRegion } from './skeletons'
 
 export const dynamic = 'force-dynamic'
 
@@ -20,13 +20,17 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * Home: the search across every paper, the Current briefing read first (the
- * masthead), then Recent Briefings beside Start New Briefing. The shell —
- * header, search — renders immediately; the masthead and the ledger grid
- * stream in behind their own Suspense boundaries, and loading.tsx shows the
- * same skeletons on navigation. <ViewTransition> pairs animate the
+ * Home: the search across every paper, then Recent Briefings beside Start
+ * New Briefing. The shell — header, search — renders immediately; the
+ * ledger grid streams in behind its Suspense boundary, and loading.tsx
+ * shows the same skeleton on navigation. <ViewTransition> pairs animate the
  * skeleton → content handoff (bone-exit/bone-enter in styles/tailwind.css);
  * default="none" keeps them quiet during every other transition.
+ *
+ * The Current briefing's masthead (7 Sep 2026) is hidden from Home: the
+ * ledger's Current row discloses the same brief and top papers on a click,
+ * so the page opens on the table. `Masthead` itself stays in masthead.tsx
+ * for the Studio skeleton gallery.
  *
  * The search is the corpus typeahead: every row it offers is a /papers
  * destination, so `all_papers` off removes the whole panel rather than
@@ -67,18 +71,6 @@ export default async function DashboardPage() {
       {features.all_papers && (
         <CorpusSearch domains={domains} suggestions={scanTopics(state.all)} />
       )}
-
-      <Suspense
-        fallback={
-          <ViewTransition exit="bone-exit" default="none">
-            <MastheadSkeletonRegion t={t} />
-          </ViewTransition>
-        }
-      >
-        <ViewTransition enter="bone-enter" default="none">
-          <MastheadSection t={t} lang={lang} />
-        </ViewTransition>
-      </Suspense>
 
       <Suspense
         fallback={

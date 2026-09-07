@@ -4,19 +4,19 @@ import { forPage } from '@/lib/bff/core/page'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
 import { editionHref } from '../briefing/format'
-import { currentRun, editionFor, recentRuns } from './data'
+import { currentRun, recentRuns } from './data'
 import { formatAuthors, formatClock, formatDay, periodLabel } from './format'
 import { HomeLinks, type HomePaper } from './home-ui'
 import { Ledger, type HomeRow, type RowStatus } from './ledger'
 import { LiveRefresh } from './live-refresh'
-import { Masthead, type MastheadLead } from './masthead'
 import { RunCard, type RunDomain } from './run-card'
 
 /**
- * Home's streamed sections: one async Server Component per Suspense
- * boundary, each awaiting only its own data (through `forPage`, so a 401
- * still lands on /auth/logout). Each returns a single root element — the
- * page wraps it in a <ViewTransition> pair with its skeleton.
+ * Home's streamed section: an async Server Component behind one Suspense
+ * boundary, awaiting only its own data (through `forPage`, so a 401 still
+ * lands on /auth/logout). It returns a single root element — the page wraps
+ * it in a <ViewTransition> pair with its skeleton. The masthead section
+ * that used to sit above it was hidden on 7 Sep 2026 (see page.tsx).
  */
 
 /** How many of the briefing's strongest papers Home shows. */
@@ -50,28 +50,6 @@ function rowStatus(run: PipelineRun, currentId: string | null): RowStatus {
 /** The day a completed run finished (UTC), which is also its edition's date. */
 function completionDay(run: PipelineRun): string {
   return (run.completed_at ?? run.run_date).slice(0, 10)
-}
-
-/** The Current briefing read first. Nothing until a run has completed. */
-export async function MastheadSection({ t, lang }: { t: T; lang: Lang }) {
-  const current = await forPage(currentRun())
-  if (!current) return null
-  const edition = await forPage(editionFor(current.workspace_id, current.id, lang))
-  const lead: MastheadLead = {
-    domain: current.workspace_name,
-    period: periodLabel(current, t, lang),
-    generated: formatDay(completionDay(current), lang),
-    // No edition (the corpus could not be read): nothing to link to.
-    href: edition ? editionHref(edition.date, current.workspace_id) : null,
-    inBrief: edition?.in_brief ?? null,
-    template: edition?.in_brief_source === 'template',
-    // The run's own counters, the same numbers the ledger's Papers column
-    // shows — one source, so the two never disagree.
-    screened: current.total_papers_fetched,
-    included: current.total_papers_passed_screening,
-    top: edition ? topPapers(edition) : [],
-  }
-  return <Masthead lead={lead} t={t} />
 }
 
 /**
