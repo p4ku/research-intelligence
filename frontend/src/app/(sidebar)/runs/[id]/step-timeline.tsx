@@ -9,7 +9,7 @@ import {
   StepStatus,
   StepSummary,
   StepSummarySkeleton,
-} from '../../run-presentation'
+} from '../run-presentation'
 
 // Small mono annotations: the component name on the title line, the model
 // under the cost. Shared so the skeleton's bones inherit the same metrics.

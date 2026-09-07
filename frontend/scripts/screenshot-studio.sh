@@ -77,7 +77,7 @@ failures=0
 #   - the runtime/build error overlay, which lives in a shadow root inside
 #     <nextjs-portal>. That element is present on every dev page (it also
 #     renders the devtools badge), so test its text, not its existence.
-#   - our own error boundary (src/app/studio/error.tsx)
+#   - our own error boundary (src/app/(sidebar)/error.tsx)
 page_error() {
   local probe
   probe=$(ab eval "(() => {
@@ -158,12 +158,12 @@ capture_shot() {
   echo "  captured $path -> ${out#"$REPO_ROOT"/}"
 }
 
-# First /studio/runs/<id> href on the current page, or empty. The rows are
+# First /runs/<id> href on the current page, or empty. The rows are
 # whole-row links (components/table.tsx renders an absolutely positioned <a>).
 first_run_href() {
   local href
   href=$(ab eval "(() => {
-    const a = document.querySelector('a[href^=\"/studio/runs/\"]');
+    const a = document.querySelector('a[href^=\"/runs/\"]');
     return a ? a.getAttribute('href') : '';
   })()")
   href=${href#\"}
@@ -188,7 +188,7 @@ fi
 # Runs are workspace-scoped, so pick the workspace before capturing anything.
 if [ -n "$WORKSPACE" ]; then
   echo "Selecting workspace: $WORKSPACE"
-  ab open "$BASE_URL/studio/runs"
+  ab open "$BASE_URL/runs"
   ab wait --load networkidle
   # Match on the menuitem role, not on text: the shell renders a second,
   # hidden copy of the sidebar for the mobile drawer, and a bare text match
@@ -203,14 +203,14 @@ if [ -n "$WORKSPACE" ]; then
 fi
 
 echo "Runs list:"
-capture /studio/runs "$OUT_ROOT/desktop/runs-list.png" desktop || true
+capture /runs "$OUT_ROOT/desktop/runs-list.png" desktop || true
 
 # Discover the newest run from the list we are already on. Ids differ between
 # every snapshot and environment, so they are never pinned.
 newest_run=$(first_run_href)
 
 echo "Completed filter:"
-capture "/studio/runs?status=completed" "$OUT_ROOT/desktop/runs-completed.png" desktop || true
+capture "/runs?status=completed" "$OUT_ROOT/desktop/runs-completed.png" desktop || true
 
 if [ -n "$newest_run" ]; then
   echo "Newest run detail:"
@@ -220,7 +220,7 @@ else
 fi
 
 echo "Mobile:"
-capture /studio/runs "$OUT_ROOT/mobile/runs-list.png" mobile || true
+capture /runs "$OUT_ROOT/mobile/runs-list.png" mobile || true
 [ -n "${newest_run:-}" ] && capture "$newest_run" "$OUT_ROOT/mobile/run-detail.png" mobile || true
 
 echo

@@ -6,7 +6,7 @@ import {
   StatBandSkeleton,
 } from '@/components/scanner-ui'
 import { Bone, Skeleton } from '@/components/skeleton'
-import { shortId } from '../../run-presentation'
+import { shortId } from '../run-presentation'
 import { RunFactsSkeleton } from './run-facts'
 import { StepTimelineSkeleton } from './step-timeline'
 
@@ -78,8 +78,7 @@ export function RunPageSkeleton({ id }: { id?: string }) {
     <div className="space-y-8">
       <Breadcrumbs
         items={[
-          { label: 'Studio', href: '/studio/runs' },
-          { label: 'Runs', href: '/studio/runs' },
+          { label: 'Runs', href: '/runs' },
           { label: id ? shortId(id) : <Bone.Text widths={['8ch']} /> },
         ]}
       />

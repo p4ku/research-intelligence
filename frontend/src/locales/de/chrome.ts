@@ -8,6 +8,7 @@ export const dict: Record<string, string> = {
   'nav|Papers': 'Papers',
   'nav|Tuning': 'Tuning',
   'nav|Ask': 'Fragen',
+  'nav|Runs': 'Runs',
   'My account': 'Mein Konto',
   Settings: 'Einstellungen',
   'Privacy & access': 'Datenschutz & Zugriff',
@@ -53,4 +54,5 @@ export const dict: Record<string, string> = {
     'Das Paper ist weiterhin vorhanden. Versuchen Sie es erneut oder kehren Sie zur Liste zurück.',
   'Back to Today': 'Zurück zu Heute',
   'Back to Papers': 'Zurück zu Papers',
+  'Back to Runs': 'Zurück zu Runs',
 }

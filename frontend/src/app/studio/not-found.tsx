@@ -12,7 +12,7 @@ export default function NotFound() {
         </p>
         <div className="mt-4">
           <Link
-            href="/studio/runs"
+            href="/runs"
             className="bg-foreground text-background hover:bg-foreground/85 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors"
           >
             Back to Runs

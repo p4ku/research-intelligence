@@ -85,7 +85,7 @@ export function RunTabs({ tab, runs }: { tab: Tab; runs: PipelineRun[] }) {
       key,
       label,
       count: runs.filter((run) => matches(run, key)).length,
-      href: key === 'all' ? '/studio/runs' : `/studio/runs?status=${key}`,
+      href: key === 'all' ? '/runs' : `/runs?status=${key}`,
       current: key === tab,
     }),
   )

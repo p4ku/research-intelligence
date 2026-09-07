@@ -4,7 +4,7 @@ import { getCurrentWorkspace } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Suspense, ViewTransition } from 'react'
-import { shortId } from '../../run-presentation'
+import { shortId } from '../run-presentation'
 import { RunHead, Steps } from './sections'
 import { RunHeadSkeleton, StepsSkeleton } from './skeletons'
 
@@ -23,13 +23,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
 
   return (
     <div className="space-y-8">
-      <Breadcrumbs
-        items={[
-          { label: 'Studio', href: '/studio/runs' },
-          { label: 'Runs', href: '/studio/runs' },
-          { label: shortId(id) },
-        ]}
-      />
+      <Breadcrumbs items={[{ label: 'Runs', href: '/runs' }, { label: shortId(id) }]} />
 
       <Suspense
         fallback={

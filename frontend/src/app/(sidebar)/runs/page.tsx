@@ -29,7 +29,7 @@ export default async function RunsPage({
   if (state.kind !== 'ok') {
     return (
       <div className="space-y-8">
-        <PageHeader eyebrow="Studio" title={runsPageCopy.title} />
+        <PageHeader eyebrow="Pipeline" title={runsPageCopy.title} />
         {state.kind === 'unavailable' ? (
           <WorkspaceNotice kind="unavailable" english />
         ) : (

@@ -1,7 +1,7 @@
 import { Card, StatBand } from '@/components/scanner-ui'
 import { forPage } from '@/lib/bff/core/page'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
-import { formatUsd } from '../run-presentation'
+import { formatUsd } from './run-presentation'
 import { matches, RunTabs, type Tab } from './run-tabs'
 import { RunsTable } from './runs-table'
 
