@@ -64,7 +64,12 @@ curl -si https://<host>/health/              # Django, via the router
 
 After the first sign-in, `cf logs sri-frontend --recent` should show no
 `[bff] corpus capped` line; one means a user has more papers than
-`CORPUS_MAX_PAPERS` and is seeing the newest of them.
+`CORPUS_MAX_PAPERS` and is seeing the newest of them. Past the cap: /papers
+says so and shows the newest; a paper permalink and a single edition page
+read what they need live; the briefing lists, Home's recent briefings and
+the star list only see papers inside the cap, so an edition older than the
+window lists no papers there (its counters, from the run, stay right).
+Raise `CORPUS_MAX_PAPERS` before that happens for a real user.
 
 These checks assume the **default browser state**: no `rs-features` cookie, so
 every demo feature switch is on. A browser left over from a demo can have Ask

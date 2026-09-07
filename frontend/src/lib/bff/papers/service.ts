@@ -22,7 +22,7 @@ import { corpusSnapshot } from '../corpus/snapshot'
 import { stars } from '../stars/service'
 import { workspace, type WorkspaceSummary } from '../workspaces/schema'
 import { workspaces } from '../workspaces/service'
-import { composeGet, composeListAll } from './compose'
+import { composeGet, composeListAll, composeRunPapers } from './compose'
 import { applyPapersQuery, corpusFacets } from './filter'
 import { fixturePapers, fixtureWorkspace } from './fixtures'
 import {
@@ -141,6 +141,21 @@ export const papers = {
     const truncated =
       sourceOf('papers') === 'composed' ? (await corpusSnapshot()).truncated : undefined
     return { workspaces: summaries, papers: merged, truncated }
+  }),
+
+  /**
+   * The papers one run wrote, scored — read live under `composed` when the
+   * corpus snapshot no longer holds them all (an edition at or past the cap),
+   * otherwise the corpus's own rows. Cached per request.
+   */
+  listRun: cache(async (workspaceId: string, runId: string): Promise<ScoredPaper[]> => {
+    const scored = await papers.listAll(workspaceId)
+    const held = scored?.papers.filter((p) => p.pipeline_run_id === runId) ?? []
+    if (sourceOf('papers') !== 'composed') return held
+    const { truncated } = await corpusSnapshot()
+    if (!truncated) return held
+    const live = await composeRunPapers(workspaceId, runId)
+    return live.length > held.length ? live : held
   }),
 
   /**

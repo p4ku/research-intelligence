@@ -108,7 +108,17 @@ export function usePalette(query: string): PaletteState {
       bffFetch<Palette>(palettePath(q), { signal: controller.signal })
         .then((palette) => {
           remember(q, palette)
-          setEntries((prev) => new Map(prev).set(q, palette))
+          setEntries((prev) => {
+            const next = new Map(prev)
+            next.delete(q)
+            next.set(q, palette)
+            while (next.size > CACHE_MAX) {
+              const oldest = next.keys().next().value
+              if (oldest === undefined) break
+              next.delete(oldest)
+            }
+            return next
+          })
           if (mine === seq.current) setLatest(palette)
         })
         .catch((e: unknown) => {

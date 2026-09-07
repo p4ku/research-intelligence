@@ -171,7 +171,21 @@ export const briefings = {
           throw error
         }
       }
-      return (await briefings.listAll(workspaceId, lang)).find((e) => e.date === date) ?? null
+      const found = (await briefings.listAll(workspaceId, lang)).find((e) => e.date === date)
+      if (!found) return null
+      if (sourceOf('briefings') !== 'composed') return found
+      // An edition at or past the corpus snapshot's cap composed from fewer
+      // papers than its run wrote — none, or the cap cut through the run.
+      // `listRun` reads them live in that case; recompose from what it gives.
+      const [completed, scored, rows] = await Promise.all([
+        runs.listAll(workspaceId, 'completed'),
+        papers.listAll(workspaceId),
+        papers.listRun(workspaceId, found.run_id),
+      ])
+      const run = completed.find((r) => r.id === found.run_id)
+      if (!run || !scored) return found
+      const held = scored.papers.filter((p) => p.pipeline_run_id === run.id).length
+      return rows.length > held ? composeEdition(run, scored.workspace.name, rows, lang) : found
     },
   ),
 

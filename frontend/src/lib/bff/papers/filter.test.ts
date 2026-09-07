@@ -183,6 +183,14 @@ describe('orderRows', () => {
     expect(ids(orderRows(papers, '-created_at'))).toEqual([id(1), id(5), id(2), id(3), id(4)])
     expect(ids(orderRows(papers, 'created_at'))).toEqual([id(4), id(3), id(2), id(5), id(1)])
   })
+
+  test('instants compare as time, not as strings, when one has no fraction', () => {
+    const { papers } = corpus()
+    const a = { ...papers[0]!, id: id(1), created_at: '2026-09-01T10:00:01Z' }
+    const b = { ...papers[1]!, id: id(2), created_at: '2026-09-01T10:00:00.5Z' }
+    expect(ids(orderRows([b, a], '-created_at'))).toEqual([id(1), id(2)])
+    expect(corpusFacets({ workspaces: [], papers: [b, a] }, none).newest).toBe(a.created_at)
+  })
 })
 
 describe('corpusFacets', () => {
