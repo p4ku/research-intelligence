@@ -33,9 +33,11 @@ Starting a run calls `POST /api/pipeline-runs/start/` with `workspace_id`,
 `start_date`, `end_date` and `autonomous: true`. Django creates the run as
 `running` and dispatches the first stage before answering, so the run is
 already in the list when the response lands. Membership (`admin`, `manager`,
-`researcher`) and quota refusals arrive as 403 → `forbidden`. Django does not
-serialise starts: "one run at a time" is enforced by the UI (the form is
-disabled while any run is `running` / `pending`), not by the backend.
+`researcher`) refusals arrive as 403 → `forbidden`; a quota refusal is a 400
+whose `error` becomes the problem's `detail`. Django does not serialise
+starts: "one run at a time" is enforced by this route (409 `conflict` while
+any run is `running` / `pending`) and by the form, which is disabled while
+Home shows a run in flight.
 
 ## curl
 

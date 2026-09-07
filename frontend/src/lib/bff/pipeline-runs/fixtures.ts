@@ -26,6 +26,7 @@ export const fixtureRuns: PipelineRun[] = [
     period_start: '2026-08-01',
     period_end: '2026-08-31',
     lookback_days: null,
+    retryable: true,
   },
   {
     id: '00000000-0000-4000-8000-000000000102',
@@ -44,6 +45,7 @@ export const fixtureRuns: PipelineRun[] = [
     period_start: '2026-08-01',
     period_end: '2026-08-30',
     lookback_days: null,
+    retryable: true,
   },
   {
     id: '00000000-0000-4000-8000-000000000103',
@@ -62,6 +64,7 @@ export const fixtureRuns: PipelineRun[] = [
     period_start: null,
     period_end: null,
     lookback_days: 7,
+    retryable: true,
   },
 ]
 

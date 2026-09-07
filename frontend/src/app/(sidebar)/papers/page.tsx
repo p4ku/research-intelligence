@@ -48,6 +48,7 @@ export default async function PapersPage({
         </Card>
       ) : (
         <PapersBrowser
+          key={q ?? ''}
           papers={corpus.papers}
           workspaces={corpus.workspaces}
           initialSearch={q?.trim() ?? ''}

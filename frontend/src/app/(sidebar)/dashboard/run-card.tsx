@@ -12,6 +12,7 @@ import { useT } from '@/lib/i18n-client'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition, type ReactNode } from 'react'
 import { shiftDays } from './format'
+import { isConflict } from './ledger'
 
 /**
  * Start New Briefing: a domain, a search window, one button — always on
@@ -130,6 +131,8 @@ export function RunCard({
     } catch (error) {
       console.error('[home] start failed', error)
       setErrors(errorsFromSubmit(error, FIELDS, t, t("Couldn't start the run. Try again.")))
+      // 409: another run is already in flight — re-read so the form locks.
+      if (isConflict(error)) startTransition(() => router.refresh())
     } finally {
       setBusy(false)
     }

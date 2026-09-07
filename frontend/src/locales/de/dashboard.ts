@@ -104,6 +104,7 @@ export const dict: Record<string, string> = {
     '{screened} gesichtet → {included} aufgenommen → {lead} führen das Briefing an',
   '{screened} screened → {included} included': '{screened} gesichtet → {included} aufgenommen',
   'Top of the briefing': 'Spitze des Briefings',
+  'The brief for this run is not available.': 'Das Briefing zu diesem Lauf ist nicht verfügbar.',
   'No papers met the inclusion criteria for this briefing.':
     'Kein Paper hat die Aufnahmekriterien für dieses Briefing erfüllt.',
   Period: 'Zeitraum',
@@ -112,7 +113,7 @@ export const dict: Record<string, string> = {
   Processing: 'In Arbeit',
   Failed: 'Fehlgeschlagen',
   'started {time} UTC': 'gestartet {time} UTC',
-  'failed {time} UTC': 'fehlgeschlagen {time} UTC',
+  'failed {date}': 'fehlgeschlagen {date}',
   'From {date}': 'Ab {date}',
   'Until {date}': 'Bis {date}',
   'Last {n} days': 'Letzte {n} Tage',

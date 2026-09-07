@@ -156,21 +156,20 @@ function simulateRun(
   }
 }
 
-/** After RUN_MS: the outcome, with the counters of the domain's last real run. */
+/**
+ * After RUN_MS: the outcome. A simulated run links no papers, so its
+ * counters stay at zero — the composed briefing then reads as a quiet run
+ * rather than claiming papers the corpus does not have.
+ */
 function finishRun(run: Row) {
   const now = new Date()
   const started = new Date(String(run.started_at))
-  const previous = capturedRuns().find(
-    (r) => r.workspace === run.workspace && r.status === 'completed',
-  )
   run.status = RUN_OUTCOME
   run.completed_at = now.toISOString()
   run.duration_seconds = (now.getTime() - started.getTime()) / 1000
   if (RUN_OUTCOME === 'completed') {
     run.current_stage = 'completed'
-    run.total_papers_fetched = previous?.total_papers_fetched ?? 0
-    run.total_papers_passed_screening = previous?.total_papers_passed_screening ?? 0
-    run.status_message = 'Simulated run finished (snapshot replay).'
+    run.status_message = 'Simulated run finished (snapshot replay): no papers.'
   } else {
     run.current_stage = 'abstract_screening'
     run.status_message = 'Simulated failure (SNAPSHOT_RUN_OUTCOME=failed).'

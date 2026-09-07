@@ -37,6 +37,12 @@ export const pipelineRun = z
     period_end: z.iso.date().nullable(),
     /** The relative window ("last N days") for runs started without dates. */
     lookback_days: z.number().int().nullable(),
+    /**
+     * Whether a start with the same domain and window is the same job: false
+     * when the run carried options (a limit, a query prefix) that only the
+     * MCP tools set, so Home offers no Retry for it.
+     */
+    retryable: z.boolean(),
   })
   .meta({ id: 'PipelineRun' })
 export type PipelineRun = z.infer<typeof pipelineRun>

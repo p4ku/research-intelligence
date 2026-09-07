@@ -39,6 +39,9 @@ export const pipelineRunDTO = z.looseObject({
       start_date: z.string().nullish(),
       end_date: z.string().nullish(),
       n_last_days: z.number().nullish(),
+      /** Options only the MCP tools set; Home's form cannot reproduce them. */
+      limit: z.number().nullish(),
+      query_prefix: z.string().nullish(),
     })
     .nullish(),
   /** Django's own rendering of the window ("2026-08-01 - 2026-09-05"); the BFF reads the raw dates instead. */
@@ -50,6 +53,15 @@ export const pipelineRunDTO = z.looseObject({
  * a status envelope, not the run serializer. Only the id matters to the UI;
  * the page re-reads the list for the row.
  */
+/** What the BFF sends Django to start a run. */
+export const startRunRequestDTO = z.object({
+  workspace_id: z.string(),
+  start_date: z.string().nullable(),
+  end_date: z.string().nullable(),
+  n_last_days: z.number().nullable(),
+  autonomous: z.literal(true),
+})
+
 export const startRunResponseDTO = z.looseObject({
   status: z.string().optional(),
   pipeline_run_id: z.string(),

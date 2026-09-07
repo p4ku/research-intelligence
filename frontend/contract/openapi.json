@@ -3260,6 +3260,9 @@
                 "type": "null"
               }
             ]
+          },
+          "retryable": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -3278,7 +3281,8 @@
           "completed_at",
           "period_start",
           "period_end",
-          "lookback_days"
+          "lookback_days",
+          "retryable"
         ],
         "additionalProperties": false
       },
@@ -3410,6 +3414,9 @@
               }
             ]
           },
+          "retryable": {
+            "type": "boolean"
+          },
           "triggered_by": {
             "anyOf": [
               {
@@ -3496,6 +3503,7 @@
           "period_start",
           "period_end",
           "lookback_days",
+          "retryable",
           "triggered_by",
           "reprocess_existing",
           "tokens_in",

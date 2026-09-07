@@ -35,6 +35,7 @@ import {
 } from '../../(sidebar)/briefing/edition-browser'
 import { Ledger, LedgerSkeleton, type HomeRow } from '../../(sidebar)/dashboard/ledger'
 import { Masthead, MastheadSkeleton, type MastheadLead } from '../../(sidebar)/dashboard/masthead'
+import { RunCard, RunCardSkeleton } from '../../(sidebar)/dashboard/run-card'
 import {
   PaperHeader,
   PaperHeaderSkeleton,
@@ -116,6 +117,7 @@ const homeRows: HomeRow[] = [
     period: 'Last 7 days',
     generated: null,
     startedClock: '08:26',
+    failedDay: null,
     papers: null,
     retry: null,
     brief: null,
@@ -127,6 +129,7 @@ const homeRows: HomeRow[] = [
     period: '1–31 Aug 2026',
     generated: '31 Aug 2026',
     startedClock: '08:26',
+    failedDay: null,
     papers: homeEdition.funnel.surfaced,
     retry: null,
     brief: {
@@ -144,6 +147,7 @@ const homeRows: HomeRow[] = [
     period: '1–30 Aug 2026',
     generated: null,
     startedClock: '08:26',
+    failedDay: '30 Aug 2026',
     papers: null,
     retry: { workspace_id: fixtureWorkspace.id, start_date: '2026-08-01', end_date: '2026-08-30' },
     brief: null,
@@ -349,6 +353,27 @@ export default async function SkeletonsPage({
         status="Loading recent briefings"
         loaded={<Ledger rows={homeRows} busy={false} />}
         skeleton={<LedgerSkeleton rows={homeRows.length} />}
+      />
+
+      <Pair
+        shape="home-run-card"
+        title="Home run card"
+        status="Loading recent briefings"
+        // At the width it has on Home (a third of the page), so the note wraps as it does there.
+        loaded={
+          <div className="max-w-sm">
+            <RunCard
+              domains={[{ id: fixtureWorkspace.id, name: fixtureWorkspace.name }]}
+              processing={null}
+              today="2026-09-07"
+            />
+          </div>
+        }
+        skeleton={
+          <div className="max-w-sm">
+            <RunCardSkeleton />
+          </div>
+        }
       />
 
       <Pair

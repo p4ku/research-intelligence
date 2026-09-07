@@ -18,8 +18,8 @@ export interface MastheadLead {
   period: string
   /** The completion day, already worded. */
   generated: string
-  /** The edition's permalink. */
-  href: string
+  /** The edition's permalink; null when no edition could be composed. */
+  href: string | null
   /** Null when the run completed but no edition could be composed for it. */
   inBrief: string | null
   /** The prose is template-written until the backend writes it. */
@@ -125,9 +125,11 @@ export function Masthead({ lead, t }: { lead: MastheadLead; t: T }) {
         )
       }
       link={
-        <TextLink href={lead.href} className="inline-block">
-          {t('Open briefing →')}
-        </TextLink>
+        lead.href && (
+          <TextLink href={lead.href} className="inline-block">
+            {t('Open briefing →')}
+          </TextLink>
+        )
       }
       railLabel={t('Top of the briefing')}
       rail={
@@ -135,7 +137,9 @@ export function Masthead({ lead, t }: { lead: MastheadLead; t: T }) {
           <TopPapers papers={lead.top} dense wrap className="mt-3" />
         ) : (
           <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">
-            {t('No papers met the inclusion criteria for this briefing.')}
+            {lead.inBrief === null
+              ? t('The brief for this run is not available.')
+              : t('No papers met the inclusion criteria for this briefing.')}
           </p>
         )
       }

@@ -40,8 +40,10 @@ export interface HomeRow {
   period: string
   /** The completion day, already worded; null until the run completes. */
   generated: string | null
-  /** "07:12" — when the run started (UTC), for rows with no completion day. */
+  /** "07:12" — when the run started (UTC), for a row still processing. */
   startedClock: string | null
+  /** The day the run failed, already worded; null unless it failed. */
+  failedDay: string | null
   /** Papers in the briefing; null while processing or after a failure. */
   papers: number | null
   /** What Retry resends — the failed run's own parameters. */
@@ -144,7 +146,7 @@ function Row({
         onClick={expandable ? onToggle : undefined}
         className={clsx(
           current && 'bg-foreground/3',
-          expandable && 'cursor-pointer select-none hover:bg-zinc-950/2.5 dark:hover:bg-white/2.5',
+          expandable && 'cursor-pointer hover:bg-zinc-950/2.5 dark:hover:bg-white/2.5',
         )}
       >
         <TableCell className={COL.domain.cell}>
@@ -176,8 +178,8 @@ function Row({
         <TableCell className={COL.period.cell}>{row.period}</TableCell>
         <TableCell className={COL.generated.cell}>
           {row.generated ??
-            (row.status === 'failed'
-              ? fmt(t('failed {time} UTC'), { time: row.startedClock ?? '—' })
+            (row.failedDay !== null
+              ? fmt(t('failed {date}'), { date: row.failedDay })
               : fmt(t('started {time} UTC'), { time: row.startedClock ?? '—' }))}
         </TableCell>
         <TableCell className={COL.papers.cell}>
@@ -194,7 +196,7 @@ function Row({
                   onRetry()
                 }}
                 disabled={busy}
-                className="border-line rounded-sm border px-2 py-0.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:text-zinc-950 disabled:opacity-50 dark:text-zinc-200 dark:hover:text-white"
+                className="border-line rounded-sm border px-2 py-0.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:text-zinc-200 dark:hover:text-white"
               >
                 {t('Retry')}
               </button>
@@ -239,6 +241,16 @@ function Row({
   )
 }
 
+/** A 409 from the start route: the page is stale, another run is in flight. */
+export function isConflict(error: unknown): boolean {
+  return (
+    !!error &&
+    typeof error === 'object' &&
+    'problem' in error &&
+    (error as { problem: { status?: number } }).problem.status === 409
+  )
+}
+
 /* -------------------------------- Ledger -------------------------------- */
 
 export function Ledger({ rows, busy }: { rows: HomeRow[]; busy: boolean }) {
@@ -263,6 +275,8 @@ export function Ledger({ rows, busy }: { rows: HomeRow[]; busy: boolean }) {
     } catch (err) {
       console.error('[home] retry failed', err)
       setError(errorsFromSubmit(err, [], t, t("Couldn't start the run. Try again."))._)
+      // 409: another run is already in flight — show it.
+      if (isConflict(err)) startTransition(() => router.refresh())
     } finally {
       setRetrying(false)
     }

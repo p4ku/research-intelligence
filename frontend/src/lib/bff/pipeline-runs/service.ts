@@ -15,7 +15,7 @@ import * as z from 'zod'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { assertUuid } from '../core/validate'
-import { runPeriod } from './period'
+import { isRetryable, runPeriod } from './period'
 import {
   runStatus,
   type PipelineRun,
@@ -47,6 +47,7 @@ function toRun(dto: PipelineRunDTO): PipelineRun {
     started_at: dto.started_at,
     completed_at: dto.completed_at,
     ...runPeriod(dto.configuration_override),
+    retryable: isRetryable(dto.configuration_override),
   }
 }
 

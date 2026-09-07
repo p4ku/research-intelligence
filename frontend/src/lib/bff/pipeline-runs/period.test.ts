@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { runPeriod } from './period'
+import { isRetryable, runPeriod } from './period'
 
 describe('runPeriod', () => {
   test('explicit dates, trimmed to the day', () => {
@@ -29,6 +29,14 @@ describe('runPeriod', () => {
     })
     expect(runPeriod({ n_last_days: 0 }).lookback_days).toBeNull()
     expect(runPeriod({ n_last_days: 2.5 }).lookback_days).toBeNull()
+  })
+
+  test('a run with MCP-only options is not retryable from Home', () => {
+    expect(isRetryable({ start_date: '2026-08-01', end_date: '2026-08-31' })).toBe(true)
+    expect(isRetryable(null)).toBe(true)
+    expect(isRetryable({ limit: 20 })).toBe(false)
+    expect(isRetryable({ query_prefix: 'quantum' })).toBe(false)
+    expect(isRetryable({ limit: null, query_prefix: '' })).toBe(true)
   })
 
   test('missing or malformed configuration reads as no period', () => {

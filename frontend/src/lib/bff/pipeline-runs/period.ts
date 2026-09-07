@@ -18,6 +18,13 @@ export interface PeriodConfig {
   start_date?: string | null
   end_date?: string | null
   n_last_days?: number | null
+  limit?: number | null
+  query_prefix?: string | null
+}
+
+/** True when the run's inputs are just a domain and a window — what Home can resend. */
+export function isRetryable(cfg: PeriodConfig | null | undefined): boolean {
+  return !(typeof cfg?.limit === 'number') && !cfg?.query_prefix
 }
 
 /** The first ten characters when they read as a calendar date; else null. */

@@ -22,7 +22,7 @@ intact. One animation per region, however many bones it holds.
 
 **2. `FooSkeleton`, never `Foo.Skeleton`.** Dotting into a `'use client'` module
 from a Server Component throws _"Cannot access X on the server."_ `paper-card.tsx`
-and `run-papers.tsx` are client modules and `page.tsx` / `loading.tsx` are not, so
+and `dashboard/ledger.tsx` are client modules and `page.tsx` / `loading.tsx` are not, so
 the skeleton is always a separate named export, co-located in the component's own
 file. (`Bone` and `Skeleton` keep the dotted form only because
 `components/skeleton.tsx` carries no directive.)

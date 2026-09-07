@@ -59,11 +59,14 @@ export async function MastheadSection({ t, lang }: { t: T; lang: Lang }) {
     domain: current.workspace_name,
     period: periodLabel(current, t, lang),
     generated: formatDay(completionDay(current), lang),
-    href: editionHref(edition?.date ?? completionDay(current), current.workspace_id),
+    // No edition (the corpus could not be read): nothing to link to.
+    href: edition ? editionHref(edition.date, current.workspace_id) : null,
     inBrief: edition?.in_brief ?? null,
     template: edition?.in_brief_source === 'template',
+    // The run's own counters, the same numbers the ledger's Papers column
+    // shows — one source, so the two never disagree.
     screened: current.total_papers_fetched,
-    included: edition?.funnel.surfaced ?? current.total_papers_passed_screening,
+    included: current.total_papers_passed_screening,
     top: edition ? topPapers(edition) : [],
   }
   return <Masthead lead={lead} t={t} />
@@ -95,9 +98,14 @@ export async function LedgerSection({
       period: periodLabel(run, t, lang),
       generated: completed ? formatDay(completionDay(run), lang) : null,
       startedClock: run.started_at ? formatClock(run.started_at) : null,
-      papers: completed ? (edition?.funnel.surfaced ?? run.total_papers_passed_screening) : null,
-      retry:
+      // Django stamps completed_at on failure and abort alike.
+      failedDay:
         status === 'failed'
+          ? formatDay(run.completed_at ?? run.started_at ?? run.run_date, lang)
+          : null,
+      papers: completed ? run.total_papers_passed_screening : null,
+      retry:
+        status === 'failed' && run.retryable
           ? {
               workspace_id: run.workspace_id,
               start_date: run.period_start ?? undefined,
@@ -110,7 +118,7 @@ export async function LedgerSection({
             href: editionHref(edition.date, run.workspace_id),
             inBrief: edition.in_brief,
             screened: run.total_papers_fetched,
-            included: edition.funnel.surfaced,
+            included: run.total_papers_passed_screening,
             top: topPapers(edition),
           }
         : null,
@@ -140,7 +148,9 @@ export async function LedgerSection({
       <aside className="lg:col-span-1">
         <RunCard domains={domains} processing={processing?.domain ?? null} today={today} />
       </aside>
-      <LiveRefresh active={processing !== null} />
+      <LiveRefresh
+        processingIds={rows.filter((row) => row.status === 'processing').map((row) => row.id)}
+      />
     </div>
   )
 }

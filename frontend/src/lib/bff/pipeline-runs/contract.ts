@@ -2,7 +2,12 @@
 import * as z from 'zod'
 import type { Operation } from '../core/contract-types'
 import { runPage, runsQuery, startedRun, startRun } from './schema'
-import { pipelineRunDetailDTO, pipelineRunDTO, startRunResponseDTO } from './upstream'
+import {
+  pipelineRunDetailDTO,
+  pipelineRunDTO,
+  startRunRequestDTO,
+  startRunResponseDTO,
+} from './upstream'
 
 export const pipelineRunsOperations: Operation[] = [
   {
@@ -49,7 +54,7 @@ export const pipelineRunsOperations: Operation[] = [
     path: '/api/pipeline-runs/start/',
     summary:
       'Start an autonomous run for a workspace over a search window (start_date/end_date, YYYY-MM-DD); answers with a status envelope carrying pipeline_run_id. Never executed by the checker.',
-    body: startRun,
+    body: startRunRequestDTO,
     responses: { 201: startRunResponseDTO },
   },
   {
