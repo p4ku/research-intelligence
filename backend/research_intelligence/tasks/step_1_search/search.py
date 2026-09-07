@@ -16,7 +16,7 @@ from ...scrapers import get_scraper_provider
 logger = logging.getLogger(__name__)
 
 
-from .dedup import normalize_doi, normalize_arxiv_id, normalize_title
+from .dedup import normalize_doi, normalize_arxiv_id, normalize_title, one_line
 
 
 @shared_task(bind=True, acks_late=True, reject_on_worker_lost=True, max_retries=2, default_retry_delay=10)
@@ -135,7 +135,9 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
 
             arxiv_id = item.get('arxiv_id') or (item.get('hash_id') if item.get('source_database') == 'arxiv' else None)
             doi = item.get('doi') or (item.get('other_url') if 'doi.org' in item.get('other_url', '') else None)
-            title = item['title']
+            # Normalized here, once, rather than in each provider: every source
+            # reaches the corpus through this loop.
+            title = one_line(item['title'])
 
             norm_doi = normalize_doi(doi)
             norm_arxiv = normalize_arxiv_id(arxiv_id)
@@ -195,7 +197,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                         "doi": clean_doi,
                         "title": title,
                         "authors": item.get('authors', ''),
-                        "abstract": item.get('abstract', ''),
+                        "abstract": one_line(item.get('abstract', '')),
                         "source_database": item.get('source_database', 'arxiv'),
                         "original_pdf_path": item.get('pdf_url', '') or item.get('original_pdf_path', ''),
                         "meta": item.get('meta') or {}

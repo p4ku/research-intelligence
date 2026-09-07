@@ -4,6 +4,7 @@ import {
   corpusMaxima,
   definitionContexts,
   inferScale,
+  oneLine,
   parseNumeric,
   pickMetric,
   resolveExitMetric,
@@ -119,6 +120,17 @@ describe('splitAuthors', () => {
       'Carol Chen',
     ])
     expect(splitAuthors('')).toEqual([])
+  })
+})
+
+describe('oneLine', () => {
+  test("collapses the source's line wrap", () => {
+    // Exactly how arXiv's Atom feed hands us this title.
+    expect(
+      oneLine('PennyLane: Automatic differentiation of hybrid quantum-classical\n  computations'),
+    ).toBe('PennyLane: Automatic differentiation of hybrid quantum-classical computations')
+    expect(oneLine('  padded\ttitle \n')).toBe('padded title')
+    expect(oneLine(null)).toBe('')
   })
 })
 

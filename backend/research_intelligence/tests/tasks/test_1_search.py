@@ -8,6 +8,7 @@ from ...tasks.step_1_search.search import (
     normalize_doi,
     normalize_arxiv_id,
     normalize_title,
+    one_line,
 )
 from research_intelligence.scrapers.arxiv import ArxivScraperProvider
 from research_intelligence.scrapers.openalex import OpenAlexScraperProvider
@@ -212,6 +213,38 @@ class IngestionSearchTasksTestCase(TestCase):
 
         self.assertEqual(normalize_title("Attention Is All You Need!"), "attentionisallyouneed")
         self.assertEqual(normalize_title("Attention is all you need: A Survey."), "attentionisallyouneedasurvey")
+
+        self.assertEqual(one_line("Hybrid quantum-classical\n  computations"), "Hybrid quantum-classical computations")
+        self.assertEqual(one_line("  padded\ttitle \n"), "padded title")
+        self.assertEqual(one_line(""), "")
+        self.assertEqual(one_line(None), "")
+
+    @patch("research_intelligence.scrapers.openalex.OpenAlexScraperProvider.search")
+    def test_ingested_title_and_abstract_are_single_lined(self, mock_openalex_search):
+        """A provider's line wrapping must not reach the corpus (and the UI)."""
+        Scraper.objects.create(workspace=self.workspace, provider="openalex", search_query="pennylane")
+
+        mock_openalex_search.return_value = [
+            {
+                "title": "PennyLane: Automatic differentiation of hybrid quantum-classical\n  computations",
+                "authors": "Ville Bergholm",
+                "abstract": "PennyLane is a Python 3 software framework for\ndifferentiable programming of quantum computers.",
+                "hash_id": "openalex_pennylane",
+                "pdf_url": "https://arxiv.org/pdf/1811.04968.pdf",
+                "other_url": "https://doi.org/10.48550/arXiv.1811.04968",
+                "source_database": "openalex",
+                "published_date": "2026-05-20",
+            }
+        ]
+
+        execute_workspace_search(self.workspace.id, self.pipeline_run.id)
+
+        paper = Paper.objects.get(workspace=self.workspace)
+        self.assertEqual(
+            paper.title,
+            "PennyLane: Automatic differentiation of hybrid quantum-classical computations",
+        )
+        self.assertNotIn("\n", paper.abstract)
 
     def test_cross_source_search_deduplication(self):
         scraper_arxiv = Scraper.objects.create(workspace=self.workspace, provider="arxiv", search_query="transformer scaling")
