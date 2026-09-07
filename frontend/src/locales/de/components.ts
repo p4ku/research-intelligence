@@ -26,6 +26,4 @@ export const dict: Record<string, string> = {
   '{n} papers': '{n} Papers',
   'Sent {date}': 'Gesendet {date}',
   'Created {date}': 'Erstellt {date}',
-  // top-bar.tsx
-  'Page sections': 'Seitenabschnitte',
 }

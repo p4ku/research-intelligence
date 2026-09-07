@@ -288,74 +288,11 @@
   cursor: pointer;
 }
 
-/* Anchor lock-on: clicking a top-bar section link traces a scanner-style
-   accent sweep around the target card, holds, then dissolves. The TopBar
-   sets data-lock-on on the target and removes it when the fade ends. */
-@property --rs-sweep {
-  syntax: '<angle>';
-  inherits: false;
-  initial-value: 0deg;
-}
-
-@layer components {
-  /* components layer so position utilities (sticky/fixed) on targets still win */
-  [data-lock-on] {
-    position: relative;
-  }
-}
-
-[data-lock-on] {
-  animation: rs-lock-glow 1.5s ease-out both;
-}
-[data-lock-on]::after {
-  content: '';
-  pointer-events: none;
-  position: absolute;
-  inset: -4px;
-  border-radius: 4px;
-  padding: 1.5px;
-  background: conic-gradient(var(--accent) var(--rs-sweep), transparent 0deg);
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  animation:
-    rs-lock-sweep 0.7s cubic-bezier(0.65, 0, 0.35, 1) both,
-    rs-lock-fade 0.6s ease-out 0.9s both;
-}
-@keyframes rs-lock-sweep {
-  from {
-    --rs-sweep: 0deg;
-  }
-  to {
-    --rs-sweep: 360deg;
-  }
-}
-@keyframes rs-lock-fade {
-  to {
-    opacity: 0;
-  }
-}
-@keyframes rs-lock-glow {
-  0% {
-    box-shadow: 0 0 0 0 transparent;
-  }
-  40% {
-    box-shadow: 0 0 30px color-mix(in srgb, var(--accent) 35%, transparent);
-  }
-  100% {
-    box-shadow: 0 0 0 0 transparent;
-  }
-}
 /* ------------------------- Skeleton scan sweep ------------------------------ */
 /* One soft highlight crosses each loading region ([data-skeleton], rendered by
-   Skeleton.Region in components/skeleton.tsx) — the scanner's gesture, kin to
-   the lock-on sweep above. Bones never animate; only the sweep moves, so a
-   region costs one animation however many bones it holds. Driven by an
+   Skeleton.Region in components/skeleton.tsx) — the scanner's gesture. Bones
+   never animate; only the sweep moves, so a region costs one animation however
+   many bones it holds. Driven by an
    animated custom property rather than a translated overlay so the region
    needs no overflow clipping (card rings and shadows inside stay intact).
    Not animate-pulse — pulse already means "running" (run-presentation,
@@ -431,9 +368,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-lock-on] {
-    animation: none;
-  }
   [data-skeleton]::after {
     animation: none;
     display: none;
@@ -444,11 +378,6 @@
   ::view-transition-group(*) {
     animation-duration: 0s !important;
     animation-delay: 0s !important;
-  }
-  [data-lock-on]::after {
-    background: none;
-    box-shadow: inset 0 0 0 1.5px var(--accent);
-    animation: rs-lock-fade 0.8s ease-out 0.4s both;
   }
 }
 
