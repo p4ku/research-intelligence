@@ -16,7 +16,7 @@ import {
   unionDefinitions,
 } from '@/lib/papers/select'
 import type { ScoredPaper, ScreeningStatus, WorkspaceSummary } from '@/lib/papers/types'
-import { parseQuery, rank } from '@/lib/search/match'
+import { parseQuery, rankAll } from '@/lib/search/match'
 import { useStars } from '@/lib/stars-client'
 import { ChevronDownIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
@@ -122,7 +122,9 @@ export function PapersBrowser({
     // The same matcher as Home's typeahead, so a search lands on what it showed.
     const query = parseQuery(search)
     const searching = query.intent.kind !== 'empty'
-    const relevance = new Map<string, number>()
+    const relevance = new Map(
+      searching ? rankAll(papers, query).map(({ paper, hit }) => [paper.id, hit.score]) : [],
+    )
     // Every filter but screening, so the hint below can say what screening alone hides.
     const passesExceptScreening = (p: ScoredPaper) => {
       if (domain !== 'all' && p.workspace_id !== domain) return false
@@ -133,11 +135,7 @@ export function PapersBrowser({
       }
       if (withinDays > 0 && cutoff && new Date(p.created_at) < cutoff) return false
       if (minScore > 0 && (p.signal_score === null || p.signal_score < minScore)) return false
-      if (searching) {
-        const hit = rank(p, query)
-        if (!hit) return false
-        relevance.set(p.id, hit.score)
-      }
+      if (searching && !relevance.has(p.id)) return false
       return true
     }
     const candidates = papers.filter(passesExceptScreening)

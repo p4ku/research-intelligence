@@ -23,4 +23,19 @@ describe('scanTopics', () => {
     )
     expect(topics).toEqual(['cold chain', 'RFID', 'sensors'])
   })
+
+  test('drops arXiv field syntax: prefixes go, category clauses are not topics', () => {
+    expect(
+      scanTopics([
+        {
+          scrapers: [
+            {
+              search_query: 'cat:cs.AI AND all:machine learning OR ti:"neural network"',
+              is_active: true,
+            },
+          ],
+        },
+      ]),
+    ).toEqual(['machine learning', 'neural network'])
+  })
 })

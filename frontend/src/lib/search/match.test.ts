@@ -7,6 +7,7 @@ import {
   normalize,
   parseQuery,
   rank,
+  rankAll,
   snippet,
   tokenize,
   type Searchable,
@@ -90,6 +91,24 @@ describe('rank', () => {
     const hit = rank(fixturePapers[0]!, parseQuery('2608'))!
     expect(hit.matched).toEqual(['id'])
     expect(hit.score).toBeCloseTo(30 + 87.5 / 1000, 5)
+  })
+  test('relaxed: at least half the words, misses cost score', () => {
+    const p = paper({ title: 'Quantum noise models' })
+    const q = parseQuery('how do quantum models handle noise?')
+    expect(rank(p, q)).toBeNull()
+    const relaxed = rank(p, q, { relaxed: true })!
+    expect(relaxed.score).toBeLessThan(100)
+    expect(rank(paper({ title: 'Quantum' }), q, { relaxed: true })).toBeNull()
+  })
+  test('rankAll: strict first, relaxed for questions and as a fallback', () => {
+    const solid = paper({ title: 'Solid-State Battery Chemistry' })
+    const other = paper({ title: 'Cold chain logistics' })
+    expect(rankAll([solid, other], parseQuery('solid state battery recycling'))).toEqual([
+      { paper: solid, hit: expect.objectContaining({ matched: ['title'] }) },
+    ])
+    expect(rankAll([solid, other], parseQuery('solid state'))[0]?.paper).toBe(solid)
+    expect(rankAll([solid, other], parseQuery('perovskite recycling'))).toEqual([])
+    expect(rankAll([solid, other], parseQuery('which battery chemistries?'))[0]?.paper).toBe(solid)
   })
   test('an empty query never matches', () => {
     expect(rank(fixturePapers[0]!, parseQuery('   '))).toBeNull()

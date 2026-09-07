@@ -3,7 +3,7 @@ import { assembleSearch } from '@/lib/bff/search/assemble'
 import { fixtureSearchCorpus } from '@/lib/bff/search/fixtures'
 import type { T } from '@/lib/i18n'
 import { describe, expect, test } from 'bun:test'
-import { buildSections, flatten, papersHref, rowId, type RowContext } from './rows'
+import { askTitle, buildSections, flatten, papersHref, rowId, type RowContext } from './rows'
 
 const t: T = (s) => s
 const ctx = (over: Partial<RowContext> = {}): RowContext => ({
@@ -79,6 +79,28 @@ describe('buildSections', () => {
     const stale = buildSections(search('agents'), ctx({ error: true }))
     expect(stale[0]?.key).toBe('note')
     expect(flatten(stale).map((r) => r.kind)).toEqual(['paper', 'paper', 'domain', 'ask'])
+  })
+
+  test('a suggestion already in Recent is not offered twice', () => {
+    const sections = buildSections(
+      null,
+      ctx({ q: '', recent: ['Machine Learning'], suggestions: ['machine learning', 'RFID'] }),
+    )
+    expect(
+      flatten(sections)
+        .map((r) => (r.kind === 'try' ? r.q : null))
+        .filter(Boolean),
+    ).toEqual(['RFID'])
+  })
+
+  test('the Ask label keeps a title to one row', () => {
+    expect(askTitle('OMLT: Optimization & Machine Learning Toolkit')).toBe('OMLT')
+    const long =
+      'A Quantum-Classical Hybrid Framework for Multivariate Time-Series Forecasting and More'
+    const clipped = askTitle(long)
+    expect(clipped.length).toBeLessThanOrEqual(61)
+    expect(clipped.endsWith('…')).toBe(true)
+    expect(clipped).toBe('A Quantum-Classical Hybrid Framework for Multivariate…')
   })
 
   test('row ids are stable and unique; papersHref encodes', () => {

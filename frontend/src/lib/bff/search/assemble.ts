@@ -3,7 +3,7 @@
  * pure so the tests can drive it with fixtures, and so the service stays a
  * one-liner around the cached corpus.
  */
-import { parseQuery, rank, snippet, tokenize, type Query } from '@/lib/search/match'
+import { parseQuery, rankAll, snippet, tokenize, type Query } from '@/lib/search/match'
 import { PASSED_STATUSES, type ScoredPaper } from '../papers/schema'
 import type { WorkspaceSummary } from '../workspaces/schema'
 import type { SearchDomain, SearchHit, SearchQuery, SearchResponse } from './schema'
@@ -121,13 +121,11 @@ export function assembleSearch(corpus: SearchCorpus, { q, limit }: SearchQuery):
     }
   }
 
-  const ranked: Array<{ paper: ScoredPaper; score: number; matched: SearchHit['matched'] }> = []
-  for (const paper of corpus.papers) {
-    const hit = rank(paper, query)
-    if (!hit) continue
-    const passed = PASSED_STATUSES.includes(paper.screening_status)
-    ranked.push({ paper, score: hit.score + (passed ? PASSED_BONUS : 0), matched: hit.matched })
-  }
+  const ranked = rankAll(corpus.papers, query).map(({ paper, hit }) => ({
+    paper,
+    score: hit.score + (PASSED_STATUSES.includes(paper.screening_status) ? PASSED_BONUS : 0),
+    matched: hit.matched,
+  }))
   ranked.sort(
     (a, b) =>
       b.score - a.score ||

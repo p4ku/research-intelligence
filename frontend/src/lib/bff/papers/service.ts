@@ -12,7 +12,7 @@
 import 'server-only'
 
 import { byValueAsc, byValueDesc, dimensionByKey } from '@/lib/papers/select'
-import { parseQuery, rank } from '@/lib/search/match'
+import { parseQuery, rankAll } from '@/lib/search/match'
 import { cache } from 'react'
 import * as z from 'zod'
 import { django } from '../core/http'
@@ -159,8 +159,8 @@ export const papers = {
     }
     if (query.search) {
       // The same matcher as the Home typeahead and the Papers page filter.
-      const parsed = parseQuery(query.search)
-      rows = rows.filter((p) => rank(p, parsed) !== null)
+      const hits = new Set(rankAll(rows, parseQuery(query.search)).map((r) => r.paper))
+      rows = rows.filter((p) => hits.has(p))
     }
     rows = order(rows, query.ordering)
     const extra: Record<string, string> = { screening: query.screening, ordering: query.ordering }

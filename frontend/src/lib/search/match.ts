@@ -201,9 +201,12 @@ function best(
  * title and a title that opens with the first word earn bonuses; the signal
  * score contributes at most 0.1 so it only ever breaks ties.
  */
-export function rank(paper: Searchable, query: Query): Hit | null {
+export function rank(paper: Searchable, query: Query, { relaxed = false } = {}): Hit | null {
   const { tokens } = query
   if (query.intent.kind === 'empty' || tokens.length === 0) return null
+  // Strict: every word lands. Relaxed: at least half do, and misses cost score.
+  const required = relaxed ? Math.max(1, Math.ceil(tokens.length / 2)) : tokens.length
+  let hits = 0
 
   const title = fieldTokens(paper.title)
   const authors = fieldTokens(paper.authors.join(' '))
@@ -228,10 +231,12 @@ export function rank(paper: Searchable, query: Query): Hit | null {
       if (weight > 0) matched.add(field)
       if (weight > top) top = weight
     }
-    if (top === 0) return null
+    if (top === 0) continue
+    hits += 1
     if (byField.title > 0) titleHits += 1
     sum += top
   }
+  if (hits < required) return null
 
   const normalizedTitle = normalize(paper.title)
   // A phrase is two or more words in the typed order; one word is just a hit.
@@ -248,6 +253,31 @@ export function rank(paper: Searchable, query: Query): Hit | null {
     score,
     matched: (['title', 'authors', 'abstract', 'id'] as const).filter((f) => matched.has(f)),
   }
+}
+
+export interface Ranked<T> {
+  paper: T
+  hit: Hit
+}
+
+/**
+ * Every paper that answers the query, best first. Strict first; when a
+ * question or a multi-word query finds nothing that way, relaxed — a
+ * question's words are rarely all in one paper, and "solid state battery
+ * recycling" should still surface the solid-state battery papers.
+ */
+export function rankAll<T extends Searchable>(papers: readonly T[], query: Query): Ranked<T>[] {
+  const pass = (relaxed: boolean): Ranked<T>[] => {
+    const out: Ranked<T>[] = []
+    for (const paper of papers) {
+      const hit = rank(paper, query, { relaxed })
+      if (hit) out.push({ paper, hit })
+    }
+    return out
+  }
+  let ranked = query.intent.kind === 'question' ? pass(true) : pass(false)
+  if (ranked.length === 0 && query.tokens.length >= 2) ranked = pass(true)
+  return ranked.sort((a, b) => b.hit.score - a.hit.score)
 }
 
 /* --------------------------- Highlight & snippet -------------------------- */

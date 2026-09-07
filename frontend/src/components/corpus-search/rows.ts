@@ -68,7 +68,7 @@ function askSection(result: SearchResponse, t: T): Section | null {
         kind: 'ask',
         id: 'ask',
         href: result.ask.href,
-        label: fmt(t('Ask about “{title}”'), { title: shortTitle(top.title) }),
+        label: fmt(t('Ask about “{title}”'), { title: askTitle(top.title) }),
       },
     ],
   }
@@ -117,14 +117,25 @@ function idleSections({ recent, suggestions, t }: RowContext): Section[] {
       rows: recent.map((q) => ({ kind: 'recent', id: q, q })),
     })
   }
-  if (suggestions.length > 0) {
+  // A topic already in Recent is not a suggestion any more.
+  const seen = new Set(recent.map((q) => q.toLowerCase()))
+  const fresh = suggestions.filter((q) => !seen.has(q.toLowerCase()))
+  if (fresh.length > 0) {
     sections.push({
       key: 'try',
       label: t('Try'),
-      rows: suggestions.map((q) => ({ kind: 'try', id: q, q })),
+      rows: fresh.map((q) => ({ kind: 'try', id: q, q })),
     })
   }
   return sections
+}
+
+/** A title short enough to sit in one row: up to its colon, then at most ~60 characters at a word. */
+export function askTitle(title: string, max = 60): string {
+  const short = shortTitle(title)
+  if (short.length <= max) return short
+  const cut = short.lastIndexOf(' ', max)
+  return `${short.slice(0, cut > max / 2 ? cut : max).trimEnd()}…`
 }
 
 export function buildSections(result: SearchResponse | null, ctx: RowContext): Section[] {
