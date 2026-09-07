@@ -9,6 +9,7 @@ import {
 import { fmt, type T } from '@/lib/i18n'
 import { CheckCircleIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
+import type { Element, Parents, Root } from 'hast'
 import 'katex/dist/katex.min.css'
 import { Fragment, memo, type ReactNode } from 'react'
 import Markdown, { type Components, type Options } from 'react-markdown'
@@ -112,7 +113,7 @@ interface RenderOpts {
   caret: boolean
 }
 
-/** Per-render citation context, threaded through the renderers as a closure. */
+/** Per-render citation context; see `stampCite` for how it reaches the renderers. */
 interface CiteCtx {
   refs: CitationRef[]
   matches: (VisualCitation | null)[]
@@ -120,9 +121,30 @@ interface CiteCtx {
   t: T
 }
 
+// The citation context rides on the parsed tree, not in the renderers'
+// closures. A components map rebuilt per render is a fresh element type for
+// every <p> and <li>, so React unmounts and remounts the whole answer on each
+// streamed token — and every word re-runs its unveil, leaving the answer a
+// flickering blur once the first chip lands. So the map is built once per
+// option set, and this rehype pass stamps the context on each element of the
+// tree react-markdown builds for the render (it rebuilds the processor per
+// render anyway). No hooks or context, so server pages keep rendering.
+const citeOf = new WeakMap<Element, CiteCtx>()
+
+function stampCite(cite: CiteCtx) {
+  const stamp = (node: Parents) => {
+    for (const child of node.children) {
+      if (child.type !== 'element') continue
+      citeOf.set(child, cite)
+      stamp(child)
+    }
+  }
+  return () => (tree: Root) => stamp(tree)
+}
+
 function Caret() {
   return (
-    <span className="text-accent animate-pulse" aria-hidden="true">
+    <span className="animate-pulse text-accent" aria-hidden="true">
       ▍
     </span>
   )
@@ -151,7 +173,7 @@ function CitationChip({ cite, index, ctx }: { cite: CitationRef; index: number; 
       {verified && (
         <>
           <CheckCircleIcon
-            className="text-accent size-3 self-center"
+            className="size-3 self-center text-accent"
             title={t('Verified in source')}
           />
           <span className="sr-only">{t('Verified in source')}</span>
@@ -218,7 +240,7 @@ function renderString(s: string, opts: RenderOpts, cite?: CiteCtx): ReactNode[] 
           <span
             key={`${i}-${j}`}
             className={clsx(
-              'text-foreground font-mono font-medium tabular-nums',
+              'font-mono font-medium text-foreground tabular-nums',
               opts.unveil && UNVEIL,
             )}
           >
@@ -249,7 +271,8 @@ function renderString(s: string, opts: RenderOpts, cite?: CiteCtx): ReactNode[] 
  * marker), and if the two paths nested their words differently, every word
  * already on screen would remount and re-run its unveil — the answer flickers.
  */
-function inline(children: ReactNode, opts: RenderOpts, cite?: CiteCtx): ReactNode {
+function inline(children: ReactNode, opts: RenderOpts, node?: Element): ReactNode {
+  const cite = node && citeOf.get(node)
   const list = typeof children === 'string' ? [children] : children
   if (!Array.isArray(list)) return children
   return list.map((child, i) =>
@@ -263,15 +286,15 @@ function inline(children: ReactNode, opts: RenderOpts, cite?: CiteCtx): ReactNod
 
 // Model headings become section labels: in a transcript the user's question is
 // already the heading, and a full-size h3 mid-answer would outrank it.
-function buildComponents(opts: RenderOpts, cite?: CiteCtx): Components {
+function buildComponents(opts: RenderOpts): Components {
   const plain: RenderOpts = { ...opts, stats: false }
-  const Heading = ({ children }: { children?: ReactNode }) => (
-    <h4 className="text-foreground pt-1 text-[11px] font-semibold tracking-[0.18em] uppercase">
-      {inline(children, opts, cite)}
+  const Heading = ({ children, node }: { children?: ReactNode; node?: Element }) => (
+    <h4 className="pt-1 text-[11px] font-semibold tracking-[0.18em] text-foreground uppercase">
+      {inline(children, opts, node)}
     </h4>
   )
   return {
-    p: ({ children }) => <p>{inline(children, opts, cite)}</p>,
+    p: ({ children, node }) => <p>{inline(children, opts, node)}</p>,
     h1: Heading,
     h2: Heading,
     h3: Heading,
@@ -279,24 +302,24 @@ function buildComponents(opts: RenderOpts, cite?: CiteCtx): Components {
     h5: Heading,
     h6: Heading,
     ul: ({ children }) => (
-      <ul className="marker:text-muted-foreground list-disc space-y-1 pl-4">{children}</ul>
+      <ul className="list-disc space-y-1 pl-4 marker:text-muted-foreground">{children}</ul>
     ),
     ol: ({ children }) => (
-      <ol className="marker:text-muted-foreground list-decimal space-y-1 pl-4 marker:font-mono marker:tabular-nums">
+      <ol className="list-decimal space-y-1 pl-4 marker:font-mono marker:text-muted-foreground marker:tabular-nums">
         {children}
       </ol>
     ),
-    li: ({ children }) => (
-      <li className="pl-0.5 [&>ol]:mt-1 [&>ul]:mt-1">{inline(children, opts, cite)}</li>
+    li: ({ children, node }) => (
+      <li className="pl-0.5 [&>ol]:mt-1 [&>ul]:mt-1">{inline(children, opts, node)}</li>
     ),
-    strong: ({ children }) => (
-      <strong className="text-foreground font-semibold">{inline(children, opts, cite)}</strong>
+    strong: ({ children, node }) => (
+      <strong className="font-semibold text-foreground">{inline(children, opts, node)}</strong>
     ),
-    em: ({ children }) => <em className="italic">{inline(children, opts, cite)}</em>,
-    del: ({ children }) => <del className="line-through">{inline(children, opts, cite)}</del>,
+    em: ({ children, node }) => <em className="italic">{inline(children, opts, node)}</em>,
+    del: ({ children, node }) => <del className="line-through">{inline(children, opts, node)}</del>,
     // react-markdown blanks unsafe schemes (javascript:, data:…) before we see
     // them, so an empty href means "not a link".
-    a: ({ href, children }) =>
+    a: ({ href, children, node }) =>
       href ? (
         <a
           href={href}
@@ -304,52 +327,51 @@ function buildComponents(opts: RenderOpts, cite?: CiteCtx): Components {
           rel="noopener noreferrer"
           className="text-blue-700 underline underline-offset-2 hover:text-blue-800"
         >
-          {inline(children, plain, cite)}
+          {inline(children, plain, node)}
         </a>
       ) : (
-        <span>{inline(children, plain, cite)}</span>
+        <span>{inline(children, plain, node)}</span>
       ),
-    code: ({ children }) => (
-      <code className="bg-foreground/5 rounded-xs px-1 py-px font-mono text-[0.9em]">
-        {inline(children, plain, cite)}
+    code: ({ children, node }) => (
+      <code className="rounded-xs bg-foreground/5 px-1 py-px font-mono text-[0.9em]">
+        {inline(children, plain, node)}
       </code>
     ),
     pre: ({ children }) => (
-      <pre className="bg-foreground/3 border-line-soft overflow-x-auto rounded-sm border p-3 font-mono text-xs leading-normal whitespace-pre-wrap [&_code]:bg-transparent [&_code]:p-0">
+      <pre className="overflow-x-auto rounded-sm border border-line-soft bg-foreground/3 p-3 font-mono text-xs leading-normal whitespace-pre-wrap [&_code]:bg-transparent [&_code]:p-0">
         {children}
       </pre>
     ),
     blockquote: ({ children }) => (
-      <blockquote className="border-line text-muted-foreground border-l-2 pl-3">
+      <blockquote className="border-l-2 border-line pl-3 text-muted-foreground">
         {children}
       </blockquote>
     ),
-    hr: () => <hr className="border-line-soft my-3" />,
+    hr: () => <hr className="my-3 border-line-soft" />,
     table: ({ children }) => (
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-xs">{children}</table>
       </div>
     ),
-    th: ({ children }) => (
-      <th className="border-line text-foreground border-b py-1 pr-3 text-left align-bottom font-semibold">
-        {inline(children, opts, cite)}
+    th: ({ children, node }) => (
+      <th className="border-b border-line py-1 pr-3 text-left align-bottom font-semibold text-foreground">
+        {inline(children, opts, node)}
       </th>
     ),
-    td: ({ children }) => (
-      <td className="border-line-soft border-b py-1 pr-3 align-top">
-        {inline(children, opts, cite)}
+    td: ({ children, node }) => (
+      <td className="border-b border-line-soft py-1 pr-3 align-top">
+        {inline(children, opts, node)}
       </td>
     ),
   }
 }
 
-// react-markdown re-parses on every render regardless; the cache only saves
-// rebuilding the closures (one entry per stats/unveil/caret combination, of
-// which there are a handful). `memo` on AnswerMarkdown is what avoids
-// re-renders. Chip-enabled renders build a map per render (the context is
-// per turn), which costs nothing extra.
+// One map per stats/unveil/caret combination, of which there are a handful,
+// and the same map on every render — that stability is what keeps a streamed
+// answer mounted between tokens (see `stampCite`); `memo` on AnswerMarkdown
+// only saves re-renders. Exported for the test that pins the contract.
 const componentCache = new Map<string, Components>()
-function componentsFor(opts: RenderOpts): Components {
+export function componentsFor(opts: RenderOpts): Components {
   const key = `${opts.stats}|${opts.unveil}|${opts.caret}`
   let components = componentCache.get(key)
   if (!components) {
@@ -451,7 +473,6 @@ export const AnswerMarkdown = memo(function AnswerMarkdown({
     refs.length > 0
       ? { refs, matches: matchCitations(refs, citations ?? []), anchor: citationAnchor, t }
       : undefined
-  const components = cite ? buildComponents(opts, cite) : componentsFor(opts)
   return (
     <div
       data-shape="answer-markdown"
@@ -460,8 +481,8 @@ export const AnswerMarkdown = memo(function AnswerMarkdown({
     >
       <Markdown
         remarkPlugins={REMARK_PLUGINS}
-        rehypePlugins={REHYPE_PLUGINS}
-        components={components}
+        rehypePlugins={cite ? [...REHYPE_PLUGINS, stampCite(cite)] : REHYPE_PLUGINS}
+        components={componentsFor(opts)}
         skipHtml
         disallowedElements={['img']}
         unwrapDisallowed

@@ -26,8 +26,6 @@ export const dict: Record<string, string> = {
   '{n} papers': '{n} Papers',
   'Sent {date}': 'Gesendet {date}',
   'Created {date}': 'Erstellt {date}',
-  // top-bar.tsx
-  'Page sections': 'Seitenabschnitte',
   // star.tsx + stars-client.tsx — the star is the MVP's only curation.
   // "markieren" (not "Stern"): the spec's German UI marks records, it does not award them.
   Star: 'Markieren',

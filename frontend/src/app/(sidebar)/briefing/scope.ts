@@ -7,7 +7,7 @@ import type { WorkspaceSummary } from '@/lib/papers/types'
  * domain the user has since left — resolves to undefined, and the page falls
  * back to the newest edition of that day rather than a 404.
  */
-export function domainScope(all: WorkspaceSummary[], domain: string | undefined) {
+export function domainScope(all: Pick<WorkspaceSummary, 'id'>[], domain: string | undefined) {
   return domain && isUuid(domain) && all.some((ws) => ws.id === domain) ? domain : undefined
 }
 

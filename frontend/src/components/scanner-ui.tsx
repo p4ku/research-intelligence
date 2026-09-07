@@ -81,7 +81,7 @@ export function DomainBadge({
         'inline-flex max-w-full items-center gap-1.5 rounded-sm text-[11px] font-medium',
         tone === 'solid'
           ? 'bg-accent px-2 py-0.5 text-white'
-          : 'border-line border px-1.5 py-px text-zinc-600 dark:text-zinc-300',
+          : 'border border-line px-1.5 py-px text-zinc-600 dark:text-zinc-300',
         className,
       )}
     >
@@ -112,7 +112,7 @@ export function PageHeader({
       <div>
         {eyebrow && (
           <div className="flex items-center text-xs font-semibold tracking-[0.18em] text-zinc-400 uppercase dark:text-zinc-500">
-            <span aria-hidden="true" className="bg-accent mr-2 inline-block size-1.5" />
+            <span aria-hidden="true" className="mr-2 inline-block size-1.5 bg-accent" />
             {eyebrow}
           </div>
         )}
@@ -141,14 +141,14 @@ export function SectionLabel({
   return (
     <h2
       className={clsx(
-        'text-foreground flex items-center font-semibold tracking-[0.18em] uppercase',
+        'flex items-center font-semibold tracking-[0.18em] text-foreground uppercase',
         size === 'sm' ? 'text-sm' : 'text-xs',
         className,
       )}
     >
       <span
         aria-hidden="true"
-        className={clsx('bg-accent mr-2 inline-block', size === 'sm' ? 'size-2' : 'size-1.5')}
+        className={clsx('mr-2 inline-block bg-accent', size === 'sm' ? 'size-2' : 'size-1.5')}
       />
       {children}
     </h2>
@@ -189,7 +189,7 @@ function StatTileFrame({
     <div
       data-shape="stat-tile"
       data-state={state}
-      className="border-line-soft bg-background flex flex-col gap-1 rounded-sm border p-5"
+      className="flex flex-col gap-1 rounded-sm border border-line-soft bg-background p-5"
     >
       <div data-row="label" className="text-sm text-zinc-500 dark:text-zinc-400">
         {label}
@@ -293,7 +293,7 @@ function StatBandFrame({
         data-shape="stat-band"
         data-state={state}
         className={clsx(
-          'border-line-soft flex flex-col divide-y divide-zinc-950/5 border-y dark:divide-white/5',
+          'flex flex-col divide-y divide-zinc-950/5 border-y border-line-soft dark:divide-white/5',
           className,
         )}
       >
@@ -329,7 +329,7 @@ function StatBandFrame({
       data-shape="stat-band"
       data-state={state}
       className={clsx(
-        'border-line-soft grid grid-cols-2 gap-x-4 gap-y-6 border-y py-5 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-zinc-950/5 lg:dark:divide-white/5',
+        'grid grid-cols-2 gap-x-4 gap-y-6 border-y border-line-soft py-5 lg:grid-cols-4 lg:gap-x-0 lg:divide-x lg:divide-zinc-950/5 lg:dark:divide-white/5',
         className,
       )}
     >
@@ -484,7 +484,7 @@ export function TrlBadge({ trl, t = (s) => s }: { trl: number; t?: T }) {
   // TRL bands: 1–3 research, 4–6 development, 7–9 deployment.
   const band = trl <= 3 ? t('Research') : trl <= 6 ? t('Development') : t('Deployment')
   return (
-    <span className="bg-foreground/6 inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-xs font-medium text-zinc-700 dark:text-zinc-200">
+    <span className="inline-flex items-center gap-1.5 rounded-sm bg-foreground/6 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:text-zinc-200">
       <span className="font-mono tabular-nums">TRL {trl}</span>
       <span className="text-zinc-400 dark:text-zinc-500">·</span>
       <span className="text-zinc-500 dark:text-zinc-400">{band}</span>
@@ -609,7 +609,7 @@ export function ScoreRowFrame({
         </span>
         <span className="flex shrink-0 items-baseline gap-2">{value}</span>
       </div>
-      {track && <div className="bg-line-soft mt-1.5 h-[3px] w-full overflow-hidden">{fill}</div>}
+      {track && <div className="mt-1.5 h-[3px] w-full overflow-hidden bg-line-soft">{fill}</div>}
       {rationale}
       {evidence}
     </div>
@@ -798,8 +798,8 @@ export function Tldr({
   className?: string
 }) {
   return (
-    <div className={clsx('border-accent/40 bg-accent/6 rounded-sm border p-4', className)}>
-      <div className="text-accent font-mono text-[11px] font-medium tracking-[0.18em] uppercase">
+    <div className={clsx('rounded-sm border border-accent/40 bg-accent/6 p-4', className)}>
+      <div className="font-mono text-[11px] font-medium tracking-[0.18em] text-accent uppercase">
         {label}
       </div>
       <div className="mt-1.5 text-sm leading-relaxed text-zinc-700 dark:text-zinc-200">
@@ -822,7 +822,7 @@ export function LinkCard({
     <Link
       href={href}
       className={clsx(
-        'group hover:border-foreground/25 dark:hover:border-foreground/20 block p-5 transition-[border-color,box-shadow,transform] duration-150 ease-out hover:shadow-[0_2px_4px_rgba(19,19,17,0.06),0_10px_24px_-6px_rgba(19,19,17,0.14)] active:scale-[0.99] dark:hover:shadow-none',
+        'group block p-5 transition-[border-color,box-shadow,transform] duration-150 ease-out hover:border-foreground/25 hover:shadow-[0_2px_4px_rgba(19,19,17,0.06),0_10px_24px_-6px_rgba(19,19,17,0.14)] active:scale-[0.99] dark:hover:border-foreground/20 dark:hover:shadow-none',
         raisedSurface,
         className,
       )}
@@ -851,16 +851,16 @@ export function ErrorNote({
     <div
       role="alert"
       className={clsx(
-        'border-negative/40 bg-negative/5 flex items-start gap-2 rounded-sm border px-3 py-2.5',
+        'flex items-start gap-2 rounded-sm border border-negative/40 bg-negative/5 px-3 py-2.5',
         className,
       )}
     >
       <ExclamationTriangleIcon
         aria-hidden="true"
-        className="text-negative mt-0.5 size-4 shrink-0"
+        className="mt-0.5 size-4 shrink-0 text-negative"
       />
       <div className="min-w-0 flex-1">
-        <div className="text-foreground/90 text-sm leading-relaxed">{children}</div>
+        <div className="text-sm leading-relaxed text-foreground/90">{children}</div>
         {action && <div className="mt-2">{action}</div>}
       </div>
     </div>

@@ -108,7 +108,7 @@ const STATUS_CLASS: Record<Exclude<RowStatus, 'done'>, { text: string; mark: str
 }
 
 /** Current · Processing · Failed · No briefing; completed briefings that are not current carry none. */
-function StatusLabel({ status }: { status: RowStatus }) {
+export function StatusLabel({ status }: { status: RowStatus }) {
   const t = useT()
   if (status === 'done') return null
   const s = STATUS_CLASS[status]
@@ -130,6 +130,48 @@ function StatusLabel({ status }: { status: RowStatus }) {
       <span aria-hidden="true" className={clsx('size-1.5 shrink-0', s.mark)} />
       {label}
     </span>
+  )
+}
+
+/* ------------------------------- Brief panel ------------------------------- */
+
+/**
+ * What a completed row discloses: the funnel line, the brief in serif, the
+ * link into the briefing, and its strongest papers. Home's ledger and the
+ * Briefings archive open the same panel.
+ */
+export function BriefPanel({ brief }: { brief: HomeBrief }) {
+  const t = useT()
+  return (
+    <div
+      className={clsx(
+        'grid gap-6 pl-3 whitespace-normal',
+        // Nothing to list beside the brief: let it run at its own
+        // measure rather than pairing it with an empty column.
+        brief.top.length > 0 && 'lg:grid-cols-5',
+      )}
+    >
+      <div className={clsx(brief.top.length > 0 && 'lg:col-span-3')}>
+        <p className="font-mono text-[11px] text-zinc-500 tabular-nums dark:text-zinc-400">
+          {fmt(t('{screened} screened → {included} included'), {
+            screened: brief.screened,
+            included: brief.included,
+          })}
+        </p>
+        <AnswerMarkdown
+          text={brief.inBrief}
+          className="mt-2 max-w-xl font-serif text-[15px]/6 text-pretty text-zinc-700 dark:text-zinc-200"
+        />
+        <TextLink href={brief.href} className="mt-2 inline-block">
+          {t('Open briefing →')}
+        </TextLink>
+      </div>
+      {brief.top.length > 0 && (
+        <div className="lg:col-span-2">
+          <TopPapers papers={brief.top} dense />
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -214,7 +256,7 @@ function Row({
                   onRetry()
                 }}
                 disabled={busy}
-                className="border-line rounded-sm border px-2 py-0.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:text-zinc-200 dark:hover:text-white"
+                className="rounded-sm border border-line px-2 py-0.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:text-zinc-200 dark:hover:text-white"
               >
                 {t('Retry')}
               </button>
@@ -228,35 +270,7 @@ function Row({
           {/* The row above keeps its own bottom padding; the panel adds a
               little of its own so its first line is not against the rule. */}
           <TableCell colSpan={COLUMNS.length} className="pt-3! pb-5!">
-            <div
-              className={clsx(
-                'grid gap-6 pl-3 whitespace-normal',
-                // Nothing to list beside the brief: let it run at its own
-                // measure rather than pairing it with an empty column.
-                row.brief.top.length > 0 && 'lg:grid-cols-5',
-              )}
-            >
-              <div className={clsx(row.brief.top.length > 0 && 'lg:col-span-3')}>
-                <p className="font-mono text-[11px] text-zinc-500 tabular-nums dark:text-zinc-400">
-                  {fmt(t('{screened} screened → {included} included'), {
-                    screened: row.brief.screened,
-                    included: row.brief.included,
-                  })}
-                </p>
-                <AnswerMarkdown
-                  text={row.brief.inBrief}
-                  className="mt-2 max-w-xl font-serif text-[15px]/6 text-pretty text-zinc-700 dark:text-zinc-200"
-                />
-                <TextLink href={row.brief.href} className="mt-2 inline-block">
-                  {t('Open briefing →')}
-                </TextLink>
-              </div>
-              {row.brief.top.length > 0 && (
-                <div className="lg:col-span-2">
-                  <TopPapers papers={row.brief.top} dense />
-                </div>
-              )}
-            </div>
+            <BriefPanel brief={row.brief} />
           </TableCell>
         </TableRow>
       )}
@@ -321,7 +335,7 @@ export function Ledger({ rows, busy }: { rows: HomeRow[]; busy: boolean }) {
         ))}
       />
       {error && (
-        <p role="alert" className="text-negative mt-2 text-xs">
+        <p role="alert" className="mt-2 text-xs text-negative">
           {error}
         </p>
       )}

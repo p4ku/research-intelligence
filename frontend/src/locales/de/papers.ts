@@ -111,8 +111,6 @@ export const dict: Record<string, string> = {
   'Open DOI': 'DOI öffnen',
   'Stored PDF': 'Gespeichertes PDF',
   'Stored markdown': 'Gespeichertes Markdown',
-  'Stored in the research archive — download is not yet available.':
-    'Im Forschungsarchiv gespeichert — der Download ist noch nicht verfügbar.',
   'No files recorded.': 'Keine Dateien hinterlegt.',
   'et al.': 'et al.',
   'Why did it score {score}?': 'Warum wurde es mit {score} bewertet?',
@@ -131,7 +129,6 @@ export const dict: Record<string, string> = {
   'Confidence {n}': 'Konfidenz {n}',
   Source: 'Quelle',
   Run: 'Lauf',
-  'Continue on Ask': 'In Ask fortsetzen',
   'Generating…': 'Wird generiert…',
   'Ask a question about this paper…': 'Eine Frage zu diesem Paper stellen…',
 

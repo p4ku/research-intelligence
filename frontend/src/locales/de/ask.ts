@@ -8,14 +8,37 @@ export const dict: Record<string, string> = {
   // Tab title. The nav's 'Ask' translates via the 'nav' context in chrome.ts.
   'Ask the scanner': 'Scanner fragen',
 
+  // ask.tsx — canvas chrome
+  'New chat': 'Neuer Chat',
+  'Recent chats': 'Letzte Chats',
+  'What should we look into?': 'Was sollen wir uns ansehen?',
+  'Ask anything': 'Frag irgendetwas',
+  'Remove this paper': 'Dieses Paper entfernen',
+
+  // tool-menu.tsx — the composer's "+" menu. Only 'Attach a paper' is wired;
+  // the rest sit disabled under 'Not yet available'.
+  Tools: 'Werkzeuge',
+  'Attach a paper': 'Ein Paper anhängen',
+  "Scope to one paper's full text": 'Auf den Volltext eines Papers eingrenzen',
+  'Not yet available': 'Noch nicht verfügbar',
+  'Across papers': 'Über alle Papers',
+  'Read the corpus and answer with citations': 'Den Korpus lesen und mit Belegen antworten',
+  'Web search': 'Websuche',
+  'Look beyond the scanned corpus': 'Über den gescannten Korpus hinaus suchen',
+  'Run a scan': 'Einen Scan starten',
+  'Fetch new papers for a domain now': 'Jetzt neue Papers für eine Domäne holen',
+  'Deep research': 'Tiefenrecherche',
+  'Longer, multi-step investigation': 'Längere, mehrstufige Untersuchung',
+
+  // scanner-turn.tsx — the question bubble's scope, shown on hover.
+  'Asked {time} · {title} · full text': 'Gefragt {time} · {title} · Volltext',
+  'Asked {time} · all papers': 'Gefragt {time} · alle Papers',
+
+  // history-sidecar.tsx
+  Recent: 'Zuletzt',
+
   // ask.tsx — console chrome
   'Ask console': 'Fragen-Konsole',
-  // The console's mono eyebrow; scoped so it can differ from the nav label.
-  'console|Ask': 'Fragen',
-  'No paper yet': 'Noch kein Paper',
-  'Change paper': 'Paper wechseln',
-  'Choose a different paper': 'Ein anderes Paper wählen',
-  'Ask a paper.': 'Ein Paper fragen.',
   'Find a paper': 'Ein Paper finden',
   'Which paper? Type a title, author, or source…':
     'Welches Paper? Titel, Autor oder Quelle tippen…',
@@ -28,8 +51,6 @@ export const dict: Record<string, string> = {
   Target: 'Fokus',
   '{title} · full text': '{title} · Volltext',
   'All papers': 'Alle Papers',
-  'Conversation history': 'Gesprächsverlauf',
-  History: 'Verlauf',
   // Question counts (history header and per-session rows) share one pair.
   '1 question': '1 Frage',
   '{n} questions': '{n} Fragen',
@@ -43,11 +64,10 @@ export const dict: Record<string, string> = {
   'Top {n} of {total}': 'Top {n} von {total}',
   '{n} of {total}': '{n} von {total}',
 
-  // history-rail.tsx
+  // history-sidecar.tsx
   'full text': 'Volltext',
   Today: 'Heute',
   Yesterday: 'Gestern',
-  'New conversation': 'Neues Gespräch',
   'Delete conversation': 'Gespräch löschen',
   'Delete this conversation?': 'Dieses Gespräch löschen?',
   '"{title}" and every answer in it will be deleted. This cannot be undone.':
@@ -61,7 +81,6 @@ export const dict: Record<string, string> = {
   'Questions you ask are filed here.': 'Gestellte Fragen werden hier abgelegt.',
 
   // scanner-turn.tsx
-  'Asked {time}': 'Gefragt {time}',
   'Reading “{title}” · full text': '„{title}“ wird gelesen · Volltext',
   // Same value in de/papers.ts — the dictionary test enforces that.
   'Reading the full text…': 'Der Volltext wird gelesen…',
