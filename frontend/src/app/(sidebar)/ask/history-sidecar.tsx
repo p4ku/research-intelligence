@@ -39,7 +39,7 @@ function DayLabel({ day, count }: { day: ReactNode; count: ReactNode }) {
   return (
     <p
       data-row="day"
-      className="bg-surface text-muted-foreground sticky top-0 z-10 flex items-baseline px-2 py-1 font-mono text-[10px] tracking-[0.14em] uppercase"
+      className="sticky top-0 z-10 flex items-baseline bg-surface px-2 py-1 font-mono text-[10px] tracking-[0.14em] text-muted-foreground uppercase"
     >
       {day}
       <span className="ml-auto tabular-nums">{count}</span>
@@ -94,12 +94,12 @@ function RowBody({
       <span
         className={clsx(
           'block text-[13px] leading-snug',
-          active ? 'text-foreground font-medium' : 'text-muted-foreground',
+          active ? 'font-medium text-foreground' : 'text-muted-foreground',
         )}
       >
         {title}
       </span>
-      <span className="text-muted-foreground mt-1 flex min-w-0 items-center gap-1.5 font-mono text-[10px] tabular-nums">
+      <span className="mt-1 flex min-w-0 items-center gap-1.5 font-mono text-[10px] text-muted-foreground tabular-nums">
         {meta}
       </span>
     </>
@@ -143,7 +143,7 @@ function HistoryRow({
             meta={
               <>
                 {opening && <Spinner aria-hidden="true" className="size-3 shrink-0" />}
-                {active && <span className="bg-accent size-1.5 shrink-0 rounded-full" />}
+                {active && <span className="size-1.5 shrink-0 rounded-full bg-accent" />}
                 <span className="shrink-0">{timeOf(session.updated_at)}</span>
                 <span aria-hidden="true">·</span>
                 {session.paper_title ? (
@@ -199,7 +199,7 @@ export function HistoryList({
 
   if (threads.length === 0) {
     return (
-      <p className="text-muted-foreground px-3 py-6 text-center text-xs text-balance">
+      <p className="px-3 py-6 text-center text-xs text-balance text-muted-foreground">
         {t('Questions you ask are filed here.')}
       </p>
     )
@@ -221,7 +221,7 @@ export function HistoryList({
                   onDelete={() => onDelete(session)}
                 />
                 {rowError?.id === session.id && (
-                  <p role="alert" className="text-negative px-2 pt-1 pb-0.5 text-[11px]">
+                  <p role="alert" className="px-2 pt-1 pb-0.5 text-[11px] text-negative">
                     {rowError.message}
                   </p>
                 )}
@@ -256,11 +256,11 @@ function SidecarFrame({
       // transform still has something to animate.
       inert={!open}
       style={{ top: TOP_BAR_H }}
-      className="border-line-soft bg-surface absolute right-0 bottom-0 left-0 z-10 flex translate-x-full flex-col border-l transition-transform duration-[260ms] ease-out will-change-transform data-open:translate-x-0 data-open:shadow-[-12px_0_28px_-22px_rgba(19,19,17,0.5)] motion-reduce:transition-none md:left-auto md:w-[17rem]"
+      className="absolute right-0 bottom-0 left-0 z-10 flex translate-x-full flex-col border-l border-line-soft bg-surface transition-transform duration-[260ms] ease-out will-change-transform motion-reduce:transition-none md:left-auto md:w-[17rem] data-open:translate-x-0 data-open:shadow-[-12px_0_28px_-22px_rgba(19,19,17,0.5)]"
     >
       <div className="flex items-baseline gap-2 px-3 pt-3.5 pb-1">
         <SectionLabel className="!text-[11px]">{label}</SectionLabel>
-        <span className="text-muted-foreground ml-auto shrink-0 font-mono text-[11px] tabular-nums">
+        <span className="ml-auto shrink-0 font-mono text-[11px] text-muted-foreground tabular-nums">
           {count}
         </span>
       </div>
@@ -306,13 +306,13 @@ export function HistorySidecar({
       }
     >
       {stale && (
-        <p role="status" className="text-muted-foreground px-3 pb-1 text-[11px]">
+        <p role="status" className="px-3 pb-1 text-[11px] text-muted-foreground">
           {t('History may be out of date.')}{' '}
           {onRefresh && (
             <button
               type="button"
               onClick={onRefresh}
-              className="text-foreground font-medium hover:underline"
+              className="font-medium text-foreground hover:underline"
             >
               {t('Refresh')}
             </button>

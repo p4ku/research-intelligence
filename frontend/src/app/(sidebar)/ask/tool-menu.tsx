@@ -73,16 +73,16 @@ export function ToolMenu({ onAttach, disabled }: { onAttach: () => void; disable
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" side="top" sideOffset={8} className="w-72">
         <DropdownMenuItem onSelect={onAttach} className="items-start gap-2.5 py-2">
-          <DocumentTextIcon className="text-muted-foreground mt-0.5 size-4 shrink-0" />
+          <DocumentTextIcon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
           <span className="min-w-0">
-            <span className="text-foreground block font-medium">{t('Attach a paper')}</span>
-            <span className="text-muted-foreground block text-xs">
+            <span className="block font-medium text-foreground">{t('Attach a paper')}</span>
+            <span className="block text-xs text-muted-foreground">
               {t("Scope to one paper's full text")}
             </span>
           </span>
         </DropdownMenuItem>
 
-        <DropdownMenuLabel className="text-muted-foreground pt-2.5 pb-1 font-mono text-[10px] tracking-[0.18em] uppercase">
+        <DropdownMenuLabel className="pt-2.5 pb-1 font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
           {t('Coming soon')}
         </DropdownMenuLabel>
         {soon.map(({ key, Icon, label, hint }) => (

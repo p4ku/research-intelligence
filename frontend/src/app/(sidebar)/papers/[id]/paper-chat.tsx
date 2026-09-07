@@ -11,8 +11,9 @@ import { useChatStream } from '@/lib/chat/use-chat-stream'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import type { ScoredPaper } from '@/lib/papers/types'
-import { PaperAirplaneIcon } from '@heroicons/react/16/solid'
+import { ArrowUpRightIcon, PaperAirplaneIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
+import Link from 'next/link'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 interface Msg {
@@ -25,13 +26,16 @@ interface Msg {
 }
 
 /**
- * The side rail on the paper detail page: a plain vertical conversation
- * scoped to this one paper, streamed from POST /bff/chat/stream. The paper's
- * newest session (if any) is loaded on mount and continued. Deliberately
- * bare — history browsing and corpus scope live on the Ask page.
+ * Ask this paper: a pill fixed to the bottom-right of the page that opens a
+ * sheet from the right edge with a plain vertical conversation scoped to this
+ * one paper, streamed from POST /bff/chat/stream. The paper's newest session
+ * (if any) is loaded on mount and continued, so reopening the paper shows the
+ * earlier questions; "Continue on Ask" carries the same paper and session to
+ * the Ask page. Deliberately bare — history browsing lives on Ask.
  */
 export function PaperChat({ paper }: { paper: ScoredPaper }) {
   const t = useT()
+  const [open, setOpen] = useState(false)
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [input, setInput] = useState('')
@@ -42,6 +46,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
     setAskingState(v)
   }
   const endRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   // Settle the finished stream into the transcript (runs from the stream
   // loop, not a render effect).
@@ -106,8 +111,22 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
   }, [paper.id, reloadKey, t])
 
   useEffect(() => {
-    if (msgs.length > 0 || live.text) endRef.current?.scrollIntoView({ block: 'end' })
-  }, [msgs, live.text])
+    if (open && (msgs.length > 0 || live.text)) endRef.current?.scrollIntoView({ block: 'end' })
+  }, [open, msgs, live.text])
+
+  // The sheet: focus the composer once it has slid in; Escape closes it.
+  useEffect(() => {
+    if (!open) return
+    const timer = window.setTimeout(() => inputRef.current?.focus(), 260)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      window.clearTimeout(timer)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [open])
 
   function ask(q: string) {
     if (asking) return
@@ -122,13 +141,28 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
     })
   }
 
+  const continueHref = `/ask?paper=${paper.id}${sessionId ? `&session=${sessionId}` : ''}`
+
   return (
     <PaperChatFrame
+      open={open}
+      onOpen={() => setOpen(true)}
+      onClose={() => setOpen(false)}
       label={fmt(t('Ask about {title}'), { title: paper.title })}
       title={t('Ask this paper')}
+      subtitle={paper.title}
+      link={
+        <Link
+          href={continueHref}
+          className="inline-flex items-center gap-0.5 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+        >
+          {t('Continue on Ask')}
+          <ArrowUpRightIcon aria-hidden="true" className="size-3" />
+        </Link>
+      }
       body={
         msgs.length === 0 && !asking && historyState !== 'failed' ? (
-          <p className="text-muted-foreground text-sm leading-relaxed text-balance">
+          <p className="text-sm leading-relaxed text-balance text-muted-foreground">
             {t('Questions here are answered from this paper alone.')}
           </p>
         ) : (
@@ -137,7 +171,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
               m.role === 'user' ? (
                 <p
                   key={i}
-                  className="text-foreground pt-1 text-[13px] font-semibold tracking-tight text-pretty"
+                  className="pt-1 text-[13px] font-semibold tracking-tight text-pretty text-foreground"
                 >
                   {m.text}
                 </p>
@@ -148,7 +182,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
                       text={m.text}
                       citations={m.visualCitations}
                       t={t}
-                      className={clsx('text-muted-foreground text-[13px]', m.error && 'mb-2')}
+                      className={clsx('text-[13px] text-muted-foreground', m.error && 'mb-2')}
                     />
                   )}
                   {m.error && (
@@ -166,15 +200,15 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
                   streaming={live.status === 'streaming'}
                   citations={live.visualCitations}
                   t={t}
-                  className="text-muted-foreground text-[13px]"
+                  className="text-[13px] text-muted-foreground"
                 />
               ) : (
-                <p className="text-muted-foreground flex items-center gap-2 font-mono text-xs">
+                <p className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
                   <span className="relative flex size-2 shrink-0">
-                    <span className="bg-accent/60 absolute inset-0 animate-ping rounded-full" />
-                    <span className="bg-accent relative size-2 rounded-full" />
+                    <span className="absolute inset-0 animate-ping rounded-full bg-accent/60" />
+                    <span className="relative size-2 rounded-full bg-accent" />
                   </span>
-                  {t('Reading the full text…')}
+                  {t('Generating…')}
                 </p>
               ))}
             <div ref={endRef} aria-hidden="true" />
@@ -184,7 +218,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
       footer={
         <>
           {historyState === 'failed' && msgs.length === 0 && (
-            <div className="border-line-soft border-t px-4 py-3">
+            <div className="border-t border-line-soft px-4 py-3">
               <ErrorNote
                 action={
                   <button
@@ -193,7 +227,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
                       setHistoryState('loading')
                       setReloadKey((k) => k + 1)
                     }}
-                    className="bg-foreground text-background hover:bg-foreground/85 rounded-sm px-2.5 py-1 text-xs font-medium transition-colors"
+                    className="rounded-sm bg-foreground px-2.5 py-1 text-xs font-medium text-background transition-colors hover:bg-foreground/85"
                   >
                     {t('Retry')}
                   </button>
@@ -210,23 +244,24 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
               e.preventDefault()
               if (input.trim()) ask(input.trim())
             }}
-            className="border-line-soft focus-within:border-foreground/20 border-t transition-colors"
+            className="border-t border-line-soft transition-colors focus-within:border-foreground/20"
           >
             <div className="flex items-center gap-2 p-1.5 pl-4">
               <input
+                ref={inputRef}
                 name="question"
                 aria-label={t('Ask a question about this paper')}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={t('Ask about this paper…')}
-                className="text-foreground placeholder:text-muted-foreground min-w-0 flex-1 bg-transparent text-sm focus:outline-none max-sm:text-base"
+                placeholder={t('Ask a question about this paper…')}
+                className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none max-sm:text-base"
               />
               <button
                 type="submit"
                 aria-label={t('Send')}
                 disabled={asking}
                 className={clsx(
-                  'focus-visible:outline-accent flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2',
+                  'flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
                   input.trim() && !asking
                     ? 'bg-foreground text-background hover:bg-foreground/85'
                     : 'bg-foreground/10 text-muted-foreground',
@@ -242,46 +277,97 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
   )
 }
 
+const PILL_CLASS =
+  'bg-foreground text-background fixed right-6 bottom-6 z-30 inline-flex h-11 items-center gap-2.5 rounded-full pr-[18px] pl-3.5 text-[13.5px] font-medium shadow-[0_8px_24px_-6px_rgba(19,19,17,0.35)] transition-[transform,opacity] duration-150 ease-out'
+
 /**
- * The rail's chrome — the sticky card, its header strip, the scrolling body
- * and whatever sits under it (the composer, an error). PaperChat and
- * PaperChatSkeleton both fill it.
+ * The chat's chrome: the pill, and the sheet it opens — header strip with
+ * the title and the link to Ask, the scrolling body, and whatever sits under
+ * it (the composer, an error). PaperChat and PaperChatSkeleton both fill it.
+ * The sheet stays mounted (translated off-screen) so the thread keeps its
+ * scroll position between opens.
  */
 export function PaperChatFrame({
   state = 'loaded',
+  open = false,
+  onOpen,
+  onClose,
   label,
   title,
+  subtitle,
+  link,
   body,
   footer,
 }: {
   state?: 'loaded' | 'skeleton'
+  open?: boolean
+  onOpen?: () => void
+  onClose?: () => void
   label: string
   title: string
+  subtitle?: ReactNode
+  link?: ReactNode
   body: ReactNode
   footer: ReactNode
 }) {
   return (
-    <section
-      aria-label={label}
-      data-shape="paper-chat"
-      data-state={state}
-      className="border-line bg-surface flex flex-col overflow-hidden rounded-sm border shadow-xs max-lg:max-h-[32rem] lg:sticky lg:top-8 lg:h-[28rem]"
-    >
-      <div className="border-line-soft flex items-center gap-2 border-b px-4 py-2.5">
-        <span aria-hidden="true" className="bg-accent size-1.5 shrink-0 rounded-full" />
-        <span className="text-foreground font-mono text-[11px] font-medium tracking-[0.18em] uppercase">
-          {title}
-        </span>
-      </div>
+    <>
+      <button
+        type="button"
+        data-shape="paper-chat-pill"
+        data-state={state}
+        onClick={onOpen}
+        disabled={!onOpen}
+        aria-expanded={open}
+        className={clsx(PILL_CLASS, 'active:scale-[0.97]', open && 'pointer-events-none opacity-0')}
+      >
+        <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
+        {title}
+      </button>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">{body}</div>
+      <aside
+        aria-label={label}
+        aria-hidden={!open}
+        data-shape="paper-chat"
+        data-state={state}
+        className={clsx(
+          'fixed inset-y-0 right-0 z-40 flex w-full max-w-[440px] flex-col border-l border-line-strong bg-surface shadow-[-12px_0_40px_-16px_rgba(19,19,17,0.25)] transition-transform duration-[260ms] ease-out motion-reduce:transition-none',
+          open ? 'translate-x-0' : 'translate-x-full',
+        )}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-line-soft py-3 pr-3 pl-[18px]">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase">
+              <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent" />
+              {title}
+            </div>
+            {subtitle && (
+              <div className="mt-0.5 truncate text-xs text-zinc-400 dark:text-zinc-500">
+                {subtitle}
+              </div>
+            )}
+            {link && <div className="mt-1.5">{link}</div>}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={!onClose}
+            aria-label="Close"
+            className="rounded-sm p-1.5 text-zinc-500 transition-colors hover:bg-line-soft"
+          >
+            <XMarkIcon aria-hidden="true" className="size-4" />
+          </button>
+        </div>
 
-      {footer}
-    </section>
+        <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-4">{body}</div>
+
+        {footer}
+      </aside>
+    </>
   )
 }
 
-/** The rail before the record arrives: the hint line and an empty composer. */
+/** Before the record arrives: the pill, and the sheet closed with a bone hint. */
 export function PaperChatSkeleton({ label, title }: { label: string; title: string }) {
   return (
     <PaperChatFrame
@@ -289,12 +375,12 @@ export function PaperChatSkeleton({ label, title }: { label: string; title: stri
       label={label}
       title={title}
       body={
-        <p className="text-muted-foreground text-sm leading-relaxed">
+        <p className="text-sm leading-relaxed text-muted-foreground">
           <Bone.Text lines={2} widths={['92%', '48%']} />
         </p>
       }
       footer={
-        <div className="border-line-soft border-t">
+        <div className="border-t border-line-soft">
           <div className="flex items-center gap-2 p-1.5 pl-4">
             <span className="min-w-0 flex-1 text-sm max-sm:text-base">
               <Bone.Text widths={['20ch']} />

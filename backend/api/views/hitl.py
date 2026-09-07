@@ -5,9 +5,12 @@ from research_intelligence.models import HITLCorrection, WorkspaceMember
 
 
 class HITLCorrectionSerializer(serializers.ModelSerializer):
+    human_operator = serializers.CharField(required=False, allow_blank=True)
+
     class Meta:
         model = HITLCorrection
         fields = '__all__'
+        read_only_fields = ['id', 'timestamp']
 
 
 @extend_schema(tags=['Human-in-the-Loop (HITL)'])
@@ -46,7 +49,10 @@ class HITLViewSet(viewsets.ModelViewSet):
                 ).exists()
                 if not has_access:
                     raise PermissionDenied("You do not have access to this workspace.")
-        instance = serializer.save(human_operator=self.request.user.email or self.request.user.username)
+        operator = serializer.validated_data.get('human_operator')
+        if not operator:
+            operator = getattr(self.request.user, 'email', '') or getattr(self.request.user, 'username', '') or 'system'
+        instance = serializer.save(human_operator=operator)
         if extraction:
             extraction.is_hitl_validated = True
             update_fields = ['is_hitl_validated']
@@ -67,7 +73,10 @@ class HITLViewSet(viewsets.ModelViewSet):
             ).exists()
             if not has_access:
                 raise PermissionDenied("You do not have access to this workspace.")
-        serializer.save(human_operator=self.request.user.email or self.request.user.username)
+        operator = serializer.validated_data.get('human_operator')
+        if not operator:
+            operator = getattr(self.request.user, 'email', '') or getattr(self.request.user, 'username', '') or 'system'
+        serializer.save(human_operator=operator)
 
     def perform_destroy(self, instance):
         user = self.request.user

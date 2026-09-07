@@ -3,7 +3,9 @@
  * (bare array, newest first, scoped to the user's memberships; `?status=`
  * supported), validated and trimmed to the contract shape; the requested
  * change is pagination + ordering on the same endpoint. One fetch serves
- * every domain — per-workspace views are in-memory filters. Server-only.
+ * every domain — per-workspace views are in-memory filters. Starting a run
+ * goes through `POST /api/pipeline-runs/start/`, the autonomous trigger.
+ * Server-only.
  */
 import 'server-only'
 
@@ -13,14 +15,17 @@ import * as z from 'zod'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { assertUuid } from '../core/validate'
+import { isRetryable, runPeriod } from './period'
 import {
   runStatus,
   type PipelineRun,
   type PipelineRunDetail,
   type RunStatus,
   type RunsQuery,
+  type StartRun,
+  type StartedRun,
 } from './schema'
-import { pipelineRunDTO, pipelineRunDetailDTO } from './upstream'
+import { pipelineRunDTO, pipelineRunDetailDTO, startRunResponseDTO } from './upstream'
 
 function toRun(dto: PipelineRunDTO): PipelineRun {
   const status = (runStatus.options as readonly string[]).includes(dto.status)
@@ -41,6 +46,8 @@ function toRun(dto: PipelineRunDTO): PipelineRun {
     usd_cost: Number.isFinite(Number(dto.usd_cost)) ? Number(dto.usd_cost) : 0,
     started_at: dto.started_at,
     completed_at: dto.completed_at,
+    ...runPeriod(dto.configuration_override),
+    retryable: isRetryable(dto.configuration_override),
   }
 }
 
@@ -92,6 +99,28 @@ export const runs = {
     const all = await runs.listEverywhere(status)
     return all.filter((run) => run.workspace_id === workspaceId)
   }),
+
+  /**
+   * Start an autonomous run for one domain over a search window. Django
+   * creates the run as `running` and dispatches the first stage before it
+   * answers, so the id returned is already in the list. Membership and
+   * quota refusals come back as 403 → `forbidden`; the caller reads the
+   * list again for the new row rather than trusting the envelope.
+   */
+  async start(input: StartRun): Promise<StartedRun> {
+    const res = await django('/api/pipeline-runs/start/', startRunResponseDTO, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        workspace_id: input.workspace_id,
+        start_date: input.start_date ?? null,
+        end_date: input.end_date ?? null,
+        n_last_days: input.lookback_days ?? null,
+        autonomous: true,
+      }),
+    })
+    return { run_id: assertUuid(res.pipeline_run_id, 'pipeline_run_id') }
+  },
 
   async list(query: RunsQuery): Promise<Page<PipelineRun>> {
     const all = query.workspace_id

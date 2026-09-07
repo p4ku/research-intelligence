@@ -71,9 +71,9 @@ export default async function TuningPage({
                 {dimensions.map((name) => (
                   <li
                     key={name}
-                    className="border-line-soft flex items-center gap-2 border-b pb-2 text-sm text-zinc-700 last:border-b-0 dark:text-zinc-200"
+                    className="flex items-center gap-2 border-b border-line-soft pb-2 text-sm text-zinc-700 last:border-b-0 dark:text-zinc-200"
                   >
-                    <span aria-hidden="true" className="bg-line-strong size-2 shrink-0" />
+                    <span aria-hidden="true" className="size-2 shrink-0 bg-line-strong" />
                     {name}
                   </li>
                 ))}
@@ -116,7 +116,7 @@ export default async function TuningPage({
           {t('See it applied to a paper:')}{' '}
           <Link
             href={`/papers/${s.example.paper_id}`}
-            className="text-foreground font-medium underline-offset-2 hover:underline"
+            className="font-medium text-foreground underline-offset-2 hover:underline"
           >
             {s.example.title}
           </Link>

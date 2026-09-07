@@ -76,7 +76,7 @@ export function AskCanvas({
     <section
       aria-label={label}
       className={clsx(
-        'border-line bg-surface relative isolate flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-sm border',
+        'relative isolate flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-sm border border-line bg-surface',
         RAISED,
       )}
     >
@@ -91,7 +91,7 @@ export function AskCanvas({
 export function TopBar({ title, actions }: { title: ReactNode; actions: ReactNode }) {
   return (
     <header className="flex shrink-0 items-center gap-3 px-3 py-2.5" style={{ height: TOP_BAR_H }}>
-      <h2 className="text-foreground min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight">
+      <h2 className="min-w-0 flex-1 truncate text-[15px] font-semibold tracking-tight text-foreground">
         {title}
       </h2>
       <div className="flex shrink-0 items-center gap-0.5">{actions}</div>
@@ -110,7 +110,7 @@ export const ICON_BUTTON =
 /** The empty canvas's one-line welcome, above the dock. */
 export function Greeting({ lead }: { lead: ReactNode }) {
   return (
-    <p className="text-foreground text-center text-[26px] leading-tight font-medium tracking-[-0.02em] text-balance">
+    <p className="text-center text-[26px] leading-tight font-medium tracking-[-0.02em] text-balance text-foreground">
       {lead}
     </p>
   )
@@ -139,7 +139,7 @@ export function ComposerFrame({
   return (
     <form
       onSubmit={onSubmit}
-      className="border-line bg-surface focus-within:border-accent/60 focus-within:ring-accent/15 relative flex flex-col rounded-sm border transition focus-within:ring-4"
+      className="relative flex flex-col rounded-sm border border-line bg-surface transition focus-within:border-accent/60 focus-within:ring-4 focus-within:ring-accent/15"
     >
       {attachment && <div className="px-2 pt-2">{attachment}</div>}
       <div className="flex items-end gap-1.5 p-1.5">

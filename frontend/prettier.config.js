@@ -2,6 +2,7 @@
 module.exports = {
   singleQuote: true,
   semi: false,
+  printWidth: 100,
   plugins: ['prettier-plugin-organize-imports', 'prettier-plugin-tailwindcss'],
   tailwindFunctions: ['clsx'],
   tailwindStylesheet: './src/styles/tailwind.css',

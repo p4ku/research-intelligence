@@ -64,7 +64,7 @@ export const dict: Record<string, string> = {
   'Top {n} of {total}': 'Top {n} von {total}',
   '{n} of {total}': '{n} von {total}',
 
-  // history-rail.tsx
+  // history-sidecar.tsx
   'full text': 'Volltext',
   Today: 'Heute',
   Yesterday: 'Gestern',

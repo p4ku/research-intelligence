@@ -676,7 +676,7 @@ export function Ask({
                 exit={{ opacity: 0, y: 6, scale: 0.94 }}
                 transition={{ duration: reduceMotion ? 0 : 0.2, ease: EASE_OUT }}
                 className={clsx(
-                  'border-line-strong bg-surface text-foreground absolute bottom-[calc(var(--dock-h,6rem)+0.75rem)] left-1/2 z-[6] flex -translate-x-1/2 items-center gap-1.5 rounded-sm border py-1.5 pr-2.5 pl-2 text-xs font-medium',
+                  'absolute bottom-[calc(var(--dock-h,6rem)+0.75rem)] left-1/2 z-[6] flex -translate-x-1/2 items-center gap-1.5 rounded-sm border border-line-strong bg-surface py-1.5 pr-2.5 pl-2 text-xs font-medium text-foreground',
                   RAISED,
                 )}
               >
@@ -707,7 +707,7 @@ export function Ask({
             className={clsx(
               DOCK_WRAP,
               hasConversation &&
-                'before:to-surface pt-3 before:pointer-events-none before:absolute before:-top-7 before:-right-6 before:-left-6 before:h-10 before:bg-gradient-to-b before:from-transparent',
+                'pt-3 before:pointer-events-none before:absolute before:-top-7 before:-right-6 before:-left-6 before:h-10 before:bg-gradient-to-b before:from-transparent before:to-surface',
             )}
           >
             <ComposerFrame
@@ -721,14 +721,14 @@ export function Ask({
                     initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={{ duration: 0.18, ease: EASE_OUT }}
-                    className="bg-foreground/5 inline-flex max-w-full items-center gap-1.5 rounded-sm py-[3px] pr-1 pl-2"
+                    className="inline-flex max-w-full items-center gap-1.5 rounded-sm bg-foreground/5 py-[3px] pr-1 pl-2"
                   >
                     <span
                       aria-hidden="true"
                       className="size-1.5 shrink-0 rounded-full"
                       style={{ backgroundColor: scoreColor(target.signal_score) }}
                     />
-                    <span className="text-foreground truncate text-xs font-medium">
+                    <span className="truncate text-xs font-medium text-foreground">
                       {shortTitle(target.title)}
                     </span>
                     <button
@@ -736,7 +736,7 @@ export function Ask({
                       onClick={unpick}
                       disabled={busy}
                       aria-label={t('Remove this paper')}
-                      className="text-muted-foreground hover:bg-foreground/10 hover:text-foreground grid size-[18px] shrink-0 place-items-center rounded-full transition-colors duration-100 ease-out disabled:opacity-50"
+                      className="grid size-[18px] shrink-0 place-items-center rounded-full text-muted-foreground transition-colors duration-100 ease-out hover:bg-foreground/10 hover:text-foreground disabled:opacity-50"
                     >
                       <XMarkIcon className="size-3" />
                     </button>
@@ -778,7 +778,7 @@ export function Ask({
                   onClick={busy ? stop : undefined}
                   aria-label={busy ? t('Stop') : t('Send')}
                   className={clsx(
-                    'focus-visible:outline-accent relative flex size-8 shrink-0 items-center justify-center rounded-sm transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 active:scale-[0.94]',
+                    'relative flex size-8 shrink-0 items-center justify-center rounded-sm transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.94]',
                     sendLive
                       ? 'bg-foreground text-background hover:bg-foreground/85'
                       : 'bg-foreground/10 text-muted-foreground',
@@ -858,7 +858,7 @@ function TargetLine({ scope }: { scope: AskScope }) {
   return (
     <p
       role="separator"
-      className="text-muted-foreground pt-3.5 pb-1 text-center font-mono text-[11px] tracking-[0.05em]"
+      className="pt-3.5 pb-1 text-center font-mono text-[11px] tracking-[0.05em] text-muted-foreground"
     >
       {t('Target')} →{' '}
       {scope.title

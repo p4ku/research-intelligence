@@ -1,18 +1,13 @@
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { PaperCard, PaperCardSkeleton } from '@/components/paper-card'
 import {
-  Card,
-  DimensionsFrame,
   PageHeader,
-  ScoreRow,
-  ScoreRowSkeleton,
   SectionLabel,
   StatBand,
   StatBandSkeleton,
   StatTile,
   StatTileSkeleton,
 } from '@/components/scanner-ui'
-import { SignalLedger, SignalLedgerSkeleton } from '@/components/signal-ledger'
 import { Skeleton } from '@/components/skeleton'
 import { fixtureEditions } from '@/lib/bff/briefings/fixtures'
 import { fixtureSessions } from '@/lib/bff/chat/fixtures'
@@ -33,13 +28,13 @@ import {
   EditionBrowserSkeleton,
   type BrowserEdition,
 } from '../../(sidebar)/briefing/edition-browser'
-import { RunPapers, RunPapersSkeleton } from '../../(sidebar)/dashboard/run-papers'
-import {
-  PaperHeader,
-  PaperHeaderSkeleton,
-  SignalHeading,
-} from '../../(sidebar)/papers/[id]/paper-header'
-import { DIMENSION_ROWS } from '../../(sidebar)/papers/[id]/skeletons'
+import { Ledger, LedgerSkeleton, type HomeRow } from '../../(sidebar)/dashboard/ledger'
+import { Masthead, MastheadSkeleton, type MastheadLead } from '../../(sidebar)/dashboard/masthead'
+import { RunCard, RunCardSkeleton } from '../../(sidebar)/dashboard/run-card'
+import { AssessmentRows, AssessmentRowsSkeleton } from '../../(sidebar)/papers/[id]/assessment-rows'
+import { PaperHeader, PaperHeaderSkeleton } from '../../(sidebar)/papers/[id]/paper-header'
+import { PaperNav, PaperNavSkeleton } from '../../(sidebar)/papers/[id]/paper-nav'
+import { ScoreRail, ScoreRailSkeleton } from '../../(sidebar)/papers/[id]/score-rail'
 import { RunFacts, RunFactsSkeleton } from '../../(sidebar)/runs/[id]/run-facts'
 import { StepTimeline, StepTimelineSkeleton } from '../../(sidebar)/runs/[id]/step-timeline'
 import { RunsTable, RunsTableSkeleton } from '../../(sidebar)/runs/runs-table'
@@ -85,6 +80,72 @@ const fivePapers = Array.from({ length: 5 }, (_, i) => ({
 
 // Studio is English-only; the shared components take a translator.
 const t: T = (s) => s
+
+// Home: the fixture edition as the Current briefing, and a ledger with one
+// row in each state (processing, current, failed) so every cell shape shows.
+const homeEdition = fixtureEditions[0]
+const homeTop = fivePapers.slice(0, 3).map((p) => ({
+  id: p.id,
+  title: p.title,
+  authors: p.authors.slice(0, 3).join(', '),
+  score: p.signal_score,
+}))
+const homeHref = `/briefing/${homeEdition.date}?domain=${fixtureWorkspace.id}`
+const homeLead: MastheadLead = {
+  domain: fixtureWorkspace.name,
+  period: '1–31 Aug 2026',
+  generated: '31 Aug 2026',
+  href: homeHref,
+  inBrief: homeEdition.in_brief,
+  template: true,
+  screened: homeEdition.funnel.fetched,
+  included: homeEdition.funnel.surfaced,
+  top: homeTop,
+}
+const homeRows: HomeRow[] = [
+  {
+    id: fixtureRuns[2].id,
+    domain: fixtureWorkspace.name,
+    status: 'processing',
+    period: 'Last 7 days',
+    generated: null,
+    startedClock: '08:26',
+    failedDay: null,
+    papers: null,
+    retry: null,
+    brief: null,
+  },
+  {
+    id: fixtureRuns[0].id,
+    domain: fixtureWorkspace.name,
+    status: 'current',
+    period: '1–31 Aug 2026',
+    generated: '31 Aug 2026',
+    startedClock: '08:26',
+    failedDay: null,
+    papers: homeEdition.funnel.surfaced,
+    retry: null,
+    brief: {
+      href: homeHref,
+      inBrief: homeEdition.in_brief,
+      screened: homeEdition.funnel.fetched,
+      included: homeEdition.funnel.surfaced,
+      top: homeTop,
+    },
+  },
+  {
+    id: fixtureRuns[1].id,
+    domain: fixtureWorkspace.name,
+    status: 'failed',
+    period: '1–30 Aug 2026',
+    generated: null,
+    startedClock: '08:26',
+    failedDay: '30 Aug 2026',
+    papers: null,
+    retry: { workspace_id: fixtureWorkspace.id, start_date: '2026-08-01', end_date: '2026-08-30' },
+    brief: null,
+  },
+]
 
 // Three sessions on two days: the fixture pair plus a question long enough
 // to wrap, so the rail pair exercises both a day break and the two-line title.
@@ -272,11 +333,40 @@ export default async function SkeletonsPage({
       />
 
       <Pair
-        shape="run-papers"
-        title="Run papers list"
-        status="Loading the papers"
-        loaded={<RunPapers papers={fivePapers} workspace={fixtureWorkspace} />}
-        skeleton={<RunPapersSkeleton />}
+        shape="home-masthead"
+        title="Home masthead"
+        status="Loading the briefing"
+        loaded={<Masthead lead={homeLead} t={t} />}
+        skeleton={<MastheadSkeleton t={t} />}
+      />
+
+      <Pair
+        shape="home-ledger"
+        title="Home ledger"
+        status="Loading recent briefings"
+        loaded={<Ledger rows={homeRows} busy={false} />}
+        skeleton={<LedgerSkeleton rows={homeRows.length} />}
+      />
+
+      <Pair
+        shape="home-run-card"
+        title="Home run card"
+        status="Loading recent briefings"
+        // At the width it has on Home (a third of the page), so the note wraps as it does there.
+        loaded={
+          <div className="max-w-sm">
+            <RunCard
+              domains={[{ id: fixtureWorkspace.id, name: fixtureWorkspace.name }]}
+              processing={null}
+              today="2026-09-07"
+            />
+          </div>
+        }
+        skeleton={
+          <div className="max-w-sm">
+            <RunCardSkeleton />
+          </div>
+        }
       />
 
       <Pair
@@ -311,52 +401,47 @@ export default async function SkeletonsPage({
         skeleton={<PaperHeaderSkeleton />}
       />
 
-      {/* Literal inputs: the fixture paper is not on the canonical formula, so
-          ledgerInputs() would refuse it. TRL 4 keeps the bonus row dim. */}
       <Pair
-        shape="signal-ledger"
-        title="Signal ledger"
+        shape="paper-nav"
+        title="Paper nav"
         status="Loading the paper"
         loaded={
-          <Card>
-            <SignalLedger
-              inputs={{ trl: 4, fit: 92, novelty: 74 }}
-              heading={<SignalHeading t={t} />}
-            />
-          </Card>
+          <PaperNav
+            neighbours={{
+              prev: null,
+              next: `/papers/${fixturePapers[1]!.id}`,
+              position: 1,
+              total: 21,
+            }}
+            t={t}
+          />
         }
-        skeleton={
-          <Card>
-            <SignalLedgerSkeleton heading={<SignalHeading t={t} />} />
-          </Card>
-        }
+        skeleton={<PaperNavSkeleton t={t} />}
+      />
+
+      {/* The fixture has three dimensions; production has five, which the
+          route skeleton reserves. The pair keeps the two the same length. */}
+      <Pair
+        shape="assessment"
+        title="Assessment rows"
+        status="Loading the paper"
+        loaded={<AssessmentRows dimensions={paper.dimensions} />}
+        skeleton={<AssessmentRowsSkeleton rows={paper.dimensions.length} />}
       />
 
       <Pair
-        shape="dimensions"
-        title="Dimension rows"
+        shape="score-rail"
+        title="Score rail"
         status="Loading the paper"
         loaded={
-          <DimensionsFrame>
-            {paper.dimensions.map((d) => (
-              <ScoreRow
-                key={d.key}
-                label={d.name}
-                value={d.value}
-                max={d.max}
-                raw={d.raw}
-                rationale={d.rationale}
-                evidence={d.evidence}
-              />
-            ))}
-          </DimensionsFrame>
+          <div className="max-w-[300px]">
+            <ScoreRail paper={paper} t={t} />
+          </div>
         }
         skeleton={
-          <DimensionsFrame state="skeleton">
-            {DIMENSION_ROWS.map((row, i) => (
-              <ScoreRowSkeleton key={i} {...row} />
-            ))}
-          </DimensionsFrame>
+          <div className="max-w-[300px]">
+            <ScoreRailSkeleton t={t} bars={paper.dimensions.length} />
+          </div>
         }
       />
 
@@ -367,12 +452,12 @@ export default async function SkeletonsPage({
         loaded={
           // The sidecar positions itself against the canvas, so the gallery
           // gives it one: a relative box the width of the open panel.
-          <div className="border-line bg-surface relative h-96 w-[17rem] overflow-hidden rounded-sm border">
+          <div className="relative h-96 w-[17rem] overflow-hidden rounded-sm border border-line bg-surface">
             <HistorySidecarDemo threads={sessions} />
           </div>
         }
         skeleton={
-          <div className="border-line bg-surface relative h-96 w-[17rem] overflow-hidden rounded-sm border">
+          <div className="relative h-96 w-[17rem] overflow-hidden rounded-sm border border-line bg-surface">
             <HistorySidecarSkeleton groups={[1, 2]} lines={[1, 1, 2]} />
           </div>
         }

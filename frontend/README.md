@@ -30,8 +30,11 @@ so non-technical users can see _why_ something ranked where it did.
   user belongs to and names the domain per row; there is no switcher and no
   scope cookie (`src/lib/workspace-server.ts`).
 - **Core app**:
-  - **Home** (`/dashboard`) — the latest completed run in any domain: its
-    funnel and the papers it surfaced, sortable by that domain's definitions.
+  - **Home** (`/dashboard`) — one search across every paper; the Current
+    briefing (the newest completed run in any domain) read first with its
+    brief and strongest papers; Recent Briefings (the five newest runs,
+    each completed row expandable in place, Retry on a failed one) beside
+    Start New Briefing (domain, window, Run pipeline — one run at a time).
   - **Briefings** (`/briefing`) — one edition per completed run: funnel,
     surfaced papers, the screening log, and a brief (template-written until
     the backend's reporting step lands).

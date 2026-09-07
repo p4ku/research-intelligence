@@ -38,11 +38,11 @@ export async function WorkspaceNotice({
       <div className="flex items-start gap-2.5">
         <ExclamationTriangleIcon
           aria-hidden="true"
-          className="text-negative mt-0.5 size-4 shrink-0"
+          className="mt-0.5 size-4 shrink-0 text-negative"
         />
         <div className="min-w-0">
-          <p className="text-foreground text-sm font-medium">{t("Couldn't reach the backend.")}</p>
-          <p className="text-muted-foreground mt-1 text-sm">
+          <p className="text-sm font-medium text-foreground">{t("Couldn't reach the backend.")}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
             {t('Nothing was lost. Try again in a moment.')}
           </p>
           <div className="mt-4">
