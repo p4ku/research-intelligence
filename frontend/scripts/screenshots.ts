@@ -191,6 +191,19 @@ const SCREENS: Screen[] = [
       await page.waitForTimeout(400) // Headless UI slide-in
     },
   },
+  {
+    // Home with the search open on a query: the results panel is client state,
+    // so it needs typing before the shot.
+    name: 'search-open',
+    route: '/search-open',
+    auth: true,
+    viewportOnly: true,
+    interact: async (page) => {
+      await page.getByRole('combobox', { name: 'Search papers' }).fill('machine learning')
+      await page.getByRole('listbox').waitFor()
+      await page.waitForTimeout(400) // rise-in + hit count
+    },
+  },
   { name: 'briefing', route: '/briefing', auth: true },
   { name: 'briefing-edition', route: '/briefing/[date]', auth: true },
   { name: 'briefing-run', route: '/briefing/[date]/run', auth: true },
@@ -207,7 +220,10 @@ const SCREENS: Screen[] = [
 ]
 
 /** `/nav-open` is a pseudo-route: it renders /dashboard with the drawer open. */
-const PSEUDO_ROUTES: Record<string, string> = { '/nav-open': '/dashboard' }
+const PSEUDO_ROUTES: Record<string, string> = {
+  '/nav-open': '/dashboard',
+  '/search-open': '/dashboard',
+}
 
 // ---------------------------------------------------------------- helpers
 

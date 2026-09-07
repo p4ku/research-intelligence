@@ -1,3 +1,5 @@
+import { CorpusSearch } from '@/components/corpus-search/corpus-search'
+import { scanTopics } from '@/components/corpus-search/topics'
 import { PageHeader } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
 import { getSessionUser } from '@/lib/auth/session'
@@ -6,7 +8,6 @@ import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { Suspense, ViewTransition } from 'react'
-import { SearchField } from './search-field'
 import { LedgerSection, MastheadSection } from './sections'
 import { LedgerSkeletonRegion, MastheadSkeletonRegion } from './skeletons'
 
@@ -55,7 +56,7 @@ export default async function DashboardPage() {
   return (
     <div className="space-y-8">
       {header}
-      <SearchField />
+      <CorpusSearch domains={domains} suggestions={scanTopics(state.all)} />
 
       <Suspense
         fallback={

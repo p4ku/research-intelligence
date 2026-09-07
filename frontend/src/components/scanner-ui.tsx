@@ -777,6 +777,29 @@ export function ScreeningPill({
   )
 }
 
+/* -------------------------------- MiniScore -------------------------------- */
+
+/** The threshold colour a score reads in: accent, warn, or neutral. */
+export function scoreColor(score: number | null): string {
+  if (score === null) return '#9a9a90'
+  const rounded = Math.round(score)
+  return rounded >= 75 ? 'var(--accent)' : rounded >= 55 ? 'var(--warn)' : '#9a9a90'
+}
+
+export const MINI_SCORE =
+  'text-foreground/80 flex shrink-0 items-center gap-1 font-mono text-xs font-medium tabular-nums'
+
+/** Compact score for tight spots (picker rows, search rows): threshold dot + tabular number. */
+export function MiniScore({ score }: { score: number | null }) {
+  if (score === null) return null
+  return (
+    <span className={MINI_SCORE}>
+      <span className="size-1.5 rounded-full" style={{ backgroundColor: scoreColor(score) }} />
+      {Math.round(score)}
+    </span>
+  )
+}
+
 /* --------------------------- Paper score axes helper ------------------------ */
 
 /** Radar axes from the numeric, scaled dimensions (0–100 each). */

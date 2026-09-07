@@ -1,5 +1,6 @@
 'use client'
 
+import { MINI_SCORE, MiniScore } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import { fmt, formatDate } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
@@ -23,26 +24,9 @@ export function pickable(entries: PaletteEntry[], query: string): PaletteEntry[]
   return q ? entries.filter((e) => matches(e, q)) : entries.slice(0, 5)
 }
 
-/** The threshold colour a score reads in: accent, warn, or neutral. */
-export function scoreColor(score: number | null): string {
-  if (score === null) return '#9a9a90'
-  const rounded = Math.round(score)
-  return rounded >= 75 ? 'var(--accent)' : rounded >= 55 ? 'var(--warn)' : '#9a9a90'
-}
-
-const MINI_SCORE =
-  'text-foreground/80 flex shrink-0 items-center gap-1 font-mono text-xs font-medium tabular-nums'
-
-/** Compact score for tight spots: threshold dot + tabular number. */
-export function MiniScore({ score }: { score: number | null }) {
-  if (score === null) return null
-  return (
-    <span className={MINI_SCORE}>
-      <span className="size-1.5 rounded-full" style={{ backgroundColor: scoreColor(score) }} />
-      {Math.round(score)}
-    </span>
-  )
-}
+// MiniScore and scoreColor moved to scanner-ui so the Home search can share
+// them; re-exported here for the console and the skeleton gallery.
+export { MiniScore, scoreColor } from '@/components/scanner-ui'
 
 /* ---------------------------------- Frame ---------------------------------- */
 

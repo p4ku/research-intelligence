@@ -11,7 +11,16 @@ import type { PaletteEntry } from './types'
  * stream together while the page's header and the console skeleton are
  * already on screen.
  */
-export async function AskSection({ paper, session }: { paper?: string; session?: string }) {
+export async function AskSection({
+  paper,
+  session,
+  question,
+}: {
+  paper?: string
+  session?: string
+  /** Home's search, handed over as the first question (never sent on its own). */
+  question?: string
+}) {
   const [corpus, sessions] = await forPage(
     Promise.all([papers.listEverywhere(), chat.listSessions({ page: 1, page_size: 100 })]),
   )
@@ -28,14 +37,16 @@ export async function AskSection({ paper, session }: { paper?: string; session?:
     .sort((a, b) => byValueDesc(a.signal_score, b.signal_score))
 
   const initialPaperId = paper && entries.some((e) => e.id === paper) ? paper : undefined
+  const initialQuestion = question?.trim().slice(0, 200) || undefined
 
   return (
     <Ask
-      key={initialPaperId ?? 'none'}
+      key={`${initialPaperId ?? 'none'}:${initialQuestion ?? ''}`}
       entries={entries}
       initialSessions={sessions.results}
       initialPaperId={initialPaperId}
       initialSessionId={session}
+      initialQuestion={initialQuestion}
     />
   )
 }

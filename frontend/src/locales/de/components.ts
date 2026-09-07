@@ -26,6 +26,27 @@ export const dict: Record<string, string> = {
   '{n} papers': '{n} Papers',
   'Sent {date}': 'Gesendet {date}',
   'Created {date}': 'Erstellt {date}',
+  // corpus-search/ — the Home search field and its results panel
+  'Search results': 'Suchergebnisse',
+  Domains: 'Domänen',
+  'Ask about “{title}”': 'Zu „{title}“ fragen',
+  'See all {n} papers': 'Alle {n} Papers anzeigen',
+  'Open paper': 'Paper öffnen',
+  'Open Papers': 'Papers öffnen',
+  'No paper with that id in your corpus.': 'Kein Paper mit dieser ID in Ihrem Korpus.',
+  'No papers match “{q}”.': 'Keine Papers passen zu „{q}“.',
+  'Search is unavailable — press Enter to open Papers.':
+    'Die Suche ist nicht verfügbar — mit Enter Papers öffnen.',
+  Try: 'Vorschläge',
+  'Clear recent searches': 'Letzte Suchen löschen',
+  '{n} matching': '{n} passend',
+  'Opening Papers…': 'Papers werden geöffnet …',
+  'Searching…': 'Suche läuft …',
+  'Search papers': 'Papers durchsuchen',
+  '{n} hits': '{n} Treffer',
+  'Clear search': 'Suche zurücksetzen',
+  'Search papers by topic, technology, title or author':
+    'Papers nach Thema, Technologie, Titel oder Autor suchen',
   // star.tsx + stars-client.tsx — the star is the MVP's only curation.
   // "markieren" (not "Stern"): the spec's German UI marks records, it does not award them.
   Star: 'Markieren',

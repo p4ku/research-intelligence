@@ -1,3 +1,4 @@
+import { CorpusSearch } from '@/components/corpus-search/corpus-search'
 import { PageHeader, SectionLabel } from '@/components/scanner-ui'
 import { Skeleton } from '@/components/skeleton'
 import { fmt, type T } from '@/lib/i18n'
@@ -6,7 +7,6 @@ import { HomeLinks } from './home-ui'
 import { LedgerSkeleton } from './ledger'
 import { MastheadSkeleton } from './masthead'
 import { RunCardSkeleton } from './run-card'
-import { SearchField } from './search-field'
 
 /**
  * Home's section skeletons — used both by loading.tsx (the whole-page shell
@@ -49,7 +49,7 @@ export function DashboardSkeleton({ t, name }: { t: T; name: string }) {
   return (
     <div className="space-y-8">
       <PageHeader eyebrow={t('Home')} title={fmt(t('Good morning, {name}'), { name })} />
-      <SearchField />
+      <CorpusSearch domains={[]} />
       <MastheadSkeletonRegion t={t} />
       <LedgerSkeletonRegion t={t} />
     </div>

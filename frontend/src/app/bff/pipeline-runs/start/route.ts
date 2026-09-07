@@ -3,6 +3,7 @@ import { problem } from '@/lib/bff/core/problem'
 import { parseBody } from '@/lib/bff/core/validate'
 import { startRun } from '@/lib/bff/pipeline-runs/schema'
 import { runs } from '@/lib/bff/pipeline-runs/service'
+import { invalidateSearchCorpus } from '@/lib/bff/search/corpus'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,5 +27,6 @@ export const POST = bff('pipeline-runs', async (request) => {
     })
   }
   const started = await runs.start(input)
+  invalidateSearchCorpus()
   return Response.json(started, { status: 201 })
 })

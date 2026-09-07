@@ -29,7 +29,10 @@ export const dict: Record<string, string> = {
 
   // Sort options
   'Signal score': 'Signal-Score',
+  Relevance: 'Relevanz',
   'Most recent': 'Neueste zuerst',
+  '{n} more matches in other screening states — show them':
+    '{n} weitere Treffer in anderen Screening-Status — anzeigen',
   'Search titles, abstracts, authors, arXiv ids…':
     'Titel, Abstracts, Autoren, arXiv-IDs durchsuchen…',
 

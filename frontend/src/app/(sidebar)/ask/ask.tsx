@@ -109,11 +109,14 @@ export function Ask({
   initialSessions,
   initialPaperId,
   initialSessionId,
+  initialQuestion,
 }: {
   entries: PaletteEntry[]
   initialSessions: ChatSession[]
   initialPaperId?: string
   initialSessionId?: string
+  /** Seeds the composer (Home's search handed over); the reader still presses Send. */
+  initialQuestion?: string
 }) {
   const t = useT()
   const reduceMotion = useReducedMotion() ?? false
@@ -125,7 +128,7 @@ export function Ask({
   const [turns, setTurns] = useState<Turn[]>([])
   const [sessions, setSessions] = useState<ChatSession[]>(initialSessions)
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
-  const [input, setInput] = useState('')
+  const [input, setInput] = useState(initialQuestion ?? '')
   const [pickQuery, setPickQuery] = useState('')
   const [cursor, setCursor] = useState(0)
   // The composer becomes the paper picker on demand, not by default.

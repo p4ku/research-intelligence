@@ -25,9 +25,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function AskPage({
   searchParams,
 }: {
-  searchParams: Promise<{ paper?: string; session?: string }>
+  searchParams: Promise<{ paper?: string; session?: string; q?: string }>
 }) {
-  const [t, state, { paper, session }] = await Promise.all([
+  const [t, state, { paper, session, q }] = await Promise.all([
     getT(),
     getWorkspacesState(),
     searchParams,
@@ -53,7 +53,7 @@ export default async function AskPage({
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <AskSection paper={paper} session={session} />
+          <AskSection paper={paper} session={session} question={q} />
         </ViewTransition>
       </Suspense>
     </div>

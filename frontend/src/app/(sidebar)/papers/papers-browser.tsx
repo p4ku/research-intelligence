@@ -3,6 +3,7 @@
 import { PageNav } from '@/components/page-nav'
 import { PaperCard } from '@/components/paper-card'
 import { SectionLabel } from '@/components/scanner-ui'
+import { SearchFrame } from '@/components/search-frame'
 import { StarredChip } from '@/components/star'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
@@ -15,8 +16,9 @@ import {
   unionDefinitions,
 } from '@/lib/papers/select'
 import type { ScoredPaper, ScreeningStatus, WorkspaceSummary } from '@/lib/papers/types'
+import { parseQuery, rankAll } from '@/lib/search/match'
 import { useStars } from '@/lib/stars-client'
-import { ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/16/solid'
+import { ChevronDownIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import { useMemo, useRef, useState } from 'react'
 
@@ -94,7 +96,9 @@ export function PapersBrowser({
   )
   const sortLabel = (s: Sort) =>
     s === 'signal'
-      ? t('Signal score')
+      ? search.trim()
+        ? t('Relevance')
+        : t('Signal score')
       : s === 'recent'
         ? t('Most recent')
         : (dimensionSorts.find((d) => `dim:${d.key}` === s)?.name ?? t('Signal score'))
@@ -110,36 +114,38 @@ export function PapersBrowser({
     [papers],
   )
 
-  const filtered = useMemo(() => {
+  const { filtered, hiddenByScreening } = useMemo(() => {
     // Anchor the ingest window to the newest paper (pure); with no papers
     // there is nothing to window anyway.
     const cutoff = newest ? new Date(newest) : null
     cutoff?.setDate(cutoff.getDate() - withinDays)
-    const q = search.toLowerCase()
-    const result = papers.filter((p) => {
+    // The same matcher as Home's typeahead, so a search lands on what it showed.
+    const query = parseQuery(search)
+    const searching = query.intent.kind !== 'empty'
+    const relevance = new Map(
+      searching ? rankAll(papers, query).map(({ paper, hit }) => [paper.id, hit.score]) : [],
+    )
+    // Every filter but screening, so the hint below can say what screening alone hides.
+    const passesExceptScreening = (p: ScoredPaper) => {
       if (domain !== 'all' && p.workspace_id !== domain) return false
       if (starredOnly && !isStarred('paper', p.id)) return false
-      if (!matchesScreening(p.screening_status, screening)) return false
       if (hasTrl && (minTrl > 1 || maxTrl < 9)) {
         const trl = trlDimension(p)?.value ?? null
         if (trl === null || trl < minTrl || trl > maxTrl) return false
       }
       if (withinDays > 0 && cutoff && new Date(p.created_at) < cutoff) return false
       if (minScore > 0 && (p.signal_score === null || p.signal_score < minScore)) return false
-      if (
-        q &&
-        !(
-          p.title.toLowerCase().includes(q) ||
-          p.abstract.toLowerCase().includes(q) ||
-          p.authors_raw.toLowerCase().includes(q) ||
-          (p.arxiv_id ?? '').toLowerCase().includes(q) ||
-          (p.doi ?? '').toLowerCase().includes(q)
-        )
-      )
-        return false
+      if (searching && !relevance.has(p.id)) return false
       return true
-    })
+    }
+    const candidates = papers.filter(passesExceptScreening)
+    const result = candidates.filter((p) => matchesScreening(p.screening_status, screening))
     result.sort((a, b) => {
+      // A search reorders the default sort by relevance; an explicit sort only filters.
+      if (searching && sort === 'signal') {
+        const d = (relevance.get(b.id) ?? 0) - (relevance.get(a.id) ?? 0)
+        if (d !== 0) return d
+      }
       if (sort === 'recent') return b.created_at.localeCompare(a.created_at)
       if (sort.startsWith('dim:')) {
         const key = sort.slice(4)
@@ -150,7 +156,10 @@ export function PapersBrowser({
       }
       return byValueDesc(a.signal_score, b.signal_score)
     })
-    return result
+    return {
+      filtered: result,
+      hiddenByScreening: searching ? candidates.length - result.length : 0,
+    }
   }, [
     papers,
     domain,
@@ -289,6 +298,9 @@ export function PapersBrowser({
                 <span className="text-zinc-400 dark:text-zinc-500"> · {filterContext}</span>
               )}
             </p>
+            {hiddenByScreening > 0 && filtered.length > 0 && (
+              <ScreeningHint n={hiddenByScreening} onShow={() => setScreening('all')} />
+            )}
             <StarredChip
               active={starredOnly}
               count={starredCount}
@@ -314,9 +326,13 @@ export function PapersBrowser({
             ))}
             {filtered.length === 0 && (
               <div className="rounded-sm border border-dashed border-line p-10 text-center text-sm text-zinc-400">
-                {starredOnly && starredCount === 0
-                  ? t('Nothing starred yet.')
-                  : t('No papers match these filters.')}
+                {starredOnly && starredCount === 0 ? (
+                  t('Nothing starred yet.')
+                ) : hiddenByScreening > 0 ? (
+                  <ScreeningHint n={hiddenByScreening} onShow={() => setScreening('all')} />
+                ) : (
+                  t('No papers match these filters.')
+                )}
               </div>
             )}
           </div>
@@ -498,6 +514,24 @@ function OptionButton({
   )
 }
 
+/**
+ * A search that only the screening filter is hiding hits from: say so, and
+ * offer the one click that shows them. Nobody should read "no papers match"
+ * when the match is sitting behind a default.
+ */
+function ScreeningHint({ n, onShow }: { n: number; onShow: () => void }) {
+  const t = useT()
+  return (
+    <button
+      type="button"
+      onClick={onShow}
+      className="text-left font-medium text-blue-700 hover:underline dark:text-blue-300"
+    >
+      {fmt(t('{n} more matches in other screening states — show them'), { n })}
+    </button>
+  )
+}
+
 /** The primary way into the corpus: one wide field, always in reach. */
 function SearchField({
   value,
@@ -512,8 +546,7 @@ function SearchField({
   const ref = useRef<HTMLInputElement>(null)
 
   return (
-    <div className="group relative flex items-center gap-3 rounded-md border border-line bg-surface px-4 py-3 transition focus-within:border-accent/60 focus-within:ring-4 focus-within:ring-accent/15">
-      <MagnifyingGlassIcon className="size-5 shrink-0 text-zinc-400 transition-colors group-focus-within:text-accent" />
+    <SearchFrame>
       <input
         ref={ref}
         name="search"
@@ -548,7 +581,7 @@ function SearchField({
           </button>
         </>
       )}
-    </div>
+    </SearchFrame>
   )
 }
 
