@@ -128,6 +128,8 @@ class Command(BaseCommand):
                             doc.meta = entry_meta
                             doc.save(update_fields=['meta'])
                             # Sync to linked Paper instances
+                            if doc.source_url:
+                                Paper.objects.filter(document_registry=doc, source_url__isnull=True).update(source_url=doc.source_url)
                             linked_updated = Paper.objects.filter(document_registry=doc).update(meta=entry_meta)
                             paper_note = f" (synced {linked_updated} papers)" if linked_updated else ""
                         else:
@@ -161,6 +163,8 @@ class Command(BaseCommand):
                         if not dry_run:
                             doc.meta = oa_meta
                             doc.save(update_fields=['meta'])
+                            if doc.source_url:
+                                Paper.objects.filter(document_registry=doc, source_url__isnull=True).update(source_url=doc.source_url)
                             linked_updated = Paper.objects.filter(document_registry=doc).update(meta=oa_meta)
                             paper_note = f" (synced {linked_updated} papers)" if linked_updated else ""
                         else:

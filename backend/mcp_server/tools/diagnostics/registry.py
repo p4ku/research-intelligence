@@ -43,6 +43,7 @@ def get_document_registry_stats_logic(user) -> str:
             "arxiv_id": doc.arxiv_id,
             "access_count": doc.access_count,
             "primary_source": doc.primary_source,
+            "source_url": doc.source_url,
             "ocr_provider": doc.ocr_provider,
             "has_ocr_cache": bool(doc.canonical_ocr_md_path and default_storage.exists(doc.canonical_ocr_md_path)),
             "last_accessed_at": doc.last_accessed_at.isoformat() if doc.last_accessed_at else None

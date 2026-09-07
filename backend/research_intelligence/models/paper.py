@@ -51,6 +51,16 @@ class DocumentRegistry(models.Model):
     def __str__(self):
         return f"{self.title[:50]} (Hits: {self.access_count})"
 
+    def save(self, *args, **kwargs):
+        if not self.source_url:
+            from research_intelligence.utils.source_url import resolve_paper_source_url
+            resolved = resolve_paper_source_url(self)
+            if resolved:
+                self.source_url = resolved[:1024]
+                if 'update_fields' in kwargs and kwargs['update_fields'] and 'source_url' not in kwargs['update_fields']:
+                    kwargs['update_fields'] = list(kwargs['update_fields']) + ['source_url']
+        super().save(*args, **kwargs)
+
 
 class PaperQuerySet(models.QuerySet):
     """
