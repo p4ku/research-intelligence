@@ -94,4 +94,4 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
             except (ValueError, TypeError):
                 qs = qs.none()
 
-        return qs.order_by('-created_at')
+        return qs.order_by('-created_at', '-id')

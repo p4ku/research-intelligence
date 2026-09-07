@@ -69,12 +69,12 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             return PipelineRun.objects.none()
 
         if getattr(user, 'is_superuser', False):
-            qs = PipelineRun.objects.select_related('workspace', 'triggered_by').all().order_by('-started_at')
+            qs = PipelineRun.objects.select_related('workspace', 'triggered_by').all().order_by('-started_at', '-id')
         else:
             user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
             qs = PipelineRun.objects.select_related('workspace', 'triggered_by').filter(
                 workspace_id__in=user_ws_ids
-            ).order_by('-started_at')
+            ).order_by('-started_at', '-id')
 
         # Only the detail serializer reads component runs; the list face never does.
         if self.action == 'retrieve':
