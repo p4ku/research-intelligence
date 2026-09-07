@@ -7,15 +7,15 @@ import { TextLink, TopPapers, TopPapersSkeleton, type HomePaper } from './home-u
 
 /**
  * The masthead: the Current briefing read first, as a full-width band under
- * the search — its brief in serif, the funnel in one mono line, the three
+ * the search — its brief in serif, the funnel in one quiet line, the three
  * strongest papers in a rail on the right. Server-rendered; `t` comes in.
  * The ledger below carries the same briefing as its highlighted row.
  *
- * Type discipline: three faces stack here, so each earns its line. Serif is
- * the brief alone, mono is the funnel alone (the numbers want tabular
- * figures), and everything else — the meta line, the title, the link — is
- * sans. The domain is named once, in the title; the meta line carries the
- * window, the day, and the template note without repeating it.
+ * Type discipline: two faces only. Serif is the brief alone; everything else
+ * — the meta line, the title, the funnel (tabular figures), the link — is
+ * sans. No mono here: a third face on a seven-line block read as noise. The
+ * domain is named once, in the title; the meta line carries the window, the
+ * day, and the template note without repeating it.
  */
 
 export interface MastheadLead {
@@ -76,7 +76,7 @@ function MastheadFrame({
         </h2>
         <p
           data-row="funnel"
-          className="mt-1.5 font-mono text-xs text-zinc-500 tabular-nums dark:text-zinc-400"
+          className="mt-1.5 text-xs text-zinc-500 tabular-nums dark:text-zinc-400"
         >
           {funnel}
         </p>
