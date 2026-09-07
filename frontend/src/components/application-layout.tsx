@@ -11,6 +11,7 @@ import {
   DropdownLabel,
   DropdownMenu,
 } from '@/components/dropdown'
+import { NavIcon } from '@/components/nav-icon'
 import {
   Sidebar,
   SidebarBody,
@@ -254,7 +255,7 @@ function ApplicationLayoutInner({ user, children, area = 'core' }: ShellProps) {
                   href={href}
                   current={exact ? pathname === href : pathname.startsWith(href)}
                 >
-                  <Icon />
+                  <NavIcon Icon={Icon} />
                   <SidebarLabel>{t(label, 'nav')}</SidebarLabel>
                 </SidebarItem>
               ))}

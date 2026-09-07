@@ -46,6 +46,21 @@ describe('TtlCache', () => {
     expect(await cache.get('k', load)).toBe(2)
   })
 
+  test('peek never loads and respects the ttl; delete drops one key', async () => {
+    const c = clock()
+    const cache = new TtlCache<string>({ ttlMs: 100, maxEntries: 4, now: c.now })
+    expect(cache.peek('k')).toBeUndefined()
+    const load = cache.get('k', async () => 'v')
+    expect(cache.peek('k')).toBe(load)
+    await cache.get('other', async () => 'o')
+    cache.delete('k')
+    expect(cache.peek('k')).toBeUndefined()
+    expect(await cache.peek('other')).toBe('o')
+    c.tick(101)
+    expect(cache.peek('other')).toBeUndefined()
+    expect(cache.size).toBe(0)
+  })
+
   test('evicts the oldest key past maxEntries and clears', async () => {
     const cache = new TtlCache<string>({ ttlMs: 100, maxEntries: 2 })
     await cache.get('a', async () => 'a')

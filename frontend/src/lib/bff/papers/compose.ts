@@ -17,15 +17,18 @@ import {
 } from '@/lib/papers/map'
 import type { ScoredPaper, WorkspaceSummary } from '@/lib/papers/types'
 import { cache } from 'react'
-import * as z from 'zod'
 import { django } from '../core/http'
 import { ProblemError } from '../core/problem'
 import { assertUuid } from '../core/validate'
+import { corpusSnapshot } from '../corpus/snapshot'
 import { listWorkspacesRaw } from '../workspaces/service'
-import { extractionDTO, paperDTO } from './upstream'
+import { paperDTO } from './upstream'
 
-export const listPapersRaw = cache(() => django('/api/papers/', z.array(paperDTO)))
-export const listExtractionsRaw = cache(() => django('/api/extractions/', z.array(extractionDTO)))
+// The lists come from the user's corpus snapshot (../corpus/snapshot.ts),
+// held across requests; a single paper is always a live GET, so a missing
+// id is a genuine 404 and a paper ingested a moment ago is readable.
+export const listPapersRaw = cache(async () => (await corpusSnapshot()).papers)
+export const listExtractionsRaw = cache(async () => (await corpusSnapshot()).extractions)
 export const getPaperRaw = cache(async (id: string) => {
   try {
     return await django(`/api/papers/${assertUuid(id, 'paper id')}/`, paperDTO)

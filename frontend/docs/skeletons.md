@@ -78,7 +78,7 @@ bun test                                    # incl. the loading-convention ratch
 
 `--stream` compares byte positions, not arrival times: a fast local server
 delivers several boundaries in one chunk. To sanity-check that the assertion is
-real, point it at a route with no boundaries (`--stream /papers`) and watch it
+real, point it at a route with no boundaries (`--stream /settings`) and watch it
 fail.
 
 The gallery accepts `?motion=static` to freeze the sweep; `prefers-reduced-motion`
@@ -195,6 +195,12 @@ Things learned:
 - **Per-request `cache()` on the services** (`papers.get`, `papers.listAll`,
   `briefings.listAll`, `briefings.getByDate`) is what makes sibling sections
   cheap; without it, `source=django` would fetch once per section.
+- **The raw corpus is held across requests** (`lib/bff/corpus/snapshot.ts`):
+  one snapshot of workspaces + papers + extractions per signed-in user,
+  revalidated against the run ledger's fingerprint rather than a clock.
+  Pages never fetch the corpus themselves — they read the services, which
+  read the snapshot — so a warm navigation costs Django nothing and the
+  skeleton is on screen for the Next round trip only.
 
 ## Done (pass 4) — Home (7 Sep 2026)
 

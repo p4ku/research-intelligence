@@ -3,8 +3,9 @@
  * shares one load (in flight or settled), a rejected load is forgotten so
  * the next caller retries, and the oldest key goes once `maxEntries` is
  * passed. Module-level instances live as long as the server process — the
- * right lifetime for a typeahead's corpus, the wrong one for anything a
- * page must see fresh. Pure; `now` is injectable for tests.
+ * right lifetime for the corpus snapshot (../corpus/snapshot.ts), whose
+ * freshness is decided by a version probe, not by the ttl alone. Pure;
+ * `now` is injectable for tests.
  */
 export interface TtlCacheOptions {
   ttlMs: number
@@ -47,6 +48,19 @@ export class TtlCache<T> {
       this.entries.delete(oldest)
     }
     return value
+  }
+
+  /** The live load for a key, or undefined when absent or past its ttl. Never loads. */
+  peek(key: string): Promise<T> | undefined {
+    const hit = this.entries.get(key)
+    if (!hit) return undefined
+    if (hit.expires > this.now()) return hit.value
+    this.entries.delete(key)
+    return undefined
+  }
+
+  delete(key: string): void {
+    this.entries.delete(key)
   }
 
   clear(): void {
