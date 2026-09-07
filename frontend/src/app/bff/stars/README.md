@@ -7,6 +7,10 @@ front-end curation (no collections, folders or notes). Feeds the star toggles
 on `/briefing/[date]` (rows and header), `/papers`, `/papers/[id]` and the
 `/briefing` archive, and the **Starred** filter on each list.
 
+The `/papers` consumer is behind the `all_papers` demo flag
+(`src/lib/features.ts`): when the corpus list is hidden, the stars it carries
+go with it. The routes below are not flagged and keep serving.
+
 ## What the UI needs
 
 - **Read once per page**: the full set of starred paper ids and briefing

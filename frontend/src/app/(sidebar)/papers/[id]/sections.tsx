@@ -2,6 +2,7 @@ import { AnswerMarkdown } from '@/components/answer-markdown'
 import { SectionLabel } from '@/components/scanner-ui'
 import { forPage } from '@/lib/bff/core/page'
 import { papers } from '@/lib/bff/papers/service'
+import type { Features } from '@/lib/features'
 import { formatDate, type Lang, type T } from '@/lib/i18n'
 import { byValueDesc } from '@/lib/papers/select'
 import { PASSED_STATUSES, type ScoredPaper } from '@/lib/papers/types'
@@ -51,22 +52,34 @@ async function neighboursOf(paper: ScoredPaper): Promise<PaperNeighbours | null>
   }
 }
 
-export async function PaperRecord({ id, t, lang }: { id: string; t: T; lang: Lang }) {
+export async function PaperRecord({
+  id,
+  t,
+  lang,
+  features,
+}: {
+  id: string
+  t: T
+  lang: Lang
+  features: Features
+}) {
   const result = await forPage(papers.get(id))
   // The shell has already streamed, so this renders (sidebar)/not-found.tsx
   // in place with HTTP 200 — the trade for an instant shell, recorded in
   // docs/skeletons.md.
   if (!result) notFound()
   const { paper } = result
-  const neighbours = await neighboursOf(paper)
+  // With the list hidden the pager is not rendered, so the corpus fetch that
+  // feeds it is not made either: skipping the request is the point.
+  const neighbours = features.all_papers ? await neighboursOf(paper) : null
 
   return (
     <div className="mt-6">
-      <PaperNav neighbours={neighbours} t={t} />
+      <PaperNav neighbours={neighbours} t={t} features={features} />
 
       <div className="mt-6 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-9">
-          <PaperHeader paper={paper} t={t} lang={lang} />
+          <PaperHeader paper={paper} t={t} lang={lang} features={features} />
 
           <section>
             <SectionLabel>{t('Screening')}</SectionLabel>

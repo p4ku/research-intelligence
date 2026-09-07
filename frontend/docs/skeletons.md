@@ -79,7 +79,10 @@ bun test                                    # incl. the loading-convention ratch
 `--stream` compares byte positions, not arrival times: a fast local server
 delivers several boundaries in one chunk. To sanity-check that the assertion is
 real, point it at a route with no boundaries (`--stream /settings`) and watch it
-fail.
+fail. Run the drift and stream checks cookieless: with a demo flag off (say
+`all_papers`), the hidden route renders the not-found card with no boundaries
+of its own, so a control against it fails for the wrong reason and reads
+exactly like the assertion working.
 
 The gallery accepts `?motion=static` to freeze the sweep; `prefers-reduced-motion`
 removes it and reduces the handoff to an instant swap.
@@ -137,7 +140,11 @@ Things learned:
 assessment rows, abstract, provenance, the score rail, and the chat pill —
 behind **one** boundary, because everything reads the one `papers.get` (now
 React-cached, so the title crumb, `generateMetadata` and the record share the
-call; the nav row's neighbours come from the cached `papers.listAll`). Files:
+call; the nav row's neighbours come from the cached `papers.listAll`). Both go
+when the `all_papers` demo flag is off — no crumb trail, and `PaperNav` keeps
+its (redirected) back link but withholds the pager, so `neighboursOf` is never
+called; the skeletons take the same `features` prop and make the same call, or
+the shell paints a crumb bar that then vanishes. Files:
 `papers/[id]/paper-header.tsx`, `paper-nav.tsx`, `assessment-rows.tsx`,
 `score-rail.tsx`, `sections.tsx`, `skeletons.tsx`, `loading.tsx`;
 `PaperChatFrame` / `PaperChatSkeleton` in `paper-chat.tsx` (the pill and the
@@ -224,10 +231,11 @@ is real); `loading.tsx` bones them.
 
 ## Later, not now
 
-Still on `KNOWN_UNCOVERED`: `/papers` (the `--stream` negative control above —
-covering it means naming a different boundary-free route), `/settings` (two
-forms, mostly static chrome) and `/tuning` (one fetch; an `InfluenceBar` bone
-would do it).
+Still on `KNOWN_UNCOVERED`: `/settings` (two forms, mostly static chrome; also
+the `--stream` negative control above) and `/tuning` (one fetch; an
+`InfluenceBar` bone would do it). `/papers` is flag-gated: with `all_papers`
+off its `loading.tsx` returns null and the route streams the not-found card
+inside an HTTP 200, the same shape `/ask` gives.
 
 `cacheComponents` (Partial Prerendering) would make each route's shell static, so
 the skeletons ship with the HTML and the server does no work before first paint.

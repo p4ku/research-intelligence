@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-09-07 (all_papers demo flag)
+
+- The **Papers** list is behind a per-browser demo switch. `all_papers` off and
+  `/papers` no longer exists: the shared not-found card streamed in place (an
+  HTTP 200, like `/ask`, because the route has a `loading.tsx`; that file
+  returns null when the flag is off so no skeleton paints first), the nav row
+  filtered out of the rail and the mobile drawer alike, Home's whole
+  corpus-search typeahead removed (page and `loading.tsx` together), and the
+  404 card's own "Go to Papers" button gone.
+- `/papers/[id]` stays reachable — from briefings, Home's top papers, `/tuning`
+  and chat citations — and loses only what is derived from the list: the
+  breadcrumb trail, the prev/next pager and its "{n} of {total}", the
+  `papers.listAll` fetch that fed them, and the back link, which points at
+  Briefings instead. Skeletons make the same call, so nothing flashes.
+- Deliberately kept, because the flag is reversible: the German dictionary
+  entries, the Playwright journeys that walk `/papers`, `GET /bff/papers`,
+  `GET /bff/search` and the papers services. Hiding is a UI concern; the cookie
+  is a preference the visitor owns, not an authorization boundary.
+- The switch lives in the account menu under **Demo features** (cookie
+  `rs-features`; see `src/lib/features.ts`). Flags default ON, so scripted runs
+  — screenshots, skeleton drift, Playwright — start cookieless and see the whole
+  product.
+
 ## 2026-09-01 (Scoring page removed)
 
 - The read-only **Scoring** page (`/scoring`) is gone, along with its nav entry,
