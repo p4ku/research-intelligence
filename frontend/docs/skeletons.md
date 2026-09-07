@@ -158,13 +158,20 @@ with fewer numeric dimensions sees both shorten on load. It has a
 not-found page in-stream — the same trade as the run page, decided 2026-09-02
 and pinned by `skeleton:drift --not-found`.
 
-`/ask` streams the canvas behind one boundary (the corpus feeds the picker,
-the sessions feed the recent-chats sidecar; both block it). The canvas's
-chrome lives in `ask/console-frame.tsx` (no directive, no hooks) so
+`/ask` streams the canvas behind one boundary (only a `?paper=` deep link has
+anything to resolve there since the palette moved to its own route — neither
+the corpus nor the sessions is a server read any more, so the sentence about
+both blocking it went stale with that change, not with the flags). The
+canvas's chrome lives in `ask/console-frame.tsx` (no directive, no hooks) so
 `loading.tsx` renders the real top bar, greeting and composer box with a bone
 only where the typed question would go. Neither the picker nor the sidecar is
 on screen until the reader asks for them, so neither is boned here;
 `HistorySidecarSkeleton` and `PaperPickerSkeleton` exist for the gallery.
+With the `ask` demo flag off the route renders the not-found card before that
+boundary ever resolves — `loading.tsx` returns `null` and the page calls
+`notFound()`, so the reader sees the card and not the console skeleton,
+exactly as a dead paper permalink behaves (HTTP 200, in-stream). The two
+gallery panels are unaffected: `/studio` is pinned all-on.
 `ask/sections.tsx`, `ask/skeletons.tsx`, `ask/loading.tsx`.
 
 `/briefing` streams the reading room behind one boundary

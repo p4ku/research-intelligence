@@ -1,5 +1,6 @@
 import { assembleSearch } from '@/lib/bff/search/assemble'
 import { fixtureSearchCorpus } from '@/lib/bff/search/fixtures'
+import { ALL_ON } from '@/lib/features'
 import { tokenize } from '@/lib/search/match'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -11,7 +12,14 @@ const t = (s: string) => s
 
 function render(q: string, cursor = -1, pending = false) {
   const result = assembleSearch(fixtureSearchCorpus, { q, limit: 6 })
-  const sections = buildSections(result, { q, recent: [], suggestions: [], error: false, t })
+  const sections = buildSections(result, {
+    q,
+    recent: [],
+    suggestions: [],
+    error: false,
+    t,
+    features: ALL_ON,
+  })
   return renderToStaticMarkup(
     <SearchPanel
       id="panel"

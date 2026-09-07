@@ -56,5 +56,11 @@ curl -si https://<host>/bff/papers           # 401 application/problem+json
 curl -si https://<host>/health/              # Django, via the router
 ```
 
+These checks assume the **default browser state**: no `rs-features` cookie, so
+every demo feature switch is on. A browser left over from a demo can have Ask
+or Papers hidden, which reads as a broken deploy — clear the cookie, or turn
+the switches back on from the account menu, before trusting the result.
+`GET /bff/status` reports `features` for the calling browser.
+
 `GET /bff/status` is the operational view: active source per resource and
 whether each requested endpoint is present.

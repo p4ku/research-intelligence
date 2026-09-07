@@ -9,11 +9,11 @@ import { join } from 'node:path'
  * something this repo does (and `requireFeature` would need a `next/headers`
  * mock), so this reads the source the way loading-convention.test.ts does.
  *
- * Add a route here in the same PR that gates it. `ask/page.tsx` lands with the
- * `ask` flag.
+ * Add a route here in the same PR that gates it.
  */
 const GATED: Record<string, FeatureKey> = {
   '(sidebar)/papers/page.tsx': 'all_papers',
+  '(sidebar)/ask/page.tsx': 'ask',
 }
 
 describe('flagged routes', () => {
@@ -44,5 +44,13 @@ describe('flagged routes', () => {
       const href = '/' + rel.replace(/^\(.*?\)\//, '').replace(/\/page\.tsx$/, '')
       expect(route!.href).toBe(href)
     }
+  })
+
+  test('every flag that owns a route has a gated page listed here', () => {
+    const owned = Object.values(FEATURES)
+      .filter((d) => d.route)
+      .map((d) => d.key)
+      .sort()
+    expect(Object.values(GATED).sort()).toEqual(owned)
   })
 })

@@ -47,16 +47,19 @@ so non-technical users can see _why_ something ranked where it did.
     rationale and evidence, screening notes, and arXiv/DOI links.
   - **Ask** (`/ask`) — corpus- or paper-scoped Q&A streamed from the
     backend's chat engine, with citations, visual evidence, a fact-check
-    verdict, and Django-backed history.
+    verdict, and Django-backed history. Behind the `ask` demo switch: off, the
+    nav row and Home's "Ask about …" search row are gone and the URL answers
+    the not-found card. The per-paper "Ask this paper" sidecar stays.
   - **Settings** (`/settings`) — profile/password edits and the digest
     toggle, saved to the backend where it can.
 - **Bilingual UI** — English source strings with a German dictionary
   (`src/locales/de/`), switched from the user menu.
 - **Demo feature switches** — three per-browser flags (`all_papers`, `stars`,
   `ask`) flipped from the same user menu and stored in one `rs-features` cookie
-  (`src/lib/features.ts`). Everything defaults on; off means removed, not
+  (`src/lib/features*.ts`). Everything defaults on; off means removed, not
   disabled — the nav row goes, every link into the feature goes, and the route
-  itself 404s. Nothing in env, CI or the proxy, and the BFF stays live.
+  itself renders the not-found card. Nothing in env, CI or the proxy, and the
+  BFF stays live. See `docs/design/feature-flags.md`.
 
 ## Documentation
 

@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
+import { hasFeature, requireFeature } from '@/lib/features-server'
 import { getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
@@ -10,6 +11,9 @@ import { AskConsoleSkeleton } from './skeletons'
 export const dynamic = 'force-dynamic'
 
 export async function generateMetadata(): Promise<Metadata> {
+  // Hidden by the `ask` demo flag: no title, or the tab advertises a route
+  // that answers the not-found card. The root default stands instead.
+  if (!(await hasFeature('ask'))) return {}
   const t = await getT()
   return { title: t('Ask the scanner') }
 }
@@ -22,12 +26,17 @@ export async function generateMetadata(): Promise<Metadata> {
  * link, whose one scorecard read resolves the chip. loading.tsx shows the
  * same skeleton on navigation, and the <ViewTransition> pair animates the
  * handoff.
+ *
+ * The `ask` demo flag is checked at the top of the body, before the
+ * workspace round-trip: off means the route does not exist, whatever the
+ * query string carries.
  */
 export default async function AskPage({
   searchParams,
 }: {
   searchParams: Promise<{ paper?: string; session?: string; q?: string }>
 }) {
+  await requireFeature('ask')
   const [t, state, { paper, session, q }] = await Promise.all([
     getT(),
     getWorkspacesState(),
