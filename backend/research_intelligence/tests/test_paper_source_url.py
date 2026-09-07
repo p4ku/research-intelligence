@@ -8,6 +8,8 @@ from api.views.papers import PaperViewSet
 from research_intelligence.services.scraper_service import list_workspace_papers
 from mcp_server.tools.scrapers.search import list_papers_logic
 
+from research_intelligence.utils.source_url import resolve_paper_source_url
+
 User = get_user_model()
 
 
@@ -26,10 +28,14 @@ class PaperSourceUrlTestCase(TestCase):
 
     def test_arxiv_paper_source_url(self):
         """Verify arXiv paper resolves to canonical https://arxiv.org/abs/{arxiv_id}."""
+        url = resolve_paper_source_url(arxiv_id="2303.08774")
+        self.assertEqual(url, "https://arxiv.org/abs/2303.08774")
+
         paper = Paper.objects.create(
             workspace=self.workspace,
             hash_id="arxiv_2303_08774",
             arxiv_id="2303.08774",
+            source_url=url,
             title="GPT-4 Technical Report",
             authors="OpenAI",
             source_database="arxiv"
@@ -37,10 +43,14 @@ class PaperSourceUrlTestCase(TestCase):
         self.assertEqual(paper.source_url, "https://arxiv.org/abs/2303.08774")
 
         # Also verify if arxiv_id has arxiv: prefix
+        url_prefix = resolve_paper_source_url(arxiv_id="arxiv:1706.03762")
+        self.assertEqual(url_prefix, "https://arxiv.org/abs/1706.03762")
+
         paper_prefix = Paper.objects.create(
             workspace=self.workspace,
             hash_id="arxiv_prefix_123",
             arxiv_id="arxiv:1706.03762",
+            source_url=url_prefix,
             title="Attention Is All You Need",
             authors="Vaswani et al.",
             source_database="arxiv"
@@ -49,54 +59,75 @@ class PaperSourceUrlTestCase(TestCase):
 
     def test_openalex_paper_with_doi_source_url(self):
         """Verify OpenAlex paper with DOI resolves to https://doi.org/{doi} publisher landing."""
+        url = resolve_paper_source_url(
+            doi="10.1016/j.artint.2020.103328",
+            meta={"id": "https://openalex.org/W2963403868"},
+            source_database="openalex"
+        )
+        self.assertEqual(url, "https://doi.org/10.1016/j.artint.2020.103328")
+
         paper = Paper.objects.create(
             workspace=self.workspace,
             hash_id="openalex_w123_doi",
             doi="10.1016/j.artint.2020.103328",
+            source_url=url,
             title="Reasoning About Actions",
             authors="John McCarthy",
             source_database="openalex",
             meta={"id": "https://openalex.org/W2963403868"}
         )
-        # DOI takes precedence to lead directly to publisher page
         self.assertEqual(paper.source_url, "https://doi.org/10.1016/j.artint.2020.103328")
 
     def test_openalex_paper_without_doi_id_url(self):
         """Verify OpenAlex paper without DOI falls back to OpenAlex canonical URL from meta['id']."""
+        raw_meta = {
+            "id": "https://openalex.org/W4386266395",
+            "open_access": {"is_oa": True}
+        }
+        url = resolve_paper_source_url(meta=raw_meta, source_database="openalex")
+        self.assertEqual(url, "https://openalex.org/W4386266395")
+
         paper = Paper.objects.create(
             workspace=self.workspace,
             hash_id="openalex_no_doi_1",
             title="Institutional Technical Report",
             authors="Jane Doe",
             source_database="openalex",
-            meta={
-                "id": "https://openalex.org/W4386266395",
-                "open_access": {"is_oa": True}
-            }
+            source_url=url,
+            meta=raw_meta
         )
         self.assertEqual(paper.source_url, "https://openalex.org/W4386266395")
 
     def test_openalex_paper_without_doi_landing_page_url(self):
         """Verify OpenAlex paper without DOI with primary_location.landing_page_url resolves properly."""
+        raw_meta = {
+            "primary_location": {
+                "landing_page_url": "https://repository.tudelft.nl/islandora/object/uuid%3A1234"
+            }
+        }
+        url = resolve_paper_source_url(meta=raw_meta, source_database="openalex")
+        self.assertEqual(url, "https://repository.tudelft.nl/islandora/object/uuid%3A1234")
+
         paper = Paper.objects.create(
             workspace=self.workspace,
             hash_id="openalex_no_doi_landing",
             title="TU Delft Repository Report",
             authors="Delft Team",
             source_database="openalex",
-            meta={
-                "primary_location": {
-                    "landing_page_url": "https://repository.tudelft.nl/islandora/object/uuid%3A1234"
-                }
-            }
+            source_url=url,
+            meta=raw_meta
         )
         self.assertEqual(paper.source_url, "https://repository.tudelft.nl/islandora/object/uuid%3A1234")
 
     def test_openalex_fallback_work_id_hash(self):
         """Verify OpenAlex paper with W... hash_id generates https://openalex.org/{W_id} if no meta is available."""
+        url = resolve_paper_source_url(hash_id="W1982736450", source_database="openalex")
+        self.assertEqual(url, "https://openalex.org/W1982736450")
+
         paper = Paper.objects.create(
             workspace=self.workspace,
             hash_id="W1982736450",
+            source_url=url,
             title="Legacy OpenAlex Paper",
             authors="Author X",
             source_database="openalex"
@@ -105,15 +136,20 @@ class PaperSourceUrlTestCase(TestCase):
 
     def test_lens_paper_source_url(self):
         """Verify Lens paper with meta other_url resolves properly."""
+        raw_meta = {
+            "other_url": "https://www.lens.org/lens/scholar/article/012-345-678-901-234"
+        }
+        url = resolve_paper_source_url(meta=raw_meta, source_database="lens")
+        self.assertEqual(url, "https://www.lens.org/lens/scholar/article/012-345-678-901-234")
+
         paper = Paper.objects.create(
             workspace=self.workspace,
             hash_id="lens_doc_1",
             title="Solid-State Battery Breakthrough",
             authors="Battery Lab",
             source_database="lens",
-            meta={
-                "other_url": "https://www.lens.org/lens/scholar/article/012-345-678-901-234"
-            }
+            source_url=url,
+            meta=raw_meta
         )
         self.assertEqual(paper.source_url, "https://www.lens.org/lens/scholar/article/012-345-678-901-234")
 
@@ -123,6 +159,7 @@ class PaperSourceUrlTestCase(TestCase):
             workspace=self.workspace,
             hash_id="arxiv_test_serializer",
             arxiv_id="2103.00020",
+            source_url="https://arxiv.org/abs/2103.00020",
             title="Self-Supervised Learning",
             authors="Yann LeCun",
             source_database="arxiv"
@@ -145,6 +182,7 @@ class PaperSourceUrlTestCase(TestCase):
             workspace=self.workspace,
             hash_id="scorecard_test_paper",
             doi="10.1145/3318464.3389700",
+            source_url="https://doi.org/10.1145/3318464.3389700",
             title="ACM Conference Paper",
             authors="ACM Authors",
             source_database="openalex"
@@ -174,6 +212,7 @@ class PaperSourceUrlTestCase(TestCase):
             workspace=self.workspace,
             hash_id="mcp_paper_test",
             arxiv_id="2401.99999",
+            source_url="https://arxiv.org/abs/2401.99999",
             title="MCP Scientific Tool Ingestion",
             authors="Anthropic & SRI",
             source_database="arxiv"
@@ -206,6 +245,7 @@ class PaperSourceUrlTestCase(TestCase):
             workspace=self.workspace,
             hash_id="db_persisted_url_test",
             arxiv_id="2402.11111",
+            source_url="https://arxiv.org/abs/2402.11111",
             title="Database Persisted Source URL",
             authors="Author DB",
             source_database="arxiv"

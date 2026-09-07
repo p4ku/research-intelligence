@@ -3657,7 +3657,7 @@ class PaperAdmin(admin.ModelAdmin):
     source_database_badge.admin_order_field = "source_database"
 
     def source_link_badge(self, obj):
-        url = obj.source_url or (obj.resolve_source_url() if hasattr(obj, 'resolve_source_url') else None)
+        url = obj.source_url
         if not url:
             return format_html('<span style="color: #adb5bd;">-</span>')
         return format_html(
@@ -4975,18 +4975,14 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
     primary_source_badge.admin_order_field = "primary_source"
 
     def source_link_badge(self, obj):
-        url = obj.source_url
-        if not url:
-            from research_intelligence.utils.source_url import resolve_paper_source_url
-            url = resolve_paper_source_url(obj)
-        if not url:
+        if not obj.source_url:
             return format_html('<span style="color: #adb5bd;">-</span>')
         return format_html(
             '<a href="{}" target="_blank" rel="noopener noreferrer" title="{}" style="text-decoration: none;">'
             '<span style="background-color: #198754; color: #ffffff; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; white-space: nowrap;">🌐 Source ↗</span>'
             '</a>',
-            url,
-            url
+            obj.source_url,
+            obj.source_url
         )
     source_link_badge.short_description = "Source Link"
 
