@@ -12,6 +12,7 @@
 import 'server-only'
 
 import { byValueAsc, byValueDesc, dimensionByKey } from '@/lib/papers/select'
+import { parseQuery, rank } from '@/lib/search/match'
 import { cache } from 'react'
 import * as z from 'zod'
 import { django } from '../core/http'
@@ -73,14 +74,6 @@ function stubListAll(workspaceId: string): WorkspacePapers {
     workspace: { ...fixtureWorkspace, id: workspaceId },
     papers: fixturePapers.map((p) => ({ ...p, workspace_id: workspaceId })),
   }
-}
-
-function matches(paper: ScoredPaper, search: string): boolean {
-  const q = search.toLowerCase()
-  return [paper.title, paper.abstract, paper.authors_raw, paper.arxiv_id ?? '', paper.doi ?? '']
-    .join('\n')
-    .toLowerCase()
-    .includes(q)
 }
 
 function order(papers: ScoredPaper[], ordering: string): ScoredPaper[] {
@@ -164,7 +157,11 @@ export const papers = {
     } else if (query.screening !== 'all') {
       rows = rows.filter((p) => p.screening_status === query.screening)
     }
-    if (query.search) rows = rows.filter((p) => matches(p, query.search!))
+    if (query.search) {
+      // The same matcher as the Home typeahead and the Papers page filter.
+      const parsed = parseQuery(query.search)
+      rows = rows.filter((p) => rank(p, parsed) !== null)
+    }
     rows = order(rows, query.ordering)
     const extra: Record<string, string> = { screening: query.screening, ordering: query.ordering }
     if (query.workspace_id) extra.workspace_id = query.workspace_id

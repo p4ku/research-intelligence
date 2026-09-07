@@ -57,7 +57,7 @@ export interface TargetTurn {
 export type Turn = QuestionTurn | AnswerTurn | TargetTurn
 
 /** Everywhere a paper is named in tight space, the pre-colon title stands in. */
-export const shortTitle = (title: string) => title.split(':')[0]
+export { shortTitle } from '@/lib/papers/select'
 
 export const timeOf = (iso: string) => {
   const d = new Date(iso)

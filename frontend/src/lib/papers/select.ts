@@ -2,6 +2,9 @@
 
 import type { DefinitionSummary, Dimension, ScoredPaper, WorkspaceSummary } from './types'
 
+/** A title up to its first colon — the part people say out loud. */
+export const shortTitle = (title: string) => title.split(':')[0]!
+
 export function trlDimension(paper: ScoredPaper): Dimension | undefined {
   return paper.dimensions.find((d) => d.is_trl)
 }

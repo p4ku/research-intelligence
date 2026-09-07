@@ -10,6 +10,7 @@ import type { Operation } from './core/contract-types'
 import { papersOperations } from './papers/contract'
 import { pipelineRunsOperations } from './pipeline-runs/contract'
 import { scoringOperations } from './scoring/contract'
+import { searchOperations } from './search/contract'
 import { settingsOperations } from './settings/contract'
 import { starsOperations } from './stars/contract'
 import { workspacesOperations } from './workspaces/contract'
@@ -21,6 +22,7 @@ export const allOperations: Operation[] = [
   ...settingsOperations,
   ...scoringOperations,
   ...starsOperations,
+  ...searchOperations,
   ...workspacesOperations,
   ...pipelineRunsOperations,
   ...componentRunsOperations,

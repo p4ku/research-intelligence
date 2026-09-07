@@ -11,6 +11,8 @@ import { fixturePapers, fixtureWorkspace } from './papers/fixtures'
 import { scoredPaper } from './papers/schema'
 import { fixtureRunDetail, fixtureRuns } from './pipeline-runs/fixtures'
 import { pipelineRun, pipelineRunDetail } from './pipeline-runs/schema'
+import { fixtureSearchResponse } from './search/fixtures'
+import { searchResponse } from './search/schema'
 import { workspace } from './workspaces/schema'
 
 describe('fixtures match their contract schemas', () => {
@@ -19,6 +21,10 @@ describe('fixtures match their contract schemas', () => {
       const parsed = scoredPaper.safeParse(fixture)
       expect(parsed.success ? null : parsed.error.issues).toBeNull()
     }
+  })
+  test('search', () => {
+    const parsed = searchResponse.safeParse(fixtureSearchResponse)
+    expect(parsed.success ? null : parsed.error.issues).toBeNull()
   })
   test('workspace', () => {
     const parsed = workspace.safeParse(fixtureWorkspace)

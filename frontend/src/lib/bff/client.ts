@@ -26,7 +26,9 @@ export async function bffFetch<T>(path: string, init: RequestInit = {}): Promise
   try {
     res = await fetch(path, { ...init, headers })
   } catch (error) {
-    // Network failure (offline, DNS, aborted): typed, never a raw TypeError.
+    // A caller's own abort (a superseded keystroke) is theirs to handle, not an outage.
+    if (init.signal?.aborted) throw error
+    // Network failure (offline, DNS): typed, never a raw TypeError.
     console.error('[bff] fetch failed:', path, error)
     throw new BffClientError(problemBody('upstream-unavailable', { instance: path }))
   }

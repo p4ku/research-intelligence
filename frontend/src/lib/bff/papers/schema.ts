@@ -132,7 +132,7 @@ export const papersQuery = listQuery.extend({
     .string()
     .regex(/^-?(signal_score|created_at|dim:[a-z0-9_]+)$/)
     .default('-signal_score'),
-  /** Case-insensitive match over title, abstract, authors, arxiv id, doi. */
+  /** Free text over title, abstract, authors, arxiv id, doi — the shared matcher in src/lib/search/match.ts. */
   search: z.string().optional(),
 })
 export type PapersQuery = z.infer<typeof papersQuery>

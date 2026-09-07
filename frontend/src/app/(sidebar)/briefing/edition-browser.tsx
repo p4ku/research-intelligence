@@ -2,12 +2,13 @@
 
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { DomainBadge, SignalScore } from '@/components/scanner-ui'
+import { SearchFrame } from '@/components/search-frame'
 import { Bone } from '@/components/skeleton'
 import { StarButton, StarredChip, StarToggle } from '@/components/star'
 import { fmt, type Lang } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { useStars } from '@/lib/stars-client'
-import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/20/solid'
+import { XMarkIcon } from '@heroicons/react/20/solid'
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
@@ -69,16 +70,6 @@ function EditionBrowserFrame({
           {rail}
         </nav>
       </div>
-    </div>
-  )
-}
-
-/** The search box that spans the full width above both panes, as on Papers. */
-function SearchFrame({ children }: { children: ReactNode }) {
-  return (
-    <div className="group focus-within:border-accent/60 focus-within:ring-accent/15 border-line bg-surface relative flex items-center gap-3 rounded-md border px-4 py-3 transition focus-within:ring-4">
-      <MagnifyingGlassIcon className="group-focus-within:text-accent size-5 shrink-0 text-zinc-400 transition-colors" />
-      {children}
     </div>
   )
 }
