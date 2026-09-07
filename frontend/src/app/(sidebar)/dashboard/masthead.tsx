@@ -58,7 +58,7 @@ function MastheadFrame({
     <section
       data-shape="home-masthead"
       data-state={state}
-      className="border-line-soft grid gap-8 border-b pb-8 lg:grid-cols-3"
+      className="grid gap-8 border-b border-line-soft pb-8 lg:grid-cols-3"
     >
       <div className="lg:col-span-2">
         <div data-row="meta" className="flex flex-wrap items-center gap-x-3 gap-y-1">

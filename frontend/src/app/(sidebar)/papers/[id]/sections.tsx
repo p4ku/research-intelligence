@@ -61,7 +61,7 @@ export async function PaperRecord({ id, t, lang }: { id: string; t: T; lang: Lan
               variables={details.variables}
               code={details.code_snippet}
               t={t}
-              className="border-line-soft mt-4 border-t pt-3"
+              className="mt-4 border-t border-line-soft pt-3"
             />
           </Card>
         ) : (
@@ -210,7 +210,7 @@ function DimensionTags({ dimension: d, t }: { dimension: Dimension; t: (s: strin
       {tags.map((tag) => (
         <span
           key={tag}
-          className="bg-foreground/6 rounded-sm px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 dark:text-zinc-400"
+          className="rounded-sm bg-foreground/6 px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 dark:text-zinc-400"
         >
           {tag}
         </span>

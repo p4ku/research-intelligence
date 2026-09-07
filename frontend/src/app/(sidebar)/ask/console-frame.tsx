@@ -55,10 +55,10 @@ export function AskLayout({
         {rail}
       </aside>
 
-      <details className="border-line bg-surface rounded-sm border px-4 py-3 lg:hidden">
-        <summary className="text-foreground cursor-default text-xs font-semibold tracking-[0.18em] uppercase">
+      <details className="rounded-sm border border-line bg-surface px-4 py-3 lg:hidden">
+        <summary className="cursor-default text-xs font-semibold tracking-[0.18em] text-foreground uppercase">
           {mobileTitle}{' '}
-          <span className="text-muted-foreground font-mono font-normal normal-case tabular-nums">
+          <span className="font-mono font-normal text-muted-foreground normal-case tabular-nums">
             · {mobileCount}
           </span>
         </summary>
@@ -86,12 +86,12 @@ export function ConsoleFrame({
     <section
       aria-label={label}
       className={clsx(
-        'border-line-strong bg-surface relative isolate flex min-h-0 min-w-0 flex-col rounded-sm border',
+        'relative isolate flex min-h-0 min-w-0 flex-col rounded-sm border border-line-strong bg-surface',
         RAISED,
       )}
     >
-      <div className="border-line-soft flex shrink-0 items-center gap-3 border-b px-4 py-2.5">
-        <span className="text-foreground font-mono text-[11px] font-medium tracking-[0.18em] uppercase">
+      <div className="flex shrink-0 items-center gap-3 border-b border-line-soft px-4 py-2.5">
+        <span className="font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase">
           {eyebrow}
         </span>
         <div className="ml-auto flex min-w-0 items-center">{aside}</div>
@@ -104,7 +104,7 @@ export function ConsoleFrame({
 /** The strip's quiet right-hand note ("No paper yet"). */
 export function ConsoleNote({ children }: { children: ReactNode }) {
   return (
-    <span className="text-muted-foreground font-mono text-[10px] tracking-[0.07em] uppercase">
+    <span className="font-mono text-[10px] tracking-[0.07em] text-muted-foreground uppercase">
       {children}
     </span>
   )
@@ -112,7 +112,7 @@ export function ConsoleNote({ children }: { children: ReactNode }) {
 
 /** The empty console's one-line welcome, above the dock. */
 export function Greeting({ lead }: { lead: ReactNode }) {
-  return <p className="text-foreground text-[15px] text-balance">{lead}</p>
+  return <p className="text-[15px] text-balance text-foreground">{lead}</p>
 }
 
 /** The composer box: the field on top, the chip/send row under it. */
@@ -128,7 +128,7 @@ export function ComposerFrame({
   return (
     <form
       onSubmit={onSubmit}
-      className="border-line bg-surface focus-within:border-accent/60 focus-within:ring-accent/15 relative flex flex-col rounded-sm border transition focus-within:ring-4"
+      className="relative flex flex-col rounded-sm border border-line bg-surface transition focus-within:border-accent/60 focus-within:ring-4 focus-within:ring-accent/15"
     >
       {field}
       <div className="flex min-h-10 items-center gap-2 py-1.5 pr-2 pb-2 pl-3">{footer}</div>

@@ -286,7 +286,7 @@ export function PapersBrowser({
               />
             ))}
             {filtered.length === 0 && (
-              <div className="border-line rounded-sm border border-dashed p-10 text-center text-sm text-zinc-400">
+              <div className="rounded-sm border border-dashed border-line p-10 text-center text-sm text-zinc-400">
                 {t('No papers match these filters.')}
               </div>
             )}
@@ -301,7 +301,7 @@ export function PapersBrowser({
         </div>
 
         {/* Filters */}
-        <aside className="divide-line divide-y max-lg:order-first lg:col-span-1">
+        <aside className="divide-y divide-line max-lg:order-first lg:col-span-1">
           {manyDomains && (
             <FilterGroup
               label={t('Domain')}
@@ -483,8 +483,8 @@ function SearchField({
   const ref = useRef<HTMLInputElement>(null)
 
   return (
-    <div className="group focus-within:border-accent/60 focus-within:ring-accent/15 border-line bg-surface relative flex items-center gap-3 rounded-md border px-4 py-3 transition focus-within:ring-4">
-      <MagnifyingGlassIcon className="group-focus-within:text-accent size-5 shrink-0 text-zinc-400 transition-colors" />
+    <div className="group relative flex items-center gap-3 rounded-md border border-line bg-surface px-4 py-3 transition focus-within:border-accent/60 focus-within:ring-4 focus-within:ring-accent/15">
+      <MagnifyingGlassIcon className="size-5 shrink-0 text-zinc-400 transition-colors group-focus-within:text-accent" />
       <input
         ref={ref}
         name="search"

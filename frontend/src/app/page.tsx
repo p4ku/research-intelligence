@@ -20,7 +20,7 @@ export default async function LoginPage({
   return (
     <main className="grid min-h-dvh lg:grid-cols-2">
       {/* Login */}
-      <div className="bg-surface flex items-center justify-center px-6 py-16">
+      <div className="flex items-center justify-center bg-surface px-6 py-16">
         <LoginPanel
           next={next}
           lang={lang}

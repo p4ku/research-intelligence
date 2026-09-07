@@ -63,7 +63,7 @@ export function ScoreVariables({
                 <dt className="text-xs text-zinc-500 dark:text-zinc-400" title={v.key}>
                   {humanise(v.key)}
                 </dt>
-                <dd className="text-foreground font-mono text-sm font-medium tabular-nums">
+                <dd className="font-mono text-sm font-medium text-foreground tabular-nums">
                   {formatVariable(v, t)}
                 </dd>
               </div>
@@ -74,7 +74,7 @@ export function ScoreVariables({
                   →
                 </span>
                 <dt className="text-xs text-zinc-500 dark:text-zinc-400">{result.label}</dt>
-                <dd className="text-foreground font-mono text-sm font-semibold tabular-nums">
+                <dd className="font-mono text-sm font-semibold text-foreground tabular-nums">
                   {result.value}
                 </dd>
               </div>
@@ -145,7 +145,7 @@ function LongList({ items, className }: { items: ClassifiedVariable[]; className
           </dt>
           <dd className="mt-0.5">
             {v.kind === 'list' ? (
-              <ul className="marker:text-muted-foreground list-disc space-y-0.5 pl-4 text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">
+              <ul className="list-disc space-y-0.5 pl-4 text-xs leading-relaxed text-zinc-600 marker:text-muted-foreground dark:text-zinc-300">
                 {v.items?.map((item, i) => (
                   <li key={i}>{item}</li>
                 ))}

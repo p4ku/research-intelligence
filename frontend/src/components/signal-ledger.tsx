@@ -67,7 +67,7 @@ function LedgerFrame({
       <dl className="mt-3 grid gap-x-6 gap-y-1.5 text-xs sm:grid-cols-3">{parts}</dl>
       {gate}
 
-      <div className="border-line-soft mt-5 grid gap-x-6 gap-y-4 border-t pt-4 sm:grid-cols-3">
+      <div className="mt-5 grid gap-x-6 gap-y-4 border-t border-line-soft pt-4 sm:grid-cols-3">
         {sliders}
       </div>
     </div>
@@ -89,7 +89,7 @@ function BarTrack({
     <div
       data-row="bar"
       className={clsx(
-        'bg-line-soft relative mt-5 h-3 w-full transition-opacity duration-150',
+        'relative mt-5 h-3 w-full bg-line-soft transition-opacity duration-150',
         dim && 'opacity-40',
       )}
       role={label ? 'img' : undefined}
@@ -123,7 +123,7 @@ function Row({
         <span aria-hidden="true" className={clsx('size-2 shrink-0', swatch)} />
         <span className="truncate">{label}</span>
       </dt>
-      <dd className="text-foreground shrink-0 font-mono tabular-nums">{value}</dd>
+      <dd className="shrink-0 font-mono text-foreground tabular-nums">{value}</dd>
     </div>
   )
 }
@@ -143,7 +143,7 @@ function SliderFrame({
     <label data-row="slider" className="block">
       <span className="flex items-baseline justify-between text-xs">
         <span className="text-zinc-500 dark:text-zinc-400">{label}</span>
-        <span className="text-foreground font-mono font-medium tabular-nums">{value}</span>
+        <span className="font-mono font-medium text-foreground tabular-nums">{value}</span>
       </span>
       {control}
       <span
@@ -201,7 +201,7 @@ export function SignalLedger({
             <button
               type="button"
               onClick={() => setW(actualInputs)}
-              className="hover:text-foreground text-zinc-500 underline-offset-2 hover:underline"
+              className="text-zinc-500 underline-offset-2 hover:text-foreground hover:underline"
             >
               {interpolate(t('Reset to actual {n}'), { n: num(actual.score) })}
             </button>
@@ -226,7 +226,7 @@ export function SignalLedger({
           />
           <span
             aria-hidden="true"
-            className="bg-line-strong absolute -top-1 -bottom-1 w-px"
+            className="absolute -top-1 -bottom-1 w-px bg-line-strong"
             style={{ left: pct(100) }}
           />
           <span
@@ -345,7 +345,7 @@ function Slider({
           className="absolute -translate-x-1/2 whitespace-nowrap"
           style={{ left: `${(m.at / max) * 100}%` }}
         >
-          <span className="bg-line-strong mx-auto mb-0.5 block h-1 w-px" />
+          <span className="mx-auto mb-0.5 block h-1 w-px bg-line-strong" />
           {m.label}
         </span>
       ))}

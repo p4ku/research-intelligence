@@ -196,7 +196,7 @@ function Row({
                   onRetry()
                 }}
                 disabled={busy}
-                className="border-line rounded-sm border px-2 py-0.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:text-zinc-200 dark:hover:text-white"
+                className="rounded-sm border border-line px-2 py-0.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:text-zinc-200 dark:hover:text-white"
               >
                 {t('Retry')}
               </button>
@@ -298,7 +298,7 @@ export function Ledger({ rows, busy }: { rows: HomeRow[]; busy: boolean }) {
         ))}
       />
       {error && (
-        <p role="alert" className="text-negative mt-2 text-xs">
+        <p role="alert" className="mt-2 text-xs text-negative">
           {error}
         </p>
       )}

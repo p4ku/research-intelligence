@@ -40,7 +40,7 @@ function Field({
         className={inputClass}
       />
       {error && (
-        <p className="text-negative mt-1 flex items-start gap-1 text-xs">
+        <p className="mt-1 flex items-start gap-1 text-xs text-negative">
           <ExclamationTriangleIcon aria-hidden="true" className="mt-px size-3.5 shrink-0" />
           {error}
         </p>
@@ -159,7 +159,7 @@ export function ProfileForm({ profile }: { profile: Profile }) {
         {errors._ && <ErrorNote>{errors._}</ErrorNote>}
         <div className="flex items-center gap-3">
           <SaveButton busy={busy}>{t('Save profile')}</SaveButton>
-          {done && <span className="text-muted-foreground text-xs">{done}</span>}
+          {done && <span className="text-xs text-muted-foreground">{done}</span>}
         </div>
       </form>
     </Card>
@@ -224,7 +224,7 @@ export function PasswordForm() {
         {errors._ && <ErrorNote>{errors._}</ErrorNote>}
         <div className="flex items-center gap-3">
           <SaveButton busy={busy}>{t('Change password')}</SaveButton>
-          {done && <span className="text-muted-foreground text-xs">{done}</span>}
+          {done && <span className="text-xs text-muted-foreground">{done}</span>}
         </div>
       </form>
     </Card>

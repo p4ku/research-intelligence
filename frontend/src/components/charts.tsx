@@ -117,7 +117,7 @@ export function ScoreMeter({
   const pct = Math.max(0, Math.min(100, (value / max) * 100))
   return (
     <div
-      className={clsx('bg-line-soft h-[3px] w-full overflow-hidden', className)}
+      className={clsx('h-[3px] w-full overflow-hidden bg-line-soft', className)}
       role="meter"
       aria-valuenow={value}
       aria-valuemax={max}
