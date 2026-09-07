@@ -130,7 +130,19 @@ jobs:
         env:
           CF_DOCKER_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
         run: |
-          cf push -f manifest.yml --vars-file vars-ci.yml
+          # Apps behind a route roll: CF keeps the old instance serving until
+          # the new one is healthy, so an image that cannot boot fails the
+          # deploy instead of emptying production. Workers just restart.
+          deploy() { cf push "$@" -f manifest.yml --vars-file vars-ci.yml; }
+          roll() {
+            deploy "$1" --strategy rolling || { cf cancel-deployment "$1" || true; exit 1; }
+          }
+
+          roll sri-api
+          roll sri-mcp
+          deploy sri-worker
+          deploy sri-beat
+          roll sri-frontend
 
       - name: Verify Running Applications
         run: |
