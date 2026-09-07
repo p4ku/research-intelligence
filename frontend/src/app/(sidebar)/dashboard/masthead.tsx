@@ -22,8 +22,6 @@ export interface MastheadLead {
   href: string | null
   /** Null when the run completed but no edition could be composed for it. */
   inBrief: string | null
-  /** The prose is template-written until the backend writes it. */
-  template: boolean
   screened: number
   included: number
   top: HomePaper[]
@@ -38,7 +36,6 @@ function MastheadFrame({
   title,
   funnel,
   brief,
-  note,
   link,
   railLabel,
   rail,
@@ -48,7 +45,6 @@ function MastheadFrame({
   title: ReactNode
   funnel: ReactNode
   brief: ReactNode
-  note?: ReactNode
   link: ReactNode
   railLabel: ReactNode
   rail: ReactNode
@@ -77,7 +73,6 @@ function MastheadFrame({
           {funnel}
         </p>
         <div data-row="brief">{brief}</div>
-        {note}
         <div data-row="link" className="mt-3">
           {link}
         </div>
@@ -115,14 +110,6 @@ export function Masthead({ lead, t }: { lead: MastheadLead; t: T }) {
       })}
       brief={
         lead.inBrief !== null && <AnswerMarkdown text={lead.inBrief} className={BRIEF_CLASS} />
-      }
-      note={
-        lead.template &&
-        lead.inBrief !== null && (
-          <p className="mt-2 font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
-            {t('Assembled automatically from this run.')}
-          </p>
-        )
       }
       link={
         lead.href && (
@@ -162,12 +149,6 @@ export function MastheadSkeleton({ t }: { t: T }) {
       title={<Bone.Text widths={['58%']} />}
       funnel={<Bone.Number digits={44} />}
       brief={<AnswerMarkdownSkeleton className={BRIEF_CLASS} paragraphs={[3]} />}
-      // The template note: present on every brief until the backend writes prose.
-      note={
-        <p className="mt-2 font-mono text-[11px]">
-          <Bone.Number digits={38} />
-        </p>
-      }
       link={
         <span className="text-xs font-medium">
           <Bone.Number digits={13} />
