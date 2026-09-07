@@ -7,6 +7,10 @@ front-end curation (no collections, folders or notes). Feeds the star toggles
 on `/briefing/[date]` (rows and header), `/papers`, `/papers/[id]` and the
 `/briefing` archive, and the **Starred** filter on each list.
 
+The `/papers` consumer is behind the `all_papers` demo flag
+(`src/lib/features.ts`): when the corpus list is hidden, the stars it carries
+go with it. The routes below are not flagged and keep serving.
+
 ## What the UI needs
 
 - **Read once per page**: the full set of starred paper ids and briefing
@@ -55,6 +59,12 @@ run is not visible to the user. P2, size S.
 `src/lib/bff/stars/cookie.ts`) — per browser, not per account, and capped at
 80 papers / 30 briefings (oldest dropped) so it fits a 4 KB cookie. Good
 enough for demos and replay; not shared across devices.
+
+The star **UI** can be hidden per browser by the `stars` demo flag
+(`docs/design/feature-flags.md`): with it off the sidebar layout does not call
+this service at all and seeds the store with `emptyStars`, while these routes
+stay live and the `rs-stars` cookie is deliberately left intact — so flipping
+the flag back on restores the same stars on the next refresh.
 
 ## Flip the flag
 

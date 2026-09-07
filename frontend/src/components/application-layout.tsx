@@ -13,6 +13,7 @@ import {
   DropdownMenu,
   DropdownSection,
 } from '@/components/dropdown'
+import { NavIcon } from '@/components/nav-icon'
 import {
   Sidebar,
   SidebarBody,
@@ -65,7 +66,7 @@ interface ShellNavItem {
 const coreNav: ShellNavItem[] = [
   { href: '/dashboard', label: 'Home', Icon: HomeIcon, exact: true },
   { href: '/briefing', label: 'Briefings', Icon: NewspaperIcon },
-  { href: '/papers', label: 'Papers', Icon: DocumentTextIcon },
+  { href: '/papers', label: 'Papers', Icon: DocumentTextIcon, feature: 'all_papers' },
   { href: '/ask', label: 'Ask', Icon: ChatBubbleLeftRightIcon, feature: 'ask' },
   { href: '/runs', label: 'Runs', Icon: PlayCircleIcon },
 ]
@@ -314,7 +315,7 @@ function ApplicationLayoutInner({ user, children, area = 'core' }: ShellProps) {
                   href={href}
                   current={exact ? pathname === href : pathname.startsWith(href)}
                 >
-                  <Icon />
+                  <NavIcon Icon={Icon} />
                   <SidebarLabel>{t(label, 'nav')}</SidebarLabel>
                 </SidebarItem>
               ))}

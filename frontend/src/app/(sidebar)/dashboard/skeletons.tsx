@@ -1,6 +1,7 @@
 import { CorpusSearch } from '@/components/corpus-search/corpus-search'
 import { PageHeader, SectionLabel } from '@/components/scanner-ui'
 import { Skeleton } from '@/components/skeleton'
+import type { Features } from '@/lib/features'
 import { fmt, type T } from '@/lib/i18n'
 import { RECENT } from './data'
 import { HomeLinks } from './home-ui'
@@ -44,12 +45,26 @@ export function LedgerSkeletonRegion({ t }: { t: T }) {
   )
 }
 
-/** The loading.tsx shell: real header and search, skeleton sections. */
-export function DashboardSkeleton({ t, name }: { t: T; name: string }) {
+/**
+ * The loading.tsx shell: real header and search, skeleton sections. The search
+ * is the real component, not a bone, so it follows the page's `all_papers`
+ * guard exactly — a shell that kept the field would paint a live search above
+ * a corpus the reader cannot open. `features` is required because
+ * dashboard/loading.tsx is the only caller.
+ */
+export function DashboardSkeleton({
+  t,
+  name,
+  features,
+}: {
+  t: T
+  name: string
+  features: Features
+}) {
   return (
     <div className="space-y-8">
       <PageHeader eyebrow={t('Home')} title={fmt(t('Good morning, {name}'), { name })} />
-      <CorpusSearch domains={[]} />
+      {features.all_papers && <CorpusSearch domains={[]} />}
       <MastheadSkeletonRegion t={t} />
       <LedgerSkeletonRegion t={t} />
     </div>

@@ -1,5 +1,6 @@
 'use client'
 
+import { useFeatures } from '@/lib/features-client'
 import { formatDate } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
 import { trlDimension } from '@/lib/papers/select'
@@ -99,6 +100,7 @@ function PaperCardFrame({
 export function PaperCard({ paper, domain }: { paper: ScoredPaper; domain?: string }) {
   const t = useT()
   const { lang } = useLanguage()
+  const { stars } = useFeatures()
   const trl = trlDimension(paper)
   // Two headline dimensions besides TRL, in the workspace's definition order.
   const stats = paper.dimensions.filter((d) => !d.is_trl && d.value !== null).slice(0, 2)
@@ -106,7 +108,13 @@ export function PaperCard({ paper, domain }: { paper: ScoredPaper; domain?: stri
   return (
     <PaperCardFrame
       href={`/papers/${paper.id}`}
-      corner={<StarButton kind="paper" id={paper.id} className="absolute top-2.5 right-2.5" />}
+      corner={
+        // Withheld, not rendered null: the flag hides the affordance, and the
+        // slot is already optional and absolutely positioned, so nothing moves.
+        stars ? (
+          <StarButton kind="paper" id={paper.id} className="absolute top-2.5 right-2.5" />
+        ) : undefined
+      }
       score={<SignalScore score={paper.signal_score} />}
       meta={
         <>

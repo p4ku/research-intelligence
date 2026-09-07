@@ -1,6 +1,7 @@
 import { ScreeningPill } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import { StarToggle } from '@/components/star'
+import { ALL_ON, type Features } from '@/lib/features'
 import { formatDate, type Lang, type T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { ArrowUpRightIcon } from '@heroicons/react/16/solid'
@@ -11,6 +12,18 @@ import type { ReactNode } from 'react'
  * link out to the original paper), the title, the authors, and the star at
  * the right. PaperHeaderFrame owns the layout so PaperHeader and
  * PaperHeaderSkeleton cannot drift.
+ *
+ * Both take the demo flags, defaulting to ALL_ON because the skeleton gallery
+ * renders them directly with no such prop. Nothing in the masthead answers to
+ * `all_papers`; the prop is here so the star affordance in the `action` slot
+ * has the flags to read.
+ *
+ * `stars` is now wired, and it is wired as a withhold rather than a null
+ * render: both signatures read `features.stars` and pass `undefined` into the
+ * `action` slot when it is off, so PaperHeaderFrame drops the wrapping
+ * `shrink-0` div entirely instead of keeping an empty flex item that opens a
+ * gap beside the masthead on a narrow viewport. Same rule in the skeleton, or
+ * the bone promises a control the loaded row never grows.
  */
 
 const META = 'text-xs text-zinc-400'
@@ -58,7 +71,17 @@ export function PaperHeaderFrame({
   )
 }
 
-export function PaperHeader({ paper, t, lang }: { paper: ScoredPaper; t: T; lang: Lang }) {
+export function PaperHeader({
+  paper,
+  t,
+  lang,
+  features = ALL_ON,
+}: {
+  paper: ScoredPaper
+  t: T
+  lang: Lang
+  features?: Features
+}) {
   return (
     <PaperHeaderFrame
       meta={
@@ -92,12 +115,15 @@ export function PaperHeader({ paper, t, lang }: { paper: ScoredPaper; t: T; lang
       }
       title={paper.title}
       authors={paper.authors.join(', ') || paper.authors_raw}
-      action={<StarToggle kind="paper" id={paper.id} />}
+      // Withheld, not rendered null: PaperHeaderFrame's `{action && …}` would
+      // otherwise wrap an empty node in a shrink-0 flex item and open a gap
+      // beside the masthead on a narrow viewport.
+      action={features.stars ? <StarToggle kind="paper" id={paper.id} /> : undefined}
     />
   )
 }
 
-export function PaperHeaderSkeleton() {
+export function PaperHeaderSkeleton({ features = ALL_ON }: { features?: Features }) {
   return (
     <PaperHeaderFrame
       state="skeleton"
@@ -114,7 +140,7 @@ export function PaperHeaderSkeleton() {
       }
       title={<Bone.Text lines={2} widths={['92%', '55%']} />}
       authors={<Bone.Text widths={['60%']} />}
-      action={<Bone.Block className="h-[30px] w-24" />}
+      action={features.stars ? <Bone.Block className="h-[30px] w-24" /> : undefined}
     />
   )
 }

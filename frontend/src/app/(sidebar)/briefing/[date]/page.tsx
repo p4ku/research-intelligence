@@ -1,4 +1,5 @@
 import { WorkspaceNotice } from '@/components/workspace-notice'
+import { getFeatures } from '@/lib/features-server'
 import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
@@ -37,12 +38,13 @@ export default async function BriefingEditionPage({
   params: Promise<{ date: string }>
   searchParams: Promise<{ domain?: string }>
 }) {
-  const [{ date }, { domain }, state, t, lang] = await Promise.all([
+  const [{ date }, { domain }, state, t, lang, features] = await Promise.all([
     params,
     searchParams,
     getWorkspacesState(),
     getT(),
     getLang(),
+    getFeatures(),
   ])
   // A missing domain list is not a missing page: an outage gets the honest
   // notice, a user with no membership gets the membership copy — only a
@@ -57,19 +59,32 @@ export default async function BriefingEditionPage({
       <Suspense
         fallback={
           <ViewTransition exit="bone-exit" default="none">
-            <EditionHeadSkeleton t={t} lang={lang} date={date} domain={wsId && domains[wsId]} />
+            <EditionHeadSkeleton
+              t={t}
+              lang={lang}
+              date={date}
+              domain={wsId && domains[wsId]}
+              features={features}
+            />
           </ViewTransition>
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <EditionHead wsId={wsId} date={date} lang={lang} t={t} domains={domains} />
+          <EditionHead
+            wsId={wsId}
+            date={date}
+            lang={lang}
+            t={t}
+            domains={domains}
+            features={features}
+          />
         </ViewTransition>
       </Suspense>
 
       <Suspense
         fallback={
           <ViewTransition exit="bone-exit" default="none">
-            <EditionPapersSkeleton t={t} date={date} wsId={wsId} />
+            <EditionPapersSkeleton t={t} date={date} wsId={wsId} features={features} />
           </ViewTransition>
         }
       >

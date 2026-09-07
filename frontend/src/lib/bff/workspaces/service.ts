@@ -9,19 +9,19 @@ import 'server-only'
 import type { WorkspaceDTO } from '@/lib/api/types'
 import { toWorkspaceSummary } from '@/lib/papers/map'
 import { cache } from 'react'
-import * as z from 'zod'
-import { django } from '../core/http'
 import { paginate, type ListQuery, type Page } from '../core/pagination'
 import type { Problem } from '../core/problem'
 import { problemResult } from '../core/result'
+import { workspacesSnapshot } from '../corpus/snapshot'
 import type { WorkspaceSummary } from './schema'
-import { workspaceDTO } from './upstream'
 
 /**
  * Raw DTOs for other BFF services (papers composition needs the full
- * extraction definitions). Deduped per request.
+ * extraction definitions). From the user's workspaces snapshot, held across
+ * requests (../corpus/snapshot.ts) apart from the heavier papers, so a page
+ * that never reads papers neither waits on them nor fails with them.
  */
-export const listWorkspacesRaw = cache(() => django('/api/workspaces/', z.array(workspaceDTO)))
+export const listWorkspacesRaw = cache(() => workspacesSnapshot())
 
 export type WorkspacesResult =
   | { ok: true; workspaces: WorkspaceSummary[] }

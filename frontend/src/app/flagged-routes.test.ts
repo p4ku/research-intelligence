@@ -1,24 +1,56 @@
-import type { FeatureKey } from '@/lib/features'
+import { FEATURES, type FeatureKey } from '@/lib/features'
 import { describe, expect, test } from 'bun:test'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 /**
- * Flagged-route convention: a page a demo flag can hide must call
- * `requireFeature('<key>')`, so the route stops existing rather than merely
- * losing its nav entry (docs/design/feature-flags.md §3.6).
+ * Flag convention: a page a demo flag owns opts in explicitly, so the gate
+ * cannot be lost in a refactor. Rendering a server page under `bun test` is not
+ * something this repo does (and `requireFeature` would need a `next/headers`
+ * mock), so this reads the source the way loading-convention.test.ts does.
  *
- * One row per flagged page. Filtering the nav item is easy to keep; the gate
- * on the page itself is what a refactor drops silently, which is why it is
- * asserted from the file text — rendering a server page is not something this
- * repo does in `bun test`.
+ * Add a route here in the same PR that gates it.
  */
-const FLAGGED: { route: string; feature: FeatureKey; page: string }[] = [
-  { route: '/ask', feature: 'ask', page: '(sidebar)/ask/page.tsx' },
-]
+const GATED: Record<string, FeatureKey> = {
+  '(sidebar)/papers/page.tsx': 'all_papers',
+  '(sidebar)/ask/page.tsx': 'ask',
+}
 
 describe('flagged routes', () => {
-  test.each(FLAGGED)('$route gates on $feature', async ({ feature, page }) => {
-    const src = await Bun.file(join(import.meta.dir, page)).text()
-    expect(src).toContain(`requireFeature('${feature}')`)
+  test('every gated page calls requireFeature with its own flag', async () => {
+    for (const [rel, key] of Object.entries(GATED)) {
+      const abs = join(import.meta.dir, rel)
+      expect(existsSync(abs)).toBe(true)
+      const src = await Bun.file(abs).text()
+      expect(src).toContain(`requireFeature('${key}')`)
+    }
+  })
+
+  test('every gated page also gates its generateMetadata', async () => {
+    for (const [rel, key] of Object.entries(GATED)) {
+      const src = await Bun.file(join(import.meta.dir, rel)).text()
+      // A page without metadata needs no gate; one with it must not title the
+      // 404's tab after the feature it is hiding.
+      if (!src.includes('generateMetadata')) continue
+      expect(src).toContain(`hasFeature('${key}')`)
+    }
+  })
+
+  test('each gated route matches the flag that owns it in the registry', () => {
+    for (const [rel, key] of Object.entries(GATED)) {
+      const route = FEATURES[key].route
+      expect(route).toBeDefined()
+      // '(sidebar)/papers/page.tsx' -> '/papers'
+      const href = '/' + rel.replace(/^\(.*?\)\//, '').replace(/\/page\.tsx$/, '')
+      expect(route!.href).toBe(href)
+    }
+  })
+
+  test('every flag that owns a route has a gated page listed here', () => {
+    const owned = Object.values(FEATURES)
+      .filter((d) => d.route)
+      .map((d) => d.key)
+      .sort()
+    expect(Object.values(GATED).sort()).toEqual(owned)
   })
 })
