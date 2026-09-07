@@ -44,6 +44,31 @@ writes; `bun run check` verifies. Two things are deliberately excluded in
 - **`tsconfig.json`** is rewritten by Next with the current `BUILD_DIR`, so
   every agent holds a different copy of it.
 
+## Feature flags are read at the page layer
+
+The three demo flags (`all_papers`, `stars`, `ask`, registry in
+`src/lib/features.ts`) live in one readable cookie and default ON. Read them
+in exactly two kinds of place:
+
+- **Server**: a `page.tsx` or a `loading.tsx` calls `getFeatures()` from
+  `src/lib/features-server.ts` (or `requireFeature(key)`, which `notFound()`s
+  a hidden route). A page and its `loading.tsx` each read once, so a Suspense
+  fallback and its content cannot disagree mid-stream.
+- **Client**: a `'use client'` component calls `useFeatures()`. It needs no
+  prop, and with no provider — a unit render — every flag reads ON, so a
+  component in isolation shows its full self.
+
+Never below that. Not in a service, not in a BFF route handler, not in
+`src/proxy.ts`: hiding is a UI concern, and the cookie is a preference the
+visitor owns, not an authorization boundary.
+
+Server components and skeletons take **one** prop, `features: Features`, not
+one boolean per flag. It is **required**, so `tsc` finds the call site you
+missed — except on the handful of components `src/app/studio/skeletons/page.tsx`
+renders directly, where it is optional with `= ALL_ON`: the gallery must show
+every shape whatever the demo cookie says, and `bun run skeleton:drift` must
+measure the product rather than a cookie.
+
 ## Files that are never committed
 
 - **`tsconfig.json`** — see above. Discard it (`git checkout -- tsconfig.json`)

@@ -18,6 +18,21 @@ import type { ReactNode } from 'react'
  * — with the crumb trail gone too, it is the paper's only exit. `features`
  * defaults to ALL_ON because the skeleton gallery renders these three with no
  * such prop; the flag reaches them from PaperRecord and loading.tsx.
+ *
+ * Briefings is a choice, not the only reading: the design doc leaves the
+ * redirected destination open between `/briefing` (`Go to Briefings`) and
+ * `/dashboard` (`Back to Today`, already German in `de/chrome.ts`). Briefings
+ * is chosen here to match the button the not-found card promotes when the flag
+ * is off, so every flag-off exit lands in the same place. Changing it is three
+ * lines — the loaded row and the skeleton below, and papers/[id]/error.tsx —
+ * and all three move together, or the exit says one thing and the error
+ * boundary another.
+ *
+ * One note for whoever writes the flag-off e2e spec: with `all_papers` off this
+ * row is an <a href="/briefing"> inside a <nav>, which matches two members of
+ * the SidebarNav.navBriefing union (tests_e2e/pages/SidebarNav.ts). Assert this
+ * exit with a scoped locator — [data-shape="paper-nav"] a[href="/briefing"] —
+ * never through the sidebar page object.
  */
 
 export interface PaperNeighbours {

@@ -17,6 +17,13 @@ import type { ReactNode } from 'react'
  * renders them directly with no such prop. Nothing in the masthead answers to
  * `all_papers`; the prop is here so the star affordance in the `action` slot
  * has the flags to read when `stars` is wired.
+ *
+ * Until then it is bound as `_features` in both signatures, which is the whole
+ * reason it looks inert. Wiring `stars` is therefore a rename and a read:
+ * `_features` → `features` in PaperHeader and PaperHeaderSkeleton, then
+ * `action={features.stars ? <StarToggle …/> : null}` (PaperHeaderFrame already
+ * withholds the wrapping div when `action` is falsy). Leave the rename out and
+ * the star slot keeps rendering with the flag off.
  */
 
 const META = 'text-xs text-zinc-400'
