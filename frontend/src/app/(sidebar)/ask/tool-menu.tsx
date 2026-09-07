@@ -22,7 +22,7 @@ import { ICON_BUTTON } from './console-frame'
 /**
  * The composer's tool menu — the "+" that will grow every agentic capability
  * the assistant learns. Only attaching a paper is wired to anything today, so
- * the rest sit under a "Coming soon" label, disabled: naming them tells the
+ * the rest sit under a "Not yet available" label, disabled: naming them tells the
  * reader where this page is going without pretending it is already there.
  * Wire one up by moving it out of `soon` and giving it an `onSelect`.
  */
@@ -83,7 +83,7 @@ export function ToolMenu({ onAttach, disabled }: { onAttach: () => void; disable
         </DropdownMenuItem>
 
         <DropdownMenuLabel className="pt-2.5 pb-1 font-mono text-[10px] tracking-[0.18em] text-muted-foreground uppercase">
-          {t('Coming soon')}
+          {t('Not yet available')}
         </DropdownMenuLabel>
         {soon.map(({ key, Icon, label, hint }) => (
           <DropdownMenuItem key={key} disabled className="items-start gap-2.5 py-2">

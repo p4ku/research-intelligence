@@ -33,7 +33,6 @@ import { toast } from 'sonner'
 import {
   AskCanvas,
   BODY_CLASS,
-  BODY_PUSHED,
   ComposerFrame,
   DOCK_WRAP,
   EMPTY_BODY,
@@ -86,7 +85,12 @@ function groupTurns(turns: Turn[]): Group[] {
 
 function autogrow(el: HTMLTextAreaElement) {
   el.style.height = 'auto'
-  el.style.height = `${Math.min(el.scrollHeight, FIELD_MAX_PX)}px`
+  const full = el.scrollHeight
+  el.style.height = `${Math.min(full, FIELD_MAX_PX)}px`
+  // scrollHeight is an integer while the line box is not (15px × 1.625 plus
+  // padding), so a box sized to it is a fraction short of its content and the
+  // browser draws a scrollbar. Only a field at its cap has anything to scroll.
+  el.style.overflowY = full > FIELD_MAX_PX ? 'auto' : 'hidden'
 }
 
 /**
@@ -608,10 +612,7 @@ export function Ask({
               : ''}
         </p>
 
-        <div
-          ref={bodyRef}
-          className={clsx(BODY_CLASS, !hasConversation && EMPTY_BODY, sidecarOpen && BODY_PUSHED)}
-        >
+        <div ref={bodyRef} className={clsx(BODY_CLASS, !hasConversation && EMPTY_BODY)}>
           {hasConversation && (
             <div
               ref={transcriptRef}

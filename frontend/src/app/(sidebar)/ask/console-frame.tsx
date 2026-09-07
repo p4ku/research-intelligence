@@ -17,22 +17,14 @@ export const RAISED =
   'shadow-[0_1px_2px_rgba(19,19,17,0.05),0_5px_14px_-4px_rgba(19,19,17,0.10)] dark:shadow-none'
 
 /** The canvas body: conversation above, the dock below. */
-export const BODY_CLASS =
-  'relative flex min-h-0 flex-1 flex-col transition-[padding] duration-[260ms] ease-out motion-reduce:transition-none'
-/**
- * From `md` up the open sidecar pushes the conversation instead of covering
- * it — at these widths the measure plus the panel do not both fit, and a
- * panel over the send button is worse than one short reflow on toggle.
- * Below `md` the panel is a full-width drawer, so nothing needs to move.
- */
-export const BODY_PUSHED = 'md:pr-[17rem]'
+export const BODY_CLASS = 'relative flex min-h-0 flex-1 flex-col'
 /** Before the first question the greeting and dock sit centred, ChatGPT-style. */
 export const EMPTY_BODY = 'justify-center pb-[10vh]'
 export const GREETING_WRAP = 'mx-auto mb-5 w-[min(100%-3rem,768px)] shrink-0'
 export const DOCK_WRAP = 'relative z-[4] mx-auto w-[min(100%-3rem,768px)] shrink-0 pb-4'
 /** The composer field's box; the textarea adds its colours and focus reset. */
 export const FIELD_CLASS =
-  'block max-h-44 w-full resize-none bg-transparent px-1.5 py-[7px] text-[15px] leading-relaxed'
+  'block max-h-44 w-full resize-none overflow-y-hidden bg-transparent px-1.5 py-[7px] text-[15px] leading-relaxed'
 /** The top bar's height, which the sidecar hangs below. */
 export const TOP_BAR_H = '3.25rem'
 

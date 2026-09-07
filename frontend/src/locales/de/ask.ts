@@ -16,11 +16,11 @@ export const dict: Record<string, string> = {
   'Remove this paper': 'Dieses Paper entfernen',
 
   // tool-menu.tsx — the composer's "+" menu. Only 'Attach a paper' is wired;
-  // the rest sit disabled under 'Coming soon'.
+  // the rest sit disabled under 'Not yet available'.
   Tools: 'Werkzeuge',
   'Attach a paper': 'Ein Paper anhängen',
   "Scope to one paper's full text": 'Auf den Volltext eines Papers eingrenzen',
-  'Coming soon': 'Demnächst',
+  'Not yet available': 'Noch nicht verfügbar',
   'Across papers': 'Über alle Papers',
   'Read the corpus and answer with citations': 'Den Korpus lesen und mit Belegen antworten',
   'Web search': 'Websuche',
