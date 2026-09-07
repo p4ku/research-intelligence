@@ -98,8 +98,8 @@
                             <tr style="border-bottom: 1px solid #e2e8f0; background-color: {% if forloop.counter|divisibleby:2 %}#f8fafc{% else %}#ffffff{% endif %};">
                                 <td style="padding: 10px 8px; text-align: center; font-weight: 700; color: #64748b; border-right: 1px solid #e2e8f0;">{{ paper.index }}</td>
                                 <td style="padding: 10px 12px; font-weight: 600; color: #0f172a; border-right: 1px solid #e2e8f0;">
-                                    {% if paper.pdf_link %}
-                                    <a href="{{ paper.pdf_link }}" target="_blank" style="color: #ea580c; text-decoration: none; font-weight: 600;">
+                                    {% if paper.source_url or paper.pdf_link %}
+                                    <a href="{{ paper.source_url|default:paper.pdf_link }}" target="_blank" style="color: #ea580c; text-decoration: none; font-weight: 600;">
                                         {{ paper.title }}
                                     </a>
                                     {% else %}
@@ -114,6 +114,12 @@
                                     {{ m.value }}
                                 </td>
                                 {% endfor %}
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="{{ definition_names|length|add:3 }}" style="padding: 18px; text-align: center; color: #64748b; font-style: italic;">
+                                    No accepted papers passed criteria in this execution run.
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -149,7 +155,11 @@
                         <li style="margin-bottom: 4px;">
                             <strong>Authors:</strong> {{ paper.authors }}
                         </li>
-                        {% if paper.pdf_link %}
+                        {% if paper.source_url %}
+                        <li style="margin-bottom: 4px;">
+                            <strong>Source URL:</strong> <a href="{{ paper.source_url }}" target="_blank" style="color: #2563eb; text-decoration: underline;">{{ paper.source_url }}</a>
+                        </li>
+                        {% elif paper.pdf_link %}
                         <li style="margin-bottom: 4px;">
                             <strong>PDF URL:</strong> <a href="{{ paper.pdf_link }}" target="_blank" style="color: #2563eb; text-decoration: underline;">{{ paper.pdf_link }}</a>
                         </li>

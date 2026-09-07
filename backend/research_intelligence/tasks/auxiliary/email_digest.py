@@ -224,6 +224,7 @@ def build_pipeline_run_digest_payload(
             "authors": p.authors or "Unknown Authors",
             "doi": p.doi,
             "arxiv_id": p.arxiv_id,
+            "source_url": p.source_url or (f"https://doi.org/{p.doi}" if p.doi else None),
             "pdf_link": pdf_link,
             "abstract": p.abstract or "",
             "screening_status": pm_status,

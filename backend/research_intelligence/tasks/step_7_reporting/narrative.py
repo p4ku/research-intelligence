@@ -123,17 +123,29 @@ def generate_executive_narrative_report(pipeline_run: PipelineRun) -> Dict[str, 
                     "doi": paper.doi or "",
                     "arxiv_id": paper.arxiv_id or "",
                     "source": paper.source_database or "arxiv",
+                    "source_url": paper.source_url or "",
                     "signal_score": s_score,
                     "score_vectors": score_vectors,
                     "extractions": ext_list,
                 }
                 papers_data_list.append(p_dict)
 
+                source_info = f"- Source: {p_dict['source'].upper()}"
+                details = []
+                if paper.source_url:
+                    details.append(f"URL: {paper.source_url}")
+                if p_dict['doi']:
+                    details.append(f"DOI: {p_dict['doi']}")
+                if p_dict['arxiv_id']:
+                    details.append(f"arXiv: {p_dict['arxiv_id']}")
+                if details:
+                    source_info += f" ({', '.join(details)})"
+
                 lines_p = [
                     f"### [{idx}] {p_dict['title']}",
                     f"- Signal Score: {s_score if s_score is not None else 'N/A'}",
                     f"- Authors: {p_dict['authors'] or 'N/A'}",
-                    f"- Source: {p_dict['source'].upper()} (DOI: {p_dict['doi'] or 'N/A'}, arXiv: {p_dict['arxiv_id'] or 'N/A'})",
+                    source_info,
                     f"- Score Vectors: {json.dumps(score_vectors)}",
                     f"- Abstract: {p_dict['abstract']}",
                 ]
