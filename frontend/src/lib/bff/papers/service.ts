@@ -20,6 +20,7 @@ import { paginate, type Page } from '../core/pagination'
 import { problem, ProblemError } from '../core/problem'
 import { sourceOf } from '../core/source'
 import { assertUuid } from '../core/validate'
+import { corpusSnapshot } from '../corpus/snapshot'
 import { workspace, type WorkspaceSummary } from '../workspaces/schema'
 import { workspaces } from '../workspaces/service'
 import { composeGet, composeListAll } from './compose'
@@ -35,6 +36,8 @@ export interface WorkspacePapers {
 export interface CorpusPapers {
   workspaces: WorkspaceSummary[]
   papers: ScoredPaper[]
+  /** Set when the per-user cap dropped older papers (../corpus/snapshot.ts). */
+  truncated?: { kept: number; total: number }
 }
 
 const detailResponse = z.object({ workspace, paper: scoredPaper })
@@ -140,7 +143,8 @@ export const papers = {
         merged.push(paper)
       }
     }
-    return { workspaces: summaries, papers: merged }
+    const truncated = sourceOf('papers') === 'composed' ? (await corpusSnapshot()).truncated : undefined
+    return { workspaces: summaries, papers: merged, truncated }
   }),
 
   /** The paginated HTTP face: screening filter, ordering, search; one domain or all. */

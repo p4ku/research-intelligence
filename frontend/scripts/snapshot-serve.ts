@@ -5,7 +5,8 @@
  * app changes; the real proxy, BFF and mappers run against real data.
  *
  * - GET  → the captured `index.json` for that path, with `?workspace=`,
- *          `?paper=`, `?status=` (any `key=value`) applied to list responses.
+ *          `?paper=`, `?status=` (any `key=value`) applied to list responses;
+ *          `?page=`/`?page_size=` wrap a list in DRF's envelope, as Django does.
  * - POST /api/auth/login/ and /refresh/ → dev-signed JWTs with a real `exp`
  *          (the proxy only reads `exp`; rotation is mirrored like production).
  * - POST /api/pipeline-runs/start/ → a simulated run: `running` at the top
@@ -248,9 +249,40 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
   let body = load(pathname)
   if (body === undefined) return (log(404), djangoError(res, 404, 'Not found.'))
   if (pathname === '/api/pipeline-runs/' && Array.isArray(body)) body = [...startedRuns, ...body]
-  const out = Array.isArray(body) && url.search ? filterRows(body, url.searchParams) : body
+  const rows = Array.isArray(body) && url.search ? filterRows(body, url.searchParams) : body
+  if (Array.isArray(rows) && (url.searchParams.has('page') || url.searchParams.has('page_size'))) {
+    const page = paginateRows(rows, url)
+    if (!page) return (log(404), send(res, 404, { detail: 'Invalid page.' }))
+    log(200)
+    return send(res, 200, page)
+  }
   log(200)
-  send(res, 200, out)
+  send(res, 200, rows)
+}
+
+/**
+ * DRF's page-number envelope over a captured list, as Django answers when
+ * `page` or `page_size` is present (backend/api/pagination.py: default 50,
+ * max 500; a page past the end is a 404). The capture is already in Django's
+ * newest-first order. Null past the end.
+ */
+function paginateRows(rows: unknown[], url: URL) {
+  const page = Math.max(1, Number(url.searchParams.get('page') ?? 1) || 1)
+  const size = Math.min(500, Math.max(1, Number(url.searchParams.get('page_size') ?? 50) || 50))
+  const start = (page - 1) * size
+  if (start >= rows.length && page > 1) return null
+  const link = (n: number) => {
+    const next = new URL(url)
+    next.searchParams.set('page', String(n))
+    next.searchParams.set('page_size', String(size))
+    return `http://localhost:${PORT}${next.pathname}${next.search}`
+  }
+  return {
+    count: rows.length,
+    next: start + size < rows.length ? link(page + 1) : null,
+    previous: page > 1 ? link(page - 1) : null,
+    results: rows.slice(start, start + size),
+  }
 }
 
 createServer(handle).listen(PORT, () => {
