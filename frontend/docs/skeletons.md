@@ -59,7 +59,10 @@ live one.
    fallback carries `aria-busy`, a single `sr-only` status, and hides bones from
    assistive tech. Component skeletons render bones only. `status` must be an
    already-translated sentence — `skeleton.tsx` is shared and cannot call `useT`.
-4. **Add the pair to `/studio/skeletons`** so the drift check covers it.
+4. **Add the pair to `/studio/skeletons`** so the drift check covers it — and if a
+   feature flag can hide part of the shape, give the bone the optional `features`
+   prop so the gallery pane still compiles and stays all-on (see the flag-aware
+   bone rule below).
 5. **Give the route a `loading.tsx`** composed from the same section skeletons the
    page uses as fallbacks, and remove the route from `KNOWN_UNCOVERED` in
    `src/app/loading-convention.test.ts`. That list may only shrink.

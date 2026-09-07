@@ -245,7 +245,11 @@ export function BriefingLedger({
   const { items, page, pageCount } = paginate(filtered, state.page)
 
   function update(patch: Partial<ArchiveState>) {
-    const next = { ...state, ...patch }
+    // From `urlState`, not the forced `state`: only the rendered value is
+    // forced, and a domain or pager click must not quietly rewrite the address
+    // bar without a `?starred=1` the user never cleared. Identical while stars
+    // are on, and with them off it is what keeps the flip non-destructive.
+    const next = { ...urlState, ...patch }
     // A narrower or wider list starts again from its first page.
     if ('domain' in patch || 'starred' in patch) next.page = 1
     // No navigation, no refetch: the App Router picks the query up from

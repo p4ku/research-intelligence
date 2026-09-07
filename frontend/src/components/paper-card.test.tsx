@@ -1,6 +1,6 @@
 import { fixturePapers } from '@/lib/bff/papers/fixtures'
 import { ALL_ON } from '@/lib/features'
-import { FeaturesContext } from '@/lib/features-client'
+import { FeaturesTestProvider } from '@/lib/features-client'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { PaperCard, PaperCardSkeleton } from './paper-card'
@@ -35,11 +35,9 @@ describe('PaperCard', () => {
     // this is the only render that proves the gate is wired to the flag and
     // not to something else. The link and its chrome are untouched.
     const off = renderToStaticMarkup(
-      <FeaturesContext.Provider
-        value={{ features: { ...ALL_ON, stars: false }, setFeature: () => {} }}
-      >
+      <FeaturesTestProvider features={{ ...ALL_ON, stars: false }}>
         <PaperCard paper={paper} />
-      </FeaturesContext.Provider>,
+      </FeaturesTestProvider>,
     )
     expect(off).not.toContain('aria-label="Star this paper"')
     expect(off).not.toContain('aria-pressed')

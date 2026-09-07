@@ -26,16 +26,32 @@ interface FeaturesValue {
   setFeature: (key: FeatureKey, on: boolean) => void
 }
 
-/**
- * Exported for tests only. `FeaturesProvider` calls useRouter()/usePathname(),
- * which throw outside a mounted App Router, so a unit render that needs a
- * flag-off subtree (src/components/paper-card.test.tsx) provides the context
- * directly rather than mocking next/navigation.
- */
-export const FeaturesContext = createContext<FeaturesValue>({
+const FeaturesContext = createContext<FeaturesValue>({
   features: ALL_ON,
   setFeature: () => {},
 })
+
+/**
+ * The seam a unit render uses, and the only reason one exists: FeaturesProvider
+ * calls useRouter()/usePathname(), which throw outside a mounted App Router, so
+ * a test that needs a flag-off subtree (src/components/paper-card.test.tsx)
+ * mounts this instead of mocking next/navigation. Narrow on purpose — the
+ * context itself stays module-private, so app code has exactly one provider.
+ * `setFeature` is inert: nothing a static render can click.
+ */
+export function FeaturesTestProvider({
+  features,
+  children,
+}: {
+  features: Features
+  children: React.ReactNode
+}) {
+  return (
+    <FeaturesContext.Provider value={{ features, setFeature: () => {} }}>
+      {children}
+    </FeaturesContext.Provider>
+  )
+}
 
 export function FeaturesProvider({
   features,
