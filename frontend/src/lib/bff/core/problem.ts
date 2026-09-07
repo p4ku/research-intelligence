@@ -46,6 +46,13 @@ export function problemBody(slug: ProblemSlug, extra: Partial<Problem> = {}): Pr
   return { type: `/problems/${slug}`, title: base.title, status: base.status, ...extra }
 }
 
+const TYPE_PREFIX = '/problems/'
+
+/** The inverse of `problemBody`'s `type`: the slug, or '' for a type we did not mint. */
+export function problemSlug(type: string): string {
+  return type.startsWith(TYPE_PREFIX) ? type.slice(TYPE_PREFIX.length) : ''
+}
+
 export class ProblemError extends Error {
   readonly problem: Problem
 

@@ -33,14 +33,19 @@ export function bff(resource: ResourceName | null, handler: BffRouteHandler): Bf
     } catch (error) {
       const body = asProblem(error, request.nextUrl.pathname)
       // A 4xx is the caller's to read in the response; a 5xx is ours (or
-      // the backend's) to explain, so it leaves a line in the platform log.
-      // Only the unknown kind carries the original error: in production the
-      // body hides it, and this is the one place it is still in hand.
-      if (body.status >= 500) {
+      // the backend's) to explain, so it leaves a line in the platform log
+      // (501 is a route's normal answer for what it does not do yet). The
+      // field errors are the only thing a shape mismatch has to say, and
+      // the unknown kind carries the original error: in production the body
+      // hides it, and this is the one place it is still in hand.
+      if (body.status >= 500 && body.status !== 501) {
         const where = `${request.method} ${request.nextUrl.pathname}${request.nextUrl.search}`
-        const what = `${body.status} ${body.type}${body.detail ? `: ${body.detail}` : ''}`
-        if (error instanceof ProblemError) console.error(`[bff] ${where} → ${what}`)
-        else console.error(`[bff] ${where} → ${what}`, error)
+        const detail = body.detail ? `: ${body.detail.slice(0, 500)}` : ''
+        console.error(
+          `[bff] ${where} → ${body.status} ${body.type}${detail}`,
+          ...(body.errors ? [body.errors] : []),
+          ...(error instanceof ProblemError ? [] : [error]),
+        )
       }
       return problemResponse(
         source ? { ...body, source } : body,

@@ -1,6 +1,7 @@
 'use client'
 
 import { BffClientError, bffFetch } from '@/lib/bff/client'
+import { problemSlug } from '@/lib/bff/core/problem'
 import type { Palette, PaletteEntry } from '@/lib/bff/papers/schema'
 import { useCallback, useEffect, useState } from 'react'
 
@@ -34,13 +35,17 @@ export interface PaletteState {
 /** Mirrors the server cache's lifetime, so a tab never holds a corpus the server would not. */
 const PALETTE_TTL_MS = 45_000
 
-/** Long enough for a restarted instance to warm, short enough to beat the reader to the picker. */
-export const PALETTE_RETRY_DELAY_MS = 1_500
+/** Short enough to beat the reader to the picker; a blip that lasts longer is shown. */
+const PALETTE_RETRY_DELAY_MS = 1_500
+
+/** A load slower than this is a failure, not a wait: bones for longer are worse than the error row. */
+const PALETTE_TIMEOUT_MS = 15_000
 
 /**
  * Whether a failed load is worth a second attempt: an outage (5xx, no
- * response) usually clears in a moment, whereas a 4xx says the same request
- * will fail the same way — and a 401 has already sent the reader to sign in.
+ * response, a timeout) usually clears in a moment, whereas a 4xx says the
+ * same request will fail the same way — and a 401 has already sent the
+ * reader to sign in.
  */
 export function isTransient(error: unknown): boolean {
   return !(error instanceof BffClientError) || error.problem.status >= 500
@@ -48,18 +53,28 @@ export function isTransient(error: unknown): boolean {
 
 /** The failure's problem slug (`upstream-error`), for the wire marker and the log line. */
 export function failureSlug(error: unknown): string {
-  if (!(error instanceof BffClientError)) return 'unknown'
-  return error.problem.type.slice(error.problem.type.lastIndexOf('/') + 1) || 'unknown'
+  if (error instanceof BffClientError) return problemSlug(error.problem.type) || 'unknown'
+  if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+    return 'timeout'
+  }
+  return 'unknown'
 }
 
-/** The retried request carries its reason, so the router's access log alone tells the story. */
+/**
+ * The retried request carries its reason, so the router's access log alone
+ * tells the story. The reason is a slug and nothing else — it ends up in a
+ * log line — so anything that is not one is dropped before it goes out.
+ */
 export function paletteUrl(retryAfter?: string): string {
-  if (!retryAfter) return '/bff/papers/palette'
-  return `/bff/papers/palette?${new URLSearchParams({ retry: '1', after: retryAfter })}`
+  const after = retryAfter?.replace(/[^a-z0-9-]/g, '').slice(0, 64)
+  if (!after) return '/bff/papers/palette'
+  return `/bff/papers/palette?${new URLSearchParams({ retry: '1', after })}`
 }
 
 function fetchPalette(retryAfter?: string): Promise<PaletteEntry[]> {
-  return bffFetch<Palette>(paletteUrl(retryAfter)).then((p) => p.papers)
+  return bffFetch<Palette>(paletteUrl(retryAfter), {
+    signal: AbortSignal.timeout(PALETTE_TIMEOUT_MS),
+  }).then((p) => p.papers)
 }
 
 const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
@@ -86,10 +101,15 @@ export async function withOneRetry<T>(
 
 let held: { at: number; value: Promise<PaletteEntry[]> } | null = null
 
+/**
+ * `force` is a person pressing Try again (or opening the picker onto an
+ * error): one honest attempt, no quiet retry behind it — the automatic
+ * second chance belongs to the load nobody asked for.
+ */
 function loadPalette(force: boolean): Promise<PaletteEntry[]> {
   const now = Date.now()
   if (!force && held && now - held.at < PALETTE_TTL_MS) return held.value
-  const value = withOneRetry(fetchPalette)
+  const value = force ? fetchPalette() : withOneRetry(fetchPalette)
   const entry = { at: now, value }
   held = entry
   value.catch(() => {
@@ -124,8 +144,9 @@ export function usePalette(): PaletteState {
           if (live) setState({ entries, status: 'ready' })
         },
         (error: unknown) => {
+          if (!live) return
           console.error('[ask] palette failed:', error)
-          if (live) setState((s) => ({ entries: s.entries, status: 'error' }))
+          setState((s) => ({ entries: s.entries, status: 'error' }))
         },
       )
     })

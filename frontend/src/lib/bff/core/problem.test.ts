@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { asProblem, fromUpstream, problem, problemBody, upstreamFieldErrors } from './problem'
+import {
+  asProblem,
+  fromUpstream,
+  problem,
+  problemBody,
+  problemSlug,
+  upstreamFieldErrors,
+} from './problem'
 
 describe('problemBody', () => {
   test('builds the slug catalogue shape', () => {
@@ -13,6 +20,17 @@ describe('problemBody', () => {
     const p = problemBody('validation', { detail: 'Nope.' })
     expect(p.status).toBe(400)
     expect(p.detail).toBe('Nope.')
+  })
+})
+
+describe('problemSlug', () => {
+  test('inverts problemBody', () => {
+    expect(problemSlug(problemBody('upstream-error').type)).toBe('upstream-error')
+  })
+
+  test('is empty for a type we did not mint', () => {
+    expect(problemSlug('about:blank')).toBe('')
+    expect(problemSlug('')).toBe('')
   })
 })
 

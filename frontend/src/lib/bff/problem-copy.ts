@@ -6,7 +6,7 @@
  * human-written (Django's own validation prose).
  * Client-safe: types only, no server imports.
  */
-import type { Problem } from '@/lib/bff/core/problem'
+import { problemSlug, type Problem } from '@/lib/bff/core/problem'
 import type { T } from '@/lib/i18n'
 
 /**
@@ -33,7 +33,7 @@ const FALLBACK = 'Something went wrong. Try again.'
 /** The sentence a user should read for this problem, in the current language. */
 export function problemMessage(problem: Problem | null | undefined, t: T): string {
   if (!problem) return t(FALLBACK)
-  const slug = problem.type.startsWith('/problems/') ? problem.type.slice('/problems/'.length) : ''
+  const slug = problemSlug(problem.type)
   if (slug === 'validation' && problem.detail) return problem.detail
   const copy = PROBLEM_COPY[slug]
   return t(copy ?? FALLBACK)

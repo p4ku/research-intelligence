@@ -4,7 +4,7 @@
  */
 import { BffClientError } from '@/lib/bff/client'
 import { problemBody } from '@/lib/bff/core/problem'
-import { afterEach, describe, expect, spyOn, test } from 'bun:test'
+import { afterAll, afterEach, describe, expect, spyOn, test } from 'bun:test'
 import { failureSlug, isTransient, paletteUrl, withOneRetry } from './use-palette'
 
 const failure = (slug: Parameters<typeof problemBody>[0]) =>
@@ -33,6 +33,12 @@ describe('failureSlug', () => {
     expect(failureSlug(failure('upstream-error'))).toBe('upstream-error')
   })
 
+  test('names a timed-out fetch', () => {
+    expect(failureSlug(new DOMException('The operation timed out.', 'TimeoutError'))).toBe(
+      'timeout',
+    )
+  })
+
   test('falls back for an untyped error', () => {
     expect(failureSlug(new Error('boom'))).toBe('unknown')
   })
@@ -46,11 +52,21 @@ describe('paletteUrl', () => {
   test('the retry carries its reason', () => {
     expect(paletteUrl('upstream-error')).toBe('/bff/papers/palette?retry=1&after=upstream-error')
   })
+
+  test('the reason is a slug and nothing else — it is written to a log', () => {
+    expect(paletteUrl('x\n[bff] GET /bff/y → 500')).toBe(
+      '/bff/papers/palette?retry=1&after=xbffbffy500',
+    )
+    expect(paletteUrl('\n\n')).toBe('/bff/papers/palette')
+    expect(paletteUrl('a'.repeat(80))).toBe(`/bff/papers/palette?retry=1&after=${'a'.repeat(64)}`)
+  })
 })
 
 describe('withOneRetry', () => {
+  // bun runs every test file in one process: restore, or the mock outlives this file.
   const warn = spyOn(console, 'warn').mockImplementation(() => {})
   afterEach(() => warn.mockClear())
+  afterAll(() => warn.mockRestore())
 
   /** A loader scripted with its outcomes, in order; records what it was told. */
   function scripted(outcomes: (Error | string)[]) {

@@ -162,10 +162,14 @@ export type Palette = z.infer<typeof palette>
 /**
  * The picker's one automatic retry announces itself, so a failed first load
  * can be traced from the router's access log alone: `retry=1` marks the
- * second request, `after` names the problem the first one ended in.
+ * second request, `after` names the problem the first one ended in. A
+ * marker only, read leniently: a malformed one is ignored, never a 400.
  */
 export const paletteQuery = z.object({
   retry: z.literal('1').optional(),
-  after: z.string().max(64).optional(),
+  /** A problem slug, nothing else — this value is written to the log. */
+  after: z
+    .string()
+    .regex(/^[a-z0-9-]{1,64}$/)
+    .optional(),
 })
-export type PaletteQuery = z.infer<typeof paletteQuery>

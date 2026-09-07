@@ -1,5 +1,4 @@
 import { bff } from '@/lib/bff/core/handler'
-import { parseQuery } from '@/lib/bff/core/validate'
 import { recentCorpus } from '@/lib/bff/papers/corpus'
 import { toPalette } from '@/lib/bff/papers/palette'
 import { paletteQuery } from '@/lib/bff/papers/schema'
@@ -13,10 +12,13 @@ export const dynamic = 'force-dynamic'
  *
  * A request marked `retry=1` is the client's one automatic second attempt;
  * it is logged with the problem the first attempt ended in, so a blip that
- * healed itself still leaves a trace to investigate.
+ * healed itself still leaves a trace to investigate. The marker is only a
+ * marker: one that fails to parse is ignored, and the papers are served.
  */
 export const GET = bff('papers', async (request) => {
-  const { retry, after } = parseQuery(paletteQuery, request.nextUrl)
-  if (retry) console.warn(`[bff] palette retried by the client after: ${after ?? 'unknown'}`)
+  const marker = paletteQuery.safeParse(Object.fromEntries(request.nextUrl.searchParams))
+  if (marker.success && marker.data.retry) {
+    console.warn(`[bff] palette retried by the client after: ${marker.data.after || 'unknown'}`)
+  }
   return Response.json(toPalette(await recentCorpus()))
 })
