@@ -55,9 +55,9 @@ export function EditionPaperList({ papers, logHref }: { papers: ScoredPaper[]; l
         {shown.map((p) => (
           <PaperCard key={p.id} paper={p} />
         ))}
-        {filtering && shown.length === 0 && (
+        {shown.length === 0 && (
           <div className="rounded-sm border border-dashed border-line p-10 text-center text-sm text-zinc-400">
-            {t('Nothing starred yet.')}
+            {filtering ? t('Nothing starred yet.') : t('No papers are on file for this briefing.')}
           </div>
         )}
       </div>

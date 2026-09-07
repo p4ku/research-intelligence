@@ -11,6 +11,7 @@
  */
 import 'server-only'
 
+import { indexRuns, type RunIndex } from '@/lib/papers/runs'
 import { cache } from 'react'
 import * as z from 'zod'
 import { django } from '../core/http'
@@ -22,7 +23,7 @@ import { corpusSnapshot } from '../corpus/snapshot'
 import { stars } from '../stars/service'
 import { workspace, type WorkspaceSummary } from '../workspaces/schema'
 import { workspaces } from '../workspaces/service'
-import { composeGet, composeListAll } from './compose'
+import { composeGet, composeListAll, listPapersRaw } from './compose'
 import { applyPapersQuery, corpusFacets } from './filter'
 import { fixturePapers, fixtureWorkspace } from './fixtures'
 import {
@@ -141,6 +142,18 @@ export const papers = {
     const truncated =
       sourceOf('papers') === 'composed' ? (await corpusSnapshot()).truncated : undefined
     return { workspaces: summaries, papers: merged, truncated }
+  }),
+
+  /**
+   * Every run's own record of every paper (src/lib/papers/runs.ts), for the
+   * readers that need a paper as one run saw it rather than as it stands
+   * today — the briefings. Only the `composed` source sees the per-run
+   * metrics; the others return null and the corpus's own attribution is all
+   * there is. Cached per request, over the same snapshot as `listAll`.
+   */
+  runIndex: cache(async (): Promise<RunIndex | null> => {
+    if (sourceOf('papers') !== 'composed') return null
+    return indexRuns(await listPapersRaw())
   }),
 
   /**

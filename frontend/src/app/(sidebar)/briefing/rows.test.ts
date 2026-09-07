@@ -58,6 +58,12 @@ describe('composeRows', () => {
     expect(composeRows({ editions: [bare], runs: [], domains, t, lang: 'en' })).toEqual([])
   })
 
+  test('a run whose edition holds none of the papers it passed is not a row either', () => {
+    // The counters promise 25; the edition would open onto nothing.
+    const unfilled = { ...edition, papers: [], funnel: { ...edition.funnel, surfaced: 0 } }
+    expect(composeRows({ editions: [unfilled], runs: [run], domains, t, lang: 'en' })).toEqual([])
+  })
+
   test('only the newest completed run is current', () => {
     const olderRun = {
       ...run,

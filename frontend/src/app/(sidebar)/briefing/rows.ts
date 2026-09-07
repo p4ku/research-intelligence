@@ -83,10 +83,10 @@ export function composeRows({
     const run = byId.get(e.run_id)
     const screened = run?.total_papers_fetched ?? e.funnel.fetched
     const included = run?.total_papers_passed_screening ?? e.funnel.passed_screening
-    // Nothing cleared screening: the edition exists, but there is no briefing
-    // to open, so the archive leaves the run out (and, as on Home, it is
-    // never Current).
-    if (included === 0) continue
+    // Nothing to open — nothing cleared screening, or the run passed papers
+    // the edition cannot show — so the archive leaves the run out (and, as
+    // on Home, it is never Current). Home's run log is where those show.
+    if (included === 0 || e.papers.length === 0) continue
     rows.push({
       id: e.run_id,
       workspaceId: e.workspace_id,

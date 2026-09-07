@@ -32,11 +32,14 @@ function topPapers(edition: Edition): HomePaper[] {
 }
 
 /** The spec's three labels: Current, Processing, Failed; other completed rows carry none. */
-function rowStatus(run: PipelineRun, currentId: string | null): RowStatus {
+function rowStatus(run: PipelineRun, edition: Edition | null, currentId: string | null): RowStatus {
   switch (run.status) {
     case 'completed':
-      // Nothing cleared screening: there is no briefing to be current.
-      if (run.total_papers_passed_screening === 0) return 'empty'
+      // No briefing to open — nothing cleared screening, no edition was
+      // composed for the run (an older same-day rerun), or the edition
+      // holds none of the papers the run passed — so nothing to be current.
+      if (run.total_papers_passed_screening === 0 || !edition || edition.papers.length === 0)
+        return 'empty'
       return run.id === currentId ? 'current' : 'done'
     case 'running':
     case 'pending':
@@ -69,7 +72,7 @@ export async function LedgerSection({
 }) {
   const [items, current] = await forPage(Promise.all([recentRuns(lang), currentRun()]))
   const rows: HomeRow[] = items.map(({ run, edition }) => {
-    const status = rowStatus(run, current?.id ?? null)
+    const status = rowStatus(run, edition, current?.id ?? null)
     const completed = run.status === 'completed'
     return {
       id: run.id,
