@@ -94,8 +94,7 @@ export const dict: Record<string, string> = {
   'Search papers by topic, technology, title or author':
     'Papers nach Thema, Technologie, Titel oder Autor suchen',
   'Recent briefings': 'Aktuelle Briefings',
-  'View all briefings →': 'Alle Briefings anzeigen →',
-  'Ask about a paper →': 'Zu einem Paper fragen →',
+  'all briefings': 'Alle Briefings',
   'No briefings have been generated yet.': 'Es wurden noch keine Briefings erstellt.',
   'Loading the briefing': 'Das Briefing wird geladen',
   'Loading recent briefings': 'Aktuelle Briefings werden geladen',
