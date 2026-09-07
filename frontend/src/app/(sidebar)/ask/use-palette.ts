@@ -2,7 +2,7 @@
 
 import { bffFetch } from '@/lib/bff/client'
 import type { Palette, PaletteEntry } from '@/lib/bff/papers/schema'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 /**
  * The picker's rows for what the reader has typed, fetched after the
@@ -14,9 +14,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
  * moment. From then on this is a typeahead with the manners of Home's
  * (../../../components/corpus-search/use-search.ts): a short debounce, the
  * previous request aborted on every keystroke, the last good rows held
- * while the next load, and a per-tab cache by query so backspacing is
- * instant. The server ranks with the shared matcher and cuts at `limit`,
- * so the browser never holds more than a screenful.
+ * while the next load, and a per-tab cache by query so backspacing (and a
+ * remount) is instant. Everything shown is derived from the responses by
+ * query, so the effect only fetches. The server ranks with the shared
+ * matcher and cuts at `limit`; the browser never holds more than a
+ * screenful.
  */
 export type PaletteStatus = 'loading' | 'ready' | 'error'
 
@@ -38,27 +40,25 @@ const DEBOUNCE_MS = 130
 
 const EMPTY: Palette = { query: '', papers: [], matched: 0, total: 0 }
 
-/** Per tab: settled palettes by query, newest last. */
-const held = new Map<string, { at: number; value: Palette }>()
+/** Per tab: settled palettes by query, newest last — what a remount starts from. */
+const tab = new Map<string, { at: number; value: Palette }>()
 
 function remember(q: string, value: Palette): void {
-  held.delete(q)
-  held.set(q, { at: Date.now(), value })
-  while (held.size > CACHE_MAX) {
-    const oldest = held.keys().next().value
+  tab.delete(q)
+  tab.set(q, { at: Date.now(), value })
+  while (tab.size > CACHE_MAX) {
+    const oldest = tab.keys().next().value
     if (oldest === undefined) break
-    held.delete(oldest)
+    tab.delete(oldest)
   }
 }
 
-function recall(q: string): Palette | undefined {
-  const hit = held.get(q)
-  if (!hit) return undefined
-  if (Date.now() - hit.at >= PALETTE_TTL_MS) {
-    held.delete(q)
-    return undefined
-  }
-  return hit.value
+/** The tab's still-fresh palettes, as a mount's starting point. */
+function fresh(): Map<string, Palette> {
+  const now = Date.now()
+  const out = new Map<string, Palette>()
+  for (const [q, { at, value }] of tab) if (now - at < PALETTE_TTL_MS) out.set(q, value)
+  return out
 }
 
 export function palettePath(q: string, limit = LIMIT): string {
@@ -77,40 +77,44 @@ function onIdle(fn: () => void): () => void {
 
 export function usePalette(query: string): PaletteState {
   const q = query.trim()
-  const [latest, setLatest] = useState<Palette>(() => recall('') ?? EMPTY)
-  const [settled, setSettled] = useState<string | null>(() => (recall('') ? '' : null))
+  const [entries, setEntries] = useState<ReadonlyMap<string, Palette>>(fresh)
+  const [latest, setLatest] = useState<Palette | null>(() => entries.get('') ?? null)
   const [failed, setFailed] = useState<string | null>(null)
   // Bumped by retry; a retry asks the server again even for a cached query.
   const [attempt, setAttempt] = useState(0)
   const seq = useRef(0)
+  const current = useRef('')
+  const fetchedAttempt = useRef(0)
   const inFlight = useRef<{ q: string; controller: AbortController } | null>(null)
 
+  const hit = entries.get(q)
+  const error = hit === undefined && failed === q
+  const status: PaletteStatus = error ? 'error' : hit !== undefined ? 'ready' : 'loading'
+  const shown = hit ?? latest ?? EMPTY
+
   useEffect(() => {
-    seq.current += 1
-    const mine = seq.current
-    const cached = attempt === 0 ? recall(q) : undefined
-    if (cached) {
-      setLatest(cached)
-      setSettled(q)
-      return
+    if (current.current !== q) {
+      current.current = q
+      seq.current += 1
     }
-    if (inFlight.current?.q === q && attempt === 0) return
+    const retrying = attempt !== fetchedAttempt.current
+    if (!retrying && (entries.has(q) || inFlight.current?.q === q)) return
+    const mine = seq.current
     const fire = () => {
       inFlight.current?.controller.abort()
       const controller = new AbortController()
       inFlight.current = { q, controller }
+      fetchedAttempt.current = attempt
       bffFetch<Palette>(palettePath(q), { signal: controller.signal })
         .then((palette) => {
           remember(q, palette)
-          if (mine !== seq.current) return
-          setLatest(palette)
-          setSettled(q)
-          setFailed(null)
+          setEntries((prev) => new Map(prev).set(q, palette))
+          if (mine === seq.current) setLatest(palette)
         })
-        .catch((error: unknown) => {
-          if (controller.signal.aborted || mine !== seq.current) return
-          console.error('[ask] palette failed:', error)
-          setFailed(q)
+        .catch((e: unknown) => {
+          if (controller.signal.aborted) return
+          console.error('[ask] palette failed:', e)
+          if (mine === seq.current) setFailed(q)
         })
         .finally(() => {
           if (inFlight.current?.controller === controller) inFlight.current = null
@@ -120,13 +124,13 @@ export function usePalette(query: string): PaletteState {
     if (!q) return onIdle(fire)
     const timer = setTimeout(fire, DEBOUNCE_MS)
     return () => clearTimeout(timer)
-  }, [q, attempt])
+  }, [q, attempt, entries])
 
-  const retry = useCallback(() => {
+  // Stable by the compiler's memoization; nothing here needs a manual one.
+  const retry = () => {
     setFailed(null)
     setAttempt((n) => n + 1)
-  }, [])
+  }
 
-  const status: PaletteStatus = failed === q ? 'error' : settled === q ? 'ready' : 'loading'
-  return { entries: latest.papers, matched: latest.matched, total: latest.total, status, retry }
+  return { entries: shown.papers, matched: shown.matched, total: shown.total, status, retry }
 }
