@@ -4,8 +4,8 @@ import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { Suspense, ViewTransition } from 'react'
-import { EditionsSection } from './sections'
-import { EditionsSkeleton } from './skeletons'
+import { LedgerSection } from './sections'
+import { LedgerSkeletonRegion } from './skeletons'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,33 +14,34 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t('Briefings') }
 }
 
-// /briefing is the archive as a reading room: the dashboard carries today's
-// briefing, and every edition from every domain lives here — search on top,
-// the selected brief on the left, the history rail on the right. One edition
-// per completed pipeline run; each has a permalink at /briefing/[date]?domain=.
+// /briefing is the archive of every completed briefing — the spec's ledger:
+// domain, period, generated, screened, included; the Current one highlighted;
+// a domain filter, a star per row, twenty a page. Each row opens to its brief
+// and leads to /briefing/[date]?domain=. Filter and page ride in the URL,
+// read by the ledger itself (useSearchParams), so this page ignores them.
 //
-// The header renders with the shell; the reading room streams in behind one
-// Suspense boundary (one list feeds search, reader and rail). loading.tsx
-// shows the same skeleton on navigation.
+// The header renders with the shell; the ledger streams in behind one
+// Suspense boundary. loading.tsx shows the same skeleton on navigation.
+// The reading room this replaced lives on at /briefing-archive.
 
-export default async function BriefingPage() {
+export default async function BriefingsPage() {
   const [t, lang, state] = await Promise.all([getT(), getLang(), getWorkspacesState()])
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow={t('Daily briefings')} title={t('Briefings')} />
+      <PageHeader eyebrow={t('Briefings archive')} title={t('Briefings')} />
       {state.kind !== 'ok' ? (
         <WorkspaceNotice kind={state.kind} />
       ) : (
         <Suspense
           fallback={
             <ViewTransition exit="bone-exit" default="none">
-              <EditionsSkeleton t={t} />
+              <LedgerSkeletonRegion t={t} domains={state.all.map((ws) => ws.name)} />
             </ViewTransition>
           }
         >
           <ViewTransition enter="bone-enter" default="none">
-            <EditionsSection workspaces={state.all} lang={lang} t={t} />
+            <LedgerSection workspaces={state.all} lang={lang} t={t} />
           </ViewTransition>
         </Suspense>
       )}

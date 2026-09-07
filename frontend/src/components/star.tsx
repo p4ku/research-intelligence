@@ -65,7 +65,7 @@ export function StarButton({
       }}
       className={clsx(
         'inline-flex size-7 items-center justify-center rounded-sm text-zinc-400 transition-[opacity,color] duration-150 ease-out',
-        'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 aria-pressed:opacity-100',
+        'opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 aria-pressed:opacity-100 pointer-coarse:opacity-100',
         'hover:text-zinc-700 aria-pressed:text-warn dark:hover:text-zinc-200',
         className,
       )}
