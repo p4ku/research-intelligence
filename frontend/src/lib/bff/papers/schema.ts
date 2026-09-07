@@ -111,7 +111,8 @@ export const scoredPaper = z
 export type ScoredPaper = z.infer<typeof scoredPaper>
 
 export const papersQuery = listQuery.extend({
-  workspace_id: z.uuid(),
+  /** Absent = every domain the user belongs to. */
+  workspace_id: z.uuid().optional(),
   /** 'passed' = the three passed statuses; 'all' = everything. */
   screening: z
     .enum([

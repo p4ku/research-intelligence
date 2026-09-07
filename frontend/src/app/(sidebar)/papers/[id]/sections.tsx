@@ -72,7 +72,7 @@ export async function PaperRecord({ id, t, lang }: { id: string; t: T; lang: Lan
               <p className="mt-1 text-xs text-zinc-400">
                 {paper.signal_score === null
                   ? t('Not scored yet')
-                  : t('Composite score from the workspace’s signal-score formula.')}
+                  : t('Composite score from the domain’s signal-score formula.')}
               </p>
               {details?.error && (
                 <p className="mt-2 inline-flex rounded-sm bg-red-500/10 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-300">
@@ -102,7 +102,7 @@ export async function PaperRecord({ id, t, lang }: { id: string; t: T; lang: Lan
             </div>
             <p className="mt-1 text-xs text-zinc-400">
               {t(
-                'Scored by the workspace’s extraction definitions, with the model’s rationale where it gave one.',
+                'Scored by the domain’s extraction definitions, with the model’s rationale where it gave one.',
               )}
             </p>
             <DimensionsFrame className="mt-5">

@@ -15,10 +15,10 @@ source/signal), and the exclusions (title/source/screening reason).
 
 ## BFF routes
 
-| Route                       | Query                                          | Returns                               |
-| --------------------------- | ---------------------------------------------- | ------------------------------------- |
-| `GET /bff/briefings`        | `workspace_id` (required), `page`, `page_size` | `BriefingEditionPage` (summaries)     |
-| `GET /bff/briefings/{date}` | `workspace_id` (required)                      | `BriefingEdition` (with `exclusions`) |
+| Route                       | Query                                                                       | Returns                               |
+| --------------------------- | --------------------------------------------------------------------------- | ------------------------------------- |
+| `GET /bff/briefings`        | `workspace_id` (optional; absent = every domain), `page`, `page_size`       | `BriefingEditionPage` (summaries)     |
+| `GET /bff/briefings/{date}` | `workspace_id` (optional; absent = the day's newest edition across domains) | `BriefingEdition` (with `exclusions`) |
 
 Schemas: `src/lib/bff/briefings/schema.ts`. Dates are `YYYY-MM-DD`; same-day
 reruns resolve to the latest run (`run_id` disambiguates in the payload).

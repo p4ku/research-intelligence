@@ -1,6 +1,6 @@
 // Small selectors over the domain types, safe for client components.
 
-import type { Dimension, ScoredPaper, WorkspaceSummary } from './types'
+import type { DefinitionSummary, Dimension, ScoredPaper, WorkspaceSummary } from './types'
 
 export function trlDimension(paper: ScoredPaper): Dimension | undefined {
   return paper.dimensions.find((d) => d.is_trl)
@@ -11,10 +11,33 @@ export function dimensionByKey(paper: ScoredPaper, key: string): Dimension | und
 }
 
 /** Definitions worth sorting/filtering by: active and, in this corpus, numeric. */
-export function numericDefinitions(ws: WorkspaceSummary, papers: ScoredPaper[]) {
+export function numericDefinitions(
+  ws: Pick<WorkspaceSummary, 'definitions'>,
+  papers: ScoredPaper[],
+) {
   return ws.definitions.filter(
     (d) => d.is_active && papers.some((p) => dimensionByKey(p, d.key)?.value !== null),
   )
+}
+
+/**
+ * One definition list spanning several domains, each key once (the first
+ * domain's entry wins) — so a sort option is offered once even when every
+ * domain defines the same dimension.
+ */
+export function unionDefinitions(
+  workspaces: readonly Pick<WorkspaceSummary, 'definitions'>[],
+): DefinitionSummary[] {
+  const seen = new Set<string>()
+  const out: DefinitionSummary[] = []
+  for (const ws of workspaces) {
+    for (const d of ws.definitions) {
+      if (seen.has(d.key)) continue
+      seen.add(d.key)
+      out.push(d)
+    }
+  }
+  return out
 }
 
 /** Sort comparator: descending by value, nulls last. */

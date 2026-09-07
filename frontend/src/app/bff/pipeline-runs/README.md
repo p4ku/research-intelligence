@@ -8,9 +8,9 @@ run date; briefing editions are derived from completed runs.
 
 ## BFF routes
 
-| Route                    | Query                                                    | Returns           |
-| ------------------------ | -------------------------------------------------------- | ----------------- |
-| `GET /bff/pipeline-runs` | `workspace_id` (required), `status`, `page`, `page_size` | `PipelineRunPage` |
+| Route                    | Query                                                                                               | Returns           |
+| ------------------------ | --------------------------------------------------------------------------------------------------- | ----------------- |
+| `GET /bff/pipeline-runs` | `workspace_id` (optional; absent = every domain the user belongs to), `status`, `page`, `page_size` | `PipelineRunPage` |
 
 Schema: `src/lib/bff/pipeline-runs/schema.ts` (`PipelineRun` — the contract
 trims Django's serializer to what the UI shows).

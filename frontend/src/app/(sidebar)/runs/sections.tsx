@@ -7,20 +7,12 @@ import { RunsTable } from './runs-table'
 
 /**
  * The runs page's streamed body: band, filter strip and table all read the one
- * list the workspace has, so they are one Suspense boundary — they cannot
- * arrive separately. Returns a single root so the page can wrap it in a
- * <ViewTransition> with its skeleton.
+ * list — every run across the user's domains — so they are one Suspense
+ * boundary; they cannot arrive separately. Returns a single root so the page
+ * can wrap it in a <ViewTransition> with its skeleton.
  */
-export async function RunsSection({
-  wsId,
-  wsName,
-  tab,
-}: {
-  wsId: string
-  wsName: string
-  tab: Tab
-}) {
-  const all = await forPage(runsService.listAll(wsId))
+export async function RunsSection({ tab }: { tab: Tab }) {
+  const all = await forPage(runsService.listEverywhere())
   const shown = all.filter((run) => matches(run, tab))
 
   const fetched = all.reduce((sum, run) => sum + run.total_papers_fetched, 0)
@@ -51,7 +43,7 @@ export async function RunsSection({
         <Card>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             {all.length === 0
-              ? `No pipeline runs in ${wsName} yet.`
+              ? 'No pipeline runs yet.'
               : `No ${tab} runs. ${all.length} run${all.length === 1 ? '' : 's'} in total.`}
           </p>
         </Card>

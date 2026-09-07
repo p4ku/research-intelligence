@@ -11,6 +11,7 @@ export const fixtureRuns: PipelineRun[] = [
   {
     id: '00000000-0000-4000-8000-000000000101',
     workspace_id: fixtureWorkspace.id,
+    workspace_name: fixtureWorkspace.name,
     run_date: '2026-08-31',
     status: 'completed',
     current_stage: 'completed',
@@ -26,6 +27,7 @@ export const fixtureRuns: PipelineRun[] = [
   {
     id: '00000000-0000-4000-8000-000000000102',
     workspace_id: fixtureWorkspace.id,
+    workspace_name: fixtureWorkspace.name,
     run_date: '2026-08-30',
     status: 'failed',
     current_stage: 'extraction',
@@ -40,6 +42,7 @@ export const fixtureRuns: PipelineRun[] = [
   {
     id: '00000000-0000-4000-8000-000000000103',
     workspace_id: fixtureWorkspace.id,
+    workspace_name: fixtureWorkspace.name,
     run_date: '2026-09-01',
     status: 'running',
     current_stage: 'abstract_screening',
@@ -55,7 +58,6 @@ export const fixtureRuns: PipelineRun[] = [
 
 export const fixtureRunDetail: PipelineRunDetail = {
   ...fixtureRuns[0],
-  workspace_name: fixtureWorkspace.name,
   triggered_by: 'admin',
   reprocess_existing: false,
   tokens_in: 879394,

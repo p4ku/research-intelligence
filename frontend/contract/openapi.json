@@ -3147,6 +3147,9 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
+          "workspace_name": {
+            "type": "string"
+          },
           "run_date": {
             "type": "string",
             "format": "date",
@@ -3226,6 +3229,7 @@
         "required": [
           "id",
           "workspace_id",
+          "workspace_name",
           "run_date",
           "status",
           "current_stage",
@@ -3252,6 +3256,9 @@
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "workspace_name": {
+            "type": "string"
           },
           "run_date": {
             "type": "string",
@@ -3327,9 +3334,6 @@
                 "type": "null"
               }
             ]
-          },
-          "workspace_name": {
-            "type": "string"
           },
           "triggered_by": {
             "anyOf": [
@@ -3403,6 +3407,7 @@
         "required": [
           "id",
           "workspace_id",
+          "workspace_name",
           "run_date",
           "status",
           "current_stage",
@@ -3413,7 +3418,6 @@
           "usd_cost",
           "started_at",
           "completed_at",
-          "workspace_name",
           "triggered_by",
           "reprocess_existing",
           "tokens_in",

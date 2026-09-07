@@ -20,6 +20,7 @@ import { problem, ProblemError } from '../core/problem'
 import { sourceOf } from '../core/source'
 import { assertUuid } from '../core/validate'
 import { workspace, type WorkspaceSummary } from '../workspaces/schema'
+import { workspaces } from '../workspaces/service'
 import { composeGet, composeListAll } from './compose'
 import { fixturePapers, fixtureWorkspace } from './fixtures'
 import { paperPage, scoredPaper, type PapersQuery, type ScoredPaper } from './schema'
@@ -29,13 +30,17 @@ export interface WorkspacePapers {
   papers: ScoredPaper[]
 }
 
+/** The unified corpus: every domain the user belongs to and every paper in them. */
+export interface CorpusPapers {
+  workspaces: WorkspaceSummary[]
+  papers: ScoredPaper[]
+}
+
 const detailResponse = z.object({ workspace, paper: scoredPaper })
 
-async function djangoListAll(workspaceId: string): Promise<WorkspacePapers | null> {
+/** The requested endpoint, drained page by page (the UI holds the whole corpus in memory anyway). */
+async function djangoPapersOf(workspaceId: string): Promise<ScoredPaper[]> {
   assertUuid(workspaceId, 'workspace_id')
-  // The requested endpoint, drained page by page (the UI's composed path
-  // holds the whole corpus in memory anyway; server-side filtering starts
-  // once this endpoint exists).
   const papers: ScoredPaper[] = []
   let page = 1
   for (;;) {
@@ -47,12 +52,19 @@ async function djangoListAll(workspaceId: string): Promise<WorkspacePapers | nul
     if (!result.next || page >= 50) break
     page += 1
   }
+  return papers
+}
+
+async function djangoListAll(workspaceId: string): Promise<WorkspacePapers | null> {
   // Only a genuine 404 (workspace gone) may become null; an outage must
   // throw, or a fetched corpus gets presented as "no membership" (#2).
-  const ws = await django(`/api/workspaces/${workspaceId}/`, workspace).catch((error: unknown) => {
-    if (error instanceof ProblemError && error.problem.status === 404) return null
-    throw error
-  })
+  const [papers, ws] = await Promise.all([
+    djangoPapersOf(workspaceId),
+    django(`/api/workspaces/${workspaceId}/`, workspace).catch((error: unknown) => {
+      if (error instanceof ProblemError && error.problem.status === 404) return null
+      throw error
+    }),
+  ])
   return ws ? { workspace: ws, papers } : null
 }
 
@@ -102,9 +114,47 @@ export const papers = {
     }
   }),
 
-  /** The paginated HTTP face: screening filter, ordering, search. */
+  /**
+   * Every paper across every domain the user belongs to, with the domain
+   * summaries (definitions, scales) the lists need for their sort options.
+   * Under `composed` the fan-out is free — the raw lists are cached and only
+   * the per-domain scoring repeats; under `django` it is one corpus fetch per
+   * domain, with the summaries taken from the memberships list instead of a
+   * second GET each. Cached per request.
+   */
+  listEverywhere: cache(async (): Promise<CorpusPapers> => {
+    const memberships = await workspaces.listAll()
+    const perWorkspace = await Promise.all(
+      memberships.map(
+        async (ws): Promise<WorkspacePapers | null> =>
+          sourceOf('papers') === 'django'
+            ? { workspace: ws, papers: await djangoPapersOf(ws.id) }
+            : papers.listAll(ws.id),
+      ),
+    )
+    const seen = new Set<string>()
+    const merged: ScoredPaper[] = []
+    const summaries: WorkspaceSummary[] = []
+    for (const scored of perWorkspace) {
+      // A membership the corpus cannot see is a backend inconsistency, not an
+      // outage (that would have thrown): it drops out rather than failing the
+      // whole page. Papers are deduped by id (the stub repeats its fixtures).
+      if (!scored) continue
+      summaries.push(scored.workspace)
+      for (const paper of scored.papers) {
+        if (seen.has(paper.id)) continue
+        seen.add(paper.id)
+        merged.push(paper)
+      }
+    }
+    return { workspaces: summaries, papers: merged }
+  }),
+
+  /** The paginated HTTP face: screening filter, ordering, search; one domain or all. */
   async list(query: PapersQuery): Promise<Page<ScoredPaper>> {
-    const all = await papers.listAll(query.workspace_id)
+    const all = query.workspace_id
+      ? await papers.listAll(query.workspace_id)
+      : await papers.listEverywhere()
     if (!all) throw problem('not-found', { detail: 'No such workspace in your memberships.' })
     let rows = all.papers
     if (query.screening === 'passed') {
@@ -116,11 +166,8 @@ export const papers = {
     }
     if (query.search) rows = rows.filter((p) => matches(p, query.search!))
     rows = order(rows, query.ordering)
-    const extra: Record<string, string> = {
-      workspace_id: query.workspace_id,
-      screening: query.screening,
-      ordering: query.ordering,
-    }
+    const extra: Record<string, string> = { screening: query.screening, ordering: query.ordering }
+    if (query.workspace_id) extra.workspace_id = query.workspace_id
     if (query.search) extra.search = query.search
     return paginate(rows, query, '/bff/papers', extra)
   },

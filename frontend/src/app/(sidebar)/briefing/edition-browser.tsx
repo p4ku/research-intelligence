@@ -1,7 +1,7 @@
 'use client'
 
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
-import { SignalScore } from '@/components/scanner-ui'
+import { DomainBadge, SignalScore } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import { fmt, type Lang } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
@@ -9,9 +9,14 @@ import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/20/solid'
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
-import { formatEditionDate } from './format'
+import { editionHref, formatEditionDate } from './format'
 
 export interface BrowserEdition {
+  /** The run that produced it — the identity, since two domains can share a date. */
+  runId: string
+  workspaceId: string
+  /** The domain's display name. */
+  domain: string
   date: string
   title: string
   inBrief: string
@@ -161,9 +166,11 @@ function RailRowBody({
             : 'bg-transparent group-hover:bg-zinc-300 dark:group-hover:bg-zinc-600',
         )}
       />
+      {/* One line, whatever the domain is called: the date keeps its width,
+          the domain truncates, so a long name never grows the row. */}
       <div
         className={clsx(
-          'font-mono text-[11px] tracking-wide tabular-nums',
+          'flex min-w-0 items-baseline gap-2 font-mono text-[11px] tracking-wide whitespace-nowrap tabular-nums',
           current ? 'text-zinc-700 dark:text-zinc-200' : 'text-zinc-400 dark:text-zinc-500',
         )}
       >
@@ -190,7 +197,7 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
   const searchRef = useRef<HTMLInputElement>(null)
   const readerRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
-  const [activeDate, setActiveDate] = useState(editions[0]?.date)
+  const [activeId, setActiveId] = useState(editions[0]?.runId)
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -202,13 +209,13 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
 
   // Keep the reader on a still-visible edition when a search narrows the list.
   const active =
-    filtered.find((e) => e.date === activeDate) ??
-    editions.find((e) => e.date === activeDate) ??
+    filtered.find((e) => e.runId === activeId) ??
+    editions.find((e) => e.runId === activeId) ??
     filtered[0] ??
     null
 
-  function select(date: string) {
-    setActiveDate(date)
+  function select(runId: string) {
+    setActiveId(runId)
     // Only nudge the reader into view on the stacked (mobile) layout.
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
       readerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -264,6 +271,7 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
             date={
               <>
                 {formatEditionDate(active.date, lang)}
+                <DomainBadge name={active.domain} tone="quiet" className="normal-case" />
                 {active.proseSource === 'template' && (
                   <span className="border-line rounded-sm border px-1 py-px normal-case">
                     {t('auto-brief')}
@@ -272,7 +280,7 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
               </>
             }
             link={
-              <Link href={`/briefing/${active.date}`} className={READER_LINK}>
+              <Link href={editionHref(active.date, active.workspaceId)} className={READER_LINK}>
                 {t('Open briefing →')}
               </Link>
             }
@@ -316,13 +324,13 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
           </p>
           <ul className={RAIL_LIST}>
             {filtered.map((e) => {
-              const current = active?.date === e.date
-              const isToday = e.date === editions[0]?.date
+              const current = active?.runId === e.runId
+              const isToday = e.runId === editions[0]?.runId
               return (
-                <li key={e.date} data-row="edition">
+                <li key={e.runId} data-row="edition">
                   <button
                     type="button"
-                    onClick={() => select(e.date)}
+                    onClick={() => select(e.runId)}
                     aria-current={current ? 'true' : undefined}
                     className={clsx(
                       RAIL_ROW,
@@ -335,8 +343,9 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
                       current={current}
                       date={
                         <>
-                          {formatEditionDate(e.date, lang)}
-                          {isToday && <span className="text-accent ml-2">{t('Today')}</span>}
+                          <span className="shrink-0">{formatEditionDate(e.date, lang)}</span>
+                          <span className="min-w-0 truncate">· {e.domain}</span>
+                          {isToday && <span className="text-accent shrink-0">{t('Today')}</span>}
                         </>
                       }
                       title={<span className="line-clamp-2 block">{e.title}</span>}

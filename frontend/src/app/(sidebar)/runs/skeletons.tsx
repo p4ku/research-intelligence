@@ -7,7 +7,7 @@ import { RunsTableSkeleton } from './runs-table'
 export const runsPageCopy = {
   title: 'Runs',
   description:
-    'Every pipeline run in this workspace — what it produced, what it cost, and how long it took.',
+    'Every pipeline run across your domains — what it produced, what it cost, and how long it took.',
 }
 
 /**
@@ -33,11 +33,7 @@ export function RunsSectionSkeleton() {
   )
 }
 
-/**
- * The loading.tsx shell. The eyebrow is the workspace name on the page, which
- * needs a backend call, so the shell says "Pipeline" the way the page's own
- * no-workspace branch does.
- */
+/** The loading.tsx shell — the same static header the page renders. */
 export function RunsPageSkeleton() {
   return (
     <div className="space-y-8">

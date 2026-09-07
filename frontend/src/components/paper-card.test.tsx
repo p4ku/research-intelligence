@@ -20,6 +20,12 @@ describe('PaperCard', () => {
     expect(out).toContain('line-clamp-2')
     expect(out).toContain(paper.title)
   })
+
+  test('names the domain in the meta row only when given one', () => {
+    expect(out).not.toContain('Hybrid Computing')
+    const withDomain = renderToStaticMarkup(<PaperCard paper={paper} domain="Hybrid Computing" />)
+    expect(withDomain).toContain('Hybrid Computing')
+  })
 })
 
 describe('PaperCardSkeleton', () => {

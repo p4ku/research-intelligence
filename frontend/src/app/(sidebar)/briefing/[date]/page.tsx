@@ -1,10 +1,11 @@
 import { WorkspaceNotice } from '@/components/workspace-notice'
 import { getLang, getT } from '@/lib/i18n-server'
-import { getWorkspaceState } from '@/lib/workspace-server'
+import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Suspense, ViewTransition } from 'react'
 import { isEditionDate } from '../format'
+import { domainNames, domainScope } from '../scope'
 import { EditionHead, EditionPapers } from './sections'
 import { EditionHeadSkeleton, EditionPapersSkeleton } from './skeletons'
 
@@ -22,7 +23,8 @@ export async function generateMetadata({
 
 // One edition, frozen: the same shape as the dashboard's daily brief — the
 // funnel, the brief, the papers that passed — plus the run's screening log.
-// Permalinkable, so a briefing can be shared as a URL.
+// Permalinkable, so a briefing can be shared as a URL: the day, and the domain
+// that produced it (two domains can complete a run on the same day).
 //
 // Two sections stream behind their own boundaries: the head on the edition,
 // the papers on the edition plus the scored corpus. loading.tsx shows the same
@@ -30,45 +32,49 @@ export async function generateMetadata({
 
 export default async function BriefingEditionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ date: string }>
+  searchParams: Promise<{ domain?: string }>
 }) {
-  const [{ date }, state, t, lang] = await Promise.all([
+  const [{ date }, { domain }, state, t, lang] = await Promise.all([
     params,
-    getWorkspaceState(),
+    searchParams,
+    getWorkspacesState(),
     getT(),
     getLang(),
   ])
-  // A missing workspace is not a missing page: an outage gets the honest
+  // A missing domain list is not a missing page: an outage gets the honest
   // notice, a user with no membership gets the membership copy — only a
   // date with no edition (or not a date at all) is a true 404.
   if (state.kind !== 'ok') return <WorkspaceNotice kind={state.kind} />
   if (!isEditionDate(date)) notFound()
-  const ws = state.ws
+  const wsId = domainScope(state.all, domain)
+  const domains = domainNames(state.all)
 
   return (
     <div className="space-y-10">
       <Suspense
         fallback={
           <ViewTransition exit="bone-exit" default="none">
-            <EditionHeadSkeleton t={t} lang={lang} date={date} />
+            <EditionHeadSkeleton t={t} lang={lang} date={date} domain={wsId && domains[wsId]} />
           </ViewTransition>
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <EditionHead wsId={ws.id} date={date} lang={lang} t={t} />
+          <EditionHead wsId={wsId} date={date} lang={lang} t={t} domains={domains} />
         </ViewTransition>
       </Suspense>
 
       <Suspense
         fallback={
           <ViewTransition exit="bone-exit" default="none">
-            <EditionPapersSkeleton t={t} date={date} />
+            <EditionPapersSkeleton t={t} date={date} wsId={wsId} />
           </ViewTransition>
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <EditionPapers wsId={ws.id} date={date} lang={lang} t={t} />
+          <EditionPapers wsId={wsId} date={date} lang={lang} t={t} />
         </ViewTransition>
       </Suspense>
     </div>

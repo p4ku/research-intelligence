@@ -242,32 +242,43 @@ async function discover(
   const ctx = await newContext(browser, opts, VIEWPORTS.desktop)
   await ctx.addCookies(cookies)
   const page = await ctx.newPage()
-  const firstHref = async (path: string, prefix: string): Promise<string | null> => {
+  const firstHref = async (
+    path: string,
+    prefix: string,
+    withQuery = false,
+  ): Promise<string | null> => {
     await page.goto(path, { waitUntil: 'domcontentloaded' })
     await settle(page, opts.timeout)
     const hrefs = await page
       .locator(`a[href^="${prefix}"]`)
       .evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).getAttribute('href') ?? ''))
-    return hrefs.find((h) => h.length > prefix.length && !h.includes('?')) ?? null
+    return hrefs.find((h) => h.length > prefix.length && (withQuery || !h.includes('?'))) ?? null
   }
+  // Edition links carry `?domain=` (two domains can share a date); the query
+  // is kept so the `[date]` routes open the same edition the list links to.
   const briefing =
-    (await firstHref('/briefing', '/briefing/')) ?? (await firstHref('/dashboard', '/briefing/'))
+    (await firstHref('/briefing', '/briefing/', true)) ??
+    (await firstHref('/dashboard', '/briefing/', true))
   const paper = await firstHref('/papers', '/papers/')
   const run = await firstHref('/runs', '/runs/')
   await ctx.close()
-  const date = briefing?.split('/')[2] ?? null
+  const edition = briefing ? new URL(briefing, 'http://localhost') : null
+  const date = edition?.pathname.split('/')[2] ?? null
+  const dateQuery = edition?.search ?? ''
   const id = paper?.split('/')[2] ?? null
   const runId = run?.split('/')[2] ?? null
-  return { date, id, runId }
+  return { date, dateQuery, id, runId }
 }
 
 function resolveRoute(
   route: string,
-  params: { date: string | null; id: string | null; runId: string | null },
+  params: { date: string | null; dateQuery: string; id: string | null; runId: string | null },
 ): string | null {
+  let query = ''
   if (route.includes('[date]')) {
     if (!params.date) return null
     route = route.replace('[date]', params.date)
+    query = params.dateQuery
   }
   if (route.includes('[id]')) {
     if (!params.id) return null
@@ -277,7 +288,7 @@ function resolveRoute(
     if (!params.runId) return null
     route = route.replace('[run]', params.runId)
   }
-  return PSEUDO_ROUTES[route] ?? route
+  return (PSEUDO_ROUTES[route] ?? route) + query
 }
 
 function wanted(screen: Screen, opts: Options): boolean {

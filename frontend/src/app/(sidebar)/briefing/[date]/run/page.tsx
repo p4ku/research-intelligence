@@ -1,10 +1,11 @@
 import { WorkspaceNotice } from '@/components/workspace-notice'
 import { getLang, getT } from '@/lib/i18n-server'
-import { getWorkspaceState } from '@/lib/workspace-server'
+import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Suspense, ViewTransition } from 'react'
 import { isEditionDate } from '../../format'
+import { domainNames, domainScope } from '../../scope'
 import { ScreeningLog } from './sections'
 import { ScreeningLogHeader, ScreeningLogSkeleton } from './skeletons'
 
@@ -19,25 +20,39 @@ export async function generateMetadata(): Promise<Metadata> {
 // Showing the near-misses is the credibility move — the briefing's short list
 // means something because the exclusions are inspectable.
 //
-// Crumbs and title render with the shell (the date is in the URL); the funnel
-// and the table stream behind one boundary. loading.tsx shows the same
-// skeleton on navigation.
+// Crumbs and title render with the shell (the date and domain are in the
+// URL); the funnel and the table stream behind one boundary. loading.tsx
+// shows the same skeleton on navigation.
 
-export default async function ScreeningLogPage({ params }: { params: Promise<{ date: string }> }) {
-  const [{ date }, state, t, lang] = await Promise.all([
+export default async function ScreeningLogPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ date: string }>
+  searchParams: Promise<{ domain?: string }>
+}) {
+  const [{ date }, { domain }, state, t, lang] = await Promise.all([
     params,
-    getWorkspaceState(),
+    searchParams,
+    getWorkspacesState(),
     getT(),
     getLang(),
   ])
   // Same split as the edition page: only a date with no edition is a 404.
   if (state.kind !== 'ok') return <WorkspaceNotice kind={state.kind} />
   if (!isEditionDate(date)) notFound()
-  const ws = state.ws
+  const wsId = domainScope(state.all, domain)
+  const domains = domainNames(state.all)
 
   return (
     <div className="space-y-10">
-      <ScreeningLogHeader t={t} lang={lang} date={date} />
+      <ScreeningLogHeader
+        t={t}
+        lang={lang}
+        date={date}
+        wsId={wsId}
+        domain={wsId && domains[wsId]}
+      />
 
       <Suspense
         fallback={
@@ -47,7 +62,7 @@ export default async function ScreeningLogPage({ params }: { params: Promise<{ d
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <ScreeningLog wsId={ws.id} date={date} lang={lang} t={t} />
+          <ScreeningLog wsId={wsId} date={date} lang={lang} t={t} />
         </ViewTransition>
       </Suspense>
     </div>

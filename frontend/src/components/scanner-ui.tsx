@@ -59,6 +59,40 @@ export function Breadcrumbs({
   )
 }
 
+/* -------------------------------- Domain badge ------------------------------ */
+
+/**
+ * The domain (the backend's workspace) a briefing, run or paper belongs to.
+ * `solid` is the accent chip a page header wears; `quiet` is the bordered
+ * version for meta rows and table cells, where the accent would shout.
+ */
+export function DomainBadge({
+  name,
+  tone = 'solid',
+  className,
+}: {
+  name: string
+  tone?: 'solid' | 'quiet'
+  className?: string
+}) {
+  return (
+    <span
+      className={clsx(
+        'inline-flex max-w-full items-center gap-1.5 rounded-sm text-[11px] font-medium',
+        tone === 'solid'
+          ? 'bg-accent px-2 py-0.5 text-white'
+          : 'border-line border px-1.5 py-px text-zinc-600 dark:text-zinc-300',
+        className,
+      )}
+    >
+      {tone === 'solid' && (
+        <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-white/80" />
+      )}
+      <span className="truncate">{name}</span>
+    </span>
+  )
+}
+
 /* -------------------------------- Page header ------------------------------- */
 
 export function PageHeader({

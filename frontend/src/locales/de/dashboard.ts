@@ -5,11 +5,10 @@ export const dict: Record<string, string> = {
   'Open briefing →': 'Briefing öffnen →',
   'Assembled automatically from this run.': 'Automatisch aus diesem Lauf zusammengestellt.',
   'No completed runs yet.': 'Noch keine abgeschlossenen Läufe.',
-  'No workspace selected': 'Kein Arbeitsbereich ausgewählt',
   'Run of {date}: {fetched} papers fetched, {passed} passed screening, {n} listed below.':
     'Lauf vom {date}: {fetched} Papers geladen, {passed} durch das Screening, {n} unten gelistet.',
-  'Once a pipeline run completes in this workspace, its papers appear here.':
-    'Sobald ein Pipeline-Lauf in diesem Arbeitsbereich abgeschlossen ist, erscheinen seine Papers hier.',
+  'Once a pipeline run completes, its papers appear here.':
+    'Sobald ein Pipeline-Lauf abgeschlossen ist, erscheinen seine Papers hier.',
   'Good morning, {name}': 'Guten Morgen, {name}',
   // Fallback when the session carries no name; interpolated into the greeting above.
   there: 'zusammen',

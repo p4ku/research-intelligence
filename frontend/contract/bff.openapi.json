@@ -9,7 +9,7 @@
     "/bff/papers": {
       "get": {
         "operationId": "papers.list.bff",
-        "summary": "Paginated scorecard for a workspace (screening filter, ordering, search).",
+        "summary": "Paginated scorecard (screening filter, ordering, search); ?workspace_id= narrows to one domain, otherwise every domain the user belongs to.",
         "tags": [
           "papers"
         ],
@@ -38,7 +38,7 @@
           {
             "name": "workspace_id",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string",
               "format": "uuid",
@@ -724,7 +724,7 @@
     "/bff/briefings": {
       "get": {
         "operationId": "briefings.list.bff",
-        "summary": "Paginated edition summaries for a workspace.",
+        "summary": "Paginated edition summaries; ?workspace_id= narrows to one domain, otherwise every domain the user belongs to.",
         "tags": [
           "briefings"
         ],
@@ -753,7 +753,7 @@
           {
             "name": "workspace_id",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string",
               "format": "uuid",
@@ -828,7 +828,7 @@
     "/bff/briefings/{date}": {
       "get": {
         "operationId": "briefings.detail.bff",
-        "summary": "One edition with exclusions (?workspace_id= required).",
+        "summary": "One edition with exclusions; ?workspace_id= picks the domain, otherwise the newest edition of that day across domains.",
         "tags": [
           "briefings"
         ],
@@ -1491,7 +1491,7 @@
     "/bff/pipeline-runs": {
       "get": {
         "operationId": "pipeline-runs.list.bff",
-        "summary": "Paginated runs for a workspace in the contract shape.",
+        "summary": "Paginated runs in the contract shape; ?workspace_id= narrows to one domain, otherwise every domain the user belongs to.",
         "tags": [
           "pipeline-runs"
         ],
@@ -1520,7 +1520,7 @@
           {
             "name": "workspace_id",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
               "type": "string",
               "format": "uuid",
@@ -3405,6 +3405,9 @@
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
           },
+          "workspace_name": {
+            "type": "string"
+          },
           "run_date": {
             "type": "string",
             "format": "date",
@@ -3484,6 +3487,7 @@
         "required": [
           "id",
           "workspace_id",
+          "workspace_name",
           "run_date",
           "status",
           "current_stage",
@@ -3510,6 +3514,9 @@
             "type": "string",
             "format": "uuid",
             "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "workspace_name": {
+            "type": "string"
           },
           "run_date": {
             "type": "string",
@@ -3585,9 +3592,6 @@
                 "type": "null"
               }
             ]
-          },
-          "workspace_name": {
-            "type": "string"
           },
           "triggered_by": {
             "anyOf": [
@@ -3661,6 +3665,7 @@
         "required": [
           "id",
           "workspace_id",
+          "workspace_name",
           "run_date",
           "status",
           "current_stage",
@@ -3671,7 +3676,6 @@
           "usd_cost",
           "started_at",
           "completed_at",
-          "workspace_name",
           "triggered_by",
           "reprocess_existing",
           "tokens_in",

@@ -15,6 +15,8 @@ export const pipelineRun = z
   .object({
     id: z.uuid(),
     workspace_id: z.uuid(),
+    /** The domain the run belongs to — its workspace's name, as Django sends it. */
+    workspace_name: z.string(),
     /** The trigger date (YYYY-MM-DD). */
     run_date: z.iso.date(),
     status: runStatus,
@@ -34,7 +36,8 @@ export const pipelineRun = z
 export type PipelineRun = z.infer<typeof pipelineRun>
 
 export const runsQuery = listQuery.extend({
-  workspace_id: z.uuid(),
+  /** Absent = every domain the user belongs to. */
+  workspace_id: z.uuid().optional(),
   status: runStatus.optional(),
 })
 export type RunsQuery = z.infer<typeof runsQuery>
@@ -47,7 +50,6 @@ export const runPage = pageSchema(pipelineRun).meta({ id: 'PipelineRunPage' })
  */
 export const pipelineRunDetail = pipelineRun
   .extend({
-    workspace_name: z.string(),
     /** Username, or null for a scheduled/system run. */
     triggered_by: z.string().nullable(),
     reprocess_existing: z.boolean(),

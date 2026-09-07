@@ -13,8 +13,8 @@ export const dict: Record<string, string> = {
   'Screening log →': 'Screening-Protokoll →',
   'Nothing was screened out in this run.': 'In diesem Lauf wurde nichts aussortiert.',
   'No completed runs yet.': 'Noch keine abgeschlossenen Läufe.',
-  'Once a pipeline run completes in this workspace, its briefing appears here.':
-    'Sobald ein Pipeline-Lauf in diesem Arbeitsbereich abschließt, erscheint sein Briefing hier.',
+  'Once a pipeline run completes in any of your domains, its briefing appears here.':
+    'Sobald ein Pipeline-Lauf in einer Ihrer Domänen abschließt, erscheint sein Briefing hier.',
   'Open briefing →': 'Briefing öffnen →',
   'Search briefings by subject, summary, or paper…':
     'Briefings nach Betreff, Zusammenfassung oder Paper durchsuchen…',

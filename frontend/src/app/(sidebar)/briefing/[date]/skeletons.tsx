@@ -4,25 +4,46 @@ import { Breadcrumbs, SectionLabel, StatBandSkeleton } from '@/components/scanne
 import { Bone, Skeleton } from '@/components/skeleton'
 import type { Lang, T } from '@/lib/i18n'
 import Link from 'next/link'
-import { formatEditionDate } from '../format'
+import { editionHref, formatEditionDate } from '../format'
 import { funnelCopy } from './sections'
 
 /**
  * The edition page's section skeletons — the page's Suspense fallbacks and,
- * stacked, the loading.tsx shell. The page knows the date from the URL and
- * passes it so the crumb and the log link are real; loading.tsx does not get
- * params, so there they are bones.
+ * stacked, the loading.tsx shell. The page knows the date (and, from
+ * `?domain=`, the domain) from the URL and passes them so the crumb and the
+ * log link are real; loading.tsx does not get params, so there they are bones.
  */
 
-export function EditionHeadSkeleton({ t, lang, date }: { t: T; lang: Lang; date?: string }) {
+export function EditionHeadSkeleton({
+  t,
+  lang,
+  date,
+  domain,
+}: {
+  t: T
+  lang: Lang
+  date?: string
+  domain?: string
+}) {
   const copy = funnelCopy(t)
+  const dateLabel = date ? formatEditionDate(date, lang) : null
   return (
     <Skeleton.Region status={t('Loading the briefing')} innerClassName="space-y-10">
       <div className="space-y-4">
         <Breadcrumbs
           items={[
             { label: t('Briefings'), href: '/briefing' },
-            { label: date ? formatEditionDate(date, lang) : <Bone.Text widths={['20ch']} /> },
+            {
+              label: dateLabel ? (
+                domain ? (
+                  `${domain} · ${dateLabel}`
+                ) : (
+                  dateLabel
+                )
+              ) : (
+                <Bone.Text widths={['20ch']} />
+              ),
+            },
           ]}
           t={t}
         />
@@ -53,10 +74,13 @@ export function EditionHeadSkeleton({ t, lang, date }: { t: T; lang: Lang; date?
 export function EditionPapersSkeleton({
   t,
   date,
+  wsId,
   cards = 5,
 }: {
   t: T
   date?: string
+  /** The domain from the URL; without it the log link resolves the day's newest edition. */
+  wsId?: string
   cards?: number
 }) {
   return (
@@ -70,7 +94,7 @@ export function EditionPapersSkeleton({
             </span>
             {date ? (
               <Link
-                href={`/briefing/${date}/run`}
+                href={wsId ? editionHref(date, wsId, 'run') : `/briefing/${date}/run`}
                 className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
               >
                 {t('Screening log →')}

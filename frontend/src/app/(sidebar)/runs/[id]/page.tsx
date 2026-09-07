@@ -1,6 +1,5 @@
 import { Breadcrumbs } from '@/components/scanner-ui'
 import { isUuid } from '@/lib/bff/core/validate'
-import { getCurrentWorkspace } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Suspense, ViewTransition } from 'react'
@@ -18,7 +17,7 @@ export const dynamic = 'force-dynamic'
  * <ViewTransition> pairs animate the skeleton → content handoff.
  */
 export default async function RunDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const [{ id }, workspace] = await Promise.all([params, getCurrentWorkspace()])
+  const { id } = await params
   if (!isUuid(id)) notFound()
 
   return (
@@ -33,7 +32,7 @@ export default async function RunDetailPage({ params }: { params: Promise<{ id: 
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <RunHead id={id} workspace={workspace} />
+          <RunHead id={id} />
         </ViewTransition>
       </Suspense>
 

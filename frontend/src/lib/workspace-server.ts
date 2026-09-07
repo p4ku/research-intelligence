@@ -1,48 +1,33 @@
 import 'server-only'
 
+import { forPage } from '@/lib/bff/core/page'
 import { workspaces } from '@/lib/bff/workspaces/service'
-import { cookies } from 'next/headers'
 import { cache } from 'react'
 import type { WorkspaceSummary } from './papers/types'
-import { WORKSPACE_COOKIE } from './workspace'
-
-export interface WorkspaceChoice {
-  id: string
-  name: string
-}
 
 /**
- * `none` (the user belongs to no workspace) is an account fact; `unavailable`
- * (the workspace list could not be fetched) is an outage. Pages must not
- * render membership copy for an outage — that is offense #2 of the error-UX
- * audit. Render `<WorkspaceNotice kind={...}>` for both non-ok kinds.
+ * The unified scope every page reads: all the workspaces the user belongs
+ * to — "domains" in the analyst-facing copy. There is no selected workspace
+ * any more; lists span every membership and name the domain per row.
+ *
+ * `none` (no memberships) is an account fact; `unavailable` (the list could
+ * not be fetched) is an outage. Render `<WorkspaceNotice kind={...}>` for
+ * both — never membership copy for an outage (error-UX audit #2).
  */
-export type WorkspaceState =
-  | { kind: 'ok'; ws: WorkspaceSummary }
+export type WorkspacesState =
+  | { kind: 'ok'; all: WorkspaceSummary[] }
   | { kind: 'none' }
   | { kind: 'unavailable' }
 
 /**
- * The workspace in scope: the cookie's choice if the user still belongs to
- * it, else their first workspace. Deduped per request.
+ * Deduped per request. Goes through `forPage` here, not at each call site:
+ * with no workspace fetch in the shell any more this is usually a page's
+ * first Django call, and a rejected session must still land on the logout
+ * flow rather than the route's error boundary.
  */
-export const getWorkspaceState = cache(async (): Promise<WorkspaceState> => {
-  const [result, store] = await Promise.all([workspaces.listAllResult(), cookies()])
+export const getWorkspacesState = cache(async (): Promise<WorkspacesState> => {
+  const result = await forPage(workspaces.listAllResult())
   if (!result.ok) return { kind: 'unavailable' }
-  const all = result.workspaces
-  if (all.length === 0) return { kind: 'none' }
-  const chosen = store.get(WORKSPACE_COOKIE)?.value
-  return { kind: 'ok', ws: all.find((w) => w.id === chosen) ?? all[0] }
+  if (result.workspaces.length === 0) return { kind: 'none' }
+  return { kind: 'ok', all: result.workspaces }
 })
-
-/** State collapsed to a nullable — for call sites that treat both non-ok kinds alike. */
-export async function getCurrentWorkspace(): Promise<WorkspaceSummary | null> {
-  const state = await getWorkspaceState()
-  return state.kind === 'ok' ? state.ws : null
-}
-
-/** The switcher is chrome: on an outage it degrades to an empty list quietly. */
-export async function listWorkspaceChoices(): Promise<WorkspaceChoice[]> {
-  const result = await workspaces.listAllResult()
-  return result.ok ? result.workspaces.map((w) => ({ id: w.id, name: w.name })) : []
-}

@@ -202,10 +202,11 @@ would do it).
 `cacheComponents` (Partial Prerendering) would make each route's shell static, so
 the skeletons ship with the HTML and the server does no work before first paint.
 It is a `next.config` change plus an audit of every layout that reads runtime
-data, which is why it is not part of this work. Note that `(sidebar)/layout.tsx`
-awaits the session and the workspace list, so on a **hard** load `loading.tsx`
-cannot appear until those resolve; on client navigation within the group it is
-instant. PPR is what would fix the hard-load case.
+data, which is why it is not part of this work. `(sidebar)/layout.tsx` now reads
+only cookies (session, language) — each page fetches the domain list itself —
+so on a **hard** load `loading.tsx` appears as soon as the shell streams; on
+client navigation within the group it is instant. PPR is what would make the
+shell itself static.
 
 Per-section error boundaries are also still missing: a failure in any section
 still replaces the whole page via `(sidebar)/error.tsx`.

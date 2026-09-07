@@ -3,10 +3,9 @@ export const dict: Record<string, string> = {
   // Core sidebar nav labels. Scoped with the 'nav' gettext context so they
   // translate independently of the same English words used as page titles
   // elsewhere (e.g. the 'Papers'/'Tuning' page headings, which stay loanwords).
-  'nav|Today': 'Heute',
+  'nav|Home': 'Start',
   'nav|Briefings': 'Briefings',
   'nav|Papers': 'Papers',
-  'nav|Tuning': 'Tuning',
   'nav|Ask': 'Fragen',
   'nav|Runs': 'Runs',
   'My account': 'Mein Konto',
@@ -25,8 +24,6 @@ export const dict: Record<string, string> = {
   'Tier 2 concepts': 'Tier-2-Konzepte',
   Watchlist: 'Watchlist',
   'Designed for:': 'Konzipiert für:',
-  'No workspace': 'Kein Arbeitsbereich',
-  'Switch workspace': 'Arbeitsbereich wechseln',
   // Route error boundaries (src/components/route-error.tsx + per-segment error.tsx).
   'Something went wrong loading this page.': 'Beim Laden dieser Seite ist ein Fehler aufgetreten.',
   Retry: 'Erneut versuchen',

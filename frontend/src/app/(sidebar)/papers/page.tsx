@@ -2,9 +2,8 @@ import { Card, PageHeader } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
 import { forPage } from '@/lib/bff/core/page'
 import { papers } from '@/lib/bff/papers/service'
-import { fmt } from '@/lib/i18n'
 import { getT } from '@/lib/i18n-server'
-import { getWorkspaceState } from '@/lib/workspace-server'
+import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { PapersBrowser } from './papers-browser'
 
@@ -15,30 +14,33 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t('Papers') }
 }
 
+/** Every paper from every domain the user belongs to, one browser over all of them. */
 export default async function PapersPage() {
-  const [t, state] = await Promise.all([getT(), getWorkspaceState()])
-  const scored = state.kind === 'ok' ? await forPage(papers.listAll(state.ws.id)) : null
+  const [t, state] = await Promise.all([getT(), getWorkspacesState()])
 
-  if (state.kind !== 'ok' || !scored) {
+  if (state.kind !== 'ok') {
     return (
       <div className="space-y-8">
         <PageHeader eyebrow={t('Corpus')} title={t('Papers')} />
-        <WorkspaceNotice kind={state.kind === 'unavailable' ? 'unavailable' : 'none'} />
+        <WorkspaceNotice kind={state.kind} />
       </div>
     )
   }
 
+  const corpus = await forPage(papers.listEverywhere())
+  // One domain reads as itself; several read as the whole corpus, with the
+  // domain filter in the browser doing the narrowing.
+  const eyebrow = corpus.workspaces.length === 1 ? corpus.workspaces[0].name : t('All domains')
+
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow={scored.workspace.name} title={t('Papers')} />
-      {scored.papers.length === 0 ? (
+      <PageHeader eyebrow={eyebrow} title={t('Papers')} />
+      {corpus.papers.length === 0 ? (
         <Card>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">
-            {fmt(t('No papers in {workspace} yet.'), { workspace: scored.workspace.name })}
-          </p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('No papers yet.')}</p>
         </Card>
       ) : (
-        <PapersBrowser papers={scored.papers} workspace={scored.workspace} />
+        <PapersBrowser papers={corpus.papers} workspaces={corpus.workspaces} />
       )}
     </div>
   )

@@ -32,13 +32,12 @@ export const dict: Record<string, string> = {
   "Couldn't change your password. Try again.":
     'Ihr Passwort konnte nicht geändert werden. Versuchen Sie es erneut.',
 
-  // Workspace notice (workspace-notice.tsx)
+  // Workspace notice (workspace-notice.tsx) — "domain" is the analyst-facing word
+  // for a workspace; the outage line reuses the chrome's "Nothing was lost…".
   "Couldn't reach the backend.": 'Das Backend ist nicht erreichbar.',
-  'Your workspaces are still there. Try again in a moment.':
-    'Ihre Arbeitsbereiche sind weiterhin vorhanden. Versuchen Sie es gleich noch einmal.',
-  'No workspace selected': 'Kein Arbeitsbereich ausgewählt',
-  'You are not a member of any workspace yet. Ask an administrator for access.':
-    'Sie sind noch keinem Arbeitsbereich zugeordnet. Wenden Sie sich für Zugriff an die Administration.',
+  'No domains yet': 'Noch keine Domänen',
+  "You don't have access to any domain yet. Ask an administrator for access.":
+    'Sie haben noch keinen Zugriff auf eine Domäne. Wenden Sie sich für Zugriff an die Administration.',
 
   // Not-found page ((sidebar)/not-found.tsx)
   "We couldn't find that.": 'Das konnten wir nicht finden.',

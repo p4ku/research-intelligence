@@ -25,16 +25,18 @@ so non-technical users can see _why_ something ranked where it did.
 - **Login** — email or username + password at `/`, exchanged for the backend's
   JWT pair by `/auth/login` and held in httpOnly cookies. There is no self-serve
   sign-up; users and workspace memberships are managed in Django Admin.
-- **Workspace switcher** — the backend's unit of scope (criteria, extraction
-  definitions, runs). Remembered in the `rs-workspace` cookie.
+- **Domains** — the backend's workspace (criteria, extraction definitions,
+  runs) is the analyst's _domain_. Every page spans all the workspaces the
+  user belongs to and names the domain per row; there is no switcher and no
+  scope cookie (`src/lib/workspace-server.ts`).
 - **Core app**:
-  - **Today** (`/dashboard`) — the latest completed run in the workspace: its
-    funnel and the papers it surfaced, sortable by the workspace's definitions.
+  - **Home** (`/dashboard`) — the latest completed run in any domain: its
+    funnel and the papers it surfaced, sortable by that domain's definitions.
   - **Briefings** (`/briefing`) — one edition per completed run: funnel,
     surfaced papers, the screening log, and a brief (template-written until
     the backend's reporting step lands).
-  - **Papers** (`/papers`) — every paper in the workspace scored against its
-    extraction definitions plus the backend's composite signal score; screening,
+  - **Papers** (`/papers`) — every paper from every domain, scored against its
+    domain's extraction definitions plus the backend's composite signal score; domain, screening,
     sort, ingest-window, signal-strength and (when defined) TRL filters; a detail
     page with the score formula, per-dimension rationale and evidence, screening
     notes, and arXiv/DOI links.
@@ -82,7 +84,7 @@ src/
     chat/               # useChatStream client hook
     sse/                # SSE parser + writer (shared by server and browser)
     papers/             # pure derivation rules (the backend port reference; bun test)
-    workspace*.ts       # workspace scope cookie
+    workspace-server.ts # the user's domains (all memberships), read by pages
     i18n*.ts            # demo-scale i18n: t() over the German dictionary (chrome only)
   locales/de/           # German dictionary, one module per app area
   fonts/                # self-hosted Switzer + IBM Plex Mono

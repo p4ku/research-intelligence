@@ -1,8 +1,8 @@
-// Core settings area: profile, password, workspace, and notifications
+// Core settings area: profile, password, domains, and notifications
 export const dict: Record<string, string> = {
   Settings: 'Einstellungen',
-  'Your profile, workspace, and how Research Intelligence reaches you.':
-    'Ihr Profil, Ihr Arbeitsbereich und wie Research Intelligence Sie erreicht.',
+  'Your profile, your domains, and how Research Intelligence reaches you.':
+    'Ihr Profil, Ihre Domänen und wie Research Intelligence Sie erreicht.',
   Profile: 'Profil',
   Name: 'Name',
   'First name': 'Vorname',
@@ -24,7 +24,8 @@ export const dict: Record<string, string> = {
   'Confirm new password': 'Neues Passwort bestätigen',
   'Change password': 'Passwort ändern',
   'Password changed.': 'Passwort geändert.',
-  Workspace: 'Arbeitsbereich',
+  Domains: 'Domänen',
+  'See what each domain’s score weighs →': 'Sehen, was der Score jeder Domäne gewichtet →',
   Sources: 'Quellen',
   'Extraction definitions': 'Extraktionsdefinitionen',
   'Screening model': 'Screening-Modell',

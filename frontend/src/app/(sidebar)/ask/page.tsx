@@ -1,7 +1,7 @@
 import { PageHeader } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
 import { getT } from '@/lib/i18n-server'
-import { getWorkspaceState } from '@/lib/workspace-server'
+import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { Suspense, ViewTransition } from 'react'
 import { AskSection } from './sections'
@@ -27,7 +27,7 @@ export default async function AskPage({
 }) {
   const [t, state, { paper, session }] = await Promise.all([
     getT(),
-    getWorkspaceState(),
+    getWorkspacesState(),
     searchParams,
   ])
 
@@ -39,8 +39,6 @@ export default async function AskPage({
       </div>
     )
   }
-  const ws = state.ws
-
   // The console owns the viewport: the page does not scroll, the transcript does.
   return (
     <div className="flex h-[calc(100dvh-6.5rem)] flex-col gap-6 lg:h-[calc(100dvh-6rem)]">
@@ -55,7 +53,7 @@ export default async function AskPage({
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <AskSection wsId={ws.id} paper={paper} session={session} />
+          <AskSection paper={paper} session={session} />
         </ViewTransition>
       </Suspense>
     </div>

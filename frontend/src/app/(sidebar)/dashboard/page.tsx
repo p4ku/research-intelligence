@@ -4,11 +4,11 @@ import { WorkspaceNotice } from '@/components/workspace-notice'
 import { getSessionUser } from '@/lib/auth/session'
 import { fmt } from '@/lib/i18n'
 import { getLang, getT } from '@/lib/i18n-server'
-import { getWorkspaceState } from '@/lib/workspace-server'
+import { getWorkspacesState } from '@/lib/workspace-server'
 import Link from 'next/link'
 import { Suspense, ViewTransition } from 'react'
 import { funnelCopy } from './data'
-import { Brief, BriefLink, Funnel, Papers, TodayEyebrow } from './sections'
+import { Brief, BriefLink, Funnel, Papers, TodayDomain, TodayEyebrow } from './sections'
 import { BriefSkeleton, FunnelSkeleton, PapersSkeleton } from './skeletons'
 
 export const dynamic = 'force-dynamic'
@@ -25,11 +25,12 @@ const anchors = [
  * navigation. <ViewTransition> pairs animate the skeleton → content handoff
  * (bone-exit/bone-enter in styles/tailwind.css); default="none" keeps them
  * quiet during every other transition, including RunPapers' sort transitions.
+ * "Today" is the newest completed run in any of the user's domains.
  */
 export default async function DashboardPage() {
   const [user, state, t, lang] = await Promise.all([
     getSessionUser(),
-    getWorkspaceState(),
+    getWorkspacesState(),
     getT(),
     getLang(),
   ])
@@ -46,8 +47,8 @@ export default async function DashboardPage() {
   }
 
   if (state.kind === 'none') {
-    // No workspace: nothing to fetch, so no boundaries — the page renders in
-    // one pass with the same copy as before.
+    // No domain to read from: nothing to fetch, so no boundaries — the page
+    // renders in one pass with the membership copy.
     const funnel = funnelCopy(t).map((c) => ({ value: 0, ...c }))
     return (
       <div className="space-y-10">
@@ -60,7 +61,7 @@ export default async function DashboardPage() {
               <SectionLabel size="sm">{t('Today in brief')}</SectionLabel>
             </div>
             <p className="mt-4 max-w-3xl text-base leading-relaxed text-pretty text-zinc-600 dark:text-zinc-300">
-              {t('No workspace selected')}
+              {t('No domains yet')}
             </p>
           </div>
         </section>
@@ -77,7 +78,7 @@ export default async function DashboardPage() {
           <div className="mt-5">
             <Card>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                {t('You are not a member of any workspace yet. Ask an administrator for access.')}
+                {t("You don't have access to any domain yet. Ask an administrator for access.")}
               </p>
             </Card>
           </div>
@@ -85,8 +86,6 @@ export default async function DashboardPage() {
       </div>
     )
   }
-  const ws = state.ws
-
   return (
     <div className="space-y-10">
       <SectionAnchors anchors={anchors} />
@@ -94,15 +93,16 @@ export default async function DashboardPage() {
       <PageHeader
         eyebrow={
           <Suspense fallback={t('Today')}>
-            <TodayEyebrow wsId={ws.id} t={t} lang={lang} />
+            <TodayEyebrow t={t} lang={lang} />
           </Suspense>
         }
         title={fmt(t('Good morning, {name}'), { name })}
         actions={
-          <span className="bg-accent inline-flex items-center gap-1.5 rounded-sm px-2 py-0.5 text-[11px] font-medium text-white">
-            <span aria-hidden="true" className="size-1.5 rounded-full bg-white/80" />
-            {ws.name}
-          </span>
+          // The badge needs the latest run, so it streams; the skeleton shows
+          // no actions, and neither does this until the run is known.
+          <Suspense fallback={null}>
+            <TodayDomain />
+          </Suspense>
         }
       />
 
@@ -116,14 +116,14 @@ export default async function DashboardPage() {
           }
         >
           <ViewTransition enter="bone-enter" default="none">
-            <Funnel wsId={ws.id} t={t} />
+            <Funnel t={t} />
           </ViewTransition>
         </Suspense>
         <div className="mt-8">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <SectionLabel size="sm">{t('Today in brief')}</SectionLabel>
             <Suspense fallback={null}>
-              <BriefLink wsId={ws.id} t={t} lang={lang} />
+              <BriefLink t={t} lang={lang} />
             </Suspense>
           </div>
           <Suspense
@@ -134,7 +134,7 @@ export default async function DashboardPage() {
             }
           >
             <ViewTransition enter="bone-enter" default="none">
-              <Brief wsId={ws.id} t={t} lang={lang} />
+              <Brief t={t} lang={lang} />
             </ViewTransition>
           </Suspense>
         </div>
@@ -160,7 +160,7 @@ export default async function DashboardPage() {
             }
           >
             <ViewTransition enter="bone-enter" default="none">
-              <Papers wsId={ws.id} t={t} />
+              <Papers t={t} />
             </ViewTransition>
           </Suspense>
         </div>

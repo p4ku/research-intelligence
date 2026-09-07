@@ -82,7 +82,7 @@ export function TuningPanel({ profile }: { profile: Influence[] }) {
     <div>
       <SectionLabel>{t('The dials')}</SectionLabel>
       <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-        {t('These weights are managed centrally and apply to every paper in the workspace.')}
+        {t('These weights are managed centrally and apply to every paper in the domain.')}
       </p>
 
       <div className="mt-5 grid gap-x-6 gap-y-4 sm:grid-cols-3">
