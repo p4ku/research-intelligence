@@ -1,4 +1,4 @@
-import { Page, Response } from '@playwright/test';
+import { BrowserContext, Page, Response } from '@playwright/test';
 
 export class BasePage {
   readonly page: Page;
@@ -36,6 +36,15 @@ export class BasePage {
     const cookies = await this.page.context().cookies();
     const found = cookies.find((c) => c.name === name);
     return found?.value;
+  }
+
+  /**
+   * Seed browser cookies on this page's context. The counterpart to getCookie,
+   * for preferences the app reads server-side (rs-lang, rs-features): call it
+   * before the first navigation so the very first render already sees them.
+   */
+  async addCookies(cookies: Parameters<BrowserContext['addCookies']>[0]): Promise<void> {
+    await this.page.context().addCookies(cookies);
   }
 
   async waitForNetworkIdle(timeout: number = 15000): Promise<void> {
