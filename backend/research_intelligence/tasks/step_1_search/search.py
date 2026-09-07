@@ -150,23 +150,39 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                 is_duplicate = True
 
             if is_duplicate:
-                if getattr(pipeline_run, 'reprocess_existing', False):
-                    # Link existing workspace paper to this active run for re-screening and re-extraction
-                    from django.db.models import Q
-                    clean_doi = norm_doi if norm_doi else doi
-                    clean_arxiv = norm_arxiv if norm_arxiv else arxiv_id
-                    conds = Q(workspace=workspace)
-                    match_q = Q()
-                    if norm_doi:
-                        match_q |= Q(doi__iexact=clean_doi)
-                    if norm_arxiv:
-                        match_q |= Q(arxiv_id__iexact=clean_arxiv)
-                    if norm_title:
-                        match_q |= Q(title__iexact=title)
-                    with transaction.atomic():
-                        existing_p = Paper.objects.filter(conds & match_q).first()
-                        if existing_p:
-                            # Associate existing paper with active pipeline run for reprocessing via PaperMetric.
+                clean_doi = norm_doi if norm_doi else doi
+                clean_arxiv = norm_arxiv if norm_arxiv else arxiv_id
+                from django.db.models import Q
+                conds = Q(workspace=workspace)
+                match_q = Q()
+                if norm_doi:
+                    match_q |= Q(doi__iexact=clean_doi)
+                if norm_arxiv:
+                    match_q |= Q(arxiv_id__iexact=clean_arxiv)
+                if norm_title:
+                    match_q |= Q(title__iexact=title)
+
+                with transaction.atomic():
+                    existing_p = Paper.objects.filter(conds & match_q).first()
+                    if existing_p:
+                        # Enrich existing paper with any newly found fields
+                        updated_fields = []
+                        if not existing_p.original_pdf_path and (item.get('pdf_url') or item.get('original_pdf_path')):
+                            existing_p.original_pdf_path = item.get('pdf_url') or item.get('original_pdf_path')
+                            updated_fields.append('original_pdf_path')
+                        if not existing_p.doi and clean_doi:
+                            existing_p.doi = clean_doi
+                            updated_fields.append('doi')
+                        if not existing_p.arxiv_id and clean_arxiv:
+                            existing_p.arxiv_id = clean_arxiv
+                            updated_fields.append('arxiv_id')
+                        if not existing_p.meta and item.get('meta'):
+                            existing_p.meta = item.get('meta')
+                            updated_fields.append('meta')
+                        if updated_fields:
+                            existing_p.save(update_fields=updated_fields)
+
+                        if getattr(pipeline_run, 'reprocess_existing', False):
                             PaperMetric.objects.get_or_create(
                                 paper=existing_p,
                                 pipeline_run=pipeline_run,
@@ -180,27 +196,65 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
 
             clean_doi = norm_doi if norm_doi else doi
             clean_arxiv = norm_arxiv if norm_arxiv else arxiv_id
-            unique_hash = hashlib.sha256(f"{workspace.id}:{item['source_database']}:{item['hash_id']}".encode()).hexdigest()
+            
+            # Canonical unique hash across providers to prevent duplicates when multiple scrapers run in parallel
+            if norm_doi:
+                unique_hash = hashlib.sha256(f"{workspace.id}:doi:{norm_doi}".encode()).hexdigest()
+            elif norm_arxiv:
+                unique_hash = hashlib.sha256(f"{workspace.id}:arxiv:{norm_arxiv}".encode()).hexdigest()
+            elif norm_title:
+                unique_hash = hashlib.sha256(f"{workspace.id}:title:{norm_title}".encode()).hexdigest()
+            else:
+                unique_hash = hashlib.sha256(f"{workspace.id}:{item['source_database']}:{item['hash_id']}".encode()).hexdigest()
 
             is_withdrawn = item.get('is_withdrawn', False)
             screening_status = 'withdrawn' if is_withdrawn else 'pending'
             screening_reasoning = item.get('withdrawn_reason', '') if is_withdrawn else None
 
             with transaction.atomic():
-                paper, created = Paper.objects.get_or_create(
-                    workspace=workspace,
-                    hash_id=unique_hash,
-                    defaults={
-                        "arxiv_id": clean_arxiv,
-                        "doi": clean_doi,
-                        "title": title,
-                        "authors": item.get('authors', ''),
-                        "abstract": item.get('abstract', ''),
-                        "source_database": item.get('source_database', 'arxiv'),
-                        "original_pdf_path": item.get('pdf_url', '') or item.get('original_pdf_path', ''),
-                        "meta": item.get('meta') or {}
-                    }
-                )
+                from django.db.models import Q
+                match_q = Q(hash_id=unique_hash)
+                if norm_doi:
+                    match_q |= Q(doi__iexact=clean_doi)
+                if norm_arxiv:
+                    match_q |= Q(arxiv_id__iexact=clean_arxiv)
+                if norm_title:
+                    match_q |= Q(title__iexact=title)
+
+                paper = Paper.objects.filter(Q(workspace=workspace) & match_q).first()
+                if paper:
+                    created = False
+                    updated_fields = []
+                    if not paper.original_pdf_path and (item.get('pdf_url') or item.get('original_pdf_path')):
+                        paper.original_pdf_path = item.get('pdf_url') or item.get('original_pdf_path')
+                        updated_fields.append('original_pdf_path')
+                    if not paper.doi and clean_doi:
+                        paper.doi = clean_doi
+                        updated_fields.append('doi')
+                    if not paper.arxiv_id and clean_arxiv:
+                        paper.arxiv_id = clean_arxiv
+                        updated_fields.append('arxiv_id')
+                    if not paper.meta and item.get('meta'):
+                        paper.meta = item.get('meta')
+                        updated_fields.append('meta')
+                    if updated_fields:
+                        paper.save(update_fields=updated_fields)
+                else:
+                    paper, created = Paper.objects.get_or_create(
+                        workspace=workspace,
+                        hash_id=unique_hash,
+                        defaults={
+                            "arxiv_id": clean_arxiv,
+                            "doi": clean_doi,
+                            "title": title,
+                            "authors": item.get('authors', ''),
+                            "abstract": item.get('abstract', ''),
+                            "source_database": item.get('source_database', 'arxiv'),
+                            "original_pdf_path": item.get('pdf_url', '') or item.get('original_pdf_path', ''),
+                            "meta": item.get('meta') or {}
+                        }
+                    )
+
                 if not created and item.get('meta') and not paper.meta:
                     paper.meta = item.get('meta')
                     paper.save(update_fields=['meta'])
