@@ -3,7 +3,6 @@ import { componentRuns as componentRunsService } from '@/lib/bff/component-runs/
 import { forPage } from '@/lib/bff/core/page'
 import { ProblemError } from '@/lib/bff/core/problem'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
-import type { WorkspaceSummary } from '@/lib/bff/workspaces/schema'
 import { notFound } from 'next/navigation'
 import { formatUsd, RunStatus, shortId } from '../run-presentation'
 import { RunFacts } from './run-facts'
@@ -34,20 +33,9 @@ function getSteps(id: string) {
   })
 }
 
-/** Header, workspace notice, funnel band and the facts card — everything the run record alone gives. */
-export async function RunHead({
-  id,
-  workspace,
-}: {
-  id: string
-  workspace: WorkspaceSummary | null
-}) {
+/** Header, funnel band and the facts card — everything the run record alone gives. */
+export async function RunHead({ id }: { id: string }) {
   const run = await forPage(getRun(id))
-
-  // Any run id is reachable by URL, so it can belong to a workspace other than
-  // the one the sidebar is showing. Say so rather than letting the chrome imply
-  // the run belongs to the selected workspace.
-  const foreign = workspace !== null && workspace.id !== run.workspace_id
 
   return (
     <div className="space-y-8">
@@ -57,15 +45,6 @@ export async function RunHead({
         description={run.status_message ?? undefined}
         actions={<RunStatus run={run} />}
       />
-
-      {foreign && (
-        <div className="rounded-sm border border-amber-300/60 bg-amber-50 p-4 dark:border-amber-400/25 dark:bg-amber-400/10">
-          <p className="text-sm text-amber-900 dark:text-amber-200">
-            This run belongs to <strong>{run.workspace_name}</strong>, not the workspace selected in
-            the sidebar. Switch workspace to see it in the runs list.
-          </p>
-        </div>
-      )}
 
       <StatBand
         flow

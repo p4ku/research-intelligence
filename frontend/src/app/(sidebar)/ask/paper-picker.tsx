@@ -177,7 +177,7 @@ export function PaperPicker({
         ))
       ) : (
         <p className="text-muted-foreground px-3 py-6 text-center text-sm">
-          {fmt(t('No papers match “{q}” — the workspace holds {n} papers.'), {
+          {fmt(t('No papers match “{q}” — {n} papers to choose from.'), {
             q: query.trim(),
             n: entries.length,
           })}

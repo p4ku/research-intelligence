@@ -48,11 +48,10 @@ export const dict: Record<string, string> = {
   Ingested: 'Aufgenommen',
   Unscored: 'Nicht bewertet',
 
-  // Workspace scope and empty states
-  'No workspace selected': 'Kein Arbeitsbereich ausgewählt',
-  'You are not a member of any workspace yet. Ask an administrator for access.':
-    'Sie sind noch keinem Arbeitsbereich zugeordnet. Wenden Sie sich für Zugriff an die Administration.',
-  'No papers in {workspace} yet.': 'Noch keine Papers in {workspace}.',
+  // Domain scope and empty states
+  'All domains': 'Alle Domänen',
+  Domain: 'Domäne',
+  'No papers yet.': 'Noch keine Papers.',
   'Something went wrong loading papers.': 'Beim Laden der Papers ist ein Fehler aufgetreten.',
   Retry: 'Erneut versuchen',
 
@@ -76,8 +75,8 @@ export const dict: Record<string, string> = {
   'Signal Score': 'Signal-Score',
   Profile: 'Profil',
   Dimensions: 'Dimensionen',
-  'Scored by the workspace’s extraction definitions, with the model’s rationale where it gave one.':
-    'Bewertet nach den Extraktionsdefinitionen des Arbeitsbereichs, mit Begründung des Modells, wo vorhanden.',
+  'Scored by the domain’s extraction definitions, with the model’s rationale where it gave one.':
+    'Bewertet nach den Extraktionsdefinitionen der Domäne, mit Begründung des Modells, wo vorhanden.',
   Formula: 'Formel',
   Variables: 'Variablen',
   'Formula error': 'Formelfehler',
@@ -101,8 +100,8 @@ export const dict: Record<string, string> = {
   gate: 'Schwelle',
   actual: 'tatsächlich',
   'Not scored yet': 'Noch nicht bewertet',
-  'Composite score from the workspace’s signal-score formula.':
-    'Gesamtscore aus der Signal-Score-Formel des Arbeitsbereichs.',
+  'Composite score from the domain’s signal-score formula.':
+    'Gesamtscore aus der Signal-Score-Formel der Domäne.',
   Evidence: 'Belege',
   Confidence: 'Konfidenz',
   'Needs review': 'Prüfung nötig',

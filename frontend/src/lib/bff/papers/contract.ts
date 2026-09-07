@@ -62,7 +62,8 @@ export const papersOperations: Operation[] = [
     kind: 'bff',
     method: 'GET',
     path: '/bff/papers',
-    summary: 'Paginated scorecard for a workspace (screening filter, ordering, search).',
+    summary:
+      'Paginated scorecard (screening filter, ordering, search); ?workspace_id= narrows to one domain, otherwise every domain the user belongs to.',
     query: papersQuery,
     responses: { 200: paperPage },
   },

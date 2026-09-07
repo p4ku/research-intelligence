@@ -11,16 +11,18 @@ import { cache } from 'react'
 /**
  * Per-request accessors for the dashboard's streamed sections. Each section
  * awaits only what it renders; `cache()` de-duplicates across sections (the
- * eyebrow and the paper list both need the latest run, and
- * `papers.listAll` / `briefings.listAll` are not themselves cached).
+ * eyebrow, the domain badge and the paper list all need the latest run).
+ * "Today" is the newest completed run in any of the user's domains; which
+ * domain that is comes from the run itself.
  */
 
 export const latestRun = cache(
-  async (wsId: string) => (await runsService.listAll(wsId, 'completed'))[0] ?? null,
+  async () => (await runsService.listEverywhere('completed'))[0] ?? null,
 )
 
-export const runPapers = cache(async (wsId: string) => {
-  const [latest, scored] = await Promise.all([latestRun(wsId), papersService.listAll(wsId)])
+export const runPapers = cache(async () => {
+  const latest = await latestRun()
+  const scored = latest ? await papersService.listAll(latest.workspace_id) : null
   // The latest completed run and the papers it surfaced: the dashboard claims
   // no more than the list below shows.
   const papers =
@@ -32,9 +34,14 @@ export const runPapers = cache(async (wsId: string) => {
   return { latest, workspace: scored?.workspace ?? null, papers }
 })
 
-export const editionToday = cache(
-  async (wsId: string, lang: Lang) => (await briefings.listAll(wsId, lang))[0] ?? null,
-)
+export const editionToday = cache(async (lang: Lang) => {
+  const latest = await latestRun()
+  if (!latest) return null
+  const editions = await briefings.listAll(latest.workspace_id, lang)
+  // The edition this run produced. Same-day reruns collapse to the newest,
+  // which `latest` is, so the fallback only covers a list that has moved on.
+  return editions.find((e) => e.run_id === latest.id) ?? editions[0] ?? null
+})
 
 /** The funnel's static copy — shared by the loaded band and its skeleton. */
 export function funnelCopy(t: T) {

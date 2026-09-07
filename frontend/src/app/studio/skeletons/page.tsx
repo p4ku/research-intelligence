@@ -110,6 +110,9 @@ const pickerEntries: PaletteEntry[] = fivePapers.map((p) => ({
 }))
 
 const browserEditions: BrowserEdition[] = fixtureEditions.map((e) => ({
+  runId: e.run_id,
+  workspaceId: e.workspace_id,
+  domain: fixtureWorkspace.name,
   date: e.date,
   title: e.title,
   inBrief: e.in_brief,

@@ -4,12 +4,12 @@ import { getT } from '@/lib/i18n-server'
 import { ExclamationTriangleIcon } from '@heroicons/react/16/solid'
 
 /**
- * The card a page renders when it has no workspace to show. Two distinct
+ * The card a page renders when it has no domain to read from. Two distinct
  * states that must never converge (error-UX audit #2):
  *  - `none`: the user belongs to no workspace — an account fact, membership copy.
  *  - `unavailable`: the workspace list could not be fetched — an outage,
  *    named as such, with a Retry. Never the membership copy.
- * Studio pages pass `english` (operator surface, untranslated by decision).
+ * English-only pages pass `english` (operator copy, untranslated by decision).
  */
 export async function WorkspaceNotice({
   kind,
@@ -24,10 +24,10 @@ export async function WorkspaceNotice({
     return (
       <Card>
         <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
-          {t('No workspace selected')}
+          {t('No domains yet')}
         </p>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          {t('You are not a member of any workspace yet. Ask an administrator for access.')}
+          {t("You don't have access to any domain yet. Ask an administrator for access.")}
         </p>
       </Card>
     )
@@ -43,7 +43,7 @@ export async function WorkspaceNotice({
         <div className="min-w-0">
           <p className="text-foreground text-sm font-medium">{t("Couldn't reach the backend.")}</p>
           <p className="text-muted-foreground mt-1 text-sm">
-            {t('Your workspaces are still there. Try again in a moment.')}
+            {t('Nothing was lost. Try again in a moment.')}
           </p>
           <div className="mt-4">
             <RefreshButton label={t('Retry')} busyLabel={t('Retrying…')} />

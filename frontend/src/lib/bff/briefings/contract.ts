@@ -34,7 +34,8 @@ export const briefingsOperations: Operation[] = [
     kind: 'bff',
     method: 'GET',
     path: '/bff/briefings',
-    summary: 'Paginated edition summaries for a workspace.',
+    summary:
+      'Paginated edition summaries; ?workspace_id= narrows to one domain, otherwise every domain the user belongs to.',
     query: editionsQuery,
     responses: { 200: editionPage },
   },
@@ -45,7 +46,8 @@ export const briefingsOperations: Operation[] = [
     kind: 'bff',
     method: 'GET',
     path: '/bff/briefings/{date}',
-    summary: 'One edition with exclusions (?workspace_id= required).',
+    summary:
+      'One edition with exclusions; ?workspace_id= picks the domain, otherwise the newest edition of that day across domains.',
     responses: { 200: edition },
   },
 ]

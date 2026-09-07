@@ -6,27 +6,17 @@ import { Ask } from './ask'
 import type { PaletteEntry } from './types'
 
 /**
- * The console behind its Suspense boundary: the corpus (for the picker) and
- * the session history both block it, so they stream together while the
- * page's header and the console skeleton are already on screen.
+ * The console behind its Suspense boundary: the corpus (for the picker, every
+ * paper from every domain) and the session history both block it, so they
+ * stream together while the page's header and the console skeleton are
+ * already on screen.
  */
-export async function AskSection({
-  wsId,
-  paper,
-  session,
-}: {
-  wsId: string
-  paper?: string
-  session?: string
-}) {
-  const [scored, sessions] = await forPage(
-    Promise.all([
-      papers.listAll(wsId),
-      chat.listSessions({ workspace_id: wsId, page: 1, page_size: 100 }),
-    ]),
+export async function AskSection({ paper, session }: { paper?: string; session?: string }) {
+  const [corpus, sessions] = await forPage(
+    Promise.all([papers.listEverywhere(), chat.listSessions({ page: 1, page_size: 100 })]),
   )
 
-  const entries: PaletteEntry[] = (scored?.papers ?? [])
+  const entries: PaletteEntry[] = corpus.papers
     .map((p) => ({
       id: p.id,
       title: p.title,
@@ -41,8 +31,7 @@ export async function AskSection({
 
   return (
     <Ask
-      key={`${wsId}:${initialPaperId ?? 'none'}`}
-      workspaceId={wsId}
+      key={initialPaperId ?? 'none'}
       entries={entries}
       initialSessions={sessions.results}
       initialPaperId={initialPaperId}

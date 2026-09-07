@@ -58,7 +58,10 @@ export const edition = editionSummary
   .meta({ id: 'BriefingEdition' })
 export type Edition = z.infer<typeof edition>
 
-export const editionsQuery = listQuery.extend({ workspace_id: z.uuid() })
+export const editionsQuery = listQuery.extend({
+  /** Absent = every domain the user belongs to. */
+  workspace_id: z.uuid().optional(),
+})
 export type EditionsQuery = z.infer<typeof editionsQuery>
 
 export const editionPage = pageSchema(editionSummary).meta({ id: 'BriefingEditionPage' })

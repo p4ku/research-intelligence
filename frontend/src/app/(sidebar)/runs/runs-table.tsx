@@ -30,6 +30,7 @@ function timestampUtc(iso: string | null): string {
 // the columns cannot drift (scripts/skeleton-drift.ts measures each header).
 const COLUMNS: { key: string; label: string; head?: string; cell?: string }[] = [
   { key: 'started', label: 'Started (UTC)', cell: 'font-medium tabular-nums' },
+  { key: 'domain', label: 'Domain', cell: 'max-w-48 truncate text-zinc-500 dark:text-zinc-400' },
   { key: 'outcome', label: 'Outcome' },
   { key: 'stage', label: 'Last stage', cell: 'text-zinc-500 dark:text-zinc-400' },
   { key: 'fetched', label: 'Fetched', head: 'text-right', cell: 'text-right tabular-nums' },
@@ -99,6 +100,7 @@ export function RunsTable({ runs }: { runs: PipelineRun[] }) {
       title: `Run ${run.id}`,
       cells: [
         timestampUtc(run.started_at),
+        run.workspace_name,
         <RunStatusPill key="status" run={run} />,
         // The stage the engine last dispatched — reported, not interpreted. A
         // rerun rewrites it to the re-triggered step, so it is not evidence
@@ -120,6 +122,7 @@ export function RunsTable({ runs }: { runs: PipelineRun[] }) {
 // narrower than their header so they add nothing to the column width; the
 // stage and summary columns are cell-dominated and follow typical values.
 // A `ch` is a digit's width and prose runs ~15% narrower, hence the fractions.
+const DOMAIN_WIDTHS = ['18.8ch', '18.8ch', '13ch']
 const STAGE_WIDTHS = ['7.5ch', '15ch', '8.5ch']
 const SUMMARY_WIDTHS = ['28rem', '28rem', '16rem']
 
@@ -131,6 +134,7 @@ export function RunsTableSkeleton({ rows = 8 }: { rows?: number }) {
       key: `bone-${i}`,
       cells: [
         <Bone.Text key="started" widths={['11ch']} />,
+        <Bone.Text key="domain" widths={[DOMAIN_WIDTHS[i % DOMAIN_WIDTHS.length]]} />,
         <Bone.Chip key="status" width={67} />,
         <Bone.Text key="stage" widths={[STAGE_WIDTHS[i % STAGE_WIDTHS.length]]} />,
         <Bone.Number key="fetched" digits={2} />,

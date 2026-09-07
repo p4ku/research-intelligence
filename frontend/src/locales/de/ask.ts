@@ -36,8 +36,8 @@ export const dict: Record<string, string> = {
 
   // paper-picker.tsx
   Papers: 'Papers',
-  'No papers match “{q}” — the workspace holds {n} papers.':
-    'Keine Papers passen zu „{q}“ — der Arbeitsbereich umfasst {n} Papers.',
+  'No papers match “{q}” — {n} papers to choose from.':
+    'Keine Papers passen zu „{q}“ — {n} Papers stehen zur Auswahl.',
   choose: 'wählen',
   'scope the conversation': 'Gespräch eingrenzen',
   'Top {n} of {total}': 'Top {n} von {total}',

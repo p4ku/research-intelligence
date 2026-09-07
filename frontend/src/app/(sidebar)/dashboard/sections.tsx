@@ -1,8 +1,9 @@
 import { AnswerMarkdown } from '@/components/answer-markdown'
-import { Card, StatBand } from '@/components/scanner-ui'
+import { Card, DomainBadge, StatBand } from '@/components/scanner-ui'
 import { forPage } from '@/lib/bff/core/page'
 import { fmt, formatDate, type Lang, type T } from '@/lib/i18n'
 import Link from 'next/link'
+import { editionHref } from '../briefing/format'
 import { editionToday, funnelCopy, latestRun, runPapers } from './data'
 import { RunPapers } from './run-papers'
 
@@ -13,14 +14,20 @@ import { RunPapers } from './run-papers'
  * the page wraps each in a <ViewTransition> pair with its skeleton.
  */
 
-export async function TodayEyebrow({ wsId, t, lang }: { wsId: string; t: T; lang: Lang }) {
-  const latest = await forPage(latestRun(wsId))
+export async function TodayEyebrow({ t, lang }: { t: T; lang: Lang }) {
+  const latest = await forPage(latestRun())
   const runDate = latest ? formatDate(latest.completed_at ?? latest.run_date, lang) : null
   return <>{runDate ? fmt(t('Today · {date}'), { date: runDate }) : t('Today')}</>
 }
 
-export async function Funnel({ wsId, t }: { wsId: string; t: T }) {
-  const { latest, papers } = await forPage(runPapers(wsId))
+/** The domain the latest run belongs to — the header's badge, or nothing until a run exists. */
+export async function TodayDomain() {
+  const latest = await forPage(latestRun())
+  return latest ? <DomainBadge name={latest.workspace_name} /> : null
+}
+
+export async function Funnel({ t }: { t: T }) {
+  const { latest, papers } = await forPage(runPapers())
   const copy = funnelCopy(t)
   const funnel = [
     { value: latest?.total_papers_fetched ?? 0, ...copy[0] },
@@ -31,12 +38,12 @@ export async function Funnel({ wsId, t }: { wsId: string; t: T }) {
   return <StatBand items={funnel} flow className="lg:grid-cols-3!" />
 }
 
-export async function BriefLink({ wsId, t, lang }: { wsId: string; t: T; lang: Lang }) {
-  const edition = await forPage(editionToday(wsId, lang))
+export async function BriefLink({ t, lang }: { t: T; lang: Lang }) {
+  const edition = await forPage(editionToday(lang))
   if (!edition) return null
   return (
     <Link
-      href={`/briefing/${edition.date}`}
+      href={editionHref(edition.date, edition.workspace_id)}
       className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
     >
       {t('Open briefing →')}
@@ -44,8 +51,8 @@ export async function BriefLink({ wsId, t, lang }: { wsId: string; t: T; lang: L
   )
 }
 
-export async function Brief({ wsId, t, lang }: { wsId: string; t: T; lang: Lang }) {
-  const edition = await forPage(editionToday(wsId, lang))
+export async function Brief({ t, lang }: { t: T; lang: Lang }) {
+  const edition = await forPage(editionToday(lang))
   if (!edition) {
     return (
       <p className="mt-4 max-w-3xl text-base leading-relaxed text-pretty text-zinc-600 dark:text-zinc-300">
@@ -70,13 +77,13 @@ export async function Brief({ wsId, t, lang }: { wsId: string; t: T; lang: Lang 
   )
 }
 
-export async function Papers({ wsId, t }: { wsId: string; t: T }) {
-  const { latest, workspace, papers } = await forPage(runPapers(wsId))
+export async function Papers({ t }: { t: T }) {
+  const { latest, workspace, papers } = await forPage(runPapers())
   if (!latest || !workspace) {
     return (
       <Card>
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {t('Once a pipeline run completes in this workspace, its papers appear here.')}
+          {t('Once a pipeline run completes, its papers appear here.')}
         </p>
       </Card>
     )

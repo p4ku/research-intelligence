@@ -231,13 +231,46 @@ export function PasswordForm() {
   )
 }
 
-/** The digest toggle. Persisted through /bff/settings/preferences unless stubbed. */
+/** The digest toggles, one per domain. Persisted through /bff/settings/preferences unless stubbed. */
 export function NotificationSettings({
+  domains,
+  stubbed,
+}: {
+  domains: { id: string; name: string; initial: Preferences }[]
+  stubbed: boolean
+}) {
+  const t = useT()
+  return (
+    <Card>
+      <SectionLabel>{t('Notifications')}</SectionLabel>
+      {stubbed && (
+        <div className="mt-1 font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
+          {t('Currently saved for this session only.')}
+        </div>
+      )}
+      <div className="mt-2 divide-y divide-zinc-950/5 dark:divide-white/5">
+        {domains.map((d) => (
+          <DigestToggle
+            key={d.id}
+            workspaceId={d.id}
+            name={d.name}
+            initial={d.initial}
+            stubbed={stubbed}
+          />
+        ))}
+      </div>
+    </Card>
+  )
+}
+
+function DigestToggle({
   workspaceId,
+  name,
   initial,
   stubbed,
 }: {
   workspaceId: string
+  name: string
   initial: Preferences
   stubbed: boolean
 }) {
@@ -266,40 +299,31 @@ export function NotificationSettings({
   }
 
   return (
-    <Card>
-      <SectionLabel>{t('Notifications')}</SectionLabel>
-      <div className="mt-2 divide-y divide-zinc-950/5 dark:divide-white/5">
-        <div className="flex items-start justify-between gap-4 py-3">
-          <div>
-            <div className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
-              {t('Daily briefing email')}
-            </div>
-            <div className="text-xs text-zinc-400">{t('A morning digest of the top signals.')}</div>
-            {stubbed && (
-              <div className="mt-1 font-mono text-[11px] text-zinc-400 dark:text-zinc-500">
-                {t('Currently saved for this session only.')}
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => void toggle()}
-            disabled={busy}
-            className={clsx(
-              'relative h-6 w-11 shrink-0 rounded-full transition',
-              on ? 'bg-blue-600' : 'bg-zinc-300 dark:bg-zinc-700',
-            )}
-            role="switch"
-            aria-checked={on}
-          >
-            <span
-              className={clsx(
-                'absolute top-0.5 size-5 rounded-full bg-white transition',
-                on ? 'left-[22px]' : 'left-0.5',
-              )}
-            />
-          </button>
+    <div className="flex items-start justify-between gap-4 py-3">
+      <div>
+        <div className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+          {t('Daily briefing email')} · {name}
         </div>
+        <div className="text-xs text-zinc-400">{t('A morning digest of the top signals.')}</div>
       </div>
-    </Card>
+      <button
+        onClick={() => void toggle()}
+        disabled={busy}
+        aria-label={`${t('Daily briefing email')} · ${name}`}
+        className={clsx(
+          'relative h-6 w-11 shrink-0 rounded-full transition',
+          on ? 'bg-blue-600' : 'bg-zinc-300 dark:bg-zinc-700',
+        )}
+        role="switch"
+        aria-checked={on}
+      >
+        <span
+          className={clsx(
+            'absolute top-0.5 size-5 rounded-full bg-white transition',
+            on ? 'left-[22px]' : 'left-0.5',
+          )}
+        />
+      </button>
+    </div>
   )
 }

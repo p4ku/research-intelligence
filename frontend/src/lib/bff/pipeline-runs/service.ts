@@ -1,8 +1,9 @@
 /**
- * Pipeline-runs service. Source `django`: today's
- * `GET /api/pipeline-runs/?workspace=&status=` (bare array, newest first),
- * validated and trimmed to the contract shape; the requested change is
- * pagination + ordering on the same endpoint. Server-only.
+ * Pipeline-runs service. Source `django`: today's `GET /api/pipeline-runs/`
+ * (bare array, newest first, scoped to the user's memberships; `?status=`
+ * supported), validated and trimmed to the contract shape; the requested
+ * change is pagination + ordering on the same endpoint. One fetch serves
+ * every domain — per-workspace views are in-memory filters. Server-only.
  */
 import 'server-only'
 
@@ -28,6 +29,7 @@ function toRun(dto: PipelineRunDTO): PipelineRun {
   return {
     id: dto.id,
     workspace_id: dto.workspace,
+    workspace_name: dto.workspace_name,
     run_date: dto.run_date,
     status,
     current_stage: dto.current_stage || null,
@@ -49,7 +51,6 @@ function toRunDetail(dto: PipelineRunDetailDTO): PipelineRunDetail {
   const files = typeof stats?.total_files === 'number' ? stats.total_files : 0
   return {
     ...toRun(dto),
-    workspace_name: dto.workspace_name,
     triggered_by: dto.triggered_by_username || null,
     reprocess_existing: dto.reprocess_existing,
     tokens_in: dto.tokens_in,
@@ -72,17 +73,32 @@ export const runs = {
     return toRunDetail(dto)
   }),
 
-  /** Runs for a workspace, newest first (the two filters Django supports today). */
-  listAll: cache(async (workspaceId: string, status?: RunStatus): Promise<PipelineRun[]> => {
-    const params = new URLSearchParams({ workspace: workspaceId })
+  /**
+   * Every run the user can see, newest first, across all their domains: one
+   * call (Django scopes the list to memberships when `workspace` is omitted).
+   * Cached per request and status, so the per-domain view below and the
+   * briefings composed on top of it share the fetch.
+   */
+  listEverywhere: cache(async (status?: RunStatus): Promise<PipelineRun[]> => {
+    const params = new URLSearchParams()
     if (status) params.set('status', status)
-    const rows = await django(`/api/pipeline-runs/?${params}`, z.array(pipelineRunDTO))
+    const qs = params.toString()
+    const rows = await django(`/api/pipeline-runs/${qs ? `?${qs}` : ''}`, z.array(pipelineRunDTO))
     return rows.map(toRun)
   }),
 
+  /** Runs for one domain, newest first — a filter over `listEverywhere`. */
+  listAll: cache(async (workspaceId: string, status?: RunStatus): Promise<PipelineRun[]> => {
+    const all = await runs.listEverywhere(status)
+    return all.filter((run) => run.workspace_id === workspaceId)
+  }),
+
   async list(query: RunsQuery): Promise<Page<PipelineRun>> {
-    const all = await runs.listAll(query.workspace_id, query.status)
-    const extra: Record<string, string> = { workspace_id: query.workspace_id }
+    const all = query.workspace_id
+      ? await runs.listAll(query.workspace_id, query.status)
+      : await runs.listEverywhere(query.status)
+    const extra: Record<string, string> = {}
+    if (query.workspace_id) extra.workspace_id = query.workspace_id
     if (query.status) extra.status = query.status
     return paginate(all, query, '/bff/pipeline-runs', extra)
   },

@@ -7,7 +7,7 @@ import type { ScoredPaper } from '@/lib/papers/types'
 import clsx from 'clsx'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
-import { ScreeningPill, SignalScore, TrlBadge } from './scanner-ui'
+import { DomainBadge, ScreeningPill, SignalScore, TrlBadge } from './scanner-ui'
 import { Bone } from './skeleton'
 
 // The loaded card's chrome, exactly as before the Frame split; the hover
@@ -85,7 +85,8 @@ function PaperCardFrame({
   )
 }
 
-export function PaperCard({ paper }: { paper: ScoredPaper }) {
+/** `domain` names the paper's domain in the meta row — for lists that span several. */
+export function PaperCard({ paper, domain }: { paper: ScoredPaper; domain?: string }) {
   const t = useT()
   const { lang } = useLanguage()
   const trl = trlDimension(paper)
@@ -98,6 +99,12 @@ export function PaperCard({ paper }: { paper: ScoredPaper }) {
       score={<SignalScore score={paper.signal_score} />}
       meta={
         <>
+          {domain && (
+            <>
+              <DomainBadge name={domain} tone="quiet" />
+              <span className="text-xs text-zinc-400">·</span>
+            </>
+          )}
           <ScreeningPill status={paper.screening_status} t={t} />
           <span className="text-xs text-zinc-400">·</span>
           <span className="text-xs text-zinc-400">{paper.source}</span>

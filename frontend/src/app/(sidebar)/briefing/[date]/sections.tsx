@@ -8,12 +8,13 @@ import { fmt, type Lang, type T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { formatEditionDate } from '../format'
+import { editionHref, formatEditionDate } from '../format'
 
 /**
  * One edition's streamed sections. The head needs the edition; the papers
  * need the edition and the scored corpus. Both services are React-cached, so
- * the two sections share one edition fetch.
+ * the two sections share one edition fetch. `wsId` is the domain from the
+ * URL; without one, the newest edition of the day in any domain is shown.
  */
 
 export function funnelCopy(t: T) {
@@ -30,13 +31,16 @@ export async function EditionHead({
   date,
   lang,
   t,
+  domains,
 }: {
-  wsId: string
+  wsId?: string
   date: string
   lang: Lang
   t: T
+  /** Domain names by workspace id, for the crumb. */
+  domains: Record<string, string>
 }) {
-  const edition = await forPage(briefings.getByDate(wsId, date, lang))
+  const edition = await forPage(briefings.findByDate(date, lang, wsId))
   // A date with no edition is a true 404 — rendered in-stream now that the
   // shell has already gone out (see docs/skeletons.md).
   if (!edition) notFound()
@@ -47,6 +51,8 @@ export async function EditionHead({
     { value: edition.funnel.passed_screening, ...copy[1] },
     { value: edition.funnel.surfaced, ...copy[2] },
   ]
+  const domain = domains[edition.workspace_id]
+  const dateLabel = formatEditionDate(edition.date, lang)
 
   return (
     <>
@@ -54,7 +60,7 @@ export async function EditionHead({
         <Breadcrumbs
           items={[
             { label: t('Briefings'), href: '/briefing' },
-            { label: formatEditionDate(edition.date, lang) },
+            { label: domain ? `${domain} · ${dateLabel}` : dateLabel },
           ]}
           t={t}
         />
@@ -83,15 +89,14 @@ export async function EditionPapers({
   lang,
   t,
 }: {
-  wsId: string
+  wsId?: string
   date: string
   lang: Lang
   t: T
 }) {
-  const [edition, scored] = await forPage(
-    Promise.all([briefings.getByDate(wsId, date, lang), papersService.listAll(wsId)]),
-  )
+  const edition = await forPage(briefings.findByDate(date, lang, wsId))
   if (!edition) notFound()
+  const scored = await forPage(papersService.listAll(edition.workspace_id))
 
   const byId = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
   const cards = edition.papers
@@ -107,7 +112,7 @@ export async function EditionPapers({
             {cards.length === 1 ? t('1 paper') : fmt(t('{n} papers'), { n: cards.length })}
           </span>
           <Link
-            href={`/briefing/${edition.date}/run`}
+            href={editionHref(edition.date, edition.workspace_id, 'run')}
             className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
           >
             {t('Screening log →')}

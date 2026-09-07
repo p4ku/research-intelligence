@@ -24,7 +24,6 @@ import { SidebarLayout } from '@/components/sidebar-layout'
 import { Switch } from '@/components/switch'
 import { Spinner } from '@/components/ui/spinner'
 import { VersionStamp } from '@/components/version-stamp'
-import { WorkspaceSwitcher, type WorkspaceOption } from '@/components/workspace-switcher'
 import type { SessionUser } from '@/lib/auth/cookies'
 import { performSignOut } from '@/lib/auth/leave'
 import type { Lang } from '@/lib/i18n'
@@ -37,7 +36,6 @@ import {
   UserCircleIcon,
 } from '@heroicons/react/16/solid'
 import {
-  AdjustmentsHorizontalIcon,
   ChatBubbleLeftRightIcon,
   Cog6ToothIcon,
   DocumentTextIcon,
@@ -57,12 +55,13 @@ interface ShellNavItem {
   exact?: boolean
 }
 
+// The spec's header — Home | Briefings | Papers | Ask — plus Runs. Tuning is
+// per domain and left the nav with the domain switcher; Settings links to it.
 const coreNav: ShellNavItem[] = [
-  { href: '/dashboard', label: 'Today', Icon: HomeIcon, exact: true },
+  { href: '/dashboard', label: 'Home', Icon: HomeIcon, exact: true },
   { href: '/briefing', label: 'Briefings', Icon: NewspaperIcon },
   { href: '/papers', label: 'Papers', Icon: DocumentTextIcon },
   { href: '/ask', label: 'Ask', Icon: ChatBubbleLeftRightIcon },
-  { href: '/tuning', label: 'Tuning', Icon: AdjustmentsHorizontalIcon },
   { href: '/runs', label: 'Runs', Icon: PlayCircleIcon },
 ]
 
@@ -169,8 +168,6 @@ function UserMenuLabel({ userName, userImage }: { userName: string; userImage?: 
 
 interface ShellProps {
   user: SessionUser
-  workspaces: WorkspaceOption[]
-  currentWorkspaceId: string | null
   children: React.ReactNode
   /** Which nav to show; defaults to the reading app's. */
   area?: ShellArea
@@ -184,13 +181,7 @@ export function ApplicationLayout({ lang, ...props }: ShellProps & { lang: Lang 
   )
 }
 
-function ApplicationLayoutInner({
-  user,
-  workspaces,
-  currentWorkspaceId,
-  children,
-  area = 'core',
-}: ShellProps) {
+function ApplicationLayoutInner({ user, children, area = 'core' }: ShellProps) {
   const nav = NAVS[area]
   const areaBadge = AREA_BADGE[area]
   const t = useT()
@@ -266,14 +257,6 @@ function ApplicationLayoutInner({
           </SidebarHeader>
 
           <SidebarBody>
-            <SidebarSection>
-              <WorkspaceSwitcher
-                workspaces={workspaces}
-                currentId={currentWorkspaceId}
-                mounted={mounted}
-              />
-            </SidebarSection>
-
             <SidebarSection>
               {nav.map(({ href, label, Icon, exact }) => (
                 <SidebarItem

@@ -19,6 +19,7 @@ import { assertUuid } from '../core/validate'
 import { papers } from '../papers/service'
 import type { PipelineRun } from '../pipeline-runs/schema'
 import { runs } from '../pipeline-runs/service'
+import { workspaces } from '../workspaces/service'
 import { fixtureEditions } from './fixtures'
 import { templateProse } from './prose'
 import {
@@ -127,10 +128,33 @@ export const briefings = {
     }
   }),
 
+  /**
+   * Every edition across every domain the user belongs to, newest first. One
+   * `listAll` per membership: free under `composed` (runs and corpus are
+   * cached), one editions fetch per domain under `django`. Deduped by run so
+   * the stub's repeated fixtures do not collide. Cached per request.
+   */
+  listEverywhere: cache(async (lang: Lang = 'en'): Promise<Edition[]> => {
+    const memberships = await workspaces.listAll()
+    const perWorkspace = await Promise.all(memberships.map((ws) => briefings.listAll(ws.id, lang)))
+    const seen = new Set<string>()
+    const merged = perWorkspace.flat().filter((e) => {
+      if (seen.has(e.run_id)) return false
+      seen.add(e.run_id)
+      return true
+    })
+    const when = (e: Edition) => e.generated_at ?? `${e.date}T00:00:00Z`
+    return merged.sort((a, b) => when(b).localeCompare(when(a)))
+  }),
+
   async list(query: EditionsQuery, lang: Lang = 'en'): Promise<Page<Omit<Edition, 'exclusions'>>> {
-    const all = await briefings.listAll(query.workspace_id, lang)
+    const all = query.workspace_id
+      ? await briefings.listAll(query.workspace_id, lang)
+      : await briefings.listEverywhere(lang)
     const summaries = all.map(({ exclusions: _exclusions, ...summary }) => summary)
-    return paginate(summaries, query, '/bff/briefings', { workspace_id: query.workspace_id })
+    const extra: Record<string, string> = {}
+    if (query.workspace_id) extra.workspace_id = query.workspace_id
+    return paginate(summaries, query, '/bff/briefings', extra)
   },
 
   /** One edition by date; null when no completed run produced one. Cached per request. */
@@ -148,6 +172,18 @@ export const briefings = {
         }
       }
       return (await briefings.listAll(workspaceId, lang)).find((e) => e.date === date) ?? null
+    },
+  ),
+
+  /**
+   * The edition for a day: in one domain when `workspaceId` is given, else
+   * the newest edition any domain produced that day — which is what a link
+   * from before domains were in the URL means. Cached per request.
+   */
+  findByDate: cache(
+    async (date: string, lang: Lang = 'en', workspaceId?: string): Promise<Edition | null> => {
+      if (workspaceId) return briefings.getByDate(workspaceId, date, lang)
+      return (await briefings.listEverywhere(lang)).find((e) => e.date === date) ?? null
     },
   ),
 }

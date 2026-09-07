@@ -1,7 +1,7 @@
 import { Breadcrumbs, SectionLabel, StatBandSkeleton } from '@/components/scanner-ui'
 import { Bone, Skeleton } from '@/components/skeleton'
 import type { Lang, T } from '@/lib/i18n'
-import { formatEditionDate } from '../../format'
+import { editionHref, formatEditionDate } from '../../format'
 import { ExclusionsTableSkeleton } from './exclusions-table'
 import { funnelCopy } from './sections'
 
@@ -26,14 +26,31 @@ export function ScreeningLogSkeleton({ t }: { t: T }) {
 }
 
 /** Crumbs and the static title — real when the date is known, a bone crumb in loading.tsx. */
-export function ScreeningLogHeader({ t, lang, date }: { t: T; lang: Lang; date?: string }) {
+export function ScreeningLogHeader({
+  t,
+  lang,
+  date,
+  wsId,
+  domain,
+}: {
+  t: T
+  lang: Lang
+  date?: string
+  /** The domain from the URL (id and display name); the crumb keeps it. */
+  wsId?: string
+  domain?: string
+}) {
+  const dateLabel = date ? formatEditionDate(date, lang) : null
   return (
     <div className="space-y-4">
       <Breadcrumbs
         items={[
           { label: t('Briefings'), href: '/briefing' },
-          date
-            ? { label: formatEditionDate(date, lang), href: `/briefing/${date}` }
+          date && dateLabel
+            ? {
+                label: domain ? `${domain} · ${dateLabel}` : dateLabel,
+                href: wsId ? editionHref(date, wsId) : `/briefing/${date}`,
+              }
             : { label: <Bone.Text widths={['20ch']} /> },
           { label: t('Screening log') },
         ]}

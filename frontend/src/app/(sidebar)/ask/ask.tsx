@@ -95,13 +95,11 @@ function autogrow(el: HTMLTextAreaElement) {
  * top and follows the streamed answer.
  */
 export function Ask({
-  workspaceId,
   entries,
   initialSessions,
   initialPaperId,
   initialSessionId,
 }: {
-  workspaceId: string
   entries: PaletteEntry[]
   initialSessions: ChatSession[]
   initialPaperId?: string
@@ -186,9 +184,7 @@ export function Ask({
 
   const refreshSessions = useCallback(async () => {
     try {
-      const page = await bffFetch<Page<ChatSession>>(
-        `/bff/chat/sessions?workspace_id=${workspaceId}&page_size=100`,
-      )
+      const page = await bffFetch<Page<ChatSession>>('/bff/chat/sessions?page_size=100')
       setSessions(page.results)
       setRailStale(false)
     } catch (error) {
@@ -197,7 +193,7 @@ export function Ask({
       console.error('[ask] session refresh failed:', error)
       setRailStale(true)
     }
-  }, [workspaceId])
+  }, [])
 
   /* ------------------------------ Settling ------------------------------ */
 

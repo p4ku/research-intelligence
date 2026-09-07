@@ -48,7 +48,7 @@ export function PaperRecordSkeleton({ t }: { t: T }) {
               </div>
               <p className="mt-1 text-xs text-zinc-400">
                 {t(
-                  'Scored by the workspace’s extraction definitions, with the model’s rationale where it gave one.',
+                  'Scored by the domain’s extraction definitions, with the model’s rationale where it gave one.',
                 )}
               </p>
               <DimensionsFrame state="skeleton" className="mt-5">

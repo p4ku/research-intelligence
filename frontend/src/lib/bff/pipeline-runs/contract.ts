@@ -11,10 +11,10 @@ export const pipelineRunsOperations: Operation[] = [
     face: 'django',
     kind: 'current',
     method: 'GET',
-    path: '/api/pipeline-runs/?workspace={workspace_id}',
-    summary: 'Runs for a workspace (bare array, newest first; ?status= supported).',
+    path: '/api/pipeline-runs/',
+    summary:
+      "Every run across the user's workspaces (bare array, newest first; ?workspace= and ?status= supported) — the BFF consumes it unfiltered.",
     responses: { 200: z.array(pipelineRunDTO) },
-    probe: { requires: ['workspace_id'] },
   },
   {
     id: 'pipeline-runs.list.desired',
@@ -47,7 +47,8 @@ export const pipelineRunsOperations: Operation[] = [
     kind: 'bff',
     method: 'GET',
     path: '/bff/pipeline-runs',
-    summary: 'Paginated runs for a workspace in the contract shape.',
+    summary:
+      'Paginated runs in the contract shape; ?workspace_id= narrows to one domain, otherwise every domain the user belongs to.',
     query: runsQuery,
     responses: { 200: runPage },
   },

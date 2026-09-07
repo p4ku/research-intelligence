@@ -6,7 +6,13 @@ import { SectionLabel } from '@/components/scanner-ui'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { isPassed } from '@/lib/papers/map'
-import { byValueDesc, dimensionByKey, numericDefinitions, trlDimension } from '@/lib/papers/select'
+import {
+  byValueDesc,
+  dimensionByKey,
+  numericDefinitions,
+  trlDimension,
+  unionDefinitions,
+} from '@/lib/papers/select'
 import type { ScoredPaper, ScreeningStatus, WorkspaceSummary } from '@/lib/papers/types'
 import { ChevronDownIcon, MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
@@ -47,13 +53,15 @@ const ingestedWindows = [
 
 export function PapersBrowser({
   papers,
-  workspace,
+  workspaces,
 }: {
   papers: ScoredPaper[]
-  workspace: WorkspaceSummary
+  /** The domains the corpus spans — their definitions drive the sort options. */
+  workspaces: WorkspaceSummary[]
 }) {
   const t = useT()
   const [search, setSearch] = useState('')
+  const [domain, setDomain] = useState('all')
   const [screening, setScreening] = useState<Screening>('passed')
   const [sort, setSort] = useState<Sort>('signal')
   const [minTrl, setMinTrl] = useState(1)
@@ -62,11 +70,17 @@ export function PapersBrowser({
   const [minScore, setMinScore] = useState(0) // 0 = no cutoff
   const [page, setPage] = useState(1)
 
-  // Sort options come from the workspace's definitions, not a fixed list.
+  // Sort options come from the domains' definitions, not a fixed list: the
+  // same key once, however many domains define it.
   const dimensionSorts = useMemo(
-    () => numericDefinitions(workspace, papers).filter((d) => !d.is_trl),
-    [workspace, papers],
+    () =>
+      numericDefinitions({ definitions: unionDefinitions(workspaces) }, papers).filter(
+        (d) => !d.is_trl,
+      ),
+    [workspaces, papers],
   )
+  const domainNames = useMemo(() => new Map(workspaces.map((w) => [w.id, w.name])), [workspaces])
+  const manyDomains = workspaces.length > 1
   const hasTrl = useMemo(
     () => papers.some((p) => trlDimension(p)?.value !== null && trlDimension(p) !== undefined),
     [papers],
@@ -96,6 +110,7 @@ export function PapersBrowser({
     cutoff?.setDate(cutoff.getDate() - withinDays)
     const q = search.toLowerCase()
     const result = papers.filter((p) => {
+      if (domain !== 'all' && p.workspace_id !== domain) return false
       if (!matchesScreening(p.screening_status, screening)) return false
       if (hasTrl && (minTrl > 1 || maxTrl < 9)) {
         const trl = trlDimension(p)?.value ?? null
@@ -128,12 +143,26 @@ export function PapersBrowser({
       return byValueDesc(a.signal_score, b.signal_score)
     })
     return result
-  }, [papers, search, screening, sort, minTrl, maxTrl, withinDays, minScore, newest, hasTrl])
+  }, [
+    papers,
+    domain,
+    search,
+    screening,
+    sort,
+    minTrl,
+    maxTrl,
+    withinDays,
+    minScore,
+    newest,
+    hasTrl,
+  ])
 
   // Paginate the filtered corpus, eight at a time. Any filter or sort change
   // resets to the first page so the view never lands past the last result.
   const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  const filterKey = [search, screening, sort, minTrl, maxTrl, withinDays, minScore].join('\u0000')
+  const filterKey = [domain, search, screening, sort, minTrl, maxTrl, withinDays, minScore].join(
+    '\u0000',
+  )
   const [prevFilterKey, setPrevFilterKey] = useState(filterKey)
   if (prevFilterKey !== filterKey) {
     // Adjust-during-render (not an effect): filters moved, back to page one.
@@ -145,7 +174,12 @@ export function PapersBrowser({
 
   const trlNarrowed = hasTrl && (minTrl > 1 || maxTrl < 9)
   const filtersActive =
-    screening !== 'passed' || trlNarrowed || search !== '' || withinDays > 0 || minScore > 0
+    domain !== 'all' ||
+    screening !== 'passed' ||
+    trlNarrowed ||
+    search !== '' ||
+    withinDays > 0 ||
+    minScore > 0
   // Narrowed filters read as removable chips above; this line carries only what
   // the chips don't say — the defaults still in force, and the query.
   const filterContext = [
@@ -157,6 +191,7 @@ export function PapersBrowser({
     .join(' · ')
 
   function resetFilters() {
+    setDomain('all')
     setSearch('')
     setScreening('passed')
     setMinTrl(1)
@@ -166,6 +201,11 @@ export function PapersBrowser({
   }
 
   const chips = [
+    domain !== 'all' && {
+      key: 'domain',
+      label: domainNames.get(domain) ?? '',
+      clear: () => setDomain('all'),
+    },
     screening !== 'passed' && {
       key: 'screening',
       label: t(screeningOptions.find((o) => o.id === screening)?.label ?? ''),
@@ -236,7 +276,11 @@ export function PapersBrowser({
           </div>
           <div className="space-y-3">
             {paged.map((p) => (
-              <PaperCard key={p.id} paper={p} />
+              <PaperCard
+                key={p.id}
+                paper={p}
+                domain={manyDomains ? domainNames.get(p.workspace_id) : undefined}
+              />
             ))}
             {filtered.length === 0 && (
               <div className="border-line rounded-sm border border-dashed p-10 text-center text-sm text-zinc-400">
@@ -255,6 +299,29 @@ export function PapersBrowser({
 
         {/* Filters */}
         <aside className="divide-line divide-y max-lg:order-first lg:col-span-1">
+          {manyDomains && (
+            <FilterGroup
+              label={t('Domain')}
+              value={domain === 'all' ? t('All domains') : (domainNames.get(domain) ?? '')}
+            >
+              <div className="space-y-1">
+                <OptionButton
+                  active={domain === 'all'}
+                  onClick={() => setDomain('all')}
+                  label={t('All domains')}
+                />
+                {workspaces.map((w) => (
+                  <OptionButton
+                    key={w.id}
+                    active={domain === w.id}
+                    onClick={() => setDomain(w.id)}
+                    label={w.name}
+                  />
+                ))}
+              </div>
+            </FilterGroup>
+          )}
+
           <FilterGroup label={t('Sort by')} value={sortLabel(sort)}>
             <div className="space-y-1">
               {[

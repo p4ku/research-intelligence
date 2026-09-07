@@ -15,10 +15,6 @@
 #   scripts/screenshot-studio.sh [base-url]            # capture only
 #   scripts/screenshot-studio.sh [base-url] --pr 9     # capture, then attach to PR #9
 #
-# STUDIO_WORKSPACE selects a workspace by name through the sidebar switcher
-# before capturing — runs are workspace-scoped, so without it you get whichever
-# workspace the fresh session happens to land on, which may have one run.
-#
 # Default base-url is the replay stack (see local-docs/snapshot-replay.md):
 #   bun run snapshot:serve                                        # :8010
 #   BUILD_DIR=.next-agent9 PORT=3009 SITE_URL=http://localhost:3009 \
@@ -47,7 +43,6 @@ while [ $# -gt 0 ]; do
 done
 
 LOGIN_IDENTIFIER="${CONTRACT_USER:-admin}"
-WORKSPACE="${STUDIO_WORKSPACE:-}"
 LOGIN_PASSWORD="${CONTRACT_PASSWORD:-schwarz123!}"
 
 # Unique session per run: a wedged leftover session would otherwise break every
@@ -183,23 +178,6 @@ if ab find first "input[name='identifier']" fill "$LOGIN_IDENTIFIER"; then
   ab find first "input[name='password']" fill "$LOGIN_PASSWORD"
   ab find first "button[type='submit']" click
   ab wait --load networkidle
-fi
-
-# Runs are workspace-scoped, so pick the workspace before capturing anything.
-if [ -n "$WORKSPACE" ]; then
-  echo "Selecting workspace: $WORKSPACE"
-  ab open "$BASE_URL/runs"
-  ab wait --load networkidle
-  # Match on the menuitem role, not on text: the shell renders a second,
-  # hidden copy of the sidebar for the mobile drawer, and a bare text match
-  # resolves to that covered element instead of the open menu.
-  if ab find role button click --name "Switch workspace" && ab wait 400 &&
-     ab find role menuitem click --name "$WORKSPACE"; then
-    ab wait --load networkidle
-    ab wait 500
-  else
-    echo "  could not select '$WORKSPACE' — capturing the current workspace instead" >&2
-  fi
 fi
 
 echo "Runs list:"
