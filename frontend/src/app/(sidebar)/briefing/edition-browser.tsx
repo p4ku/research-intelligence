@@ -210,7 +210,7 @@ function RailRowBody({
 
 export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[]; lang: Lang }) {
   const t = useT()
-  const { isStarred } = useStars()
+  const { stars, isStarred } = useStars()
   const searchRef = useRef<HTMLInputElement>(null)
   const readerRef = useRef<HTMLDivElement>(null)
   const [query, setQuery] = useState('')
@@ -234,17 +234,19 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
     )
   }, [editions, query, starredOnly, isStarred])
 
-  // Keep the reader on a still-visible edition when a search narrows the
-  // list; the Starred filter is stricter — the reader honours it too.
+  // Keep the reader on the edition being read when a search or the Starred
+  // filter narrows the list — so unstarring it from the reader leaves the
+  // toggle in place to undo, instead of swapping the reader away.
   const active =
     filtered.find((e) => e.runId === activeId) ??
-    (starredOnly ? null : editions.find((e) => e.runId === activeId)) ??
+    editions.find((e) => e.runId === activeId) ??
     filtered[0] ??
     null
-  const emptyCopy =
-    starredOnly && starredCount === 0
+  const emptyCopy = !starredOnly
+    ? t('No briefings match your search.')
+    : stars.briefings.length === 0
       ? t('Nothing starred yet.')
-      : t('No briefings match your search.')
+      : t('None of these briefings are starred.')
 
   function select(runId: string) {
     setActiveId(runId)
@@ -474,7 +476,7 @@ export function EditionBrowserSkeleton({
             <p className={RAIL_COUNT}>
               <Bone.Text widths={['14ch']} />
             </p>
-            <Bone.Chip width={82} />
+            <Bone.Block className="h-6 w-[92px] shrink-0 rounded-full" />
           </div>
           <ul className={RAIL_LIST}>
             {Array.from({ length: editions }, (_, i) => (

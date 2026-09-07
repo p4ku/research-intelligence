@@ -17,7 +17,7 @@ import { useState } from 'react'
  */
 export function EditionPaperList({ papers, logHref }: { papers: ScoredPaper[]; logHref: string }) {
   const t = useT()
-  const { isStarred } = useStars()
+  const { stars, isStarred } = useStars()
   const [starredOnly, setStarredOnly] = useState(false)
 
   const starred = papers.filter((p) => isStarred('paper', p.id))
@@ -50,7 +50,10 @@ export function EditionPaperList({ papers, logHref }: { papers: ScoredPaper[]; l
         ))}
         {starredOnly && shown.length === 0 && (
           <div className="border-line rounded-sm border border-dashed p-10 text-center text-sm text-zinc-400">
-            {t('Nothing starred yet.')}
+            {/* "Nothing starred" only when that is true everywhere, not just in this briefing. */}
+            {stars.papers.length === 0
+              ? t('Nothing starred yet.')
+              : t('None of these papers are starred.')}
           </div>
         )}
       </div>

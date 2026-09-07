@@ -17,6 +17,9 @@ describe('stars cookie codec', () => {
     // A damaged id drops out; the rest survive.
     const one = encodeStarsCookie({ papers: [paper], briefings: [run] })
     expect(decodeStarsCookie(`zz.${one}`)).toEqual({ papers: [paper], briefings: [run] })
+    // Sixteen bytes that are not an RFC UUID (bad version nibble) never reach the contract.
+    const crafted = Buffer.from('11111111111111111111111111111111', 'hex').toString('base64url')
+    expect(decodeStarsCookie(`${crafted}~`)).toEqual(emptyStars)
   })
 
   test('stays under a 4 KB cookie at the cap', () => {

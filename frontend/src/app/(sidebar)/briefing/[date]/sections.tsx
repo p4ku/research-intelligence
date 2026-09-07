@@ -64,12 +64,13 @@ export async function EditionHead({
           ]}
           t={t}
         />
-        {/* The briefing's star sits at the title's right; a briefing is starred by its run. */}
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-          <h1 className="min-w-0 flex-1 text-[26px]/8 font-semibold tracking-tight text-zinc-950 dark:text-white">
+        {/* The briefing's star: right of the title from md up, under it on a
+            phone (a flex-1 title never wraps the row). Starred by its run. */}
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-6">
+          <h1 className="min-w-0 text-[26px]/8 font-semibold tracking-tight text-zinc-950 md:flex-1 dark:text-white">
             {edition.title}
           </h1>
-          <StarToggle kind="briefing" id={edition.run_id} className="mt-px" />
+          <StarToggle kind="briefing" id={edition.run_id} className="self-start md:mt-px" />
         </div>
       </div>
 

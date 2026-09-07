@@ -62,7 +62,7 @@ export function PapersBrowser({
   workspaces: WorkspaceSummary[]
 }) {
   const t = useT()
-  const { isStarred } = useStars()
+  const { stars, isStarred } = useStars()
   const [search, setSearch] = useState('')
   const [domain, setDomain] = useState('all')
   const [starredOnly, setStarredOnly] = useState(false)
@@ -174,7 +174,8 @@ export function PapersBrowser({
   const pageCount = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
   const filterKey = [
     domain,
-    starredOnly,
+    // Under the Starred filter the list shrinks with every unstar: back to page one.
+    starredOnly && starredCount,
     search,
     screening,
     sort,
@@ -311,9 +312,11 @@ export function PapersBrowser({
             ))}
             {filtered.length === 0 && (
               <div className="border-line rounded-sm border border-dashed p-10 text-center text-sm text-zinc-400">
-                {starredOnly && starredCount === 0
+                {starredOnly && stars.papers.length === 0
                   ? t('Nothing starred yet.')
-                  : t('No papers match these filters.')}
+                  : starredOnly && starredCount === 0
+                    ? t('None of these papers are starred.')
+                    : t('No papers match these filters.')}
               </div>
             )}
           </div>

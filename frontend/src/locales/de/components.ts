@@ -35,10 +35,12 @@ export const dict: Record<string, string> = {
   'Star paper': 'Paper markieren',
   'Star briefing': 'Briefing markieren',
   'Star this paper': 'Dieses Paper markieren',
-  'Unstar this paper': 'Markierung des Papers entfernen',
   'Star this briefing': 'Dieses Briefing markieren',
-  'Unstar this briefing': 'Markierung des Briefings entfernen',
   'Nothing starred yet.': 'Noch nichts markiert.',
+  'None of these papers are starred.': 'Keines dieser Papers ist markiert.',
+  'None of these briefings are starred.': 'Keines dieser Briefings ist markiert.',
   'Could not save the star. Try again.':
     'Die Markierung konnte nicht gespeichert werden. Bitte erneut versuchen.',
+  'Star limit reached — the oldest star was removed.':
+    'Markierungslimit erreicht — die älteste Markierung wurde entfernt.',
 }

@@ -10,6 +10,14 @@ export const REFRESH_COOKIE = 'sri_refresh'
  *  anything authorization-relevant must come from Django, not this cookie. */
 export const USER_COOKIE = 'sri_user'
 export const AUTH_COOKIES = [ACCESS_COOKIE, REFRESH_COOKIE, USER_COOKIE] as const
+/** The stars stub store (src/lib/bff/stars/cookie.ts): per browser, not per account. */
+export const STARS_COOKIE = 'rs-stars'
+/**
+ * Per-browser state that must not outlive the account: cleared with the
+ * session, so the next person to sign in on a shared machine does not
+ * inherit it.
+ */
+export const SESSION_SCOPED_COOKIES = [STARS_COOKIE] as const
 
 export interface CookieUser {
   id: number
@@ -76,7 +84,7 @@ export interface CookieWriter {
 
 export function clearAuthCookies(store: CookieWriter) {
   const expired = { ...authCookieOptions(), maxAge: 0 }
-  for (const name of AUTH_COOKIES) store.set(name, '', expired)
+  for (const name of [...AUTH_COOKIES, ...SESSION_SCOPED_COOKIES]) store.set(name, '', expired)
 }
 
 export function toCookieUser(user: BackendUser): CookieUser {

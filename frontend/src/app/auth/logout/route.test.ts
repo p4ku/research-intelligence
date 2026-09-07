@@ -4,9 +4,11 @@ import { GET, POST } from './route'
 
 const BASE = 'http://localhost:3000/auth/logout'
 
-// The three session cookies must be cleared on every legitimate sign-out.
+// The three session cookies must be cleared on every legitimate sign-out —
+// and the stars stub store with them, so the next account on a shared
+// browser does not inherit the previous one's stars.
 // `Secure` is deliberately not asserted: the test env is not production.
-const AUTH_COOKIES = ['sri_access', 'sri_refresh', 'sri_user']
+const AUTH_COOKIES = ['sri_access', 'sri_refresh', 'sri_user', 'rs-stars']
 
 function expectCookiesCleared(res: Response) {
   const setCookies = res.headers.getSetCookie()

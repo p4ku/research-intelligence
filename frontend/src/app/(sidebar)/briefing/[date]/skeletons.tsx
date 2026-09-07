@@ -47,12 +47,12 @@ export function EditionHeadSkeleton({
           ]}
           t={t}
         />
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-          <h1 className="min-w-0 flex-1 text-[26px]/8 font-semibold tracking-tight text-zinc-950 dark:text-white">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between md:gap-6">
+          <h1 className="min-w-0 text-[26px]/8 font-semibold tracking-tight text-zinc-950 md:flex-1 dark:text-white">
             <Bone.Text widths={['60%']} />
           </h1>
           {/* The briefing's star toggle. */}
-          <Bone.Block className="mt-px h-[30px] w-28 shrink-0" />
+          <Bone.Block className="h-[30px] w-28 shrink-0 self-start md:mt-px" />
         </div>
       </div>
 
@@ -96,8 +96,8 @@ export function EditionPapersSkeleton({
             <span className="font-mono text-[11px] text-zinc-400 tabular-nums dark:text-zinc-500">
               <Bone.Text widths={['8ch']} />
             </span>
-            {/* The Starred filter chip. */}
-            <Bone.Chip width={82} />
+            {/* The Starred filter chip: 24px, pill-shaped, like StarredChip. */}
+            <Bone.Block className="h-6 w-[92px] shrink-0 rounded-full" />
             {date ? (
               <Link
                 href={wsId ? editionHref(date, wsId, 'run') : `/briefing/${date}/run`}

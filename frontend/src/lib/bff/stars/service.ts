@@ -30,11 +30,14 @@ export const stars = {
   /** Star or unstar one record; returns the full set afterwards. */
   async set(update: StarUpdate): Promise<Stars> {
     if (sourceOf('stars') === 'django') {
-      return django('/api/stars/', starsSchema, {
+      const echoed = await django('/api/stars/', starsSchema, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(update),
       })
+      // The contract asks for the full set back; a 204 (no body) is tolerated
+      // by reading it, rather than failing every star click with a 500.
+      return echoed ?? django('/api/stars/', starsSchema)
     }
     const store = await cookies()
     const next = applyStar(decodeStarsCookie(store.get(STARS_COOKIE)?.value), update)

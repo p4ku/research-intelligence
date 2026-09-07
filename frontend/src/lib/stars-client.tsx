@@ -1,17 +1,25 @@
 'use client'
 
 import { bffFetch } from '@/lib/bff/client'
-import { applyStar, emptyStars, type StarKind, type Stars } from '@/lib/bff/stars/schema'
+import {
+  applyStar,
+  emptyStars,
+  type StarKind,
+  type Stars,
+  type StarUpdate,
+} from '@/lib/bff/stars/schema'
 import { useT } from '@/lib/i18n-client'
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { toast } from 'sonner'
 
 /**
- * The client's view of the user's stars: seeded by the sidebar layout from
- * the stars service, toggled optimistically through `PUT /bff/stars`, and
- * re-seeded whenever the server re-renders (the cookie / backend is the
- * source of truth between navigations). One provider per shell, so every
- * star on a page — card corner, header, filter chip — reads the same set.
+ * The client's view of the user's stars: the last set the server confirmed
+ * (seeded by the sidebar layout, re-seeded whenever the server re-renders)
+ * with the not-yet-confirmed toggles applied on top. Writes go to
+ * `PUT /bff/stars` one after another — the stub store is a read-modify-write
+ * on the request cookie, so two overlapping PUTs would lose one — and each
+ * echo replaces the confirmed set. A failed write drops its toggle and says
+ * so; a write the server capped (the oldest star evicted) says so too.
  *
  * Without a provider (the Studio gallery, unit renders) the hooks are inert:
  * nothing is starred and toggling does nothing.
@@ -33,6 +41,10 @@ function has(stars: Stars, kind: StarKind, id: string): boolean {
   return (kind === 'paper' ? stars.papers : stars.briefings).includes(id)
 }
 
+function size(stars: Stars): number {
+  return stars.papers.length + stars.briefings.length
+}
+
 export function StarsProvider({
   initial,
   children,
@@ -41,30 +53,48 @@ export function StarsProvider({
   children: React.ReactNode
 }) {
   const t = useT()
-  const [stars, setStars] = useState(initial)
-  // A server re-render hands in a fresh set (adjust-during-render, not an effect).
+  const [confirmed, setConfirmed] = useState(initial)
+  const [pending, setPending] = useState<StarUpdate[]>([])
+  // A server re-render hands in a fresh confirmed set (adjust-during-render,
+  // not an effect). Pending toggles stay on top, so a star clicked just
+  // before a refresh is not reverted by a cookie read that predates its PUT.
   const [prevInitial, setPrevInitial] = useState(initial)
   if (prevInitial !== initial) {
     setPrevInitial(initial)
-    setStars(initial)
+    setConfirmed(initial)
   }
-  // A sequence so a slow response can never overwrite a newer optimistic state.
-  const seq = useRef(0)
+  const stars = useMemo(() => pending.reduce(applyStar, confirmed), [confirmed, pending])
+
+  // The write queue, and the confirmed set as the queue's callbacks see it.
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
+  const confirmedRef = useRef(confirmed)
+  useEffect(() => {
+    confirmedRef.current = confirmed
+  }, [confirmed])
 
   const toggle = useCallback(
     (kind: StarKind, id: string) => {
-      const update = { kind, id, starred: !has(stars, kind, id) }
-      const mine = ++seq.current
-      setStars((s) => applyStar(s, update))
-      bffFetch<Stars>('/bff/stars', { method: 'PUT', body: JSON.stringify(update) })
-        .then((next) => {
-          if (mine === seq.current) setStars(next)
-        })
-        .catch(() => {
-          if (mine === seq.current)
-            setStars((s) => applyStar(s, { ...update, starred: !update.starred }))
-          toast.error(t('Could not save the star. Try again.'))
-        })
+      const update: StarUpdate = { kind, id, starred: !has(stars, kind, id) }
+      setPending((p) => [...p, update])
+      const settle = () => setPending((p) => p.filter((u) => u !== update))
+      queue.current = queue.current
+        .then(() => bffFetch<Stars>('/bff/stars', { method: 'PUT', body: JSON.stringify(update) }))
+        .then(
+          (next) => {
+            // Smaller than the set we asked for: the store hit its cap and dropped the oldest star.
+            const expected = applyStar(confirmedRef.current, update)
+            if (size(next) < size(expected)) {
+              toast.message(t('Star limit reached — the oldest star was removed.'))
+            }
+            confirmedRef.current = next
+            setConfirmed(next)
+            settle()
+          },
+          () => {
+            settle()
+            toast.error(t('Could not save the star. Try again.'))
+          },
+        )
     },
     [stars, t],
   )

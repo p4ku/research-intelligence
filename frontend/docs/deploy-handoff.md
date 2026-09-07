@@ -35,6 +35,7 @@ repo's root is self-contained (`bun install` → `next build` standalone →
     # BFF_SOURCE_BRIEFINGS: composed
     # BFF_SOURCE_SCORING: composed
     # BFF_SOURCE_PREFERENCES: stub
+    # BFF_SOURCE_STARS: stub
 ```
 
 Notes:

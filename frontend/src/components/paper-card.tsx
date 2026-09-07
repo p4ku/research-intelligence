@@ -106,7 +106,14 @@ export function PaperCard({ paper, domain }: { paper: ScoredPaper; domain?: stri
   return (
     <PaperCardFrame
       href={`/papers/${paper.id}`}
-      corner={<StarButton kind="paper" id={paper.id} className="absolute top-2.5 right-2.5" />}
+      corner={
+        // Lifts with the card on hover, so it stays pinned to the corner.
+        <StarButton
+          kind="paper"
+          id={paper.id}
+          className="absolute top-2.5 right-2.5 group-hover:-translate-y-px"
+        />
+      }
       score={<SignalScore score={paper.signal_score} />}
       meta={
         <>

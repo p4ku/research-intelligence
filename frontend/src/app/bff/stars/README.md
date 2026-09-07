@@ -52,14 +52,22 @@ run is not visible to the user. P2, size S.
 ## How it works today
 
 `stub` (default): the set lives in one httpOnly cookie (`rs-stars`, one year,
-`src/lib/bff/stars/cookie.ts`) — per browser, not per account, and capped at
-80 papers / 30 briefings (oldest dropped) so it fits a 4 KB cookie. Good
-enough for demos and replay; not shared across devices.
+`src/lib/bff/stars/cookie.ts`) — per browser, not per account, cleared on
+sign-out with the session cookies so the next account on a shared machine
+does not inherit it. Capped at 80 papers / 30 briefings (oldest dropped, the
+UI says so) so it fits a 4 KB cookie; at the cap it adds ~2.5 KB to every
+request, including the ones proxied to Django. Writes are serialised by the
+client store — the stub is a read-modify-write on the request cookie, so two
+overlapping PUTs would lose one. Good enough for demos and replay; not shared
+across devices.
 
 ## Flip the flag
 
 `BFF_SOURCE_STARS=django` once the endpoint exists. No UI change: the store
-and the toggles only ever talk to `/bff/stars`.
+and the toggles only ever talk to `/bff/stars`. Note that the sidebar layout
+awaits the read before the shell streams — a cookie today, one Django round
+trip per shell render after the flip; if that shows in first paint, cache it
+per request or move the seed behind a boundary.
 
 ## curl
 
