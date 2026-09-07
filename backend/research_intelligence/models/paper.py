@@ -2,6 +2,7 @@ import uuid
 import logging
 from django.db import models
 from django.utils import timezone
+from .workspace import WorkspaceScopedQuerySetMixin
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +52,7 @@ class DocumentRegistry(models.Model):
         return f"{self.title[:50]} (Hits: {self.access_count})"
 
 
-class PaperQuerySet(models.QuerySet):
+class PaperQuerySet(WorkspaceScopedQuerySetMixin, models.QuerySet):
     """
     QuerySet that transparently maps legacy filter parameters (pipeline_run, reprocessed_runs,
     screening_status) to the PaperMetric association table.
@@ -84,14 +85,6 @@ class PaperQuerySet(models.QuerySet):
             else:
                 new_kwargs[k] = v
         return super()._filter_or_exclude(negate, args, new_kwargs)
-
-    def for_user(self, user):
-        """Papers in workspaces the user is a member of; superusers see all."""
-        if getattr(user, 'is_superuser', False):
-            return self
-        from .workspace import WorkspaceMember
-        user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-        return self.filter(workspace_id__in=user_ws_ids)
 
 
 class PaperManager(models.Manager.from_queryset(PaperQuerySet)):

@@ -746,6 +746,18 @@ class WorkspaceMember(models.Model):
         return f"{self.user} - {self.workspace.name} ({self.role})"
 
 
+class WorkspaceScopedQuerySetMixin:
+    """
+    for_user() for any model with a `workspace` FK: rows in workspaces the user
+    is a member of; superusers see all.
+    """
+    def for_user(self, user):
+        if getattr(user, 'is_superuser', False):
+            return self
+        user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
+        return self.filter(workspace_id__in=user_ws_ids)
+
+
 class APIKey(models.Model):
     """
     MCP and REST Integration API Keys associated with specific users and workspaces.

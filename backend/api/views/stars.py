@@ -4,14 +4,7 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 from research_intelligence.models import Paper, PipelineRun, Star
-from ..serializers.stars import StarUpdateSerializer, StarsSerializer
-
-
-# Wire kind -> (target model, Star FK field, stored kind)
-STAR_TARGETS = {
-    'paper': (Paper, 'paper', Star.KIND_PAPER),
-    'briefing': (PipelineRun, 'pipeline_run', Star.KIND_PIPELINE_RUN),
-}
+from ..serializers.stars import STAR_TARGETS, StarUpdateSerializer, StarsSerializer
 
 
 class StarsView(APIView):
@@ -29,7 +22,7 @@ class StarsView(APIView):
                 Q(paper__in=Paper.objects.for_user(user))
                 | Q(pipeline_run__in=PipelineRun.objects.for_user(user))
             )
-        rows = qs.order_by('created_at', 'id').values_list('paper_id', 'pipeline_run_id')
+        rows = qs.values_list('paper_id', 'pipeline_run_id')  # Meta.ordering: oldest star first
         papers = [paper_id for paper_id, _ in rows if paper_id]
         briefings = [run_id for _, run_id in rows if run_id]
         return StarsSerializer({'papers': papers, 'briefings': briefings}).data
@@ -60,11 +53,11 @@ class StarsView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         validated = serializer.validated_data
-        model, fk_field, kind = STAR_TARGETS[validated['kind']]
+        model, fk_field, kind, label = STAR_TARGETS[validated['kind']]
         target_id = validated['id']
 
         if not model.objects.for_user(request.user).filter(id=target_id).exists():
-            return Response({"error": f"{validated['kind'].capitalize()} not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": f"{label} not found."}, status=status.HTTP_404_NOT_FOUND)
 
         lookup = {'user': request.user, f'{fk_field}_id': target_id}
         if validated['starred']:

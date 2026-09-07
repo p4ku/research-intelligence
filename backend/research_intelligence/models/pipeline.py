@@ -3,24 +3,17 @@ import logging
 from typing import Optional, Dict, Any, List
 from django.db import models
 from django.conf import settings
+from .workspace import WorkspaceScopedQuerySetMixin
 
 logger = logging.getLogger(__name__)
 
 
-class PipelineRunQuerySet(models.QuerySet):
+class PipelineRunQuerySet(WorkspaceScopedQuerySetMixin, models.QuerySet):
     def prefetch_related(self, *lookups):
         cleaned = [l for l in lookups if l != 'agent_processes']
         if cleaned:
             return super().prefetch_related(*cleaned)
         return self
-
-    def for_user(self, user):
-        """Runs in workspaces the user is a member of; superusers see all."""
-        if getattr(user, 'is_superuser', False):
-            return self
-        from .workspace import WorkspaceMember
-        user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-        return self.filter(workspace_id__in=user_ws_ids)
 
 
 class PipelineRun(models.Model):
