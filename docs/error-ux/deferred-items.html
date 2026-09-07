@@ -163,44 +163,13 @@
   <header>
     <p class="eyebrow">Error-UX audit · 1 Sep 2026 · below-the-line items</p>
     <h1>Deferred by the Audit</h1>
-    <p class="sub">All 32 findings ranked below the 12 that shipped in batches 1–5. Where an item is visual, the mock shows the <em>proposed</em> state (or today-vs-proposed side by side), in English — the shipped copy would be German-first like the rest of the product. Tick what you want done and copy the selection at the bottom — three items were already resolved by later work and can't be ticked.</p>
+    <p class="sub">All 32 findings ranked below the 12 that shipped in batches 1–5. Where an item is visual, the mock shows the <em>proposed</em> state (or today-vs-proposed side by side), in English — the shipped copy would be German-first like the rest of the product. Tick what you want done and copy the selection at the bottom — six items were already resolved by later work and can't be ticked.</p>
   </header>
 
   <!-- ============ FRONT DOOR ============ -->
   <section>
     <h2>The front door</h2>
     <p class="section-note">Login is the one screen every outage funnels people to.</p>
-
-    <div class="item" data-id="D10" data-title="Login stops blaming the user for an outage (login-panel.tsx)">
-      <div class="item-head">
-        <input type="checkbox" id="D10">
-        <div>
-          <label class="item-title" for="D10"><span class="item-id">D10</span>Login blames the user for an outage</label>
-          <p class="item-desc">A non-JSON error body or transport failure shows the credentials sentence — or the browser's raw <code>Failed to fetch</code> — during a platform outage.</p>
-        </div>
-        <div class="chips"><span class="chip effort">S</span><span class="chip kind">visual</span></div>
-      </div>
-      <div class="mock-pair">
-        <div class="mock"><div class="mock-cap">Today, backend down</div><div class="mock-body">
-          <div class="p-alert">Those credentials did not match. Please try again.</div>
-          <p class="p-muted" style="margin:8px 0 0">…but their password was fine. The service was down.</p>
-        </div></div>
-        <div class="mock"><div class="mock-cap">Proposed</div><div class="mock-body">
-          <div class="p-notice">The service cannot be reached right now. Your credentials were not checked — please try again shortly.</div>
-        </div></div>
-      </div>
-    </div>
-
-    <div class="item" data-id="D31" data-title="Login form a11y: id/htmlFor, aria-describedby, alert inside form (login-panel.tsx)">
-      <div class="item-head">
-        <input type="checkbox" id="D31">
-        <div>
-          <label class="item-title" for="D31"><span class="item-id">D31</span>Login fields have no <code>id</code>/<code>htmlFor</code> pairing</label>
-          <p class="item-desc">No <code>aria-describedby</code>, and the <code>role="alert"</code> sits after <code>&lt;/form&gt;</code> where screen-reader users won't associate it. Invisible fix — no visual change.</p>
-        </div>
-        <div class="chips"><span class="chip kind">a11y</span></div>
-      </div>
-    </div>
 
     <div class="item" data-id="D09" data-title="In-place re-auth panel instead of the 401 hard redirect (bffFetch)">
       <div class="item-head">
@@ -507,21 +476,6 @@
       </div>
     </div>
 
-    <div class="item" data-id="D30" data-title="Root app/not-found.tsx for URLs outside both route groups">
-      <div class="item-head">
-        <input type="checkbox" id="D30">
-        <div>
-          <label class="item-title" for="D30"><span class="item-id">D30</span>No root <code>not-found.tsx</code></label>
-          <p class="item-desc">Batch 2 added the two in-shell 404 pages; a URL outside both groups still gets Next's default. Cheap.</p>
-        </div>
-        <div class="chips"><span class="chip effort">S</span><span class="chip kind">visual</span></div>
-      </div>
-      <div class="mock"><div class="mock-cap">Proposed — bare-shell 404</div><div class="mock-body" style="text-align:center; padding:22px 16px">
-        <p style="margin:0 0 4px; font-family:var(--mono); font-size:11px; color:#71717a">404</p>
-        <p style="margin:0 0 10px; font-weight:600">This page does not exist.</p>
-        <span class="p-btn secondary">Go to the dashboard</span>
-      </div></div>
-    </div>
   </section>
 
   <!-- ============ SHELL & NAVIGATION ============ -->
@@ -679,6 +633,33 @@
           <p class="item-desc">Fixed by batch 2's producer cleanup (PR #24) — no synthesised titles on the wire.</p>
         </div>
         <div class="chips"><span class="chip done">done · #24</span></div>
+      </div>
+    </div>
+    <div class="item">
+      <div class="item-head">
+        <div>
+          <p class="item-title" style="cursor:default"><span class="item-id">D10</span>Login blames the user for an outage</p>
+          <p class="item-desc">Fixed by PR #50 — a response with no error code now reads as <code>unreachable</code> rather than defaulting to the credentials sentence.</p>
+        </div>
+        <div class="chips"><span class="chip done">done · #50</span></div>
+      </div>
+    </div>
+    <div class="item">
+      <div class="item-head">
+        <div>
+          <p class="item-title" style="cursor:default"><span class="item-id">D31</span>Login fields have no <code>id</code>/<code>htmlFor</code> pairing</p>
+          <p class="item-desc">Fixed by PR #50 — labels paired, <code>aria-describedby</code> on both fields, and the error moved inside the form as an <code>ErrorNote</code> that takes focus.</p>
+        </div>
+        <div class="chips"><span class="chip done">done · #50</span></div>
+      </div>
+    </div>
+    <div class="item">
+      <div class="item-head">
+        <div>
+          <p class="item-title" style="cursor:default"><span class="item-id">D30</span>No root <code>not-found.tsx</code></p>
+          <p class="item-desc">Fixed by PR #50 — a URL outside both route groups now gets a styled, translated 404 instead of Next's default.</p>
+        </div>
+        <div class="chips"><span class="chip done">done · #50</span></div>
       </div>
     </div>
   </section>

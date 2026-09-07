@@ -6,7 +6,7 @@ batches (#18, #24, #26, #27, #34). This folder holds the review page for the
 
 | File | What it is |
 |---|---|
-| `deferred-items.html` | One card per deferred finding, grouped by product area, with a small mock of the *proposed* state where the item is visual (today-vs-proposed side by side where that helps). Statuses are as of 2026-09-02: three items were resolved by later work, four are partial, two are blocked on backend questions. |
+| `deferred-items.html` | One card per deferred finding, grouped by product area, with a small mock of the *proposed* state where the item is visual (today-vs-proposed side by side where that helps). Statuses are as of 2026-09-07: six items were resolved by later work (D10, D30 and D31 in PR #50), four are partial, two are blocked on backend questions. |
 
 Open it directly in a browser (`open docs/error-ux/deferred-items.html`) —
 plain static file, no build step, no network access.
