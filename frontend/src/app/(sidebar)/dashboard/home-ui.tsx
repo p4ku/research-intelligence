@@ -40,12 +40,11 @@ export function TextLink({
   )
 }
 
-/** The two exits the spec puts beside Recent Briefings. */
+/** The exit the spec puts beside Recent Briefings. */
 export function HomeLinks({ t, className }: { t: T; className?: string }) {
   return (
-    <span className={clsx('flex items-baseline gap-4', className)}>
-      <TextLink href="/briefing">{t('View all briefings →')}</TextLink>
-      <TextLink href="/ask">{t('Ask about a paper →')}</TextLink>
+    <span className={clsx('flex items-baseline', className)}>
+      <TextLink href="/briefing">{t('all briefings')}</TextLink>
     </span>
   )
 }

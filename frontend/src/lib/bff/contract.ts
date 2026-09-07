@@ -11,6 +11,7 @@ import { papersOperations } from './papers/contract'
 import { pipelineRunsOperations } from './pipeline-runs/contract'
 import { scoringOperations } from './scoring/contract'
 import { settingsOperations } from './settings/contract'
+import { starsOperations } from './stars/contract'
 import { workspacesOperations } from './workspaces/contract'
 
 export const allOperations: Operation[] = [
@@ -19,6 +20,7 @@ export const allOperations: Operation[] = [
   ...briefingsOperations,
   ...settingsOperations,
   ...scoringOperations,
+  ...starsOperations,
   ...workspacesOperations,
   ...pipelineRunsOperations,
   ...componentRunsOperations,

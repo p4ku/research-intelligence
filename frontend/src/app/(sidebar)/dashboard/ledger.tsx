@@ -207,9 +207,18 @@ function Row({
 
       {open && row.brief && (
         <TableRow data-row="brief" id={panelId} className={clsx(current && 'bg-foreground/3')}>
-          <TableCell colSpan={COLUMNS.length} className="pt-0! pb-5!">
-            <div className="grid gap-6 pl-3 whitespace-normal lg:grid-cols-5">
-              <div className="lg:col-span-3">
+          {/* The row above keeps its own bottom padding; the panel adds a
+              little of its own so its first line is not against the rule. */}
+          <TableCell colSpan={COLUMNS.length} className="pt-3! pb-5!">
+            <div
+              className={clsx(
+                'grid gap-6 pl-3 whitespace-normal',
+                // Nothing to list beside the brief: let it run at its own
+                // measure rather than pairing it with an empty column.
+                row.brief.top.length > 0 && 'lg:grid-cols-5',
+              )}
+            >
+              <div className={clsx(row.brief.top.length > 0 && 'lg:col-span-3')}>
                 <p className="font-mono text-[11px] text-zinc-500 tabular-nums dark:text-zinc-400">
                   {fmt(t('{screened} screened → {included} included'), {
                     screened: row.brief.screened,
@@ -224,15 +233,11 @@ function Row({
                   {t('Open briefing →')}
                 </TextLink>
               </div>
-              <div className="lg:col-span-2">
-                {row.brief.top.length > 0 ? (
+              {row.brief.top.length > 0 && (
+                <div className="lg:col-span-2">
                   <TopPapers papers={row.brief.top} dense />
-                ) : (
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {t('No papers met the inclusion criteria for this briefing.')}
-                  </p>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           </TableCell>
         </TableRow>

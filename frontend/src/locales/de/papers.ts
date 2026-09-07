@@ -120,6 +120,21 @@ export const dict: Record<string, string> = {
   'How solid is the evidence?': 'Wie belastbar sind die Belege?',
   Abstract: 'Abstract',
 
+  // Paper analysis (sidecar layout)
+  'Schwarz Score': 'Schwarz-Score',
+  Assessment: 'Bewertung',
+  'View original paper': 'Originalpaper ansehen',
+  'Previous paper': 'Vorheriges Paper',
+  'Next paper': 'Nächstes Paper',
+  '{n} of {total}': '{n} von {total}',
+  'No rationale recorded.': 'Keine Begründung hinterlegt.',
+  'Confidence {n}': 'Konfidenz {n}',
+  Source: 'Quelle',
+  Run: 'Lauf',
+  'Continue on Ask': 'In Ask fortsetzen',
+  'Generating…': 'Wird generiert…',
+  'Ask a question about this paper…': 'Eine Frage zu diesem Paper stellen…',
+
   // Ask-this-paper rail
   'Ask this paper': 'Paper befragen',
   'Reading the full text…': 'Der Volltext wird gelesen…',

@@ -1,12 +1,15 @@
-import { ScreeningPill, SectionLabel } from '@/components/scanner-ui'
+import { ScreeningPill } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
+import { StarToggle } from '@/components/star'
 import { formatDate, type Lang, type T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
+import { ArrowUpRightIcon } from '@heroicons/react/16/solid'
 import type { ReactNode } from 'react'
 
 /**
- * The record's masthead: screening pill and provenance on one line, the
- * title, the authors. PaperHeaderFrame owns the layout so PaperHeader and
+ * The record's masthead: screening pill and provenance on one line (with the
+ * link out to the original paper), the title, the authors, and the star at
+ * the right. PaperHeaderFrame owns the layout so PaperHeader and
  * PaperHeaderSkeleton cannot drift.
  */
 
@@ -21,11 +24,14 @@ export function PaperHeaderFrame({
   meta,
   title,
   authors,
+  action,
 }: {
   state?: 'loaded' | 'skeleton'
   meta: ReactNode
   title: ReactNode
   authors: ReactNode
+  /** The star toggle, right of the masthead. */
+  action?: ReactNode
 }) {
   return (
     <div
@@ -39,14 +45,15 @@ export function PaperHeaderFrame({
         </div>
         <h1
           data-row="title"
-          className="mt-2 text-2xl leading-tight font-semibold tracking-tight text-zinc-950 dark:text-white"
+          className="mt-2 max-w-[30ch] text-[28px] leading-[1.15] font-semibold tracking-tight text-balance text-zinc-950 dark:text-white"
         >
           {title}
         </h1>
-        <p data-row="authors" className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
+        <p data-row="authors" className="mt-2.5 text-[15px] text-zinc-500 dark:text-zinc-400">
           {authors}
         </p>
       </div>
+      {action && <div className="shrink-0">{action}</div>}
     </div>
   )
 }
@@ -67,10 +74,25 @@ export function PaperHeader({ paper, t, lang }: { paper: ScoredPaper; t: T; lang
               <span className="font-mono text-xs text-zinc-400">arXiv:{paper.arxiv_id}</span>
             </>
           )}
+          {paper.pdf_url && (
+            <>
+              <Dot />
+              <a
+                href={paper.pdf_url}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-0.5 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+              >
+                {t('View original paper')}
+                <ArrowUpRightIcon aria-hidden="true" className="size-3" />
+              </a>
+            </>
+          )}
         </>
       }
       title={paper.title}
       authors={paper.authors.join(', ') || paper.authors_raw}
+      action={<StarToggle kind="paper" id={paper.id} />}
     />
   )
 }
@@ -86,22 +108,13 @@ export function PaperHeaderSkeleton() {
           <Bone.Text widths={['5ch']} className={META} />
           <Dot />
           <Bone.Text widths={['11ch']} className={META} />
+          <Dot />
+          <Bone.Text widths={['16ch']} className={META} />
         </>
       }
-      title={<Bone.Text widths={['85%']} />}
+      title={<Bone.Text lines={2} widths={['92%', '55%']} />}
       authors={<Bone.Text widths={['60%']} />}
+      action={<Bone.Block className="h-[30px] w-24" />}
     />
-  )
-}
-
-/** The signal card's heading in its ledger branch; the skeleton reserves that branch. */
-export function SignalHeading({ t }: { t: T }) {
-  return (
-    <>
-      <SectionLabel>{t('Signal score')}</SectionLabel>
-      <p className="mt-1 text-xs text-zinc-400">
-        {t('What the score is made of — and what would move it.')}
-      </p>
-    </>
   )
 }
