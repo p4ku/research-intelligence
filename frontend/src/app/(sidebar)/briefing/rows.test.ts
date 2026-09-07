@@ -86,6 +86,7 @@ function row(id: string, workspaceId: string): ArchiveRow {
     generated: '',
     screened: 0,
     included: 0,
+    empty: false,
     brief: { href: '', inBrief: '', screened: 0, included: 0, top: [] },
   }
 }
