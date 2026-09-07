@@ -30,10 +30,10 @@ export type StarUpdate = z.infer<typeof starUpdate>
 
 export const emptyStars: Stars = { papers: [], briefings: [] }
 
-/** Pure state transition shared by the stub store and the client's optimistic update. */
+/** Pure state transition for the client's optimistic update; mirrors what Django echoes back. */
 export function applyStar(current: Stars, update: StarUpdate): Stars {
   const key = update.kind === 'paper' ? 'papers' : 'briefings'
   const without = current[key].filter((id) => id !== update.id)
-  // Newest last, so a capped store drops the oldest star first.
+  // Newest last: Django returns stars oldest first, and a re-star is a new row.
   return { ...current, [key]: update.starred ? [...without, update.id] : without }
 }

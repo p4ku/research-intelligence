@@ -32,7 +32,7 @@ export const starsOperations: Operation[] = [
     kind: 'bff',
     method: 'GET',
     path: '/bff/stars',
-    summary: "The user's stars. Cookie-backed stub until Django persists them.",
+    summary: "The user's stars, from Django's /api/stars/.",
     responses: { 200: stars },
   },
   {

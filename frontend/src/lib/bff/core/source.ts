@@ -54,7 +54,7 @@ export const RESOURCES: Record<ResourceName, ResourceDef> = {
   briefings: def('briefings', 'BFF_SOURCE_BRIEFINGS', ['stub', 'composed', 'django'], 'composed'),
   preferences: def('preferences', 'BFF_SOURCE_PREFERENCES', ['stub', 'django'], 'stub'),
   scoring: def('scoring', 'BFF_SOURCE_SCORING', ['stub', 'composed', 'django'], 'composed'),
-  stars: def('stars', 'BFF_SOURCE_STARS', ['stub', 'django'], 'stub'),
+  stars: def('stars', 'BFF_SOURCE_STARS', ['django'], 'django'),
 }
 
 const warned = new Set<ResourceName>()
