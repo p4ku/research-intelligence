@@ -158,3 +158,14 @@ export type PaletteEntry = z.infer<typeof paletteEntry>
 /** Best signal first, unscored papers last. */
 export const palette = z.object({ papers: z.array(paletteEntry) }).meta({ id: 'Palette' })
 export type Palette = z.infer<typeof palette>
+
+/**
+ * The picker's one automatic retry announces itself, so a failed first load
+ * can be traced from the router's access log alone: `retry=1` marks the
+ * second request, `after` names the problem the first one ended in.
+ */
+export const paletteQuery = z.object({
+  retry: z.literal('1').optional(),
+  after: z.string().max(64).optional(),
+})
+export type PaletteQuery = z.infer<typeof paletteQuery>

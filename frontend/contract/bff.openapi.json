@@ -206,11 +206,30 @@
     "/bff/papers/palette": {
       "get": {
         "operationId": "papers.palette.bff",
-        "summary": "The Ask picker's corpus: every paper the user can see as a slim row (title, first author, source, signal), best signal first. Served from a short per-user cache.",
+        "summary": "The Ask picker's corpus: every paper the user can see as a slim row (title, first author, source, signal), best signal first. Served from a short per-user cache. The client's one automatic retry marks itself with `retry=1&after=<problem>`.",
         "tags": [
           "papers"
         ],
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "retry",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "const": "1"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Success",
