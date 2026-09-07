@@ -221,9 +221,8 @@ class PaperSerializer(serializers.ModelSerializer):
     def get_source_url(self, obj):
         if hasattr(obj, 'source_url') and obj.source_url:
             return obj.source_url
-        if hasattr(obj, 'resolve_source_url'):
-            return obj.resolve_source_url()
-        return None
+        from research_intelligence.utils.source_url import resolve_paper_source_url
+        return resolve_paper_source_url(obj)
 
     class Meta:
         model = Paper

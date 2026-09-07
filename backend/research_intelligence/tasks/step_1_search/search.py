@@ -12,6 +12,7 @@ from django.core.files.base import ContentFile
 
 from ...models import Workspace, Paper, PaperMetric, PipelineRun, ComponentRun, Scraper
 from ...scrapers import get_scraper_provider
+from ...utils.source_url import resolve_paper_source_url
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +185,12 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                         if not existing_p.meta and item.get('meta'):
                             existing_p.meta = item.get('meta')
                             updated_fields.append('meta')
-                        clean_source = item.get('other_url') or (f"https://doi.org/{clean_doi}" if clean_doi else None) or (f"https://arxiv.org/abs/{clean_arxiv}" if clean_arxiv else None) or item.get('pdf_url')
+                        clean_source = resolve_paper_source_url(
+                            item,
+                            doi=clean_doi,
+                            arxiv_id=clean_arxiv,
+                            source_url=item.get('other_url') or item.get('pdf_url')
+                        )
                         if not existing_p.source_url and clean_source:
                             existing_p.source_url = clean_source[:1024]
                             updated_fields.append('source_url')
@@ -249,14 +255,24 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                     if not paper.meta and item.get('meta'):
                         paper.meta = item.get('meta')
                         updated_fields.append('meta')
-                    clean_source = item.get('other_url') or (f"https://doi.org/{clean_doi}" if clean_doi else None) or (f"https://arxiv.org/abs/{clean_arxiv}" if clean_arxiv else None) or item.get('pdf_url')
+                    clean_source = resolve_paper_source_url(
+                        item,
+                        doi=clean_doi,
+                        arxiv_id=clean_arxiv,
+                        source_url=item.get('other_url') or item.get('pdf_url')
+                    )
                     if not paper.source_url and clean_source:
                         paper.source_url = clean_source[:1024]
                         updated_fields.append('source_url')
                     if updated_fields:
                         paper.save(update_fields=updated_fields)
                 else:
-                    clean_source = item.get('other_url') or (f"https://doi.org/{clean_doi}" if clean_doi else None) or (f"https://arxiv.org/abs/{clean_arxiv}" if clean_arxiv else None) or item.get('pdf_url')
+                    clean_source = resolve_paper_source_url(
+                        item,
+                        doi=clean_doi,
+                        arxiv_id=clean_arxiv,
+                        source_url=item.get('other_url') or item.get('pdf_url')
+                    )
                     paper, created = Paper.objects.get_or_create(
                         workspace=workspace,
                         hash_id=unique_hash,

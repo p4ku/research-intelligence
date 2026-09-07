@@ -228,3 +228,35 @@ class PaperSourceUrlTestCase(TestCase):
         doc.refresh_from_db()
         self.assertEqual(doc.source_url, "https://arxiv.org/abs/2402.11111")
 
+    def test_resolve_paper_source_url_helper(self):
+        """
+        Verify the standalone helper function works with dicts, model instances, and kwargs.
+        """
+        from research_intelligence.utils.source_url import resolve_paper_source_url
+
+        # Direct kwargs
+        self.assertEqual(
+            resolve_paper_source_url(doi="10.1234/test.doi"),
+            "https://doi.org/10.1234/test.doi"
+        )
+        self.assertEqual(
+            resolve_paper_source_url(arxiv_id="2401.00001"),
+            "https://arxiv.org/abs/2401.00001"
+        )
+
+        # Dict input
+        self.assertEqual(
+            resolve_paper_source_url({"doi": "10.5555/dict.doi"}),
+            "https://doi.org/10.5555/dict.doi"
+        )
+        self.assertEqual(
+            resolve_paper_source_url({"meta": {"primary_location": {"landing_page_url": "https://nature.com/articles/123"}}}),
+            "https://nature.com/articles/123"
+        )
+
+        # Existing source_url has priority
+        self.assertEqual(
+            resolve_paper_source_url({"source_url": "https://custom.org/paper", "doi": "10.1234/other"}),
+            "https://custom.org/paper"
+        )
+
