@@ -2,9 +2,12 @@ name: CI - Test Suite & Docker Build Cache
 
 on:
   push:
-    branches: [ main, master, 'feature/*' ]
+    branches: [ 'feature/*' ]
   pull_request:
     branches: [ main, master ]
+  # On main this runs as the first job of deploy.yml, so a red suite blocks
+  # the deploy instead of racing it.
+  workflow_call:
 
 jobs:
   test-backend-sqlite:
