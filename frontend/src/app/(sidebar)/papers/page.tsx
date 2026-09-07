@@ -1,11 +1,11 @@
-import { Card, PageHeader } from '@/components/scanner-ui'
+import { PageHeader } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
-import { forPage } from '@/lib/bff/core/page'
-import { papers } from '@/lib/bff/papers/service'
 import { getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
-import { PapersBrowser } from './papers-browser'
+import { Suspense, ViewTransition } from 'react'
+import { PapersSection } from './sections'
+import { PapersSkeletonRegion } from './skeletons'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,6 +17,10 @@ export async function generateMetadata(): Promise<Metadata> {
 /**
  * Every paper from every domain the user belongs to, one browser over all of
  * them. `?q=` is Home's search, pre-filled into the browser's field.
+ *
+ * The header renders with the shell; the browser streams in behind one
+ * Suspense boundary. loading.tsx shows the same skeleton on navigation, and
+ * the <ViewTransition> pair animates the handoff.
  */
 export default async function PapersPage({
   searchParams,
@@ -24,35 +28,28 @@ export default async function PapersPage({
   searchParams: Promise<{ q?: string }>
 }) {
   const [t, state, { q }] = await Promise.all([getT(), getWorkspacesState(), searchParams])
-
-  if (state.kind !== 'ok') {
-    return (
-      <div className="space-y-8">
-        <PageHeader eyebrow={t('Corpus')} title={t('Papers')} />
-        <WorkspaceNotice kind={state.kind} />
-      </div>
-    )
-  }
-
-  const corpus = await forPage(papers.listEverywhere())
   // One domain reads as itself; several read as the whole corpus, with the
   // domain filter in the browser doing the narrowing.
-  const eyebrow = corpus.workspaces.length === 1 ? corpus.workspaces[0].name : t('All domains')
+  const eyebrow =
+    state.kind === 'ok' && state.all.length === 1 ? state.all[0].name : t('All domains')
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow={eyebrow} title={t('Papers')} />
-      {corpus.papers.length === 0 ? (
-        <Card>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">{t('No papers yet.')}</p>
-        </Card>
+      <PageHeader eyebrow={state.kind === 'ok' ? eyebrow : t('Corpus')} title={t('Papers')} />
+      {state.kind !== 'ok' ? (
+        <WorkspaceNotice kind={state.kind} />
       ) : (
-        <PapersBrowser
-          key={q ?? ''}
-          papers={corpus.papers}
-          workspaces={corpus.workspaces}
-          initialSearch={q?.trim() ?? ''}
-        />
+        <Suspense
+          fallback={
+            <ViewTransition exit="bone-exit" default="none">
+              <PapersSkeletonRegion t={t} />
+            </ViewTransition>
+          }
+        >
+          <ViewTransition enter="bone-enter" default="none">
+            <PapersSection t={t} q={q} />
+          </ViewTransition>
+        </Suspense>
       )}
     </div>
   )
