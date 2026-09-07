@@ -28,6 +28,8 @@ export const dict: Record<string, string> = {
   // Accessibility labels on the shell (mobile nav drawer, breadcrumb trail).
   'Open navigation': 'Navigation öffnen',
   'Close navigation': 'Navigation schließen',
+  // Accessible name for the mobile nav drawer itself, not a visible label.
+  Navigation: 'Navigation',
   Breadcrumb: 'Pfadnavigation',
   'Retrying…': 'Wird erneut versucht …',
   'Reference {id}': 'Referenz {id}',

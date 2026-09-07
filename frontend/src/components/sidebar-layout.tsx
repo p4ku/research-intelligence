@@ -27,8 +27,10 @@ function MobileSidebar({
   children,
 }: React.PropsWithChildren<{ open: boolean; close: () => void }>) {
   const t = useT()
+  // The close button was named but the dialog itself was not, so it announced
+  // as an unnamed dialog on open.
   return (
-    <Headless.Dialog open={open} onClose={close} className="lg:hidden">
+    <Headless.Dialog open={open} onClose={close} aria-label={t('Navigation')} className="lg:hidden">
       <Headless.DialogBackdrop
         transition
         className="fixed inset-0 bg-black/30 transition data-enter:duration-300 data-enter:ease-out data-leave:duration-200 data-leave:ease-in data-closed:opacity-0"
