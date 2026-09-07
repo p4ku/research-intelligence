@@ -98,7 +98,7 @@ export function StarToggle({
   const on = isStarred(kind, id)
   const { action } = useStarLabels(kind, on)
   const [pop, arm, settle] = usePop()
-  const label = on ? t('Starred') : kind === 'paper' ? t('Star paper') : t('Star briefing')
+  const idle = kind === 'paper' ? t('Star paper') : t('Star briefing')
   return (
     <button
       type="button"
@@ -125,7 +125,15 @@ export function StarToggle({
           pop && 'animate-star-pop motion-reduce:animate-none',
         )}
       />
-      {label}
+      {/* Both labels occupy the same cell, so toggling never moves the page. */}
+      <span className="grid">
+        <span aria-hidden={on} className={clsx('col-start-1 row-start-1', on && 'invisible')}>
+          {idle}
+        </span>
+        <span aria-hidden={!on} className={clsx('col-start-1 row-start-1', !on && 'invisible')}>
+          {t('Starred')}
+        </span>
+      </span>
     </button>
   )
 }

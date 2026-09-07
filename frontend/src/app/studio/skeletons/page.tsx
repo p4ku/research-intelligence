@@ -1,18 +1,13 @@
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { PaperCard, PaperCardSkeleton } from '@/components/paper-card'
 import {
-  Card,
-  DimensionsFrame,
   PageHeader,
-  ScoreRow,
-  ScoreRowSkeleton,
   SectionLabel,
   StatBand,
   StatBandSkeleton,
   StatTile,
   StatTileSkeleton,
 } from '@/components/scanner-ui'
-import { SignalLedger, SignalLedgerSkeleton } from '@/components/signal-ledger'
 import { Skeleton } from '@/components/skeleton'
 import { fixtureEditions } from '@/lib/bff/briefings/fixtures'
 import { fixtureSessions } from '@/lib/bff/chat/fixtures'
@@ -36,12 +31,10 @@ import {
 import { Ledger, LedgerSkeleton, type HomeRow } from '../../(sidebar)/dashboard/ledger'
 import { Masthead, MastheadSkeleton, type MastheadLead } from '../../(sidebar)/dashboard/masthead'
 import { RunCard, RunCardSkeleton } from '../../(sidebar)/dashboard/run-card'
-import {
-  PaperHeader,
-  PaperHeaderSkeleton,
-  SignalHeading,
-} from '../../(sidebar)/papers/[id]/paper-header'
-import { DIMENSION_ROWS } from '../../(sidebar)/papers/[id]/skeletons'
+import { AssessmentRows, AssessmentRowsSkeleton } from '../../(sidebar)/papers/[id]/assessment-rows'
+import { PaperHeader, PaperHeaderSkeleton } from '../../(sidebar)/papers/[id]/paper-header'
+import { PaperNav, PaperNavSkeleton } from '../../(sidebar)/papers/[id]/paper-nav'
+import { ScoreRail, ScoreRailSkeleton } from '../../(sidebar)/papers/[id]/score-rail'
 import { RunFacts, RunFactsSkeleton } from '../../(sidebar)/runs/[id]/run-facts'
 import { StepTimeline, StepTimelineSkeleton } from '../../(sidebar)/runs/[id]/step-timeline'
 import { RunsTable, RunsTableSkeleton } from '../../(sidebar)/runs/runs-table'
@@ -408,52 +401,47 @@ export default async function SkeletonsPage({
         skeleton={<PaperHeaderSkeleton />}
       />
 
-      {/* Literal inputs: the fixture paper is not on the canonical formula, so
-          ledgerInputs() would refuse it. TRL 4 keeps the bonus row dim. */}
       <Pair
-        shape="signal-ledger"
-        title="Signal ledger"
+        shape="paper-nav"
+        title="Paper nav"
         status="Loading the paper"
         loaded={
-          <Card>
-            <SignalLedger
-              inputs={{ trl: 4, fit: 92, novelty: 74 }}
-              heading={<SignalHeading t={t} />}
-            />
-          </Card>
+          <PaperNav
+            neighbours={{
+              prev: null,
+              next: `/papers/${fixturePapers[1]!.id}`,
+              position: 1,
+              total: 21,
+            }}
+            t={t}
+          />
         }
-        skeleton={
-          <Card>
-            <SignalLedgerSkeleton heading={<SignalHeading t={t} />} />
-          </Card>
-        }
+        skeleton={<PaperNavSkeleton t={t} />}
+      />
+
+      {/* The fixture has three dimensions; production has five, which the
+          route skeleton reserves. The pair keeps the two the same length. */}
+      <Pair
+        shape="assessment"
+        title="Assessment rows"
+        status="Loading the paper"
+        loaded={<AssessmentRows dimensions={paper.dimensions} />}
+        skeleton={<AssessmentRowsSkeleton rows={paper.dimensions.length} />}
       />
 
       <Pair
-        shape="dimensions"
-        title="Dimension rows"
+        shape="score-rail"
+        title="Score rail"
         status="Loading the paper"
         loaded={
-          <DimensionsFrame>
-            {paper.dimensions.map((d) => (
-              <ScoreRow
-                key={d.key}
-                label={d.name}
-                value={d.value}
-                max={d.max}
-                raw={d.raw}
-                rationale={d.rationale}
-                evidence={d.evidence}
-              />
-            ))}
-          </DimensionsFrame>
+          <div className="max-w-[300px]">
+            <ScoreRail paper={paper} t={t} />
+          </div>
         }
         skeleton={
-          <DimensionsFrame state="skeleton">
-            {DIMENSION_ROWS.map((row, i) => (
-              <ScoreRowSkeleton key={i} {...row} />
-            ))}
-          </DimensionsFrame>
+          <div className="max-w-[300px]">
+            <ScoreRailSkeleton t={t} bars={paper.dimensions.length} />
+          </div>
         }
       />
 
