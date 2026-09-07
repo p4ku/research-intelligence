@@ -8,20 +8,14 @@ import clsx from 'clsx'
 import { useEffect, type ComponentPropsWithoutRef, type ReactNode } from 'react'
 import type { PaletteEntry } from './types'
 
-function matches(entry: PaletteEntry, query: string): boolean {
-  const q = query.toLowerCase()
-  return (
-    entry.title.toLowerCase().includes(q) ||
-    (entry.first_author?.toLowerCase().includes(q) ?? false) ||
-    entry.source.toLowerCase().includes(q) ||
-    entry.id.includes(q)
-  )
-}
-
-/** The rows on offer for a query: matches, or the top five by signal when empty. */
+/**
+ * The rows on offer for a query: the server's matches as they came (ranked
+ * by the shared matcher, already cut at its limit — re-filtering here by
+ * substring would hide a stem or prefix hit), or the top five by signal
+ * when empty.
+ */
 export function pickable(entries: PaletteEntry[], query: string): PaletteEntry[] {
-  const q = query.trim()
-  return q ? entries.filter((e) => matches(e, q)) : entries.slice(0, 5)
+  return query.trim() ? entries : entries.slice(0, 5)
 }
 
 // MiniScore and scoreColor moved to scanner-ui so the Home search can share
@@ -110,6 +104,8 @@ export type PickerStatus = 'loading' | 'ready' | 'error'
  */
 export function PaperPicker({
   entries,
+  matched = entries.length,
+  total = entries.length,
   status = 'ready',
   query,
   cursor,
@@ -119,6 +115,10 @@ export function PaperPicker({
   onRetry,
 }: {
   entries: PaletteEntry[]
+  /** Rows the query matched before the server's limit. */
+  matched?: number
+  /** Papers the reader can see at all. */
+  total?: number
   status?: PickerStatus
   query: string
   cursor: number
@@ -154,9 +154,9 @@ export function PaperPicker({
             loading ? (
               <Bone.Text widths={['11ch']} />
             ) : status === 'error' ? null : hasQuery ? (
-              fmt(t('{n} of {total}'), { n: shown.length, total: entries.length })
+              fmt(t('{n} of {total}'), { n: matched, total })
             ) : (
-              fmt(t('Top {n} of {total}'), { n: shown.length, total: entries.length })
+              fmt(t('Top {n} of {total}'), { n: shown.length, total })
             )
           }
         />

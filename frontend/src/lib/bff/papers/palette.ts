@@ -1,6 +1,12 @@
-/** The corpus → the Ask picker's rows: a slim projection, best signal first. Pure. */
+/**
+ * The corpus → the Ask picker's rows: a slim projection of the papers the
+ * reader's text matches, best first, at most `limit` of them. The matcher
+ * is the one behind Home's typeahead and the Papers page, so what the
+ * picker offers is what a search would have found. Pure.
+ */
 import { byValueDesc } from '@/lib/papers/select'
-import type { Palette, PaletteEntry, ScoredPaper } from './schema'
+import { parseQuery, rankAll } from '@/lib/search/match'
+import type { Palette, PaletteEntry, PaletteQuery, ScoredPaper } from './schema'
 
 export function toPaletteEntry(p: ScoredPaper): PaletteEntry {
   return {
@@ -13,8 +19,17 @@ export function toPaletteEntry(p: ScoredPaper): PaletteEntry {
   }
 }
 
-export function toPalette({ papers }: { papers: ScoredPaper[] }): Palette {
+export function toPalette(
+  { papers }: { papers: ScoredPaper[] },
+  { q, limit }: PaletteQuery = { q: '', limit: 20 },
+): Palette {
+  const ranked = q
+    ? rankAll(papers, parseQuery(q)).map((r) => r.paper)
+    : [...papers].sort((a, b) => byValueDesc(a.signal_score, b.signal_score))
   return {
-    papers: papers.map(toPaletteEntry).sort((a, b) => byValueDesc(a.signal_score, b.signal_score)),
+    query: q,
+    papers: ranked.slice(0, limit).map(toPaletteEntry),
+    matched: ranked.length,
+    total: papers.length,
   }
 }

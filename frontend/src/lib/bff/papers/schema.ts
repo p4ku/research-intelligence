@@ -110,9 +110,8 @@ export const scoredPaper = z
   .meta({ id: 'ScoredPaper' })
 export type ScoredPaper = z.infer<typeof scoredPaper>
 
-export const papersQuery = listQuery.extend({
-  /** Absent = every domain the user belongs to. */
-  workspace_id: z.uuid().optional(),
+/** What the scorecard endpoint is asked for — the part of the query Django is meant to absorb. */
+export const papersScorecardQuery = listQuery.extend({
   /** 'passed' = the three passed statuses; 'all' = everything. */
   screening: z
     .enum([
@@ -133,11 +132,60 @@ export const papersQuery = listQuery.extend({
     .regex(/^-?(signal_score|created_at|dim:[a-z0-9_]+)$/)
     .default('-signal_score'),
   /** Free text over title, abstract, authors, arxiv id, doi — the shared matcher in src/lib/search/match.ts. */
-  search: z.string().optional(),
+  search: z.string().trim().max(200).optional(),
+})
+
+/**
+ * The BFF face: the Papers page's every control on top of the scorecard
+ * query, so the browser holds one page and the corpus stays on the server.
+ * Unusable values fall to their defaults rather than failing the page.
+ */
+export const papersQuery = papersScorecardQuery.extend({
+  /** Absent = every domain the user belongs to. */
+  workspace_id: z.uuid().optional(),
+  /** '1' = only the reader's starred papers. */
+  starred: z.enum(['0', '1']).catch('0').default('0'),
+  /** Papers scoring at least this; 0 = no cutoff. */
+  min_score: z.coerce.number().min(0).catch(0).default(0),
+  /** TRL window, applied only when the corpus has a TRL dimension. */
+  min_trl: z.coerce.number().int().min(1).max(9).catch(1).default(1),
+  max_trl: z.coerce.number().int().min(1).max(9).catch(9).default(9),
+  /** Ingested within this many days of the newest paper; 0 = all time. */
+  within_days: z.coerce.number().int().min(0).max(3650).catch(0).default(0),
 })
 export type PapersQuery = z.infer<typeof papersQuery>
 
 export const paperPage = pageSchema(scoredPaper).meta({ id: 'ScoredPaperPage' })
+
+/**
+ * What the filter rail needs from the whole corpus, however narrow the page:
+ * the sort options and slider ceiling exist only if some paper has the
+ * value, and the counts say what a filter is hiding.
+ */
+export const papersFacets = z
+  .object({
+    /** Papers in the corpus before any filter. */
+    total: z.number().int().min(0),
+    /** The score slider's top: 100, or higher when a formula scores higher. */
+    score_ceiling: z.number().int(),
+    /** The newest ingest time — what the ingested window counts back from. */
+    newest: z.iso.datetime({ offset: true }).nullable(),
+    has_trl: z.boolean(),
+    /** Definitions some paper has a value for, once each across domains; TRL excluded. */
+    dimension_sorts: z.array(z.object({ key: z.string(), name: z.string() })),
+    starred_count: z.number().int().min(0),
+    /** Search hits the screening filter alone is hiding (0 without a search). */
+    hidden_by_screening: z.number().int().min(0),
+    /** Set when the per-user corpus cap dropped older papers. */
+    truncated: z.object({ shown: z.number().int(), total: z.number().int() }).nullable(),
+  })
+  .meta({ id: 'PapersFacets' })
+export type PapersFacets = z.infer<typeof papersFacets>
+
+export const paperList = pageSchema(scoredPaper)
+  .extend({ facets: papersFacets })
+  .meta({ id: 'ScoredPaperList' })
+export type PapersList = z.infer<typeof paperList>
 
 /**
  * A paper as the Ask picker names it: the slim projection a console holds
@@ -155,6 +203,26 @@ export const paletteEntry = z
   .meta({ id: 'PaletteEntry' })
 export type PaletteEntry = z.infer<typeof paletteEntry>
 
-/** Best signal first, unscored papers last. */
-export const palette = z.object({ papers: z.array(paletteEntry) }).meta({ id: 'Palette' })
+/**
+ * What the picker asks for: the reader's text (empty warms the corpus and
+ * returns the top rows by signal) through the shared matcher, at most
+ * `limit` rows. Never the whole corpus — the picker is a typeahead.
+ */
+export const paletteQuery = z.object({
+  q: z.string().trim().max(200).default(''),
+  limit: z.coerce.number().int().min(1).max(50).catch(20).default(20),
+})
+export type PaletteQuery = z.infer<typeof paletteQuery>
+
+/** Best signal first for an empty query, best match first otherwise; unscored papers last. */
+export const palette = z
+  .object({
+    query: z.string(),
+    papers: z.array(paletteEntry),
+    /** Rows the query matched before the limit. */
+    matched: z.number().int().min(0),
+    /** Papers the reader can see at all. */
+    total: z.number().int().min(0),
+  })
+  .meta({ id: 'Palette' })
 export type Palette = z.infer<typeof palette>

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { problem } from '../core/problem'
 import { clock } from '../core/test-clock'
-import { createSnapshotStore } from './store'
+import { createSnapshotStore, effectiveTrust } from './store'
 
 /** A store over counters, so every test can say exactly what was called. */
 function harness({
@@ -167,5 +167,43 @@ describe('createSnapshotStore', () => {
     clock.tick(600_001)
     await store.get('k')
     expect(calls.load).toBe(2)
+  })
+
+  test('a byte budget evicts the least recently used user before the key count does', async () => {
+    const calls = { load: 0 }
+    const store = createSnapshotStore<{ bytes: number }>({
+      probe: async () => 'v1',
+      load: async () => {
+        calls.load += 1
+        return { bytes: 60 }
+      },
+      ttlMs: 600_000,
+      maxEntries: 8,
+      maxBytes: 100,
+      sizeOf: (s) => s.bytes,
+    })
+    await store.get('a')
+    await store.get('b')
+    // `b` evicted `a` (120 > 100); reading `a` again is a cold load.
+    await store.get('a')
+    expect(calls.load).toBe(3)
+    await store.get('a')
+    expect(calls.load).toBe(3)
+  })
+})
+
+describe('effectiveTrust', () => {
+  test('a request that read the ledger always probes', () => {
+    expect(effectiveTrust({ requested: 10_000, cooldownMs: 5_000, ledgerRequested: true })).toBe(0)
+  })
+
+  test('otherwise the cooldown applies and a request may only raise it', () => {
+    expect(effectiveTrust({ requested: 0, cooldownMs: 5_000, ledgerRequested: false })).toBe(5_000)
+    expect(effectiveTrust({ requested: 10_000, cooldownMs: 5_000, ledgerRequested: false })).toBe(
+      10_000,
+    )
+    expect(effectiveTrust({ requested: 1_000, cooldownMs: 5_000, ledgerRequested: false })).toBe(
+      5_000,
+    )
   })
 })

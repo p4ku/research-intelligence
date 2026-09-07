@@ -15,6 +15,7 @@ import * as z from 'zod'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { assertUuid } from '../core/validate'
+import { ledgerRequested } from '../corpus/ledger-flag'
 import { isRetryable, runPeriod } from './period'
 import {
   runStatus,
@@ -88,6 +89,9 @@ export const runs = {
    * corpus snapshot's version probe all share the one fetch.
    */
   listEverywhere: cache(async (): Promise<PipelineRun[]> => {
+    // Before the first await: the corpus snapshot reads this flag to know the
+    // ledger is in hand for this request, so its probe is free and must run.
+    ledgerRequested().yes = true
     const rows = await django('/api/pipeline-runs/', z.array(pipelineRunDTO))
     return rows.map(toRun)
   }),

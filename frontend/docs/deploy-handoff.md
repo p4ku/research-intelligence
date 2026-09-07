@@ -35,6 +35,12 @@ repo's root is self-contained (`bun install` → `next build` standalone →
     # BFF_SOURCE_BRIEFINGS: composed
     # BFF_SOURCE_SCORING: composed
     # BFF_SOURCE_PREFERENCES: stub
+    # Corpus snapshot bounds (defaults in src/lib/bff/corpus/snapshot.ts;
+    # documented in .env.example). Keep CORPUS_CACHE_MAX_MB at or under 128
+    # while the instance is 512M.
+    # CORPUS_MAX_PAPERS: "2000"
+    # CORPUS_CACHE_MAX_MB: "128"
+    # CORPUS_PROBE_COOLDOWN_MS: "5000"
 ```
 
 Notes:
@@ -55,6 +61,10 @@ curl -si https://<host>/bff/papers           # 401 application/problem+json
 # and a question in Ask should stream (watch for `: ping` comments).
 curl -si https://<host>/health/              # Django, via the router
 ```
+
+After the first sign-in, `cf logs sri-frontend --recent` should show no
+`[bff] corpus capped` line; one means a user has more papers than
+`CORPUS_MAX_PAPERS` and is seeing the newest of them.
 
 These checks assume the **default browser state**: no `rs-features` cookie, so
 every demo feature switch is on. A browser left over from a demo can have Ask

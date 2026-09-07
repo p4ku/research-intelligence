@@ -11,20 +11,28 @@
  */
 import 'server-only'
 
-import { byValueAsc, byValueDesc, dimensionByKey } from '@/lib/papers/select'
-import { parseQuery, rankAll } from '@/lib/search/match'
 import { cache } from 'react'
 import * as z from 'zod'
 import { django } from '../core/http'
-import { paginate, type Page } from '../core/pagination'
+import { paginate } from '../core/pagination'
 import { problem, ProblemError } from '../core/problem'
 import { sourceOf } from '../core/source'
 import { assertUuid } from '../core/validate'
+import { corpusSnapshot } from '../corpus/snapshot'
+import { stars } from '../stars/service'
 import { workspace, type WorkspaceSummary } from '../workspaces/schema'
 import { workspaces } from '../workspaces/service'
 import { composeGet, composeListAll } from './compose'
+import { applyPapersQuery, corpusFacets } from './filter'
 import { fixturePapers, fixtureWorkspace } from './fixtures'
-import { paperPage, scoredPaper, type PapersQuery, type ScoredPaper } from './schema'
+import {
+  paperPage,
+  papersQuery,
+  scoredPaper,
+  type PapersList,
+  type PapersQuery,
+  type ScoredPaper,
+} from './schema'
 
 export interface WorkspacePapers {
   workspace: WorkspaceSummary
@@ -35,6 +43,8 @@ export interface WorkspacePapers {
 export interface CorpusPapers {
   workspaces: WorkspaceSummary[]
   papers: ScoredPaper[]
+  /** Set when the per-user cap dropped older papers (../corpus/snapshot.ts). */
+  truncated?: { kept: number; total: number }
 }
 
 const detailResponse = z.object({ workspace, paper: scoredPaper })
@@ -76,20 +86,8 @@ function stubListAll(workspaceId: string): WorkspacePapers {
   }
 }
 
-function order(papers: ScoredPaper[], ordering: string): ScoredPaper[] {
-  const desc = ordering.startsWith('-')
-  const key = desc ? ordering.slice(1) : ordering
-  const sorted = [...papers]
-  if (key === 'created_at') {
-    sorted.sort((a, b) => a.created_at.localeCompare(b.created_at))
-    if (desc) sorted.reverse()
-    return sorted
-  }
-  const value = (p: ScoredPaper): number | null =>
-    key === 'signal_score' ? p.signal_score : (dimensionByKey(p, key.slice(4))?.value ?? null)
-  sorted.sort((a, b) => (desc ? byValueDesc(value(a), value(b)) : byValueAsc(value(a), value(b))))
-  return sorted
-}
+/** The reader's stars, once per request: the sidebar and the list share it. */
+const starredPapers = cache(() => stars.get())
 
 export const papers = {
   /**
@@ -140,33 +138,42 @@ export const papers = {
         merged.push(paper)
       }
     }
-    return { workspaces: summaries, papers: merged }
+    const truncated =
+      sourceOf('papers') === 'composed' ? (await corpusSnapshot()).truncated : undefined
+    return { workspaces: summaries, papers: merged, truncated }
   }),
 
-  /** The paginated HTTP face: screening filter, ordering, search; one domain or all. */
-  async list(query: PapersQuery): Promise<Page<ScoredPaper>> {
-    const all = query.workspace_id
-      ? await papers.listAll(query.workspace_id)
-      : await papers.listEverywhere()
-    if (!all) throw problem('not-found', { detail: 'No such workspace in your memberships.' })
-    let rows = all.papers
-    if (query.screening === 'passed') {
-      rows = rows.filter((p) =>
-        ['abstract_passed', 'full_text_passed', 'accepted'].includes(p.screening_status),
-      )
-    } else if (query.screening !== 'all') {
-      rows = rows.filter((p) => p.screening_status === query.screening)
+  /**
+   * The Papers page's HTTP face: one page of the corpus under every control,
+   * with the rail's facets. The whole corpus is read even for one domain —
+   * it is cached per request and the facets span it anyway — and the filters
+   * themselves are pure (./filter.ts).
+   */
+  async list(query: PapersQuery): Promise<PapersList> {
+    const corpus = await papers.listEverywhere()
+    if (query.workspace_id && !corpus.workspaces.some((w) => w.id === query.workspace_id)) {
+      throw problem('not-found', { detail: 'No such workspace in your memberships.' })
     }
-    if (query.search) {
-      // The same matcher as the Home typeahead and the Papers page filter.
-      const hits = new Set(rankAll(rows, parseQuery(query.search)).map((r) => r.paper))
-      rows = rows.filter((p) => hits.has(p))
+    const starred = new Set((await starredPapers()).papers)
+    const { rows, hiddenByScreening } = applyPapersQuery(corpus, query, starred)
+    // Every non-default control rides on next/previous, so a consumer walking
+    // the links stays inside the same view.
+    const extra: Record<string, string> = {}
+    const defaults = papersQuery.parse({})
+    for (const [key, value] of Object.entries(query)) {
+      if (key === 'page' || key === 'page_size' || value === undefined) continue
+      if (value !== defaults[key as keyof typeof defaults]) extra[key] = String(value)
     }
-    rows = order(rows, query.ordering)
-    const extra: Record<string, string> = { screening: query.screening, ordering: query.ordering }
-    if (query.workspace_id) extra.workspace_id = query.workspace_id
-    if (query.search) extra.search = query.search
-    return paginate(rows, query, '/bff/papers', extra)
+    return {
+      ...paginate(rows, query, '/bff/papers', extra),
+      facets: {
+        ...corpusFacets(corpus, starred),
+        hidden_by_screening: hiddenByScreening,
+        truncated: corpus.truncated
+          ? { shown: corpus.truncated.kept, total: corpus.truncated.total }
+          : null,
+      },
+    }
   },
 
   /**
