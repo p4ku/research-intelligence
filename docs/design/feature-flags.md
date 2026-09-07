@@ -1,6 +1,6 @@
 # Feature flags: all_papers, stars, ask
 
-Status: design, ready to implement. Written 2026-09-07.
+Status: shipped (PRs #71, #78, #79, #80 merged 7 Sep 2026; e2e guard follows). Written 2026-09-07.
 Drift log: re-audited against origin/main 872c1e2 on 2026-09-07 (Home corpus search #61, Briefings ledger #52, Ask composer #66, root 404 #50, settings a11y #64); decisions D1–D4 below folded in.
 Scope: `frontend/` only, plus the doc and e2e notes called out in section 5.
 This file lives at the repo root (`docs/`), outside `frontend/scripts/scope-check.ts`'s provenance root, so it is committed on its own, not inside the flag PRs.
@@ -31,7 +31,7 @@ The BFF stays live throughout. Hiding is a UI concern; `/bff/papers`, `/bff/star
 | Defaults | All three ON, in code | Screenshot harness, skeleton-drift and Playwright all run cookieless and must see the full product |
 | Cookie attributes | `path=/; max-age=31536000; samesite=lax`, not `httpOnly` | The toggle writes it with `document.cookie`; copy `rs-lang` exactly (`frontend/src/lib/i18n-client.tsx:19`) |
 | Off behaviour for a hidden page | `notFound()` in the page body (and in `generateMetadata`) | House pattern (`frontend/src/app/(sidebar)/papers/[id]/page.tsx:34`) |
-| HTTP status of a hidden page | `/papers` → real 404. `/ask` → **HTTP 200** with the not-found card streamed in place | `/ask` has a `loading.tsx`; the 200-in-stream trade is already decided and pinned (`frontend/docs/skeletons.md:147-149`, `frontend/scripts/skeleton-drift.ts:252`) |
+| HTTP status of a hidden page | Both `/papers` and `/ask` → **HTTP 200** with the not-found card streamed in place; each route's `loading.tsx` returns null when its flag is off so no skeleton paints first | Both routes have a `loading.tsx` (`/papers` gained one on main on 7 Sep 2026, after the first audit); the 200-in-stream trade is already decided and pinned (`frontend/docs/skeletons.md`, `frontend/scripts/skeleton-drift.ts`). Shipped as PR #78 and #80 |
 | BFF routes | Unchanged and live | Hiding is UI; Django is reachable through the proxy rewrite anyway (`frontend/src/proxy.ts`) |
 | Env / CI / proxy / middleware | None | `rs-lang` only needs the proxy because it seeds from `Accept-Language`; flags default in code |
 | Logout | The cookie is **not** cleared | `rs-lang` and `rs-stars` survive sign-out; the demo state must too |
@@ -57,8 +57,6 @@ export interface FeatureDef {
   label: string
   /** Gettext context for the label, so it reuses an existing German value. */
   ctx?: string
-  /** Everything ships on. */
-  defaultOn: true
   /** The route this flag owns: the 404 gate and the vanish guard. */
   route?: { href: string; exact: boolean }
 }
@@ -69,12 +67,12 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
   // 'Alle Papers', and the merged dictionary finds it. Add no chrome.ts copy;
   // if one is ever added it must carry that exact string, or the duplicate
   // check at i18n.test.ts:85-96 fails.
-  all_papers: { key: 'all_papers', label: 'All papers', defaultOn: true, route: { href: '/papers', exact: true } },
+  all_papers: { key: 'all_papers', label: 'All papers', route: { href: '/papers', exact: true } },
   // 'Stars' has NO German today (de/components.ts:32 is 'Starred': 'Markiert',
   // not 'Stars'). PR 1 adds Stars: 'Markierungen' to de/chrome.ts.
-  stars: { key: 'stars', label: 'Stars', defaultOn: true },
+  stars: { key: 'stars', label: 'Stars' },
   // 'nav|Ask' is already 'Fragen' (de/chrome.ts:9): zero new keys.
-  ask: { key: 'ask', label: 'Ask', ctx: 'nav', defaultOn: true, route: { href: '/ask', exact: true } },
+  ask: { key: 'ask', label: 'Ask', ctx: 'nav', route: { href: '/ask', exact: true } },
 }
 
 export const FEATURE_KEYS = Object.keys(FEATURES) as FeatureKey[]
@@ -343,7 +341,7 @@ Both pages are `export const dynamic = 'force-dynamic'`, so nothing changes abou
 
 **Status codes differ, and the doc must say so.**
 
-- `/papers` has no `loading.tsx` (it is the `--stream` negative control, listed in `frontend/src/app/loading-convention.test.ts:15`), so `notFound()` produces a genuine HTTP 404. Do not add a `loading.tsx` to `/papers` as part of this work.
+- `/papers` gained a `loading.tsx` on main on 7 Sep 2026 (the `--stream` negative control moved to `/settings`), so like `/ask` it streams the shell with **HTTP 200** and renders the not-found card in place. Its `loading.tsx` returns null when `all_papers` is off (shipped in PR #78). Nothing about this work gives either route a real 404 status.
 - `/ask` has a `loading.tsx`, so Next streams the shell with **HTTP 200** and renders the segment's not-found card in place. This is the decided house trade (`frontend/docs/skeletons.md:147-149`), the same shape as a dead `/papers/[id]` or `/runs/[id]` permalink, and it is asserted by `frontend/scripts/skeleton-drift.ts:234-257` (`res.status === 200 && copy`). Accept it. Deleting `ask/loading.tsx` to force a hard 404 turns `bun test` red at `frontend/src/app/loading-convention.test.ts:35`, because `ask/page.tsx` is force-dynamic and is not in `KNOWN_UNCOVERED`, and that list "may only shrink".
 - Gate `frontend/src/app/(sidebar)/ask/loading.tsx` to `return null` when the flag is off. The file stays (so the convention test still finds it), and the Ask skeleton stops being the first painted body of a hidden route's response. It is not a sub-frame flash: it is what `skeleton:drift --not-found` inspects.
 
@@ -361,9 +359,9 @@ A hidden route 404s wherever you arrive from, including immediately after sign-i
 
 ```ts
 // src/lib/bff/status/service.ts: extend BffStatus (:33-40)
-features: { key: FeatureKey; on: boolean; default: boolean }[]
+features: Features   // { all_papers: boolean; stars: boolean; ask: boolean }
 // ...in the return object (:103-116), with `const f = await getFeatures()`
-features: FEATURE_KEYS.map((k) => ({ key: k, on: f[k], default: FEATURES[k].defaultOn })),
+features: await getFeatures(),   // shipped shape (PR #71): the plain Features object; defaults are always on, so no per-key default field
 ```
 
 It reflects **the calling browser's** cookie, not a server setting: say so in a comment, or someone reads it as global config. The per-resource `RESOURCES` report is untouched: `stars` and `chat` keep appearing even with their flags off, because that section describes the seam to Django, not the UI. Since #61 it carries one entry more than this doc's first draft assumed: the composed `search` resource behind Home's typeahead (`frontend/src/lib/bff/core/source.ts:57-59`, `BFF_SOURCE_SEARCH`, `supports: ['composed']`), which is not flag-gated either, for the same reason.
@@ -394,7 +392,7 @@ E2E: `tests_e2e/specs/07_feature_flags.journey.spec.ts` plus a `tests_e2e/pages/
 
 ### 4.1 `all_papers`
 
-**Semantics.** The `/papers` corpus browser stops existing as a destination while individual papers stay readable. The route calls `notFound()` before any data work, so a pasted URL renders the shared not-found card inside the shell with a real HTTP 404. The Papers item is filtered out of the nav (rail and drawer). Home's `<CorpusSearch>` typeahead is removed whole (decision D1, 7 Sep 2026), not merely its submit path: every row the panel offers is a corpus destination (`/papers`, `/papers?q=`, `/papers/<id>`), so a field left behind would be a field with nowhere to go. One side effect belongs in the open, not in a discovery mid-demo: the panel's `Ask about “{title}”` row goes with it, so `all_papers` off also removes Home's only Ask entry point, whatever the `ask` flag says. The shared 404 card drops its "Go to Papers" button. On `/papers/[id]` every list-derived affordance goes: the "Papers" breadcrumb, the prev/next arrows, the "{n} of {total}" position, and the `neighboursOf()` corpus fetch that feeds them, but the row itself stays with a redirected back link, because with the crumb gone it would otherwise be the app's only reachable route with no exit and no current nav item (nav highlighting is prefix-based, `frontend/src/components/application-layout.tsx:255`). The record itself is untouched; what changes is everything that told the reader where they were. `/papers/[id]` stays reachable from briefings, Home's TopPapers, `/tuning` and chat citations, and it 404s on its own for a bad id. Skeletons must agree with their pages or the shell flashes chrome that then vanishes. Hiding is UI-only: `/bff/papers` and `papers.listEverywhere`/`listAll` keep serving briefings, Ask's picker, scoring and status. Ask's attach-a-paper picker stays; it lists the corpus to scope a conversation, renders no `/papers` href, and since #66 is fed by its own route (`GET /bff/papers/palette`), which stays live like every other BFF surface. The i18n rule is "keep every existing key, drop callers freely": `frontend/src/lib/i18n.test.ts:78` hard-fails on a used-but-missing key and only warns on a dead one. And the off state is deliberately anonymous (`frontend/src/app/(sidebar)/not-found.tsx:6-8` says the card is generic), so a hidden route is indistinguishable from a broken link, to a viewer and to automation alike.
+**Semantics.** The `/papers` corpus browser stops existing as a destination while individual papers stay readable. The route calls `notFound()` before any data work, so a pasted URL renders the shared not-found card inside the shell (streamed inside an HTTP 200, because the route has a `loading.tsx` that returns null when the flag is off). The Papers item is filtered out of the nav (rail and drawer). Home's `<CorpusSearch>` typeahead is removed whole (decision D1, 7 Sep 2026), not merely its submit path: every row the panel offers is a corpus destination (`/papers`, `/papers?q=`, `/papers/<id>`), so a field left behind would be a field with nowhere to go. One side effect belongs in the open, not in a discovery mid-demo: the panel's `Ask about “{title}”` row goes with it, so `all_papers` off also removes Home's only Ask entry point, whatever the `ask` flag says. The shared 404 card drops its "Go to Papers" button. On `/papers/[id]` every list-derived affordance goes: the "Papers" breadcrumb, the prev/next arrows, the "{n} of {total}" position, and the `neighboursOf()` corpus fetch that feeds them, but the row itself stays with a redirected back link, because with the crumb gone it would otherwise be the app's only reachable route with no exit and no current nav item (nav highlighting is prefix-based, `frontend/src/components/application-layout.tsx:255`). The record itself is untouched; what changes is everything that told the reader where they were. `/papers/[id]` stays reachable from briefings, Home's TopPapers, `/tuning` and chat citations, and it 404s on its own for a bad id. Skeletons must agree with their pages or the shell flashes chrome that then vanishes. Hiding is UI-only: `/bff/papers` and `papers.listEverywhere`/`listAll` keep serving briefings, Ask's picker, scoring and status. Ask's attach-a-paper picker stays; it lists the corpus to scope a conversation, renders no `/papers` href, and since #66 is fed by its own route (`GET /bff/papers/palette`), which stays live like every other BFF surface. The i18n rule is "keep every existing key, drop callers freely": `frontend/src/lib/i18n.test.ts:78` hard-fails on a used-but-missing key and only warns on a dead one. And the off state is deliberately anonymous (`frontend/src/app/(sidebar)/not-found.tsx:6-8` says the card is generic), so a hidden route is indistinguishable from a broken link, to a viewer and to automation alike.
 
 **Touchpoints** (sorted by file).
 
