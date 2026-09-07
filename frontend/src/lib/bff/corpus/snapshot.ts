@@ -9,10 +9,15 @@
  *
  * Freshness comes from Django, not from a clock: the corpus only changes
  * when a pipeline run writes it, so the run ledger's fingerprint
- * (./version.ts) is the version, and a 1.5 KB probe of the run list decides
- * whether the heavy lists are re-pulled. Pages that render the run list
- * anyway (Home, /runs, /briefing) pay nothing for the probe — it shares
- * their per-request `cache()`. The policy itself lives in ./store.ts.
+ * (./version.ts) is the version, and a 1.5 KB probe of the run list on
+ * every request decides whether the heavy lists are re-pulled. Pages that
+ * render the run list anyway (Home, /runs, /briefing) pay nothing for the
+ * probe — it shares their per-request `cache()`; the rest pay one small
+ * round trip in place of the corpus. Confirming on every request is what
+ * lets the render that first shows a run as completed also be the first
+ * with its papers — the explicit invalidation below is only a shortcut,
+ * since a route handler's module state need not be the pages'. The policy
+ * itself lives in ./store.ts.
  *
  * Keyed on a hash of the access token — the credential Django verifies,
  * never the unsigned display cookie — so one user's snapshot can never
@@ -42,8 +47,12 @@ export interface CorpusSnapshot {
   extractions: ExtractionDTO[]
 }
 
-/** A confirmed version is trusted this long before the run list is probed again. */
-export const PROBE_COOLDOWN_MS = 10_000
+/**
+ * How long a confirmed version is trusted without probing. Zero: every
+ * request confirms, so a completed run is never shown without its papers.
+ * Raising it trades that for one fewer small round trip per navigation.
+ */
+export const PROBE_COOLDOWN_MS = 0
 /** The backstop for changes no run explains (an admin edit, a backfill). */
 export const SNAPSHOT_TTL_MS = 10 * 60_000
 /** Parsed DTOs run to a few MB per user; eight users fit a 512 MB instance comfortably. */

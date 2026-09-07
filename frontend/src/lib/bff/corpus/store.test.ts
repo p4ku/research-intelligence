@@ -136,6 +136,26 @@ describe('createSnapshotStore', () => {
     expect(calls.load).toBe(5)
   })
 
+  test('with no cooldown every read confirms the version', async () => {
+    const c = clock()
+    const calls = { probe: 0, load: 0 }
+    const store = createSnapshotStore<number>({
+      probe: async () => {
+        calls.probe += 1
+        return 'v1'
+      },
+      load: async () => ++calls.load,
+      cooldownMs: 0,
+      ttlMs: 600_000,
+      maxEntries: 4,
+      now: c.now,
+    })
+    await store.get('k')
+    await store.get('k')
+    await store.get('k')
+    expect(calls).toEqual({ probe: 3, load: 1 })
+  })
+
   test('the ttl is a ceiling even for a confirmed version', async () => {
     const { store, calls, clock } = harness()
     await store.get('k')
