@@ -1,5 +1,28 @@
 # Changelog
 
+## 2026-09-07 (Ask behind a demo switch)
+
+- **Ask** (`/ask`) is hidden per browser by the `ask` demo switch in the
+  account menu: the nav row goes from the rail and the drawer, the page calls
+  `notFound()` before any backend work, `generateMetadata` returns `{}` so the
+  tab falls back to "Research Intelligence", and `loading.tsx` renders nothing
+  rather than painting the console skeleton of a route that is about to answer
+  the not-found card. `/ask` answers **HTTP 200** with that card streamed in
+  place, not a 404, because the route has a `loading.tsx` — the trade decided
+  2026-09-02 and pinned by `skeleton:drift --not-found`.
+- Home's search panel drops its "Ask about “{title}”" row, the only in-app
+  link to `/ask` outside the nav. `GET /bff/search` still offers the href; the
+  UI decides whether to render a row for it.
+- **Deliberately different from the Scoring removal above**: nothing is
+  deleted. `src/locales/de/ask.ts`, every file under `src/app/(sidebar)/ask/`
+  and the Playwright journeys stay, because the switch is reversible mid-demo
+  and the Studio gallery imports the sidecar and picker components.
+- **What stays on purpose**: the per-paper "Ask this paper" sidecar on
+  `/papers/[id]` (this flag hides the corpus-wide canvas, not the per-paper
+  assistant), and `POST /bff/chat/stream` plus `GET/PATCH/DELETE
+/bff/chat/sessions*` — a cookie the visitor owns is a preference, not an
+  authorization boundary.
+
 ## 2026-09-01 (Scoring page removed)
 
 - The read-only **Scoring** page (`/scoring`) is gone, along with its nav entry,

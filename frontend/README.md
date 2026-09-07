@@ -45,11 +45,17 @@ so non-technical users can see _why_ something ranked where it did.
     notes, and arXiv/DOI links.
   - **Ask** (`/ask`) — corpus- or paper-scoped Q&A streamed from the
     backend's chat engine, with citations, visual evidence, a fact-check
-    verdict, and Django-backed history.
+    verdict, and Django-backed history. Behind the `ask` demo switch: off, the
+    nav row and Home's "Ask about …" search row are gone and the URL answers
+    the not-found card. The per-paper "Ask this paper" sidecar stays.
   - **Settings** (`/settings`) — profile/password edits and the digest
     toggle, saved to the backend where it can.
 - **Bilingual UI** — English source strings with a German dictionary
   (`src/locales/de/`), switched from the user menu.
+- **Demo feature switches** — `All papers`, `Stars` and `Ask` can be hidden
+  live from the same user menu (`src/lib/features*.ts`). Per browser, stored
+  in the `rs-features` cookie, everything on by default; the BFF keeps
+  serving either way. See `docs/design/feature-flags.md`.
 
 ## Documentation
 
