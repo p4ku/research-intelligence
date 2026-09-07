@@ -3,7 +3,7 @@ Pipeline, Papers, and Extractions Query Service for E2E Tests.
 """
 
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from .api_client import APIClient
 
 logger = logging.getLogger("e2e_pipeline")
