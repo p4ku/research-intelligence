@@ -46,7 +46,17 @@ class HITLViewSet(viewsets.ModelViewSet):
                 ).exists()
                 if not has_access:
                     raise PermissionDenied("You do not have access to this workspace.")
-        serializer.save(human_operator=self.request.user.email or self.request.user.username)
+        instance = serializer.save(human_operator=self.request.user.email or self.request.user.username)
+        if extraction:
+            extraction.is_hitl_validated = True
+            update_fields = ['is_hitl_validated']
+            if instance.action == 'modify' and instance.corrected_value is not None:
+                if isinstance(instance.corrected_value, dict) and isinstance(extraction.fields_data, dict):
+                    extraction.fields_data.update(instance.corrected_value)
+                else:
+                    extraction.fields_data = instance.corrected_value
+                update_fields.append('fields_data')
+            extraction.save(update_fields=update_fields)
 
     def perform_update(self, serializer):
         hitl = self.get_object()
