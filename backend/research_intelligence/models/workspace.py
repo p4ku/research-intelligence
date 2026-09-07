@@ -1,7 +1,9 @@
+from __future__ import annotations
 import uuid
 import secrets
 import hashlib
 import logging
+from typing import Optional, Any
 from django.db import models
 from django.conf import settings
 

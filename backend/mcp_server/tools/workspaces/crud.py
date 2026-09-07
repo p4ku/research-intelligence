@@ -1,5 +1,7 @@
+from __future__ import annotations
 import json
 import uuid
+from typing import Optional, List, Dict, Any, Union
 from django.contrib.auth import get_user_model
 from django.core.serializers.json import DjangoJSONEncoder
 from research_intelligence.models import Workspace, WorkspaceMember
