@@ -131,7 +131,6 @@ export const dict: Record<string, string> = {
   'Confidence {n}': 'Konfidenz {n}',
   Source: 'Quelle',
   Run: 'Lauf',
-  'Continue on Ask': 'In Ask fortsetzen',
   'Generating…': 'Wird generiert…',
   'Ask a question about this paper…': 'Eine Frage zu diesem Paper stellen…',
 

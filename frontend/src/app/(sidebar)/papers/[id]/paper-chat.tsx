@@ -11,9 +11,8 @@ import { useChatStream } from '@/lib/chat/use-chat-stream'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import type { ScoredPaper } from '@/lib/papers/types'
-import { ArrowUpRightIcon, PaperAirplaneIcon, XMarkIcon } from '@heroicons/react/16/solid'
+import { PaperAirplaneIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
-import Link from 'next/link'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 interface Msg {
@@ -30,8 +29,7 @@ interface Msg {
  * sheet from the right edge with a plain vertical conversation scoped to this
  * one paper, streamed from POST /bff/chat/stream. The paper's newest session
  * (if any) is loaded on mount and continued, so reopening the paper shows the
- * earlier questions; "Continue on Ask" carries the same paper and session to
- * the Ask page. Deliberately bare — history browsing lives on Ask.
+ * earlier questions. Deliberately bare — history browsing lives on Ask.
  */
 export function PaperChat({ paper }: { paper: ScoredPaper }) {
   const t = useT()
@@ -141,8 +139,6 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
     })
   }
 
-  const continueHref = `/ask?paper=${paper.id}${sessionId ? `&session=${sessionId}` : ''}`
-
   return (
     <PaperChatFrame
       open={open}
@@ -151,15 +147,6 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
       label={fmt(t('Ask about {title}'), { title: paper.title })}
       title={t('Ask this paper')}
       subtitle={paper.title}
-      link={
-        <Link
-          href={continueHref}
-          className="inline-flex items-center gap-0.5 text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
-        >
-          {t('Continue on Ask')}
-          <ArrowUpRightIcon aria-hidden="true" className="size-3" />
-        </Link>
-      }
       body={
         msgs.length === 0 && !asking && historyState !== 'failed' ? (
           <p className="text-sm leading-relaxed text-balance text-muted-foreground">
@@ -282,7 +269,7 @@ const PILL_CLASS =
 
 /**
  * The chat's chrome: the pill, and the sheet it opens — header strip with
- * the title and the link to Ask, the scrolling body, and whatever sits under
+ * the title, the scrolling body, and whatever sits under
  * it (the composer, an error). PaperChat and PaperChatSkeleton both fill it.
  * The sheet stays mounted (translated off-screen) so the thread keeps its
  * scroll position between opens.
@@ -295,7 +282,6 @@ export function PaperChatFrame({
   label,
   title,
   subtitle,
-  link,
   body,
   footer,
 }: {
@@ -306,7 +292,6 @@ export function PaperChatFrame({
   label: string
   title: string
   subtitle?: ReactNode
-  link?: ReactNode
   body: ReactNode
   footer: ReactNode
 }) {
@@ -346,7 +331,6 @@ export function PaperChatFrame({
                 {subtitle}
               </div>
             )}
-            {link && <div className="mt-1.5">{link}</div>}
           </div>
           <button
             type="button"
