@@ -13,6 +13,52 @@ class PipelineService:
     def __init__(self, client: APIClient):
         self.client = client
 
+    def start_pipeline_run(
+        self,
+        workspace_id: str,
+        name: str = "Autonomous Pipeline Run",
+        limit: int = 10,
+        skip_abstract_screening: bool = False,
+        reprocess_existing: bool = False,
+        autonomous: bool = True,
+        **kwargs,
+    ) -> Dict[str, Any]:
+        """
+        Starts an autonomous pipeline run via /api/pipeline-runs/start/ or /api/agents/.
+        """
+        payload = {
+            "workspace_id": workspace_id,
+            "name": name,
+            "limit": limit,
+            "skip_abstract_screening": skip_abstract_screening,
+            "reprocess_existing": reprocess_existing,
+            "autonomous": autonomous,
+            **kwargs,
+        }
+        resp = self.client.post("/api/pipeline-runs/start/", json_data=payload, expected_status=201)
+        data = resp.json()
+        data["pipeline_run_id"] = data.get("pipeline_run_id") or data.get("id")
+        return data
+
+    def poll_pipeline_run_to_completion(
+        self,
+        pipeline_run_id: str,
+        timeout_seconds: int = 900,
+        poll_interval: float = 3.0,
+    ) -> Dict[str, Any]:
+        """
+        Polls a pipeline run until it reaches a terminal status ('completed', 'failed', 'aborted').
+        """
+        import time
+        t0 = time.time()
+        while time.time() - t0 < timeout_seconds:
+            data = self.get_pipeline_run(pipeline_run_id)
+            status = data.get("status")
+            if status in ("completed", "failed", "aborted"):
+                return data
+            time.sleep(poll_interval)
+        raise TimeoutError(f"Pipeline run {pipeline_run_id} timed out after {timeout_seconds}s")
+
     def get_pipeline_run(self, pipeline_run_id: str) -> Dict[str, Any]:
         resp = self.client.get(f"/api/pipeline-runs/{pipeline_run_id}/", expected_status=200)
         return resp.json()

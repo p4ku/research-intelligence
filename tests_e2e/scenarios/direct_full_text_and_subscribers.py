@@ -99,6 +99,7 @@ def run_direct_full_text_and_subscribers_scenario(config: Optional[E2EConfig] = 
             full_text_rejection_criteria="Exclusion: Pure review papers without experimental photovoltaic characterization.",
             skip_abstract_screening=True,
             screening_llm_model="google/gemini-3.8-flash",
+            ocr_provider="pypdf",
             extraction_definitions=ext_defs,
             scrapers=scrapers,
         )

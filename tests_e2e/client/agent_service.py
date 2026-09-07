@@ -26,6 +26,7 @@ class AgentService:
         notification_email: Optional[str] = None,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        **kwargs: Any,
     ) -> Dict[str, Any]:
         payload: Dict[str, Any] = {
             "workspace_id": workspace_id,
@@ -49,12 +50,61 @@ class AgentService:
         logger.info(f"🚀 Launching Autonomous Research Agent in workspace '{workspace_id}' (limit: {limit})...")
         resp = self.client.post("/api/agents/", json_data=payload, expected_status=201)
         data = resp.json()
+        pipeline_run_id = data.get("pipeline_run") or data.get("id")
+        data["pipeline_run_id"] = pipeline_run_id
         logger.info(f"✅ Research Agent started! Process ID: {data.get('id')}")
         return data
 
+    def start_pipeline_run(
+        self,
+        workspace_id: str,
+        name: str = "E2E Literature Review Run",
+        limit: int = 10,
+        skip_abstract_screening: bool = False,
+        reprocess_existing: bool = False,
+        autonomous: bool = True,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
+        """
+        Starts an autonomous pipeline run via ResearchAgentProcess.
+        Returns serialized agent process metadata including 'pipeline_run_id'.
+        """
+        return self.start_research_agent(
+            workspace_id=workspace_id,
+            name=name,
+            limit=limit,
+            skip_abstract_screening=skip_abstract_screening,
+            reprocess_existing=reprocess_existing,
+            **kwargs,
+        )
+
     def get_agent_status(self, process_id: str) -> Dict[str, Any]:
-        resp = self.client.get(f"/api/agents/{process_id}/", expected_status=200)
-        return resp.json()
+        resp = self.client.get(f"/api/agents/{process_id}/")
+        if resp.status_code == 200:
+            return resp.json()
+        pr_resp = self.client.get(f"/api/pipeline-runs/{process_id}/", expected_status=200)
+        return pr_resp.json()
+
+    def poll_pipeline_run_to_completion(
+        self,
+        pipeline_run_id: str,
+        timeout_seconds: Optional[int] = None,
+        poll_interval: Optional[float] = None,
+        max_timeout_sec: Optional[int] = None,
+        poll_interval_sec: Optional[float] = None,
+        on_step_change=None,
+    ) -> Dict[str, Any]:
+        """
+        Polls a pipeline run / agent process until completion.
+        """
+        timeout = timeout_seconds if timeout_seconds is not None else (max_timeout_sec or 900)
+        interval = poll_interval if poll_interval is not None else (poll_interval_sec or 3.0)
+        return self.poll_until_complete(
+            process_id=pipeline_run_id,
+            max_timeout_sec=timeout,
+            poll_interval_sec=interval,
+            on_step_change=on_step_change,
+        )
 
     def pause_agent(self, process_id: str) -> Dict[str, Any]:
         resp = self.client.post(f"/api/agents/{process_id}/pause/", expected_status=200)
