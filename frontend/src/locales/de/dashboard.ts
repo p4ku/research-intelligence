@@ -109,7 +109,7 @@ export const dict: Record<string, string> = {
     'Kein Paper hat die Aufnahmekriterien für dieses Briefing erfüllt.',
   Period: 'Zeitraum',
   Generated: 'Erstellt',
-  Current: 'Aktuell',
+  Latest: 'Neueste',
   Processing: 'In Arbeit',
   Failed: 'Fehlgeschlagen',
   'No briefing': 'Kein Briefing',
