@@ -6,6 +6,7 @@ const paper = (title: string, signal: number | null) => ({
   title,
   authors: [],
   source: 'arxiv',
+  screening_status: 'accepted' as const,
   signal_score: signal,
 })
 

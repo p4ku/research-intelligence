@@ -49,11 +49,12 @@ function composeEdition(
   const surfaced = ofRun
     .filter((r) => isPassed(r.status))
     .sort((a, b) => byValueDesc(a.signal_score, b.signal_score))
-    .map(({ paper, signal_score }) => ({
+    .map(({ paper, status, signal_score }) => ({
       id: paper.id,
       title: paper.title,
       authors: paper.authors,
       source: paper.source,
+      screening_status: status,
       signal_score,
     }))
   const exclusions = ofRun

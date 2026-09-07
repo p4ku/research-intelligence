@@ -3785,6 +3785,9 @@
           "source": {
             "type": "string"
           },
+          "screening_status": {
+            "$ref": "#/components/schemas/ScreeningStatus"
+          },
           "signal_score": {
             "anyOf": [
               {
@@ -3801,6 +3804,7 @@
           "title",
           "authors",
           "source",
+          "screening_status",
           "signal_score"
         ],
         "additionalProperties": false

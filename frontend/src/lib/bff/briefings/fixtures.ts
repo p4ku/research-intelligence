@@ -21,6 +21,7 @@ export const fixtureEditions: Edition[] = [
         title: surfaced.title,
         authors: surfaced.authors,
         source: surfaced.source,
+        screening_status: surfaced.screening_status,
         signal_score: surfaced.signal_score,
       },
     ],

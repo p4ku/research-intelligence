@@ -8,6 +8,7 @@
  */
 import * as z from 'zod'
 import { listQuery, pageSchema } from '../core/pagination'
+import { screeningStatus } from '../papers/schema'
 
 export const editionPaper = z
   .object({
@@ -15,6 +16,8 @@ export const editionPaper = z
     title: z.string(),
     authors: z.array(z.string()),
     source: z.string(),
+    /** The run's decision and score for the paper — frozen with the edition, whatever a later run decided. */
+    screening_status: screeningStatus,
     signal_score: z.number().nullable(),
   })
   .meta({ id: 'EditionPaper' })
