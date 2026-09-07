@@ -5,6 +5,8 @@
 import 'server-only'
 
 import { apiFetch } from '@/lib/api/server'
+import type { Features } from '@/lib/features'
+import { getFeatures } from '@/lib/features-server'
 import { appBuiltAt, appCommit, appVersion } from '@/lib/version'
 import { djangoOperations } from '../contract'
 import type { Operation, ProbeParam } from '../core/contract-types'
@@ -36,6 +38,8 @@ export interface BffStatus {
   version: string
   build_id: string | null
   built_at: string | null
+  /** The caller's demo flags (rs-features cookie) — a per-browser preference, not a source. */
+  features: Features
   resources: ResourceStatus[]
 }
 
@@ -105,6 +109,7 @@ export async function bffStatus(): Promise<BffStatus> {
     version: appVersion,
     build_id: process.env.BUILD_ID ?? appCommit,
     built_at: appBuiltAt,
+    features: await getFeatures(),
     resources: Object.values(RESOURCES).map((def) => ({
       name: def.name,
       source: sourceOf(def.name),
