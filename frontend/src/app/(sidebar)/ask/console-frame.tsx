@@ -32,7 +32,7 @@ export const GREETING_WRAP = 'mx-auto mb-5 w-[min(100%-3rem,768px)] shrink-0'
 export const DOCK_WRAP = 'relative z-[4] mx-auto w-[min(100%-3rem,768px)] shrink-0 pb-4'
 /** The composer field's box; the textarea adds its colours and focus reset. */
 export const FIELD_CLASS =
-  'block max-h-44 w-full resize-none bg-transparent px-1.5 py-[7px] text-[15px] leading-relaxed'
+  'block max-h-44 w-full resize-none overflow-y-hidden bg-transparent px-1.5 py-[7px] text-[15px] leading-relaxed'
 /** The top bar's height, which the sidecar hangs below. */
 export const TOP_BAR_H = '3.25rem'
 

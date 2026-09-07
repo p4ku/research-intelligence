@@ -1,7 +1,7 @@
 import type { VisualCitation } from '@/lib/bff/chat/schema'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { AnswerMarkdown } from './answer-markdown'
+import { AnswerMarkdown, componentsFor } from './answer-markdown'
 
 const html = (text: string, streaming = false) =>
   renderToStaticMarkup(<AnswerMarkdown text={text} streaming={streaming} />)
@@ -245,5 +245,16 @@ describe('AnswerMarkdown citation chips', () => {
     expect(closed).toContain('p. 7 · Fig 4b')
     expect(closed).toMatch(/y<span[^>]*>▍<\/span><\/p><\/div>$/)
     expect(leaks(closed)).toBe(false)
+  })
+
+  test('keeps one renderer map across renders, so a streamed answer never remounts', () => {
+    // A fresh element type per render would remount every <p> and <li> on each
+    // token and replay every word's unveil — the answer flickers as a blur
+    // from the first chip on. The chip context reaches the renderers through
+    // the parsed tree instead, so the map is the same object with or without it.
+    const opts = { stats: true, unveil: true, caret: false }
+    expect(componentsFor(opts)).toBe(componentsFor({ ...opts }))
+    expect(chips(`a ${MARKER}`, { streaming: true })).toContain('p. 7 · Fig 4b')
+    expect(chips('b [Page 2, Table 1]')).toContain('p. 2 · Table 1')
   })
 })

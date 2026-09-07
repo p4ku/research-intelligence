@@ -86,7 +86,12 @@ function groupTurns(turns: Turn[]): Group[] {
 
 function autogrow(el: HTMLTextAreaElement) {
   el.style.height = 'auto'
-  el.style.height = `${Math.min(el.scrollHeight, FIELD_MAX_PX)}px`
+  const full = el.scrollHeight
+  el.style.height = `${Math.min(full, FIELD_MAX_PX)}px`
+  // scrollHeight is an integer while the line box is not (15px × 1.625 plus
+  // padding), so a box sized to it is a fraction short of its content and the
+  // browser draws a scrollbar. Only a field at its cap has anything to scroll.
+  el.style.overflowY = full > FIELD_MAX_PX ? 'auto' : 'hidden'
 }
 
 /**
