@@ -1,6 +1,7 @@
 'use client'
 
 import { Card, ErrorNote, SectionLabel } from '@/components/scanner-ui'
+import { Spinner } from '@/components/ui/spinner'
 import { bffFetch } from '@/lib/bff/client'
 import { errorsFromSubmit } from '@/lib/bff/problem-copy'
 import type { Preferences, Profile } from '@/lib/bff/settings/schema'
@@ -9,7 +10,13 @@ import { useT } from '@/lib/i18n-client'
 import { ExclamationTriangleIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+
+/** One id per field name, shared by the label, the input and its error line. */
+const fieldId = (name: string) => `settings-${name}`
+
+/** How long a "saved" confirmation stays on screen. */
+const DONE_MS = 5000
 
 const inputClass =
   'border-line bg-surface text-foreground focus:border-accent focus:ring-accent/25 mt-1.5 block w-full rounded-sm border px-3 py-2 text-sm shadow-sm placeholder:text-zinc-400 focus:ring-2 focus:outline-none'
@@ -29,18 +36,29 @@ function Field({
   autoComplete?: string
   error?: string
 }) {
+  // Ids are derived from the field name so the label, the input and its error
+  // can find each other without every caller having to invent one.
+  const id = fieldId(name)
+  const errorId = `${id}-error`
   return (
     <div>
-      <label className="block text-sm font-medium text-zinc-800 dark:text-zinc-200">{label}</label>
+      <label htmlFor={id} className="block text-sm font-medium text-zinc-800 dark:text-zinc-200">
+        {label}
+      </label>
       <input
+        id={id}
         type={type}
         name={name}
         defaultValue={defaultValue}
         autoComplete={autoComplete}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
         className={inputClass}
       />
+      {/* Described by the input rather than announced on its own: the
+          form-level ErrorNote is the one role="alert" per submit. */}
       {error && (
-        <p className="mt-1 flex items-start gap-1 text-xs text-negative">
+        <p id={errorId} className="mt-1 flex items-start gap-1 text-xs text-negative">
           <ExclamationTriangleIcon aria-hidden="true" className="mt-px size-3.5 shrink-0" />
           {error}
         </p>
@@ -54,13 +72,17 @@ function SaveButton({ busy, children }: { busy: boolean; children: React.ReactNo
     <button
       type="submit"
       disabled={busy}
+      // Colour alone carried the pending state, which is invisible to anyone
+      // not seeing it — the spinner and aria-busy say it in the other two ways.
+      aria-busy={busy || undefined}
       className={clsx(
-        'rounded-sm px-3 py-1.5 text-sm font-medium transition-colors',
+        'inline-flex items-center gap-2 rounded-sm px-3 py-1.5 text-sm font-medium transition-colors',
         busy
           ? 'bg-foreground/10 text-muted-foreground'
           : 'bg-foreground text-background hover:bg-foreground/85',
       )}
     >
+      {busy && <Spinner className="size-3.5" aria-hidden="true" />}
       {children}
     </button>
   )
@@ -75,6 +97,26 @@ function useSubmit(t: T, fieldNames: readonly string[], fallback: string) {
   const [busy, setBusy] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [done, setDone] = useState<string | null>(null)
+
+  // Send focus to the first field the backend rejected, so the rejection is
+  // where the cursor is rather than somewhere the user has to go looking.
+  // `errors` only changes identity on a submit; `fieldNames` is an inline
+  // literal at every call site, so it is held in a ref rather than a dep —
+  // as a dep it would re-run this on every render and steal focus back.
+  const namesRef = useRef(fieldNames)
+  namesRef.current = fieldNames
+  useEffect(() => {
+    const first = namesRef.current.find((name) => errors[name])
+    if (first) document.getElementById(fieldId(first))?.focus()
+  }, [errors])
+
+  // "Profile saved." used to sit there for the rest of the session, so it
+  // stopped meaning "just now". Clear it once it has been read.
+  useEffect(() => {
+    if (!done) return
+    const timer = setTimeout(() => setDone(null), DONE_MS)
+    return () => clearTimeout(timer)
+  }, [done])
 
   async function submit(work: () => Promise<string | null>) {
     setBusy(true)
@@ -159,7 +201,11 @@ export function ProfileForm({ profile }: { profile: Profile }) {
         {errors._ && <ErrorNote>{errors._}</ErrorNote>}
         <div className="flex items-center gap-3">
           <SaveButton busy={busy}>{t('Save profile')}</SaveButton>
-          {done && <span className="text-xs text-muted-foreground">{done}</span>}
+          {done && (
+            <span role="status" className="text-xs text-muted-foreground">
+              {done}
+            </span>
+          )}
         </div>
       </form>
     </Card>
@@ -224,7 +270,11 @@ export function PasswordForm() {
         {errors._ && <ErrorNote>{errors._}</ErrorNote>}
         <div className="flex items-center gap-3">
           <SaveButton busy={busy}>{t('Change password')}</SaveButton>
-          {done && <span className="text-xs text-muted-foreground">{done}</span>}
+          {done && (
+            <span role="status" className="text-xs text-muted-foreground">
+              {done}
+            </span>
+          )}
         </div>
       </form>
     </Card>
