@@ -30,7 +30,6 @@ class PaperChatSession(models.Model):
     )
     title = models.CharField(max_length=255, default="Paper Discussion")
     summary = models.TextField(blank=True, default="", help_text="Hierarchical scientific summary of past conversation turns")
-    cached_content_name = models.CharField(max_length=255, blank=True, default="", help_text="Reference key for Gemini server-side CachedContent")
     
     # Cumulative Session Token & Cost Metrics
     total_tokens_in = models.BigIntegerField(default=0, help_text="Cumulative input/prompt tokens across session")

@@ -2032,7 +2032,7 @@ def ask_paper(
     - Multi-Turn History: All preceding questions and answers within the conversation thread.
     - Visual Grounding: Automatically parses and verifies figure/table/page citations with bounding boxes.
     - Hallucination Guard: Validates quoted claims against the source document.
-    - Gemini Context Cache: Automatically reuses server-side cached tokens for repeated turns.
+    - Prompt caching: the paper is sent as a stable prefix so Gemini's implicit cache reuses it across turns.
     
     PARAMETERS:
     - workspace_id: Target workspace UUID.
@@ -2042,7 +2042,7 @@ def ask_paper(
     - deep_thinking: (Optional) Set to True to enable deep mathematical/thermodynamic derivation scratchpad reasoning.
     
     OUTPUT:
-    JSON string containing `{ "status": "completed", "session_id": "...", "message_id": "...", "paper_id": "...", "paper_title": "...", "answer": "...", "citations": [...], "visual_citations": [...], "hallucination_guard": {...}, "deep_thinking": bool, "tokens_in": int, "tokens_out": int, "usd_cost": float, "cached_content": str }`.
+    JSON string containing `{ "status": "completed", "session_id": "...", "message_id": "...", "paper_id": "...", "paper_title": "...", "answer": "...", "citations": [...], "visual_citations": [...], "hallucination_guard": {...}, "deep_thinking": bool, "tokens_in": int, "tokens_out": int, "usd_cost": float, "tokens_cached": int }`.
     """
     try:
         user, workspace, api_key = get_auth_context()

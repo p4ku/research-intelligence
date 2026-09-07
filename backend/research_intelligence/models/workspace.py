@@ -591,7 +591,8 @@ class Workspace(models.Model):
         user=None,
         pipeline_run_id=None,
         component_run_id=None,
-        context_metadata: dict = None
+        context_metadata: dict = None,
+        tokens_cached: int = 0
     ):
         """
         Increments workspace monthly token and USD usage counters atomically,
@@ -601,7 +602,7 @@ class Workspace(models.Model):
         from ..llm_providers.pricing import calculate_llm_cost
 
         model = model_name or self.screening_llm_model
-        cost = calculate_llm_cost(model, tokens_in or 0, tokens_out or 0)
+        cost = calculate_llm_cost(model, tokens_in or 0, tokens_out or 0, tokens_cached or 0)
         total_tokens = (tokens_in or 0) + (tokens_out or 0)
 
         Workspace.objects.filter(pk=self.pk).update(

@@ -1,5 +1,6 @@
 import logging
 import json
+from dataclasses import dataclass, field
 from typing import Generator
 from django.utils import timezone
 
@@ -12,17 +13,63 @@ from .context_builder import PaperContextBuilder
 from .summarizer import HierarchicalSessionSummarizer
 from .citations import VisualCitationExtractor
 from .verifier import CitationFactChecker
-from .cache_manager import GeminiContextCacheManager
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_MODEL = 'google/gemini-3.8-flash'
+
+SYSTEM_INSTRUCTION = (
+    "You are an expert scientific research assistant and deep-tech reviewer within the Schwarz Research Intelligence platform.\n"
+    "Your objective is to answer questions regarding the attached academic paper or research workspace with utmost scientific precision, rigor, and clarity.\n\n"
+    "RULES & CONSTRAINTS:\n"
+    "1. Base your assertions strictly on the provided paper document, screening decisions, and extracted parameters.\n"
+    "2. When citing specific figures, tables, formulas, or pages, provide visual references in this format: [Page X, Fig Y, box_2d: [ymin, xmin, ymax, xmax], quote: \"exact evidence sentence\"].\n"
+    "3. If deep thinking is requested, show your reasoning and cross-check multiple sections of the paper before delivering your final conclusion.\n"
+    "4. If information is not in the document, explicitly state that it is not covered."
+)
+
+
+@dataclass
+class PreparedTurn:
+    """Everything a single chat turn needs, assembled once and shared by the sync and streaming paths."""
+    prompt: str
+    system_instruction: str
+    source_text: str
+    pdf_bytes: bytes | None
+    mime_type: str | None
+    provider: object
+    model_name: str
+    deep_thinking: bool
+
+
+@dataclass
+class TurnUsage:
+    prompt_tokens: int = 0
+    candidates_tokens: int = 0
+    cached_tokens: int = 0
+    thought_process: str = ""
+    citations: list = field(default_factory=list)
+
+    def absorb(self, usage: dict | None) -> None:
+        """Folds a provider usage dict in; later non-zero counts win, thoughts accumulate."""
+        if not usage or not isinstance(usage, dict):
+            return
+        for key in ("prompt_tokens", "candidates_tokens", "cached_tokens"):
+            value = usage.get(key) or 0
+            if value > 0:
+                setattr(self, key, value)
+        if usage.get("thought_process"):
+            self.thought_process = usage["thought_process"]
 
 
 class PaperChatEngine:
     """
     Core OOP domain orchestrator for interactive scientific paper Q&A.
     Coordinates context building, memory summarization, deep thinking prompts,
-    Gemini server-side context caching, streaming (SSE), visual grounding extraction,
-    fact checking, and token / cost accounting.
+    streaming (SSE), visual grounding extraction, fact checking, and token / cost accounting.
+
+    Prompts are ordered system → document → annotations → history → question so the
+    large, immutable paper text is a stable prefix that Gemini's implicit cache can reuse.
     """
 
     def __init__(
@@ -32,13 +79,13 @@ class PaperChatEngine:
         summarizer: HierarchicalSessionSummarizer = None,
         citation_extractor: VisualCitationExtractor = None,
         fact_checker: CitationFactChecker = None,
-        cache_manager: GeminiContextCacheManager = None
     ):
         self.context_builder = context_builder or PaperContextBuilder()
         self.session_summarizer = session_summarizer or summarizer or HierarchicalSessionSummarizer()
         self.citation_extractor = citation_extractor or VisualCitationExtractor()
         self.fact_checker = fact_checker or CitationFactChecker()
-        self.cache_manager = cache_manager or GeminiContextCacheManager()
+
+    # ------------------------------------------------------------------ public
 
     def execute(self, message: PaperChatMessage) -> dict:
         """
@@ -47,174 +94,21 @@ class PaperChatEngine:
         Returns:
             dict with answer, citations, visual citations, grounding audit, tokens, and cost.
         """
-        session = message.session
-        paper = session.paper
-        workspace = session.workspace
-
-        if workspace:
-            is_exceeded, quota_reason = workspace.is_quota_exceeded()
-            if is_exceeded:
-                message.status = 'failed'
-                message.error_message = f"Workspace monthly quota exceeded: {quota_reason}"
-                message.completed_at = timezone.now()
-                message.save(update_fields=['status', 'error_message', 'completed_at'])
-                return {
-                    "status": "failed",
-                    "message_id": str(message.id),
-                    "session_id": str(session.id),
-                    "error": f"Workspace monthly quota exceeded: {quota_reason}",
-                }
+        quota_error = self._check_quota(message)
+        if quota_error:
+            return self._fail(message, quota_error, log=False)
 
         try:
             message.status = 'processing'
             message.save(update_fields=['status'])
 
-            # 1. Build structured context
-            context_text, pdf_bytes, mime_type = self.context_builder.build(paper, workspace=workspace)
-
-            # 2. Build multi-turn history & update hierarchical session summary
-            history_messages = list(
-                session.messages.filter(status='completed')
-                .exclude(id=message.id)
-                .order_by('created_at')
-            )
-            self.session_summarizer.compress_and_update(session, history_messages)
-            history_text = self.session_summarizer.build_history_block(session, history_messages)
-
-            # 3. Assemble System Prompt & Deep Thinking Instructions
-            deep_thinking_active = getattr(message, 'deep_thinking', False)
-            system_instruction = (
-                "You are an expert scientific research assistant and deep-tech reviewer within the Schwarz Research Intelligence platform.\n"
-                "Your objective is to answer questions regarding the attached academic paper or research workspace with utmost scientific precision, rigor, and clarity.\n\n"
-                "RULES & CONSTRAINTS:\n"
-                "1. Base your assertions strictly on the provided paper document, screening decisions, and extracted parameters.\n"
-                "2. When citing specific figures, tables, formulas, or pages, provide visual references in this format: [Page X, Fig Y, box_2d: [ymin, xmin, ymax, xmax], quote: \"exact evidence sentence\"].\n"
-                "3. If deep thinking is requested, show your reasoning and cross-check multiple sections of the paper before delivering your final conclusion.\n"
-                "4. If information is not in the document, explicitly state that it is not covered."
-            )
-
-            provider_name = getattr(workspace, 'llm_provider', 'google') or 'google'
-            provider = get_llm_provider(provider_name)
-
-            # 4. Check / Create Gemini Server-Side Context Cache
-            cached_content_name = self.cache_manager.get_or_create_cache(
-                session=session,
-                paper=paper,
-                workspace=workspace,
-                context_text=context_text,
-                pdf_bytes=pdf_bytes,
-                mime_type=mime_type,
-                system_instruction=system_instruction,
-                provider=provider
-            )
-
-            # If cached on server, omit raw context from inline prompt to save tokens
-            prompt_context = "" if cached_content_name else context_text
-            prompt_pdf = None if cached_content_name else pdf_bytes
-            prompt_mime = None if cached_content_name else mime_type
-
-            prompt = self._assemble_prompt(prompt_context, history_text, message.question, deep_thinking_active)
-
-            # 5. Generate LLM Response
-            answer_raw, citations_list, tokens_in, tokens_out, thought_process = self._call_llm(
-                workspace=workspace,
-                prompt=prompt,
-                pdf_bytes=prompt_pdf,
-                mime_type=prompt_mime,
-                system_instruction=system_instruction if not cached_content_name else None,
-                deep_thinking_active=deep_thinking_active,
-                cached_content=cached_content_name
-            )
-
-            # 6. Extract Visual Grounding Citations
-            cleaned_answer, parsed_visual_citations = self.citation_extractor.extract(answer_raw)
-
-            # 7. Fact-Checking & Hallucination Guard
-            verified_visual_cits, guard_summary = self.fact_checker.verify(
-                source_text=context_text,
-                visual_citations=parsed_visual_citations,
-                answer_text=cleaned_answer
-            )
-
-            # 8. Record token usage and cost accounting on Workspace & Session
-            model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.8-flash') or 'google/gemini-3.8-flash'
-            tokens_in = tokens_in or 0
-            tokens_out = tokens_out or 0
-            if not tokens_in:
-                tokens_in = max(len(prompt) // 4, 1)
-            if not tokens_out and cleaned_answer:
-                tokens_out = max(len(cleaned_answer + (thought_process or "")) // 4, 1)
-            total_tokens = tokens_in + tokens_out
-
-            cost = workspace.record_token_usage(
-                tokens_in,
-                tokens_out,
-                model_name=model_name,
-                operation_type="chat",
-                user=getattr(session, 'user', None),
-                context_metadata={"session_id": str(session.id), "paper_id": str(session.paper_id) if session.paper_id else None}
-            )
-
-            session.record_message_cost(tokens_in, tokens_out, cost)
-
-            message.message = cleaned_answer
-            message.thinking_process = thought_process or ""
-            message.tokens_in = tokens_in
-            message.tokens_out = tokens_out
-            message.total_tokens = total_tokens
-            message.usd_cost = cost
-            message.llm_model = model_name
-            message.status = 'completed'
-            message.completed_at = timezone.now()
-            message.citations = citations_list
-            message.visual_citations = verified_visual_cits
-            message.hallucination_guard = guard_summary
-            message.save(update_fields=[
-                'message', 'thinking_process', 'tokens_in', 'tokens_out', 'total_tokens', 'usd_cost',
-                'llm_model', 'status', 'completed_at', 'citations', 'visual_citations', 'hallucination_guard'
-            ])
-
-            # 9. Update session title if first turn
-            if session.messages.count() <= 2 and (session.title == "Paper Discussion" or not session.title):
-                session.title = (message.question[:60] + "...") if len(message.question) > 60 else message.question
-                session.save(update_fields=['title', 'updated_at'])
-
-            return {
-                "status": "completed",
-                "message_id": str(message.id),
-                "session_id": str(session.id),
-                "paper_id": str(paper.id) if paper else None,
-                "paper_title": paper.title if paper else None,
-                "answer": cleaned_answer,
-                "thinking_process": thought_process or "",
-                "citations": citations_list,
-                "visual_citations": verified_visual_cits,
-                "hallucination_guard": guard_summary,
-                "deep_thinking": deep_thinking_active,
-                "llm_model": model_name,
-                "cached_content": cached_content_name,
-                "tokens_in": tokens_in,
-                "tokens_out": tokens_out,
-                "total_tokens": total_tokens,
-                "usd_cost": float(cost),
-                "session_total_tokens": session.total_tokens,
-                "session_total_usd_cost": float(session.total_usd_cost),
-                "workspace_monthly_tokens": workspace.tokens_consumed_this_month,
-                "workspace_monthly_usd": float(workspace.usd_spent_this_month),
-            }
+            turn = self._prepare(message)
+            answer_raw, usage = self._generate(turn)
+            return self._finish(message, turn, answer_raw, usage)
 
         except Exception as ex:
             logger.error(f"Paper chat execution failed for message '{message.id}': {ex}", exc_info=True)
-            message.status = 'failed'
-            message.error_message = str(ex)
-            message.completed_at = timezone.now()
-            message.save(update_fields=['status', 'error_message', 'completed_at'])
-            return {
-                "status": "failed",
-                "message_id": str(message.id),
-                "session_id": str(session.id),
-                "error": str(ex),
-            }
+            return self._fail(message, str(ex))
 
     def execute_stream(self, message: PaperChatMessage) -> Generator[str, None, None]:
         """
@@ -223,180 +117,59 @@ class PaperChatEngine:
         """
         session = message.session
         paper = session.paper
-        workspace = session.workspace
 
-        if workspace:
-            is_exceeded, quota_reason = workspace.is_quota_exceeded()
-            if is_exceeded:
-                message.status = 'failed'
-                message.error_message = f"Workspace monthly quota exceeded: {quota_reason}"
-                message.completed_at = timezone.now()
-                message.save(update_fields=['status', 'error_message', 'completed_at'])
-                yield f"event: error\ndata: {json.dumps({'error': f'Workspace monthly quota exceeded: {quota_reason}'})}\n\n"
-                return
+        quota_error = self._check_quota(message)
+        if quota_error:
+            self._fail(message, quota_error, log=False)
+            yield self._sse('error', {'error': quota_error})
+            return
 
         try:
             message.status = 'processing'
             message.save(update_fields=['status'])
 
-            # Initial metadata SSE event
-            yield f"event: metadata\ndata: {json.dumps({'message_id': str(message.id), 'session_id': str(session.id), 'paper_id': str(paper.id) if paper else None, 'paper_title': paper.title if paper else None, 'status': 'processing'})}\n\n"
+            yield self._sse('metadata', {
+                'message_id': str(message.id),
+                'session_id': str(session.id),
+                'paper_id': str(paper.id) if paper else None,
+                'paper_title': paper.title if paper else None,
+                'status': 'processing',
+            })
 
-            # 1. Build context & history
-            context_text, pdf_bytes, mime_type = self.context_builder.build(paper, workspace=workspace)
-            history_messages = list(
-                session.messages.filter(status='completed').exclude(id=message.id).order_by('created_at')
-            )
-            self.session_summarizer.compress_and_update(session, history_messages)
-            history_text = self.session_summarizer.build_history_block(session, history_messages)
-
-            deep_thinking_active = getattr(message, 'deep_thinking', False)
-            system_instruction = (
-                "You are an expert scientific research assistant and deep-tech reviewer within the Schwarz Research Intelligence platform.\n"
-                "Your objective is to answer questions regarding the attached academic paper or research workspace with utmost scientific precision, rigor, and clarity.\n\n"
-                "RULES & CONSTRAINTS:\n"
-                "1. Base your assertions strictly on the provided paper document, screening decisions, and extracted parameters.\n"
-                "2. When citing specific figures, tables, formulas, or pages, provide visual references in this format: [Page X, Fig Y, box_2d: [ymin, xmin, ymax, xmax], quote: \"exact evidence sentence\"].\n"
-                "3. If deep thinking is requested, show your reasoning and cross-check multiple sections of the paper before delivering your final conclusion.\n"
-                "4. If information is not in the document, explicitly state that it is not covered."
-            )
-
-            provider_name = getattr(workspace, 'llm_provider', 'google') or 'google'
-            model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.8-flash') or 'google/gemini-3.8-flash'
-            provider = get_llm_provider(provider_name)
-
-            # 2. Context Cache
-            cached_content_name = self.cache_manager.get_or_create_cache(
-                session=session,
-                paper=paper,
-                workspace=workspace,
-                context_text=context_text,
-                pdf_bytes=pdf_bytes,
-                mime_type=mime_type,
-                system_instruction=system_instruction,
-                provider=provider
-            )
-
-            prompt_context = "" if cached_content_name else context_text
-            prompt_pdf = None if cached_content_name else pdf_bytes
-            prompt_mime = None if cached_content_name else mime_type
-
-            prompt = self._assemble_prompt(prompt_context, history_text, message.question, deep_thinking_active)
-
+            turn = self._prepare(message)
             accumulated_text = []
-            accumulated_thoughts = []
-            final_usage = {"prompt_tokens": 0, "candidates_tokens": 0, "total_tokens": 0}
+            usage = TurnUsage()
 
-            if hasattr(provider, 'generate_stream'):
-                for chunk_text, usage in provider.generate_stream(
-                    prompt=prompt,
-                    model=model_name,
-                    file_bytes=prompt_pdf,
-                    mime_type=prompt_mime,
-                    system_instruction=system_instruction if not cached_content_name else None,
-                    temperature=0.1 if deep_thinking_active else 0.2,
-                    max_tokens=8192 if deep_thinking_active else 4096,
-                    cached_content=cached_content_name,
-                    deep_thinking=deep_thinking_active,
-                    include_thoughts=deep_thinking_active
-                ):
-                    if usage and isinstance(usage, dict):
-                        if usage.get("thought"):
-                            thought_chunk = usage["thought"]
-                            accumulated_thoughts.append(thought_chunk)
-                            yield f"event: thought\ndata: {json.dumps({'thought': thought_chunk})}\n\n"
-                        if usage.get("prompt_tokens") or usage.get("candidates_tokens") or usage.get("total_tokens"):
-                            p = usage.get("prompt_tokens") or 0
-                            c = usage.get("candidates_tokens") or 0
-                            t = usage.get("total_tokens") or (p + c)
-                            if p > 0:
-                                final_usage["prompt_tokens"] = p
-                            if c > 0:
-                                final_usage["candidates_tokens"] = c
-                            if t > 0:
-                                final_usage["total_tokens"] = t
-
+            if hasattr(turn.provider, 'generate_stream'):
+                thoughts = []
+                for chunk_text, chunk_usage in turn.provider.generate_stream(**self._generation_kwargs(turn)):
+                    if chunk_usage and isinstance(chunk_usage, dict):
+                        if chunk_usage.get("thought"):
+                            thoughts.append(chunk_usage["thought"])
+                            yield self._sse('thought', {'thought': chunk_usage["thought"]})
+                        usage.absorb(chunk_usage)
                     if chunk_text:
                         accumulated_text.append(chunk_text)
-                        yield f"event: delta\ndata: {json.dumps({'delta': chunk_text})}\n\n"
+                        yield self._sse('delta', {'delta': chunk_text})
+                usage.thought_process = "".join(thoughts)
             else:
                 # Fallback to single-pass generation
-                resp_raw = provider.generate(
-                    prompt=prompt,
-                    model=model_name,
-                    file_bytes=prompt_pdf,
-                    mime_type=prompt_mime,
-                    system_instruction=system_instruction if not cached_content_name else None,
-                    deep_thinking=deep_thinking_active,
-                    include_thoughts=deep_thinking_active,
-                    return_usage=True
-                )
-                if isinstance(resp_raw, tuple) and len(resp_raw) == 2:
-                    resp_text, usage = resp_raw
-                    accumulated_text.append(str(resp_text))
-                    if usage:
-                        final_usage = usage
-                    yield f"event: delta\ndata: {json.dumps({'delta': str(resp_text)})}\n\n"
-                else:
-                    accumulated_text.append(str(resp_raw))
-                    yield f"event: delta\ndata: {json.dumps({'delta': str(resp_raw)})}\n\n"
+                answer_raw, usage = self._generate(turn)
+                accumulated_text.append(answer_raw)
+                yield self._sse('delta', {'delta': answer_raw})
 
-            full_answer = "".join(accumulated_text)
-            full_thoughts = "".join(accumulated_thoughts)
-            cleaned_answer, parsed_visual_citations = self.citation_extractor.extract(full_answer)
+            result = self._finish(message, turn, "".join(accumulated_text), usage)
 
-            if parsed_visual_citations:
-                yield f"event: visual_citations\ndata: {json.dumps({'visual_citations': parsed_visual_citations})}\n\n"
-
-            # Fact Check
-            verified_visual_cits, guard_summary = self.fact_checker.verify(
-                source_text=context_text,
-                visual_citations=parsed_visual_citations,
-                answer_text=cleaned_answer
-            )
-            yield f"event: fact_check\ndata: {json.dumps({'hallucination_guard': guard_summary})}\n\n"
-
-            # Cost & Usage
-            tokens_in = final_usage.get("prompt_tokens", 0) or 0
-            tokens_out = final_usage.get("candidates_tokens", 0) or 0
-
-            # Fallback estimation if token metrics are zero
-            if not tokens_in:
-                tokens_in = max(len(prompt) // 4, 1)
-            if not tokens_out and (full_answer or full_thoughts):
-                tokens_out = max(len(full_answer + full_thoughts) // 4, 1)
-            total_tokens = tokens_in + tokens_out
-
-            cost = workspace.record_token_usage(
-                tokens_in,
-                tokens_out,
-                model_name=model_name,
-                operation_type="chat",
-                user=getattr(session, 'user', None),
-                context_metadata={"session_id": str(session.id), "paper_id": str(session.paper_id) if session.paper_id else None}
-            )
-            session.record_message_cost(tokens_in, tokens_out, cost)
-
-            yield f"event: usage\ndata: {json.dumps({'tokens_in': tokens_in, 'tokens_out': tokens_out, 'total_tokens': total_tokens, 'usd_cost': float(cost)})}\n\n"
-
-            # Persist message
-            message.message = cleaned_answer
-            message.thinking_process = full_thoughts
-            message.tokens_in = tokens_in
-            message.tokens_out = tokens_out
-            message.total_tokens = total_tokens
-            message.usd_cost = cost
-            message.llm_model = model_name
-            message.status = 'completed'
-            message.completed_at = timezone.now()
-            message.visual_citations = verified_visual_cits
-            message.hallucination_guard = guard_summary
-            message.save(update_fields=[
-                'message', 'thinking_process', 'tokens_in', 'tokens_out', 'total_tokens', 'usd_cost',
-                'llm_model', 'status', 'completed_at', 'visual_citations', 'hallucination_guard'
-            ])
-
-            yield f"event: done\ndata: {json.dumps({'status': 'completed', 'message_id': str(message.id)})}\n\n"
+            if result["visual_citations"]:
+                yield self._sse('visual_citations', {'visual_citations': result["visual_citations"]})
+            yield self._sse('fact_check', {'hallucination_guard': result["hallucination_guard"]})
+            yield self._sse('usage', {
+                'tokens_in': result["tokens_in"],
+                'tokens_out': result["tokens_out"],
+                'total_tokens': result["total_tokens"],
+                'usd_cost': result["usd_cost"],
+            })
+            yield self._sse('done', {'status': 'completed', 'message_id': str(message.id)})
 
         except GeneratorExit:
             logger.info(f"Client disconnected during SSE stream for message '{message.id}'.")
@@ -409,18 +182,73 @@ class PaperChatEngine:
 
         except Exception as ex:
             logger.exception(f"Paper chat streaming failed for message '{message.id}': {ex}")
-            message.status = 'failed'
-            message.error_message = str(ex)
-            message.completed_at = timezone.now()
-            message.save(update_fields=['status', 'error_message', 'completed_at'])
-            yield f"event: error\ndata: {json.dumps({'error': str(ex)})}\n\n"
+            self._fail(message, str(ex), log=False)
+            yield self._sse('error', {'error': str(ex)})
 
-    def _assemble_prompt(self, context_text: str, history_text: str, question: str, deep_thinking_active: bool) -> str:
-        """Assembles the user prompt, context block, and conversation history."""
+    # ---------------------------------------------------------------- turn steps
+
+    def _check_quota(self, message: PaperChatMessage) -> str | None:
+        workspace = message.session.workspace
+        if not workspace:
+            return None
+        is_exceeded, quota_reason = workspace.is_quota_exceeded()
+        if is_exceeded:
+            return f"Workspace monthly quota exceeded: {quota_reason}"
+        return None
+
+    def _prepare(self, message: PaperChatMessage) -> PreparedTurn:
+        """Builds the prompt: immutable document first, then live annotations, memory, and the question."""
+        session = message.session
+        paper = session.paper
+        workspace = session.workspace
+
+        if paper:
+            doc = self.context_builder.document(paper)
+            document_text, pdf_bytes, mime_type = doc.text, doc.pdf_bytes, doc.mime_type
+            annotations_text = self.context_builder.annotations(paper, workspace)
+        else:
+            document_text = self.context_builder.workspace_overview(workspace) if workspace else ""
+            pdf_bytes, mime_type, annotations_text = None, None, ""
+
+        history_messages = list(
+            session.messages.filter(status='completed').exclude(id=message.id).order_by('created_at')
+        )
+        self.session_summarizer.compress_and_update(session, history_messages)
+        history_text = self.session_summarizer.build_history_block(session, history_messages)
+
+        deep_thinking = bool(getattr(message, 'deep_thinking', False))
+        prompt = self._assemble_prompt(document_text, annotations_text, history_text, message.question, deep_thinking)
+
+        provider_name = getattr(workspace, 'llm_provider', 'google') or 'google'
+        model_name = getattr(workspace, 'screening_llm_model', DEFAULT_MODEL) or DEFAULT_MODEL
+
+        return PreparedTurn(
+            prompt=prompt,
+            system_instruction=SYSTEM_INSTRUCTION,
+            source_text="\n\n".join(part for part in (document_text, annotations_text) if part),
+            pdf_bytes=pdf_bytes,
+            mime_type=mime_type,
+            provider=get_llm_provider(provider_name),
+            model_name=model_name,
+            deep_thinking=deep_thinking,
+        )
+
+    def _assemble_prompt(
+        self,
+        document_text: str,
+        annotations_text: str,
+        history_text: str,
+        question: str,
+        deep_thinking_active: bool,
+    ) -> str:
+        """Stable prefix (document) first; everything that changes between turns after it."""
         prompt_parts = []
 
-        if context_text:
-            prompt_parts.append(f"## ACADEMIC CONTEXT & METRICS\n{context_text}")
+        if document_text:
+            prompt_parts.append(f"## PAPER DOCUMENT\n{document_text}")
+
+        if annotations_text:
+            prompt_parts.append(f"## SCREENING, EXTRACTIONS & METRICS\n{annotations_text}")
 
         if history_text:
             prompt_parts.append(f"## CONVERSATION MEMORY\n{history_text}")
@@ -434,53 +262,127 @@ class PaperChatEngine:
         prompt_parts.append(f"## USER QUESTION\n{question}")
         return "\n\n".join(prompt_parts)
 
-    def _call_llm(
-        self,
-        workspace,
-        prompt: str,
-        pdf_bytes: bytes | None,
-        mime_type: str | None,
-        system_instruction: str | None,
-        deep_thinking_active: bool,
-        cached_content: str | None = None
-    ) -> tuple[str, list, int, int, str]:
-        provider_name = getattr(workspace, 'llm_provider', 'google') or 'google'
-        model_name = getattr(workspace, 'screening_llm_model', 'google/gemini-3.8-flash') or 'google/gemini-3.8-flash'
-
-        provider = get_llm_provider(provider_name)
-        llm_response = provider.generate(
-            prompt=prompt,
-            model=model_name,
-            file_bytes=pdf_bytes,
-            mime_type=mime_type,
-            system_instruction=system_instruction,
-            temperature=0.1 if deep_thinking_active else 0.2,
-            max_tokens=8192 if deep_thinking_active else 4096,
-            cached_content=cached_content,
-            deep_thinking=deep_thinking_active,
-            include_thoughts=deep_thinking_active,
-            return_usage=True,
+    def _generation_kwargs(self, turn: PreparedTurn) -> dict:
+        return dict(
+            prompt=turn.prompt,
+            model=turn.model_name,
+            file_bytes=turn.pdf_bytes,
+            mime_type=turn.mime_type,
+            system_instruction=turn.system_instruction,
+            temperature=0.1 if turn.deep_thinking else 0.2,
+            max_tokens=8192 if turn.deep_thinking else 4096,
+            deep_thinking=turn.deep_thinking,
+            include_thoughts=turn.deep_thinking,
         )
 
-        thought_text = ""
-        if isinstance(llm_response, tuple) and len(llm_response) == 2:
-            answer_raw, usage = llm_response
-            tokens_in = usage.get("prompt_tokens", 0) or 0
-            tokens_out = usage.get("candidates_tokens", 0) or 0
-            thought_text = usage.get("thought_process", "") or ""
-        else:
-            answer_raw = str(llm_response) if llm_response else ""
-            tokens_in = 0
-            tokens_out = 0
+    def _generate(self, turn: PreparedTurn) -> tuple[str, TurnUsage]:
+        """Single-pass generation. Providers return either text or a (text, usage) tuple."""
+        llm_response = turn.provider.generate(**self._generation_kwargs(turn), return_usage=True)
 
-        # Ensure tokens_in and tokens_out are non-zero via estimation fallback
-        if not tokens_in:
-            tokens_in = max(len(prompt) // 4, 1)
-        if not tokens_out and answer_raw:
-            tokens_out = max(len(str(answer_raw) + thought_text) // 4, 1)
+        usage = TurnUsage()
+        if isinstance(llm_response, tuple) and len(llm_response) == 2:
+            answer_raw, raw_usage = llm_response
+            usage.absorb(raw_usage)
+        else:
+            answer_raw = llm_response if llm_response else ""
 
         if not isinstance(answer_raw, str):
             answer_raw = json.dumps(answer_raw, indent=2) if answer_raw else ""
 
-        citations_list = getattr(llm_response, 'citations', []) or []
-        return answer_raw, citations_list, tokens_in, tokens_out, thought_text
+        usage.citations = getattr(llm_response, 'citations', []) or []
+        return answer_raw, usage
+
+    def _finish(self, message: PaperChatMessage, turn: PreparedTurn, answer_raw: str, usage: TurnUsage) -> dict:
+        """Extracts citations, fact-checks, records cost, persists the completed message, returns the result payload."""
+        session = message.session
+        paper = session.paper
+        workspace = session.workspace
+
+        cleaned_answer, parsed_visual_citations = self.citation_extractor.extract(answer_raw)
+        verified_visual_cits, guard_summary = self.fact_checker.verify(
+            source_text=turn.source_text,
+            visual_citations=parsed_visual_citations,
+            answer_text=cleaned_answer
+        )
+
+        # Fallback estimation if the provider omitted token metrics
+        tokens_in = usage.prompt_tokens or max(len(turn.prompt) // 4, 1)
+        tokens_out = usage.candidates_tokens
+        if not tokens_out and (cleaned_answer or usage.thought_process):
+            tokens_out = max(len(cleaned_answer + usage.thought_process) // 4, 1)
+        total_tokens = tokens_in + tokens_out
+
+        cost = workspace.record_token_usage(
+            tokens_in,
+            tokens_out,
+            model_name=turn.model_name,
+            operation_type="chat",
+            user=getattr(session, 'user', None),
+            tokens_cached=usage.cached_tokens,
+            context_metadata={"session_id": str(session.id), "paper_id": str(session.paper_id) if session.paper_id else None}
+        )
+        session.record_message_cost(tokens_in, tokens_out, cost)
+
+        message.message = cleaned_answer
+        message.thinking_process = usage.thought_process
+        message.tokens_in = tokens_in
+        message.tokens_out = tokens_out
+        message.total_tokens = total_tokens
+        message.usd_cost = cost
+        message.llm_model = turn.model_name
+        message.status = 'completed'
+        message.completed_at = timezone.now()
+        message.citations = usage.citations
+        message.visual_citations = verified_visual_cits
+        message.hallucination_guard = guard_summary
+        message.save(update_fields=[
+            'message', 'thinking_process', 'tokens_in', 'tokens_out', 'total_tokens', 'usd_cost',
+            'llm_model', 'status', 'completed_at', 'citations', 'visual_citations', 'hallucination_guard'
+        ])
+
+        # Update session title if first turn
+        if session.messages.count() <= 2 and (session.title == "Paper Discussion" or not session.title):
+            session.title = (message.question[:60] + "...") if len(message.question) > 60 else message.question
+            session.save(update_fields=['title', 'updated_at'])
+
+        return {
+            "status": "completed",
+            "message_id": str(message.id),
+            "session_id": str(session.id),
+            "paper_id": str(paper.id) if paper else None,
+            "paper_title": paper.title if paper else None,
+            "answer": cleaned_answer,
+            "thinking_process": usage.thought_process,
+            "citations": usage.citations,
+            "visual_citations": verified_visual_cits,
+            "hallucination_guard": guard_summary,
+            "deep_thinking": turn.deep_thinking,
+            "llm_model": turn.model_name,
+            "tokens_in": tokens_in,
+            "tokens_out": tokens_out,
+            "tokens_cached": usage.cached_tokens,
+            "total_tokens": total_tokens,
+            "usd_cost": float(cost),
+            "session_total_tokens": session.total_tokens,
+            "session_total_usd_cost": float(session.total_usd_cost),
+            "workspace_monthly_tokens": workspace.tokens_consumed_this_month,
+            "workspace_monthly_usd": float(workspace.usd_spent_this_month),
+        }
+
+    def _fail(self, message: PaperChatMessage, error: str, log: bool = True) -> dict:
+        if log:
+            logger.error(f"Paper chat failed for message '{message.id}': {error}")
+        message.status = 'failed'
+        message.error_message = error
+        message.completed_at = timezone.now()
+        message.save(update_fields=['status', 'error_message', 'completed_at'])
+        return {
+            "status": "failed",
+            "message_id": str(message.id),
+            "session_id": str(message.session.id),
+            "error": error,
+        }
+
+    @staticmethod
+    def _sse(event: str, payload: dict) -> str:
+        return f"event: {event}\ndata: {json.dumps(payload)}\n\n"

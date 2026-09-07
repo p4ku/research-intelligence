@@ -277,10 +277,6 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
             config_args["response_mime_type"] = "application/json"
             config_args["response_json_schema"] = response_schema
 
-        cached_content = kwargs.get("cached_content")
-        if cached_content:
-            config_args["cached_content"] = cached_content
-
         # Native Gemini Thinking / Reasoning Configuration
         thinking_cfg = _resolve_thinking_config(kwargs, model_name)
         if thinking_cfg:
@@ -434,7 +430,6 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         file_bytes: bytes = None,
         pdf_bytes: bytes = None,
         mime_type: str = None,
-        cached_content: str = None,
         **kwargs
     ):
         """
@@ -466,8 +461,6 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
             config_args["max_output_tokens"] = max_tokens
         if system_instruction:
             config_args["system_instruction"] = system_instruction
-        if cached_content:
-            config_args["cached_content"] = cached_content
 
         # Native Gemini Thinking / Reasoning Configuration
         thinking_cfg = _resolve_thinking_config(kwargs, model_name)
@@ -550,39 +543,3 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
             logger.exception(f"Error during streaming generate_content_stream: {e}")
             raise
 
-    def create_context_cache(
-        self,
-        model: str,
-        contents: list | Any,
-        ttl: str = "3600s",
-        display_name: str = None,
-        system_instruction: str = None,
-        **kwargs
-    ) -> str | None:
-        """
-        Creates a server-side Gemini CachedContent resource.
-        Returns the unique cached content resource name (e.g. 'cachedContents/12345') or None on failure.
-        """
-        model_name = model or "gemini-3.8-flash"
-        if model_name.startswith("google/"):
-            model_name = model_name.replace("google/", "", 1)
-        if "mock" in model_name:
-            model_name = "gemini-3.8-flash"
-
-        client_location = kwargs.get("location") or self.location or "eu"
-        client = self._get_client(location=client_location)
-        try:
-            cache_config = types.CreateCachedContentConfig(
-                contents=contents if isinstance(contents, list) else [contents],
-                ttl=ttl,
-                display_name=display_name,
-                system_instruction=system_instruction
-            )
-            cached_content = client.caches.create(
-                model=model_name,
-                config=cache_config
-            )
-            return getattr(cached_content, 'name', None)
-        except Exception as e:
-            logger.warning(f"Failed to create Gemini context cache: {e}")
-            return None
