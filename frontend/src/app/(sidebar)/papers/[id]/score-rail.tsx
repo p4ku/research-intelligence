@@ -13,7 +13,9 @@ import type { ReactNode } from 'react'
  * assessment is read. Server-safe; the frame keeps the skeleton in step.
  */
 
-const RADAR = 200
+// The rail's full inner width: the radar needs every pixel for its labels.
+const RADAR = 260
+const RADAR_H = Math.round(RADAR * 0.76)
 const SCORE_CLASS =
   'font-mono text-[44px] leading-none font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white'
 
@@ -117,7 +119,9 @@ function ScoreBar({ dimension: d }: { dimension: Dimension }) {
 
 export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
   const trl = trlDimension(paper)
-  const axes = dimensionRadarAxes(paper.dimensions)
+  // Name the axes before the helper drops the unscored ones, so the labels
+  // cannot drift out of step with the values.
+  const axes = dimensionRadarAxes(paper.dimensions.map((d) => ({ ...d, name: shortName(d) })))
   const score =
     paper.signal_score === null
       ? '—'
@@ -137,15 +141,7 @@ export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
       bars={paper.dimensions.map((d) => (
         <ScoreBar key={d.key + (d.extraction_id ?? '')} dimension={d} />
       ))}
-      radar={
-        axes.length >= 3 && (
-          <RadarChart
-            axes={axes.map((a, i) => ({ ...a, label: shortName(paper.dimensions[i]!) }))}
-            color="var(--accent)"
-            size={RADAR}
-          />
-        )
-      }
+      radar={axes.length >= 3 && <RadarChart axes={axes} color="var(--accent)" size={RADAR} />}
     />
   )
 }
@@ -173,7 +169,7 @@ export function ScoreRailSkeleton({ t, bars = 5 }: { t: T; bars?: number }) {
           value={<Bone.Number digits={2} />}
         />
       ))}
-      radar={<Bone.Block style={{ width: RADAR, height: RADAR }} />}
+      radar={<Bone.Block style={{ width: RADAR, height: RADAR_H }} />}
     />
   )
 }
