@@ -1,6 +1,7 @@
 import { AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { Breadcrumbs, SectionLabel } from '@/components/scanner-ui'
 import { Bone, Skeleton } from '@/components/skeleton'
+import type { Features } from '@/lib/features'
 import type { T } from '@/lib/i18n'
 import { AssessmentRowsSkeleton } from './assessment-rows'
 import { PaperChatSkeleton } from './paper-chat'
@@ -16,19 +17,24 @@ import { ScoreRailSkeleton } from './score-rail'
  * It reserves production's shape: five assessment rows and five bars with a
  * radar in the rail. A domain with fewer numeric dimensions sees the rail
  * shorten on load.
+ *
+ * Both take the flags as a required prop — nothing outside this route renders
+ * them, so a required prop catches a missed call site — and must mirror the
+ * page exactly: with `all_papers` off there is no crumb trail and no pager,
+ * or the shell paints chrome that then vanishes.
  */
 
 export const ASSESSMENT_ROWS = 5
 
-export function PaperRecordSkeleton({ t }: { t: T }) {
+export function PaperRecordSkeleton({ t, features }: { t: T; features: Features }) {
   return (
     <Skeleton.Region status={t('Loading the paper')}>
       <div className="mt-6">
-        <PaperNavSkeleton t={t} />
+        <PaperNavSkeleton t={t} features={features} />
 
         <div className="mt-6 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="min-w-0 space-y-9">
-            <PaperHeaderSkeleton />
+            <PaperHeaderSkeleton features={features} />
 
             <section>
               <SectionLabel>{t('Screening')}</SectionLabel>
@@ -68,17 +74,19 @@ export function PaperRecordSkeleton({ t }: { t: T }) {
 }
 
 /** The loading.tsx shell: the crumb is a bone because loading.tsx gets no params. */
-export function PaperPageSkeleton({ t }: { t: T }) {
+export function PaperPageSkeleton({ t, features }: { t: T; features: Features }) {
   return (
     <div className="mx-auto max-w-7xl">
-      <Breadcrumbs
-        items={[
-          { label: t('Papers'), href: '/papers' },
-          { label: <Bone.Text widths={['28ch']} /> },
-        ]}
-        t={t}
-      />
-      <PaperRecordSkeleton t={t} />
+      {features.all_papers && (
+        <Breadcrumbs
+          items={[
+            { label: t('Papers'), href: '/papers' },
+            { label: <Bone.Text widths={['28ch']} /> },
+          ]}
+          t={t}
+        />
+      )}
+      <PaperRecordSkeleton t={t} features={features} />
     </div>
   )
 }

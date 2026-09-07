@@ -1,4 +1,5 @@
 import { getSessionUser } from '@/lib/auth/session'
+import { getFeatures } from '@/lib/features-server'
 import { getT } from '@/lib/i18n-server'
 import { DashboardSkeleton } from './skeletons'
 
@@ -8,7 +9,7 @@ import { DashboardSkeleton } from './skeletons'
  * the page's own Suspense fallbacks pixel for pixel.
  */
 export default async function Loading() {
-  const [user, t] = await Promise.all([getSessionUser(), getT()])
+  const [user, t, features] = await Promise.all([getSessionUser(), getT(), getFeatures()])
   const name = user?.name.split(' ')[0] || t('there')
-  return <DashboardSkeleton t={t} name={name} />
+  return <DashboardSkeleton t={t} name={name} features={features} />
 }

@@ -59,7 +59,10 @@ live one.
    fallback carries `aria-busy`, a single `sr-only` status, and hides bones from
    assistive tech. Component skeletons render bones only. `status` must be an
    already-translated sentence — `skeleton.tsx` is shared and cannot call `useT`.
-4. **Add the pair to `/studio/skeletons`** so the drift check covers it.
+4. **Add the pair to `/studio/skeletons`** so the drift check covers it — and if a
+   feature flag can hide part of the shape, give the bone the optional `features`
+   prop so the gallery pane still compiles and stays all-on (see the flag-aware
+   bone rule below).
 5. **Give the route a `loading.tsx`** composed from the same section skeletons the
    page uses as fallbacks, and remove the route from `KNOWN_UNCOVERED` in
    `src/app/loading-convention.test.ts`. That list may only shrink.
@@ -78,8 +81,11 @@ bun test                                    # incl. the loading-convention ratch
 
 `--stream` compares byte positions, not arrival times: a fast local server
 delivers several boundaries in one chunk. To sanity-check that the assertion is
-real, point it at a route with no boundaries (`--stream /papers`) and watch it
-fail.
+real, point it at a route with no boundaries (`--stream /settings`) and watch it
+fail. Run the drift and stream checks cookieless: with a demo flag off (say
+`all_papers`), the hidden route renders the not-found card with no boundaries
+of its own, so a control against it fails for the wrong reason and reads
+exactly like the assertion working.
 
 The gallery accepts `?motion=static` to freeze the sweep; `prefers-reduced-motion`
 removes it and reduces the handoff to an instant swap.
@@ -137,7 +143,11 @@ Things learned:
 assessment rows, abstract, provenance, the score rail, and the chat pill —
 behind **one** boundary, because everything reads the one `papers.get` (now
 React-cached, so the title crumb, `generateMetadata` and the record share the
-call; the nav row's neighbours come from the cached `papers.listAll`). Files:
+call; the nav row's neighbours come from the cached `papers.listAll`). Both go
+when the `all_papers` demo flag is off — no crumb trail, and `PaperNav` keeps
+its (redirected) back link but withholds the pager, so `neighboursOf` is never
+called; the skeletons take the same `features` prop and make the same call, or
+the shell paints a crumb bar that then vanishes. Files:
 `papers/[id]/paper-header.tsx`, `paper-nav.tsx`, `assessment-rows.tsx`,
 `score-rail.tsx`, `sections.tsx`, `skeletons.tsx`, `loading.tsx`;
 `PaperChatFrame` / `PaperChatSkeleton` in `paper-chat.tsx` (the pill and the
@@ -148,13 +158,20 @@ with fewer numeric dimensions sees both shorten on load. It has a
 not-found page in-stream — the same trade as the run page, decided 2026-09-02
 and pinned by `skeleton:drift --not-found`.
 
-`/ask` streams the canvas behind one boundary (the corpus feeds the picker,
-the sessions feed the recent-chats sidecar; both block it). The canvas's
-chrome lives in `ask/console-frame.tsx` (no directive, no hooks) so
+`/ask` streams the canvas behind one boundary (only a `?paper=` deep link has
+anything to resolve there since the palette moved to its own route — neither
+the corpus nor the sessions is a server read any more, so the sentence about
+both blocking it went stale with that change, not with the flags). The
+canvas's chrome lives in `ask/console-frame.tsx` (no directive, no hooks) so
 `loading.tsx` renders the real top bar, greeting and composer box with a bone
 only where the typed question would go. Neither the picker nor the sidecar is
 on screen until the reader asks for them, so neither is boned here;
 `HistorySidecarSkeleton` and `PaperPickerSkeleton` exist for the gallery.
+With the `ask` demo flag off the route renders the not-found card before that
+boundary ever resolves — `loading.tsx` returns `null` and the page calls
+`notFound()`, so the reader sees the card and not the console skeleton,
+exactly as a dead paper permalink behaves (HTTP 200, in-stream). The two
+gallery panels are unaffected: `/studio` is pinned all-on.
 `ask/sections.tsx`, `ask/skeletons.tsx`, `ask/loading.tsx`.
 
 `/briefing` streams the reading room behind one boundary
@@ -174,6 +191,17 @@ Things learned:
   production domains score; the stub fixture has three dimensions, so stub
   mode and the screenshot stack see the record shorten on load, and the
   gallery pairs are built from the fixture's own length.
+- **A bone a feature flag can hide takes the flags as a prop.** Never a cookie
+  read inside a skeleton: the page or the `loading.tsx` calls `getFeatures()`
+  once and passes `features: Features` down, so a Suspense fallback and its
+  content cannot disagree mid-stream. The prop is optional, defaulting to
+  `ALL_ON`, on anything `/studio/skeletons` renders directly (`PaperHeader*`,
+  `PaperNav*`, `EditionBrowserSkeleton`, `BriefingLedgerSkeleton`), so the
+  gallery keeps every bone and `skeleton:drift` stays green whatever the demo
+  cookie says, and required everywhere else so a missed call site is a
+  typecheck failure. Where the flag removes a table column (the briefings
+  ledger's star) the bone must leave the column too, or the bones are one cell
+  wider than the loaded row. See `docs/design/feature-flags.md`.
 - **Some things get no skeleton.** A component that renders `null` in
   several branches (the old score-variables card did) must not get a bone
   that reserves space where nothing renders — a guaranteed drift finding.
@@ -195,6 +223,12 @@ Things learned:
 - **Per-request `cache()` on the services** (`papers.get`, `papers.listAll`,
   `briefings.listAll`, `briefings.getByDate`) is what makes sibling sections
   cheap; without it, `source=django` would fetch once per section.
+- **The raw corpus is held across requests** (`lib/bff/corpus/snapshot.ts`):
+  one snapshot of workspaces + papers + extractions per signed-in user,
+  revalidated against the run ledger's fingerprint rather than a clock.
+  Pages never fetch the corpus themselves — they read the services, which
+  read the snapshot — so a warm navigation costs Django nothing and the
+  skeleton is on screen for the Next round trip only.
 
 ## Done (pass 4) — Home (7 Sep 2026)
 
@@ -218,10 +252,11 @@ is real); `loading.tsx` bones them.
 
 ## Later, not now
 
-Still on `KNOWN_UNCOVERED`: `/papers` (the `--stream` negative control above —
-covering it means naming a different boundary-free route), `/settings` (two
-forms, mostly static chrome) and `/tuning` (one fetch; an `InfluenceBar` bone
-would do it).
+Still on `KNOWN_UNCOVERED`: `/settings` (two forms, mostly static chrome; also
+the `--stream` negative control above) and `/tuning` (one fetch; an
+`InfluenceBar` bone would do it). `/papers` is flag-gated: with `all_papers`
+off its `loading.tsx` returns null and the route streams the not-found card
+inside an HTTP 200, the same shape `/ask` gives.
 
 `cacheComponents` (Partial Prerendering) would make each route's shell static, so
 the skeletons ship with the HTML and the server does no work before first paint.

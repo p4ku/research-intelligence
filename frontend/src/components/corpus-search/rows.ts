@@ -9,6 +9,7 @@
  * Pure; `t` comes in so the strings are counted by the i18n audit.
  */
 import type { SearchHit, SearchResponse } from '@/lib/bff/search/schema'
+import type { Features } from '@/lib/features'
 import { fmt, type T } from '@/lib/i18n'
 import { shortTitle } from '@/lib/papers/select'
 
@@ -37,6 +38,12 @@ export interface RowContext {
   suggestions: string[]
   error: boolean
   t: T
+  /**
+   * The demo flags. The panel's Ask row is the only in-app link to `/ask`
+   * outside the nav, so it is withheld when `ask` is off; the BFF keeps
+   * offering the href either way (src/lib/bff/search/assemble.ts).
+   */
+  features: Features
 }
 
 export const papersHref = (q: string) =>
@@ -57,7 +64,10 @@ const openPapers = (): Section => ({
   rows: [{ kind: 'papers', id: 'papers', href: '/papers' }],
 })
 
-function askSection(result: SearchResponse, t: T): Section | null {
+function askSection(result: SearchResponse, { t, features }: RowContext): Section | null {
+  // Hidden by the `ask` demo flag: no row, so the panel's 'ask' branch never
+  // runs. Gating there as well would let the two disagree.
+  if (!features.ask) return null
   const top = result.papers[0]
   if (!result.ask || !top) return null
   return {
@@ -178,7 +188,7 @@ export function buildSections(result: SearchResponse | null, ctx: RowContext): S
           rows: [{ kind: 'paper', id: hit.id, href: `/papers/${hit.id}`, hit }],
         },
       ]
-      const ask = askSection(result, t)
+      const ask = askSection(result, ctx)
       if (ask) sections.push(ask)
       return [...stale, ...sections]
     }
@@ -191,7 +201,7 @@ export function buildSections(result: SearchResponse | null, ctx: RowContext): S
 
   const papers = paperSection(result, t)
   const domains = domainSection(result, t)
-  const ask = askSection(result, t)
+  const ask = askSection(result, ctx)
   if (!papers && !domains) {
     return [
       ...stale,

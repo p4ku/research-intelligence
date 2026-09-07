@@ -2,8 +2,24 @@
 
 import { useT } from '@/lib/i18n-client'
 import * as Headless from '@headlessui/react'
+import clsx from 'clsx'
 import React, { useState } from 'react'
 import { NavbarItem } from './app-navbar'
+
+/**
+ * Canvas mode. A page that puts `data-canvas` on its root asks the shell for
+ * the viewport: the document stops scrolling, the card's padding and chrome
+ * go, and the page is stretched to fill main edge to edge. The page then owns
+ * its scroll regions (the Ask transcript) with plain flex — no
+ * `calc(100dvh - <the shell's padding>)` arithmetic that drifts the moment
+ * the shell changes. Pages without the attribute are untouched.
+ */
+const CANVAS_ROOT = 'has-[[data-canvas]]:h-dvh has-[[data-canvas]]:overflow-hidden'
+const CANVAS_MAIN = 'has-[[data-canvas]]:min-h-0 has-[[data-canvas]]:max-lg:px-2'
+const CANVAS_CARD =
+  'has-[[data-canvas]]:flex has-[[data-canvas]]:min-h-0 has-[[data-canvas]]:flex-col has-[[data-canvas]]:p-0 has-[[data-canvas]]:lg:bg-transparent has-[[data-canvas]]:lg:shadow-none has-[[data-canvas]]:lg:ring-0'
+const CANVAS_WRAP =
+  'has-[[data-canvas]]:flex has-[[data-canvas]]:min-h-0 has-[[data-canvas]]:w-full has-[[data-canvas]]:max-w-none has-[[data-canvas]]:flex-1 has-[[data-canvas]]:flex-col'
 
 function OpenMenuIcon() {
   return (
@@ -61,7 +77,12 @@ export function SidebarLayout({
   const t = useT()
 
   return (
-    <div className="relative isolate flex min-h-svh w-full bg-surface max-lg:flex-col lg:bg-background">
+    <div
+      className={clsx(
+        'relative isolate flex min-h-svh w-full bg-surface max-lg:flex-col lg:bg-background',
+        CANVAS_ROOT,
+      )}
+    >
       {/* Sidebar on desktop */}
       <div className="fixed inset-y-0 left-0 w-64 max-lg:hidden">{sidebar}</div>
 
@@ -81,9 +102,19 @@ export function SidebarLayout({
       </header>
 
       {/* Content */}
-      <main className="flex flex-1 flex-col pb-2 lg:min-w-0 lg:pt-2 lg:pr-2 lg:pl-64">
-        <div className="grow p-6 lg:rounded-lg lg:bg-surface lg:p-10 lg:shadow-xs lg:ring-1 lg:ring-line">
-          <div className="mx-auto max-w-6xl">{children}</div>
+      <main
+        className={clsx(
+          'flex flex-1 flex-col pb-2 lg:min-w-0 lg:pt-2 lg:pr-2 lg:pl-64',
+          CANVAS_MAIN,
+        )}
+      >
+        <div
+          className={clsx(
+            'grow p-6 lg:rounded-lg lg:bg-surface lg:p-10 lg:shadow-xs lg:ring-1 lg:ring-line',
+            CANVAS_CARD,
+          )}
+        >
+          <div className={clsx('mx-auto max-w-6xl', CANVAS_WRAP)}>{children}</div>
         </div>
       </main>
     </div>

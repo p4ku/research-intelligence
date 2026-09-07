@@ -1,6 +1,7 @@
 import { fixturePapers } from '@/lib/bff/papers/fixtures'
 import { assembleSearch } from '@/lib/bff/search/assemble'
 import { fixtureSearchCorpus } from '@/lib/bff/search/fixtures'
+import { ALL_ON } from '@/lib/features'
 import type { T } from '@/lib/i18n'
 import { describe, expect, test } from 'bun:test'
 import { askTitle, buildSections, flatten, papersHref, rowId, type RowContext } from './rows'
@@ -12,6 +13,7 @@ const ctx = (over: Partial<RowContext> = {}): RowContext => ({
   suggestions: [],
   error: false,
   t,
+  features: ALL_ON,
   ...over,
 })
 const search = (q: string, limit = 6) => assembleSearch(fixtureSearchCorpus, { q, limit })
@@ -34,6 +36,14 @@ describe('buildSections', () => {
 
   test('question: the Ask row first', () => {
     expect(kinds('how do agents coordinate tools')[0]).toBe('ask')
+  })
+
+  test('ask flag off: no Ask row, for a question or an exact id', () => {
+    const off = { features: { all_papers: true, stars: true, ask: false } }
+    expect(kinds('how do agents coordinate tools', 6, off)).not.toContain('ask')
+    expect(kinds('agents', 6, off)).toEqual(['paper', 'paper', 'domain'])
+    const exact = buildSections(search('2608.01234'), ctx({ q: '2608.01234', ...off }))
+    expect(flatten(exact).map((r) => r.kind)).toEqual(['paper'])
   })
 
   test('id with an exact hit: one Open paper row, then Ask', () => {

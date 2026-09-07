@@ -1,9 +1,9 @@
 import { bff } from '@/lib/bff/core/handler'
 import { problem } from '@/lib/bff/core/problem'
 import { parseBody } from '@/lib/bff/core/validate'
+import { invalidateCorpusSnapshot } from '@/lib/bff/corpus/snapshot'
 import { startRun } from '@/lib/bff/pipeline-runs/schema'
 import { runs } from '@/lib/bff/pipeline-runs/service'
-import { invalidateSearchCorpus } from '@/lib/bff/search/corpus'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,6 +27,6 @@ export const POST = bff('pipeline-runs', async (request) => {
     })
   }
   const started = await runs.start(input)
-  invalidateSearchCorpus()
+  invalidateCorpusSnapshot()
   return Response.json(started, { status: 201 })
 })

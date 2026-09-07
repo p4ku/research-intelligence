@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
+import { getFeatures } from '@/lib/features-server'
 import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
@@ -24,7 +25,12 @@ export async function generateMetadata(): Promise<Metadata> {
 // Suspense boundary. loading.tsx shows the same skeleton on navigation.
 
 export default async function BriefingArchivePage() {
-  const [t, lang, state] = await Promise.all([getT(), getLang(), getWorkspacesState()])
+  const [t, lang, state, features] = await Promise.all([
+    getT(),
+    getLang(),
+    getWorkspacesState(),
+    getFeatures(),
+  ])
 
   return (
     <div className="space-y-8">
@@ -35,7 +41,7 @@ export default async function BriefingArchivePage() {
         <Suspense
           fallback={
             <ViewTransition exit="bone-exit" default="none">
-              <EditionsSkeleton t={t} />
+              <EditionsSkeleton t={t} features={features} />
             </ViewTransition>
           }
         >
