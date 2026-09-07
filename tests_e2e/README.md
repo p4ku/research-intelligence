@@ -16,12 +16,46 @@ Located in `tests_e2e/pages/` and `tests_e2e/specs/`:
   * `WorkspaceSwitcher.ts`: Workspace dropdown, listing accessible workspaces, and cookie validation (`rs-workspace`).
   * `SettingsPage.ts`: `/settings` profile form, password form, workspace configuration summary, and notification toggle.
   * `DashboardPage.ts`, `BriefingPage.ts`, `PapersPage.ts`, `AskPage.ts`: Core application surface abstractions.
+  * `FeatureToggles.ts`: The account menu's "Demo features" switches, plus `addFeatureCookie()` for seeding `rs-features` before a session starts.
 * **`specs/`**: Modular, full end-to-end user journey test suites:
   1. `01_auth_session_lifecycle.journey.spec.ts`: Rejection of bad credentials, login, session cookies, deep-link protection, and sign out.
   2. `02_analyst_daily_review.journey.spec.ts`: Today Dashboard funnel metrics, reading executive Briefing, systematic Papers exploration and scorecard inspections.
   3. `03_manager_workspace_and_settings.journey.spec.ts`: Multi-tenant workspace switching, `/settings` inspection (Profile, Role, Password, Workspace Metadata), and bilingual EN <-> DE locale toggle.
   4. `05_interactive_paper_chat.journey.spec.ts`: Deep-dive literature question answering in `/ask`, reasoning engine, and citation stream validation.
   5. `06_end_to_end_researcher_flow.journey.spec.ts`: Comprehensive full researcher flow executing the entire application lifecycle end-to-end in a single session.
+  6. `07_feature_flags.journey.spec.ts`: The three demo feature flags — `all_papers`, `stars`, `ask` — hidden and put back (see **Demo feature flags** below).
+
+### Demo feature flags: the suite assumes everything is ON
+
+The account menu carries three per-browser switches that hide a feature live and put it back (`docs/design/feature-flags.md`). They are stored in one readable cookie, `rs-features`, whose value is the `.`-separated list of the flags that are **OFF**; an absent, empty or malformed cookie means the whole product.
+
+Every other spec here runs in a fresh, cookieless context and therefore sees the full product: five nav rows, `/papers`, `/ask`, and every star affordance. **Do not sign in with a flag cookie left over from a manual session** — two page-object helpers turn a hidden feature into a false green:
+
+* `SidebarNav.navigateTo()` falls back to `goto(path)` when the nav link is missing, so journeys 02 and 06 would pass with every papers step silently landing on a not-found card.
+* `PapersPage.isLoaded()` returns `true` on that card, because it renders inside the shell's `<main>`.
+
+`07_feature_flags.journey.spec.ts` is the guard, and it asserts **absence with raw locators only**. It seeds the cookie itself, per test, before the first navigation:
+
+```ts
+import { addFeatureCookie, FeatureToggles } from '../pages/index.js';
+
+// Start the session with the corpus list hidden ('' would be all-on):
+await addFeatureCookie(page.context(), ['all_papers'], baseURL!);
+// ...then sign in as usual; the very first server render already sees it.
+
+// Or flip one from the account menu the way the product owner does mid-demo:
+const toggles = new FeatureToggles(page);
+await toggles.turnOff('ask');
+await toggles.turnOn('ask');
+```
+
+`addFeatureCookie` is a thin wrapper over `context.addCookies()`; `BasePage.addCookies()` is the general form for any preference cookie (`rs-lang`, `rs-features`). The first test in the spec states the cookieless default out loud, so a regression in the defaults fails there rather than somewhere in journey 02.
+
+Against a local frontend rather than the default production target:
+
+```bash
+E2E_BASE_URL=http://localhost:3008 npx playwright test specs/07_feature_flags.journey.spec.ts
+```
 
 ### 2. Backend & Live Pipeline Scenarios
 Located in `tests_e2e/scenarios/`:

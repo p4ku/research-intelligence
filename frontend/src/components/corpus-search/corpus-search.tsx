@@ -3,6 +3,7 @@
 import { SearchFrame } from '@/components/search-frame'
 import { Spinner } from '@/components/ui/spinner'
 import { bffFetch } from '@/lib/bff/client'
+import { useFeatures } from '@/lib/features-client'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { tokenize } from '@/lib/search/match'
@@ -57,6 +58,9 @@ export function CorpusSearch({
   limit?: number
 }) {
   const t = useT()
+  // The panel's Ask row is flagged; every other row is a corpus destination
+  // and goes with the whole field when `all_papers` is off (Home's page).
+  const features = useFeatures()
   const router = useRouter()
   const panelId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -85,8 +89,8 @@ export function CorpusSearch({
   }, [])
 
   const sections = useMemo(
-    () => buildSections(deferred, { q, recent, suggestions, error, t }),
-    [deferred, q, recent, suggestions, error, t],
+    () => buildSections(deferred, { q, recent, suggestions, error, t, features }),
+    [deferred, q, recent, suggestions, error, t, features],
   )
   const rows = useMemo(() => flatten(sections), [sections])
   const active = cursor < rows.length ? cursor : -1

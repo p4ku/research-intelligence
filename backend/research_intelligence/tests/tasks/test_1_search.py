@@ -471,3 +471,156 @@ class IngestionSearchTasksTestCase(TestCase):
         self.assertEqual(call_kwargs.get("end_date"), "2026-08-15")
         self.assertEqual(call_kwargs.get("n_last_days"), 14)
 
+    @patch("research_intelligence.tasks.step_1_search.search.get_scraper_provider")
+    def test_multi_scraper_cross_provider_deduplication(self, mock_get_provider):
+        """
+        Verify that when two scrapers from different providers (e.g. ArXiv and OpenAlex)
+        scrape the same paper, only 1 Paper row is created, missing fields are enriched,
+        and only 1 PaperMetric row is linked to the active PipelineRun.
+        """
+        from research_intelligence.models import PaperMetric
+        from research_intelligence.tasks.step_1_search.node import SearchNode
+
+        arxiv_scraper = Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="transformers attention",
+            is_active=True
+        )
+        openalex_scraper = Scraper.objects.create(
+            workspace=self.workspace,
+            provider="openalex",
+            search_query="transformers attention",
+            is_active=True
+        )
+
+        arxiv_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="search",
+            component_name="arxiv_scraper",
+            scraper=arxiv_scraper,
+            status="pending",
+            input_params={}
+        )
+        openalex_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="search",
+            component_name="openalex_scraper",
+            scraper=openalex_scraper,
+            status="pending",
+            input_params={}
+        )
+
+        mock_arxiv_provider = MagicMock()
+        mock_arxiv_provider.search.return_value = [
+            {
+                "title": "Attention Is All You Need",
+                "authors": "Vaswani et al.",
+                "abstract": "We introduce the Transformer architecture...",
+                "hash_id": "1706.03762",
+                "arxiv_id": "1706.03762",
+                "doi": "10.48550/arXiv.1706.03762",
+                "pdf_url": "https://arxiv.org/pdf/1706.03762.pdf",
+                "source_database": "arxiv",
+                "published_date": "2017-06-12",
+                "meta": {"arxiv_version": "v1"}
+            }
+        ]
+
+        mock_openalex_provider = MagicMock()
+        mock_openalex_provider.search.return_value = [
+            {
+                "title": "Attention is all you need!",
+                "authors": "Ashish Vaswani, Noam Shazeer",
+                "abstract": "The dominant sequence transduction models...",
+                "hash_id": "W2963403868",
+                "doi": "10.48550/arxiv.1706.03762",
+                "pdf_url": "https://arxiv.org/pdf/1706.03762.pdf",
+                "other_url": "https://openalex.org/W2963403868",
+                "source_database": "openalex",
+                "published_date": "2017-06-12",
+                "meta": {"cited_by_count": 95000}
+            }
+        ]
+
+        def provider_side_effect(provider_name, **kwargs):
+            if provider_name == "arxiv":
+                return mock_arxiv_provider
+            return mock_openalex_provider
+
+        mock_get_provider.side_effect = provider_side_effect
+
+        # 1. Execute ArXiv scraper
+        ok1 = execute_scraper_run_job(str(arxiv_run.id))
+        self.assertTrue(ok1)
+        arxiv_run.refresh_from_db()
+        self.assertEqual(arxiv_run.metrics["total_created"], 1)
+        self.assertEqual(arxiv_run.metrics["duplicates_count"], 0)
+
+        # 2. Execute OpenAlex scraper
+        ok2 = execute_scraper_run_job(str(openalex_run.id))
+        self.assertTrue(ok2)
+        openalex_run.refresh_from_db()
+        self.assertEqual(openalex_run.metrics["total_created"], 0)
+        self.assertEqual(openalex_run.metrics["duplicates_count"], 1)
+
+        # 3. Assert exactly ONE Paper exists in workspace
+        papers = Paper.objects.filter(workspace=self.workspace)
+        self.assertEqual(papers.count(), 1)
+        paper = papers.first()
+        self.assertEqual(paper.arxiv_id, "1706.03762")
+        self.assertTrue("1706.03762" in paper.doi)
+
+        # 4. Assert exactly ONE PaperMetric exists for this pipeline run
+        metrics = PaperMetric.objects.filter(paper=paper, pipeline_run=self.pipeline_run)
+        self.assertEqual(metrics.count(), 1)
+
+        # 5. PipelineRun.get_papers() returns exactly 1 paper for Downloader
+        run_papers = list(self.pipeline_run.get_papers())
+        self.assertEqual(len(run_papers), 1)
+        self.assertEqual(run_papers[0].id, paper.id)
+
+    def test_search_node_halt_waits_for_parallel_scrapers(self):
+        """
+        Verify that SearchNode.should_halt_pipeline does NOT prematurely halt if one scraper
+        finished with 0 papers while another parallel scraper is still running or pending.
+        """
+        from research_intelligence.tasks.step_1_search.node import SearchNode
+
+        scraper_1 = Scraper.objects.create(workspace=self.workspace, provider="arxiv", search_query="q1")
+        scraper_2 = Scraper.objects.create(workspace=self.workspace, provider="openalex", search_query="q2")
+
+        run_1 = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="search",
+            component_name="arxiv_scraper",
+            scraper=scraper_1,
+            status="completed",
+            metrics={"total_fetched": 0, "total_created": 0, "duplicates_count": 0}
+        )
+        run_2 = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="search",
+            component_name="openalex_scraper",
+            scraper=scraper_2,
+            status="running",
+            metrics={}
+        )
+
+        node = SearchNode()
+        # While run_2 is running, pipeline must NOT halt even though run_1 completed with 0 papers
+        should_halt, msg = node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
+        self.assertFalse(should_halt)
+        self.assertIsNone(msg)
+
+        # Once run_2 finishes with 0 papers as well, should_halt must cleanly return True with aggregated metrics
+        run_2.status = "completed"
+        run_2.metrics = {"total_fetched": 5, "total_created": 0, "duplicates_count": 5}
+        run_2.save()
+
+        should_halt, msg = node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
+        self.assertTrue(should_halt)
+        self.assertIn("5 on data sources", msg)
+        self.assertIn("all 5 were already ingested", msg)
+
+

@@ -4,6 +4,8 @@ import { PageNav } from '@/components/page-nav'
 import { Bone } from '@/components/skeleton'
 import { StarButton, StarredChip } from '@/components/star'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
+import { ALL_ON, type Features } from '@/lib/features'
+import { useFeatures } from '@/lib/features-client'
 import { useT } from '@/lib/i18n-client'
 import { useStars } from '@/lib/stars-client'
 import clsx from 'clsx'
@@ -46,6 +48,16 @@ const COL = {
 
 const COLUMNS = ['star', 'domain', 'period', 'generated', 'screened', 'included', 'status'] as const
 
+/**
+ * The columns this render has. With `stars` off the star column leaves the
+ * list entirely rather than rendering an empty cell: header, body cells,
+ * skeleton footprint and the expanded brief's colSpan all follow from here,
+ * so a hidden star cannot leave a 28px gutter down every row.
+ */
+function columnsFor(stars: boolean): readonly (typeof COLUMNS)[number][] {
+  return stars ? COLUMNS : COLUMNS.filter((key) => key !== 'star')
+}
+
 /* -------------------------------- Frames -------------------------------- */
 
 const CHIP =
@@ -56,6 +68,7 @@ const CHIP_OFF =
 
 function LedgerFrame({
   state,
+  stars,
   domains,
   starred,
   rows,
@@ -63,6 +76,8 @@ function LedgerFrame({
   nav,
 }: {
   state: 'loaded' | 'skeleton'
+  /** Whether this render has the star column — one source per tree, never the context twice. */
+  stars: boolean
   /** The domain chips, or null when there is only one domain to show. */
   domains: ReactNode
   starred: ReactNode
@@ -71,6 +86,7 @@ function LedgerFrame({
   nav?: ReactNode
 }) {
   const t = useT()
+  const columns = columnsFor(stars)
   const labels: Record<(typeof COLUMNS)[number], string> = {
     star: '',
     domain: t('Domain'),
@@ -89,7 +105,7 @@ function LedgerFrame({
       <Table dense>
         <TableHead>
           <TableRow>
-            {COLUMNS.map((key) => (
+            {columns.map((key) => (
               <TableHeader key={key} className={COL[key].head}>
                 {labels[key]}
               </TableHeader>
@@ -106,7 +122,17 @@ function LedgerFrame({
 
 /* --------------------------------- Rows --------------------------------- */
 
-function Row({ row, open, onToggle }: { row: ArchiveRow; open: boolean; onToggle: () => void }) {
+function Row({
+  row,
+  open,
+  onToggle,
+  stars,
+}: {
+  row: ArchiveRow
+  open: boolean
+  onToggle: () => void
+  stars: boolean
+}) {
   const panelId = `briefing-${row.id}`
   // A run that briefed nothing is greyed and inert — as on Home, there is
   // no briefing behind it, so the row does not pretend to open one.
@@ -125,11 +151,13 @@ function Row({ row, open, onToggle }: { row: ArchiveRow; open: boolean; onToggle
           row.empty && '[&>td]:text-zinc-400 dark:[&>td]:text-zinc-500',
         )}
       >
-        <TableCell className={COL.star.cell}>
-          <span className="flex">
-            <StarButton kind="briefing" id={row.id} />
-          </span>
-        </TableCell>
+        {stars && (
+          <TableCell className={COL.star.cell}>
+            <span className="flex">
+              <StarButton kind="briefing" id={row.id} />
+            </span>
+          </TableCell>
+        )}
         <TableCell className={clsx(COL.domain.cell, row.empty && 'font-normal')}>
           <span className="flex items-center gap-2.5">
             <span
@@ -167,7 +195,7 @@ function Row({ row, open, onToggle }: { row: ArchiveRow; open: boolean; onToggle
 
       {open && expandable && (
         <TableRow data-row="brief" id={panelId} className={clsx(row.current && 'bg-foreground/3')}>
-          <TableCell colSpan={COLUMNS.length} className="pt-3! pb-5!">
+          <TableCell colSpan={columnsFor(stars).length} className="pt-3! pb-5!">
             <BriefPanel brief={row.brief} />
           </TableCell>
         </TableRow>
@@ -194,13 +222,19 @@ export function BriefingLedger({
 }) {
   const t = useT()
   const { isStarred } = useStars()
+  const { stars } = useFeatures()
   // The URL is the state. The App Router updates useSearchParams on the
   // replaceState below and on Back/Forward, and a traversal restores the
   // page from its cache without a server render — so nothing is seeded
   // from a prop that could go stale.
   const params = useSearchParams()
   const [local, setLocal] = useState<ArchiveState>(DEFAULT_STATE)
-  const state = syncUrl ? stateFrom(Object.fromEntries(params), domains) : local
+  const urlState = syncUrl ? stateFrom(Object.fromEntries(params), domains) : local
+  // The effective Starred filter, not the state: `?starred=1` lives in the URL
+  // and this component does not own the address bar, so it survives a flip and
+  // a reload alike — forcing the derived value is what makes a reload with the
+  // flag off show the full ledger instead of a list nothing can widen again.
+  const state: ArchiveState = { ...urlState, starred: stars && urlState.starred }
   const [openId, setOpenId] = useState<string | null>(null)
 
   const starredIds = useMemo(
@@ -211,7 +245,11 @@ export function BriefingLedger({
   const { items, page, pageCount } = paginate(filtered, state.page)
 
   function update(patch: Partial<ArchiveState>) {
-    const next = { ...state, ...patch }
+    // From `urlState`, not the forced `state`: only the rendered value is
+    // forced, and a domain or pager click must not quietly rewrite the address
+    // bar without a `?starred=1` the user never cleared. Identical while stars
+    // are on, and with them off it is what keeps the flip non-destructive.
+    const next = { ...urlState, ...patch }
     // A narrower or wider list starts again from its first page.
     if ('domain' in patch || 'starred' in patch) next.page = 1
     // No navigation, no refetch: the App Router picks the query up from
@@ -229,6 +267,7 @@ export function BriefingLedger({
   return (
     <LedgerFrame
       state="loaded"
+      stars={stars}
       domains={
         domains.length > 1 && (
           <div role="group" aria-label={t('Filter by domain')} className="contents">
@@ -247,17 +286,20 @@ export function BriefingLedger({
         )
       }
       starred={
-        <StarredChip
-          active={state.starred}
-          count={starredIds.size}
-          onToggle={() => update({ starred: !state.starred })}
-          className="ml-auto"
-        />
+        stars && (
+          <StarredChip
+            active={state.starred}
+            count={starredIds.size}
+            onToggle={() => update({ starred: !state.starred })}
+            className="ml-auto"
+          />
+        )
       }
       rows={items.map((row) => (
         <Row
           key={row.id}
           row={row}
+          stars={stars}
           open={row.id === openId}
           onToggle={() => setOpenId((id) => (id === row.id ? null : row.id))}
         />
@@ -295,14 +337,18 @@ const DOMAIN_DIGITS = [16, 11, 14, 16, 11]
 export function BriefingLedgerSkeleton({
   rows = 10,
   domains,
+  features = ALL_ON,
 }: {
   rows?: number
   domains: string[] | null
+  /** Optional: the Studio gallery renders this skeleton directly, all-on. */
+  features?: Features
 }) {
   const t = useT()
   return (
     <LedgerFrame
       state="skeleton"
+      stars={features.stars}
       domains={
         domains === null ? (
           <>
@@ -319,13 +365,15 @@ export function BriefingLedgerSkeleton({
           ))
         )
       }
-      starred={<Bone.Chip width={82} className="ml-auto h-6!" />}
+      starred={features.stars && <Bone.Chip width={82} className="ml-auto h-6!" />}
       rows={Array.from({ length: rows }, (_, i) => (
         <TableRow key={i} data-row="briefing" className={clsx(i === 0 && 'bg-foreground/3')}>
-          <TableCell className={COL.star.cell}>
-            {/* The star's footprint, so the row keeps its loaded height. */}
-            <span aria-hidden="true" className="flex size-7" />
-          </TableCell>
+          {features.stars && (
+            <TableCell className={COL.star.cell}>
+              {/* The star's footprint, so the row keeps its loaded height. */}
+              <span aria-hidden="true" className="flex size-7" />
+            </TableCell>
+          )}
           <TableCell className={COL.domain.cell}>
             <span className="flex items-center gap-2.5">
               <span

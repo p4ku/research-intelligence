@@ -1,4 +1,5 @@
 import { Card } from '@/components/scanner-ui'
+import { getFeatures } from '@/lib/features-server'
 import { getT } from '@/lib/i18n-server'
 import Link from 'next/link'
 
@@ -14,7 +15,8 @@ import Link from 'next/link'
  * session and the dashboard is the way back.
  */
 export default async function NotFound() {
-  const t = await getT()
+  // Demo flags: with the Papers list hidden this page must not link to it.
+  const [t, features] = await Promise.all([getT(), getFeatures()])
 
   return (
     <div className="mx-auto max-w-lg px-6 pt-24">
@@ -30,12 +32,14 @@ export default async function NotFound() {
           >
             {t('Go to Dashboard')}
           </Link>
-          <Link
-            href="/papers"
-            className="rounded-sm border border-line px-3 py-1.5 text-sm font-medium transition-colors hover:bg-line-soft/60"
-          >
-            {t('Go to Papers')}
-          </Link>
+          {features.all_papers && (
+            <Link
+              href="/papers"
+              className="rounded-sm border border-line px-3 py-1.5 text-sm font-medium transition-colors hover:bg-line-soft/60"
+            >
+              {t('Go to Papers')}
+            </Link>
+          )}
         </div>
       </Card>
     </div>

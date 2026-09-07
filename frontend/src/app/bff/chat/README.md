@@ -6,6 +6,14 @@ Corpus-wide Q&A (**Ask**, `/ask`) and the per-paper conversation on the paper
 detail page — streamed answers with visual citations, a fact-check verdict,
 and server-side session history.
 
+The `/ask` **UI** can be hidden per browser by the `ask` demo flag; these
+routes are **not** flag-gated and must stay that way. The cookie is a
+preference the visitor owns, not an authorization boundary, Django's
+`/api/chat/*` is reachable through the proxy rewrite regardless, and the
+stream is the one surface where a mid-response behaviour change cannot be
+recovered. The per-paper sidecar keeps calling them with the flag off
+(`docs/design/feature-flags.md` §4.3).
+
 ## What the UI needs
 
 - Streamed answer text; the session/message ids (continuity + the rail).

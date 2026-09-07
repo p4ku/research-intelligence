@@ -1,5 +1,73 @@
 # Changelog
 
+## 2026-09-07 (Ask behind a demo switch)
+
+- **Ask** (`/ask`) is hidden per browser by the `ask` demo switch in the
+  account menu: the nav row goes from the rail and the drawer, the page calls
+  `notFound()` before any backend work, `generateMetadata` returns `{}` so the
+  tab falls back to "Research Intelligence", and `loading.tsx` renders nothing
+  rather than painting the console skeleton of a route that is about to answer
+  the not-found card. `/ask` answers **HTTP 200** with that card streamed in
+  place, not a 404, because the route has a `loading.tsx` — the trade decided
+  2026-09-02 and pinned by `skeleton:drift --not-found`.
+- Home's search panel drops its "Ask about “{title}”" row, the only in-app
+  link to `/ask` outside the nav. `GET /bff/search` still offers the href; the
+  UI decides whether to render a row for it.
+- **Deliberately different from the Scoring removal above**: nothing is
+  deleted. `src/locales/de/ask.ts`, every file under `src/app/(sidebar)/ask/`
+  and the Playwright journeys stay, because the switch is reversible mid-demo
+  and the Studio gallery imports the sidecar and picker components.
+- **What stays on purpose**: the per-paper "Ask this paper" sidecar on
+  `/papers/[id]` (this flag hides the corpus-wide canvas, not the per-paper
+  assistant), and `POST /bff/chat/stream` plus the `/bff/chat/sessions`
+  routes — a cookie the visitor owns is a preference, not an authorization
+  boundary.
+
+## 2026-09-07 (stars demo flag)
+
+- Every star affordance is behind the same per-browser demo switch. `stars` off
+  and no curation control renders: the corner star on paper cards and archive
+  rail rows, the labelled toggle on `/papers/[id]`, `/briefing/[date]` and the
+  archive reader, and all four **Starred** filter chips (papers browser,
+  briefings ledger, archive rail, edition paper list).
+- The ledger loses its whole star **column**, not just the button: `'star'`
+  leaves `COLUMNS`, so header cell, body cell, the expanded brief's `colSpan`
+  and the skeleton's per-row footprint all follow, and no 28px gutter is left
+  behind. Skeletons drop their star bones with them, so nothing flashes.
+- Every `starredOnly` derivation is **forced false** rather than merely losing
+  its control (`features.stars && state`), in all four lists. A flip taken with
+  a Starred filter engaged widens the list back instead of leaving it silently
+  narrowed with nothing on screen to clear it. On `/briefing` that state lives
+  in the URL, so `?starred=1` survives the flip — a reload with the flag off
+  still shows the full ledger.
+- Deliberately kept: `GET`/`PUT /bff/stars`, the service, codec, schema and
+  contract entries, `stars` in `/bff/status`, every German key, and above all
+  the `rs-stars` cookie, which is **not** cleared — flipping the flag back on
+  restores the analyst's own stars on the next refresh.
+
+## 2026-09-07 (all_papers demo flag)
+
+- The **Papers** list is behind a per-browser demo switch. `all_papers` off and
+  `/papers` no longer exists: the shared not-found card streamed in place (an
+  HTTP 200, like `/ask`, because the route has a `loading.tsx`; that file
+  returns null when the flag is off so no skeleton paints first), the nav row
+  filtered out of the rail and the mobile drawer alike, Home's whole
+  corpus-search typeahead removed (page and `loading.tsx` together), and the
+  404 card's own "Go to Papers" button gone.
+- `/papers/[id]` stays reachable — from briefings, Home's top papers, `/tuning`
+  and chat citations — and loses only what is derived from the list: the
+  breadcrumb trail, the prev/next pager and its "{n} of {total}", the
+  `papers.listAll` fetch that fed them, and the back link, which points at
+  Briefings instead. Skeletons make the same call, so nothing flashes.
+- Deliberately kept, because the flag is reversible: the German dictionary
+  entries, the Playwright journeys that walk `/papers`, `GET /bff/papers`,
+  `GET /bff/search` and the papers services. Hiding is a UI concern; the cookie
+  is a preference the visitor owns, not an authorization boundary.
+- The switch lives in the account menu under **Demo features** (cookie
+  `rs-features`; see `src/lib/features.ts`). Flags default ON, so scripted runs
+  — screenshots, skeleton drift, Playwright — start cookieless and see the whole
+  product.
+
 ## 2026-09-01 (Scoring page removed)
 
 - The read-only **Scoring** page (`/scoring`) is gone, along with its nav entry,

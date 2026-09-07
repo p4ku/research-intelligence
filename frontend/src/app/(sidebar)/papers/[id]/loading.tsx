@@ -1,3 +1,4 @@
+import { getFeatures } from '@/lib/features-server'
 import { getT } from '@/lib/i18n-server'
 import { PaperPageSkeleton } from './skeletons'
 
@@ -7,6 +8,6 @@ import { PaperPageSkeleton } from './skeletons'
  * crumb is a bone here.
  */
 export default async function Loading() {
-  const t = await getT()
-  return <PaperPageSkeleton t={t} />
+  const [t, features] = await Promise.all([getT(), getFeatures()])
+  return <PaperPageSkeleton t={t} features={features} />
 }
