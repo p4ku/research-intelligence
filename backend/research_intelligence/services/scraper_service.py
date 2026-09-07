@@ -106,6 +106,7 @@ def list_workspace_papers(
             "authors": p.authors,
             "abstract": p.abstract,
             "source_database": p.source_database,
+            "source_url": p.source_url,
             "pdf_url": p.original_pdf_path,
             "original_pdf_path": p.original_pdf_path,
             "converted_md_path": p.converted_md_path,

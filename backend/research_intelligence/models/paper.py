@@ -236,6 +236,63 @@ class Paper(models.Model):
                 return self.all().filter(*args, **kwargs)
         return _ReprocessedRunsShim(self)
 
+    @property
+    def source_url(self) -> str | None:
+        """
+        Resolves the canonical external web URL to the original paper landing page or publication.
+        Handles:
+        1. DOI (works for OpenAlex, Lens, CrossRef, publishers, etc.) -> https://doi.org/{clean_doi}
+        2. arXiv ID -> https://arxiv.org/abs/{clean_arxiv}
+        3. Raw repository metadata payload (meta):
+           - OpenAlex: meta['id'] (e.g. 'https://openalex.org/W2963403868')
+           - OpenAlex / Publisher landing page: meta['primary_location']['landing_page_url']
+           - Lens / generic URLs: meta['landing_page_url'], meta['other_url'], meta['url']
+        4. Fallback for OpenAlex / Lens database identifiers.
+        """
+        # 1. DOI takes precedence if available
+        if self.doi:
+            clean_doi = str(self.doi).strip()
+            for prefix in ("https://doi.org/", "http://doi.org/", "doi.org/", "doi:"):
+                if clean_doi.lower().startswith(prefix):
+                    clean_doi = clean_doi[len(prefix):]
+            if clean_doi:
+                return f"https://doi.org/{clean_doi}"
+
+        # 2. arXiv ID
+        if self.arxiv_id:
+            clean_arxiv = str(self.arxiv_id).strip()
+            if clean_arxiv.lower().startswith("arxiv:"):
+                clean_arxiv = clean_arxiv[6:]
+            if clean_arxiv:
+                return f"https://arxiv.org/abs/{clean_arxiv}"
+
+        # 3. Raw metadata payload (OpenAlex, Lens, CrossRef, PubMed)
+        if self.meta and isinstance(self.meta, dict):
+            # OpenAlex canonical ID is a full URL e.g. "https://openalex.org/W2963403868"
+            openalex_id = self.meta.get("id")
+            if openalex_id and str(openalex_id).startswith("http"):
+                return str(openalex_id)
+
+            # OpenAlex publisher landing page
+            prim_loc = self.meta.get("primary_location")
+            if isinstance(prim_loc, dict) and prim_loc.get("landing_page_url"):
+                landing = prim_loc.get("landing_page_url")
+                if landing and str(landing).startswith("http"):
+                    return str(landing)
+
+            # Lens or custom scraper URL
+            other_url = self.meta.get("landing_page_url") or self.meta.get("other_url") or self.meta.get("url")
+            if other_url and str(other_url).startswith("http"):
+                return str(other_url)
+
+        # 4. Fallback for OpenAlex work ID stored in hash_id
+        if self.source_database == "openalex" and self.hash_id:
+            raw_hash = str(self.hash_id).strip()
+            if raw_hash.startswith("W") and raw_hash[1:].isdigit():
+                return f"https://openalex.org/{raw_hash}"
+
+        return None
+
     class Meta:
         app_label = 'research_intelligence'
         ordering = ['-created_at', '-id']

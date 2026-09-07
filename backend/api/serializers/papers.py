@@ -48,6 +48,7 @@ class PaperSerializer(serializers.ModelSerializer):
     full_text_screening_reasoning = serializers.SerializerMethodField()
     is_evaluation_benchmark = serializers.SerializerMethodField()
     evaluation_label = serializers.SerializerMethodField()
+    source_url = serializers.SerializerMethodField()
 
     def _get_workspace_latest_run_id(self, workspace_id):
         if not workspace_id:
@@ -216,12 +217,16 @@ class PaperSerializer(serializers.ModelSerializer):
             return getattr(obj._pipeline_run, 'name', None) or f"Briefing {getattr(obj._pipeline_run, 'run_date', '')}"
         return None
 
+    @extend_schema_field(serializers.CharField(allow_null=True))
+    def get_source_url(self, obj):
+        return obj.source_url
+
     class Meta:
         model = Paper
         fields = [
             'id', 'workspace', 'pipeline_run', 'pipeline_run_id', 'run_id', 'pipeline_run_name',
             'hash_id', 'doi', 'arxiv_id', 'title', 'authors', 'abstract', 'published_date',
-            'source_database', 'original_pdf_path', 'converted_md_path',
+            'source_database', 'source_url', 'original_pdf_path', 'converted_md_path',
             'screening_status', 'screening_reasoning',
             'abstract_screening_reasoning', 'full_text_screening_reasoning',
             'is_evaluation_benchmark', 'evaluation_label', 'signal_score', 'signal_score_details',
