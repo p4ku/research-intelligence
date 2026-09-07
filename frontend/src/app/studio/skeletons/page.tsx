@@ -214,6 +214,15 @@ const archiveRows = composeRows({
       date: '2026-08-20',
       generated_at: '2026-08-20T06:20:00Z',
     },
+    // A quiet run: fetched, screened nothing through — greyed, not openable.
+    {
+      ...edition,
+      run_id: fixtureRuns[2].id,
+      date: '2026-08-13',
+      generated_at: '2026-08-13T06:20:00Z',
+      funnel: { ...edition.funnel, passed_screening: 0, surfaced: 0 },
+      papers: [],
+    },
   ],
   runs: [{ ...fixtureRuns[0], id: edition.run_id }],
   domains: { [fixtureWorkspace.id]: fixtureWorkspace.name, [secondDomain.id]: secondDomain.name },

@@ -108,15 +108,21 @@ function LedgerFrame({
 
 function Row({ row, open, onToggle }: { row: ArchiveRow; open: boolean; onToggle: () => void }) {
   const panelId = `briefing-${row.id}`
+  // A run that briefed nothing is greyed and inert — as on Home, there is
+  // no briefing behind it, so the row does not pretend to open one.
+  const expandable = !row.empty
   return (
     <>
       {/* `group` on the row: the star in the first cell shows on hover. */}
       <TableRow
         data-row="briefing"
-        onClick={onToggle}
+        data-empty={row.empty || undefined}
+        onClick={expandable ? onToggle : undefined}
         className={clsx(
-          'group cursor-pointer hover:bg-zinc-950/2.5 dark:hover:bg-white/2.5',
+          'group',
+          expandable && 'cursor-pointer hover:bg-zinc-950/2.5 dark:hover:bg-white/2.5',
           row.current && 'bg-foreground/3',
+          row.empty && '[&>td]:text-zinc-400 dark:[&>td]:text-zinc-500',
         )}
       >
         <TableCell className={COL.star.cell}>
@@ -124,26 +130,30 @@ function Row({ row, open, onToggle }: { row: ArchiveRow; open: boolean; onToggle
             <StarButton kind="briefing" id={row.id} />
           </span>
         </TableCell>
-        <TableCell className={COL.domain.cell}>
+        <TableCell className={clsx(COL.domain.cell, row.empty && 'font-normal')}>
           <span className="flex items-center gap-2.5">
             <span
               aria-hidden="true"
               className={clsx('h-4 w-0.5 shrink-0', row.current ? 'bg-accent' : 'bg-transparent')}
             />
-            {/* The keyboard handle: the row's click target is the whole row,
-                its accessible control is the domain name. */}
-            <button
-              type="button"
-              aria-expanded={open}
-              aria-controls={open ? panelId : undefined}
-              onClick={(e) => {
-                e.stopPropagation()
-                onToggle()
-              }}
-              className="rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
-            >
-              {row.domain}
-            </button>
+            {expandable ? (
+              // The keyboard handle: the row's click target is the whole row,
+              // its accessible control is the domain name.
+              <button
+                type="button"
+                aria-expanded={open}
+                aria-controls={open ? panelId : undefined}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggle()
+                }}
+                className="rounded-sm text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500"
+              >
+                {row.domain}
+              </button>
+            ) : (
+              row.domain
+            )}
           </span>
         </TableCell>
         <TableCell className={COL.period.cell}>{row.period}</TableCell>
@@ -151,11 +161,11 @@ function Row({ row, open, onToggle }: { row: ArchiveRow; open: boolean; onToggle
         <TableCell className={COL.screened.cell}>{row.screened}</TableCell>
         <TableCell className={COL.included.cell}>{row.included}</TableCell>
         <TableCell className={COL.status.cell}>
-          <StatusLabel status={row.current ? 'current' : 'done'} />
+          <StatusLabel status={row.empty ? 'empty' : row.current ? 'current' : 'done'} />
         </TableCell>
       </TableRow>
 
-      {open && (
+      {open && expandable && (
         <TableRow data-row="brief" id={panelId} className={clsx(row.current && 'bg-foreground/3')}>
           <TableCell colSpan={COLUMNS.length} className="pt-3! pb-5!">
             <BriefPanel brief={row.brief} />
