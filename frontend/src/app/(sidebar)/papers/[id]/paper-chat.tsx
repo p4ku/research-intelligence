@@ -1,16 +1,18 @@
 'use client'
 
 import { AnswerMarkdown } from '@/components/answer-markdown'
+import { LiveAnswer } from '@/components/live-answer'
 import { ErrorNote } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import type { VisualCitation } from '@/lib/bff/chat/schema'
 import { problemMessage } from '@/lib/bff/problem-copy'
-import { useChatStream } from '@/lib/chat/use-chat-stream'
+import { useChatStream, type ChatStreamState } from '@/lib/chat/use-chat-stream'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { PaperAirplaneIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
+import { useReducedMotion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 interface Msg {
@@ -41,30 +43,64 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
     askingRef.current = v
     setAskingState(v)
   }
+  // Bumps per question so the live answer mounts fresh (its reveal position
+  // is never reset, only clamped).
+  const [askSeq, setAskSeq] = useState(0)
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const reduceMotion = useReducedMotion()
 
-  // Settle the finished stream into the transcript (runs from the stream
-  // loop, not a render effect).
+  const follow = useCallback(() => endRef.current?.scrollIntoView({ block: 'end' }), [])
+
+  // As on Ask, a stream settles into the transcript once two things are
+  // true: the stream has finished (finalRef) and the reveal has shown every
+  // word (revealedRef). Either can come first.
+  const finalRef = useRef<ChatStreamState | null>(null)
+  const revealedRef = useRef(false)
+
+  const commit = useCallback(
+    (final: ChatStreamState) => {
+      if (!askingRef.current) return
+      setMsgs((prev) => [
+        ...prev,
+        {
+          role: 'scanner',
+          // A failure keeps what streamed; the error rides alongside the text.
+          text: final.text,
+          visualCitations: final.visualCitations,
+          error: final.status === 'error' ? problemMessage(final.error, t) : null,
+        },
+      ])
+      if (final.sessionId) setSessionId(final.sessionId)
+      setAsking(false)
+    },
+    [t],
+  )
+
+  const trySettle = useCallback(() => {
+    const final = finalRef.current
+    if (!final || !revealedRef.current || !askingRef.current) return
+    finalRef.current = null
+    revealedRef.current = false
+    // Let the last words finish unveiling before the settled text takes over.
+    const delay = reduceMotion || final.status === 'error' ? 0 : 600
+    window.setTimeout(() => commit(final), delay)
+  }, [commit, reduceMotion])
+
   const {
     state: live,
     send,
     reset,
   } = useChatStream((final) => {
     if (!askingRef.current) return
-    setMsgs((prev) => [
-      ...prev,
-      {
-        role: 'scanner',
-        // A failure keeps what streamed; the error rides alongside the text.
-        text: final.text,
-        visualCitations: final.visualCitations,
-        error: final.status === 'error' ? problemMessage(final.error, t) : null,
-      },
-    ])
-    if (final.sessionId) setSessionId(final.sessionId)
-    setAsking(false)
+    finalRef.current = final
+    trySettle()
   })
+
+  const onRevealed = useCallback(() => {
+    revealedRef.current = true
+    trySettle()
+  }, [trySettle])
 
   /**
    * A sitting, not a thread. Opening clears the transcript and the session id
@@ -82,14 +118,16 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
   const closeChat = useCallback(() => {
     setOpen(false)
     if (askingRef.current) {
+      finalRef.current = null
+      revealedRef.current = false
       reset()
       setAsking(false)
     }
   }, [reset])
 
   useEffect(() => {
-    if (open && (msgs.length > 0 || live.text)) endRef.current?.scrollIntoView({ block: 'end' })
-  }, [open, msgs, live.text])
+    if (open && msgs.length > 0) follow()
+  }, [open, msgs, follow])
 
   // The sheet: focus the composer once it has slid in; Escape closes it.
   useEffect(() => {
@@ -109,6 +147,7 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
     if (asking) return
     setMsgs((prev) => [...prev, { role: 'user', text: q, visualCitations: [] }])
     setAsking(true)
+    setAskSeq((n) => n + 1)
     setInput('')
     void send({
       question: q,
@@ -159,24 +198,16 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
                 </div>
               ),
             )}
-            {asking &&
-              (live.text ? (
-                <AnswerMarkdown
-                  text={live.text}
-                  streaming={live.status === 'streaming'}
-                  citations={live.visualCitations}
-                  t={t}
-                  className="text-[13px] text-muted-foreground"
-                />
-              ) : (
-                <p className="flex items-center gap-2 font-mono text-xs text-muted-foreground">
-                  <span className="relative flex size-2 shrink-0">
-                    <span className="absolute inset-0 animate-ping rounded-full bg-accent/60" />
-                    <span className="relative size-2 rounded-full bg-accent" />
-                  </span>
-                  {t('Generating…')}
-                </p>
-              ))}
+            {asking && (
+              <LiveAnswer
+                key={askSeq}
+                state={live}
+                scanning={t('Reading the full text…')}
+                className="text-[13px] text-muted-foreground"
+                onGrow={follow}
+                onRevealed={onRevealed}
+              />
+            )}
             <div ref={endRef} aria-hidden="true" />
           </div>
         )
