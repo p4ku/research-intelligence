@@ -241,6 +241,24 @@ export function splitAuthors(raw: string | null | undefined): string[] {
     .filter(Boolean)
 }
 
+/**
+ * One line, single-spaced. Sources wrap long titles and abstracts across
+ * lines — arXiv's Atom feed breaks a title as `…quantum-classical\n  computations`
+ * — and that wrap is a transport artefact, not part of the text. HTML collapses
+ * it when the string lands in a paragraph, but not in an input value, a tooltip,
+ * a `document.title`, or anything we copy, search, or send to the model, so we
+ * collapse it once here rather than at each of those.
+ *
+ * ASCII whitespace only, on purpose: a line wrap is never a no-break space,
+ * and NBSP inside a title (`10 kg`, `Fig. 1`) is typography we must keep. It
+ * also keeps this identical to the backend's `one_line` — `\s` differs between
+ * the two engines on NEL and U+FEFF.
+ */
+export function oneLine(raw: string | null | undefined): string {
+  if (!raw) return ''
+  return raw.replace(/[ \t\r\n\f\v]+/g, ' ').trim()
+}
+
 export function externalPdfUrl(arxiv_id: string | null, doi: string | null): string | null {
   if (arxiv_id) return `https://arxiv.org/pdf/${arxiv_id.replace(/^arxiv:/i, '')}.pdf`
   if (doi) return `https://doi.org/${doi}`
@@ -430,10 +448,10 @@ export function toScoredPaper(
     id: paper.id,
     workspace_id: paper.workspace,
     pipeline_run_id: paper.pipeline_run ?? '',
-    title: paper.title,
+    title: oneLine(paper.title),
     authors: splitAuthors(paper.authors),
     authors_raw: paper.authors ?? '',
-    abstract: paper.abstract ?? '',
+    abstract: oneLine(paper.abstract),
     doi: paper.doi || null,
     arxiv_id: paper.arxiv_id || null,
     source: paper.source_database || '',

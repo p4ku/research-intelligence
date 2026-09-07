@@ -26,6 +26,27 @@ def normalize_arxiv_id(arxiv_id: str) -> str:
     return arxiv_id
 
 
+def one_line(text: str) -> str:
+    """
+    Collapses a provider's line wrapping into single spaces.
+
+    Sources wrap long fields across lines — arXiv's Atom feed breaks a title as
+    'PennyLane: Automatic differentiation of hybrid quantum-classical\\n  computations'
+    — and that wrap is a transport artefact, not part of the text. The arXiv XML
+    parsers swap the newline for a space but keep the indent (three spaces where
+    the wrap was); OpenAlex and Lens titles kept the newline itself. Either way it
+    reached the UI.
+
+    ASCII whitespace only, on purpose: a line wrap is never a no-break space, and
+    NBSP inside a title ('10 kg', 'Fig. 1') is typography we must keep. It also
+    keeps this identical to the frontend's oneLine() — '\\s' differs between the
+    two engines on NEL and U+FEFF.
+    """
+    if not text:
+        return ""
+    return re.sub(r'[ \t\r\n\f\v]+', ' ', text).strip()
+
+
 def normalize_title(title: str) -> str:
     """Converts to lowercase and retains only alphanumeric characters."""
     if not title:

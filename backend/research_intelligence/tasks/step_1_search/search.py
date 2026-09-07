@@ -16,7 +16,7 @@ from ...scrapers import get_scraper_provider
 logger = logging.getLogger(__name__)
 
 
-from .dedup import normalize_doi, normalize_arxiv_id, normalize_title
+from .dedup import normalize_doi, normalize_arxiv_id, normalize_title, one_line
 
 
 @shared_task(bind=True, acks_late=True, reject_on_worker_lost=True, max_retries=2, default_retry_delay=10)
@@ -135,7 +135,9 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
 
             arxiv_id = item.get('arxiv_id') or (item.get('hash_id') if item.get('source_database') == 'arxiv' else None)
             doi = item.get('doi') or (item.get('other_url') if 'doi.org' in item.get('other_url', '') else None)
-            title = item['title']
+            # Normalized here, once, rather than in each provider: every source
+            # reaches the corpus through this loop.
+            title = one_line(item['title'])
 
             norm_doi = normalize_doi(doi)
             norm_arxiv = normalize_arxiv_id(arxiv_id)
@@ -160,7 +162,10 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                 if norm_arxiv:
                     match_q |= Q(arxiv_id__iexact=clean_arxiv)
                 if norm_title:
-                    match_q |= Q(title__iexact=title)
+                    # Rows ingested before titles were single-lined still hold
+                    # the provider's raw wrap; match either spelling so they
+                    # keep receiving the DOI/arXiv/PDF backfill below.
+                    match_q |= Q(title__iexact=title) | Q(title__iexact=item['title'])
 
                 with transaction.atomic():
                     existing_p = Paper.objects.filter(conds & match_q).first()
@@ -219,7 +224,10 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                 if norm_arxiv:
                     match_q |= Q(arxiv_id__iexact=clean_arxiv)
                 if norm_title:
-                    match_q |= Q(title__iexact=title)
+                    # Rows ingested before titles were single-lined still hold
+                    # the provider's raw wrap; match either spelling so they
+                    # keep receiving the DOI/arXiv/PDF backfill below.
+                    match_q |= Q(title__iexact=title) | Q(title__iexact=item['title'])
 
                 paper = Paper.objects.filter(Q(workspace=workspace) & match_q).first()
                 if paper:
@@ -248,7 +256,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                             "doi": clean_doi,
                             "title": title,
                             "authors": item.get('authors', ''),
-                            "abstract": item.get('abstract', ''),
+                            "abstract": one_line(item.get('abstract', '')),
                             "source_database": item.get('source_database', 'arxiv'),
                             "original_pdf_path": item.get('pdf_url', '') or item.get('original_pdf_path', ''),
                             "meta": item.get('meta') or {}
@@ -303,15 +311,16 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
         # Build complete list of all fetched papers for output_data
         fetched_papers_sample = []
         for r in results:
+            preview_abstract = one_line(r.get("abstract"))
             fetched_papers_sample.append({
-                "title": r.get("title"),
+                "title": one_line(r.get("title")),
                 "authors": r.get("authors"),
                 "source_database": r.get("source_database"),
                 "pdf_url": r.get("pdf_url"),
                 "doi": r.get("doi"),
                 "arxiv_id": r.get("arxiv_id") or r.get("hash_id"),
                 "published_date": r.get("published_date"),
-                "abstract_preview": (r.get("abstract")[:250] + "...") if r.get("abstract") and len(r.get("abstract")) > 250 else r.get("abstract")
+                "abstract_preview": (preview_abstract[:250] + "...") if len(preview_abstract) > 250 else preview_abstract
             })
 
         # Update component run lifecycle metrics & output_data
