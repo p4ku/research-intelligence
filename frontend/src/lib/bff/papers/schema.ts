@@ -138,3 +138,23 @@ export const papersQuery = listQuery.extend({
 export type PapersQuery = z.infer<typeof papersQuery>
 
 export const paperPage = pageSchema(scoredPaper).meta({ id: 'ScoredPaperPage' })
+
+/**
+ * A paper as the Ask picker names it: the slim projection a console holds
+ * for every paper the user can see, so the corpus travels in kilobytes.
+ */
+export const paletteEntry = z
+  .object({
+    id: z.uuid(),
+    title: z.string(),
+    first_author: z.string().nullable(),
+    source: z.string(),
+    signal_score: z.number().nullable(),
+    created_at: z.iso.datetime({ offset: true }),
+  })
+  .meta({ id: 'PaletteEntry' })
+export type PaletteEntry = z.infer<typeof paletteEntry>
+
+/** Best signal first, unscored papers last. */
+export const palette = z.object({ papers: z.array(paletteEntry) }).meta({ id: 'Palette' })
+export type Palette = z.infer<typeof palette>

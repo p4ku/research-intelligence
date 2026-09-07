@@ -1,15 +1,15 @@
-import { chat } from '@/lib/bff/chat/service'
 import { forPage } from '@/lib/bff/core/page'
+import { isUuid } from '@/lib/bff/core/validate'
 import { papers } from '@/lib/bff/papers/service'
-import { byValueDesc } from '@/lib/papers/select'
 import { Ask } from './ask'
-import type { PaletteEntry } from './types'
+import type { ScopeTarget } from './types'
 
 /**
- * The console behind its Suspense boundary: the corpus (for the picker, every
- * paper from every domain) and the session history both block it, so they
- * stream together while the page's header and the console skeleton are
- * already on screen.
+ * The console itself needs nothing from Django to paint: the corpus behind
+ * the picker and the session history behind the sidecar both arrive after
+ * mount (see ./use-palette.ts and the history effect in ./ask.tsx). Only a
+ * deep link to one paper is resolved here — one scorecard read, so the chip
+ * is attached before the first keystroke, not the whole corpus.
  */
 export async function AskSection({
   paper,
@@ -21,30 +21,17 @@ export async function AskSection({
   /** Home's search, handed over as the first question (never sent on its own). */
   question?: string
 }) {
-  const [corpus, sessions] = await forPage(
-    Promise.all([papers.listEverywhere(), chat.listSessions({ page: 1, page_size: 100 })]),
-  )
-
-  const entries: PaletteEntry[] = corpus.papers
-    .map((p) => ({
-      id: p.id,
-      title: p.title,
-      first_author: p.authors[0] ?? null,
-      source: p.source,
-      signal_score: p.signal_score,
-      created_at: p.created_at,
-    }))
-    .sort((a, b) => byValueDesc(a.signal_score, b.signal_score))
-
-  const initialPaperId = paper && entries.some((e) => e.id === paper) ? paper : undefined
+  // A link to a paper that is not (or no longer) visible opens a plain console.
+  const found = paper && isUuid(paper) ? await forPage(papers.get(paper)) : null
+  const initialTarget: ScopeTarget | null = found
+    ? { id: found.paper.id, title: found.paper.title, signal_score: found.paper.signal_score }
+    : null
   const initialQuestion = question?.trim().slice(0, 200) || undefined
 
   return (
     <Ask
-      key={`${initialPaperId ?? 'none'}:${initialQuestion ?? ''}`}
-      entries={entries}
-      initialSessions={sessions.results}
-      initialPaperId={initialPaperId}
+      key={`${initialTarget?.id ?? 'none'}:${initialQuestion ?? ''}`}
+      initialTarget={initialTarget}
       initialSessionId={session}
       initialQuestion={initialQuestion}
     />

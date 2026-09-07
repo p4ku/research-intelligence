@@ -3,16 +3,17 @@
 // transcript needs (asked-at time, the scope's display title at ask time).
 
 import type { ChatUsage, FactCheck, PaperCitation, VisualCitation } from '@/lib/bff/chat/schema'
+import type { PaletteEntry } from '@/lib/bff/papers/schema'
 
-/** A picker row / scope target — a slim projection of ScoredPaper. */
-export interface PaletteEntry {
-  id: string
-  title: string
-  first_author: string | null
-  source: string
-  signal_score: number | null
-  created_at: string
-}
+/** A picker row — the papers contract's slim projection, served by /bff/papers/palette. */
+export type { PaletteEntry }
+
+/**
+ * What the composer is attached to: the little a chip needs. A picker row
+ * is one; so is a paper resolved on its own (a deep link, a reopened thread)
+ * before the corpus has arrived.
+ */
+export type ScopeTarget = Pick<PaletteEntry, 'id' | 'title' | 'signal_score'>
 
 /**
  * What the question was aimed at, captured at ask time. Conversations are

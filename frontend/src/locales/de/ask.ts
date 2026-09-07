@@ -63,6 +63,12 @@ export const dict: Record<string, string> = {
   'scope the conversation': 'Gespräch eingrenzen',
   'Top {n} of {total}': 'Top {n} von {total}',
   '{n} of {total}': '{n} von {total}',
+  // The corpus arrives after the console paints; a picker opened first shows bones.
+  'Loading papers': 'Papers werden geladen',
+  "Couldn't load your papers.": 'Deine Papers konnten nicht geladen werden.',
+  'Try again': 'Erneut versuchen',
+  // A reopened thread whose paper title the backend did not keep.
+  'Untitled paper': 'Paper ohne Titel',
 
   // history-sidecar.tsx
   'full text': 'Volltext',
@@ -76,6 +82,7 @@ export const dict: Record<string, string> = {
   Delete: 'Löschen',
   'Deleting…': 'Wird gelöscht …',
   'Conversation deleted': 'Gespräch gelöscht',
+  'Loading recent chats': 'Letzte Chats werden geladen',
   'History may be out of date.': 'Der Verlauf ist möglicherweise nicht aktuell.',
   Refresh: 'Aktualisieren',
   'Questions you ask are filed here.': 'Gestellte Fragen werden hier abgelegt.',

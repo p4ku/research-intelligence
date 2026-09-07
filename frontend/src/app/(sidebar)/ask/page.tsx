@@ -16,9 +16,10 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * The canvas is the page: no page header competing with the chat's own top
- * bar, just a screen-reader h1 so the document still has one. The console —
- * which needs the corpus for its picker and the session history for its
- * sidecar — streams in behind one Suspense boundary. loading.tsx shows the
+ * bar, just a screen-reader h1 so the document still has one. The console
+ * paints with nothing fetched — the corpus and the history follow after
+ * mount — so the Suspense boundary only ever shows for a `?paper=` deep
+ * link, whose one scorecard read resolves the chip. loading.tsx shows the
  * same skeleton on navigation, and the <ViewTransition> pair animates the
  * handoff.
  */

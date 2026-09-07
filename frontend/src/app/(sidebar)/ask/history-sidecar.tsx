@@ -1,7 +1,7 @@
 'use client'
 
 import { SectionLabel } from '@/components/scanner-ui'
-import { Bone } from '@/components/skeleton'
+import { Bone, Skeleton } from '@/components/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import type { ChatSession } from '@/lib/bff/chat/schema'
 import { fmt } from '@/lib/i18n'
@@ -284,6 +284,7 @@ export function HistorySidecar({
   activeId,
   openingId = null,
   rowError = null,
+  loading = false,
   stale = false,
   onRefresh,
   onOpen,
@@ -294,12 +295,27 @@ export function HistorySidecar({
   activeId: string | null
   openingId?: string | null
   rowError?: { id: string; message: string } | null
+  /** The history has not arrived yet (it loads after the console paints). */
+  loading?: boolean
   stale?: boolean
   onRefresh?: () => void
   onOpen: (session: ChatSession) => void
   onDelete: (session: ChatSession) => void
 }) {
   const t = useT()
+  if (loading) {
+    return (
+      <SidecarFrame open={open} label={t('Recent')} count={<Bone.Text widths={['11ch']} />}>
+        <Skeleton.Region
+          status={t('Loading recent chats')}
+          className="min-h-0 flex-1"
+          innerClassName="h-full overflow-y-auto px-1.5 pb-4"
+        >
+          <HistoryBones groups={[2, 3]} lines={[1, 2]} />
+        </Skeleton.Region>
+      </SidecarFrame>
+    )
+  }
   return (
     <SidecarFrame
       open={open}
@@ -339,10 +355,53 @@ export function HistorySidecar({
 /* --------------------------------- Skeleton -------------------------------- */
 
 /**
- * The sidecar's bones. `groups` is the row count per day label; `lines`
- * cycles the title height per row (questions wrap to two lines about half
- * the time). The gallery passes the fixture's shape.
+ * The list's bones. `groups` is the row count per day label; `lines` cycles
+ * the title height per row (questions wrap to two lines about half the
+ * time). The live sidecar shows these until the history lands; the gallery
+ * passes the fixture's shape.
  */
+function HistoryBones({ groups, lines }: { groups: number[]; lines: number[] }) {
+  return (
+    <div className="space-y-4">
+      {groups.map((count, g) => {
+        const before = groups.slice(0, g).reduce((a, b) => a + b, 0)
+        return (
+          <div key={g}>
+            <DayLabel day={<Bone.Text widths={['6ch']} />} count={<Bone.Number digits={1} />} />
+            <div className="mt-0.5 space-y-0.5">
+              {Array.from({ length: count }, (_, i) => (
+                <HistoryRowFrame
+                  key={i}
+                  spine="bg-foreground/8"
+                  body={
+                    <div className="min-w-0 flex-1 text-left">
+                      <RowBody
+                        title={
+                          <Bone.Text
+                            lines={lines[(before + i) % lines.length]}
+                            widths={['100%', '64%']}
+                          />
+                        }
+                        meta={<Bone.Text widths={['16ch']} />}
+                      />
+                    </div>
+                  }
+                  trash={
+                    <span className={clsx(TRASH, 'invisible')}>
+                      <TrashIcon className="size-3.5" />
+                    </span>
+                  }
+                />
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+/** The whole sidecar as bones — the gallery's before-shot. */
 export function HistorySidecarSkeleton({
   open = true,
   groups = [2, 4],
@@ -356,42 +415,7 @@ export function HistorySidecarSkeleton({
   return (
     <SidecarFrame open={open} label={t('Recent')} count={<Bone.Text widths={['11ch']} />}>
       <div className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-4">
-        <div className="space-y-4">
-          {groups.map((count, g) => {
-            const before = groups.slice(0, g).reduce((a, b) => a + b, 0)
-            return (
-              <div key={g}>
-                <DayLabel day={<Bone.Text widths={['6ch']} />} count={<Bone.Number digits={1} />} />
-                <div className="mt-0.5 space-y-0.5">
-                  {Array.from({ length: count }, (_, i) => (
-                    <HistoryRowFrame
-                      key={i}
-                      spine="bg-foreground/8"
-                      body={
-                        <div className="min-w-0 flex-1 text-left">
-                          <RowBody
-                            title={
-                              <Bone.Text
-                                lines={lines[(before + i) % lines.length]}
-                                widths={['100%', '64%']}
-                              />
-                            }
-                            meta={<Bone.Text widths={['16ch']} />}
-                          />
-                        </div>
-                      }
-                      trash={
-                        <span className={clsx(TRASH, 'invisible')}>
-                          <TrashIcon className="size-3.5" />
-                        </span>
-                      }
-                    />
-                  ))}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+        <HistoryBones groups={groups} lines={lines} />
       </div>
     </SidecarFrame>
   )

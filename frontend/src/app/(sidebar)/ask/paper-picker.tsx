@@ -1,7 +1,7 @@
 'use client'
 
 import { MINI_SCORE, MiniScore } from '@/components/scanner-ui'
-import { Bone } from '@/components/skeleton'
+import { Bone, Skeleton } from '@/components/skeleton'
 import { fmt, formatDate } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
 import clsx from 'clsx'
@@ -81,31 +81,57 @@ function RowBody({ score, title, sub }: { score: ReactNode; title: ReactNode; su
   )
 }
 
+/** The footer's key hints, with the count (or its bone) on the right. */
+function Hints({ count }: { count: ReactNode }) {
+  const t = useT()
+  return (
+    <>
+      <span>
+        <kbd className="font-mono">↑↓</kbd> {t('choose')}
+      </span>
+      <span>
+        <kbd className="font-mono">↵</kbd> {t('scope the conversation')}
+      </span>
+      <span className="ml-auto tabular-nums">{count}</span>
+    </>
+  )
+}
+
 /* ---------------------------------- Loaded --------------------------------- */
+
+/** The corpus behind the rows: on its way, here, or not coming (see ./use-palette.ts). */
+export type PickerStatus = 'loading' | 'ready' | 'error'
 
 /**
  * The inline paper picker: a listbox attached to the composer while no paper
- * is chosen (entries arrive pre-sorted by signal).
+ * is chosen (entries arrive pre-sorted by signal). Opened before the corpus
+ * has arrived it shows its bones in place — the rows fill in without the
+ * frame moving — and a failed load says so with a retry, in the same frame.
  */
 export function PaperPicker({
   entries,
+  status = 'ready',
   query,
   cursor,
   placement,
   onCursor,
   onPick,
+  onRetry,
 }: {
   entries: PaletteEntry[]
+  status?: PickerStatus
   query: string
   cursor: number
   placement: PickerPlacement
   onCursor: (i: number) => void
   onPick: (entry: PaletteEntry) => void
+  onRetry?: () => void
 }) {
   const t = useT()
   const { lang } = useLanguage()
   const shown = pickable(entries, query)
   const hasQuery = query.trim() !== ''
+  const loading = status === 'loading'
 
   // Keyboard travel keeps the highlighted row in view.
   useEffect(() => {
@@ -119,24 +145,41 @@ export function PaperPicker({
       id="paper-picker"
       role="listbox"
       aria-label={t('Papers')}
+      aria-busy={loading || undefined}
       placement={placement}
+      state={loading ? 'skeleton' : 'loaded'}
       footer={
-        <>
-          <span>
-            <kbd className="font-mono">↑↓</kbd> {t('choose')}
-          </span>
-          <span>
-            <kbd className="font-mono">↵</kbd> {t('scope the conversation')}
-          </span>
-          <span className="ml-auto tabular-nums">
-            {hasQuery
-              ? fmt(t('{n} of {total}'), { n: shown.length, total: entries.length })
-              : fmt(t('Top {n} of {total}'), { n: shown.length, total: entries.length })}
-          </span>
-        </>
+        <Hints
+          count={
+            loading ? (
+              <Bone.Text widths={['11ch']} />
+            ) : status === 'error' ? null : hasQuery ? (
+              fmt(t('{n} of {total}'), { n: shown.length, total: entries.length })
+            ) : (
+              fmt(t('Top {n} of {total}'), { n: shown.length, total: entries.length })
+            )
+          }
+        />
       }
     >
-      {shown.length > 0 ? (
+      {loading ? (
+        <Skeleton.Region status={t('Loading papers')}>
+          <BoneRows rows={5} />
+        </Skeleton.Region>
+      ) : status === 'error' ? (
+        <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+          {t("Couldn't load your papers.")}{' '}
+          <button
+            type="button"
+            // Keep the caret in the composer.
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={onRetry}
+            className="font-medium text-foreground hover:underline"
+          >
+            {t('Try again')}
+          </button>
+        </p>
+      ) : shown.length > 0 ? (
         shown.map((entry, i) => (
           <button
             key={entry.id}
@@ -175,10 +218,25 @@ export function PaperPicker({
 
 const TITLE_WIDTHS = [['62%'], ['46%'], ['74%']]
 
-/**
- * The picker's bones — for loading.tsx and the gallery only. The live picker
- * is client state and never blocks first paint, so this never replaces it.
- */
+/** Row-shaped bones: what the live picker shows until the corpus lands, and the gallery's pair. */
+function BoneRows({ rows }: { rows: number }) {
+  return Array.from({ length: rows }, (_, i) => (
+    <div key={i} data-row="pick" className={ROW}>
+      <RowBody
+        score={
+          <span className={MINI_SCORE}>
+            <Bone.Dot size={6} />
+            <Bone.Number digits={2} />
+          </span>
+        }
+        title={<Bone.Text widths={TITLE_WIDTHS[i % TITLE_WIDTHS.length]} />}
+        sub={<Bone.Text widths={['26ch']} />}
+      />
+    </div>
+  ))
+}
+
+/** The whole picker as bones — the gallery's before-shot; the live picker composes the same rows. */
 export function PaperPickerSkeleton({
   rows = 5,
   placement = 'static',
@@ -186,39 +244,13 @@ export function PaperPickerSkeleton({
   rows?: number
   placement?: PickerPlacement
 }) {
-  const t = useT()
   return (
     <PickerFrame
       placement={placement}
       state="skeleton"
-      footer={
-        <>
-          <span>
-            <kbd className="font-mono">↑↓</kbd> {t('choose')}
-          </span>
-          <span>
-            <kbd className="font-mono">↵</kbd> {t('scope the conversation')}
-          </span>
-          <span className="ml-auto tabular-nums">
-            <Bone.Text widths={['11ch']} />
-          </span>
-        </>
-      }
+      footer={<Hints count={<Bone.Text widths={['11ch']} />} />}
     >
-      {Array.from({ length: rows }, (_, i) => (
-        <div key={i} data-row="pick" className={ROW}>
-          <RowBody
-            score={
-              <span className={MINI_SCORE}>
-                <Bone.Dot size={6} />
-                <Bone.Number digits={2} />
-              </span>
-            }
-            title={<Bone.Text widths={TITLE_WIDTHS[i % TITLE_WIDTHS.length]} />}
-            sub={<Bone.Text widths={['26ch']} />}
-          />
-        </div>
-      ))}
+      <BoneRows rows={rows} />
     </PickerFrame>
   )
 }
