@@ -20,14 +20,16 @@ import { HistoryRailSkeleton } from '../../(sidebar)/ask/history-rail'
 import { PaperPickerSkeleton } from '../../(sidebar)/ask/paper-picker'
 import type { PaletteEntry } from '../../(sidebar)/ask/types'
 import {
-  ExclusionsTable,
-  ExclusionsTableSkeleton,
-} from '../../(sidebar)/briefing/[date]/run/exclusions-table'
-import {
   EditionBrowser,
   EditionBrowserSkeleton,
   type BrowserEdition,
-} from '../../(sidebar)/briefing/edition-browser'
+} from '../../(sidebar)/briefing-archive/edition-browser'
+import {
+  ExclusionsTable,
+  ExclusionsTableSkeleton,
+} from '../../(sidebar)/briefing/[date]/run/exclusions-table'
+import { BriefingLedger, BriefingLedgerSkeleton } from '../../(sidebar)/briefing/briefing-ledger'
+import { composeRows } from '../../(sidebar)/briefing/rows'
 import { Ledger, LedgerSkeleton, type HomeRow } from '../../(sidebar)/dashboard/ledger'
 import { Masthead, MastheadSkeleton, type MastheadLead } from '../../(sidebar)/dashboard/masthead'
 import { RunCard, RunCardSkeleton } from '../../(sidebar)/dashboard/run-card'
@@ -185,6 +187,27 @@ const browserEditions: BrowserEdition[] = fixtureEditions.map((e) => ({
   },
   papers: e.papers.map((p) => ({ id: p.id, title: p.title, signal: p.signal_score })),
 }))
+
+// The archive ledger: the fixture edition joined to its run (Current, a real
+// period) and an older edition in a second domain whose run is gone (the
+// day-only fallback) — so the domain chips have something to narrow.
+const secondDomain = { id: '00000000-0000-4000-8000-0000000000a2', name: 'Physical AI' }
+const archiveRows = composeRows({
+  editions: [
+    edition,
+    {
+      ...edition,
+      run_id: fixtureRuns[1].id,
+      workspace_id: secondDomain.id,
+      date: '2026-08-20',
+      generated_at: '2026-08-20T06:20:00Z',
+    },
+  ],
+  runs: [{ ...fixtureRuns[0], id: edition.run_id }],
+  domains: { [fixtureWorkspace.id]: fixtureWorkspace.name, [secondDomain.id]: secondDomain.name },
+  t: (s) => s,
+  lang: 'en',
+})
 
 function Pair({
   shape,
@@ -474,6 +497,26 @@ export default async function SkeletonsPage({
           <div className="max-w-2xl">
             <PaperPickerSkeleton rows={pickerEntries.length} />
           </div>
+        }
+      />
+
+      <Pair
+        shape="briefing-ledger"
+        title="Briefings ledger"
+        status="Loading the briefings"
+        loaded={
+          <BriefingLedger
+            rows={archiveRows}
+            domains={[{ id: fixtureWorkspace.id, name: fixtureWorkspace.name }, secondDomain]}
+            initial={{ domain: null, starred: false, page: 1 }}
+            syncUrl={false}
+          />
+        }
+        skeleton={
+          <BriefingLedgerSkeleton
+            rows={archiveRows.length}
+            domains={[fixtureWorkspace.name, secondDomain.name]}
+          />
         }
       />
 

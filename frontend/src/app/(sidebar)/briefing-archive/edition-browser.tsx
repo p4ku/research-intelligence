@@ -11,7 +11,7 @@ import { MagnifyingGlassIcon, XMarkIcon } from '@heroicons/react/20/solid'
 import clsx from 'clsx'
 import Link from 'next/link'
 import { useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
-import { editionHref, formatEditionDate } from './format'
+import { editionHref, formatEditionDate } from '../briefing/format'
 
 export interface BrowserEdition {
   /** The run that produced it — the identity, since two domains can share a date. */

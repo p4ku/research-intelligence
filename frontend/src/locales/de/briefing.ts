@@ -4,6 +4,10 @@ export const dict: Record<string, string> = {
   Briefings: 'Briefings',
   Briefing: 'Briefing',
   'Daily briefings': 'Tägliche Briefings',
+  'Briefings archive': 'Briefing-Archiv',
+  All: 'Alle',
+  'Filter by domain': 'Nach Domäne filtern',
+  'No briefings for this domain yet.': 'Für diese Domäne gibt es noch keine Briefings.',
   '{screened} screened → {included} included → {inBriefing} in the briefing':
     '{screened} gesichtet → {included} aufgenommen → {inBriefing} im Briefing',
   'In brief': 'In Kürze',

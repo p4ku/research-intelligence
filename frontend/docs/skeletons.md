@@ -204,6 +204,16 @@ because the form's disabled state depends on the same run list). Pairs
 `run-papers` pair went with the old page. The ledger's expanded row
 (`data-row="brief"`) has no skeleton — it only opens on a click.
 
+## Done (pass 5) — Briefings archive (7 Sep 2026)
+
+`/briefing` became the spec's ledger (domain, period, generated, screened,
+included; Current highlighted; domain chips, star, twenty a page), one
+boundary around `LedgerSection`; pair `briefing-ledger`. The reading room it
+replaced moved to `/briefing-archive` unchanged and keeps the
+`edition-browser` pair. As on Home, the expanded row (`data-row="brief"`)
+has no skeleton. The page's fallback knows the domain names (the chip row
+is real); `loading.tsx` bones them.
+
 ## Later, not now
 
 Still on `KNOWN_UNCOVERED`: `/papers` (the `--stream` negative control above —

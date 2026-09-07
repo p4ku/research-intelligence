@@ -101,7 +101,7 @@ const STATUS_CLASS: Record<Exclude<RowStatus, 'done'>, { text: string; mark: str
 }
 
 /** Current · Processing · Failed; completed briefings that are not current carry none. */
-function StatusLabel({ status }: { status: RowStatus }) {
+export function StatusLabel({ status }: { status: RowStatus }) {
   const t = useT()
   if (status === 'done') return null
   const s = STATUS_CLASS[status]
@@ -117,6 +117,45 @@ function StatusLabel({ status }: { status: RowStatus }) {
       <span aria-hidden="true" className={clsx('size-1.5 shrink-0', s.mark)} />
       {label}
     </span>
+  )
+}
+
+/* ------------------------------- Brief panel ------------------------------- */
+
+/**
+ * What a completed row discloses: the funnel line, the brief in serif, the
+ * link into the briefing, and its strongest papers. Home's ledger and the
+ * Briefings archive open the same panel.
+ */
+export function BriefPanel({ brief }: { brief: HomeBrief }) {
+  const t = useT()
+  return (
+    <div className="grid gap-6 pl-3 whitespace-normal lg:grid-cols-5">
+      <div className="lg:col-span-3">
+        <p className="font-mono text-[11px] text-zinc-500 tabular-nums dark:text-zinc-400">
+          {fmt(t('{screened} screened → {included} included'), {
+            screened: brief.screened,
+            included: brief.included,
+          })}
+        </p>
+        <AnswerMarkdown
+          text={brief.inBrief}
+          className="mt-2 max-w-xl font-serif text-[15px]/6 text-pretty text-zinc-700 dark:text-zinc-200"
+        />
+        <TextLink href={brief.href} className="mt-2 inline-block">
+          {t('Open briefing →')}
+        </TextLink>
+      </div>
+      <div className="lg:col-span-2">
+        {brief.top.length > 0 ? (
+          <TopPapers papers={brief.top} dense />
+        ) : (
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            {t('No papers met the inclusion criteria for this briefing.')}
+          </p>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -208,32 +247,7 @@ function Row({
       {open && row.brief && (
         <TableRow data-row="brief" id={panelId} className={clsx(current && 'bg-foreground/3')}>
           <TableCell colSpan={COLUMNS.length} className="pt-0! pb-5!">
-            <div className="grid gap-6 pl-3 whitespace-normal lg:grid-cols-5">
-              <div className="lg:col-span-3">
-                <p className="font-mono text-[11px] text-zinc-500 tabular-nums dark:text-zinc-400">
-                  {fmt(t('{screened} screened → {included} included'), {
-                    screened: row.brief.screened,
-                    included: row.brief.included,
-                  })}
-                </p>
-                <AnswerMarkdown
-                  text={row.brief.inBrief}
-                  className="mt-2 max-w-xl font-serif text-[15px]/6 text-pretty text-zinc-700 dark:text-zinc-200"
-                />
-                <TextLink href={row.brief.href} className="mt-2 inline-block">
-                  {t('Open briefing →')}
-                </TextLink>
-              </div>
-              <div className="lg:col-span-2">
-                {row.brief.top.length > 0 ? (
-                  <TopPapers papers={row.brief.top} dense />
-                ) : (
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    {t('No papers met the inclusion criteria for this briefing.')}
-                  </p>
-                )}
-              </div>
-            </div>
+            <BriefPanel brief={row.brief} />
           </TableCell>
         </TableRow>
       )}
