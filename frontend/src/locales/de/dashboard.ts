@@ -117,13 +117,13 @@ export const dict: Record<string, string> = {
   'From {date}': 'Ab {date}',
   'Until {date}': 'Bis {date}',
   'Last {n} days': 'Letzte {n} Tage',
-  'Start new briefing': 'Neues Briefing starten',
+  'New briefing': 'Neues Briefing',
   From: 'Von',
   To: 'Bis',
-  'Run pipeline': 'Pipeline starten',
+  Start: 'Starten',
   'Starting…': 'Wird gestartet…',
-  'One run at a time across all analysts. When it finishes, the new briefing tops the list.':
-    'Ein Lauf zur Zeit, über alle Analysten hinweg. Sobald er fertig ist, steht das neue Briefing oben in der Liste.',
+  'Briefings run one at a time. When this one finishes, it tops the list.':
+    'Briefings laufen nacheinander. Sobald dieses fertig ist, steht es oben in der Liste.',
   '{domain} is running. Briefings and papers stay available meanwhile.':
     '{domain} läuft. Briefings und Papers bleiben währenddessen verfügbar.',
   "Couldn't start the run. Try again.":

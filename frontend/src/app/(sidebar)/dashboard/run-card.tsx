@@ -15,7 +15,7 @@ import { shiftDays } from './format'
 import { isConflict } from './ledger'
 
 /**
- * Start New Briefing: a domain, a search window, one button — always on
+ * New briefing: a domain, a search window, one button — always on
  * Home, never a modal. One run at a time across all analysts: while any run
  * is processing the button is disabled and the note says which domain is
  * running. A start posts to the BFF and re-reads the page, so the new run
@@ -142,7 +142,7 @@ export function RunCard({
     <RunCardFrame
       state="loaded"
       onSubmit={submit}
-      title={t('Start new briefing')}
+      title={t('New briefing')}
       domain={
         <Field label={t('Domain')} error={errors.workspace_id}>
           <Select name="workspace_id" value={domain} onChange={(e) => setDomain(e.target.value)}>
@@ -178,7 +178,7 @@ export function RunCard({
       }
       button={
         <Button type="submit" className="w-full" disabled={disabled}>
-          {busy || pending ? t('Starting…') : t('Run pipeline')}
+          {busy || pending ? t('Starting…') : t('Start')}
         </Button>
       }
       error={
@@ -193,9 +193,7 @@ export function RunCard({
           ? fmt(t('{domain} is running. Briefings and papers stay available meanwhile.'), {
               domain: processing,
             })
-          : t(
-              'One run at a time across all analysts. When it finishes, the new briefing tops the list.',
-            )
+          : t('Briefings run one at a time. When this one finishes, it tops the list.')
       }
     />
   )
@@ -207,7 +205,7 @@ export function RunCardSkeleton() {
   return (
     <RunCardFrame
       state="skeleton"
-      title={t('Start new briefing')}
+      title={t('New briefing')}
       domain={<Field label={t('Domain')}>{control}</Field>}
       from={<Field label={t('From')}>{control}</Field>}
       to={<Field label={t('To')}>{control}</Field>}
