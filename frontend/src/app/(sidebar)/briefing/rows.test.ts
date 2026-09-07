@@ -49,6 +49,15 @@ describe('composeRows', () => {
     expect(row.current).toBe(false)
   })
 
+  test('a run that briefed nothing is not a row', () => {
+    const emptyRun = { ...run, total_papers_passed_screening: 0 }
+    expect(composeRows({ editions: [edition], runs: [emptyRun], domains, t, lang: 'en' })).toEqual(
+      [],
+    )
+    const bare = { ...older, funnel: { ...older.funnel, passed_screening: 0 } }
+    expect(composeRows({ editions: [bare], runs: [], domains, t, lang: 'en' })).toEqual([])
+  })
+
   test('only the newest completed run is current', () => {
     const olderRun = {
       ...run,
@@ -86,7 +95,6 @@ function row(id: string, workspaceId: string): ArchiveRow {
     generated: '',
     screened: 0,
     included: 0,
-    empty: false,
     brief: { href: '', inBrief: '', screened: 0, included: 0, top: [] },
   }
 }
