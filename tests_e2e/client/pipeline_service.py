@@ -220,6 +220,7 @@ class PipelineService:
         original_value: Any,
         corrected_value: Any = None,
         reason: str = "",
+        human_operator: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Submit Human-in-the-Loop (HITL) analyst override."""
         payload = {
@@ -228,6 +229,7 @@ class PipelineService:
             "original_value": original_value,
             "corrected_value": corrected_value,
             "reason": reason,
+            "human_operator": human_operator or "lead_analyst@example.com",
         }
         logger.info(f"👨‍🔬 Submitting HITL override '{action}' on extraction '{extraction_id}'...")
         resp = self.client.post("/api/hitl/", json_data=payload, expected_status=201)

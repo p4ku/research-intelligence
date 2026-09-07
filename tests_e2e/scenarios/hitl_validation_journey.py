@@ -212,6 +212,7 @@ def run_hitl_validation_journey_scenario(config: Optional[E2EConfig] = None) -> 
         logger.info("📍 Step 4: Submitting HITL correction override via POST /api/hitl/...")
         override_reason = "Author demonstrated 22.8% certified efficiency under AM1.5G in Table 2."
         corrected_payload = {"efficiency_pct": 22.8}
+        operator_email = f"senior_scientist_{random_suffix}@example.com"
 
         correction_data = pipeline_svc.create_hitl_correction(
             extraction_id=target_ext_id,
@@ -219,6 +220,7 @@ def run_hitl_validation_journey_scenario(config: Optional[E2EConfig] = None) -> 
             original_value=initial_fields,
             corrected_value=corrected_payload,
             reason=override_reason,
+            human_operator=operator_email,
         )
         correction_id = correction_data["id"]
         assert correction_data.get("action") == "modify"
