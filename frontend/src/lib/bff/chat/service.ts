@@ -6,6 +6,7 @@
  */
 import 'server-only'
 
+import { oneLine } from '@/lib/papers/map'
 import { cache } from 'react'
 import * as z from 'zod'
 import { django, djangoVoid } from '../core/http'
@@ -26,7 +27,10 @@ function toSession(dto: SessionDTO): ChatSession {
     id: dto.id,
     workspace_id: dto.workspace,
     paper_id: dto.paper,
-    paper_title: dto.paper_title,
+    // Django serializes the stored column as-is; sessions never pass through
+    // toScoredPaper, and the Ask rail puts this in a `title=` attribute, which
+    // HTML does not collapse.
+    paper_title: dto.paper_title === null ? null : oneLine(dto.paper_title),
     title: dto.title,
     summary: dto.summary || null,
     turns_count: dto.messages_count,

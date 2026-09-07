@@ -244,7 +244,55 @@ class IngestionSearchTasksTestCase(TestCase):
             paper.title,
             "PennyLane: Automatic differentiation of hybrid quantum-classical computations",
         )
-        self.assertNotIn("\n", paper.abstract)
+        self.assertEqual(
+            paper.abstract,
+            "PennyLane is a Python 3 software framework for differentiable programming of quantum computers.",
+        )
+
+        # The run's own preview of what it fetched goes out over the runs API
+        # and MCP — it must not be the one place the wrap survives.
+        preview = ComponentRun.objects.get(pipeline_run=self.pipeline_run).output_data["papers_preview"]
+        self.assertEqual(preview[0]["title"], paper.title)
+        self.assertEqual(preview[0]["abstract_preview"], paper.abstract)
+
+    @patch("research_intelligence.scrapers.arxiv.ArxivScraperProvider.search")
+    def test_legacy_wrapped_title_still_receives_enrichment(self, mock_arxiv_search):
+        """
+        Rows ingested before titles were single-lined hold the arXiv parser's
+        spelling (newline swapped for a space, indent kept). A re-fetch must
+        still find them by title and backfill the identifiers they lack.
+        """
+        legacy = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="legacy_hash",
+            title="PennyLane: Automatic differentiation of hybrid quantum-classical   computations",
+            authors="Ville Bergholm",
+            abstract="Legacy abstract.",
+            source_database="arxiv",
+        )
+        self.assertIsNone(legacy.doi)
+
+        Scraper.objects.create(workspace=self.workspace, provider="arxiv", search_query="pennylane")
+        mock_arxiv_search.return_value = [
+            {
+                "title": "PennyLane: Automatic differentiation of hybrid quantum-classical   computations",
+                "authors": "Ville Bergholm",
+                "abstract": "Fresh abstract.",
+                "hash_id": "1811.04968",
+                "doi": "10.48550/arXiv.1811.04968",
+                "pdf_url": "https://arxiv.org/pdf/1811.04968.pdf",
+                "other_url": "https://arxiv.org/abs/1811.04968",
+                "source_database": "arxiv",
+                "published_date": "2018-11-12",
+            }
+        ]
+
+        execute_workspace_search(self.workspace.id, self.pipeline_run.id)
+
+        self.assertEqual(Paper.objects.filter(workspace=self.workspace).count(), 1)
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.doi, "10.48550/arxiv.1811.04968")
 
     def test_cross_source_search_deduplication(self):
         scraper_arxiv = Scraper.objects.create(workspace=self.workspace, provider="arxiv", search_query="transformer scaling")

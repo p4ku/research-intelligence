@@ -129,8 +129,15 @@ describe('oneLine', () => {
     expect(
       oneLine('PennyLane: Automatic differentiation of hybrid quantum-classical\n  computations'),
     ).toBe('PennyLane: Automatic differentiation of hybrid quantum-classical computations')
+    // The arXiv XML parser's own output: newline swapped for a space, indent kept.
+    expect(oneLine('hybrid quantum-classical   computations')).toBe(
+      'hybrid quantum-classical computations',
+    )
     expect(oneLine('  padded\ttitle \n')).toBe('padded title')
     expect(oneLine(null)).toBe('')
+  })
+  test('keeps a no-break space — that is typography, not a wrap', () => {
+    expect(oneLine('Fig. 1 at 10 kg')).toBe('Fig. 1 at 10 kg')
   })
 })
 
@@ -282,6 +289,24 @@ describe('toScoredPaper', () => {
       rationale: 'Lab validation only.',
     })
     expect(trl.evidence).toEqual(['distance-3 surface code'])
+  })
+
+  test('title and abstract arrive single-lined, whatever the source stored', () => {
+    const p = toScoredPaper(
+      paper({
+        id: 'p-wrap',
+        title: 'PennyLane: Automatic differentiation of hybrid quantum-classical\n  computations',
+        abstract: 'PennyLane is a Python 3 software framework for\ndifferentiable programming.',
+      }),
+      [],
+      contexts,
+    )
+    expect(p.title).toBe(
+      'PennyLane: Automatic differentiation of hybrid quantum-classical computations',
+    )
+    expect(p.abstract).toBe(
+      'PennyLane is a Python 3 software framework for differentiable programming.',
+    )
   })
 
   test('no extraction row → null value even when metrics_data pre-fills 0.0', () => {
