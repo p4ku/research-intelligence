@@ -32,7 +32,7 @@ test.describe('Journey 3: Workspace Multi-Tenancy, Settings & Locale Management'
     await settings.load();
     expect(await settings.isLoaded()).toBe(true);
 
-    console.log('📍 Step 4: Inspecting Profile, Account Role, Password form and Workspace metadata...');
+    console.log('📍 Step 4: Inspecting Profile, Account details and Password form...');
     const profile = await settings.getProfileValues();
     console.log('  Profile Values:', profile);
     expect(profile.username || profile.email).toBeTruthy();
@@ -41,8 +41,15 @@ test.describe('Journey 3: Workspace Multi-Tenancy, Settings & Locale Management'
     console.log(`  Account Role: ${role}`);
     expect(role).toBeTruthy();
 
-    const wsMeta = await settings.getWorkspaceMetadata();
-    console.log('  Workspace Metadata:', wsMeta);
+    const signedInWith = await settings.getSignedInWith();
+    console.log(`  Signed in with: ${signedInWith}`);
+    expect(signedInWith).toBeTruthy();
+
+    // Settings is profile / account / password only; the domain and
+    // notification cards were removed, so the password form is the last card.
+    const passwordFormVisible = await settings.isPasswordFormVisible();
+    console.log(`  Password form visible: ${passwordFormVisible}`);
+    expect(passwordFormVisible).toBe(true);
 
     console.log('📍 Step 5: Testing Bilingual Locale Switcher (EN <-> DE)...');
     await sidebar.toggleLanguage();
