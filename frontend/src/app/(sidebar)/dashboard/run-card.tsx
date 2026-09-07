@@ -193,7 +193,7 @@ export function RunCard({
           ? fmt(t('{domain} is running. Briefings and papers stay available meanwhile.'), {
               domain: processing,
             })
-          : t('Briefings run one at a time. When this one finishes, it leads the page.')
+          : t('Briefings run one at a time. When this one finishes, it tops the list.')
       }
     />
   )

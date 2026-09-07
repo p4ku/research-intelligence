@@ -6,23 +6,14 @@ import { fmt, type T } from '@/lib/i18n'
 import { RECENT } from './data'
 import { HomeLinks } from './home-ui'
 import { LedgerSkeleton } from './ledger'
-import { MastheadSkeleton } from './masthead'
 import { RunCardSkeleton } from './run-card'
 
 /**
- * Home's section skeletons — used both by loading.tsx (the whole-page shell
- * on navigation) and as the page's Suspense fallbacks, so the shell and the
- * streamed state are pixel-identical. One Skeleton.Region per section: one
- * status announcement, one scan sweep.
+ * Home's section skeleton — used both by loading.tsx (the whole-page shell
+ * on navigation) and as the page's Suspense fallback, so the shell and the
+ * streamed state are pixel-identical. One Skeleton.Region for the section:
+ * one status announcement, one scan sweep.
  */
-
-export function MastheadSkeletonRegion({ t }: { t: T }) {
-  return (
-    <Skeleton.Region status={t('Loading the briefing')}>
-      <MastheadSkeleton t={t} />
-    </Skeleton.Region>
-  )
-}
 
 export function LedgerSkeletonRegion({ t }: { t: T }) {
   return (
@@ -46,7 +37,7 @@ export function LedgerSkeletonRegion({ t }: { t: T }) {
 }
 
 /**
- * The loading.tsx shell: real header and search, skeleton sections. The search
+ * The loading.tsx shell: real header and search, skeleton section. The search
  * is the real component, not a bone, so it follows the page's `all_papers`
  * guard exactly — a shell that kept the field would paint a live search above
  * a corpus the reader cannot open. `features` is required because
@@ -65,7 +56,6 @@ export function DashboardSkeleton({
     <div className="space-y-8">
       <PageHeader eyebrow={t('Home')} title={fmt(t('Good morning, {name}'), { name })} />
       {features.all_papers && <CorpusSearch domains={[]} />}
-      <MastheadSkeletonRegion t={t} />
       <LedgerSkeletonRegion t={t} />
     </div>
   )

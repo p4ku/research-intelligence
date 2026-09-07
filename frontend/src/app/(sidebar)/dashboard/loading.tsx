@@ -5,8 +5,8 @@ import { DashboardSkeleton } from './skeletons'
 
 /**
  * Instant loading state for the dashboard: the real header (name from the
- * session cookie — no backend call) over the three section skeletons, matching
- * the page's own Suspense fallbacks pixel for pixel.
+ * session cookie — no backend call) over the ledger skeleton, matching the
+ * page's own Suspense fallback pixel for pixel.
  */
 export default async function Loading() {
   const [user, t, features] = await Promise.all([getSessionUser(), getT(), getFeatures()])

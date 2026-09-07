@@ -8,10 +8,10 @@ import type { Lang } from '@/lib/i18n'
 import { cache } from 'react'
 
 /**
- * Per-request accessors for Home's streamed sections. Each section awaits
- * only what it renders; `cache()` de-duplicates across sections (the
- * masthead and the ledger both need the run list and the current edition).
- * "Current" is the newest completed run in any of the user's domains.
+ * Per-request accessors for Home's streamed section. `cache()` de-duplicates
+ * within a request (the ledger reads the run list once and the current run
+ * again for its status column). "Current" is the newest completed run in
+ * any of the user's domains.
  */
 
 /** Exactly this many rows in Recent Briefings, newest first. */

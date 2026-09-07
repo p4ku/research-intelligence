@@ -240,6 +240,11 @@ because the form's disabled state depends on the same run list). Pairs
 `run-papers` pair went with the old page. The ledger's expanded row
 (`data-row="brief"`) has no skeleton — it only opens on a click.
 
+Later the same day the masthead was hidden from Home: the page is one
+boundary (`LedgerSection`) and `loading.tsx` shows the ledger skeleton
+alone. `Masthead`/`MastheadSkeleton` remain in `dashboard/masthead.tsx`
+for the `home-masthead` gallery pair.
+
 ## Done (pass 5) — Briefings archive (7 Sep 2026)
 
 `/briefing` became the spec's ledger (domain, period, generated, screened,
