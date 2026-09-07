@@ -81,10 +81,11 @@ bun test                                    # incl. the loading-convention ratch
 
 `--stream` compares byte positions, not arrival times: a fast local server
 delivers several boundaries in one chunk. To sanity-check that the assertion is
-real, point it at a route with no boundaries (`--stream /papers`) and watch it
-fail. Run it cookieless: with the `all_papers` demo flag off, `/papers` is a
-404 with no boundaries either, so the control fails for the wrong reason and
-reads exactly like the assertion working.
+real, point it at a route with no boundaries (`--stream /settings`) and watch it
+fail. Run the drift and stream checks cookieless: with a demo flag off (say
+`all_papers`), the hidden route renders the not-found card with no boundaries
+of its own, so a control against it fails for the wrong reason and reads
+exactly like the assertion working.
 
 The gallery accepts `?motion=static` to freeze the sweep; `prefers-reduced-motion`
 removes it and reduces the handoff to an instant swap.
@@ -215,6 +216,12 @@ Things learned:
 - **Per-request `cache()` on the services** (`papers.get`, `papers.listAll`,
   `briefings.listAll`, `briefings.getByDate`) is what makes sibling sections
   cheap; without it, `source=django` would fetch once per section.
+- **The raw corpus is held across requests** (`lib/bff/corpus/snapshot.ts`):
+  one snapshot of workspaces + papers + extractions per signed-in user,
+  revalidated against the run ledger's fingerprint rather than a clock.
+  Pages never fetch the corpus themselves — they read the services, which
+  read the snapshot — so a warm navigation costs Django nothing and the
+  skeleton is on screen for the Next round trip only.
 
 ## Done (pass 4) — Home (7 Sep 2026)
 
@@ -238,12 +245,11 @@ is real); `loading.tsx` bones them.
 
 ## Later, not now
 
-Still on `KNOWN_UNCOVERED`: `/papers` (the `--stream` negative control above —
-covering it means naming a different boundary-free route), `/settings` (two
-forms, mostly static chrome) and `/tuning` (one fetch; an `InfluenceBar` bone
-would do it). `/papers` is now flag-gated as well: having no `loading.tsx` is
-what makes `all_papers` off a genuine HTTP 404 there rather than the streamed
-200 `/ask` gives, so covering it would change the flag's behaviour too.
+Still on `KNOWN_UNCOVERED`: `/settings` (two forms, mostly static chrome; also
+the `--stream` negative control above) and `/tuning` (one fetch; an
+`InfluenceBar` bone would do it). `/papers` is flag-gated: with `all_papers`
+off its `loading.tsx` returns null and the route streams the not-found card
+inside an HTTP 200, the same shape `/ask` gives.
 
 `cacheComponents` (Partial Prerendering) would make each route's shell static, so
 the skeletons ship with the HTML and the server does no work before first paint.

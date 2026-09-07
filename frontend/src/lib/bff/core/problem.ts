@@ -56,6 +56,11 @@ export class ProblemError extends Error {
   }
 }
 
+/** Django rejected the session: the one failure that must reach the logout flow. */
+export function isUnauthenticated(error: unknown): error is ProblemError {
+  return error instanceof ProblemError && error.problem.status === 401
+}
+
 /** Throwable shorthand: `throw problem('not-found', { detail })`. */
 export function problem(slug: ProblemSlug, extra: Partial<Problem> = {}): ProblemError {
   return new ProblemError(problemBody(slug, extra))

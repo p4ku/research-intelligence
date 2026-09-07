@@ -24,7 +24,7 @@ export interface PaletteState {
   retry: () => void
 }
 
-/** Mirrors the server cache's lifetime, so a tab never holds a corpus the server would not. */
+/** How long a tab keeps a settled palette before asking the server again. */
 const PALETTE_TTL_MS = 45_000
 
 let held: { at: number; value: Promise<PaletteEntry[]> } | null = null

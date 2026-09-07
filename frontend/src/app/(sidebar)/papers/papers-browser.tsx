@@ -22,8 +22,7 @@ import { useStars } from '@/lib/stars-client'
 import { ChevronDownIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import { useMemo, useRef, useState } from 'react'
-
-const PER_PAGE = 8
+import { PER_PAGE } from './skeletons'
 
 /** 'signal' | 'recent' | 'dim:<definition key>' */
 type Sort = string

@@ -1,10 +1,6 @@
 import { describe, expect, test } from 'bun:test'
+import { clock } from './test-clock'
 import { TtlCache } from './ttl-cache'
-
-function clock(start = 1_000) {
-  let t = start
-  return { now: () => t, tick: (ms: number) => (t += ms) }
-}
 
 describe('TtlCache', () => {
   test('a fresh key shares one load', async () => {
@@ -46,18 +42,31 @@ describe('TtlCache', () => {
     expect(await cache.get('k', load)).toBe(2)
   })
 
-  test('evicts the oldest key past maxEntries and clears', async () => {
+  test('peek never loads and respects the ttl; delete drops one key', async () => {
+    const c = clock()
+    const cache = new TtlCache<string>({ ttlMs: 100, maxEntries: 4, now: c.now })
+    expect(cache.peek('k')).toBeUndefined()
+    const load = cache.get('k', async () => 'v')
+    expect(cache.peek('k')).toBe(load)
+    await cache.get('other', async () => 'o')
+    cache.delete('k')
+    expect(cache.peek('k')).toBeUndefined()
+    expect(await cache.peek('other')).toBe('o')
+    c.tick(101)
+    expect(cache.peek('other')).toBeUndefined()
+    expect(cache.size).toBe(0)
+  })
+
+  test('evicts the least recently used key past maxEntries and clears', async () => {
     const cache = new TtlCache<string>({ ttlMs: 100, maxEntries: 2 })
     await cache.get('a', async () => 'a')
     await cache.get('b', async () => 'b')
+    // A hit on the older key keeps it; the untouched one goes.
+    expect(await cache.peek('a')).toBe('a')
     await cache.get('c', async () => 'c')
     expect(cache.size).toBe(2)
-    let reloaded = false
-    await cache.get('a', async () => {
-      reloaded = true
-      return 'a2'
-    })
-    expect(reloaded).toBe(true)
+    expect(await cache.peek('a')).toBe('a')
+    expect(cache.peek('b')).toBeUndefined()
     cache.clear()
     expect(cache.size).toBe(0)
   })

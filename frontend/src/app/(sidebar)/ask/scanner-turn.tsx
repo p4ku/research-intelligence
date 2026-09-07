@@ -1,15 +1,14 @@
 'use client'
 
 import { AnswerMarkdown } from '@/components/answer-markdown'
+import { LiveAnswer as SharedLiveAnswer } from '@/components/live-answer'
 import { ErrorNote } from '@/components/scanner-ui'
 import type { ChatStreamState } from '@/lib/chat/use-chat-stream'
-import { useSmoothText } from '@/lib/chat/use-smooth-text'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { CheckCircleIcon } from '@heroicons/react/16/solid'
 import { motion, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
 import { MiniScore } from './paper-picker'
 import { shortTitle, type AnswerTurn, type QuestionTurn } from './types'
 
@@ -41,42 +40,9 @@ export function AskedBubble({ turn }: { turn: QuestionTurn }) {
   )
 }
 
-function useElapsed(active: boolean) {
-  const [ms, setMs] = useState(0)
-  useEffect(() => {
-    if (!active) return
-    const t0 = performance.now()
-    const id = window.setInterval(() => setMs(performance.now() - t0), 100)
-    return () => window.clearInterval(id)
-  }, [active])
-  return ms
-}
-
-/** Retrieval status shown until the first word arrives, with the wait counted. */
-function ScanningLine({ scopeTitle }: { scopeTitle: string | null }) {
-  const t = useT()
-  const ms = useElapsed(true)
-  return (
-    <p className="mt-1 flex items-center gap-2 font-mono text-xs text-muted-foreground tabular-nums">
-      <span className="relative flex size-2 shrink-0">
-        <span className="absolute inset-0 animate-ping rounded-full bg-accent/60" />
-        <span className="relative size-2 rounded-full bg-accent" />
-      </span>
-      <span className="min-w-0 truncate">
-        {scopeTitle
-          ? fmt(t('Reading “{title}” · full text'), { title: scopeTitle })
-          : t('Reading the full text…')}
-      </span>
-      <span className="ml-auto shrink-0">{(ms / 1000).toFixed(1)}s</span>
-    </p>
-  )
-}
-
 /**
- * The in-flight answer. Streamed text is revealed at a steady word cadence and
- * each word unveils out of a blur; the scanning line holds until the first
- * word. Settlement happens in the transcript once `onRevealed` reports that
- * the stream has finished and every word is on screen.
+ * The in-flight answer on the Ask canvas: the shared reveal, with the scope
+ * named in the scanning line.
  */
 export function LiveAnswer({
   state,
@@ -86,36 +52,21 @@ export function LiveAnswer({
 }: {
   state: ChatStreamState
   scopeTitle: string | null
-  /** Called as words land, so the transcript can follow. */
   onGrow: () => void
-  /** The stream has finished and the reveal has caught up with it. */
   onRevealed: () => void
 }) {
   const t = useT()
-  const shown = useSmoothText(state.text, state.status)
-  const finished = state.status === 'done' || state.status === 'error'
-
-  useEffect(() => {
-    if (shown.text) onGrow()
-  }, [shown.text, onGrow])
-
-  useEffect(() => {
-    if (finished && shown.caughtUp) onRevealed()
-  }, [finished, shown.caughtUp, onRevealed])
-
-  if (state.status === 'idle') return null
-  if (shown.text === '') return <ScanningLine scopeTitle={scopeTitle} />
-  // Visual citations land after the last delta, so chips render without ticks
-  // until then.
   return (
-    <AnswerMarkdown
-      text={shown.text}
-      streaming
-      unveil
-      caret={false}
-      citations={state.visualCitations}
-      t={t}
+    <SharedLiveAnswer
+      state={state}
+      scanning={
+        scopeTitle
+          ? fmt(t('Reading “{title}” · full text'), { title: scopeTitle })
+          : t('Reading the full text…')
+      }
       className="text-[15px] text-foreground"
+      onGrow={onGrow}
+      onRevealed={onRevealed}
     />
   )
 }

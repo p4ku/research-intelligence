@@ -25,10 +25,12 @@
 ## 2026-09-07 (all_papers demo flag)
 
 - The **Papers** list is behind a per-browser demo switch. `all_papers` off and
-  `/papers` no longer exists: a real HTTP 404 on the shared not-found card, the
-  nav row filtered out of the rail and the mobile drawer alike, Home's whole
+  `/papers` no longer exists: the shared not-found card streamed in place (an
+  HTTP 200, like `/ask`, because the route has a `loading.tsx`; that file
+  returns null when the flag is off so no skeleton paints first), the nav row
+  filtered out of the rail and the mobile drawer alike, Home's whole
   corpus-search typeahead removed (page and `loading.tsx` together), and the
-  404's own "Go to Papers" button gone.
+  404 card's own "Go to Papers" button gone.
 - `/papers/[id]` stays reachable — from briefings, Home's top papers, `/tuning`
   and chat citations — and loses only what is derived from the list: the
   breadcrumb trail, the prev/next pager and its "{n} of {total}", the

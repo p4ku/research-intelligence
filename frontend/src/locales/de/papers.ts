@@ -132,7 +132,6 @@ export const dict: Record<string, string> = {
   'Confidence {n}': 'Konfidenz {n}',
   Source: 'Quelle',
   Run: 'Lauf',
-  'Generating…': 'Wird generiert…',
   'Ask a question about this paper…': 'Eine Frage zu diesem Paper stellen…',
 
   // Ask-this-paper rail

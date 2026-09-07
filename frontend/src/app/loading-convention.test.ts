@@ -12,8 +12,7 @@ import { dirname, join } from 'node:path'
  */
 const KNOWN_UNCOVERED = new Set([
   'page.tsx', // login — redirects straight to /dashboard when a session exists
-  '(sidebar)/papers/page.tsx', // the `--stream /papers` negative control in docs/skeletons.md
-  '(sidebar)/settings/page.tsx',
+  '(sidebar)/settings/page.tsx', // also the `--stream /settings` negative control in docs/skeletons.md
   '(sidebar)/tuning/page.tsx',
 ])
 
