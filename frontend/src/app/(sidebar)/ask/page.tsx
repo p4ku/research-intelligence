@@ -42,9 +42,10 @@ export default async function AskPage({
       </div>
     )
   }
-  // The canvas owns the viewport: the page does not scroll, the transcript does.
+  // The canvas owns the viewport: `data-canvas` asks the shell for it (see
+  // sidebar-layout.tsx), so the page does not scroll — the transcript does.
   return (
-    <div className="flex h-[calc(100dvh-4rem)] flex-col lg:h-[calc(100dvh-3.5rem)]">
+    <div data-canvas className="flex min-h-0 flex-1 flex-col">
       <h1 className="sr-only">{t('Ask Research Intelligence')}</h1>
       <Suspense
         fallback={
