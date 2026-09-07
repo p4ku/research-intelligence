@@ -32,8 +32,6 @@ import {
   ArrowRightStartOnRectangleIcon,
   ChevronUpIcon,
   LanguageIcon,
-  ShieldCheckIcon,
-  UserCircleIcon,
 } from '@heroicons/react/16/solid'
 import {
   ChatBubbleLeftRightIcon,
@@ -97,18 +95,10 @@ function AccountDropdownMenu({
   return (
     <DropdownMenu className="min-w-64" anchor={anchor}>
       <DropdownItem href="/settings">
-        <UserCircleIcon />
-        <DropdownLabel>{t('My account')}</DropdownLabel>
-      </DropdownItem>
-      <DropdownItem href="/settings">
         <Cog6ToothIcon />
         <DropdownLabel>{t('Settings')}</DropdownLabel>
       </DropdownItem>
       <DropdownDivider />
-      <DropdownItem href="#">
-        <ShieldCheckIcon />
-        <DropdownLabel>{t('Privacy & access')}</DropdownLabel>
-      </DropdownItem>
       <DropdownItem
         onClick={(e: React.MouseEvent) => {
           // preventDefault keeps the Headless UI menu open on toggle
