@@ -6,7 +6,8 @@ import { describe, expect, test } from 'bun:test'
 import { inFlightIds, POLL_RUNS, RECENT, selectRecent } from './recent'
 
 const [completed, failedRun, running] = fixtureRuns
-const edition = fixtureEditions[0]
+// The morning run's edition (the fixtures also hold its noon rerun).
+const edition = fixtureEditions.find((e) => e.run_id === completed.id)!
 
 /** A run, newest first by `n` (started `n` days before the fixture). */
 function run(n: number, patch: Partial<PipelineRun>): PipelineRun {

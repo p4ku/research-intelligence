@@ -12,7 +12,9 @@ export function domainScope(all: Pick<WorkspaceSummary, 'id'>[], domain: string 
 }
 
 /** Domain names by workspace id, for crumbs and badges. */
-export function domainNames(all: WorkspaceSummary[]): Record<string, string> {
+export function domainNames(
+  all: readonly Pick<WorkspaceSummary, 'id' | 'name'>[],
+): Record<string, string> {
   return Object.fromEntries(all.map((ws) => [ws.id, ws.name]))
 }
 

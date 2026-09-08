@@ -46,8 +46,9 @@ because nothing creates `NarrativeReport` rows.
 
 ## Current implementation
 
-`composed` (default): `service.ts` builds editions from
-`GET /api/pipeline-runs/?workspace=&status=completed` × the scored corpus —
+`composed` (default): `service.ts` reads
+`GET /api/pipeline-runs/?workspace=&status=completed` and the scored corpus,
+and `compose.ts` (pure, tested) turns them into editions —
 surfaced = passed papers of the run (signal-first), exclusions = rejected/
 withdrawn papers with their `screening_reasoning`, funnel = the run's
 counters. `title`/`in_brief` come from `prose.ts` templates filled with real
@@ -77,7 +78,7 @@ briefing to open.
 
 ```bash
 curl -s "localhost:3000/bff/briefings?workspace_id=$WS" -b "sri_access=…"
-curl -s "localhost:3000/bff/briefings/2026-08-27?workspace_id=$WS" -b "sri_access=…"
+curl -s "localhost:3000/bff/briefings/2026-08-31?workspace_id=$WS" -b "sri_access=…"
 # Desired:
 curl -s "localhost:8000/api/workspaces/$WS/editions/" -H "authorization: Bearer $TOKEN"
 ```
