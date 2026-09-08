@@ -209,7 +209,7 @@ export function HistoryList({
     <div className="space-y-4">
       {groups.map((g) => (
         <div key={g.day}>
-          <DayLabel day={g.day} count={g.items.length} />
+          <DayLabel day={g.day} count={g.items.reduce((n, s) => n + s.turns_count, 0)} />
           <div className="mt-0.5 space-y-0.5">
             {g.items.map((session) => (
               <div key={session.id}>

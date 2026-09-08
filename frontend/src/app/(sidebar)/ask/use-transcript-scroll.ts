@@ -56,7 +56,8 @@ export function useTranscriptScroll(reduceMotion: boolean) {
       if (!el) return
       cancelAnimationFrame(sc.current.raf)
       sc.current.raf = 0
-      // The glide we just cancelled owed this; clear it on every exit path.
+      // The glide we just cancelled owed this; clearing it here covers the
+      // early return below as well as the new glide's own end.
       sc.current.anchoring = 0
       sc.current.vel = 0
       const from = el.scrollTop
