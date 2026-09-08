@@ -24,7 +24,7 @@ import { corpusSnapshot } from '../corpus/snapshot'
 import { stars } from '../stars/service'
 import { workspace, type WorkspaceSummary } from '../workspaces/schema'
 import { workspaces } from '../workspaces/service'
-import { composeGet, composeListAll, composeRunPapers, listPapersRaw } from './compose'
+import { composeListAll, composeRunPapers, listPapersRaw } from './compose'
 import { applyPapersQuery, corpusFacets } from './filter'
 import { fixturePapers, fixtureWorkspace } from './fixtures'
 import {
@@ -246,7 +246,7 @@ export const papers = {
         )
       } catch (error) {
         if (error instanceof ProblemError && error.problem.status === 404) return null
-        return composeGet(id)
+        throw error
       }
     },
   ),

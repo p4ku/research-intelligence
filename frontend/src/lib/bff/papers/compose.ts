@@ -19,25 +19,16 @@ import type { ScoredPaper, WorkspaceSummary } from '@/lib/papers/types'
 import { cache } from 'react'
 import * as z from 'zod'
 import { django } from '../core/http'
-import { ProblemError } from '../core/problem'
 import { assertUuid } from '../core/validate'
-import { corpusHolds, corpusSnapshot } from '../corpus/snapshot'
+import { corpusSnapshot } from '../corpus/snapshot'
 import { listWorkspacesRaw } from '../workspaces/service'
-import { extractionDTO, paperDTO } from './upstream'
+import { paperDTO } from './upstream'
 
 // The lists come from the user's corpus snapshot (../corpus/snapshot.ts),
-// held across requests; a single paper is always a live GET, so a missing
-// id is a genuine 404 and a paper ingested a moment ago is readable.
+// held across requests; single-paper scorecards come directly from the dedicated
+// /api/papers/{id}/scorecard/ endpoint in service.ts.
 export const listPapersRaw = cache(async () => (await corpusSnapshot()).papers)
 export const listExtractionsRaw = cache(async () => (await corpusSnapshot()).extractions)
-export const getPaperRaw = cache(async (id: string) => {
-  try {
-    return await django(`/api/papers/${assertUuid(id, 'paper id')}/`, paperDTO)
-  } catch (error) {
-    if (error instanceof ProblemError && error.problem.status === 404) return null
-    throw error
-  }
-})
 
 async function workspaceContext(workspaceId: string) {
   const [workspaces, extractions] = await Promise.all([listWorkspacesRaw(), listExtractionsRaw()])
@@ -65,25 +56,6 @@ export async function composeListAll(
       .map((p) =>
         toScoredPaper(p, ctx.extractionsByPaper.get(p.id) ?? [], ctx.contexts, { detail: false }),
       ),
-  }
-}
-
-/** One paper with its workspace's definitions; null when missing or not visible. */
-export async function composeGet(
-  id: string,
-): Promise<{ workspace: WorkspaceSummary; paper: ScoredPaper } | null> {
-  // The snapshot does not depend on the paper, so the two loads overlap.
-  const [raw] = await Promise.all([getPaperRaw(id), corpusSnapshot()])
-  if (!raw) return null
-  const ctx = await workspaceContext(raw.workspace)
-  if (!ctx) return null
-  // A paper past the snapshot's cap has no extractions there; read its own.
-  const extractions = (await corpusHolds(raw.id))
-    ? (ctx.extractionsByPaper.get(raw.id) ?? [])
-    : await django(`/api/extractions/?paper=${raw.id}`, z.array(extractionDTO))
-  return {
-    workspace: ctx.summary,
-    paper: toScoredPaper(raw, extractions, ctx.contexts),
   }
 }
 
