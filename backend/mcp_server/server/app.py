@@ -2052,8 +2052,8 @@ def ask_paper(
     workspace's scoring formula; and earlier turns of the session. Answers may contain inline
     markers `[Page X, Fig Y, quote: "..."]` (`Page X` and `box_2d` only when the PDF itself was
     attached; OCR markdown has no page numbers, so there the marker is `[Fig Y, quote: "..."]`);
-    these are parsed into `visual_citations`, and every quotation of 15+ characters is checked
-    against the document text. `hallucination_guard` reports how many quotes matched.
+    these are parsed into `visual_citations`, and quoted text is checked against the document.
+    `hallucination_guard` reports how many quotes matched.
 
     Without `paper_id` the model only gets the workspace name, description, and the titles and
     signal scores of its top ten accepted papers - not their text - so use that mode for

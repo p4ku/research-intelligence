@@ -35,8 +35,8 @@ SYSTEM_INSTRUCTION = (
     "When you point at a figure, table, equation or passage, use this marker so the interface can turn it into a "
     "chip: [Page X, Fig Y, quote: \"exact sentence from the document\"]. Include \"Page X\" only when the document "
     "text itself shows page numbers; otherwise leave it out and write [Fig Y, quote: \"...\"] or just "
-    "[quote: \"...\"]. The quote must be copied verbatim: every quotation of 15 or more characters is checked "
-    "against the document text and is flagged to the researcher when it does not match.\n"
+    "[quote: \"...\"]. The quote must be copied verbatim: quoted text is checked against the document and "
+    "is flagged to the researcher when it does not match.\n"
     "Answer in the language the question was asked in."
 )
 
@@ -245,7 +245,12 @@ class PaperChatEngine:
         # Same workspace knob the screening and extraction steps honour; a deep
         # turn overrides it upward, since the provider's default is already
         # "medium" and the flag has to buy more than that to mean anything.
-        reasoning_effort = "high" if deep_thinking else (getattr(workspace, 'reasoning_effort', None) or None)
+        workspace_effort = getattr(workspace, 'reasoning_effort', None) or None
+        if workspace_effort == "off":
+            # A zero thinking budget is not accepted by the Gemini 3 models chat
+            # runs on; "low" is the smallest level they take.
+            workspace_effort = "low"
+        reasoning_effort = "high" if deep_thinking else workspace_effort
 
         return PreparedTurn(
             prompt=prompt,

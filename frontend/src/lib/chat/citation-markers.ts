@@ -75,40 +75,49 @@ export function extractCitationMarkers(text: string): { text: string; refs: Cita
 }
 
 /**
- * Could this unclosed bracket body still become a marker? `Page…` always can;
- * so can anything that already names a `quote:`/`box_2d:` field; and a short
- * label-looking prefix (`Fig 4b, quo`) can too. A half-open interval like
- * `[0, 1)` or prose that has run on past 40 characters cannot, so it is shown.
+ * Could this unclosed bracket's own body (up to the next `[`) still become a
+ * marker? `Page…` always can; so can anything that already names a
+ * `quote:`/`box_2d:` field; and a label-looking prefix (`Fig 4b, quo`) can
+ * too. A half-open interval like `[0, 1)`, an index like `w[i`, or prose that
+ * has run on past 120 characters cannot, so those stay visible.
  */
 function mayBecomeMarker(body: string): boolean {
   if (/^page\b/i.test(body)) return true
   if (/(?:^|,)\s*(?:quote|box_2d)\s*:/i.test(body)) return true
-  return body.length <= 40 && /^[A-Za-z0-9\s._-]*(?:,\s*[a-z_0-9]*)?$/i.test(body)
+  return body.length <= 120 && /^[A-Za-z0-9\s._-]*(?:,\s*[a-z_0-9]*)?$/i.test(body)
 }
+
+// A marker's quote opens right after `quote:`; only that `"` starts a span in
+// which brackets are ignored. Prose quotes never toggle anything.
+const QUOTE_OPENS_RE = /quote:\s*$/i
 
 /**
  * While streaming, hide a marker that has started but not yet closed so the
  * transcript never flashes half a `[Page 7, Fig 4b, box_2d: [320, …`. Tracks
- * bracket depth (the box is nested) and skips brackets inside a quote once a
- * bracket is open. Cuts at the outermost open bracket that can still turn
- * into a marker; other stray `[` are left alone.
+ * bracket depth (the box is nested) and skips brackets inside a marker quote.
+ * Cuts at the outermost open bracket whose own body can still turn into a
+ * marker; stray `[` before it (intervals, code indices) are left alone, and
+ * their body is judged only up to the next `[`, so a real marker later in the
+ * text never makes an earlier stray bracket look like one.
  */
 export function holdBackOpenMarker(text: string): string {
   const open: number[] = []
   let inQuote = false
   for (let i = 0; i < text.length; i++) {
     const ch = text[i]
-    if (ch === '"') {
-      if (open.length > 0) inQuote = !inQuote
-    } else if (inQuote) continue
-    else if (ch === '[') open.push(i)
-    else if (ch === ']' && open.length > 0) {
-      open.pop()
-      if (open.length === 0) inQuote = false
-    }
+    if (inQuote) {
+      if (ch === '"') inQuote = false
+    } else if (ch === '"') {
+      if (open.length > 0 && QUOTE_OPENS_RE.test(text.slice(open[open.length - 1], i))) {
+        inQuote = true
+      }
+    } else if (ch === '[') open.push(i)
+    else if (ch === ']' && open.length > 0) open.pop()
   }
   for (const start of open) {
-    if (mayBecomeMarker(text.slice(start + 1))) {
+    const next = text.indexOf('[', start + 1)
+    const end = next === -1 ? text.length : next
+    if (mayBecomeMarker(text.slice(start + 1, end))) {
       return text.slice(0, start).replace(/\s$/, '')
     }
   }

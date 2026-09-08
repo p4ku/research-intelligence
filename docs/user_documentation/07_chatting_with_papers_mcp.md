@@ -118,7 +118,11 @@ Unlike standard document chat tools that only pass text fragments, `ask_paper` i
   "tokens_out": 1930,
   "tokens_cached": 17800,
   "total_tokens": 20351,
-  "usd_cost": 0.0112
+  "usd_cost": 0.0112,
+  "session_total_tokens": 20351,
+  "session_total_usd_cost": 0.0112,
+  "workspace_monthly_tokens": 1483902,
+  "workspace_monthly_usd": 4.87
 }
 ```
 Markers carry a page number (`[Page 5, Fig 4, quote: "..."]`) and a `box_2d` only when the paper was sent as a PDF; the usual OCR-markdown path has no page numbers. Generation failures return `{ "status": "failed", "message_id", "session_id", "error" }`; bad requests return `{ "status": "error", "error" }`.

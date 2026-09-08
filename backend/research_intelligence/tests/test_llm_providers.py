@@ -306,3 +306,30 @@ class GoogleLLMProviderTestCase(TestCase):
         self.assertEqual(stream_results[1][1]["prompt_tokens"], 100)
         self.assertEqual(stream_results[1][1]["candidates_tokens"], 20)
 
+
+
+class OutputTokenAccountingTestCase(TestCase):
+    """Gemini reports thinking tokens apart from the answer; both are billed as output."""
+
+    def test_thoughts_are_added_to_candidates(self):
+        from research_intelligence.llm_providers.google import _output_tokens
+        meta = MagicMock(spec=['candidates_token_count', 'thoughts_token_count'])
+        meta.candidates_token_count = 120
+        meta.thoughts_token_count = 2048
+        self.assertEqual(_output_tokens(meta), 2168)
+
+    def test_missing_or_unusable_thought_counts_add_nothing(self):
+        from research_intelligence.llm_providers.google import _output_tokens
+        without_field = MagicMock(spec=['candidates_token_count'])
+        without_field.candidates_token_count = 50
+        self.assertEqual(_output_tokens(without_field), 50)
+
+        bare_mock = MagicMock()
+        bare_mock.candidates_token_count = 50
+        self.assertEqual(_output_tokens(bare_mock), 50)
+
+        for odd in (None, True, "7"):
+            meta = MagicMock(spec=['candidates_token_count', 'thoughts_token_count'])
+            meta.candidates_token_count = 50
+            meta.thoughts_token_count = odd
+            self.assertEqual(_output_tokens(meta), 50, odd)

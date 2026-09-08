@@ -113,8 +113,33 @@ describe('holdBackOpenMarker', () => {
   test('leaves a stray open bracket that cannot become a marker', () => {
     const interval = 'on the interval [0, 1) the function is'
     expect(holdBackOpenMarker(interval)).toBe(interval)
-    const ranOn = 'see [' + 'a'.repeat(41)
+    const ranOn = 'see [' + 'a'.repeat(121)
     expect(holdBackOpenMarker(ranOn)).toBe(ranOn)
+    const index = 'so `w[i` grows with'
+    expect(holdBackOpenMarker(index)).toBe(index)
+  })
+
+  test('a stray bracket earlier in the text does not swallow a later marker', () => {
+    const prefix = 'Normalised to [0, 1) the onset rises'
+    expect(holdBackOpenMarker(`${prefix} [Page 3`)).toBe(prefix)
+    expect(holdBackOpenMarker(`${prefix} [Page 3, quote: "2.3 V`)).toBe(prefix)
+    const done = `${prefix} [Page 3, quote: "2.3 V"] and stays flat.`
+    expect(holdBackOpenMarker(done)).toBe(done)
+    const set = 'The set [a, b, c and later [Page 9, quote: "value"] confirm this.'
+    expect(holdBackOpenMarker(set)).toBe(set)
+  })
+
+  test('prose quotes never hide brackets', () => {
+    const src = 'She said "look [here" and then [Page 2, Fig 1] followed.'
+    expect(holdBackOpenMarker(src)).toBe(src)
+    expect(holdBackOpenMarker('She said "look" then [Page 2, quote: "a')).toBe(
+      'She said "look" then',
+    )
+  })
+
+  test('holds a long label without a length flicker', () => {
+    const long = 'See [Extended Data Figure 4b and Supplementary Table 3,'
+    expect(holdBackOpenMarker(long)).toBe('See')
   })
 })
 

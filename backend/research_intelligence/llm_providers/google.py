@@ -22,7 +22,7 @@ def _output_tokens(meta) -> int:
     """
     candidates = getattr(meta, "candidates_token_count", 0) or 0
     thoughts = getattr(meta, "thoughts_token_count", 0)
-    if not isinstance(thoughts, int):
+    if not isinstance(thoughts, int) or isinstance(thoughts, bool):
         thoughts = 0
     return candidates + thoughts
 
