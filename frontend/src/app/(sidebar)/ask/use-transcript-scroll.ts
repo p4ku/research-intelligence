@@ -56,6 +56,8 @@ export function useTranscriptScroll(reduceMotion: boolean) {
       if (!el) return
       cancelAnimationFrame(sc.current.raf)
       sc.current.raf = 0
+      // The glide we just cancelled owed this; clear it on every exit path.
+      sc.current.anchoring = 0
       sc.current.vel = 0
       const from = el.scrollTop
       const dist = top - from
@@ -64,14 +66,14 @@ export function useTranscriptScroll(reduceMotion: boolean) {
         return
       }
       const t0 = performance.now()
-      sc.current.anchoring += 1
+      sc.current.anchoring = 1
       const frame = (now: number) => {
         const t = Math.min(1, (now - t0) / ANCHOR_MS)
         write(from + dist * easeOut(t))
         if (t < 1) sc.current.raf = requestAnimationFrame(frame)
         else {
           sc.current.raf = 0
-          sc.current.anchoring -= 1
+          sc.current.anchoring = 0
         }
       }
       sc.current.raf = requestAnimationFrame(frame)
