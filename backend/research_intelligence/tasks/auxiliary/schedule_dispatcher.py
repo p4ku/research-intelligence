@@ -30,7 +30,6 @@ def dispatch_due_workflow_schedules(dry_run: bool = False) -> Dict[str, Any]:
     from research_intelligence.features import is_feature_enabled, Feature
 
     if not is_feature_enabled(Feature.SCHEDULING):
-        logger.info("⏸️ [SCHEDULE DISPATCHER] Feature SCHEDULING is disabled. Skipping dispatch.")
         return {
             "status": "disabled",
             "dispatched_count": 0,
