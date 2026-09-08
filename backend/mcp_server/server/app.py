@@ -2041,38 +2041,40 @@ def ask_paper(
     deep_thinking: bool = False
 ) -> str:
     """
-    [INTERACTIVE Q&A - KNOWLEDGE EXPLORER / ASK PAPER]
-    Interrogates an ingested academic paper or whole workspace with deep scientific reasoning using the workspace LLM (Google Gemini 3.8 Flash).
-    
-    WHEN TO USE:
-    - Use when the researcher or agent needs to examine a specific paper, verify experimental methodology, analyze claims,
-      clarify why the SLR pipeline accepted or rejected it, or deep-dive into computed composite signal scores and extracted parameters.
-    
-    WORKFLOW & USAGE PATTERN FOR AI CLIENTS:
-    1. Locate the target paper's UUID via `list_papers(workspace_id)` (or omit `paper_id` for workspace-level synthesis).
-    2. Turn 1 (Start session): Call `ask_paper(workspace_id=..., question=..., paper_id=..., deep_thinking=True/False)`.
-       The JSON response returns a unique `session_id`.
-    3. Turn 2+ (Continue dialogue): Pass the returned `session_id` in subsequent calls to maintain conversational memory and multi-turn context with Gemini Context Caching.
-    
-    AUTOMATICALLY INJECTED SCIENTIFIC CONTEXT:
-    - Full Document Content: Layout OCR Markdown or native multimodal PDF binary from storage.
-    - SLR Screening Decision: Status (`screening_status`), decision rationales (`abstract_screening_reasoning`, `full_text_screening_reasoning`), and workspace acceptance/rejection criteria.
-    - Parameter Extraction Matrix: All extracted parameter definitions, JSON values, evidence quotes, and HITL validation flags.
-    - Composite Signal Score: Calculated score (`PaperMetric.signal_score`), audit details (`signal_score_details`), and the sandboxed Python formula (`workspace.signal_score_code`).
-    - Multi-Turn History: All preceding questions and answers within the conversation thread.
-    - Visual Grounding: Automatically parses and verifies figure/table/page citations with bounding boxes.
-    - Hallucination Guard: Validates quoted claims against the source document.
-    - Prompt caching: the paper is sent as a stable prefix so Gemini's implicit cache reuses it across turns.
-    
-    PARAMETERS:
-    - workspace_id: Target workspace UUID.
-    - question: Detailed research question or instruction.
-    - paper_id: (Optional) Target Paper UUID to interrogate. Omit to query workspace overview.
-    - session_id: (Optional) UUID of an existing conversation session to continue. Omit to start a new session.
-    - deep_thinking: (Optional) Set to True to enable deep mathematical/thermodynamic derivation scratchpad reasoning.
-    
-    OUTPUT:
-    JSON string containing `{ "status": "completed", "session_id": "...", "message_id": "...", "paper_id": "...", "paper_title": "...", "answer": "...", "citations": [...], "visual_citations": [...], "hallucination_guard": {...}, "deep_thinking": bool, "tokens_in": int, "tokens_out": int, "usd_cost": float, "tokens_cached": int }`.
+    Asks the workspace's configured LLM a question about one ingested paper, grounded in that
+    paper's full text and the platform's annotations on it. Use it to examine what a paper
+    reports, check its methodology or numbers, or find out why the review pipeline accepted,
+    rejected or scored it the way it did. Get the paper's UUID from `list_papers(workspace_id)`.
+
+    The model sees, in this order: the paper's metadata and full text (OCR markdown, or the PDF
+    itself when no markdown exists); the latest screening status with its rationale; the extracted
+    parameters with confidence scores; the composite signal score, its computation details and the
+    workspace's scoring formula; and earlier turns of the session. Answers may contain inline
+    markers `[Page X, Fig Y, quote: "..."]` (plus `box_2d` when the PDF was attached); these are
+    parsed into `visual_citations`, and every quoted string is checked against the document text.
+    `hallucination_guard` reports how many quotes matched.
+
+    Without `paper_id` the model only gets the workspace name, description, and the titles and
+    signal scores of its top ten accepted papers - not their text - so use that mode for
+    orientation, not for cross-paper synthesis of content.
+
+    Multi-turn: the first call returns a `session_id`; pass it back to continue the same
+    conversation with its history. The paper is sent as a stable prefix so the provider's
+    implicit prompt cache can reuse it across turns.
+
+    Parameters:
+    - workspace_id: workspace UUID; the caller needs admin, manager or researcher access.
+    - question: the question or instruction, in the language the answer should be in.
+    - paper_id: paper UUID to ask about (optional, see above).
+    - session_id: existing session UUID to continue (optional).
+    - deep_thinking: raises the model's thinking budget, returns its thought trace in
+      `thinking_process`, and asks it to verify numerical claims against the document.
+      Slower and costs more output tokens.
+
+    Returns a JSON string: `{ "status": "completed", "session_id", "message_id", "paper_id",
+    "paper_title", "answer", "thinking_process", "citations", "visual_citations",
+    "hallucination_guard", "deep_thinking", "llm_model", "tokens_in", "tokens_out",
+    "tokens_cached", "usd_cost" }`, or `{ "status": "error", "error": "..." }`.
     """
     try:
         user, workspace, api_key = get_auth_context()

@@ -65,7 +65,9 @@ class PaperContextBuilder:
         """Workspace-level chat (no single paper selected): name, description, top accepted papers."""
         ws_lines = [
             f"Workspace: {workspace.name}",
-            f"Description: {getattr(workspace, 'description', '') or 'Systematic Literature Review Workspace'}"
+            f"Description: {getattr(workspace, 'description', '') or 'Systematic Literature Review Workspace'}",
+            "No paper is selected. Only the titles and signal scores of the top accepted papers are listed below; "
+            "their text is not available in this mode, so questions about a paper's content need that paper opened.",
         ]
         from django.db.models import Subquery, OuterRef, F
         metric_sub = PaperMetric.objects.filter(paper=OuterRef('pk')).order_by('-created_at')

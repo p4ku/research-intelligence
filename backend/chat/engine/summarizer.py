@@ -11,15 +11,18 @@ class HierarchicalSessionSummarizer:
     the most recent conversational turns verbatim.
     """
 
+    RECENT_TURNS = 3
+
     def compress_and_update(self, session: PaperChatSession, history_messages, threshold: int = 4) -> None:
         """
-        Condenses older turns (0 to N-2) into session.summary when conversation history exceeds threshold.
+        Abridges every turn older than the RECENT_TURNS kept verbatim into session.summary,
+        once the history is at least `threshold` long.
         """
         count = len(history_messages)
         if count < threshold:
             return
 
-        older_messages = history_messages[:-2]
+        older_messages = history_messages[:-self.RECENT_TURNS]
         new_summary_items = []
         for msg in older_messages:
             q_snippet = msg.question[:120] + "..." if len(msg.question) > 120 else msg.question
@@ -31,7 +34,7 @@ class HierarchicalSessionSummarizer:
         session.save(update_fields=['summary', 'updated_at'])
         logger.info(f"Updated hierarchical summary for session '{session.id}' (Turn count: {count})")
 
-    def build_history_block(self, session: PaperChatSession, history_messages, recent_turns_count: int = 3) -> str:
+    def build_history_block(self, session: PaperChatSession, history_messages, recent_turns_count: int = RECENT_TURNS) -> str:
         """
         Formats the combined historical summary and recent turns into a prompt memory block.
         """
@@ -39,7 +42,7 @@ class HierarchicalSessionSummarizer:
         history_parts = []
 
         if session.summary and session.summary.strip():
-            history_parts.append(f"### Prior Conversation Context & Scientific Findings\n{session.summary.strip()}")
+            history_parts.append(f"### Earlier Turns (abridged: questions cut at 120 characters, answers at 150)\n{session.summary.strip()}")
 
         if recent_messages:
             recent_turns = []

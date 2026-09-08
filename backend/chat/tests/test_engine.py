@@ -139,7 +139,10 @@ class ChatEngineTestCase(TestCase):
         self.assertEqual(session.summary.count("Question 0"), 1)
 
         history_block = summarizer.build_history_block(session, messages)
-        self.assertIn("Prior Conversation Context", history_block)
+        self.assertIn("Earlier Turns", history_block)
+        # The abridged block and the verbatim recent turns must not overlap.
+        self.assertNotIn("Q: Question 3", history_block)
+        self.assertIn("User: Question 3", history_block)
         self.assertIn("Recent Conversation Turns", history_block)
 
     def test_context_builder_reads_bytes_and_utf8_decoded_storage(self):
