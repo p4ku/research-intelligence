@@ -360,6 +360,402 @@ def extract_metrics_for_extraction(e: Extraction, d: ExtractionDefinition = None
     return primary_metric, secondary_metrics, has_postprocessing
 
 
+RATIONALE_RE = re.compile(r'(reason|rationale|justif)', re.IGNORECASE)
+EVIDENCE_RE = re.compile(r'(quote|^evidence$|_evidence$)', re.IGNORECASE)
+BAND_RE = re.compile(r'(_band$|_label$|^band$|^label$)', re.IGNORECASE)
+FACET_KEY_RE = re.compile(r'_score$', re.IGNORECASE)
+ASSESSMENT_KEY_RE = re.compile(r'_assessment$', re.IGNORECASE)
+LEVEL_KEY_RE = re.compile(r'_level$', re.IGNORECASE)
+SENTENCE_RE = re.compile(r'[.!?](\s|$)')
+
+
+def humanise_field_label(key: str) -> str:
+    """
+    Capitalizes first word, preserves common acronyms, e.g.
+    'research_quality_insight' -> 'Research quality insight'
+    'core_technology' -> 'Core technology'
+    'confidence' -> 'Confidence'
+    """
+    if not key:
+        return ""
+    acronyms = {"trl": "TRL", "gdpr": "GDPR", "llm": "LLM", "api": "API", "nlp": "NLP", "ai": "AI", "rtl": "RTL"}
+    clean_key = re.sub(r'(_score|_assessment)$', '', key, flags=re.IGNORECASE)
+    words = [w for w in clean_key.replace("-", "_").split("_") if w]
+    if not words:
+        return ""
+    res = []
+    for i, w in enumerate(words):
+        wl = w.lower()
+        if wl in acronyms:
+            res.append(acronyms[wl])
+        elif i == 0:
+            res.append(w.capitalize())
+        else:
+            res.append(w.lower())
+    return " ".join(res)
+
+
+def is_risk_dimension(name: str = "", key: str = "") -> bool:
+    """
+    Identifies whether a dimension or extraction represents Risk and Affiliation Flagging.
+    """
+    target = f"{name or ''} {key or ''}".lower().replace("-", "_")
+    return bool(
+        "affiliation" in target
+        or "risk_and_affiliation" in target
+        or ("risk" in target and "affiliation" in target)
+    )
+
+
+def extract_risk_and_affiliation(fields_data: dict) -> dict:
+    """
+    Extracts structured Risk & Affiliation data to display directly under authors:
+      - Affiliations (institutions/labs)
+      - Author contacts (emails, names)
+      - Funding entities
+      - Codebase artifact link (Zenodo, GitHub, etc.)
+      - Key risk flags (GDPR Sovereignty, Schwarz Ecosystem, Competitor Involvement)
+    """
+    if not isinstance(fields_data, dict):
+        return None
+    data = fields_data.get("fields") if isinstance(fields_data.get("fields"), dict) else fields_data
+    if not isinstance(data, dict):
+        return None
+
+    # Affiliations
+    affiliations = []
+    raw_affil = (
+        data.get("author_affiliation")
+        or data.get("affiliations")
+        or data.get("affiliation")
+        or data.get("institutions")
+    )
+    if isinstance(raw_affil, list):
+        affiliations = [str(a).strip() for a in raw_affil if str(a).strip()]
+    elif isinstance(raw_affil, str) and raw_affil.strip():
+        affiliations = [a.strip() for a in re.split(r'[,;]\s*', raw_affil) if a.strip()]
+
+    # Author contacts / emails
+    contacts = []
+    raw_contacts = (
+        data.get("author_contacts")
+        or data.get("contacts")
+        or data.get("emails")
+        or data.get("email")
+        or data.get("author_emails")
+    )
+    if isinstance(raw_contacts, list):
+        contacts = [str(c).strip() for c in raw_contacts if str(c).strip()]
+    elif isinstance(raw_contacts, str) and raw_contacts.strip():
+        contacts = [c.strip() for c in re.split(r'[,;]\s*', raw_contacts) if c.strip()]
+
+    # Funding entities
+    funding = []
+    raw_funding = (
+        data.get("funding_entities")
+        or data.get("funding")
+        or data.get("grants")
+        or data.get("sponsors")
+    )
+    if isinstance(raw_funding, list):
+        funding = [str(f).strip() for f in raw_funding if str(f).strip()]
+    elif isinstance(raw_funding, str) and raw_funding.strip():
+        funding = [f.strip() for f in re.split(r'[,;]\s*', raw_funding) if f.strip()]
+
+    # Codebase artifact link
+    code_link = (
+        data.get("codebase_artifact_link")
+        or data.get("artifact_link")
+        or data.get("code_repository")
+        or data.get("repository")
+        or data.get("code_url")
+        or data.get("zenodo_link")
+    )
+    if code_link and not isinstance(code_link, str):
+        code_link = str(code_link)
+
+    # Specific boolean/string risk flags
+    schwarz_ecosystem = data.get("schwarz_ecosystem_affiliation") or data.get("schwarz_fit")
+    gdpr_concerns = data.get("gdpr_concerns") or data.get("gdpr_sovereignty") or data.get("gdpr")
+    competitor_involvement = data.get("competitor_involvement") or data.get("competitor_risk")
+    risk_score = data.get("risk_score")
+    risk_assessment = data.get("risk_score_assessment") or data.get("risk_assessment")
+
+    # Format badges/flags
+    flags = []
+    if gdpr_concerns is not None:
+        val_str = str(gdpr_concerns).strip()
+        is_safe = bool(re.search(r'^(no|none|false|low)\b', val_str, re.I))
+        flags.append({
+            "key": "gdpr",
+            "label": "GDPR Sovereignty",
+            "value": val_str,
+            "status": "safe" if is_safe else "warn",
+        })
+    if schwarz_ecosystem is not None:
+        val_str = str(schwarz_ecosystem).strip()
+        has_affil = bool(re.search(r'^(yes|true|affiliated)\b', val_str, re.I))
+        flags.append({
+            "key": "schwarz_ecosystem",
+            "label": "Schwarz Ecosystem",
+            "value": val_str,
+            "status": "highlight" if has_affil else "neutral",
+        })
+    if competitor_involvement is not None:
+        val_str = str(competitor_involvement).strip()
+        has_comp = bool(re.search(r'^(yes|true|high|present)\b', val_str, re.I))
+        flags.append({
+            "key": "competitor",
+            "label": "Competitor Involvement",
+            "value": val_str,
+            "status": "warn" if has_comp else "safe",
+        })
+
+    return {
+        "raw": data,
+        "affiliations": affiliations,
+        "author_contacts": contacts,
+        "funding_entities": funding,
+        "codebase_artifact_link": code_link,
+        "schwarz_ecosystem_affiliation": str(schwarz_ecosystem) if schwarz_ecosystem is not None else None,
+        "gdpr_concerns": str(gdpr_concerns) if gdpr_concerns is not None else None,
+        "competitor_involvement": str(competitor_involvement) if competitor_involvement is not None else None,
+        "risk_score": float(risk_score) if isinstance(risk_score, (int, float)) else None,
+        "risk_score_assessment": str(risk_assessment) if risk_assessment else None,
+        "flags": flags,
+    }
+
+
+def extract_rich_dimension_details(
+    fields_data: dict,
+    primary_metric: dict,
+    secondary_metrics: list,
+    max_val: int = 100,
+    is_trl: bool = False,
+    order: list = None,
+) -> dict:
+    """
+    Extracts structured visual elements matching the UI design specs:
+      - rationale: main markdown explanation / justification
+      - evidence: list of quoted text snippets
+      - band: band pill badge (e.g. 'TRL 4 — Technology validated in lab')
+      - facets: list of sub-scores with progress bars (e.g. Novelty 68, Significance 72)
+      - texts: titled prose insight sections (e.g. 'Research quality insight')
+      - facts: key-value definition list entries (e.g. 'Confidence': 'HIGH', 'Core technology': '...')
+      - lists: lists of strings (e.g. 'Key contributions': [...])
+    """
+    if not isinstance(fields_data, dict):
+        return {
+            'rationale': None,
+            'evidence': [],
+            'band': None,
+            'facets': [],
+            'texts': [],
+            'facts': [],
+            'lists': [],
+        }
+
+    data = fields_data.get("fields") if isinstance(fields_data.get("fields"), dict) else fields_data
+    if not isinstance(data, dict):
+        data = {}
+
+    used = set()
+    primary_k = (primary_metric.get("key") or "").strip().lower()
+    if primary_k:
+        used.add(primary_k)
+
+    # 1. Rationale & Evidence
+    rationale = None
+    evidence = []
+    # Check if matched primary field was a dict containing evidence / rationale
+    matched_obj = data.get(primary_k)
+    if isinstance(matched_obj, dict):
+        if "rationale" in matched_obj and isinstance(matched_obj["rationale"], str):
+            rationale = matched_obj["rationale"].strip()
+        if "evidence" in matched_obj:
+            ev_val = matched_obj["evidence"]
+            if isinstance(ev_val, list):
+                evidence.extend([str(q.get("quote") if isinstance(q, dict) else q).strip() for q in ev_val if q])
+            elif isinstance(ev_val, str) and ev_val.strip():
+                evidence.append(ev_val.strip())
+
+    # Scan data for rationale and evidence
+    for k, v in data.items():
+        k_norm = k.strip().lower()
+        if k_norm in used:
+            continue
+        val = v.get("value") if (isinstance(v, dict) and "value" in v) else v
+
+        if RATIONALE_RE.search(k_norm) and isinstance(val, str) and val.strip():
+            if not rationale:
+                rationale = val.strip()
+                used.add(k_norm)
+        elif EVIDENCE_RE.search(k_norm):
+            if isinstance(val, list):
+                quotes = [str(q.get("quote") if isinstance(q, dict) else q).strip() for q in val if q]
+                evidence.extend([q for q in quotes if q])
+                used.add(k_norm)
+            elif isinstance(val, str) and val.strip():
+                evidence.append(val.strip())
+                used.add(k_norm)
+
+    # 2. Band label (e.g. 'TRL 4 — Technology validated in lab')
+    band = None
+    for k, v in data.items():
+        k_norm = k.strip().lower()
+        if k_norm in used:
+            continue
+        val = v.get("value") if (isinstance(v, dict) and "value" in v) else v
+        if isinstance(val, str) and (BAND_RE.search(k_norm) or k_norm in ("band", "label", "trl_band", "trl_label")):
+            s = val.strip()
+            if s:
+                band = s
+                used.add(k_norm)
+                break
+
+    # 3. Facets (sub-scores with progress bars)
+    facets = []
+    seen_facet_keys = set()
+    facet_order = [k.strip().lower() for k in (order or [])]
+
+    # Include numeric secondary metrics first
+    for m in secondary_metrics:
+        mk = m.get("key")
+        mk_norm = mk.strip().lower() if mk else ""
+        if mk_norm and m.get("is_numeric") and m.get("numeric_value") is not None:
+            # Look for assessment twin
+            twin_text = None
+            twin_candidates = [
+                f"{mk_norm}_assessment",
+                re.sub(r'_score$', '_assessment', mk_norm),
+            ]
+            for tc in twin_candidates:
+                if tc in data:
+                    t_val = data[tc]
+                    t_val_str = t_val.get("value") if isinstance(t_val, dict) else t_val
+                    if isinstance(t_val_str, str) and t_val_str.strip():
+                        twin_text = t_val_str.strip()
+                        used.add(tc)
+                        break
+
+            facets.append({
+                "key": mk,
+                "name": humanise_field_label(mk),
+                "value": m["numeric_value"],
+                "max": max_val,
+                "text": twin_text,
+            })
+            seen_facet_keys.add(mk_norm)
+            used.add(mk_norm)
+
+    # Also scan data for any other _score fields that weren't in secondary_metrics
+    for k, v in data.items():
+        k_norm = k.strip().lower()
+        if k_norm in used or k_norm in seen_facet_keys:
+            continue
+        val = v.get("value") if (isinstance(v, dict) and "value" in v) else v
+        if FACET_KEY_RE.search(k_norm):
+            num_v = None
+            try:
+                f_v = float(val)
+                if math.isfinite(f_v):
+                    num_v = int(f_v) if f_v.is_integer() else round(f_v, 2)
+            except (ValueError, TypeError):
+                pass
+
+            if num_v is not None:
+                twin_text = None
+                twin_k = re.sub(r'_score$', '_assessment', k_norm)
+                if twin_k in data:
+                    t_val = data[twin_k]
+                    t_val_str = t_val.get("value") if isinstance(t_val, dict) else t_val
+                    if isinstance(t_val_str, str) and t_val_str.strip():
+                        twin_text = t_val_str.strip()
+                        used.add(twin_k)
+
+                facets.append({
+                    "key": k,
+                    "name": humanise_field_label(k),
+                    "value": num_v,
+                    "max": max_val,
+                    "text": twin_text,
+                })
+                seen_facet_keys.add(k_norm)
+                used.add(k_norm)
+
+    # Sort facets by definition order if given
+    if facet_order:
+        def facet_sort_key(f):
+            k = f["key"].strip().lower()
+            try:
+                return facet_order.index(k)
+            except ValueError:
+                return len(facet_order)
+        facets.sort(key=facet_sort_key)
+
+    # 4. Texts, Lists, Facts
+    texts = []
+    lists = []
+    facts = []
+
+    ignored_keys = {
+        "confidence_score", "confidence_level", "confidence_method",
+        "validation_status", "validation_errors", "error", "postprocessing_error",
+        "fields",
+    }
+
+    for k, v in data.items():
+        k_norm = k.strip().lower()
+        if k_norm in used or k_norm in ignored_keys:
+            continue
+        val = v.get("value") if (isinstance(v, dict) and "value" in v) else v
+        label = humanise_field_label(k)
+
+        # Lists
+        if isinstance(val, list):
+            items = [str(i).strip() for i in val if str(i).strip()]
+            if items:
+                lists.append({"key": k, "name": label, "items": items})
+                used.add(k_norm)
+            continue
+
+        # Booleans -> Facts
+        if isinstance(val, bool):
+            facts.append({"key": k, "name": label, "value": val})
+            used.add(k_norm)
+            continue
+
+        # Strings
+        if isinstance(val, str):
+            s = val.strip()
+            if not s:
+                continue
+            if SENTENCE_RE.search(s) or len(s) > 80:
+                texts.append({"key": k, "name": label, "value": s})
+            else:
+                facts.append({"key": k, "name": label, "value": s})
+            used.add(k_norm)
+            continue
+
+        # Numbers
+        if isinstance(val, (int, float)) and math.isfinite(val):
+            if LEVEL_KEY_RE.search(k_norm) and primary_metric.get("numeric_value") == val:
+                continue
+            num_display = int(val) if float(val).is_integer() else round(float(val), 2)
+            facts.append({"key": k, "name": label, "value": str(num_display)})
+            used.add(k_norm)
+
+    return {
+        "rationale": rationale,
+        "evidence": evidence if evidence else None,
+        "band": band,
+        "facets": facets if facets else None,
+        "texts": texts if texts else None,
+        "lists": lists if lists else None,
+        "facts": facts if facts else None,
+    }
+
+
 def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None) -> dict:
     """
     Builds the dynamic, schema-driven Paper Scorecard data dictionary.
@@ -486,9 +882,14 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
 
     # 3. Dynamic Extractions (raw unflattened fields_data, structured primary & secondary metrics, definition schema)
     extractions_data = []
+    risk_and_affiliation_info = None
+
     for e in extractions:
         d_obj = e.extraction_definition
         primary_metric, secondary_metrics, has_post = extract_metrics_for_extraction(e, d_obj)
+        is_risk = is_risk_dimension(d_obj.name if d_obj else e.category, (d_obj.name if d_obj else e.category or '').lower().replace(' ', '_'))
+        if is_risk and e.fields_data and not risk_and_affiliation_info:
+            risk_and_affiliation_info = extract_risk_and_affiliation(e.fields_data)
 
         def_dict = None
         if d_obj:
@@ -525,8 +926,9 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
             'paper_id': str(e.paper_id),
             'extraction_definition_id': str(e.extraction_definition_id) if e.extraction_definition_id else None,
             'category': e.category,
-            'fields_data': e.fields_data,  # Raw JSON data, completely unflattened
-            'exit_metric': e.exit_metric,  # Model exit metric unpacked dynamically
+            'is_risk_and_affiliation': is_risk,
+            'fields_data': e.fields_data,
+            'exit_metric': e.exit_metric,
             'has_postprocessing': has_post,
             'primary_metric': primary_metric,
             'secondary_metrics': secondary_metrics,
@@ -597,7 +999,7 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
             'created_at': target_metric.created_at.isoformat(),
         }
 
-    # 7. Dynamic dimensions without heuristic regex flattening
+    # 7. Dynamic dimensions with rich layout details (facets, texts, facts, lists, rationale, evidence)
     ext_by_def = {}
     for e in extractions:
         if e.extraction_definition_id and e.extraction_definition_id not in ext_by_def:
@@ -618,6 +1020,8 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
             max_val = 100
 
         primary_metric, secondary_metrics, has_post = extract_metrics_for_extraction(e, d)
+        dim_key = d.name.lower().replace(' ', '_')
+        is_risk = is_risk_dimension(d.name, dim_key)
 
         num_val = primary_metric.get('numeric_value')
         raw = primary_metric.get('raw') or '—'
@@ -630,8 +1034,17 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
             or d.llm_model
         )
 
+        rich_details = extract_rich_dimension_details(
+            fields_data=e.fields_data if e else {},
+            primary_metric=primary_metric,
+            secondary_metrics=secondary_metrics,
+            max_val=max_val,
+            is_trl=is_trl,
+            order=d.get_exit_metrics_list(),
+        )
+
         dim_item = {
-            'key': d.name.lower().replace(' ', '_'),
+            'key': dim_key,
             'label': d.name,
             'name': d.name,
             'definition_id': str(d.id),
@@ -639,6 +1052,7 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
             'raw': raw,
             'max': max_val,
             'is_trl': is_trl,
+            'is_risk_and_affiliation': is_risk,
             'has_postprocessing': has_post,
             'primary_metric': primary_metric,
             'secondary_metrics': secondary_metrics,
@@ -653,6 +1067,13 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
             'fields_data': e.fields_data if e else None,
             'response_schema': d.response_schema,
             'exit_metrics': d.get_exit_metrics_list(),
+            'rationale': rich_details['rationale'],
+            'evidence': rich_details['evidence'],
+            'band': rich_details['band'],
+            'facets': rich_details['facets'],
+            'texts': rich_details['texts'],
+            'facts': rich_details['facts'],
+            'lists': rich_details['lists'],
         }
         dimensions.append(dim_item)
 
@@ -662,6 +1083,8 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
             cat_name = e.category or 'Custom Extraction'
             is_trl = bool(re.search(r'\btrl\b', cat_name, re.IGNORECASE))
             max_val = 9 if is_trl else 100
+            dim_key = cat_name.lower().replace(' ', '_')
+            is_risk = is_risk_dimension(cat_name, dim_key)
 
             primary_metric, secondary_metrics, has_post = extract_metrics_for_extraction(e, None)
             num_val = primary_metric.get('numeric_value')
@@ -670,8 +1093,17 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
                 num_val = max(1.0, min(9.0, float(num_val)))
                 num_val = int(num_val) if float(num_val).is_integer() else round(float(num_val), 2)
 
+            rich_details = extract_rich_dimension_details(
+                fields_data=e.fields_data,
+                primary_metric=primary_metric,
+                secondary_metrics=secondary_metrics,
+                max_val=max_val,
+                is_trl=is_trl,
+                order=[],
+            )
+
             dim_item = {
-                'key': cat_name.lower().replace(' ', '_'),
+                'key': dim_key,
                 'label': cat_name,
                 'name': cat_name,
                 'definition_id': str(e.extraction_definition_id) if e.extraction_definition_id else None,
@@ -679,6 +1111,7 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
                 'raw': raw,
                 'max': max_val,
                 'is_trl': is_trl,
+                'is_risk_and_affiliation': is_risk,
                 'has_postprocessing': has_post,
                 'primary_metric': primary_metric,
                 'secondary_metrics': secondary_metrics,
@@ -693,6 +1126,13 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
                 'fields_data': e.fields_data,
                 'response_schema': None,
                 'exit_metrics': [],
+                'rationale': rich_details['rationale'],
+                'evidence': rich_details['evidence'],
+                'band': rich_details['band'],
+                'facets': rich_details['facets'],
+                'texts': rich_details['texts'],
+                'facts': rich_details['facts'],
+                'lists': rich_details['lists'],
             }
             dimensions.append(dim_item)
 
@@ -724,6 +1164,7 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
         'published_date': paper_data.get('published_date'),
         'created_at': paper.created_at.isoformat(),
         'dimensions': dimensions,
+        'risk_and_affiliation': risk_and_affiliation_info,
     }
 
     return {

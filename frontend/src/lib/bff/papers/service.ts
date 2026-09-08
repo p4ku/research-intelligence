@@ -49,7 +49,7 @@ export interface CorpusPapers {
   truncated?: { kept: number; total: number }
 }
 
-const detailResponse = z.object({ workspace, paper: scoredPaper })
+const detailResponse = z.object({ workspace, paper: scoredPaper }).passthrough()
 
 /** The requested endpoint, drained page by page (the UI holds the whole corpus in memory anyway). */
 async function djangoPapersOf(workspaceId: string): Promise<ScoredPaper[]> {
@@ -234,24 +234,19 @@ export const papers = {
       id: string,
       runId?: string,
     ): Promise<{ workspace: WorkspaceSummary; paper: ScoredPaper } | null> => {
-      switch (sourceOf('papers')) {
-        case 'stub': {
-          const paper = fixturePapers.find((p) => p.id === id) ?? null
-          return paper ? { workspace: fixtureWorkspace, paper } : null
-        }
-        case 'django':
-          try {
-            const query = runId ? `?pipeline_run=${encodeURIComponent(runId)}` : ''
-            return await django(
-              `/api/papers/${assertUuid(id, 'paper id')}/scorecard/${query}`,
-              detailResponse,
-            )
-          } catch (error) {
-            if (error instanceof ProblemError && error.problem.status === 404) return null
-            throw error
-          }
-        default:
-          return composeGet(id)
+      if (sourceOf('papers') === 'stub') {
+        const paper = fixturePapers.find((p) => p.id === id) ?? null
+        return paper ? { workspace: fixtureWorkspace, paper } : null
+      }
+      try {
+        const query = runId ? `?pipeline_run=${encodeURIComponent(runId)}` : ''
+        return await django(
+          `/api/papers/${assertUuid(id, 'paper id')}/scorecard/${query}`,
+          detailResponse,
+        )
+      } catch (error) {
+        if (error instanceof ProblemError && error.problem.status === 404) return null
+        return composeGet(id)
       }
     },
   ),

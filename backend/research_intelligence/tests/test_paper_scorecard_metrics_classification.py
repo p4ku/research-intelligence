@@ -442,3 +442,164 @@ return {
         self.assertEqual(data_beta["paper"]["screening_status"], "accepted")
         self.assertEqual(data_beta["paper"]["signal_score"], 94.5)
         self.assertEqual(data_beta["metric"]["signal_score"], 94.5)
+
+    def test_8_rich_dimension_details_and_risk_and_affiliation(self):
+        """
+        Verifies:
+        1. Dimension rich layout matching Image 1: facets with sub-scores, prose insight texts, rationale
+        2. Dimension rich layout matching Image 2: band pill label, facts key-value pairs
+        3. Risk & Affiliation extraction is extracted into paper['risk_and_affiliation']
+           and flagged on dimension with is_risk_and_affiliation=True.
+        """
+        # Definition 1: Research Metrics (Image 1 style: headline 68, facets Novelty 68, Significance 72, prose insight)
+        def_research = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Research Metrics",
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "research_score": {"type": "number"},
+                    "novelty_score": {"type": "number"},
+                    "significance_score": {"type": "number"},
+                    "research_quality_insight": {"type": "string"},
+                },
+            },
+            exit_metrics="research_score, novelty_score, significance_score",
+            is_active=True,
+        )
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=self.paper,
+            extraction_definition=def_research,
+            category="Research Metrics",
+            fields_data={
+                "research_score": 68,
+                "novelty_score": 68,
+                "significance_score": 72,
+                "research_quality_insight": "The work excels in formal grounding and algorithmic innovation.",
+            },
+            confidence_score=0.90,
+            version_info={"llm_model": "google/gemini-3.8-flash"},
+        )
+
+        # Definition 2: TRL (Image 2 style: band pill, headline 4 / 9, facts Confidence & Core technology)
+        def_trl = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Technology Readiness Level (TRL)",
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "trl_level": {"type": "number"},
+                    "trl_band": {"type": "string"},
+                    "confidence_assessment": {"type": "string"},
+                    "core_technology": {"type": "string"},
+                },
+            },
+            exit_metrics="trl_level",
+            is_active=True,
+        )
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=self.paper,
+            extraction_definition=def_trl,
+            category="TRL",
+            fields_data={
+                "trl_level": 4,
+                "trl_band": "TRL 4 — Technology validated in lab",
+                "rationale": "The authors designed, implemented, and fully integrated an end-to-end prototype agentic pipeline.",
+                "confidence_level": "HIGH",
+                "core_technology": "LLM-driven stepwise formal program refinement framework",
+            },
+            confidence_score=0.90,
+            version_info={"llm_model": "google/gemini-3.8-flash"},
+        )
+
+        # Definition 3: Risk and Affiliation Flagging
+        def_risk = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Risk and Affiliation Flagging",
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "author_affiliation": {"type": "string"},
+                    "author_contacts": {"type": "array"},
+                    "funding_entities": {"type": "array"},
+                    "schwarz_ecosystem_affiliation": {"type": "string"},
+                    "gdpr_concerns": {"type": "string"},
+                    "codebase_artifact_link": {"type": "string"},
+                },
+            },
+            exit_metrics="schwarz_ecosystem_affiliation, gdpr_concerns",
+            is_active=True,
+        )
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=self.paper,
+            extraction_definition=def_risk,
+            category="risk_and_affiliation",
+            fields_data={
+                "author_affiliation": "University of Edinburgh, University of Cambridge",
+                "author_contacts": ["alex.rice@ed.ac.uk", "chris.heunen@ed.ac.uk"],
+                "funding_entities": ["EPSRC Grant EP/T001234/1"],
+                "codebase_artifact_link": "https://doi.org/10.5281/zenodo.1234567",
+                "schwarz_ecosystem_affiliation": "NO (Academic institutions)",
+                "gdpr_concerns": "NO (Synthetic benchmark datasets)",
+                "competitor_involvement": "NO",
+                "risk_score": 10.0,
+                "risk_score_assessment": "Low risk academic publication.",
+            },
+            confidence_score=0.95,
+        )
+
+        res = self.client.get(f"/api/papers/{self.paper.id}/scorecard/?pipeline_run={self.run_beta.id}")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+
+        # Check 1: Image 1 style dimension (Research Metrics)
+        dim_res = next(d for d in data["paper"]["dimensions"] if d["definition_id"] == str(def_research.id))
+        self.assertEqual(dim_res["value"], 68)
+        self.assertIsNotNone(dim_res["facets"])
+        facet_keys = [f["key"] for f in dim_res["facets"]]
+        self.assertIn("novelty_score", facet_keys)
+        self.assertIn("significance_score", facet_keys)
+        # Check values
+        novelty_facet = next(f for f in dim_res["facets"] if f["key"] == "novelty_score")
+        self.assertEqual(novelty_facet["value"], 68)
+        self.assertEqual(novelty_facet["name"], "Novelty")
+        signif_facet = next(f for f in dim_res["facets"] if f["key"] == "significance_score")
+        self.assertEqual(signif_facet["value"], 72)
+        self.assertEqual(signif_facet["name"], "Significance")
+        # Check texts (prose insight)
+        self.assertIsNotNone(dim_res["texts"])
+        text_entry = next(t for t in dim_res["texts"] if t["key"] == "research_quality_insight")
+        self.assertEqual(text_entry["name"], "Research quality insight")
+        self.assertIn("algorithmic innovation", text_entry["value"])
+
+        # Check 2: Image 2 style dimension (TRL)
+        dim_trl = next(d for d in data["paper"]["dimensions"] if d["definition_id"] == str(def_trl.id))
+        self.assertEqual(dim_trl["value"], 4)
+        self.assertEqual(dim_trl["max"], 9)
+        self.assertEqual(dim_trl["band"], "TRL 4 — Technology validated in lab")
+        self.assertIn("prototype agentic pipeline", dim_trl["rationale"])
+        self.assertIsNotNone(dim_trl["facts"])
+        fact_keys = [f["key"] for f in dim_trl["facts"]]
+        self.assertIn("core_technology", fact_keys)
+        ct_fact = next(f for f in dim_trl["facts"] if f["key"] == "core_technology")
+        self.assertEqual(ct_fact["name"], "Core technology")
+        self.assertEqual(ct_fact["value"], "LLM-driven stepwise formal program refinement framework")
+
+        # Check 3: Risk and Affiliation Flagging
+        risk_dim = next(d for d in data["paper"]["dimensions"] if d["definition_id"] == str(def_risk.id))
+        self.assertTrue(risk_dim["is_risk_and_affiliation"])
+
+        # Paper level structured risk_and_affiliation object
+        ra = data["paper"]["risk_and_affiliation"]
+        self.assertIsNotNone(ra)
+        self.assertIn("University of Edinburgh", ra["affiliations"])
+        self.assertIn("alex.rice@ed.ac.uk", ra["author_contacts"])
+        self.assertIn("EPSRC Grant EP/T001234/1", ra["funding_entities"])
+        self.assertEqual(ra["codebase_artifact_link"], "https://doi.org/10.5281/zenodo.1234567")
+        self.assertIn("NO", ra["gdpr_concerns"])
+        self.assertIn("NO", ra["schwarz_ecosystem_affiliation"])
+        self.assertEqual(len(ra["flags"]), 3)
+

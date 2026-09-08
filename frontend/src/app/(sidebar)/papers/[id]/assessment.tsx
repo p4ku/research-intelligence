@@ -257,7 +257,15 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
 }
 
 export function Assessment({ dimensions, t }: { dimensions: Dimension[]; t: T }) {
-  if (dimensions.length === 0) {
+  const visibleDimensions = dimensions.filter(
+    (d) =>
+      !d.is_risk_and_affiliation &&
+      !d.key.includes('risk_and_affiliation') &&
+      !d.key.includes('affiliation') &&
+      !d.name.toLowerCase().includes('affiliation'),
+  )
+
+  if (visibleDimensions.length === 0) {
     return (
       <AssessmentFrame>
         <p className="py-4 text-sm text-zinc-400">{t('Not scored yet')}</p>
@@ -266,7 +274,7 @@ export function Assessment({ dimensions, t }: { dimensions: Dimension[]; t: T })
   }
   return (
     <AssessmentFrame>
-      {dimensions.map((d) => (
+      {visibleDimensions.map((d) => (
         <Definition key={d.key + (d.extraction_id ?? '')} dimension={d} t={t} />
       ))}
     </AssessmentFrame>

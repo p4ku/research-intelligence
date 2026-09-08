@@ -11,6 +11,8 @@ export {
   type DimensionFacet,
   type DimensionField,
   type DimensionList,
+  type RiskAndAffiliation,
+  type RiskFlag,
   type ScoredPaper,
   type ScreeningStatus,
   type SignalScoreDetails,

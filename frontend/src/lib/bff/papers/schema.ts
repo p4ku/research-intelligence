@@ -61,6 +61,33 @@ export const dimensionList = z
   .meta({ id: 'DimensionList' })
 export type DimensionList = z.infer<typeof dimensionList>
 
+export const riskFlag = z
+  .object({
+    key: z.string(),
+    label: z.string(),
+    value: z.string(),
+    status: z.string(),
+  })
+  .meta({ id: 'RiskFlag' })
+export type RiskFlag = z.infer<typeof riskFlag>
+
+export const riskAndAffiliation = z
+  .object({
+    raw: z.record(z.string(), z.any()).optional(),
+    affiliations: z.array(z.string()).default([]),
+    author_contacts: z.array(z.string()).default([]),
+    funding_entities: z.array(z.string()).default([]),
+    codebase_artifact_link: z.string().nullable().optional(),
+    schwarz_ecosystem_affiliation: z.string().nullable().optional(),
+    gdpr_concerns: z.string().nullable().optional(),
+    competitor_involvement: z.string().nullable().optional(),
+    risk_score: z.number().nullable().optional(),
+    risk_score_assessment: z.string().nullable().optional(),
+    flags: z.array(riskFlag).default([]),
+  })
+  .meta({ id: 'RiskAndAffiliation' })
+export type RiskAndAffiliation = z.infer<typeof riskAndAffiliation>
+
 export const dimension = z
   .object({
     /** Sanitized definition name; also the key in signal-score variables. */
@@ -69,6 +96,7 @@ export const dimension = z
     definition_id: z.uuid().nullable(),
     /** Rendered verbatim — never translated. */
     name: z.string(),
+    label: z.string().optional(),
     /** Parsed numeric value; null when there is no extraction or it isn't numeric. */
     value: z.number().nullable(),
     /** Display string as the backend would show it ('—' when no extraction). */
@@ -76,6 +104,16 @@ export const dimension = z
     /** Scale for bars/radar; null → show the number only. */
     max: z.number().nullable(),
     is_trl: z.boolean(),
+    is_risk_and_affiliation: z.boolean().optional(),
+    has_postprocessing: z.boolean().optional(),
+    primary_metric: z.record(z.string(), z.any()).optional(),
+    secondary_metrics: z.array(z.record(z.string(), z.any())).optional(),
+    main_metric: z.record(z.string(), z.any()).optional(),
+    auxiliary_metrics: z.array(z.record(z.string(), z.any())).optional(),
+    is_hitl: z.boolean().optional(),
+    fields_data: z.record(z.string(), z.any()).nullable().optional(),
+    response_schema: z.record(z.string(), z.any()).nullable().optional(),
+    exit_metrics: z.array(z.string()).optional(),
     rationale: z.string().optional(),
     evidence: z.array(z.string()).optional(),
     confidence: z.number().nullable().optional(),
@@ -161,6 +199,7 @@ export const scoredPaper = z
     created_at: z.iso.datetime({ offset: true }),
     /** The scoring run's display name, beside its id. */
     pipeline_run_name: z.string().nullable(),
+    risk_and_affiliation: riskAndAffiliation.nullable().optional(),
   })
   .meta({ id: 'ScoredPaper' })
 export type ScoredPaper = z.infer<typeof scoredPaper>
