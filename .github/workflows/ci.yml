@@ -43,6 +43,53 @@ jobs:
         run: |
           ./backend/run_tests.sh
 
+  check-frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # Version comes from "packageManager" in frontend/package.json.
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version-file: frontend/package.json
+
+      - name: Cache Bun Install Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('frontend/bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install Dependencies
+        run: bun install --frozen-lockfile
+
+      # The same steps as `bun run check`, minus scope:check (a branch's
+      # provenance is a local concern), plus the build.
+      - name: Format
+        run: bun run format:check
+
+      - name: Types
+        run: bun run typecheck
+
+      - name: Lint and Contract
+        run: bun run lint
+
+      - name: Tests
+        run: bun test
+
+      - name: Build
+        run: bun run build
+
   docker-cache-build:
     name: Build & Cache Docker Container Layers
     runs-on: ubuntu-latest
