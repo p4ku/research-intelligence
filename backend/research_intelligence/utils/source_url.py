@@ -6,7 +6,10 @@ from typing import Any
 # the arXiv scraper's OpenAlex fallback puts the work id in `hash_id`, and
 # `step_1_search/search.py` copies that into `arxiv_id` when the row is
 # labelled `arxiv`, so a `W2781738013` reaches here routinely.
-ARXIV_ID_RE = re.compile(r'^(\d{4}\.\d{4,5}|[a-z-]+(\.[A-Za-z]{2})?/\d{7})(v\d+)?$', re.IGNORECASE)
+# The subject class is not always two letters: `cond-mat.stat-mech/9910200`
+# is a real old-style id. Kept identical to the frontend's `isArxivId`
+# (`lib/papers/map.ts`) so a link and its chip never disagree.
+ARXIV_ID_RE = re.compile(r'^(\d{4}\.\d{4,5}|[a-z-]+(\.[a-z-]+)?/\d{7})(v\d+)?$', re.IGNORECASE)
 
 # A stored arXiv link, so one minted from an id that was never an arXiv id can
 # be recognised and ignored (migration 0069 backfilled those without a check).

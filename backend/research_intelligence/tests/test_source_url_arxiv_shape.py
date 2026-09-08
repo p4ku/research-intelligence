@@ -20,7 +20,9 @@ OPENALEX_WORK = "https://openalex.org/W2781738013"
 class ArxivIdShapeTests(SimpleTestCase):
     def test_accepts_real_arxiv_ids(self):
         for value in ("2401.12345", "0704.0001", "2401.12345v2",
-                      "cond-mat/0102536", "cs.CV/0101001", "arXiv:2401.12345"):
+                      "cond-mat/0102536", "cs.CV/0101001", "math.AG/0309136",
+                      # The subject class is not always two letters.
+                      "cond-mat.stat-mech/9910200", "arXiv:2401.12345"):
             self.assertTrue(is_arxiv_id(value), value)
 
     def test_rejects_everything_else(self):
