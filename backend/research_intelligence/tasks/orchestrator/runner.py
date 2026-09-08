@@ -161,7 +161,6 @@ class PipelineRunner:
         from research_intelligence.features import is_feature_enabled, Feature
 
         if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
-            logger.info(f"📧 [NOTIFICATION SKIPPED] Feature EMAIL_NOTIFICATIONS is disabled for Workspace '{workspace.name}'.")
             return
 
         recipients = set()
