@@ -1,5 +1,5 @@
 import { AnswerMarkdown } from '@/components/answer-markdown'
-import { SectionLabel } from '@/components/scanner-ui'
+import { Breadcrumbs, SectionLabel } from '@/components/scanner-ui'
 import { editionHref } from '@/lib/bff/briefings/href'
 import type { Edition } from '@/lib/bff/briefings/schema'
 import { editionDate } from '@/lib/bff/briefings/select'
@@ -19,6 +19,7 @@ import { ArrowUpRightIcon } from '@heroicons/react/16/solid'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
+import { formatEditionDate } from '../../briefing/format'
 import { Assessment } from './assessment'
 import { PaperChat } from './paper-chat'
 import { PaperHeader } from './paper-header'
@@ -68,9 +69,9 @@ export interface RunContext {
  * costs nothing; an id outside the reader's domains is simply not found.
  * The context is decoration on the record, so an upstream hiccup in any of
  * its reads degrades to "no run", never to an error page. Cached per
- * request: the page resolves it once for the shell, the record reuses it.
+ * request: the crumbs and the record resolve it once between them.
  */
-export const runContext = cache(
+const runContext = cache(
   async (id: string, runId: string, lang: Lang): Promise<RunContext | null> => {
     try {
       const [result, ledger] = await Promise.all([papers.get(id), runs.listEverywhere()])
@@ -101,17 +102,58 @@ function exitTo(ctx: RunContext, t: T): PaperExit {
 }
 
 /**
+ * The crumb trail for a paper opened from a briefing: Briefings, the
+ * edition (domain and day, as the edition page names itself), the paper.
+ * A run that does not resolve gets the plain trail, exactly as without
+ * `?run=` — which, with the list hidden, is none.
+ */
+export async function RunCrumbs({
+  id,
+  runId,
+  t,
+  lang,
+  features,
+}: {
+  id: string
+  runId: string
+  t: T
+  lang: Lang
+  features: Features
+}) {
+  const [ctx, result] = await Promise.all([runContext(id, runId, lang), forPage(papers.get(id))])
+  const title = result ? result.paper.title : null
+  if (!ctx) {
+    if (!features.all_papers) return null
+    return <Breadcrumbs items={[{ label: t('Papers'), href: '/papers' }, { label: title }]} t={t} />
+  }
+  const day = editionDate(ctx.run)
+  return (
+    <Breadcrumbs
+      items={[
+        { label: t('Briefings'), href: '/briefing' },
+        {
+          label: `${ctx.run.workspace_name} · ${formatEditionDate(day, lang)}`,
+          href: editionHref(day, ctx.run.workspace_id, { runId: ctx.run.id }),
+        },
+        { label: title },
+      ]}
+      t={t}
+    />
+  )
+}
+
+/**
  * Previous / next. Inside a briefing: the edition's papers in the order it
- * lists them, each link keeping the run. On its own: the domain's papers in
- * signal order — the lists' default sort. A failed list is no neighbours,
+ * lists them, each link keeping the run. Otherwise — on its own, or from a
+ * run that recorded the paper but briefed nothing — the domain's papers in
+ * signal order, the lists' default sort. A failed list is no neighbours,
  * never a failed page.
  */
 async function neighboursOf(
   paper: ScoredPaper,
   ctx: RunContext | null,
 ): Promise<PaperNeighbours | null> {
-  if (ctx) {
-    if (!ctx.edition) return null
+  if (ctx?.edition) {
     const ids = ctx.edition.papers.map((p) => p.id)
     const i = ids.indexOf(paper.id)
     if (i < 0) return null
@@ -140,19 +182,22 @@ async function neighboursOf(
 
 export async function PaperRecord({
   id,
-  ctx,
+  runId,
   t,
   lang,
   features,
 }: {
   id: string
-  /** The briefing the paper was opened from, when the URL names one that recorded it. */
-  ctx: RunContext | null
+  /** The briefing the paper was opened from, when the URL names one. */
+  runId?: string
   t: T
   lang: Lang
   features: Features
 }) {
-  const result = await forPage(papers.get(id))
+  const [result, ctx] = await Promise.all([
+    forPage(papers.get(id)),
+    runId ? runContext(id, runId, lang) : null,
+  ])
   // The shell has already streamed, so this renders (sidebar)/not-found.tsx
   // in place with HTTP 200 — the trade for an instant shell, recorded in
   // docs/skeletons.md.
@@ -161,7 +206,7 @@ export async function PaperRecord({
   // With the list hidden the pager is not rendered, so the corpus fetch that
   // feeds it is not made either: skipping the request is the point. A
   // briefing's pager reads the edition, already fetched for the context.
-  const neighbours = ctx || features.all_papers ? await neighboursOf(paper, ctx) : null
+  const neighbours = ctx?.edition || features.all_papers ? await neighboursOf(paper, ctx) : null
 
   return (
     <div className="mt-6">
