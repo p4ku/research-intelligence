@@ -274,4 +274,4 @@ Frontend lint, typecheck and unit tests:
 ```bash
 cd frontend && bun install && bun run check
 ```
-End-to-end suites live in `tests_e2e/` (both runners default to production; pass `local` to target Docker Compose).
+End-to-end suites live in `tests_e2e/`; see its README for how to run them.
