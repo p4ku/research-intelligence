@@ -463,6 +463,17 @@ if SENTRY_DSN and not is_testing:
     )
 
 
+# ==============================================================================
+# Feature Switching / Capability Toggles (Default: False for opt-in features)
+# ==============================================================================
+def _env_feature_bool(name: str, default: bool = False) -> bool:
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    return val.strip().lower() in ('true', '1', 'yes', 'on', 't', 'enabled')
 
 
-
+FEATURES = {
+    'SCHEDULING': _env_feature_bool('FEATURE_SCHEDULING', default=False),
+    'EMAIL_NOTIFICATIONS': _env_feature_bool('FEATURE_EMAIL_NOTIFICATIONS', default=False),
+}
