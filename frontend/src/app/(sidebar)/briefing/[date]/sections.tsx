@@ -58,6 +58,7 @@ export async function EditionHead({
   // shell has already gone out (see docs/skeletons.md).
   if (!edition) notFound()
   const editions = await domainEditions(edition, lang)
+  const elsewhere = await namedElsewhere(runId, edition, editions, lang)
 
   const copy = funnelCopy(t)
   const funnel = [
@@ -85,7 +86,15 @@ export async function EditionHead({
           </h1>
           {features.stars && <StarToggle kind="briefing" id={edition.run_id} className="mt-px" />}
         </div>
-        <SameDayNotice edition={edition} editions={editions} runId={runId} t={t} lang={lang} />
+        <SameDayNotice
+          edition={edition}
+          editions={editions}
+          elsewhere={elsewhere}
+          runId={runId}
+          domains={domains}
+          t={t}
+          lang={lang}
+        />
       </div>
 
       <StatBand items={funnel} flow className="lg:grid-cols-3!" />
@@ -116,6 +125,35 @@ export const domainEditions = cache(async (edition: Edition, lang: Lang): Promis
   return all.filter((e) => hasBriefing(e.funnel.passed_screening, e, capped)).sort(byNewest)
 })
 
+/**
+ * The briefing a link's run names when it is not the one shown: a run of
+ * another day in this domain, or of another domain altogether (a hand-edited
+ * URL — the app mints `domain` and `run` together). The domain's own list
+ * is asked first; only a run missing from it costs the every-domain read.
+ * Null when the run is not a published briefing anywhere. Cached per
+ * request, like `domainEditions`.
+ */
+export const namedElsewhere = cache(
+  async (
+    runId: string | undefined,
+    edition: Edition,
+    editions: Edition[],
+    lang: Lang,
+  ): Promise<Edition | null> => {
+    if (!runId || runId === edition.run_id) return null
+    const inDomain = editions.find((e) => e.run_id === runId)
+    if (inDomain) return inDomain
+    const [all, capped] = await Promise.all([
+      briefings.listEverywhere(lang).catch(() => []),
+      papersService.corpusTruncated().catch(() => false),
+    ])
+    return (
+      all.find((e) => e.run_id === runId && hasBriefing(e.funnel.passed_screening, e, capped)) ??
+      null
+    )
+  },
+)
+
 const NOTICE_LINK = 'font-medium text-blue-600 hover:underline dark:text-blue-400'
 
 /**
@@ -123,42 +161,52 @@ const NOTICE_LINK = 'font-medium text-blue-600 hover:underline dark:text-blue-40
  * whole story. A link that named this run (every link the app mints) lists
  * the day's other briefings; a link that did not — a bookmark from before
  * runs were in the URL — landed on the day's newest and says so, with the
- * earlier ones a click away; a link naming a run of another day points at
- * that day; a link naming a run that is no longer published (its run
- * passed nothing, or is gone) says so first, even when the day holds only
- * this briefing. Nothing when the URL named this run and the day holds no
- * other. `sub` keeps the links on the screening log when that is where
- * the reader is.
+ * earlier ones a click away; a link naming a run of another day, or of
+ * another domain, points at that briefing; a link naming a run that is no
+ * longer published (its run passed nothing, or is gone) says so first,
+ * even when the day holds only this briefing. Nothing when the URL named
+ * this run and the day holds no other. `sub` keeps the links on the
+ * screening log when that is where the reader is.
  */
 export function SameDayNotice({
   edition,
   editions,
+  elsewhere,
   runId,
   sub,
+  domains,
   t,
   lang,
 }: {
   edition: Edition
   /** The domain's briefings, newest first (`domainEditions`). */
   editions: Edition[]
+  /** The briefing the URL's run names when it is not this one (`namedElsewhere`). */
+  elsewhere: Edition | null
   /** The run the URL named, if any. */
   runId?: string
   sub?: 'run'
+  /** Domain names by workspace id, to name a briefing of another domain. */
+  domains: Record<string, string>
   t: T
   lang: Lang
 }) {
   const siblings = editions.filter((e) => e.date === edition.date && e.run_id !== edition.run_id)
   const named = !runId || runId === edition.run_id
-  // The named run is a briefing of another day — the URL's date is off, not the run.
-  const elsewhere = !named ? (editions.find((e) => e.run_id === runId) ?? null) : null
   const gone = !named && !elsewhere
   if (siblings.length === 0 && named) return null
   const to = (e: Edition) => editionHref(e.date, e.workspace_id, { runId: e.run_id, sub })
+  // Another domain's briefing is named by its domain; this domain's by its day.
+  const where = (e: Edition) => {
+    const day = formatDay(e.date, lang)
+    const name = e.workspace_id === edition.workspace_id ? null : domains[e.workspace_id]
+    return name ? `${name} · ${day}` : day
+  }
   const preface = elsewhere ? (
     <>
-      {t('The briefing this link named is from another day:')}{' '}
+      {t('This link named a different briefing:')}{' '}
       <Link href={to(elsewhere)} className={NOTICE_LINK}>
-        {formatDay(elsewhere.date, lang)}
+        {where(elsewhere)}
       </Link>
       .{' '}
     </>

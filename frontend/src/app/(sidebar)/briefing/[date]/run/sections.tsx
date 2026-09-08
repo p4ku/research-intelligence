@@ -3,7 +3,7 @@ import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import type { Lang, T } from '@/lib/i18n'
 import { notFound } from 'next/navigation'
-import { domainEditions, SameDayNotice } from '../sections'
+import { domainEditions, namedElsewhere, SameDayNotice } from '../sections'
 import { ExclusionsTable } from './exclusions-table'
 
 export function funnelCopy(t: T) {
@@ -25,16 +25,20 @@ export async function ScreeningLog({
   date,
   lang,
   t,
+  domains,
 }: {
   wsId?: string
   runId?: string
   date: string
   lang: Lang
   t: T
+  /** Domain names by workspace id, for the notice. */
+  domains: Record<string, string>
 }) {
   const edition = await forPage(briefings.findByDate(date, lang, wsId, runId))
   if (!edition) notFound()
   const editions = await domainEditions(edition, lang)
+  const elsewhere = await namedElsewhere(runId, edition, editions, lang)
 
   const copy = funnelCopy(t)
   const funnel = [
@@ -50,8 +54,10 @@ export async function ScreeningLog({
       <SameDayNotice
         edition={edition}
         editions={editions}
+        elsewhere={elsewhere}
         runId={runId}
         sub="run"
+        domains={domains}
         t={t}
         lang={lang}
       />
