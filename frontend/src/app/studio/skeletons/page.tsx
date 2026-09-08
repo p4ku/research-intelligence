@@ -99,9 +99,10 @@ const fivePapers = Array.from({ length: 5 }, (_, i) => ({
 // Studio is English-only; the shared components take a translator.
 const t: T = (s) => s
 
-// Home: the fixture edition as the Current briefing, and a ledger with one
-// row in each state (processing, current, failed) so every cell shape shows.
-const homeEdition = fixtureEditions[0]
+// Home: the morning edition as the Current briefing (its run is the ledger's
+// Current row), and a ledger with one row in each state (processing,
+// current, failed) so every cell shape shows.
+const homeEdition = edition
 const homeTop = fivePapers.slice(0, 3).map((p) => ({
   id: p.id,
   href: paperHref(p.id, { runId: homeEdition.run_id }),
@@ -206,8 +207,9 @@ const browserEditions: BrowserEdition[] = fixtureEditions.map((e) => ({
 
 // The archive ledger: the fixture domain's same-day pair joined to their runs
 // (the rerun Current, both stamped with the clock, a real period) and an
-// older edition in a second domain whose run is gone (the day-only
-// fallback) — so the domain chips have something to narrow.
+// older edition in a second domain whose run is gone — only the pair's runs
+// are passed, so that row takes the day-only fallback — so the domain chips
+// have something to narrow.
 const secondDomain = { id: '00000000-0000-4000-8000-0000000000a2', name: 'Physical AI' }
 const archiveRows = composeRows({
   editions: [
@@ -230,7 +232,7 @@ const archiveRows = composeRows({
       papers: [],
     },
   ],
-  runs: fixtureRuns,
+  runs: fixtureRuns.filter((r) => r.id === fixtureEditions[0].run_id || r.id === edition.run_id),
   domains: { [fixtureWorkspace.id]: fixtureWorkspace.name, [secondDomain.id]: secondDomain.name },
   t: (s) => s,
   lang: 'en',

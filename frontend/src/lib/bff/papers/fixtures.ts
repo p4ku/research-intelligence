@@ -55,13 +55,20 @@ export const fixtureWorkspace: WorkspaceSummary = {
   created_at: '2026-08-01T06:00:00Z',
 }
 
-const RUN_ID = '00000000-0000-4000-8000-000000000031'
+/** The fixture runs (../pipeline-runs/fixtures.ts): the morning briefing and the same-day rerun. */
+export const FIXTURE_RUN = '00000000-0000-4000-8000-000000000101'
+export const FIXTURE_RERUN = '00000000-0000-4000-8000-000000000104'
 
+/**
+ * The scored corpus as the morning run left it: two papers, one accepted at
+ * 87.5 with its dimensions, one rejected. `fixturePaperDTOs` below is the
+ * same two papers after the noon rerun, as Django's serializer sends them.
+ */
 export const fixturePapers: ScoredPaper[] = [
   {
     id: '00000000-0000-4000-8000-000000000041',
     workspace_id: fixtureWorkspace.id,
-    pipeline_run_id: RUN_ID,
+    pipeline_run_id: FIXTURE_RUN,
     title: 'Coordinated Tool Use in Multi-Agent Language Model Systems',
     authors: ['A. Example', 'B. Beispiel'],
     authors_raw: 'A. Example, B. Beispiel',
@@ -151,7 +158,7 @@ export const fixturePapers: ScoredPaper[] = [
   {
     id: '00000000-0000-4000-8000-000000000042',
     workspace_id: fixtureWorkspace.id,
-    pipeline_run_id: RUN_ID,
+    pipeline_run_id: FIXTURE_RUN,
     title: 'A Survey of Evaluation Protocols for Autonomous Web Agents',
     authors: ['C. Author'],
     authors_raw: 'C. Author',
@@ -177,10 +184,6 @@ export const fixturePapers: ScoredPaper[] = [
   },
 ]
 
-/** The fixture runs (../pipeline-runs/fixtures.ts): the morning briefing and the same-day rerun. */
-export const FIXTURE_RUN = '00000000-0000-4000-8000-000000000101'
-export const FIXTURE_RERUN = '00000000-0000-4000-8000-000000000104'
-
 const RERUN_REASON =
   'Rerun: still squarely on topic; the benchmark has since been superseded, so the score is revised.'
 
@@ -204,12 +207,13 @@ function metricRow(
 }
 
 /**
- * The same two papers as Django's paper serializer sends them — the shape
- * `indexRuns` and the composed source read. The first paper was scored in
- * both fixture runs, with one metric row per run: 87.5 in the morning,
- * rescored to 84 by the noon rerun, and the paper-level fields collapsed to
- * the rerun (the workspace's latest run), as the serializer collapses them.
- * The second was seen by the morning run only.
+ * The same two papers after the noon rerun, as Django's paper serializer
+ * sends them — the shape `indexRuns` and the composed source read. The
+ * first paper was scored in both fixture runs, with one metric row per run:
+ * 87.5 in the morning (the row `fixturePapers` shows), rescored to 84 by the
+ * rerun, and the paper-level fields collapsed to the rerun (the workspace's
+ * latest run), as the serializer collapses them. The second was seen by the
+ * morning run only.
  */
 export const fixturePaperDTOs: PaperDTO[] = [
   {

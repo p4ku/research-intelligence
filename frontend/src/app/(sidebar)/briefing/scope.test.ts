@@ -37,7 +37,7 @@ describe('runScope', () => {
 
 describe('domainNames', () => {
   test('names by id, for crumbs and badges', () => {
-    expect(domainNames(MINE as never)).toEqual({
+    expect(domainNames(MINE)).toEqual({
       [MINE[0]!.id]: 'Agentic AI',
       [MINE[1]!.id]: 'Hybrid Computing',
     })

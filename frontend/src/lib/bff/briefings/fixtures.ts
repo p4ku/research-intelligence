@@ -8,9 +8,10 @@ const excluded = fixturePapers[1]!
 /**
  * Two editions of one day in one domain — the morning run and its noon
  * rerun (../pipeline-runs/fixtures.ts), so the stub source, the gallery
- * and the tests all hold a same-day pair. Dates and stamps are the runs'
- * completion, as the composed source addresses them. Home and the archive
- * join editions to runs by `run_id`.
+ * and the tests all hold a same-day pair. Dates, stamps, funnels and papers
+ * are what the composed source makes of the run and paper fixtures
+ * (compose.test.ts pins that); the prose is hand-written. Home and the
+ * archive join editions to runs by `run_id`.
  */
 export const fixtureEditions: Edition[] = [
   {
@@ -42,9 +43,9 @@ export const fixtureEditions: Edition[] = [
     date: '2026-08-31',
     title: 'Coordinated Tool Use in Multi-Agent Language Model Systems',
     in_brief:
-      'The Agentic AI scan fetched 12 papers, passed 5 through screening, and surfaced 1 for this briefing. Leading the list: “Coordinated Tool Use in Multi-Agent Language Model Systems” at signal 88.',
+      'The Agentic AI scan fetched 10 papers, passed 9 through screening, and surfaced 1 for this briefing. Leading the list: “Coordinated Tool Use in Multi-Agent Language Model Systems” at signal 88.',
     in_brief_source: 'template',
-    funnel: { fetched: 12, passed_screening: 5, surfaced: 1 },
+    funnel: { fetched: 10, passed_screening: 9, surfaced: 1 },
     papers: [
       {
         id: surfaced.id,

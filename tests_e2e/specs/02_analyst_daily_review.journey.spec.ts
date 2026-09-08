@@ -42,16 +42,17 @@ test.describe('Journey 2: Analyst Daily Review & Literature Scouting', () => {
         console.log('  ⏭ SKIPPED: the briefing lists no papers.');
       } else {
         const paperUrl = await briefing.openFirstCard();
-        expect(paperUrl).not.toBeNull();
         expect(paperUrl).toMatch(/^\/papers\/[0-9a-f-]{36}\?run=/);
-        expect(new URL(paperUrl!, 'http://e2e').searchParams.get('run')).toBe(run);
-        const pageScore = (
-          await page.locator("[data-shape='score-rail'] [data-row='score'] > span").first().innerText()
-        ).trim();
-        expect(pageScore).toBe(cardScore);
+        expect(new URL(paperUrl, 'http://e2e').searchParams.get('run')).toBe(run);
+        // The rail streams in behind a skeleton of the same shape, so read
+        // the loaded one and let the assertion retry until it has painted.
+        const pageScore = page
+          .locator("[data-shape='score-rail'][data-state='loaded'] [data-row='score'] > span")
+          .first();
+        await expect(pageScore).toHaveText(cardScore);
         const back = page.locator("[data-shape='paper-nav'] [data-row='back'] a");
         await expect(back).toHaveAttribute('href', editionUrl);
-        console.log(`  ✅ Paper opened at ${pageScore} (as the card showed); back link returns to the edition.`);
+        console.log(`  ✅ Paper opened at ${cardScore} (as the card showed); back link returns to the edition.`);
       }
       await sidebar.navigateTo('briefing');
       expect(await briefing.isLoaded()).toBe(true);
