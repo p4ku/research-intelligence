@@ -316,13 +316,13 @@ export function HistorySidecar({
       </SidecarFrame>
     )
   }
+  // The header counts questions, not conversations: one session holds many turns.
+  const questions = threads.reduce((n, s) => n + s.turns_count, 0)
   return (
     <SidecarFrame
       open={open}
       label={t('Recent')}
-      count={
-        threads.length === 1 ? t('1 question') : fmt(t('{n} questions'), { n: threads.length })
-      }
+      count={questions === 1 ? t('1 question') : fmt(t('{n} questions'), { n: questions })}
     >
       {stale && (
         <p role="status" className="px-3 pb-1 text-[11px] text-muted-foreground">
