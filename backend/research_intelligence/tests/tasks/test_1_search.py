@@ -219,6 +219,25 @@ class IngestionSearchTasksTestCase(TestCase):
         self.assertEqual(one_line(""), "")
         self.assertEqual(one_line(None), "")
 
+        # The wrap after a JSON round-trip: backslash + letter, two characters.
+        # Exactly what OpenAlex serves for W4289606390 — title and abstract.
+        self.assertEqual(
+            one_line("PennyLane: Automatic differentiation of hybrid quantum-classical\\n computations"),
+            "PennyLane: Automatic differentiation of hybrid quantum-classical computations",
+        )
+        # One escape before whitespace or the end marks the field; every
+        # escape in it is then the wrap, letter after it or not.
+        self.assertEqual(one_line("programming of\\nquantum computers.\\n"), "programming of quantum computers.")
+        self.assertEqual(one_line("a\\rb\\tc\\n"), "a b c")
+        # TeX is not a wrap, and it needs no '$' around it (real abstracts).
+        # No escape-before-whitespace, so every backslash stays.
+        self.assertEqual(one_line("$q=\\nabla u$ yields"), "$q=\\nabla u$ yields")
+        self.assertEqual(one_line("We propose RISE (\\textbf{R}efining \\textit{I}magination)"), "We propose RISE (\\textbf{R}efining \\textit{I}magination)")
+        self.assertEqual(one_line("a \\(3.2\\times\\) speedup, Spearman \\r{ho} = 0.9"), "a \\(3.2\\times\\) speedup, Spearman \\r{ho} = 0.9")
+        self.assertEqual(one_line("$\\texttt{DisMorph}$: learning\n  to disentangle"), "$\\texttt{DisMorph}$: learning to disentangle")
+        # TeX's own doubled backslash is never a wrap, even in a marked field.
+        self.assertEqual(one_line("row one \\\\times two\\n"), "row one \\\\times two")
+
     @patch("research_intelligence.scrapers.openalex.OpenAlexScraperProvider.search")
     def test_ingested_title_and_abstract_are_single_lined(self, mock_openalex_search):
         """A provider's line wrapping must not reach the corpus (and the UI)."""
@@ -254,6 +273,41 @@ class IngestionSearchTasksTestCase(TestCase):
         preview = ComponentRun.objects.get(pipeline_run=self.pipeline_run).output_data["papers_preview"]
         self.assertEqual(preview[0]["title"], paper.title)
         self.assertEqual(preview[0]["abstract_preview"], paper.abstract)
+
+    @patch("research_intelligence.scrapers.arxiv.ArxivScraperProvider.search")
+    def test_ingested_escaped_wrap_is_single_lined(self, mock_arxiv_search):
+        """
+        The wrap as OpenAlex actually serves it for W4289606390 — backslash and
+        letter as two characters — reaching us through the arXiv provider's
+        OpenAlex fallback. Prod held this row verbatim on 2026-09-08.
+        """
+        Scraper.objects.create(workspace=self.workspace, provider="arxiv", search_query="pennylane")
+
+        mock_arxiv_search.return_value = [
+            {
+                "title": "PennyLane: Automatic differentiation of hybrid quantum-classical\\n computations",
+                "authors": "Ville Bergholm",
+                "abstract": "PennyLane is a Python 3 software framework for differentiable programming of\\nquantum computers.\\n",
+                "hash_id": "W4289606390",
+                "doi": "10.48550/arXiv.1811.04968",
+                "pdf_url": "",
+                "other_url": "https://doi.org/10.48550/arXiv.1811.04968",
+                "source_database": "arxiv",
+                "published_date": "2018-11-12",
+            }
+        ]
+
+        execute_workspace_search(self.workspace.id, self.pipeline_run.id)
+
+        paper = Paper.objects.get(workspace=self.workspace)
+        self.assertEqual(
+            paper.title,
+            "PennyLane: Automatic differentiation of hybrid quantum-classical computations",
+        )
+        self.assertEqual(
+            paper.abstract,
+            "PennyLane is a Python 3 software framework for differentiable programming of quantum computers.",
+        )
 
     @patch("research_intelligence.scrapers.arxiv.ArxivScraperProvider.search")
     def test_legacy_wrapped_title_still_receives_enrichment(self, mock_arxiv_search):

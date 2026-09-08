@@ -139,6 +139,33 @@ describe('oneLine', () => {
   test('keeps a no-break space — that is typography, not a wrap', () => {
     expect(oneLine('Fig. 1 at 10 kg')).toBe('Fig. 1 at 10 kg')
   })
+  test('collapses the wrap when it arrives escaped — backslash and letter, two characters', () => {
+    // Exactly what OpenAlex serves for W4289606390, and what prod held on 2026-09-08.
+    expect(
+      oneLine('PennyLane: Automatic differentiation of hybrid quantum-classical\\n computations'),
+    ).toBe('PennyLane: Automatic differentiation of hybrid quantum-classical computations')
+    // One escape before whitespace or the end marks the field; every escape
+    // in it is then the wrap, letter after it or not.
+    expect(oneLine('programming of\\nquantum computers.\\n')).toBe(
+      'programming of quantum computers.',
+    )
+    expect(oneLine('a\\rb\\tc\\n')).toBe('a b c')
+  })
+  test('keeps TeX — no escape before whitespace, so every backslash stays', () => {
+    expect(oneLine('$q=\\nabla u$ yields')).toBe('$q=\\nabla u$ yields')
+    // Real abstracts carry TeX with no $ around it.
+    expect(oneLine('We propose RISE (\\textbf{R}efining \\textit{I}magination)')).toBe(
+      'We propose RISE (\\textbf{R}efining \\textit{I}magination)',
+    )
+    expect(oneLine('a \\(3.2\\times\\) speedup, Spearman \\r{ho} = 0.9')).toBe(
+      'a \\(3.2\\times\\) speedup, Spearman \\r{ho} = 0.9',
+    )
+    expect(oneLine('$\\texttt{DisMorph}$: learning\n  to disentangle')).toBe(
+      '$\\texttt{DisMorph}$: learning to disentangle',
+    )
+    // TeX's own doubled backslash is never a wrap, even in a marked field.
+    expect(oneLine('row one \\\\times two\\n')).toBe('row one \\\\times two')
+  })
 })
 
 /* -------------------------- composition fixtures --------------------------- */

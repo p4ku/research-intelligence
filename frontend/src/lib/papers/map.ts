@@ -253,11 +253,29 @@ export function splitAuthors(raw: string | null | undefined): string[] {
  * and NBSP inside a title (`10 kg`, `Fig. 1`) is typography we must keep. It
  * also keeps this identical to the backend's `one_line` — `\s` differs between
  * the two engines on NEL and U+FEFF.
+ *
+ * The same wrap also arrives *escaped*: OpenAlex serves some works with the
+ * backslash and the letter as two characters (W4289606390's title is
+ * `quantum-classical\n computations` on the wire, its abstract has sixteen
+ * more), and so does anything that took a JSON round-trip upstream. Those
+ * collapse too — per field, not per occurrence. TeX starts the same way
+ * (`\nabla`, `\neq`, `\times`, `\textbf{..}`, `\r{ho}`) and lives in abstracts
+ * with no `$` around it, so no local test tells `of\nquantum` from `\nabla`.
+ * What TeX never has is such an escape before whitespace or the end of the
+ * field: one of those marks the field as escape-encoded, and every
+ * backslash-n/r/t in it is then the wrap. A field without that mark keeps
+ * every backslash. Measured against all 1,770 prod papers on 2026-09-08: the
+ * rule rewrites the one paper and none of the 368 fields holding TeX. This
+ * is the read side of the backend's `one_line` rule — it cleans the rows
+ * already stored.
  */
 export function oneLine(raw: string | null | undefined): string {
   if (!raw) return ''
-  return raw.replace(/[ \t\r\n\f\v]+/g, ' ').trim()
+  // A doubled backslash is TeX's own `\\`, never a wrap.
+  const text = ESCAPED_FIELD.test(raw) ? raw.replace(/(?<!\\)\\[nrt]/g, ' ') : raw
+  return text.replace(/[ \t\r\n\f\v]+/g, ' ').trim()
 }
+const ESCAPED_FIELD = /(?<!\\)\\[nrt](?=\s|$)/
 
 export function externalPdfUrl(arxiv_id: string | null, doi: string | null): string | null {
   if (arxiv_id) return `https://arxiv.org/pdf/${arxiv_id.replace(/^arxiv:/i, '')}.pdf`
