@@ -63,8 +63,9 @@ export interface RunPaper {
  * The papers a run recorded, as that run recorded them. Without an index
  * (papers not composed from Django's lists) the corpus's own attribution is
  * all there is. A row with no decision (the serializer lag above) takes the
- * paper's current one; its reasoning and score are the run's own — null when
- * that run wrote none, never a later run's words in this run's log.
+ * paper's current one; a row with no reasoning takes the paper's only when
+ * the paper itself reports this run — never a later run's words in this
+ * run's log. The score is the run's own, null if that run never scored it.
  */
 export function papersOfRun(
   runId: string,
@@ -92,7 +93,9 @@ export function papersOfRun(
       paper,
       status: record.screening_status ?? paper.screening_status,
       signal_score: record.signal_score,
-      reason: record.screening_reasoning,
+      reason:
+        record.screening_reasoning ??
+        (paper.pipeline_run_id === runId ? paper.screening_reasoning : null),
     })
   }
   return out

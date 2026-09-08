@@ -73,13 +73,18 @@ describe('papersOfRun', () => {
     expect(papersOfRun(NEW, corpus, index)).toEqual([])
   })
 
-  test('a row without a decision takes the paper’s current one; reasoning and score stay the run’s', () => {
+  test('a row without a decision takes the paper’s current one; the score stays the run’s', () => {
     const index = indexRuns([{ id: b.id, metrics: [metric(OLD)] }])
     const [only] = papersOfRun(OLD, corpus, index)
     expect(only.status).toBe('rejected')
-    // A later run's words never land in this run's screening log.
-    expect(only.reason).toBeNull()
     expect(only.signal_score).toBeNull()
+  })
+
+  test('a row without reasoning takes the paper’s only when the paper reports this run', () => {
+    const index = indexRuns([{ id: b.id, metrics: [metric(OLD), metric(NEW)] }])
+    // The paper reports NEW: its reasoning is NEW's, and must not land in OLD's log.
+    expect(papersOfRun(OLD, corpus, index)[0].reason).toBeNull()
+    expect(papersOfRun(NEW, corpus, index)[0].reason).toBe(b.screening_reasoning)
   })
 
   test('two rows for one (run, paper): the newest wins, in either arrival order', () => {
