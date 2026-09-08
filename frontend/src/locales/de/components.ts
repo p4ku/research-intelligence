@@ -40,7 +40,7 @@ export const dict: Record<string, string> = {
   Try: 'Vorschläge',
   'Clear recent searches': 'Letzte Suchen löschen',
   '{n} matching': '{n} passend',
-  'Opening Papers…': 'Papers werden geöffnet …',
+  'Opening…': 'Wird geöffnet …',
   'Searching…': 'Suche läuft …',
   'Search papers': 'Papers durchsuchen',
   '{n} hits': '{n} Treffer',

@@ -198,7 +198,7 @@ export function CorpusSearch({
   }
 
   const status = navigating
-    ? t('Opening Papers…')
+    ? t('Opening…')
     : pending
       ? t('Searching…')
       : fresh && result.intent !== 'empty'
