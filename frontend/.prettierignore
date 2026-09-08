@@ -3,10 +3,6 @@
 contract/openapi.json
 contract/bff.openapi.json
 
-# Next rewrites this per build directory, so each agent holds a different
-# version of it (see build-management). Left alone deliberately.
-tsconfig.json
-
 # Build output.
 .next/
 .next-*/
