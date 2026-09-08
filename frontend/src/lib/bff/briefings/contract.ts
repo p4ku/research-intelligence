@@ -1,6 +1,6 @@
 /** Briefings contract registry entries. Pure. */
 import type { Operation } from '../core/contract-types'
-import { edition, editionPage, editionsQuery } from './schema'
+import { edition, editionPage, editionQuery, editionsQuery } from './schema'
 
 export const briefingsOperations: Operation[] = [
   {
@@ -23,7 +23,9 @@ export const briefingsOperations: Operation[] = [
     kind: 'desired',
     method: 'GET',
     path: '/api/workspaces/{workspace_id}/editions/{date}/',
-    summary: 'One edition (latest run of that day) including the screening exclusions.',
+    summary:
+      "One edition of that day including the screening exclusions: the run ?run_id= names, else the day's latest run.",
+    query: editionQuery.omit({ workspace_id: true }),
     responses: { 200: edition },
     probe: { requires: ['workspace_id', 'date'] },
   },
@@ -47,7 +49,8 @@ export const briefingsOperations: Operation[] = [
     method: 'GET',
     path: '/bff/briefings/{date}',
     summary:
-      'One edition with exclusions; ?workspace_id= picks the domain, otherwise the newest edition of that day across domains.',
+      "One edition with exclusions; ?workspace_id= picks the domain (otherwise every domain), ?run_id= picks one of the day's runs (otherwise the day's newest).",
+    query: editionQuery,
     responses: { 200: edition },
   },
 ]

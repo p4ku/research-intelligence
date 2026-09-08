@@ -40,8 +40,20 @@ describe('selectRecent', () => {
     const bare = editionsFor([r], { papers: [] })
     expect(selectRecent([r], bare, false)).toEqual([])
     expect(selectRecent([r], bare, true)).toHaveLength(1)
-    // No edition composed at all (an older same-day rerun): never a row.
+    // No edition composed at all (its domain's corpus could not be read): never a row.
     expect(selectRecent([r], new Map(), true)).toEqual([])
+  })
+
+  test('two runs of one domain on the same day are two briefings, each with its own edition', () => {
+    const first = run(0, { id: 'same-day-1' })
+    const rerun = run(0, {
+      id: 'same-day-2',
+      started_at: '2026-08-31T12:00:00.000000Z',
+      completed_at: '2026-08-31T12:03:00.000000Z',
+    })
+    const rows = selectRecent([rerun, first], editionsFor([rerun, first]), false)
+    expect(rows.map((r) => r.run.id)).toEqual(['same-day-2', 'same-day-1'])
+    expect(rows.map((r) => r.edition?.run_id)).toEqual(['same-day-2', 'same-day-1'])
   })
 
   test('only briefings count toward RECENT; runs in flight and failures ride along', () => {

@@ -31,6 +31,7 @@ import {
   type EditionsQuery,
   type EditionSummary,
 } from './schema'
+import { editionFor } from './select'
 
 function editionDate(run: PipelineRun): string {
   return run.completed_at ? run.completed_at.slice(0, 10) : run.run_date
@@ -101,16 +102,9 @@ async function composeAll(workspaceId: string, lang: Lang): Promise<Edition[]> {
   ])
   if (!scored) return []
   const corpus = new Map(scored.papers.map((p) => [p.id, p]))
-  const seen = new Set<string>()
-  const editions: Edition[] = []
-  for (const run of completed) {
-    // Same-day reruns collapse to the latest (runs arrive newest first).
-    const date = editionDate(run)
-    if (seen.has(date)) continue
-    seen.add(date)
-    editions.push(composeEdition(run, scored.workspace.name, corpus, index, lang))
-  }
-  return editions
+  // One edition per completed run, newest first as the runs arrive: a domain
+  // that ran twice in a day has two, and the URL's run id tells them apart.
+  return completed.map((run) => composeEdition(run, scored.workspace.name, corpus, index, lang))
 }
 
 export const briefings = {
@@ -165,13 +159,23 @@ export const briefings = {
     return paginate(summaries, query, '/bff/briefings', extra)
   },
 
-  /** One edition by date; null when no completed run produced one. Cached per request. */
+  /**
+   * One edition by date — the run's, when `runId` names one of that day's
+   * runs, else the day's newest (see ./select.ts). Null when no completed
+   * run produced one. Cached per request.
+   */
   getByDate: cache(
-    async (workspaceId: string, date: string, lang: Lang = 'en'): Promise<Edition | null> => {
+    async (
+      workspaceId: string,
+      date: string,
+      lang: Lang = 'en',
+      runId?: string,
+    ): Promise<Edition | null> => {
       if (sourceOf('briefings') === 'django') {
         try {
+          const q = runId ? `?run_id=${assertUuid(runId, 'run_id')}` : ''
           return await django(
-            `/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/editions/${date}/`,
+            `/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/editions/${date}/${q}`,
             edition,
           )
         } catch (error) {
@@ -179,7 +183,7 @@ export const briefings = {
           throw error
         }
       }
-      const found = (await briefings.listAll(workspaceId, lang)).find((e) => e.date === date)
+      const found = editionFor(await briefings.listAll(workspaceId, lang), date, runId)
       if (!found) return null
       if (sourceOf('briefings') !== 'composed') return found
       // An edition at or past the corpus snapshot's cap composed from fewer
@@ -205,13 +209,19 @@ export const briefings = {
 
   /**
    * The edition for a day: in one domain when `workspaceId` is given, else
-   * the newest edition any domain produced that day — which is what a link
-   * from before domains were in the URL means. Cached per request.
+   * across every domain — and within that, the run `runId` names, else the
+   * newest that day. That is what a link from before domains and runs were
+   * in the URL means. Cached per request.
    */
   findByDate: cache(
-    async (date: string, lang: Lang = 'en', workspaceId?: string): Promise<Edition | null> => {
-      if (workspaceId) return briefings.getByDate(workspaceId, date, lang)
-      return (await briefings.listEverywhere(lang)).find((e) => e.date === date) ?? null
+    async (
+      date: string,
+      lang: Lang = 'en',
+      workspaceId?: string,
+      runId?: string,
+    ): Promise<Edition | null> => {
+      if (workspaceId) return briefings.getByDate(workspaceId, date, lang, runId)
+      return editionFor(await briefings.listEverywhere(lang), date, runId)
     },
   ),
 }

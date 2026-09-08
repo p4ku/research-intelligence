@@ -4,6 +4,7 @@
  * one-liner around the cached corpus.
  */
 import { parseQuery, rankAll, snippet, tokenize, type Query } from '@/lib/search/match'
+import { editionHref } from '../briefings/href'
 import { PASSED_STATUSES, type ScoredPaper } from '../papers/schema'
 import type { WorkspaceSummary } from '../workspaces/schema'
 import type { SearchDomain, SearchHit, SearchQuery, SearchResponse } from './schema'
@@ -11,17 +12,20 @@ import type { SearchDomain, SearchHit, SearchQuery, SearchResponse } from './sch
 export interface SearchCorpus {
   workspaces: WorkspaceSummary[]
   papers: ScoredPaper[]
-  /** workspace id → newest edition date (YYYY-MM-DD), or null with no edition yet. */
-  latestEdition: Record<string, string | null>
+  /** workspace id → its newest edition (day and run), or null with no edition yet. */
+  latestEdition: Record<string, LatestEdition | null>
+}
+
+export interface LatestEdition {
+  /** YYYY-MM-DD */
+  date: string
+  runId: string
 }
 
 const SNIPPET_LENGTH = 160
 const MAX_DOMAINS = 3
 /** A screened-through paper wins a near-tie against a rejected one; a strong hit still surfaces either way. */
 const PASSED_BONUS = 10
-
-export const editionHref = (date: string, workspaceId: string) =>
-  `/briefing/${date}?domain=${workspaceId}`
 
 export function askHref(question: string, paperId: string): string {
   return `/ask?q=${encodeURIComponent(question)}&paper=${paperId}`
@@ -86,12 +90,14 @@ function matchingDomains(
       words.some((word) => word === token || word.startsWith(token)),
     )
     if (!hit) continue
-    const date = corpus.latestEdition[ws.id] ?? null
+    const latest = corpus.latestEdition[ws.id] ?? null
     rows.push({
       id: ws.id,
       name: ws.name,
       papers_matched: matchedByWorkspace.get(ws.id) ?? 0,
-      latest_edition: date ? { date, href: editionHref(date, ws.id) } : null,
+      latest_edition: latest
+        ? { date: latest.date, href: editionHref(latest.date, ws.id, { runId: latest.runId }) }
+        : null,
     })
   }
   return rows.sort((a, b) => b.papers_matched - a.papers_matched).slice(0, MAX_DOMAINS)

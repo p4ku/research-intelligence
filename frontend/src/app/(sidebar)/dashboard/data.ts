@@ -32,8 +32,7 @@ export const currentRun = cache(
  * Recent Briefings (see recent.ts for the rule). The editions are the same
  * list the archive reads — one fetch per domain, in parallel, cached — so
  * the two screens agree by construction. A completed run with no edition
- * here was an older same-day rerun (collapsed into the newer one) or is in
- * a domain whose corpus could not be read.
+ * here is in a domain whose corpus could not be read.
  */
 export const recentBriefings = cache(async (lang: Lang): Promise<RecentBriefing[]> => {
   // `allRuns` first: the corpus probe reads the run ledger this request already asked for.

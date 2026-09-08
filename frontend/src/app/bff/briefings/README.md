@@ -17,19 +17,22 @@ editions endpoint — its screening status for the paper), and the exclusions
 
 ## BFF routes
 
-| Route                       | Query                                                                       | Returns                               |
-| --------------------------- | --------------------------------------------------------------------------- | ------------------------------------- |
-| `GET /bff/briefings`        | `workspace_id` (optional; absent = every domain), `page`, `page_size`       | `BriefingEditionPage` (summaries)     |
-| `GET /bff/briefings/{date}` | `workspace_id` (optional; absent = the day's newest edition across domains) | `BriefingEdition` (with `exclusions`) |
+| Route                       | Query                                                                                                    | Returns                               |
+| --------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `GET /bff/briefings`        | `workspace_id` (optional; absent = every domain), `page`, `page_size`                                    | `BriefingEditionPage` (summaries)     |
+| `GET /bff/briefings/{date}` | `workspace_id` (optional; absent = every domain), `run_id` (optional; absent = the day's newest edition) | `BriefingEdition` (with `exclusions`) |
 
-Schemas: `src/lib/bff/briefings/schema.ts`. Dates are `YYYY-MM-DD`; same-day
-reruns resolve to the latest run (`run_id` disambiguates in the payload).
+Schemas: `src/lib/bff/briefings/schema.ts`. Dates are `YYYY-MM-DD`. A domain
+that ran twice in a day has two editions; `run_id` picks one, and without it
+the day's newest is served (a `run_id` that did not run that day falls back
+the same way). The pages carry it as `/briefing/{date}?domain=&run=`.
 
 ## Django endpoints we want
 
 - `GET /api/workspaces/{workspace_id}/editions/?page=&page_size=` →
   `{count,next,previous,results: BriefingEditionSummary[]}`
-- `GET /api/workspaces/{workspace_id}/editions/{date}/` → `BriefingEdition`
+- `GET /api/workspaces/{workspace_id}/editions/{date}/?run_id=` → `BriefingEdition`
+  (the run's edition, else the day's latest run)
 
 The decisive addition is the **prose**: `title` and `in_brief` written by the
 reporting step per completed run, `in_brief_source: "model"`. Everything else
@@ -56,7 +59,10 @@ A run's papers are read from each paper's own `metrics[]` row for that run
 paper serializer collapses a paper to the newest run that saw it, which would
 empty every older briefing in a domain. A row without `screening_status`
 (a deployment whose metric serializer predates the field) falls back to the
-paper's current status.
+paper's current status. Under `BFF_SOURCE_PAPERS=django|stub` there is no
+run index, so attribution falls back to the paper-level `pipeline_run`: an
+older same-day run then composes with no papers, and Home and the archive
+leave it out (the list endpoint still serves it).
 
 When the counters and the corpus still disagree — the run passed papers the
 edition cannot show — the prose says so ("Papers not on file") instead of

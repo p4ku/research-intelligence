@@ -3,8 +3,8 @@
  * the surfaced papers, the screening log (exclusions with reasoning), and a
  * short prose brief. Everything except the prose exists in Django today; the
  * requested endpoint owns the prose (and may simply serialize this shape).
- * Editions are addressed by date within a workspace (same-day reruns resolve
- * to the latest run; `run_id` disambiguates). Pure.
+ * Editions are addressed by date within a workspace, plus the run id when a
+ * domain ran more than once that day (without it, the day's latest). Pure.
  */
 import * as z from 'zod'
 import { listQuery, pageSchema } from '../core/pagination'
@@ -70,5 +70,13 @@ export const editionsQuery = listQuery.extend({
   workspace_id: z.uuid().optional(),
 })
 export type EditionsQuery = z.infer<typeof editionsQuery>
+
+export const editionQuery = z.object({
+  /** Absent = the day's newest edition across every domain the user belongs to. */
+  workspace_id: z.uuid().optional(),
+  /** Absent = the day's newest edition; set = that run's, when it ran that day. */
+  run_id: z.uuid().optional(),
+})
+export type EditionQuery = z.infer<typeof editionQuery>
 
 export const editionPage = pageSchema(editionSummary).meta({ id: 'BriefingEditionPage' })

@@ -313,7 +313,10 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
               </>
             }
             link={
-              <Link href={editionHref(active.date, active.workspaceId)} className={READER_LINK}>
+              <Link
+                href={editionHref(active.date, active.workspaceId, { runId: active.runId })}
+                className={READER_LINK}
+              >
                 {t('Open briefing →')}
               </Link>
             }

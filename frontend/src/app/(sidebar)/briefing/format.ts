@@ -16,11 +16,4 @@ export function isEditionDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value)
 }
 
-/**
- * The permalink for one edition: the day plus the domain that produced it,
- * because two domains can complete a run on the same day. `sub` reaches the
- * screening log under the edition.
- */
-export function editionHref(date: string, workspaceId: string, sub?: 'run'): string {
-  return `/briefing/${date}${sub ? `/${sub}` : ''}?domain=${workspaceId}`
-}
+export { editionHref } from '@/lib/bff/briefings/href'

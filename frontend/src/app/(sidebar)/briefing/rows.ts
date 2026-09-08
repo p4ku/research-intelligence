@@ -49,9 +49,9 @@ const when = (run: PipelineRun) => run.started_at ?? run.run_date
 
 /**
  * Whether a completed run has a briefing to open. It does not when nothing
- * cleared screening, when no edition was composed for it (an older same-day
- * rerun collapses into the newer one), or when the edition holds none of the
- * papers the run passed. Past the corpus cap an edition with no papers is
+ * cleared screening, when no edition was composed for it (its domain's
+ * corpus could not be read), or when the edition holds none of the papers
+ * the run passed. Past the corpus cap an edition with no papers is
  * unknowable, not empty, so it still counts: its page says what is on file.
  * Home's Recent Briefings and the archive both ask this, so neither lists a
  * run the other would leave out.
@@ -94,8 +94,8 @@ export function composeRows({
   capped?: boolean
 }): ArchiveRow[] {
   const byId = new Map(runs.map((run) => [run.id, run]))
-  // If the newest completed run has no edition (a same-day rerun collapsed
-  // into a newer one, or its corpus could not be read) no row is Current.
+  // If the newest completed run has no edition (its corpus could not be
+  // read) no row is Current.
   const currentId = currentRunId(runs)
   const rows: ArchiveRow[] = []
   for (const e of editions) {
@@ -115,7 +115,7 @@ export function composeRows({
       screened,
       included,
       brief: {
-        href: editionHref(e.date, e.workspace_id),
+        href: editionHref(e.date, e.workspace_id, { runId: e.run_id }),
         inBrief: e.in_brief,
         screened,
         included,

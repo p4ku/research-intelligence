@@ -15,3 +15,13 @@ export function domainScope(all: Pick<WorkspaceSummary, 'id'>[], domain: string 
 export function domainNames(all: WorkspaceSummary[]): Record<string, string> {
   return Object.fromEntries(all.map((ws) => [ws.id, ws.name]))
 }
+
+/**
+ * The `?run=` of an edition URL: the run whose edition the page shows, when
+ * it is a well-formed id. Whether the run exists is the service's question;
+ * an unknown run, like an unknown domain, falls back to the day's newest
+ * edition rather than a 404.
+ */
+export function runScope(run: string | undefined): string | undefined {
+  return run && isUuid(run) ? run : undefined
+}

@@ -895,7 +895,7 @@
     "/api/workspaces/{workspace_id}/editions/{date}/": {
       "get": {
         "operationId": "briefings.detail.desired",
-        "summary": "One edition (latest run of that day) including the screening exclusions.",
+        "summary": "One edition of that day including the screening exclusions: the run ?run_id= names, else the day's latest run.",
         "tags": [
           "briefings"
         ],
@@ -916,6 +916,16 @@
             "schema": {
               "type": "string",
               "format": "date"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
             }
           }
         ],

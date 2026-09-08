@@ -15,20 +15,23 @@ export function funnelCopy(t: T) {
 
 /**
  * The run behind one edition: the funnel, and what screened out and why.
- * `wsId` is the domain from the URL; without one, the day's newest edition.
+ * `wsId` and `runId` are the domain and run from the URL; without them, the
+ * day's newest edition.
  */
 export async function ScreeningLog({
   wsId,
+  runId,
   date,
   lang,
   t,
 }: {
   wsId?: string
+  runId?: string
   date: string
   lang: Lang
   t: T
 }) {
-  const edition = await forPage(briefings.findByDate(date, lang, wsId))
+  const edition = await forPage(briefings.findByDate(date, lang, wsId, runId))
   if (!edition) notFound()
 
   const copy = funnelCopy(t)

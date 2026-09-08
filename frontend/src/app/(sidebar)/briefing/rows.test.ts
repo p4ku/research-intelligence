@@ -37,7 +37,9 @@ describe('composeRows', () => {
     expect(row.screened).toBe(run.total_papers_fetched)
     expect(row.included).toBe(run.total_papers_passed_screening)
     expect(row.current).toBe(true)
-    expect(row.brief.href).toBe(`/briefing/${edition.date}?domain=${edition.workspace_id}`)
+    expect(row.brief.href).toBe(
+      `/briefing/${edition.date}?domain=${edition.workspace_id}&run=${edition.run_id}`,
+    )
     expect(row.brief.top).toHaveLength(1)
   })
 
@@ -67,6 +69,28 @@ describe('composeRows', () => {
     expect(
       composeRows({ editions: [unfilled], runs: [run], domains, t, lang: 'en', capped: true }),
     ).toHaveLength(1)
+  })
+
+  test('two runs of one domain on the same day are two rows, each linking to its own run', () => {
+    const rerunId = '00000000-0000-4000-8000-000000000033'
+    const rerun = {
+      ...run,
+      id: rerunId,
+      started_at: '2026-08-31T12:00:00Z',
+      completed_at: '2026-08-31T12:03:00Z',
+    }
+    const rerunEdition = { ...edition, run_id: rerunId, generated_at: rerun.completed_at }
+    const rows = composeRows({
+      editions: [rerunEdition, edition],
+      runs: [rerun, run],
+      domains,
+      t,
+      lang: 'en',
+    })
+    expect(rows.map((r) => r.id)).toEqual([rerunId, edition.run_id])
+    expect(rows.map((r) => r.current)).toEqual([true, false])
+    expect(new Set(rows.map((r) => r.brief.href)).size).toBe(2)
+    expect(rows[1].brief.href).toContain(`&run=${edition.run_id}`)
   })
 
   test('only the newest completed run is current', () => {

@@ -11,7 +11,11 @@ import type { SearchResponse } from './schema'
 export const fixtureSearchCorpus: SearchCorpus = {
   workspaces: [fixtureWorkspace],
   papers: fixturePapers,
-  latestEdition: { [fixtureWorkspace.id]: fixtureEditions[0]?.date ?? null },
+  latestEdition: {
+    [fixtureWorkspace.id]: fixtureEditions[0]
+      ? { date: fixtureEditions[0].date, runId: fixtureEditions[0].run_id }
+      : null,
+  },
 }
 
 export const fixtureSearchResponse: SearchResponse = assembleSearch(fixtureSearchCorpus, {

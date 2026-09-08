@@ -6,7 +6,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Suspense, ViewTransition } from 'react'
 import { isEditionDate } from '../format'
-import { domainNames, domainScope } from '../scope'
+import { domainNames, domainScope, runScope } from '../scope'
 import { EditionHead, EditionPapers } from './sections'
 import { EditionHeadSkeleton, EditionPapersSkeleton } from './skeletons'
 
@@ -24,8 +24,9 @@ export async function generateMetadata({
 
 // One edition, frozen: the same shape as the dashboard's daily brief — the
 // funnel, the brief, the papers that passed — plus the run's screening log.
-// Permalinkable, so a briefing can be shared as a URL: the day, and the domain
-// that produced it (two domains can complete a run on the same day).
+// Permalinkable, so a briefing can be shared as a URL: the day, the domain
+// that produced it (two domains can complete a run on the same day) and the
+// run (one domain can complete two runs on the same day).
 //
 // Two sections stream behind their own boundaries: the head on the edition,
 // the papers on the edition plus the scored corpus. loading.tsx shows the same
@@ -36,9 +37,9 @@ export default async function BriefingEditionPage({
   searchParams,
 }: {
   params: Promise<{ date: string }>
-  searchParams: Promise<{ domain?: string }>
+  searchParams: Promise<{ domain?: string; run?: string }>
 }) {
-  const [{ date }, { domain }, state, t, lang, features] = await Promise.all([
+  const [{ date }, { domain, run }, state, t, lang, features] = await Promise.all([
     params,
     searchParams,
     getWorkspacesState(),
@@ -52,6 +53,7 @@ export default async function BriefingEditionPage({
   if (state.kind !== 'ok') return <WorkspaceNotice kind={state.kind} />
   if (!isEditionDate(date)) notFound()
   const wsId = domainScope(state.all, domain)
+  const runId = runScope(run)
   const domains = domainNames(state.all)
 
   return (
@@ -72,6 +74,7 @@ export default async function BriefingEditionPage({
         <ViewTransition enter="bone-enter" default="none">
           <EditionHead
             wsId={wsId}
+            runId={runId}
             date={date}
             lang={lang}
             t={t}
@@ -84,12 +87,18 @@ export default async function BriefingEditionPage({
       <Suspense
         fallback={
           <ViewTransition exit="bone-exit" default="none">
-            <EditionPapersSkeleton t={t} date={date} wsId={wsId} features={features} />
+            <EditionPapersSkeleton
+              t={t}
+              date={date}
+              wsId={wsId}
+              runId={runId}
+              features={features}
+            />
           </ViewTransition>
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <EditionPapers wsId={wsId} date={date} lang={lang} />
+          <EditionPapers wsId={wsId} runId={runId} date={date} lang={lang} />
         </ViewTransition>
       </Suspense>
     </div>
