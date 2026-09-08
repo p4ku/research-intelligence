@@ -23,6 +23,8 @@ class HierarchicalSessionSummarizer:
             return
 
         older_messages = history_messages[:-self.RECENT_TURNS]
+        if not older_messages:
+            return
         new_summary_items = []
         for msg in older_messages:
             q_snippet = msg.question[:120] + "..." if len(msg.question) > 120 else msg.question

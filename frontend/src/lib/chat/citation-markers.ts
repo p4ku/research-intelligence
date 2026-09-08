@@ -8,20 +8,24 @@
 import type { VisualCitation } from '@/lib/bff/chat/schema'
 
 export interface CitationRef {
-  page: number
+  /** Absent on the OCR-markdown path, which carries no page numbers. */
+  page?: number
   label?: string
   box?: number[]
   quote?: string
 }
 
 /**
- * Mirrors the backend's pattern (citations.py:52), anchored on `Page` so bare
- * references like `[1]` or `[Smith 2020]` never match. The label is lazy so it
- * stops before `, box_2d` / `, quote`; the quote is `[^"]+` and `]` must
- * follow immediately — the same acceptance set the backend has.
+ * Mirrors the backend's pattern (citations.py). Two forms: page-led
+ * `[Page 7, Fig 4b, box_2d: […], quote: "…"]` with everything after the page
+ * optional, and page-less `[Fig 4b, quote: "…"]` / `[quote: "…"]` where the
+ * quote is required. A marker needs a page or a quote, so bare references
+ * like `[1]` or `[Smith 2020]` never match. Labels are lazy so they stop
+ * before `, box_2d` / `, quote`; the quote is `[^"]+` and `]` must follow
+ * immediately — the same acceptance set the backend has.
  */
 export const MARKER_RE =
-  /\[Page\s*(\d+)(?:,\s*([A-Za-z0-9\s._-]+?))?(?:,\s*box_2d:\s*\[([0-9,\s]+)\])?(?:,\s*quote:\s*"([^"]+)")?\]/gi
+  /\[(?:Page\s*(\d+)(?:,\s*([A-Za-z0-9\s._-]+?))?(?:,\s*box_2d:\s*\[([0-9,\s]+)\])?(?:,\s*quote:\s*"([^"]+)")?|(?:([A-Za-z0-9\s._-]+?),\s*)?(?:box_2d:\s*\[([0-9,\s]+)\],\s*)?quote:\s*"([^"]+)")\]/gi
 
 // Private-use chars: no markdown-significant characters, so a placeholder
 // survives parsing inside bold, list items and table cells intact.
@@ -40,14 +44,25 @@ export function extractCitationMarkers(text: string): { text: string; refs: Cita
   const indexByKey = new Map<string, number>()
   const replaced = text.replace(
     MARKER_RE,
-    (_match, page: string, label?: string, box?: string, quote?: string) => {
-      const ref: CitationRef = { page: Number(page) }
-      const trimmedLabel = label?.trim()
+    (
+      _match,
+      page?: string,
+      labelA?: string,
+      boxA?: string,
+      quoteA?: string,
+      labelB?: string,
+      boxB?: string,
+      quoteB?: string,
+    ) => {
+      const ref: CitationRef = {}
+      if (page) ref.page = Number(page)
+      const trimmedLabel = (labelA ?? labelB)?.trim()
       if (trimmedLabel) ref.label = trimmedLabel
+      const box = boxA ?? boxB
       if (box) ref.box = (box.match(/\d+/g) ?? []).map(Number)
-      const trimmedQuote = quote?.trim()
+      const trimmedQuote = (quoteA ?? quoteB)?.trim()
       if (trimmedQuote) ref.quote = trimmedQuote
-      const key = `${ref.page}|${ref.label ?? ''}|${ref.box?.join(',') ?? ''}|${ref.quote ?? ''}`
+      const key = `${ref.page ?? ''}|${ref.label ?? ''}|${ref.box?.join(',') ?? ''}|${ref.quote ?? ''}`
       let index = indexByKey.get(key)
       if (index === undefined) {
         index = refs.push(ref) - 1
@@ -59,27 +74,45 @@ export function extractCitationMarkers(text: string): { text: string; refs: Cita
   return { text: replaced, refs }
 }
 
-// A trailing `[`, `[P`, `[Pa`, `[Pag` may be the first frame of a marker.
-const PARTIAL_PREFIX_RE = /\s?\[(?:P(?:a(?:g)?)?)?$/i
+/**
+ * Could this unclosed bracket body still become a marker? `Page…` always can;
+ * so can anything that already names a `quote:`/`box_2d:` field; and a short
+ * label-looking prefix (`Fig 4b, quo`) can too. A half-open interval like
+ * `[0, 1)` or prose that has run on past 40 characters cannot, so it is shown.
+ */
+function mayBecomeMarker(body: string): boolean {
+  if (/^page\b/i.test(body)) return true
+  if (/(?:^|,)\s*(?:quote|box_2d)\s*:/i.test(body)) return true
+  return body.length <= 40 && /^[A-Za-z0-9\s._-]*(?:,\s*[a-z_0-9]*)?$/i.test(body)
+}
 
 /**
  * While streaming, hide a marker that has started but not yet closed so the
  * transcript never flashes half a `[Page 7, Fig 4b, box_2d: [320, …`. Tracks
- * bracket depth (the box is nested) and skips brackets inside the quote.
+ * bracket depth (the box is nested) and skips brackets inside a quote once a
+ * bracket is open. Cuts at the outermost open bracket that can still turn
+ * into a marker; other stray `[` are left alone.
  */
 export function holdBackOpenMarker(text: string): string {
-  const start = text.toLowerCase().lastIndexOf('[page')
-  if (start === -1) return text.replace(PARTIAL_PREFIX_RE, '')
-  let depth = 0
+  const open: number[] = []
   let inQuote = false
-  for (let i = start; i < text.length; i++) {
+  for (let i = 0; i < text.length; i++) {
     const ch = text[i]
-    if (ch === '"') inQuote = !inQuote
-    else if (inQuote) continue
-    else if (ch === '[') depth++
-    else if (ch === ']' && --depth === 0) return text
+    if (ch === '"') {
+      if (open.length > 0) inQuote = !inQuote
+    } else if (inQuote) continue
+    else if (ch === '[') open.push(i)
+    else if (ch === ']' && open.length > 0) {
+      open.pop()
+      if (open.length === 0) inQuote = false
+    }
   }
-  return text.slice(0, start).replace(/\s$/, '')
+  for (const start of open) {
+    if (mayBecomeMarker(text.slice(start + 1))) {
+      return text.slice(0, start).replace(/\s$/, '')
+    }
+  }
+  return text
 }
 
 /**
@@ -96,7 +129,7 @@ export function matchCitations(
     const i = citations.findIndex(
       (c, idx) =>
         !used.has(idx) &&
-        c.page === ref.page &&
+        (c.page ?? null) === (ref.page ?? null) &&
         (c.label ?? '') === (ref.label ?? '') &&
         (!ref.quote || !c.quote || c.quote === ref.quote),
     )

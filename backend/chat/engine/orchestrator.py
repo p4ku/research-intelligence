@@ -33,17 +33,18 @@ SYSTEM_INSTRUCTION = (
     "Ground every claim in those sections. If the answer is not in them, say so instead of filling the gap from "
     "general knowledge; if you add background from outside the paper, label it as such.\n"
     "When you point at a figure, table, equation or passage, use this marker so the interface can turn it into a "
-    "chip: [Page X, Fig Y, quote: \"exact sentence from the document\"]. The quote must be copied verbatim: "
-    "anything you place inside double quotes is checked against the document text and is flagged to the "
-    "researcher when it does not match.\n"
+    "chip: [Page X, Fig Y, quote: \"exact sentence from the document\"]. Include \"Page X\" only when the document "
+    "text itself shows page numbers; otherwise leave it out and write [Fig Y, quote: \"...\"] or just "
+    "[quote: \"...\"]. The quote must be copied verbatim: every quotation of 15 or more characters is checked "
+    "against the document text and is flagged to the researcher when it does not match.\n"
     "Answer in the language the question was asked in."
 )
 
-# Bounding boxes only mean something when the model can see the page geometry,
-# i.e. when the PDF itself is attached. With OCR markdown there is nothing to
-# measure and the coordinates would be invented.
+# Page numbers and bounding boxes only mean something when the model can see
+# the pages, i.e. when the PDF itself is attached. The OCR markdown carries no
+# page boundaries, so there both would be invented.
 PDF_CITATION_ADDENDUM = (
-    "The PDF is attached, so add a bounding box to each marker: "
+    "The PDF is attached, so every marker can carry its page number and a bounding box: "
     "[Page X, Fig Y, box_2d: [ymin, xmin, ymax, xmax], quote: \"...\"], coordinates normalised to 0-1000."
 )
 
@@ -58,6 +59,7 @@ class PreparedTurn:
     mime_type: str | None
     provider: object
     model_name: str
+    reasoning_effort: str | None
     deep_thinking: bool
 
 
@@ -240,15 +242,20 @@ class PaperChatEngine:
 
         provider_name = getattr(workspace, 'llm_provider', 'google') or 'google'
         model_name = getattr(workspace, 'screening_llm_model', DEFAULT_MODEL) or DEFAULT_MODEL
+        # Same workspace knob the screening and extraction steps honour; a deep
+        # turn overrides it upward, since the provider's default is already
+        # "medium" and the flag has to buy more than that to mean anything.
+        reasoning_effort = "high" if deep_thinking else (getattr(workspace, 'reasoning_effort', None) or None)
 
         return PreparedTurn(
             prompt=prompt,
-            system_instruction=SYSTEM_INSTRUCTION + ("\n" + PDF_CITATION_ADDENDUM if pdf_bytes else ""),
+            system_instruction=SYSTEM_INSTRUCTION + ("\n\n" + PDF_CITATION_ADDENDUM if pdf_bytes else ""),
             source_text="\n\n".join(part for part in (document_text, annotations_text) if part),
             pdf_bytes=pdf_bytes,
             mime_type=mime_type,
             provider=get_llm_provider(provider_name),
             model_name=model_name,
+            reasoning_effort=reasoning_effort,
             deep_thinking=deep_thinking,
         )
 
@@ -289,16 +296,16 @@ class PaperChatEngine:
             file_bytes=turn.pdf_bytes,
             mime_type=turn.mime_type,
             system_instruction=turn.system_instruction,
-            # Google's Gemini 3 guidance is to leave temperature at its default (1.0);
-            # lower values are documented to hurt reasoning-heavy answers.
-            temperature=1.0,
+            # Google's Gemini 3 guidance is the default 1.0 for reasoning-heavy
+            # work, so deep turns use it. Ordinary turns keep the pre-audit 0.2
+            # until a replay shows the fact-checker's verbatim-quote pass rate
+            # holds at 1.0 (see PR #102 discussion).
+            temperature=1.0 if turn.deep_thinking else 0.2,
             # Thinking tokens count against max_output_tokens on Gemini, so the
             # ceiling has to cover the thinking budget plus a fully cited answer.
             max_tokens=16384,
             deep_thinking=turn.deep_thinking,
-            # The provider already thinks at "medium" (2048) by default; "deep"
-            # has to buy more than that or the flag changes nothing model-side.
-            reasoning_effort="high" if turn.deep_thinking else None,
+            reasoning_effort=turn.reasoning_effort,
             include_thoughts=turn.deep_thinking,
         )
 

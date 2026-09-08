@@ -161,12 +161,18 @@ const CHIP_CLASS =
 
 /**
  * `p. 7 · Fig 4b`, with a tick once the backend has verified the quote in the
- * source. Links to the citation card when the surface renders one.
+ * source. Links to the citation card when the surface renders one. Markers on
+ * the OCR-markdown path have no page; a quote-only marker shows the start of
+ * the quote instead.
  */
 function CitationChip({ cite, index, ctx }: { cite: CitationRef; index: number; ctx: CiteCtx }) {
   const { t, anchor } = ctx
   const verified = ctx.matches[index]?.verified_in_source === true
-  const label = [fmt(t('p. {n}'), { n: cite.page }), cite.label].filter(Boolean).join(' · ')
+  const label =
+    [cite.page != null ? fmt(t('p. {n}'), { n: cite.page }) : null, cite.label]
+      .filter(Boolean)
+      .join(' · ') ||
+    `“${(cite.quote ?? '').slice(0, 24)}${(cite.quote?.length ?? 0) > 24 ? '…' : ''}”`
   const body = (
     <>
       {label}

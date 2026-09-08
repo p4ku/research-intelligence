@@ -99,6 +99,19 @@ class ChatEngineTestCase(TestCase):
         self.assertEqual(cits_in[0]["page"], 5)
         self.assertEqual(cits_in[0]["quote"], "across 64 waveguides")
 
+        # OCR markdown has no page numbers, so the prompt allows page-less markers;
+        # a marker still needs a page or a quote, so citations like [1] never match.
+        pageless = (
+            'Peaks at [Fig 4, quote: "2.3 V onset"] and [quote: "88.4% retention"], '
+            'see [Table 2, box_2d: [1, 2, 3, 4], quote: "500 cycles"]; refs [1] and [Smith 2020] and [Fig 4].'
+        )
+        _, cits_pl = extractor.extract(pageless)
+        self.assertEqual(cits_pl, [
+            {"label": "Fig 4", "quote": "2.3 V onset"},
+            {"quote": "88.4% retention"},
+            {"label": "Table 2", "box_2d": [1, 2, 3, 4], "quote": "500 cycles"},
+        ])
+
     def test_fact_checker_grounding_audit(self):
         checker = CitationFactChecker()
         source = "The optical tensor core achieves 100 GHz modulated optical clock frequency across 64 waveguides."

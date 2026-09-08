@@ -47,13 +47,23 @@ class VisualCitationExtractor:
             except Exception as e:
                 logger.warning(f"Failed to parse json block for visual citations: {e}")
 
-        # 3. Extract inline citations like: [Page 7, Figure 4b, box_2d: [320, 150, 680, 890], quote: "..."]
+        # 3. Extract inline citations. Two forms, mirrored by the frontend's
+        #    MARKER_RE (lib/chat/citation-markers.ts):
+        #      [Page 7, Figure 4b, box_2d: [320, 150, 680, 890], quote: "..."]  (page-led; the rest optional)
+        #      [Figure 4b, quote: "..."] / [quote: "..."]                        (no page; quote required)
+        #    A marker needs either a page or a quote, so [1] and [Smith 2020] never match.
         inline_pattern = re.compile(
-            r'\[(?:Page\s*(\d+))?(?:,\s*([A-Za-z0-9\s._-]+))?(?:,\s*box_2d:\s*(\[[0-9,\s]+\]))?(?:,\s*quote:\s*"([^"]+)")?\]',
+            r'\['
+            r'(?:Page\s*(\d+)(?:,\s*([A-Za-z0-9\s._-]+?))?(?:,\s*box_2d:\s*(\[[0-9,\s]+\]))?(?:,\s*quote:\s*"([^"]+)")?'
+            r'|(?:([A-Za-z0-9\s._-]+?),\s*)?(?:box_2d:\s*(\[[0-9,\s]+\]),\s*)?quote:\s*"([^"]+)")'
+            r'\]',
             re.IGNORECASE
         )
         for match in inline_pattern.finditer(cleaned_text):
-            page_str, label, box_str, quote = match.groups()
+            page_str, label_a, box_a, quote_a, label_b, box_b, quote_b = match.groups()
+            label = label_a or label_b
+            box_str = box_a or box_b
+            quote = quote_a or quote_b
             cit = {}
             if page_str:
                 try:
