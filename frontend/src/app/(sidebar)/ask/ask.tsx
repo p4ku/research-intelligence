@@ -371,9 +371,11 @@ export function Ask({
   const openedInitial = useRef(false)
   useEffect(() => {
     if (openedInitial.current || !initialSessionId) return
-    openedInitial.current = true
     const session = sessions.find((s) => s.id === initialSessionId)
-    if (session) void openThread(session)
+    // The history arrives after mount, so only spend the flag once it is here.
+    if (!session) return
+    openedInitial.current = true
+    void openThread(session)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSessionId, sessions])
 
