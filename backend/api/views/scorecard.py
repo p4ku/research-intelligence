@@ -859,39 +859,7 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
         }
 
     # 2. Dynamic Schemas & Extraction Definitions
-    definitions_data = []
-    for d in definitions:
-        has_post = bool(d.postprocessing_code and d.postprocessing_code.strip())
-        exit_list = d.get_exit_metrics_list()
-        prim_exit = d.get_primary_exit_metric()
-        d_slug = d.name.lower().replace(' ', '_').replace('-', '_')
-
-        if has_post:
-            main_key = f"{d_slug}_postprocessed"
-            aux_keys = exit_list
-        else:
-            main_key = exit_list[0] if exit_list else prim_exit
-            aux_keys = exit_list[1:] if len(exit_list) > 1 else []
-
-        definitions_data.append({
-            'id': str(d.id),
-            'name': d.name,
-            'key': d_slug,
-            'system_prompt': d.system_prompt,
-            'user_prompt_template': d.user_prompt_template,
-            'response_schema': d.response_schema,
-            'exit_metrics': exit_list,
-            'primary_exit_metric': prim_exit,
-            'has_postprocessing': has_post,
-            'postprocessing_code': d.postprocessing_code or None,
-            'primary_metric_key': main_key,
-            'main_metric_key': main_key,
-            'secondary_metric_keys': aux_keys,
-            'auxiliary_metric_keys': aux_keys,
-            'llm_model': d.llm_model,
-            'is_active': d.is_active,
-            'version': d.version,
-        })
+    definitions_data = format_definitions_metadata(definitions)
 
     # 3. Dynamic Extractions (raw unflattened fields_data, structured primary & secondary metrics, definition schema)
     extractions_data = []
@@ -1012,9 +980,126 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
             'created_at': target_metric.created_at.isoformat(),
         }
 
-    # 7. Dynamic dimensions with rich layout details (facets, texts, facts, lists, rationale, evidence)
+    scored_paper = build_single_scored_paper(
+        paper=paper,
+        definitions=definitions,
+        target_pr_id=target_pr_id,
+        target_pr=target_pr,
+        metrics_list=list(paper.metrics.all()),
+        extractions_list=extractions,
+        paper_data=paper_data,
+    )
+
+    return {
+        'workspace': ws_summary,
+        'paper': scored_paper,
+        'definitions': definitions_data,
+        'extractions': extractions_data,
+        'metric': metric_data,
+        'narrative_report': narrative_report_data,
+    }
+
+
+def format_definitions_metadata(definitions: list) -> list:
+    definitions_data = []
+    for d in definitions:
+        has_post = bool(d.postprocessing_code and d.postprocessing_code.strip())
+        exit_list = d.get_exit_metrics_list()
+        prim_exit = d.get_primary_exit_metric()
+        d_slug = d.name.lower().replace(' ', '_').replace('-', '_')
+
+        if has_post:
+            main_key = f"{d_slug}_postprocessed"
+            aux_keys = exit_list
+        else:
+            main_key = exit_list[0] if exit_list else prim_exit
+            aux_keys = exit_list[1:] if len(exit_list) > 1 else []
+
+        definitions_data.append({
+            'id': str(d.id),
+            'name': d.name,
+            'key': d_slug,
+            'system_prompt': d.system_prompt,
+            'user_prompt_template': d.user_prompt_template,
+            'response_schema': d.response_schema,
+            'exit_metrics': exit_list,
+            'primary_exit_metric': prim_exit,
+            'has_postprocessing': has_post,
+            'postprocessing_code': d.postprocessing_code or None,
+            'primary_metric_key': main_key,
+            'main_metric_key': main_key,
+            'secondary_metric_keys': aux_keys,
+            'auxiliary_metric_keys': aux_keys,
+            'llm_model': d.llm_model,
+            'is_active': d.is_active,
+            'version': d.version,
+        })
+    return definitions_data
+
+
+def build_single_scored_paper(
+    paper: Paper,
+    definitions: list,
+    target_pr_id=None,
+    target_pr=None,
+    metrics_list: list = None,
+    extractions_list: list = None,
+    paper_data: dict = None,
+    request=None,
+) -> dict:
+    """
+    Builds the dictionary representation of a single ScoredPaper matching frontend schema.
+    """
+    if metrics_list is None:
+        metrics_list = list(paper.metrics.all())
+    if extractions_list is None:
+        extractions_list = list(paper.extractions.all())
+
+    # 1. Resolve target_metric
+    target_metric = None
+    if target_pr_id:
+        for m in metrics_list:
+            if m.pipeline_run_id == target_pr_id:
+                target_metric = m
+                break
+    if not target_metric and metrics_list:
+        target_metric = metrics_list[0]
+
+    if not target_pr_id and target_metric and target_metric.pipeline_run_id:
+        target_pr_id = target_metric.pipeline_run_id
+        target_pr = target_metric.pipeline_run
+
+    raw_authors = paper.authors or ''
+    authors_list = [a.strip() for a in raw_authors.split(',') if a.strip()] if raw_authors else []
+
+    # Format signal_score_details
+    ssd = (
+        target_metric.signal_score_details
+        if (target_metric and target_metric.signal_score_details)
+        else (paper_data.get('signal_score_details') if paper_data else None)
+    )
+    formatted_ssd = None
+    if isinstance(ssd, dict) and ssd:
+        formatted_ssd = {
+            'variables': ssd.get('variables') if isinstance(ssd.get('variables'), dict) else {},
+            'code_snippet': ssd.get('code_snippet') or None,
+            'calculated_at': ssd.get('calculated_at') or None,
+            'error': ssd.get('error') or None,
+        }
+
+    # 2. Risk and affiliation
+    risk_and_affiliation_info = None
+    for e in extractions_list:
+        d_obj = getattr(e, 'extraction_definition', None)
+        cat = d_obj.name if d_obj else (e.category or '')
+        dim_key = cat.lower().replace(' ', '_')
+        is_risk = is_risk_dimension(cat, dim_key)
+        if is_risk and e.fields_data and not risk_and_affiliation_info:
+            risk_and_affiliation_info = extract_risk_and_affiliation(e.fields_data)
+
+    # 3. Dynamic dimensions with rich layout details (facets, texts, facts, lists, rationale, evidence)
     ext_by_def = {}
-    for e in extractions:
+    for e in extractions_list:
         if e.extraction_definition_id and e.extraction_definition_id not in ext_by_def:
             ext_by_def[e.extraction_definition_id] = e
 
@@ -1091,7 +1176,7 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
         dimensions.append(dim_item)
 
     matched_ext_ids = {e.id for e in ext_by_def.values() if e}
-    for e in extractions:
+    for e in extractions_list:
         if e.id not in matched_ext_ids:
             cat_name = e.category or 'Custom Extraction'
             is_trl = bool(re.search(r'\btrl\b', cat_name, re.IGNORECASE))
@@ -1149,12 +1234,22 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
             }
             dimensions.append(dim_item)
 
-    # 8. Paper representation
+    pub_date = None
+    if hasattr(paper, 'published_date') and paper.published_date:
+        pub_date = paper.published_date.isoformat() if hasattr(paper.published_date, 'isoformat') else str(paper.published_date)
+    elif paper_data and paper_data.get('published_date'):
+        pub_date = paper_data.get('published_date')
+
+    run_name = (
+        target_pr.name if (target_pr and hasattr(target_pr, 'name'))
+        else (target_metric.pipeline_run.name if (target_metric and target_metric.pipeline_run and hasattr(target_metric.pipeline_run, 'name')) else (paper_data.get('pipeline_run_name') if paper_data else None))
+    )
+
     scored_paper = {
         'id': str(paper.id),
         'workspace_id': str(paper.workspace_id),
-        'pipeline_run_id': str(target_pr_id) if target_pr_id else (paper_data.get('pipeline_run') or ''),
-        'pipeline_run_name': target_pr.name if (target_pr and hasattr(target_pr, 'name')) else paper_data.get('pipeline_run_name'),
+        'pipeline_run_id': str(target_pr_id) if target_pr_id else ((paper_data.get('pipeline_run') if paper_data else '') or ''),
+        'pipeline_run_name': run_name,
         'title': paper.title,
         'authors': authors_list,
         'authors_raw': raw_authors,
@@ -1162,32 +1257,24 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
         'doi': paper.doi or None,
         'arxiv_id': paper.arxiv_id or None,
         'source': paper.source_database or '',
-        'screening_status': target_metric.screening_status if target_metric else (paper_data.get('screening_status') or 'pending'),
-        'screening_reasoning': (target_metric.latest_screening_reasoning if target_metric else None) or paper_data.get('screening_reasoning') or None,
-        'abstract_screening_reasoning': target_metric.abstract_screening_reasoning if target_metric else paper_data.get('abstract_screening_reasoning'),
-        'full_text_screening_reasoning': target_metric.full_text_screening_reasoning if target_metric else paper_data.get('full_text_screening_reasoning'),
-        'signal_score': float(target_metric.signal_score) if (target_metric and target_metric.signal_score is not None) else paper_data.get('signal_score'),
+        'screening_status': target_metric.screening_status if target_metric else ((paper_data.get('screening_status') if paper_data else None) or 'pending'),
+        'screening_reasoning': (target_metric.latest_screening_reasoning if target_metric else None) or (paper_data.get('screening_reasoning') if paper_data else None) or None,
+        'abstract_screening_reasoning': target_metric.abstract_screening_reasoning if target_metric else (paper_data.get('abstract_screening_reasoning') if paper_data else None),
+        'full_text_screening_reasoning': target_metric.full_text_screening_reasoning if target_metric else (paper_data.get('full_text_screening_reasoning') if paper_data else None),
+        'signal_score': float(target_metric.signal_score) if (target_metric and target_metric.signal_score is not None) else (paper_data.get('signal_score') if paper_data else None),
         'signal_score_details': formatted_ssd,
         'pdf_key': paper.original_pdf_path or None,
         'markdown_key': paper.converted_md_path or None,
         'pdf_url': paper.source_url,
         'source_url': paper.source_url,
-        'is_benchmark': bool(target_metric.is_evaluation_benchmark if target_metric else paper_data.get('is_evaluation_benchmark', False)),
-        'evaluation_label': (target_metric.evaluation_label if target_metric else None) or paper_data.get('evaluation_label'),
-        'published_date': paper_data.get('published_date'),
+        'is_benchmark': bool(target_metric.is_evaluation_benchmark if target_metric else (paper_data.get('is_evaluation_benchmark', False) if paper_data else False)),
+        'evaluation_label': (target_metric.evaluation_label if target_metric else None) or (paper_data.get('evaluation_label') if paper_data else None),
+        'published_date': pub_date,
         'created_at': paper.created_at.isoformat(),
         'dimensions': dimensions,
         'risk_and_affiliation': risk_and_affiliation_info,
     }
-
-    return {
-        'workspace': ws_summary,
-        'paper': scored_paper,
-        'definitions': definitions_data,
-        'extractions': extractions_data,
-        'metric': metric_data,
-        'narrative_report': narrative_report_data,
-    }
+    return scored_paper
 
 
 def build_paper_scorecard_response(paper: Paper, request) -> Response:
@@ -1201,4 +1288,149 @@ def build_paper_scorecard_response(paper: Paper, request) -> Response:
         or request.query_params.get('run_id')
     )
     data = build_paper_scorecard_data(paper, pipeline_run_id=pr_param, request=request)
+    return Response(data)
+
+
+def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None) -> dict:
+    """
+    Builds the dynamic Workspace Scorecard data containing:
+    - workspace summary (definitions, scrapers_count)
+    - papers: list of ScoredPaper matching frontend schema with run-scoped evaluation & dimensions
+    Supports ?run_id=, ?pipeline_run=, ?screening_status=, and pagination (?page=, ?page_size=).
+    """
+    pr_param = (
+        pipeline_run_id
+        or (request.query_params.get('run_id') if request else None)
+        or (request.query_params.get('run') if request else None)
+        or (request.query_params.get('pipeline_run') if request else None)
+        or (request.query_params.get('pipeline_run_id') if request else None)
+    )
+    target_pr = None
+    target_pr_id = None
+    if pr_param and str(pr_param).lower() not in ('undefined', 'null', ''):
+        if str(pr_param).lower() == 'latest':
+            target_pr = (
+                PipelineRun.objects.filter(workspace=workspace)
+                .exclude(status__in=['failed', 'aborted'])
+                .order_by('-started_at', '-id')
+                .first()
+            )
+            if not target_pr:
+                target_pr = (
+                    PipelineRun.objects.filter(workspace=workspace)
+                    .order_by('-started_at', '-id')
+                    .first()
+                )
+            if target_pr:
+                target_pr_id = target_pr.id
+        else:
+            try:
+                pr_uuid = uuid.UUID(str(pr_param))
+                target_pr = PipelineRun.objects.filter(id=pr_uuid, workspace=workspace).first()
+                target_pr_id = target_pr.id if target_pr else pr_uuid
+            except (ValueError, TypeError):
+                target_pr_id = None
+
+    definitions = list(
+        ExtractionDefinition.objects.filter(workspace=workspace, is_active=True).order_by('created_at')
+    )
+    definitions_data = format_definitions_metadata(definitions)
+
+    ws_summary = {
+        'id': str(workspace.id),
+        'name': workspace.name,
+        'definitions': definitions_data,
+        'scrapers_count': workspace.scrapers.count(),
+    }
+
+    papers_qs = Paper.objects.filter(workspace=workspace)
+    if target_pr_id:
+        papers_qs = papers_qs.filter(metrics__pipeline_run_id=target_pr_id).distinct()
+
+    screening_status = request.query_params.get('screening_status') if request else None
+    if screening_status and screening_status != 'all':
+        if screening_status == 'passed':
+            papers_qs = papers_qs.filter(metrics__screening_status__in=['accepted', 'full_text_passed']).distinct()
+        else:
+            papers_qs = papers_qs.filter(metrics__screening_status=screening_status).distinct()
+
+    ordering = request.query_params.get('ordering') if request else None
+    if ordering in ('signal_score', '+signal_score'):
+        papers_qs = papers_qs.order_by('metrics__signal_score', '-created_at', '-id')
+    elif ordering == '-signal_score':
+        from django.db.models import F
+        papers_qs = papers_qs.order_by(F('metrics__signal_score').desc(nulls_last=True), '-created_at', '-id')
+    else:
+        papers_qs = papers_qs.order_by('-created_at', '-id')
+
+    from django.db.models import Prefetch
+    from research_intelligence.models import PaperMetric
+    metrics_qs = PaperMetric.objects.select_related('pipeline_run').order_by('-created_at')
+    if target_pr_id:
+        metrics_qs = metrics_qs.filter(pipeline_run_id=target_pr_id)
+
+    extractions_qs = Extraction.objects.select_related('extraction_definition').order_by('-created_at')
+
+    papers_qs = papers_qs.prefetch_related(
+        Prefetch('metrics', queryset=metrics_qs),
+        Prefetch('extractions', queryset=extractions_qs),
+    )
+
+    page_param = request.query_params.get('page') if request else None
+    page_size_param = request.query_params.get('page_size') if request else None
+    total_count = papers_qs.count()
+
+    if page_param or page_size_param:
+        try:
+            page = max(1, int(page_param or 1))
+            page_size = min(200, max(1, int(page_size_param or 50)))
+        except (ValueError, TypeError):
+            page = 1
+            page_size = 50
+        start = (page - 1) * page_size
+        end = start + page_size
+        paged_papers = list(papers_qs[start:end])
+        has_next = end < total_count
+        has_prev = page > 1
+    else:
+        paged_papers = list(papers_qs)
+        has_next = False
+        has_prev = False
+        page = 1
+        page_size = len(paged_papers)
+
+    scored_papers = [
+        build_single_scored_paper(
+            paper=p,
+            definitions=definitions,
+            target_pr_id=target_pr_id,
+            target_pr=target_pr,
+            metrics_list=list(p.metrics.all()),
+            extractions_list=list(p.extractions.all()),
+            request=request,
+        )
+        for p in paged_papers
+    ]
+
+    return {
+        'workspace': ws_summary,
+        'papers': scored_papers,
+        'count': total_count,
+        'next': f"?page={page+1}&page_size={page_size}" if has_next else None,
+        'previous': f"?page={page-1}&page_size={page_size}" if has_prev else None,
+        'results': scored_papers,
+    }
+
+
+def build_workspace_scorecard_response(workspace, request) -> Response:
+    """
+    Builds the dynamic, schema-driven Workspace Scorecard DRF Response for GET /api/workspaces/{id}/scorecard/.
+    """
+    pr_param = (
+        request.query_params.get('run_id')
+        or request.query_params.get('run')
+        or request.query_params.get('pipeline_run')
+        or request.query_params.get('pipeline_run_id')
+    )
+    data = build_workspace_scorecard_data(workspace, pipeline_run_id=pr_param, request=request)
     return Response(data)

@@ -603,3 +603,44 @@ return {
         self.assertIn("NO", ra["schwarz_ecosystem_affiliation"])
         self.assertEqual(len(ra["flags"]), 3)
 
+    def test_11_workspace_scorecard_endpoint(self):
+        """
+        Verify GET /api/workspaces/{id}/scorecard/ and ?run_id= returns structured
+        workspace scorecard with workspace summary and list of ScoredPapers.
+        """
+        # 1. Without run_id
+        res = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/")
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("workspace", data)
+        self.assertIn("papers", data)
+        self.assertIn("results", data)
+        self.assertEqual(data["workspace"]["id"], str(self.workspace.id))
+        self.assertGreaterEqual(len(data["papers"]), 1)
+        p = data["papers"][0]
+        self.assertIn("dimensions", p)
+        self.assertIn("signal_score", p)
+        self.assertIn("title", p)
+
+        # 2. With ?run_id=
+        res_run = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={self.run_beta.id}")
+        self.assertEqual(res_run.status_code, 200)
+        data_run = res_run.json()
+        self.assertEqual(data_run["workspace"]["id"], str(self.workspace.id))
+        p_run = data_run["papers"][0]
+        self.assertEqual(p_run["pipeline_run_id"], str(self.run_beta.id))
+        self.assertEqual(p_run["signal_score"], 94.5)
+
+        # 3. With ?pipeline_run={alpha}
+        res_alpha = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?pipeline_run={self.run_alpha.id}")
+        self.assertEqual(res_alpha.status_code, 200)
+        p_alpha = res_alpha.json()["papers"][0]
+        self.assertEqual(p_alpha["pipeline_run_id"], str(self.run_alpha.id))
+        self.assertEqual(p_alpha["signal_score"], 62.0)
+        self.assertEqual(p_alpha["screening_status"], "borderline")
+
+        # 4. With ?screening_status=accepted
+        res_stat = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={self.run_beta.id}&screening_status=accepted")
+        self.assertEqual(res_stat.status_code, 200)
+        self.assertEqual(len(res_stat.json()["papers"]), 1)
+

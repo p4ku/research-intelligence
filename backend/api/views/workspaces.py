@@ -2,7 +2,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, OpenApiResponse
+from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 from research_intelligence.models import Workspace, WorkspaceMember, ExtractionDefinition, PaperMetric, PipelineRun
 from ..serializers.workspaces import WorkspaceSerializer, ExtractionDefinitionSerializer
 from ..serializers.pipeline_runs import StartPipelineRunSerializer
@@ -103,6 +103,23 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             return paper_view.get_paginated_response(serializer.data)
         serializer = PaperSerializer(qs, many=True, context={'request': request, 'workspace': workspace})
         return Response(serializer.data)
+
+    @extend_schema(
+        tags=['Workspaces Management', 'Literature & Papers'],
+        parameters=[
+            OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Optional PipelineRun UUID or "latest" to scope evaluation'),
+            OpenApiParameter(name='run_id', type=str, location=OpenApiParameter.QUERY, description='Alias for pipeline_run parameter'),
+            OpenApiParameter(name='screening_status', type=str, location=OpenApiParameter.QUERY, description='Filter papers by screening status (e.g. passed, accepted, rejected)'),
+            OpenApiParameter(name='page', type=int, location=OpenApiParameter.QUERY, description='Page number'),
+            OpenApiParameter(name='page_size', type=int, location=OpenApiParameter.QUERY, description='Page size'),
+        ],
+        description="Dynamic Workspace Scorecard containing all evaluated papers with run-scoped metrics and rich dimension details.",
+    )
+    @action(detail=True, methods=['get'], url_path='scorecard')
+    def scorecard(self, request, pk=None):
+        from .scorecard import build_workspace_scorecard_response
+        workspace = self.get_object()
+        return build_workspace_scorecard_response(workspace, request)
 
     @extend_schema(
         tags=['Workspaces Management', 'Pipeline Runs & Components'],

@@ -47,7 +47,7 @@ function def(
 }
 
 export const RESOURCES: Record<ResourceName, ResourceDef> = {
-  papers: def('papers', 'BFF_SOURCE_PAPERS', ['stub', 'composed', 'django'], 'composed'),
+  papers: def('papers', 'BFF_SOURCE_PAPERS', ['stub', 'composed', 'django'], 'django'),
   workspaces: def('workspaces', 'BFF_SOURCE_WORKSPACES', ['django'], 'django'),
   'pipeline-runs': def('pipeline-runs', 'BFF_SOURCE_PIPELINE_RUNS', ['django'], 'django'),
   'component-runs': def('component-runs', 'BFF_SOURCE_COMPONENT_RUNS', ['django'], 'django'),
