@@ -145,6 +145,7 @@ export const dict: Record<string, string> = {
   'Ask a question about this paper': 'Eine Frage zu diesem Paper stellen',
   'Ask about this paper…': 'Zu diesem Paper fragen…',
   Send: 'Senden',
+  Close: 'Schließen',
   'Loading the paper': 'Das Paper wird geladen',
   "I couldn't ground an answer to that in this paper's text — try asking about what it enables, how solid the evidence is, or where it could apply.":
     'Dazu ließ sich im Text dieses Papers keine belegte Antwort finden — fragen Sie etwa, was es ermöglicht, wie belastbar die Evidenz ist oder wo es einsetzbar wäre.',
