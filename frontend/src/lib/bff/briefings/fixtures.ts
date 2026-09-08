@@ -7,7 +7,9 @@ const excluded = fixturePapers[1]
 
 export const fixtureEditions: Edition[] = [
   {
-    run_id: '00000000-0000-4000-8000-000000000031',
+    // The completed fixture run (../pipeline-runs/fixtures.ts), so the stub
+    // sources agree: Home and the archive join editions to runs by this id.
+    run_id: '00000000-0000-4000-8000-000000000101',
     workspace_id: fixtureWorkspace.id,
     date: '2026-08-27',
     title: 'Coordinated Tool Use in Multi-Agent Language Model Systems',

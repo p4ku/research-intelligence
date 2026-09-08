@@ -11,6 +11,7 @@
  */
 import 'server-only'
 
+import type { PaperDTO } from '@/lib/api/types'
 import { indexRuns, type RunIndex } from '@/lib/papers/runs'
 import { cache } from 'react'
 import * as z from 'zod'
@@ -90,6 +91,9 @@ function stubListAll(workspaceId: string): WorkspacePapers {
 /** The reader's stars, once per request: the sidebar and the list share it. */
 const starredPapers = cache(() => stars.get())
 
+/** The run index is a pure function of the raw list, which lives across requests — so does the index. */
+const runIndexOf = new WeakMap<PaperDTO[], RunIndex>()
+
 export const papers = {
   /**
    * The whole workspace corpus + its workspace summary; null when not visible.
@@ -153,7 +157,20 @@ export const papers = {
    */
   runIndex: cache(async (): Promise<RunIndex | null> => {
     if (sourceOf('papers') !== 'composed') return null
-    return indexRuns(await listPapersRaw())
+    const raw = await listPapersRaw()
+    let index = runIndexOf.get(raw)
+    if (!index) runIndexOf.set(raw, (index = indexRuns(raw)))
+    return index
+  }),
+
+  /**
+   * Whether the per-user cap dropped older papers from the corpus
+   * (../corpus/snapshot.ts). A reader deciding that a run "has no papers"
+   * must ask first: past the cap, absence is not evidence. Cached per request.
+   */
+  corpusTruncated: cache(async (): Promise<boolean> => {
+    if (sourceOf('papers') !== 'composed') return false
+    return Boolean((await corpusSnapshot()).truncated)
   }),
 
   /**

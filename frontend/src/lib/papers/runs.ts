@@ -26,11 +26,19 @@ export type RunIndex = Map<string, Map<string, RunRecord>>
 
 export function indexRuns(papers: Pick<PaperDTO, 'id' | 'metrics'>[]): RunIndex {
   const index: RunIndex = new Map()
+  // One row per (run, paper) is the model's rule; should two ever arrive
+  // (the serializer substitutes the latest run for a null one), the newest
+  // wins rather than whichever came last.
+  const stamps = new Map<string, string>()
   for (const paper of papers) {
     for (const m of paper.metrics ?? []) {
       if (!m.pipeline_run) continue
       let ofRun = index.get(m.pipeline_run)
       if (!ofRun) index.set(m.pipeline_run, (ofRun = new Map()))
+      const key = `${m.pipeline_run}/${paper.id}`
+      const held = stamps.get(key)
+      if (held !== undefined && held > m.created_at) continue
+      stamps.set(key, m.created_at)
       ofRun.set(paper.id, {
         screening_status:
           typeof m.screening_status === 'string' ? normalizeStatus(m.screening_status) : null,
@@ -54,9 +62,9 @@ export interface RunPaper {
 /**
  * The papers a run recorded, as that run recorded them. Without an index
  * (papers not composed from Django's lists) the corpus's own attribution is
- * all there is. A run's row that carries no decision or reasoning (the
- * serializer lag above) falls back to the paper's current ones; its score
- * is the run's own, null if that run never scored the paper.
+ * all there is. A row with no decision (the serializer lag above) takes the
+ * paper's current one; its reasoning and score are the run's own — null when
+ * that run wrote none, never a later run's words in this run's log.
  */
 export function papersOfRun(
   runId: string,
@@ -84,7 +92,7 @@ export function papersOfRun(
       paper,
       status: record.screening_status ?? paper.screening_status,
       signal_score: record.signal_score,
-      reason: record.screening_reasoning ?? paper.screening_reasoning,
+      reason: record.screening_reasoning,
     })
   }
   return out

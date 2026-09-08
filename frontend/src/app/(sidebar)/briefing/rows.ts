@@ -63,6 +63,7 @@ export function composeRows({
   domains,
   t,
   lang,
+  capped = false,
 }: {
   /** Newest first, as the service returns them. */
   editions: Edition[]
@@ -71,12 +72,12 @@ export function composeRows({
   domains: Record<string, string>
   t: T
   lang: Lang
+  /** The corpus cap dropped older papers: an edition with none is unknowable, not empty. */
+  capped?: boolean
 }): ArchiveRow[] {
   const byId = new Map(runs.map((run) => [run.id, run]))
   // If the newest completed run has no edition (a same-day rerun collapsed
   // into a newer one, or its corpus could not be read) no row is Current.
-  // Under the stub briefings source the fixture run ids match no run, so
-  // every row takes the fallbacks below and none is Current.
   const currentId = currentRunId(runs)
   const rows: ArchiveRow[] = []
   for (const e of editions) {
@@ -86,7 +87,8 @@ export function composeRows({
     // Nothing to open — nothing cleared screening, or the run passed papers
     // the edition cannot show — so the archive leaves the run out (and, as
     // on Home, it is never Current). Home's run log is where those show.
-    if (included === 0 || e.papers.length === 0) continue
+    // Past the corpus cap the row stays: its page says what is on file.
+    if (included === 0 || (e.papers.length === 0 && !capped)) continue
     rows.push({
       id: e.run_id,
       workspaceId: e.workspace_id,

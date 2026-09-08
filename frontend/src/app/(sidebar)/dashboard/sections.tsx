@@ -1,6 +1,7 @@
 import { Card, SectionLabel } from '@/components/scanner-ui'
 import type { Edition } from '@/lib/bff/briefings/schema'
 import { forPage } from '@/lib/bff/core/page'
+import { papers } from '@/lib/bff/papers/service'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
 import { editionHref } from '../briefing/format'
@@ -32,14 +33,20 @@ function topPapers(edition: Edition): HomePaper[] {
 }
 
 /** The spec's three labels: Current, Processing, Failed; other completed rows carry none. */
-function rowStatus(run: PipelineRun, edition: Edition | null, currentId: string | null): RowStatus {
+function rowStatus(
+  run: PipelineRun,
+  edition: Edition | null,
+  currentId: string | null,
+  capped: boolean,
+): RowStatus {
   switch (run.status) {
     case 'completed':
       // No briefing to open — nothing cleared screening, no edition was
       // composed for the run (an older same-day rerun), or the edition
       // holds none of the papers the run passed — so nothing to be current.
-      if (run.total_papers_passed_screening === 0 || !edition || edition.papers.length === 0)
-        return 'empty'
+      // Past the corpus cap an empty edition is unknowable, not empty.
+      if (run.total_papers_passed_screening === 0 || !edition) return 'empty'
+      if (edition.papers.length === 0 && !capped) return 'empty'
       return run.id === currentId ? 'current' : 'done'
     case 'running':
     case 'pending':
@@ -70,9 +77,11 @@ export async function LedgerSection({
   domains: RunDomain[]
   today: string
 }) {
-  const [items, current] = await forPage(Promise.all([recentRuns(lang), currentRun()]))
+  const [items, current, capped] = await forPage(
+    Promise.all([recentRuns(lang), currentRun(), papers.corpusTruncated()]),
+  )
   const rows: HomeRow[] = items.map(({ run, edition }) => {
-    const status = rowStatus(run, edition, current?.id ?? null)
+    const status = rowStatus(run, edition, current?.id ?? null, capped)
     const completed = run.status === 'completed'
     return {
       id: run.id,

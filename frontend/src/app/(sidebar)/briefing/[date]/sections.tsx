@@ -107,6 +107,8 @@ export async function EditionPapers({
   // The card is the paper's scorecard as it stands today, but inside a frozen
   // edition its decision and score are the run's: a paper this run surfaced
   // at 76 must not read "Rejected · Unscored" because a later run said so.
+  // Its dimensions stay current — extractions belong to the paper, not to a
+  // run — so a re-extracted paper can show today's TRL beside the run's score.
   const byId = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
   const cards: ScoredPaper[] = []
   for (const entry of edition.papers) {
