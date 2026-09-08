@@ -1,25 +1,25 @@
-# 🧠 Schwarz Research Intelligence
+# Schwarz Research Intelligence
 
-> **Enterprise-Grade AI Platform for Autonomous Scientific Literature Review, Deep Tech Scouting & Parameter Extraction.**  
+> **AI-assisted scientific literature review, technology scouting and parameter extraction.**  
 > Powered by **FastMCP (Model Context Protocol)**, **Django REST Framework**, **Next.js Dashboard** (App Router), **Celery Distributed Workers**, and **Google GenAI / Gemini 3.8 Flash** (hosted on Schwarz Digits Cloud).
 
 ---
 
-## 📋 1. System Overview & User Personas
+## 1. System Overview & User Personas
 
-**Schwarz Research Intelligence** is an enterprise-grade platform designed for automated, AI-driven academic literature review, competitive technology scouting, and dynamic parameter extraction.
+**Schwarz Research Intelligence** automates academic literature review, technology scouting, and parameter extraction from papers.
 
 The system serves three core personas through dedicated access channels:
-* **🧑‍💼 Manager / Researcher (Frontend User)**: Interacts with the **Next.js Dashboard** (bilingual EN/DE) for briefings, per-paper scorecards, starred papers, and interactive multi-turn paper Q&A (`Paper Chat`).
-* **⚡ Power User / AI Agent (MCP Client)**: Interacts programmatically via the **FastMCP SSE Server** (`/sse` + `/messages`; port 8001 under Docker Compose) from Claude Code, Cursor, Antigravity IDE, or custom agent scripts to trigger autonomous multi-stage SLR runs (`start_research_agent`), check DAG progress, and query extracted scorecards.
-* **🛡️ Administrator / Lead Architect (Django Admin User)**: Manages workspace criteria, RBAC memberships, token/USD spending quotas, operational security audit logs, and file storage via the **Django Admin Portal & Storage Browser**.
+* **Manager / Researcher (Frontend User)**: Interacts with the **Next.js Dashboard** (bilingual EN/DE) for briefings, per-paper scorecards, starred papers, and interactive multi-turn paper Q&A (`Paper Chat`).
+* **Power User / AI Agent (MCP Client)**: Interacts programmatically via the **FastMCP SSE Server** (`/sse` + `/messages`; port 8001 under Docker Compose) from Claude Code, Cursor, Antigravity IDE, or custom agent scripts to trigger autonomous multi-stage SLR runs (`start_research_agent`), check DAG progress, and query extracted scorecards.
+* **Administrator / Lead Architect (Django Admin User)**: Manages workspace criteria, RBAC memberships, token/USD spending quotas, operational security audit logs, and file storage via the **Django Admin Portal & Storage Browser**.
 
 ```mermaid
 graph TB
     subgraph Personas ["User Personas & Clients"]
-        manager["🧑‍💼 Manager / Researcher<br>(Frontend Web User)"]
-        power["⚡ Power User / AI Agent<br>(MCP Client: Claude / Cursor / Antigravity)"]
-        admin["🛡️ Administrator / Lead<br>(Django Admin User)"]
+        manager["Manager / Researcher<br>(Frontend Web User)"]
+        power["Power User / AI Agent<br>(MCP Client: Claude / Cursor / Antigravity)"]
+        admin["Administrator / Lead<br>(Django Admin User)"]
     end
 
     subgraph Ingress ["Platform Router (HTTPS)"]
@@ -73,7 +73,7 @@ graph TB
 
 ---
 
-## 🚀 2. Core Architectural Features
+## 2. Core Architectural Features
 
 ### 1. Autonomous Research Agent State Machine (`ResearchAgentProcess`)
 
@@ -126,7 +126,7 @@ graph TD
 ### 3. Global DocumentRegistry & Multi-Tier Caching
 - **Zero-Network PDF Fastpath**: Checks `DocumentRegistry` ($O(1)$ indexed by `sha256_hash`, `doi`, `arxiv_id`) before initiating HTTP requests, saving bandwidth and preventing rate-limits across runs and workspaces.
 - **Zero-Compute OCR Fastpath**: Caches layout Markdown in `cache/documents/{sha256}/ocr_{provider}.md`, skipping expensive OCR parser execution for previously converted documents.
-- **Strict Storage Isolation**: Workspace run deletions purge only their local workspace run folder (`workspaces/{ws_id}/runs/{run_id}/`), keeping canonical registry binaries and other workspaces' files 100% intact.
+- **Strict Storage Isolation**: Workspace run deletions purge only their local workspace run folder (`workspaces/{ws_id}/runs/{run_id}/`), leaving the shared registry binaries and other workspaces' files untouched.
 
 ### 4. Dynamic Parameter Extraction & Multi-Metric Postprocessing
 - **Schema-Validated Extraction**: Evaluates papers against `ExtractionDefinition` prompts and JSON schemas using Gemini 3.8 Flash.
@@ -139,7 +139,7 @@ graph TD
 - Evaluates sandboxed mathematical ranking formulas (`workspace.signal_score_code`) securely using Python AST analysis.
 - Consumes all extracted variables, multi-exit parameters, and postprocessed metrics (e.g. `score = (0.4 * market_fit_postprocessed) + (0.3 * novelty) + (0.3 * sample_size)`).
 
-### 6. Workspace Configuration Export & Import (Staging ➔ Production Sync)
+### 6. Workspace Configuration Export & Import (Staging to Production Sync)
 - Export full workspace configurations as JSON bundles (criteria, prompts, schemas, scrapers, subscribers, formulas).
 - Import with explicit **Yes/No overwrite prompt** to fine-tune existing workspaces or import new ones.
 - Also available over REST: `GET /api/workspaces/{id}/export-configuration/` and `POST /api/workspaces/import-configuration/`.
@@ -149,7 +149,7 @@ graph TD
 - **Django REST API (Port 8000)**: Exposes `/api/workspaces/`, `/api/schedules/`, `/api/extraction-definitions/`, `/api/agents/`, `/api/papers/`, `/api/extractions/`, `/api/pipeline-runs/`, `/api/stars/`, `/api/chat/` and `/api/auth/*` endpoints (OpenAPI docs at `/api/docs/`), consumed by the Next.js `/bff` route handlers.
 
 ### 8. The 5 Pipeline Triggering Pathways & Concurrency Controls
-The Systematic Literature Review (SLR) pipeline can be dispatched through **5 distinct, enterprise-grade execution channels**, all converging into the unified `PipelineRunner` and `WorkflowDAG` orchestrator (`ResearchAgentRunner` remains as a backwards-compatible facade):
+The Systematic Literature Review (SLR) pipeline can be dispatched through five channels, all converging into the unified `PipelineRunner` and `WorkflowDAG` orchestrator (`ResearchAgentRunner` remains as a backwards-compatible facade):
 
 | Pathway | Interface / Entrypoint | Concurrency & Overlap Policy | Async Dispatch Mechanism |
 | :--- | :--- | :--- | :--- |
@@ -159,14 +159,14 @@ The Systematic Literature Review (SLR) pipeline can be dispatched through **5 di
 | **4. FastMCP SSE Agent Tools** | `start_research_agent(workspace_id, ...)`<br/>`trigger_search_job(...)` | Dynamic configuration overrides (e.g. `reprocess_existing`, `limit`, `n_last_days`). | Async Celery worker trigger returning instant execution payload and run UUID. |
 | **5. Direct Engine / Programmatic Runner** | `PipelineRunner.tick(pipeline_run)` / `ResearchAgentRunner.tick(process_id)` | Row-level locking on PostgreSQL (`select_for_update`). Protected against premature connection closure via `in_atomic_block` guard. | Direct DAG node evaluation and synchronous/asynchronous task dispatch. |
 
-* **Concurrency & Overlap Guard**: `prevent_overlap=True` guarantees zero race conditions or duplicate runs for the same schedule.
+* **Concurrency & Overlap Guard**: `prevent_overlap=True` stops a schedule from starting a second run while one is active.
 * **Decoupled Signals Observer**: Django `post_save` signals in `signals.py` update observing `WorkflowSchedule.last_status` records dynamically.
 * **Failure Guardrails & Auto-Pause**: Auto-pauses recurring schedules (`is_active=False`) when `consecutive_failures_count >= max_consecutive_failures`.
 * **Daylight Saving Time (DST) Support**: Leverages Python's native `zoneinfo.ZoneInfo` for localized cron evaluations without 1-hour clock shifts.
 
 ---
 
-## 🗄️ 3. Database Architecture & Entity Relationships
+## 3. Database Architecture & Entity Relationships
 
 The data layer is structured into 6 cohesive domains:
 1. **Tenancy & Authentication**: `Workspace`, `WorkspaceMember`, `APIKey`, `UserActivityLog`, `LLMUsageRecord`
@@ -182,12 +182,12 @@ The data layer is structured into 6 cohesive domains:
 ### Detailed Entity-Relationship Diagram (ERD)
 ![Detailed Database ERD](docs/images/db_schema_detailed.svg)
 
-> **💡 Refreshing Schema Diagrams**:
+> **Refreshing Schema Diagrams**:
 > The Mermaid source is hand-written inside `./docs/generate_db_schema.py` (it does not introspect Django models). Add new models there, then run it to regenerate both diagrams in `docs/images/` (.png & .svg) and `docs/diagrams/` (.mmd). `WorkflowSchedule`, `Star` and `LLMUsageRecord` are not yet drawn.
 
 ---
 
-## 🏗️ 4. Repository Structure
+## 4. Repository Structure
 
 ```
 ├── backend/                     # Django API + Celery Async Task Workers + FastMCP
@@ -223,7 +223,7 @@ The data layer is structured into 6 cohesive domains:
 
 ---
 
-## 🛠️ 5. Technology Stack
+## 5. Technology Stack
 
 | Component | Technology | Description |
 | :--- | :--- | :--- |
@@ -234,14 +234,14 @@ The data layer is structured into 6 cohesive domains:
 | **Database Layer** | PostgreSQL (Prod) / SQLite (Tests) | Persistent storage, audit logs, and in-memory test runner. |
 | **Storage Layer** | Django `default_storage` | Local filesystem / AWS S3 / MinIO storage abstraction. |
 | **Telemetry & APM** | Sentry SDK | Error tracking, distributed performance tracing, and profiler. |
-| **LLM Engine** | Google GenAI / Gemini 3.8 Flash | Enterprise AI provider with reasoning effort support hosted on Schwarz Digits Cloud. |
+| **LLM Engine** | Google GenAI / Gemini 3.8 Flash | Reasoning-effort support; hosted on Schwarz Digits Cloud. |
 | **OCR Providers** | PyPDF / Mistral OCR / Gemini Vision | Document layout parsing. |
 | **Diagram Engine** | Mermaid CLI / Python Generator | Automated DB schema and architecture diagram generation. |
 | **CI/CD** | GitHub Actions | Automated build, test, container layer caching, and deployment to STACKIT Cloud Foundry (gated on CI). |
 
 ---
 
-## ⚡ 6. Quick Start for Developers
+## 6. Quick Start for Developers
 
 ### Run Locally with Docker Compose
 ```bash
