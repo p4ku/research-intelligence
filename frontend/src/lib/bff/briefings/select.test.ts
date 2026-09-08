@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { editionFor } from './select'
+import { byNewest, editionDate, editionFor, newest } from './select'
 
 const day = (date: string, run_id: string, clock = '12:00') => ({
   date,
@@ -42,5 +42,29 @@ describe('editionFor', () => {
   test('a day with no edition is null, whatever the run', () => {
     expect(editionFor(editions, '2026-09-06')).toBeNull()
     expect(editionFor(editions, '2026-09-06', 'a')).toBeNull()
+  })
+})
+
+describe('newest / byNewest', () => {
+  test('the latest completion wins, whatever the order of arrival', () => {
+    const inverted = [day('2026-09-08', 'b', '10:00'), day('2026-09-09', 'a', '15:00')]
+    expect(newest(inverted)?.run_id).toBe('a')
+    expect(newest([...inverted].reverse())?.run_id).toBe('a')
+    expect(newest([])).toBeNull()
+  })
+
+  test('sorting newest first agrees with the picker', () => {
+    const sorted = [...editions].reverse().sort(byNewest)
+    expect(sorted.map((e) => e.run_id)).toEqual(['b', 'a', 'z'])
+    expect(newest(editions)).toBe(sorted[0]!)
+  })
+})
+
+describe('editionDate', () => {
+  test('the completion day, else the trigger day', () => {
+    expect(editionDate({ completed_at: '2026-09-08T23:59:00Z', run_date: '2026-09-07' })).toBe(
+      '2026-09-08',
+    )
+    expect(editionDate({ completed_at: null, run_date: '2026-09-07' })).toBe('2026-09-07')
   })
 })

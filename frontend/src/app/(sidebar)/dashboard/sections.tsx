@@ -7,7 +7,7 @@ import type { Lang, T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
 import { editionHref } from '../briefing/format'
 import { currentRun, inFlightRuns, recentBriefings } from './data'
-import { formatAuthors, formatClock, formatDay, periodLabel } from './format'
+import { clockStamp, formatAuthors, formatClock, formatDay, periodLabel } from './format'
 import { HomeLinks, type HomePaper } from './home-ui'
 import { Ledger, type HomeRow, type RowStatus } from './ledger'
 import { LiveRefresh } from './live-refresh'
@@ -105,6 +105,18 @@ export async function LedgerSection({
             top: topPapers(edition),
           }
         : null,
+    }
+  })
+  // A domain that briefed twice in a day has two rows that would read the
+  // same (period and day match): those, and only those, carry the clock.
+  const perDay = new Map<string, number>()
+  const dayOf = (run: PipelineRun) => `${run.workspace_id}|${editionDate(run)}`
+  for (const { run } of items) {
+    if (run.status === 'completed') perDay.set(dayOf(run), (perDay.get(dayOf(run)) ?? 0) + 1)
+  }
+  items.forEach(({ run }, i) => {
+    if (run.status === 'completed' && run.completed_at && (perDay.get(dayOf(run)) ?? 0) > 1) {
+      rows[i]!.stamp = clockStamp(run.completed_at)
     }
   })
   // From every run in flight, not the rows: one may sit below the fifth briefing.

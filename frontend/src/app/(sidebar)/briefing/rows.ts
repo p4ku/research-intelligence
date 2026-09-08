@@ -3,7 +3,7 @@ import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
 import type { WorkspaceSummary } from '@/lib/papers/types'
-import { formatAuthors, formatDay, periodLabel } from '../dashboard/format'
+import { clockStamp, formatAuthors, formatDay, periodLabel } from '../dashboard/format'
 import type { HomeBrief } from '../dashboard/ledger'
 import { editionHref } from './format'
 import { domainScope } from './scope'
@@ -33,6 +33,8 @@ export interface ArchiveRow {
   period: string
   /** The completion day, already worded. */
   generated: string
+  /** "12:03 UTC" when the domain briefed more than once that day, so the rows read apart; null otherwise. */
+  stamp: string | null
   screened: number
   included: number
   brief: HomeBrief
@@ -46,7 +48,10 @@ export interface ArchiveState {
   page: number
 }
 
-const when = (run: PipelineRun) => run.started_at ?? run.run_date
+// The clock every briefing list keeps: a briefing is published when its run
+// completes (the start while it is still running). Home's run order and
+// `editionFor` use the same one, so "Current" is the same run everywhere.
+const when = (run: PipelineRun) => run.completed_at ?? run.started_at ?? run.run_date
 
 /**
  * Whether a completed run has a briefing to open. It does not when nothing
@@ -99,6 +104,8 @@ export function composeRows({
   // read) no row is Current.
   const currentId = currentRunId(runs)
   const rows: ArchiveRow[] = []
+  // Each row's (domain, day) and completion instant, for the clock below.
+  const days: { key: string; at: string | null }[] = []
   for (const e of editions) {
     const run = byId.get(e.run_id)
     const screened = run?.total_papers_fetched ?? e.funnel.fetched
@@ -106,13 +113,16 @@ export function composeRows({
     // Nothing to open: the archive leaves the run out (and, as on Home, it
     // is never Current).
     if (!hasBriefing(included, e, capped)) continue
+    const at = run?.completed_at ?? e.generated_at ?? null
+    days.push({ key: `${e.workspace_id}|${e.date}`, at })
     rows.push({
       id: e.run_id,
       workspaceId: e.workspace_id,
       domain: domains[e.workspace_id] ?? run?.workspace_name ?? '—',
       current: e.run_id === currentId,
       period: run ? periodLabel(run, t, lang) : formatDay(e.date, lang),
-      generated: formatDay(run?.completed_at ?? e.generated_at ?? e.date, lang),
+      generated: formatDay(at ?? e.date, lang),
+      stamp: null,
       screened,
       included,
       brief: {
@@ -130,6 +140,14 @@ export function composeRows({
       },
     })
   }
+  // A domain that briefed twice in a day has two rows that would read the
+  // same (period and day match): those, and only those, carry the clock.
+  const perDay = new Map<string, number>()
+  for (const d of days) perDay.set(d.key, (perDay.get(d.key) ?? 0) + 1)
+  rows.forEach((row, i) => {
+    const d = days[i]!
+    if ((perDay.get(d.key) ?? 0) > 1 && d.at) row.stamp = clockStamp(d.at)
+  })
   return rows
 }
 

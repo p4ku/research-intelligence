@@ -91,6 +91,44 @@ describe('composeRows', () => {
     expect(rows.map((r) => r.current)).toEqual([true, false])
     expect(new Set(rows.map((r) => r.brief.href)).size).toBe(2)
     expect(rows[1].brief.href).toContain(`&run=${edition.run_id}`)
+    // Period and day read the same for both, so the clock tells them apart.
+    expect(rows.map((r) => r.generated)).toEqual(['31 Aug 2026', '31 Aug 2026'])
+    expect(rows[0].stamp).toBe('12:03 UTC')
+    expect(rows[1].stamp).toMatch(/^\d\d:\d\d UTC$/)
+  })
+
+  test('a domain that briefed once in a day carries no clock', () => {
+    const [row] = composeRows({ editions: [edition, older], runs: [run], domains, t, lang: 'en' })
+    expect(row.stamp).toBeNull()
+    // Two domains on one day are told apart by their names, not a clock.
+    const other = {
+      ...edition,
+      run_id: '00000000-0000-4000-8000-000000000034',
+      workspace_id: 'ws-2',
+    }
+    const rows = composeRows({
+      editions: [edition, other],
+      runs: [run],
+      domains: { ...domains, 'ws-2': 'Other' },
+      t,
+      lang: 'en',
+    })
+    expect(rows.map((r) => r.stamp)).toEqual([null, null])
+  })
+
+  test('the newest completion is current, even when an older run started later', () => {
+    const slow = {
+      ...run,
+      id: older.run_id,
+      started_at: '2026-08-31T06:00:00Z',
+      completed_at: '2026-08-31T14:00:00Z',
+    }
+    const quick = {
+      ...run,
+      started_at: '2026-08-31T08:00:00Z',
+      completed_at: '2026-08-31T08:03:00Z',
+    }
+    expect(currentRunId([quick, slow])).toBe(slow.id)
   })
 
   test('only the newest completed run is current', () => {
@@ -143,6 +181,7 @@ function row(id: string, workspaceId: string): ArchiveRow {
     current: false,
     period: '',
     generated: '',
+    stamp: null,
     screened: 0,
     included: 0,
     brief: { href: '', inBrief: '', screened: 0, included: 0, top: [] },

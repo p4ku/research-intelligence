@@ -31,7 +31,7 @@ import {
   type EditionsQuery,
   type EditionSummary,
 } from './schema'
-import { editionDate, editionFor } from './select'
+import { byNewest, editionDate, editionFor } from './select'
 
 function composeEdition(
   run: PipelineRun,
@@ -98,9 +98,17 @@ async function composeAll(workspaceId: string, lang: Lang): Promise<Edition[]> {
   ])
   if (!scored) return []
   const corpus = new Map(scored.papers.map((p) => [p.id, p]))
-  // One edition per completed run, newest first as the runs arrive: a domain
-  // that ran twice in a day has two, and the URL's run id tells them apart.
-  return completed.map((run) => composeEdition(run, scored.workspace.name, corpus, index, lang))
+  // One edition per completed run that passed something, newest by
+  // completion first: a domain that ran twice in a day has two, and the
+  // URL's run id tells them apart. A run that passed nothing — a search
+  // that found only papers already on file halts as "completed" with no
+  // rows — is not a briefing (Home and the archive already leave it out),
+  // so it gets no edition and a bare date link cannot land on it. The run
+  // itself stays on /runs.
+  return completed
+    .filter((run) => run.total_papers_passed_screening > 0)
+    .map((run) => composeEdition(run, scored.workspace.name, corpus, index, lang))
+    .sort(byNewest)
 }
 
 export const briefings = {
@@ -141,8 +149,7 @@ export const briefings = {
       seen.add(e.run_id)
       return true
     })
-    const when = (e: Edition) => e.generated_at ?? `${e.date}T00:00:00Z`
-    return merged.sort((a, b) => when(b).localeCompare(when(a)))
+    return merged.sort(byNewest)
   }),
 
   async list(query: EditionsQuery, lang: Lang = 'en'): Promise<Page<Omit<Edition, 'exclusions'>>> {

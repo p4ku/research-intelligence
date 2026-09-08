@@ -1,13 +1,17 @@
 import { AnswerMarkdown } from '@/components/answer-markdown'
 import { Breadcrumbs, SectionLabel, StatBand } from '@/components/scanner-ui'
 import { StarToggle } from '@/components/star'
+import type { Edition } from '@/lib/bff/briefings/schema'
+import { byNewest } from '@/lib/bff/briefings/select'
 import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import { papers as papersService } from '@/lib/bff/papers/service'
 import type { Features } from '@/lib/features'
-import type { Lang, T } from '@/lib/i18n'
+import { fmt, type Lang, type T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { clockStamp } from '../../dashboard/format'
 import { editionHref, formatEditionDate } from '../format'
 import { EditionPaperList } from './edition-paper-list'
 
@@ -51,6 +55,11 @@ export async function EditionHead({
   // A date with no edition is a true 404 — rendered in-stream now that the
   // shell has already gone out (see docs/skeletons.md).
   if (!edition) notFound()
+  // The domain's other editions of the same day, for the notice below. The
+  // list is the one findByDate already read under the composed source.
+  const siblings = (await briefings.listAll(edition.workspace_id, lang).catch(() => []))
+    .filter((e) => e.date === edition.date && e.run_id !== edition.run_id)
+    .sort(byNewest)
 
   const copy = funnelCopy(t)
   const funnel = [
@@ -78,6 +87,13 @@ export async function EditionHead({
           </h1>
           {features.stars && <StarToggle kind="briefing" id={edition.run_id} className="mt-px" />}
         </div>
+        <SameDayNotice
+          edition={edition}
+          siblings={siblings}
+          named={runId === edition.run_id}
+          t={t}
+          lang={lang}
+        />
       </div>
 
       <StatBand items={funnel} flow className="lg:grid-cols-3!" />
@@ -90,6 +106,53 @@ export async function EditionHead({
         />
       </section>
     </>
+  )
+}
+
+/**
+ * One quiet line when the domain briefed more than once on this day. A link
+ * that named this run (every link the app mints) gets the day's other
+ * editions; a link that did not — a bookmark from before runs were in the
+ * URL, a run since gone — landed on the day's newest, and says so, with the
+ * earlier editions a click away. Nothing when the day holds one edition.
+ */
+function SameDayNotice({
+  edition,
+  siblings,
+  named,
+  t,
+  lang,
+}: {
+  edition: Edition
+  /** The domain's other editions of the day, newest first. */
+  siblings: Edition[]
+  /** Whether the URL named this very run. */
+  named: boolean
+  t: T
+  lang: Lang
+}) {
+  if (siblings.length === 0) return null
+  const lead = named
+    ? t('Other briefings this day:')
+    : `${fmt(t('This is the latest of {n} briefings for this domain on {day}.'), {
+        n: siblings.length + 1,
+        day: formatEditionDate(edition.date, lang),
+      })} ${t('Earlier:')}`
+  return (
+    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+      {lead}{' '}
+      {siblings.map((e, i) => (
+        <span key={e.run_id}>
+          {i > 0 && <span aria-hidden="true"> · </span>}
+          <Link
+            href={editionHref(e.date, e.workspace_id, { runId: e.run_id })}
+            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+          >
+            {e.generated_at ? clockStamp(e.generated_at) : formatEditionDate(e.date, lang)}
+          </Link>
+        </span>
+      ))}
+    </p>
   )
 }
 

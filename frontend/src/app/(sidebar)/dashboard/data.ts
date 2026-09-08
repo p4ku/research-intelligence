@@ -16,13 +16,20 @@ import { inFlightIds, selectRecent, type RecentBriefing } from './recent'
  * any of the user's domains.
  */
 
-/** Every run the user can see, newest first (Django's order, re-asserted). */
+/**
+ * Every run the user can see, newest first by the clock the briefings use:
+ * completion (a briefing is published when its run completes), else the
+ * start while a run is still in flight. Django lists by start, and a long
+ * run can start first and finish last — so the order is re-asserted here,
+ * and "Current" (below) and the archive's agree on which run is newest.
+ */
 export const allRuns = cache(async (): Promise<PipelineRun[]> => {
   const list = await runsService.listEverywhere()
-  return list
-    .slice()
-    .sort((a, b) => (b.started_at ?? b.run_date).localeCompare(a.started_at ?? a.run_date))
+  return list.slice().sort((a, b) => runClock(b).localeCompare(runClock(a)))
 })
+
+/** When a run last did something: completed, else started, else its day. */
+export const runClock = (run: PipelineRun) => run.completed_at ?? run.started_at ?? run.run_date
 
 export const currentRun = cache(
   async () => (await allRuns()).find((run) => run.status === 'completed') ?? null,
