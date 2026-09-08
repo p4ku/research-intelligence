@@ -1,13 +1,15 @@
 /**
  * Briefings service. Source `composed` (default): one edition per completed
  * PipelineRun — funnel from the run's counters, papers/exclusions from the
- * scored corpus, prose from ./prose.ts templates (flagged 'template').
- * `django` = the requested editions endpoints. Server-only.
+ * scored corpus as that run recorded them (src/lib/papers/runs.ts), prose
+ * from ./prose.ts templates (flagged 'template'). `django` = the requested
+ * editions endpoints. Server-only.
  */
 import 'server-only'
 
 import type { Lang } from '@/lib/i18n'
 import { isPassed } from '@/lib/papers/map'
+import { papersOfRun, type RunIndex } from '@/lib/papers/runs'
 import { byValueDesc } from '@/lib/papers/select'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { cache } from 'react'
@@ -37,27 +39,31 @@ function editionDate(run: PipelineRun): string {
 function composeEdition(
   run: PipelineRun,
   workspaceName: string,
-  corpus: ScoredPaper[],
+  corpus: ReadonlyMap<string, ScoredPaper>,
+  index: RunIndex | null,
   lang: Lang,
 ): Edition {
-  const ofRun = corpus.filter((p) => p.pipeline_run_id === run.id)
+  // The run's own record of each paper — its decision and score then — not
+  // the paper's latest, which belongs to whichever run saw it last.
+  const ofRun = papersOfRun(run.id, corpus, index)
   const surfaced = ofRun
-    .filter((p) => isPassed(p.screening_status))
+    .filter((r) => isPassed(r.status))
     .sort((a, b) => byValueDesc(a.signal_score, b.signal_score))
-    .map((p) => ({
-      id: p.id,
-      title: p.title,
-      authors: p.authors,
-      source: p.source,
-      signal_score: p.signal_score,
+    .map(({ paper, status, signal_score }) => ({
+      id: paper.id,
+      title: paper.title,
+      authors: paper.authors,
+      source: paper.source,
+      screening_status: status,
+      signal_score,
     }))
   const exclusions = ofRun
-    .filter((p) => p.screening_status === 'rejected' || p.screening_status === 'withdrawn')
-    .map((p) => ({
-      paper_id: p.id,
-      title: p.title,
-      source: p.source,
-      reason: p.screening_reasoning,
+    .filter((r) => r.status === 'rejected' || r.status === 'withdrawn')
+    .map(({ paper, reason }) => ({
+      paper_id: paper.id,
+      title: paper.title,
+      source: paper.source,
+      reason,
     }))
   const prose = templateProse(
     {
@@ -88,11 +94,13 @@ function composeEdition(
 }
 
 async function composeAll(workspaceId: string, lang: Lang): Promise<Edition[]> {
-  const [completed, scored] = await Promise.all([
+  const [completed, scored, index] = await Promise.all([
     runs.listAll(workspaceId, 'completed'),
     papers.listAll(workspaceId),
+    papers.runIndex(),
   ])
   if (!scored) return []
+  const corpus = new Map(scored.papers.map((p) => [p.id, p]))
   const seen = new Set<string>()
   const editions: Edition[] = []
   for (const run of completed) {
@@ -100,7 +108,7 @@ async function composeAll(workspaceId: string, lang: Lang): Promise<Edition[]> {
     const date = editionDate(run)
     if (seen.has(date)) continue
     seen.add(date)
-    editions.push(composeEdition(run, scored.workspace.name, scored.papers, lang))
+    editions.push(composeEdition(run, scored.workspace.name, corpus, index, lang))
   }
   return editions
 }
@@ -177,15 +185,21 @@ export const briefings = {
       // An edition at or past the corpus snapshot's cap composed from fewer
       // papers than its run wrote — none, or the cap cut through the run.
       // `listRun` reads them live in that case; recompose from what it gives.
-      const [completed, scored, rows] = await Promise.all([
+      const [completed, scored, index, rows] = await Promise.all([
         runs.listAll(workspaceId, 'completed'),
         papers.listAll(workspaceId),
+        papers.runIndex(),
         papers.listRun(workspaceId, found.run_id),
       ])
       const run = completed.find((r) => r.id === found.run_id)
       if (!run || !scored) return found
-      const held = scored.papers.filter((p) => p.pipeline_run_id === run.id).length
-      return rows.length > held ? composeEdition(run, scored.workspace.name, rows, lang) : found
+      const corpus = new Map(scored.papers.map((p) => [p.id, p]))
+      const held = papersOfRun(run.id, corpus, index).length
+      if (rows.length <= held) return found
+      // Live rows are run-scoped: each carries this run's decision and
+      // score already, so they are read as the corpus's own attribution.
+      const live = new Map(rows.map((p) => [p.id, p]))
+      return composeEdition(run, scored.workspace.name, live, null, lang)
     },
   ),
 

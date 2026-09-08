@@ -3785,6 +3785,9 @@
           "source": {
             "type": "string"
           },
+          "screening_status": {
+            "$ref": "#/components/schemas/ScreeningStatus"
+          },
           "signal_score": {
             "anyOf": [
               {
@@ -4801,7 +4804,7 @@
               }
             ]
           },
-          "pdf_url": {
+          "source_url": {
             "anyOf": [
               {
                 "type": "string"
@@ -4852,7 +4855,7 @@
           "dimensions",
           "pdf_key",
           "markdown_key",
-          "pdf_url",
+          "source_url",
           "is_benchmark",
           "evaluation_label",
           "created_at"

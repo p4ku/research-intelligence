@@ -105,10 +105,22 @@ export async function EditionPapers({
   // The run's own rows: the corpus's, or read live past the snapshot's cap.
   const scored = await forPage(papersService.listRun(edition.workspace_id, edition.run_id))
 
+  // The card is the paper's scorecard as it stands today, but inside a frozen
+  // edition its decision and score are the run's: a paper this run surfaced
+  // at 76 must not read "Rejected · Unscored" because a later run said so.
+  // Its dimensions stay current — extractions belong to the paper, not to a
+  // run — so a re-extracted paper can show today's TRL beside the run's score.
   const byId = new Map(scored.map((p) => [p.id, p]))
-  const cards = edition.papers
-    .map((p) => byId.get(p.id))
-    .filter((p): p is ScoredPaper => Boolean(p))
+  const cards: ScoredPaper[] = []
+  for (const entry of edition.papers) {
+    const paper = byId.get(entry.id)
+    if (!paper) continue
+    cards.push({
+      ...paper,
+      screening_status: entry.screening_status ?? paper.screening_status,
+      signal_score: entry.signal_score,
+    })
+  }
 
   return (
     <EditionPaperList

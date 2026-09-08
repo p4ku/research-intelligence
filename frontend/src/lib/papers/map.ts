@@ -276,10 +276,50 @@ const ESCAPED_WRAP = /(?<!\\)(?:\\r)?\\n/g
 // one of these marks the whole field as escape-encoded.
 const ESCAPED_FIELD_MARK = /(?<!\\)(?:\\r)?\\n(?=\s|$)/
 
-export function externalPdfUrl(arxiv_id: string | null, doi: string | null): string | null {
-  if (arxiv_id) return `https://arxiv.org/pdf/${arxiv_id.replace(/^arxiv:/i, '')}.pdf`
-  if (doi) return `https://doi.org/${doi}`
-  return null
+/* ---------------------------------- Links ---------------------------------- */
+
+// New-style "2401.12345(v2)" or old-style "cond-mat/0102536", "cs.CV/0101001".
+const ARXIV_ID = /^(\d{4}\.\d{4,5}|[a-z-]+(\.[a-z-]+)?\/\d{7})(v\d+)?$/i
+
+/**
+ * The arXiv id in `value` — an `arXiv:` prefix and whitespace stripped — or
+ * null when it is not shaped like one. The backend's arXiv fallback can leave
+ * an OpenAlex work id ("W2781738013") in `arxiv_id`, and its backfill turned
+ * such rows into `https://arxiv.org/abs/W…`, so nothing is shown as arXiv
+ * without passing through here.
+ */
+export function arxivId(value: string | null | undefined): string | null {
+  const id = (value ?? '').trim().replace(/^arxiv:/i, '')
+  return ARXIV_ID.test(id) ? id : null
+}
+
+/** `http(s)` links only — a provider string with any other scheme is not a link we render. */
+export function httpUrl(value: string | null | undefined): string | null {
+  return value && /^https?:\/\//i.test(value) ? value : null
+}
+
+/** The decoded path of an http(s) `url` on a host matching `host`, trailing slash off; else null. */
+function pathOn(url: string | null | undefined, host: RegExp): string | null {
+  if (!httpUrl(url)) return null
+  try {
+    const u = new URL(url as string)
+    if (!host.test(u.hostname)) return null
+    return decodeURIComponent(u.pathname).replace(/\/+$/, '')
+  } catch {
+    return null
+  }
+}
+
+/** The arXiv id a `source_url` points at, or null — query and fragment aside, shape-checked. */
+export function arxivIdOf(url: string | null | undefined): string | null {
+  const path = pathOn(url, /^(www\.|export\.)?arxiv\.org$/i)
+  return arxivId(/^\/abs\/(.+)$/.exec(path ?? '')?.[1])
+}
+
+/** The DOI a `source_url` points at, or null. */
+export function doiOf(url: string | null | undefined): string | null {
+  const doi = pathOn(url, /^(dx\.)?doi\.org$/i)?.slice(1)
+  return doi || null
 }
 
 export function normalizeStatus(value: string | null | undefined): ScreeningStatus {
@@ -487,7 +527,9 @@ export function toScoredPaper(
     dimensions,
     pdf_key: paper.original_pdf_path || null,
     markdown_key: paper.converted_md_path || null,
-    pdf_url: externalPdfUrl(paper.arxiv_id, paper.doi),
+    // The backend's one link rule, passed through — never rebuilt from the ids.
+    // Only the scheme is checked: scraper output goes straight into an href.
+    source_url: httpUrl(paper.source_url),
     is_benchmark: Boolean(paper.is_evaluation_benchmark),
     evaluation_label: paper.evaluation_label ?? null,
     created_at: paper.created_at,

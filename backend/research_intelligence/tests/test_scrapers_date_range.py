@@ -1,5 +1,7 @@
 import json
 import uuid
+import re
+import urllib.parse
 from datetime import datetime, date, timedelta
 from unittest.mock import patch, MagicMock
 from django.contrib.auth.models import User
@@ -768,4 +770,491 @@ class APIPermissionsAndDateValidationTests(APITestCase):
             end_date="2026-09-06",
             n_last_days=14
         )
+
+
+class APIDateRangeToScraperQueryEndToEndTests(APITestCase):
+    """
+    End-to-End integration tests verifying that date ranges (explicit start_date/end_date
+    and relative n_last_days) provided via REST API endpoints (/api/pipeline-runs/start/
+    and /api/workspaces/{id}/run-pipeline/) propagate completely through:
+    1. The API request & serializer validation
+    2. start_pipeline_run_logic & PipelineRun creation (configuration_override)
+    3. Workflow DAG evaluation & SearchNode execution (ComponentRun.input_params)
+    4. Celery search worker job (execute_scraper_run_job)
+    5. The Scraper Provider query formatting (ArXiv, OpenAlex, Lens)
+    6. The outgoing HTTP network request (urllib.request.urlopen) with substituted date fields.
+    """
+
+    def setUp(self):
+        self.user = User.objects.create_user(username="lead_scientist", password="password123")
+        self.workspace = Workspace.objects.create(name="E2E Date Range Workspace")
+        WorkspaceMember.objects.create(workspace=self.workspace, user=self.user, role="manager")
+        self.client.force_authenticate(user=self.user)
+
+    def _make_sync_delay(self):
+        """Helper that intercepts Celery .delay() and executes execute_scraper_run_job synchronously."""
+        def _sync_delay(comp_run_id, limit=None):
+            execute_scraper_run_job(comp_run_id, limit=limit)
+            return MagicMock(id="mock_celery_task_e2e")
+        return _sync_delay
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    @patch("research_intelligence.scrapers.arxiv._throttle_request")
+    @patch("research_intelligence.scrapers.arxiv.urllib.request.urlopen")
+    @patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay")
+    def test_e2e_api_pipeline_runs_start_with_explicit_dates_propagates_to_arxiv_query(
+        self, mock_delay, mock_urlopen, mock_throttle, mock_notify
+    ):
+        mock_delay.side_effect = self._make_sync_delay()
+        mock_response = MagicMock()
+        mock_response.read.return_value = b"<feed xmlns='http://www.w3.org/2005/Atom'></feed>"
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        # Setup active arXiv scraper on workspace
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="quantum teleportation",
+            is_active=True
+        )
+
+        url = "/api/pipeline-runs/start/"
+        payload = {
+            "workspace_id": str(self.workspace.id),
+            "name": "E2E ArXiv Date Run",
+            "start_date": "2026-03-01",
+            "end_date": "2026-03-15",
+            "autonomous": False
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        pr_id = response.data["pipeline_run_id"]
+        pr = PipelineRun.objects.get(id=pr_id)
+        self.assertEqual(pr.configuration_override["start_date"], "2026-03-01")
+        self.assertEqual(pr.configuration_override["end_date"], "2026-03-15")
+
+        comp_run = ComponentRun.objects.filter(pipeline_run=pr, step_type="search").first()
+        self.assertIsNotNone(comp_run)
+        self.assertEqual(comp_run.input_params["start_date"], "2026-03-01")
+        self.assertEqual(comp_run.input_params["end_date"], "2026-03-15")
+        self.assertEqual(comp_run.status, "completed")
+
+        # Verify urllib.request.urlopen was called with the properly transformed date range in URL
+        self.assertTrue(mock_urlopen.called)
+        req = mock_urlopen.call_args[0][0]
+        full_url_decoded = urllib.parse.unquote(req.full_url)
+        self.assertIn("submittedDate:[20260301000000 TO 20260315235959]", full_url_decoded)
+        self.assertIn("quantum teleportation", full_url_decoded)
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    @patch("research_intelligence.scrapers.openalex.urllib.request.urlopen")
+    @patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay")
+    def test_e2e_api_workspaces_run_pipeline_with_explicit_dates_propagates_to_openalex_query(
+        self, mock_delay, mock_urlopen, mock_notify
+    ):
+        mock_delay.side_effect = self._make_sync_delay()
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'{"results": []}'
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        # Setup active OpenAlex scraper on workspace
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="openalex",
+            search_query="solid state electrolyte",
+            is_active=True
+        )
+
+        url = f"/api/workspaces/{self.workspace.id}/run-pipeline/"
+        payload = {
+            "name": "E2E OpenAlex Workspace Run",
+            "start_date": "2026-04-01",
+            "end_date": "2026-04-30",
+            "autonomous": False
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        pr_id = response.data["pipeline_run_id"]
+        pr = PipelineRun.objects.get(id=pr_id)
+        self.assertEqual(pr.configuration_override["start_date"], "2026-04-01")
+        self.assertEqual(pr.configuration_override["end_date"], "2026-04-30")
+
+        comp_run = ComponentRun.objects.filter(pipeline_run=pr, step_type="search").first()
+        self.assertIsNotNone(comp_run)
+        self.assertEqual(comp_run.input_params["start_date"], "2026-04-01")
+        self.assertEqual(comp_run.input_params["end_date"], "2026-04-30")
+        self.assertEqual(comp_run.status, "completed")
+
+        self.assertTrue(mock_urlopen.called)
+        req = mock_urlopen.call_args[0][0]
+        full_url_decoded = urllib.parse.unquote(req.full_url)
+        self.assertIn("filter=from_publication_date:2026-04-01,to_publication_date:2026-04-30", full_url_decoded)
+        self.assertIn("search=solid%20state%20electrolyte", req.full_url)
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    @patch("research_intelligence.scrapers.lens.settings")
+    @patch("research_intelligence.scrapers.lens.urllib.request.urlopen")
+    @patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay")
+    def test_e2e_api_pipeline_runs_start_with_explicit_dates_propagates_to_lens_query(
+        self, mock_delay, mock_urlopen, mock_settings, mock_notify
+    ):
+        mock_settings.LENS_API_KEY = "test-lens-api-key"
+        mock_delay.side_effect = self._make_sync_delay()
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'{"data": []}'
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        # Setup active Lens scraper on workspace
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="lens",
+            search_query="crispr therapeutics",
+            is_active=True
+        )
+
+        url = "/api/pipeline-runs/start/"
+        payload = {
+            "workspace_id": str(self.workspace.id),
+            "name": "E2E Lens Date Run",
+            "start_date": "2026-05-01",
+            "end_date": "2026-05-20",
+            "autonomous": False
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        pr_id = response.data["pipeline_run_id"]
+        pr = PipelineRun.objects.get(id=pr_id)
+        self.assertEqual(pr.configuration_override["start_date"], "2026-05-01")
+        self.assertEqual(pr.configuration_override["end_date"], "2026-05-20")
+
+        comp_run = ComponentRun.objects.filter(pipeline_run=pr, step_type="search").first()
+        self.assertIsNotNone(comp_run)
+        self.assertEqual(comp_run.input_params["start_date"], "2026-05-01")
+        self.assertEqual(comp_run.input_params["end_date"], "2026-05-20")
+        self.assertEqual(comp_run.status, "completed")
+
+        self.assertTrue(mock_urlopen.called)
+        req = mock_urlopen.call_args[0][0]
+        payload_data = json.loads(req.data.decode("utf-8"))
+        must_clauses = payload_data["query"]["bool"]["must"]
+        range_clause = next((c for c in must_clauses if "range" in c), None)
+        self.assertIsNotNone(range_clause)
+        self.assertEqual(range_clause["range"]["date_published"]["gte"], "2026-05-01")
+        self.assertEqual(range_clause["range"]["date_published"]["lte"], "2026-05-20")
+        query_clause = next((c for c in must_clauses if "query_string" in c), None)
+        self.assertIsNotNone(query_clause)
+        self.assertEqual(query_clause["query_string"]["query"], "crispr therapeutics")
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    @patch("research_intelligence.scrapers.arxiv._throttle_request")
+    @patch("research_intelligence.scrapers.arxiv.urllib.request.urlopen")
+    @patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay")
+    def test_e2e_api_pipeline_runs_start_with_relative_n_last_days_computes_date_range(
+        self, mock_delay, mock_urlopen, mock_throttle, mock_notify
+    ):
+        mock_delay.side_effect = self._make_sync_delay()
+        mock_response = MagicMock()
+        mock_response.read.return_value = b"<feed xmlns='http://www.w3.org/2005/Atom'></feed>"
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="graph neural networks",
+            is_active=True
+        )
+
+        url = "/api/pipeline-runs/start/"
+        payload = {
+            "workspace_id": str(self.workspace.id),
+            "name": "E2E Relative Days Run",
+            "n_last_days": 14,
+            "autonomous": False
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        pr_id = response.data["pipeline_run_id"]
+        pr = PipelineRun.objects.get(id=pr_id)
+        self.assertEqual(pr.configuration_override["n_last_days"], 14)
+
+        comp_run = ComponentRun.objects.filter(pipeline_run=pr, step_type="search").first()
+        self.assertIsNotNone(comp_run)
+        self.assertEqual(comp_run.input_params["n_last_days"], 14)
+
+        self.assertTrue(mock_urlopen.called)
+        req = mock_urlopen.call_args[0][0]
+        full_url_decoded = urllib.parse.unquote(req.full_url)
+        self.assertIn("submittedDate:[", full_url_decoded)
+
+        match = re.search(r"submittedDate:\[(\d{14}) TO (\d{14})\]", full_url_decoded)
+        self.assertIsNotNone(match, f"submittedDate range not found in {full_url_decoded}")
+        start_str, end_str = match.groups()
+        parsed_start = datetime.strptime(start_str, "%Y%m%d%H%M%S")
+        parsed_end = datetime.strptime(end_str, "%Y%m%d%H%M%S")
+        diff_days = (parsed_end - parsed_start).days
+        self.assertEqual(diff_days, 14)
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    @patch("research_intelligence.scrapers.arxiv._throttle_request")
+    @patch("research_intelligence.scrapers.arxiv.urllib.request.urlopen")
+    @patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay")
+    def test_e2e_api_inverted_dates_are_swapped_in_scraper_query(
+        self, mock_delay, mock_urlopen, mock_throttle, mock_notify
+    ):
+        mock_delay.side_effect = self._make_sync_delay()
+        mock_response = MagicMock()
+        mock_response.read.return_value = b"<feed xmlns='http://www.w3.org/2005/Atom'></feed>"
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="quantum computing",
+            is_active=True
+        )
+
+        url = "/api/pipeline-runs/start/"
+        # Inverted: start is after end
+        payload = {
+            "workspace_id": str(self.workspace.id),
+            "start_date": "2026-09-20",
+            "end_date": "2026-09-10",
+            "autonomous": False
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        self.assertTrue(mock_urlopen.called)
+        req = mock_urlopen.call_args[0][0]
+        full_url_decoded = urllib.parse.unquote(req.full_url)
+        # Should be swapped so start is 2026-09-10 and end is 2026-09-20
+        self.assertIn("submittedDate:[20260910000000 TO 20260920235959]", full_url_decoded)
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    @patch("research_intelligence.scrapers.openalex.urllib.request.urlopen")
+    @patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay")
+    def test_e2e_api_only_start_date_defaults_end_date_to_today(
+        self, mock_delay, mock_urlopen, mock_notify
+    ):
+        mock_delay.side_effect = self._make_sync_delay()
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'{"results": []}'
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="openalex",
+            search_query="supercapacitors",
+            is_active=True
+        )
+
+        today_str = timezone.now().strftime("%Y-%m-%d")
+        url = f"/api/workspaces/{self.workspace.id}/run-pipeline/"
+        payload = {
+            "start_date": "2026-08-01",
+            "autonomous": False
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        self.assertTrue(mock_urlopen.called)
+        req = mock_urlopen.call_args[0][0]
+        full_url_decoded = urllib.parse.unquote(req.full_url)
+        self.assertIn(f"filter=from_publication_date:2026-08-01,to_publication_date:{today_str}", full_url_decoded)
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    @patch("research_intelligence.scrapers.lens.settings")
+    @patch("research_intelligence.scrapers.lens.urllib.request.urlopen")
+    @patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay")
+    def test_e2e_api_only_end_date_calculates_start_date_from_n_last_days(
+        self, mock_delay, mock_urlopen, mock_settings, mock_notify
+    ):
+        mock_settings.LENS_API_KEY = "test-lens-api-key"
+        mock_delay.side_effect = self._make_sync_delay()
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'{"data": []}'
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="lens",
+            search_query="solid oxide fuel cells",
+            is_active=True
+        )
+
+        url = "/api/pipeline-runs/start/"
+        payload = {
+            "workspace_id": str(self.workspace.id),
+            "end_date": "2026-07-20",
+            "n_last_days": 5,
+            "autonomous": False
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        self.assertTrue(mock_urlopen.called)
+        req = mock_urlopen.call_args[0][0]
+        payload_data = json.loads(req.data.decode("utf-8"))
+        must_clauses = payload_data["query"]["bool"]["must"]
+        range_clause = next((c for c in must_clauses if "range" in c), None)
+        self.assertIsNotNone(range_clause)
+        self.assertEqual(range_clause["range"]["date_published"]["gte"], "2026-07-15")
+        self.assertEqual(range_clause["range"]["date_published"]["lte"], "2026-07-20")
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    @patch("research_intelligence.scrapers.arxiv._throttle_request")
+    @patch("urllib.request.urlopen")
+    @patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay")
+    def test_e2e_api_parallel_multi_scrapers_receive_and_format_date_ranges(
+        self, mock_delay, mock_urlopen, mock_throttle, mock_notify
+    ):
+        mock_delay.side_effect = self._make_sync_delay()
+
+        def fake_urlopen(req, *args, **kwargs):
+            url = req.full_url if hasattr(req, 'full_url') else str(req)
+            resp = MagicMock()
+            if "arxiv.org" in url:
+                resp.read.return_value = b"<feed xmlns='http://www.w3.org/2005/Atom'></feed>"
+            elif "openalex.org" in url:
+                resp.read.return_value = b'{"results": []}'
+            else:
+                resp.read.return_value = b"{}"
+            resp.__enter__.return_value = resp
+            return resp
+
+        mock_urlopen.side_effect = fake_urlopen
+
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="quantum dots",
+            is_active=True
+        )
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="openalex",
+            search_query="quantum dots",
+            is_active=True
+        )
+
+        url = "/api/pipeline-runs/start/"
+        payload = {
+            "workspace_id": str(self.workspace.id),
+            "start_date": "2026-06-01",
+            "end_date": "2026-06-15",
+            "autonomous": False
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+
+        pr_id = response.data["pipeline_run_id"]
+        pr = PipelineRun.objects.get(id=pr_id)
+        comp_runs = ComponentRun.objects.filter(pipeline_run=pr, step_type="search")
+        self.assertEqual(comp_runs.count(), 2)
+        for cr in comp_runs:
+            self.assertEqual(cr.input_params["start_date"], "2026-06-01")
+            self.assertEqual(cr.input_params["end_date"], "2026-06-15")
+            self.assertEqual(cr.status, "completed")
+
+        self.assertEqual(mock_urlopen.call_count, 2)
+        captured_requests = [c[0][0] for c in mock_urlopen.call_args_list]
+
+        arxiv_req = next((r for r in captured_requests if "arxiv.org" in r.full_url), None)
+        self.assertIsNotNone(arxiv_req)
+        arxiv_url_decoded = urllib.parse.unquote(arxiv_req.full_url)
+        self.assertIn("submittedDate:[20260601000000 TO 20260615235959]", arxiv_url_decoded)
+
+        oa_req = next((r for r in captured_requests if "openalex.org" in r.full_url), None)
+        self.assertIsNotNone(oa_req)
+        oa_url_decoded = urllib.parse.unquote(oa_req.full_url)
+        self.assertIn("filter=from_publication_date:2026-06-01,to_publication_date:2026-06-15", oa_url_decoded)
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    @patch("research_intelligence.scrapers.arxiv._throttle_request")
+    @patch("research_intelligence.scrapers.arxiv.urllib.request.urlopen")
+    @patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay")
+    def test_e2e_trigger_search_job_logic_with_dates_formats_scraper_query(
+        self, mock_delay, mock_urlopen, mock_throttle, mock_notify
+    ):
+        mock_delay.side_effect = self._make_sync_delay()
+        mock_response = MagicMock()
+        mock_response.read.return_value = b"<feed xmlns='http://www.w3.org/2005/Atom'></feed>"
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="perovskite solar cells",
+            is_active=True
+        )
+
+        res_raw = trigger_search_job_logic(
+            user=self.user,
+            workspace_id=str(self.workspace.id),
+            start_date="2026-02-01",
+            end_date="2026-02-14"
+        )
+        res = json.loads(res_raw)
+        self.assertTrue(res["success"])
+
+        self.assertTrue(mock_urlopen.called)
+        req = mock_urlopen.call_args[0][0]
+        full_url_decoded = urllib.parse.unquote(req.full_url)
+        self.assertIn("submittedDate:[20260201000000 TO 20260214235959]", full_url_decoded)
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    @patch("research_intelligence.scrapers.arxiv._throttle_request")
+    @patch("research_intelligence.scrapers.arxiv.urllib.request.urlopen")
+    @patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay")
+    def test_e2e_api_pipeline_runs_trigger_step_search_formats_scraper_query(
+        self, mock_delay, mock_urlopen, mock_throttle, mock_notify
+    ):
+        mock_delay.side_effect = self._make_sync_delay()
+        mock_response = MagicMock()
+        mock_response.read.return_value = b"<feed xmlns='http://www.w3.org/2005/Atom'></feed>"
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="solid-state battery",
+            is_active=True
+        )
+
+        pipeline_run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Step Trigger Run",
+            status="pending"
+        )
+
+        url = f"/api/pipeline-runs/{pipeline_run.id}/trigger-step/"
+        payload = {
+            "step_type": "search",
+            "start_date": "2026-01-10",
+            "end_date": "2026-01-20",
+            "n_last_days": 10
+        }
+        response = self.client.post(url, payload, format="json")
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        self.assertTrue(mock_urlopen.called)
+        req = mock_urlopen.call_args[0][0]
+        full_url_decoded = urllib.parse.unquote(req.full_url)
+        self.assertIn("submittedDate:[20260110000000 TO 20260120235959]", full_url_decoded)
+        self.assertIn("solid-state battery", full_url_decoded)
+
+
 

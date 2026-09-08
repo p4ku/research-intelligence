@@ -40,8 +40,11 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
         base_qs = Paper.objects.select_related('workspace')
         if getattr(user, 'is_superuser', False):
             qs = base_qs.all()
+            user_ws_ids = None
         else:
-            user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
+            user_ws_ids = set(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+            if not user_ws_ids:
+                return Paper.objects.none()
             qs = base_qs.filter(workspace_id__in=user_ws_ids)
 
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
@@ -51,7 +54,9 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
             import uuid
             try:
                 ws_uuid = uuid.UUID(str(ws_id))
-                qs = qs.filter(workspace_id=ws_uuid)
+                if user_ws_ids is not None and ws_uuid not in user_ws_ids:
+                    return qs.none()
+                qs = base_qs.filter(workspace_id=ws_uuid) if user_ws_ids is not None else qs.filter(workspace_id=ws_uuid)
             except (ValueError, TypeError):
                 return qs.none()
 
@@ -112,7 +117,7 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
                 filter_kwargs['metrics__screening_status'] = screening_status
 
             qs = qs.filter(**filter_kwargs).distinct().prefetch_related(
-                Prefetch('metrics', queryset=PaperMetric.objects.filter(pipeline_run_id=pr_uuid).select_related('pipeline_run'))
+                Prefetch('metrics', queryset=PaperMetric.objects.filter(pipeline_run_id=pr_uuid).select_related('pipeline_run').order_by('-created_at'))
             )
 
             from django.db.models import F
@@ -126,7 +131,7 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
         # Workspace-level queries (no specific pipeline run):
         from django.db.models import Prefetch
         qs = qs.prefetch_related(
-            Prefetch('metrics', queryset=PaperMetric.objects.select_related('pipeline_run'))
+            Prefetch('metrics', queryset=PaperMetric.objects.select_related('pipeline_run').order_by('-created_at'))
         )
 
         from django.db.models import Subquery, OuterRef, F
@@ -180,14 +185,17 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
         paper_data = paper_serializer.data
 
         from research_intelligence.models import Extraction, ExtractionDefinition
-        extractions = Extraction.objects.filter(paper=paper).select_related('extraction_definition')
+        extractions = list(Extraction.objects.filter(paper=paper).select_related('extraction_definition').order_by('-created_at'))
         definitions = list(ExtractionDefinition.objects.filter(workspace=paper.workspace, is_active=True).order_by('created_at'))
 
         raw_authors = paper.authors or ''
         authors_list = [a.strip() for a in raw_authors.split(',') if a.strip()] if raw_authors else []
 
         dimensions = []
-        ext_by_def = {e.extraction_definition_id: e for e in extractions if e.extraction_definition_id}
+        ext_by_def = {}
+        for e in extractions:
+            if e.extraction_definition_id and e.extraction_definition_id not in ext_by_def:
+                ext_by_def[e.extraction_definition_id] = e
         for d in definitions:
             e = ext_by_def.get(d.id)
             val = None
@@ -236,7 +244,8 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
             'dimensions': dimensions,
             'pdf_key': paper.original_pdf_path or None,
             'markdown_key': paper.converted_md_path or None,
-            'pdf_url': f"https://arxiv.org/abs/{paper.arxiv_id}" if paper.arxiv_id else (f"https://doi.org/{paper.doi}" if paper.doi else None),
+            'pdf_url': paper.source_url,
+            'source_url': paper.source_url,
             'is_benchmark': bool(paper_data.get('is_evaluation_benchmark', False)),
             'evaluation_label': paper_data.get('evaluation_label'),
             'created_at': paper.created_at.isoformat(),

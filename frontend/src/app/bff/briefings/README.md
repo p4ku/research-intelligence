@@ -11,7 +11,9 @@ and the dashboard's "Today in brief".
 
 `date`, `title`, `in_brief` prose (with a flag distinguishing model-written
 from template), funnel counters, the surfaced papers (id/title/authors/
-source/signal), and the exclusions (title/source/screening reason).
+source, plus the run's own signal and — still missing from the Django
+editions endpoint — its screening status for the paper), and the exclusions
+(title/source/screening reason).
 
 ## BFF routes
 
@@ -48,6 +50,18 @@ withdrawn papers with their `screening_reasoning`, funnel = the run's
 counters. `title`/`in_brief` come from `prose.ts` templates filled with real
 numbers and titles, flagged `in_brief_source: 'template'` (the UI shows an
 "auto-brief" tag). `stub` serves `fixtures.ts`.
+
+A run's papers are read from each paper's own `metrics[]` row for that run
+(`src/lib/papers/runs.ts`), not from the paper-level `pipeline_run`: the
+paper serializer collapses a paper to the newest run that saw it, which would
+empty every older briefing in a domain. A row without `screening_status`
+(a deployment whose metric serializer predates the field) falls back to the
+paper's current status.
+
+When the counters and the corpus still disagree — the run passed papers the
+edition cannot show — the prose says so ("Papers not on file") instead of
+claiming none passed, and Home and the archive treat the run as having no
+briefing to open.
 
 ## Flip the flag
 

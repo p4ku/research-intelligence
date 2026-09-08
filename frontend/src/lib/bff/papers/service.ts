@@ -11,6 +11,8 @@
  */
 import 'server-only'
 
+import type { PaperDTO } from '@/lib/api/types'
+import { indexRuns, papersOfRun, type RunIndex } from '@/lib/papers/runs'
 import { cache } from 'react'
 import * as z from 'zod'
 import { django } from '../core/http'
@@ -22,7 +24,7 @@ import { corpusSnapshot } from '../corpus/snapshot'
 import { stars } from '../stars/service'
 import { workspace, type WorkspaceSummary } from '../workspaces/schema'
 import { workspaces } from '../workspaces/service'
-import { composeGet, composeListAll, composeRunPapers } from './compose'
+import { composeGet, composeListAll, composeRunPapers, listPapersRaw } from './compose'
 import { applyPapersQuery, corpusFacets } from './filter'
 import { fixturePapers, fixtureWorkspace } from './fixtures'
 import {
@@ -89,6 +91,9 @@ function stubListAll(workspaceId: string): WorkspacePapers {
 /** The reader's stars, once per request: the sidebar and the list share it. */
 const starredPapers = cache(() => stars.get())
 
+/** The run index is a pure function of the raw list, which lives across requests — so does the index. */
+const runIndexOf = new WeakMap<PaperDTO[], RunIndex>()
+
 export const papers = {
   /**
    * The whole workspace corpus + its workspace summary; null when not visible.
@@ -144,13 +149,42 @@ export const papers = {
   }),
 
   /**
-   * The papers one run wrote, scored — read live under `composed` when the
-   * corpus snapshot no longer holds them all (an edition at or past the cap),
-   * otherwise the corpus's own rows. Cached per request.
+   * Every run's own record of every paper (src/lib/papers/runs.ts), for the
+   * readers that need a paper as one run saw it rather than as it stands
+   * today — the briefings. Only the `composed` source sees the per-run
+   * metrics; the others return null and the corpus's own attribution is all
+   * there is. Cached per request, over the same snapshot as `listAll`.
+   */
+  runIndex: cache(async (): Promise<RunIndex | null> => {
+    if (sourceOf('papers') !== 'composed') return null
+    const raw = await listPapersRaw()
+    let index = runIndexOf.get(raw)
+    if (!index) runIndexOf.set(raw, (index = indexRuns(raw)))
+    return index
+  }),
+
+  /**
+   * Whether the per-user cap dropped older papers from the corpus
+   * (../corpus/snapshot.ts). A reader deciding that a run "has no papers"
+   * must ask first: past the cap, absence is not evidence. Cached per request.
+   */
+  corpusTruncated: cache(async (): Promise<boolean> => {
+    if (sourceOf('papers') !== 'composed') return false
+    return Boolean((await corpusSnapshot()).truncated)
+  }),
+
+  /**
+   * The papers one run wrote, scored — the corpus's own rows, attributed
+   * through the run index (a paper's `pipeline_run_id` names the run that
+   * saw it last, not every run that did), or read live under `composed` when
+   * the corpus snapshot no longer holds them all (an edition at or past the
+   * cap). Live rows come run-scoped, so they carry that run's decision and
+   * score. Cached per request.
    */
   listRun: cache(async (workspaceId: string, runId: string): Promise<ScoredPaper[]> => {
-    const scored = await papers.listAll(workspaceId)
-    const held = scored?.papers.filter((p) => p.pipeline_run_id === runId) ?? []
+    const [scored, index] = await Promise.all([papers.listAll(workspaceId), papers.runIndex()])
+    const corpus = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
+    const held = papersOfRun(runId, corpus, index).map((r) => r.paper)
     if (sourceOf('papers') !== 'composed') return held
     const { truncated } = await corpusSnapshot()
     if (!truncated) return held

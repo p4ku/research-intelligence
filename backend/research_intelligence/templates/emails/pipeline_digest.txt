@@ -41,7 +41,7 @@ TOP SCREENED PAPERS & PARAMETER SCORECARD DETAILS
 {{ paper.index }}. {{ paper.title }}
    - Signal Score: {{ paper.signal_score_formatted }}
    - Authors: {{ paper.authors }}
-   {% if paper.pdf_link %}- PDF URL: {{ paper.pdf_link }}{% endif %}
+   {% if paper.source_url %}- Source URL: {{ paper.source_url }}{% elif paper.pdf_link %}- PDF URL: {{ paper.pdf_link }}{% endif %}
    - Extracted Metrics:
      {% for ext in paper.extractions %}
      * {{ ext.name }}: {{ ext.value }}{% if ext.confidence %} ({{ ext.confidence_percent }}% confidence){% endif %}

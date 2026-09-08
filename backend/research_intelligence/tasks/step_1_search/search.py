@@ -12,6 +12,7 @@ from django.core.files.base import ContentFile
 
 from ...models import Workspace, Paper, PaperMetric, PipelineRun, ComponentRun, Scraper
 from ...scrapers import get_scraper_provider
+from ...utils.source_url import resolve_paper_source_url
 
 logger = logging.getLogger(__name__)
 
@@ -113,10 +114,14 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
         component_run.save(update_fields=['metrics'])
 
         # 2. Prepare in-memory deduplication index
-        existing_papers = list(Paper.objects.filter(workspace_id=workspace.id).values("title", "doi", "arxiv_id"))
-        existing_normalized_dois = {normalize_doi(p["doi"]) for p in existing_papers if p.get("doi")}
-        existing_normalized_arxiv_ids = {normalize_arxiv_id(p["arxiv_id"]) for p in existing_papers if p.get("arxiv_id")}
-        existing_normalized_titles = {normalize_title(p["title"]) for p in existing_papers if p.get("title")}
+        existing_papers = list(Paper.objects.filter(workspace_id=workspace.id).values("id", "title", "doi", "arxiv_id"))
+        doi_to_id = {normalize_doi(p["doi"]): p["id"] for p in existing_papers if p.get("doi")}
+        arxiv_to_id = {normalize_arxiv_id(p["arxiv_id"]): p["id"] for p in existing_papers if p.get("arxiv_id")}
+        title_to_id = {normalize_title(p["title"]): p["id"] for p in existing_papers if p.get("title")}
+
+        existing_normalized_dois = set(doi_to_id.keys())
+        existing_normalized_arxiv_ids = set(arxiv_to_id.keys())
+        existing_normalized_titles = set(title_to_id.keys())
 
         logger.info(f"💾 [INGESTION] Starting deduplication against {len(existing_papers)} existing workspace papers...")
 
@@ -154,21 +159,30 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
             if is_duplicate:
                 clean_doi = norm_doi if norm_doi else doi
                 clean_arxiv = norm_arxiv if norm_arxiv else arxiv_id
-                from django.db.models import Q
-                conds = Q(workspace=workspace)
-                match_q = Q()
-                if norm_doi:
-                    match_q |= Q(doi__iexact=clean_doi)
-                if norm_arxiv:
-                    match_q |= Q(arxiv_id__iexact=clean_arxiv)
-                if norm_title:
-                    # Rows ingested before titles were single-lined still hold
-                    # the provider's raw wrap; match either spelling so they
-                    # keep receiving the DOI/arXiv/PDF backfill below.
-                    match_q |= Q(title__iexact=title) | Q(title__iexact=item['title'])
+
+                existing_p_id = (
+                    doi_to_id.get(norm_doi)
+                    or arxiv_to_id.get(norm_arxiv)
+                    or title_to_id.get(norm_title)
+                )
 
                 with transaction.atomic():
-                    existing_p = Paper.objects.filter(conds & match_q).first()
+                    if existing_p_id:
+                        existing_p = Paper.objects.filter(id=existing_p_id).first()
+                    else:
+                        from django.db.models import Q
+                        conds = Q(workspace=workspace)
+                        match_q = Q()
+                        if norm_doi:
+                            match_q |= Q(doi__iexact=clean_doi)
+                        if norm_arxiv:
+                            match_q |= Q(arxiv_id__iexact=clean_arxiv)
+                        if norm_title:
+                            # Rows ingested before titles were single-lined still hold
+                            # the provider's raw wrap; match either spelling so they
+                            # keep receiving the DOI/arXiv/PDF backfill below.
+                            match_q |= Q(title__iexact=title) | Q(title__iexact=item['title'])
+                        existing_p = Paper.objects.filter(conds & match_q).first()
                     if existing_p:
                         # Enrich existing paper with any newly found fields
                         updated_fields = []
@@ -184,6 +198,15 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                         if not existing_p.meta and item.get('meta'):
                             existing_p.meta = item.get('meta')
                             updated_fields.append('meta')
+                        clean_source = item.get('source_url') or resolve_paper_source_url(
+                            item,
+                            doi=clean_doi,
+                            arxiv_id=clean_arxiv,
+                            source_url=item.get('other_url') or item.get('pdf_url')
+                        )
+                        if not existing_p.source_url and clean_source:
+                            existing_p.source_url = clean_source[:1024]
+                            updated_fields.append('source_url')
                         if updated_fields:
                             existing_p.save(update_fields=updated_fields)
 
@@ -245,9 +268,24 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                     if not paper.meta and item.get('meta'):
                         paper.meta = item.get('meta')
                         updated_fields.append('meta')
+                    clean_source = item.get('source_url') or resolve_paper_source_url(
+                        item,
+                        doi=clean_doi,
+                        arxiv_id=clean_arxiv,
+                        source_url=item.get('other_url') or item.get('pdf_url')
+                    )
+                    if not paper.source_url and clean_source:
+                        paper.source_url = clean_source[:1024]
+                        updated_fields.append('source_url')
                     if updated_fields:
                         paper.save(update_fields=updated_fields)
                 else:
+                    clean_source = item.get('source_url') or resolve_paper_source_url(
+                        item,
+                        doi=clean_doi,
+                        arxiv_id=clean_arxiv,
+                        source_url=item.get('other_url') or item.get('pdf_url')
+                    )
                     paper, created = Paper.objects.get_or_create(
                         workspace=workspace,
                         hash_id=unique_hash,
@@ -258,6 +296,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                             "authors": item.get('authors', ''),
                             "abstract": one_line(item.get('abstract', '')),
                             "source_database": item.get('source_database', 'arxiv'),
+                            "source_url": clean_source[:1024] if clean_source else None,
                             "original_pdf_path": item.get('pdf_url', '') or item.get('original_pdf_path', ''),
                             "meta": item.get('meta') or {}
                         }
@@ -285,10 +324,13 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                 created_paper_ids.append(str(paper.id))
                 if norm_doi:
                     existing_normalized_dois.add(norm_doi)
+                    doi_to_id[norm_doi] = paper.id
                 if norm_arxiv:
                     existing_normalized_arxiv_ids.add(norm_arxiv)
+                    arxiv_to_id[norm_arxiv] = paper.id
                 if norm_title:
                     existing_normalized_titles.add(norm_title)
+                    title_to_id[norm_title] = paper.id
             else:
                 skipped_count += 1
 

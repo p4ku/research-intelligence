@@ -46,6 +46,7 @@ from tests_e2e.scenarios import (
     run_workspace_import_export_scenario,
     run_direct_full_text_and_subscribers_scenario,
     run_hitl_validation_journey_scenario,
+    run_stars_curation_journey_scenario,
 )
 
 # Configure rich colored terminal logging
@@ -76,10 +77,11 @@ def parse_args():
             "impexp", "import_export", "template",
             "direct_ft", "direct_full_text", "subscribers",
             "hitl", "hitl_validation", "correction",
+            "stars", "curation",
             "all"
         ],
         default="slr",
-        help="Target test scenario to execute (slr, impexp, direct_ft, hitl, date_range, ask_paper, variables, all)",
+        help="Target test scenario to execute (slr, impexp, direct_ft, hitl, stars, date_range, ask_paper, variables, all)",
     )
     parser.add_argument(
         "--provider",
@@ -481,6 +483,11 @@ def main():
             res = run_hitl_validation_journey_scenario(config)
             total_elapsed = time.time() - t0
             print(f"\n✅ HUMAN-IN-THE-LOOP (HITL) VALIDATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Extraction ID: {res.get('extraction_id')})\n")
+
+        elif args.scenario in ("stars", "curation"):
+            res = run_stars_curation_journey_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ STARS & PERSONAL CURATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Status: {res.get('status')})\n")
 
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")

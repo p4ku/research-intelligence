@@ -33,8 +33,12 @@ class UserActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
         if getattr(user, 'is_superuser', False):
             qs = base_qs.all().order_by('-timestamp')
         else:
-            user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-            qs = (base_qs.filter(workspace_id__in=user_ws_ids) | base_qs.filter(user=user)).order_by('-timestamp')
+            from django.db.models import Q
+            user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+            if user_ws_ids:
+                qs = base_qs.filter(Q(workspace_id__in=user_ws_ids) | Q(user=user)).order_by('-timestamp')
+            else:
+                qs = base_qs.filter(user=user).order_by('-timestamp')
 
         workspace_id = self.request.query_params.get('workspace')
         if workspace_id:

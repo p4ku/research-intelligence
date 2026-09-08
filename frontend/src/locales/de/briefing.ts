@@ -16,6 +16,7 @@ export const dict: Record<string, string> = {
   // "Auto-Brief" would read as "automatic letter" — Briefing stays the loanword.
   'auto-brief': 'Auto-Briefing',
   'Screening log →': 'Screening-Protokoll →',
+  'No papers are on file for this briefing.': 'Für dieses Briefing sind keine Papers hinterlegt.',
   'Nothing was screened out in this run.': 'In diesem Lauf wurde nichts aussortiert.',
   'No completed runs yet.': 'Noch keine abgeschlossenen Läufe.',
   'Once a pipeline run completes in any of your domains, its briefing appears here.':

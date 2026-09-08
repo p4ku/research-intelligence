@@ -36,7 +36,9 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
         if getattr(user, 'is_superuser', False):
             qs = ResearchAgentProcess.objects.select_related('workspace').all()
         else:
-            user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
+            user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+            if not user_ws_ids:
+                return ResearchAgentProcess.objects.none()
             qs = ResearchAgentProcess.objects.select_related('workspace').filter(
                 workspace_id__in=user_ws_ids
             )

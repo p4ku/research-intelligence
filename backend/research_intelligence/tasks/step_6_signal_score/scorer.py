@@ -66,47 +66,69 @@ def _parse_numeric_value(val: Any) -> Union[float, int, str]:
     return str_val
 
 
-def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -> Dict[str, Any]:
+def get_workspace_default_scoring_context(workspace) -> Dict[str, Any]:
+    """
+    Precomputes the default variables context for a workspace's extraction definitions once,
+    avoiding repeated database queries and AST parsing per paper.
+    """
+    context: Dict[str, Any] = {}
+    if not workspace:
+        return context
+
+    for ed in workspace.extraction_definitions.all():
+        if ed.name:
+            name_slug = _sanitize_identifier(ed.name)
+            context[name_slug] = 0.0
+            if ed.postprocessing_code and ed.postprocessing_code.strip():
+                context[f"{name_slug}_postprocessed"] = 0.0
+                context[f"{name_slug}_computed"] = 0.0
+        if ed.exit_metrics:
+            exit_metrics = ed.get_exit_metrics_list()
+            for exit_m in exit_metrics:
+                context[exit_m] = 0.0
+            primary_exit = ed.get_primary_exit_metric()
+            if primary_exit and ed.postprocessing_code and ed.postprocessing_code.strip():
+                context[f"{primary_exit}_postprocessed"] = 0.0
+                context[f"{primary_exit}_computed"] = 0.0
+
+        if ed.postprocessing_code and ed.postprocessing_code.strip():
+            try:
+                import ast
+                post_ast = ast.parse(ed.postprocessing_code)
+                for node in ast.walk(post_ast):
+                    if isinstance(node, ast.Return) and isinstance(node.value, ast.Dict):
+                        for k_node in node.value.keys:
+                            if isinstance(k_node, ast.Constant) and isinstance(k_node.value, str):
+                                ret_k = _sanitize_identifier(k_node.value)
+                                if ret_k and ret_k not in context:
+                                    context[ret_k] = 0.0
+            except Exception:
+                pass
+
+    return context
+
+
+def extract_paper_parameters(
+    paper: Paper,
+    pipeline_run: Optional[Any] = None,
+    preloaded_extractions: Optional[list] = None,
+    default_context: Optional[Dict[str, Any]] = None,
+    paper_metric: Optional[Any] = None
+) -> Dict[str, Any]:
     """
     Collects all parameter extractions for a Paper and returns a clean dictionary
     with sanitized Python variable names and parsed numeric/string values.
     Initializes configured workspace extraction definitions to 0.0 default.
     """
-    context: Dict[str, Any] = {}
+    if default_context is not None:
+        context: Dict[str, Any] = dict(default_context)
+    else:
+        context = get_workspace_default_scoring_context(paper.workspace)
 
-    # Pre-populate defaults from workspace extraction definitions
-    if paper.workspace:
-        for ed in paper.workspace.extraction_definitions.all():
-            if ed.name:
-                name_slug = _sanitize_identifier(ed.name)
-                context[name_slug] = 0.0
-                if ed.postprocessing_code and ed.postprocessing_code.strip():
-                    context[f"{name_slug}_postprocessed"] = 0.0
-                    context[f"{name_slug}_computed"] = 0.0
-            if ed.exit_metrics:
-                exit_metrics = ed.get_exit_metrics_list()
-                for exit_m in exit_metrics:
-                    context[exit_m] = 0.0
-                primary_exit = ed.get_primary_exit_metric()
-                if primary_exit and ed.postprocessing_code and ed.postprocessing_code.strip():
-                    context[f"{primary_exit}_postprocessed"] = 0.0
-                    context[f"{primary_exit}_computed"] = 0.0
-
-            if ed.postprocessing_code and ed.postprocessing_code.strip():
-                try:
-                    import ast
-                    post_ast = ast.parse(ed.postprocessing_code)
-                    for node in ast.walk(post_ast):
-                        if isinstance(node, ast.Return) and isinstance(node.value, ast.Dict):
-                            for k_node in node.value.keys:
-                                if isinstance(k_node, ast.Constant) and isinstance(k_node.value, str):
-                                    ret_k = _sanitize_identifier(k_node.value)
-                                    if ret_k and ret_k not in context:
-                                        context[ret_k] = 0.0
-                except Exception:
-                    pass
-
-    extractions = list(paper.extractions.all().select_related('extraction_definition'))
+    if preloaded_extractions is not None:
+        extractions = preloaded_extractions
+    else:
+        extractions = list(paper.extractions.all().select_related('extraction_definition'))
 
     for ext in extractions:
         # Ignore extractions that failed schema validation so variables retain their safe 0.0 default
@@ -169,8 +191,10 @@ def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -
 
     # 4. Fallback: check exit metrics stored during Abstract or Full-Text Screening in PaperMetric
     if pipeline_run:
-        from research_intelligence.models import PaperMetric
-        pm = PaperMetric.objects.filter(paper=paper, pipeline_run=pipeline_run).first()
+        pm = paper_metric
+        if pm is None:
+            from research_intelligence.models import PaperMetric
+            pm = PaperMetric.objects.filter(paper=paper, pipeline_run=pipeline_run).first()
         if pm and pm.metrics_data and isinstance(pm.metrics_data, dict):
             for stage_k in ['abstract_screening', 'full_text_screening']:
                 stage_dict = pm.metrics_data.get(stage_k, {})
@@ -188,7 +212,10 @@ def extract_paper_parameters(paper: Paper, pipeline_run: Optional[Any] = None) -
 def compute_paper_signal_score(
     paper_id_or_obj: Any,
     custom_code: Optional[str] = None,
-    pipeline_run: Optional[Any] = None
+    pipeline_run: Optional[Any] = None,
+    preloaded_extractions: Optional[list] = None,
+    default_context: Optional[Dict[str, Any]] = None,
+    paper_metric: Optional[Any] = None
 ) -> Tuple[float, Dict[str, Any]]:
     """
     Computes the composite signal score for a Paper using the Workspace's sandboxed Python code.
@@ -205,7 +232,13 @@ def compute_paper_signal_score(
 
     code_to_run = custom_code if custom_code is not None else (workspace.signal_score_code or "")
 
-    context_vars = extract_paper_parameters(paper, pipeline_run=pipeline_run)
+    context_vars = extract_paper_parameters(
+        paper,
+        pipeline_run=pipeline_run,
+        preloaded_extractions=preloaded_extractions,
+        default_context=default_context,
+        paper_metric=paper_metric
+    )
 
     error_msg = None
     try:
@@ -228,20 +261,22 @@ def compute_paper_signal_score(
     }
 
     # Persist on PaperMetric per pipeline run (Single Source of Truth)
-    with transaction.atomic():
-        metric, created = PaperMetric.objects.get_or_create(
-            paper=paper,
-            pipeline_run=pipeline_run,
-            workspace=workspace,
-            defaults={"signal_score": score, "signal_score_details": details, "metrics_data": context_vars}
-        )
-        merged_metrics = dict(metric.metrics_data or {})
-        merged_metrics.update(context_vars)
-        if metric.signal_score != score or metric.signal_score_details != details or metric.metrics_data != merged_metrics:
-            metric.signal_score = score
-            metric.signal_score_details = details
-            metric.metrics_data = merged_metrics
-            metric.save(update_fields=['signal_score', 'signal_score_details', 'metrics_data'])
+    metric = paper_metric
+    if metric is None:
+        with transaction.atomic():
+            metric, created = PaperMetric.objects.get_or_create(
+                paper=paper,
+                pipeline_run=pipeline_run,
+                workspace=workspace,
+                defaults={"signal_score": score, "signal_score_details": details, "metrics_data": context_vars}
+            )
+    merged_metrics = dict(metric.metrics_data or {})
+    merged_metrics.update(context_vars)
+    if metric.signal_score != score or metric.signal_score_details != details or metric.metrics_data != merged_metrics:
+        metric.signal_score = score
+        metric.signal_score_details = details
+        metric.metrics_data = merged_metrics
+        metric.save(update_fields=['signal_score', 'signal_score_details', 'metrics_data'])
 
     return score, details
 
@@ -302,29 +337,60 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
     scores_list = []
     errors_list = []
 
+    # Pre-fetch default scoring context once for workspace
+    default_context = get_workspace_default_scoring_context(workspace)
+
+    # Pre-fetch extractions for all papers in one single batch query
+    from collections import defaultdict
+    extractions_by_paper = defaultdict(list)
+    for ext in Extraction.objects.filter(paper__in=papers).select_related('extraction_definition'):
+        extractions_by_paper[ext.paper_id].append(ext)
+
+    # Pre-fetch paper metrics for all papers in one single batch query
+    pm_by_paper = {
+        pm.paper_id: pm
+        for pm in PaperMetric.objects.filter(pipeline_run=pipeline_run, paper__in=papers)
+    }
+
     evaluated_papers = []
     for paper in papers:
         close_old_connections()
         try:
-            res = compute_paper_signal_score(paper, pipeline_run=pipeline_run)
+            paper_exts = extractions_by_paper.get(paper.id, [])
+            paper_pm = pm_by_paper.get(paper.id)
+            try:
+                res = compute_paper_signal_score(
+                    paper,
+                    pipeline_run=pipeline_run,
+                    preloaded_extractions=paper_exts,
+                    default_context=default_context,
+                    paper_metric=paper_pm,
+                )
+            except TypeError:
+                res = compute_paper_signal_score(paper, pipeline_run=pipeline_run)
+
             if isinstance(res, tuple):
                 score, details = res
             else:
                 score = float(res)
                 details = {"variables": {}, "score": score, "calculated_at": timezone.now().isoformat(), "error": None}
 
-            with transaction.atomic():
-                details_dict = details if isinstance(details, dict) else {}
-                metric, _ = PaperMetric.objects.get_or_create(
-                    paper=paper,
-                    pipeline_run=pipeline_run,
-                    workspace=workspace,
-                    defaults={"signal_score": score, "signal_score_details": details_dict, "metrics_data": {}}
-                )
-                if metric.signal_score != score or metric.signal_score_details != details_dict:
-                    metric.signal_score = score
-                    metric.signal_score_details = details_dict
-                    metric.save(update_fields=['signal_score', 'signal_score_details'])
+            details_dict = details if isinstance(details, dict) else {}
+            metric = pm_by_paper.get(paper.id)
+            if metric is None:
+                with transaction.atomic():
+                    metric, _ = PaperMetric.objects.get_or_create(
+                        paper=paper,
+                        pipeline_run=pipeline_run,
+                        workspace=workspace,
+                        defaults={"signal_score": score, "signal_score_details": details_dict, "metrics_data": {}}
+                    )
+                    pm_by_paper[paper.id] = metric
+
+            if metric.signal_score != score or metric.signal_score_details != details_dict:
+                metric.signal_score = score
+                metric.signal_score_details = details_dict
+                metric.save(update_fields=['signal_score', 'signal_score_details'])
 
             scores_list.append(score)
             scored_count += 1

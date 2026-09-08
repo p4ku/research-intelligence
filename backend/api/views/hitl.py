@@ -27,17 +27,33 @@ class HITLViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base_qs = HITLCorrection.objects.select_related('extraction', 'extraction__workspace')
+        ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
+
         if getattr(user, 'is_superuser', False):
             qs = base_qs.all().order_by('-timestamp')
-        else:
-            user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-            qs = base_qs.filter(extraction__workspace_id__in=user_ws_ids).order_by('-timestamp')
+            if ws_id:
+                if str(ws_id).lower() in ('undefined', 'null', ''):
+                    return HITLCorrection.objects.none()
+                qs = qs.filter(extraction__workspace_id=ws_id)
+            return qs
 
-        ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
+        user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+        if not user_ws_ids:
+            return HITLCorrection.objects.none()
+
         if ws_id:
-            qs = qs.filter(extraction__workspace_id=ws_id)
+            if str(ws_id).lower() in ('undefined', 'null', ''):
+                return HITLCorrection.objects.none()
+            import uuid
+            try:
+                ws_uuid = uuid.UUID(str(ws_id))
+            except (ValueError, TypeError):
+                return HITLCorrection.objects.none()
+            if ws_uuid not in user_ws_ids:
+                return HITLCorrection.objects.none()
+            return base_qs.filter(extraction__workspace_id=ws_uuid).order_by('-timestamp')
 
-        return qs
+        return base_qs.filter(extraction__workspace_id__in=user_ws_ids).order_by('-timestamp')
 
     def perform_create(self, serializer):
         extraction = serializer.validated_data.get('extraction')

@@ -27,21 +27,32 @@ def is_valid_pdf_binary(file_bytes: bytes) -> bool:
     return True
 
 
-def _download_paper_task(paper, workspace_obj, pipeline_run_obj):
+def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_map=None):
     close_old_connections()
     title_snippet = paper.title[:50] if paper.title else "Untitled"
 
     # Check if paper is already marked as withdrawn
-    pm = PaperMetric.objects.filter(paper=paper, pipeline_run=pipeline_run_obj).first()
-    if pm and pm.screening_status == 'withdrawn':
-        reason = pm.latest_screening_reasoning or "Paper has been withdrawn by authors."
-        logger.info(f"⏭️ [WITHDRAWN] Skipped paper '{title_snippet}...' ({reason})")
-        return {
-            "status": "withdrawn",
-            "paper_id": str(paper.id),
-            "title": paper.title,
-            "reason": reason
-        }
+    if withdrawn_info_map is not None:
+        reason = withdrawn_info_map.get(paper.id)
+        if reason is not None:
+            logger.info(f"⏭️ [WITHDRAWN] Skipped paper '{title_snippet}...' ({reason})")
+            return {
+                "status": "withdrawn",
+                "paper_id": str(paper.id),
+                "title": paper.title,
+                "reason": reason
+            }
+    else:
+        pm = PaperMetric.objects.filter(paper=paper, pipeline_run=pipeline_run_obj).first()
+        if pm and pm.screening_status == 'withdrawn':
+            reason = pm.latest_screening_reasoning or "Paper has been withdrawn by authors."
+            logger.info(f"⏭️ [WITHDRAWN] Skipped paper '{title_snippet}...' ({reason})")
+            return {
+                "status": "withdrawn",
+                "paper_id": str(paper.id),
+                "title": paper.title,
+                "reason": reason
+            }
 
     # Storage path convention: workspaces/{workspace_id}/runs/{pipeline_run_id}/documents/{hash_id}/original.pdf
     doc_folder = f"workspaces/{workspace_obj.id}/runs/{pipeline_run_obj.id}/documents/{paper.hash_id}"
@@ -207,12 +218,18 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
 
         if abstract_run:
             papers_qs = pipeline_run.get_papers(screening_status='abstract_passed')
-            logger.info(f"🔍 [PDF DOWNLOAD FILTER] Prior Abstract Screening job completed. Targeting {papers_qs.count()} papers with status='abstract_passed'.")
+            papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
+            logger.info(f"🔍 [PDF DOWNLOAD FILTER] Prior Abstract Screening job completed. Targeting {len(papers)} papers with status='abstract_passed'.")
         else:
             papers_qs = pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn'])
-            logger.info(f"🔍 [PDF DOWNLOAD FILTER] Abstract Screening was skipped or absent. Targeting {papers_qs.count()} total candidate papers.")
+            papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
+            logger.info(f"🔍 [PDF DOWNLOAD FILTER] Abstract Screening was skipped or absent. Targeting {len(papers)} total candidate papers.")
 
-        papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
+        # Pre-fetch withdrawn papers map once to avoid N database queries in threads
+        withdrawn_info_map = {
+            pm.paper_id: (pm.latest_screening_reasoning or "Paper has been withdrawn by authors.")
+            for pm in PaperMetric.objects.filter(pipeline_run=pipeline_run, screening_status='withdrawn')
+        }
         downloaded_count = 0
         cached_count = 0
         skipped_count = 0
@@ -265,17 +282,23 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
         chunks = [papers[i:i + chunk_size] for i in range(0, len(papers), chunk_size)]
         total_chunks = len(chunks)
 
+        def _safe_call_download_task(paper_item, ws, run, w_map):
+            try:
+                return _download_paper_task(paper_item, ws, run, withdrawn_info_map=w_map)
+            except TypeError:
+                return _download_paper_task(paper_item, ws, run)
+
         for chunk_idx, chunk in enumerate(chunks):
             if worker_concurrency <= 1:
                 for paper in chunk:
-                    res = _download_paper_task(paper, workspace, pipeline_run)
+                    res = _safe_call_download_task(paper, workspace, pipeline_run, withdrawn_info_map)
                     _record_result(res)
             else:
                 chunk_timeout_sec = max(180.0, (len(chunk) / max(1, worker_concurrency)) * 180.0)
                 completed_paper_ids = set()
                 with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
                     future_to_paper = {
-                        executor.submit(_download_paper_task, paper, workspace, pipeline_run): paper
+                        executor.submit(_safe_call_download_task, paper, workspace, pipeline_run, withdrawn_info_map): paper
                         for paper in chunk
                     }
                     try:

@@ -26,6 +26,14 @@ export const paperMetricDTO = z.looseObject({
   signal_score_details: signalScoreDetailsDTO,
   /** Sanitized definition name → value; pre-filled with 0.0 for every definition. */
   metrics_data: z.record(z.string(), z.unknown()),
+  /**
+   * What this run decided about the paper. Optional: the model has carried
+   * them since 28 Aug 2026, but a deployment whose serializer predates that
+   * omits them — the paper-level (latest-run) values stand in then.
+   */
+  screening_status: z.string().optional(),
+  abstract_screening_reasoning: z.string().nullable().optional(),
+  full_text_screening_reasoning: z.string().nullable().optional(),
   created_at: z.string(),
 })
 
@@ -44,6 +52,12 @@ export const paperDTO = z.looseObject({
   source_database: z.string(),
   original_pdf_path: z.string().nullable(),
   converted_md_path: z.string().nullable(),
+  /**
+   * `Paper.source_url` — the backend's one public link for the paper (arXiv
+   * abstract page, DOI, or the provider's landing page). Optional only so
+   * replays captured before the column existed still parse.
+   */
+  source_url: z.string().nullable().optional(),
   /** Includes 'accepted', which the model's choices omit — keep it open. */
   screening_status: z.string(),
   screening_reasoning: z.string().nullable(),

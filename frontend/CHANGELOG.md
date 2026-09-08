@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-09-08 (paper link from the backend)
+
+- The backend now persists `Paper.source_url` (arXiv abstract page, DOI, or
+  the provider's landing page) and returns it on every paper. `ScoredPaper`
+  renames `pdf_url` to `source_url` and passes the value through; the
+  frontend no longer rebuilds an arxiv.org `/pdf/` link from `arxiv_id` /
+  `doi`. Only the scheme is checked (`http(s)`), because scraper output goes
+  straight into an `href`. Both contracts regenerated.
+- `/papers/[id]`: the arXiv chip renders only for a value shaped like an arXiv
+  id, normalised (`arXiv:` prefix off). The provenance label reads the id off
+  the link, shape-checked too — the backend's backfill turned some leaked
+  OpenAlex work ids into `https://arxiv.org/abs/W…`, which now read "Source"
+  rather than "arXiv W…".
+- Replays captured before the column existed parse (`source_url` optional
+  upstream) and show no link.
+
 ## 2026-09-07 (Ask behind a demo switch)
 
 - **Ask** (`/ask`) is hidden per browser by the `ask` demo switch in the

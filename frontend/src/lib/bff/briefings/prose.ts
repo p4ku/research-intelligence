@@ -26,11 +26,26 @@ export function templateProse(
   const quote = de ? (s: string) => `„${s}“` : (s: string) => `“${s}”`
 
   if (!top) {
+    const papersWord = de
+      ? fetched === 1
+        ? 'Paper'
+        : 'Papers'
+      : `paper${fetched === 1 ? '' : 's'}`
+    // The run passed papers the corpus cannot show for it: say so, rather
+    // than contradict the funnel above the brief.
+    if (passedScreening > 0) {
+      return {
+        title: de ? 'Papers nicht hinterlegt' : 'Papers not on file',
+        in_brief: de
+          ? `Der Scan ${quote(workspaceName)} hat ${fetched} ${papersWord} geladen und ${passedScreening} durch das Screening gebracht; keines davon liegt für dieses Briefing vor.`
+          : `The ${workspaceName} scan fetched ${fetched} ${papersWord} and passed ${passedScreening} through screening; none of them are on file for this briefing.`,
+      }
+    }
     return {
       title: de ? 'Ein ruhiger Lauf' : 'A quiet run',
       in_brief: de
-        ? `Der Scan ${quote(workspaceName)} hat ${fetched} ${fetched === 1 ? 'Paper' : 'Papers'} geladen; keines hat das Screening für dieses Briefing bestanden.`
-        : `The ${workspaceName} scan fetched ${fetched} paper${fetched === 1 ? '' : 's'}; none cleared screening for this briefing.`,
+        ? `Der Scan ${quote(workspaceName)} hat ${fetched} ${papersWord} geladen; keines hat das Screening für dieses Briefing bestanden.`
+        : `The ${workspaceName} scan fetched ${fetched} ${papersWord}; none cleared screening for this briefing.`,
     }
   }
 

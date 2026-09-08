@@ -107,6 +107,10 @@ class WorkflowSchedule(models.Model):
         default=True,
         help_text="Prevent concurrent execution if a previous PipelineRun for this schedule is still running"
     )
+    n_last_days = models.IntegerField(
+        default=7,
+        help_text="Scraper lookback window in days (queries papers published or submitted within N days). Defaults to 7."
+    )
     configuration_override = models.JSONField(
         default=dict,
         blank=True,
@@ -272,6 +276,9 @@ class WorkflowSchedule(models.Model):
             if not self.interval_hours or self.interval_hours < 1:
                 raise ValidationError({"interval_hours": "Interval hours must be at least 1."})
 
+        if self.n_last_days is not None and self.n_last_days <= 0:
+            raise ValidationError({"n_last_days": "Scraper lookback window (n_last_days) must be a positive integer (>= 1)."})
+
     def get_effective_cron_expression(self) -> str:
         """
         Returns the canonical 5-part cron expression representing this schedule.
@@ -422,6 +429,8 @@ class WorkflowSchedule(models.Model):
 
         config_override = dict(self.configuration_override or {})
         config_override["reprocess_existing"] = self.reprocess_existing
+        if "n_last_days" not in config_override or config_override["n_last_days"] is None:
+            config_override["n_last_days"] = self.n_last_days if self.n_last_days is not None else 7
 
         pipeline_run = PipelineRun.objects.create(
             workspace=self.workspace,

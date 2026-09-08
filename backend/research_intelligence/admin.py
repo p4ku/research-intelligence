@@ -26,6 +26,7 @@ from research_intelligence.models import (
     LLMUsageRecord,
     ResearchAgentProcess,
     WorkflowSchedule,
+    Star,
 )
 
 
@@ -1438,7 +1439,7 @@ class ExtractionDefinitionInline(admin.TabularInline):
 class WorkflowScheduleInline(admin.TabularInline):
     model = WorkflowSchedule
     extra = 0
-    fields = ('name', 'frequency', 'time_of_day', 'is_active', 'next_run_at', 'last_run_at')
+    fields = ('name', 'frequency', 'time_of_day', 'n_last_days', 'is_active', 'next_run_at', 'last_run_at')
     readonly_fields = ('next_run_at', 'last_run_at')
     show_change_link = True
 
@@ -2164,6 +2165,17 @@ class WorkspaceMemberAdmin(admin.ModelAdmin):
     role_badge.short_description = "Role"
 
 
+@admin.register(Star)
+class StarAdmin(admin.ModelAdmin):
+    list_display = ('user', 'kind', 'paper', 'pipeline_run', 'created_at')
+    list_filter = ('kind', 'created_at')
+    search_fields = ('user__username', 'user__email', 'paper__title', 'pipeline_run__name')
+    list_select_related = ('user', 'paper', 'pipeline_run')
+    raw_id_fields = ('user', 'paper', 'pipeline_run')
+    readonly_fields = ('id', 'created_at')
+    ordering = ('-created_at',)
+
+
 class APIKeyAdminForm(forms.ModelForm):
     new_secret = forms.CharField(
         required=False,
@@ -2329,8 +2341,8 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
             'fields': ('frequency', 'one_off_datetime', 'time_of_day', 'days_of_week', 'day_of_month', 'interval_hours', 'cron_expression', 'timezone_name')
         }),
         ('Execution Parameters & Overrides', {
-            'fields': ('reprocess_existing', 'prevent_overlap', 'configuration_override'),
-            'classes': ('collapse',)
+            'description': 'Configure execution parameters, scraper lookback window (n_last_days), and concurrency guardrails.',
+            'fields': ('n_last_days', 'reprocess_existing', 'prevent_overlap', 'configuration_override'),
         }),
         ('Telemetry & Run History', {
             'fields': ('next_run_at', 'last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'consecutive_failures_count', 'max_consecutive_failures', 'created_at', 'updated_at'),
@@ -2374,6 +2386,9 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
             if obj.reprocess_existing else
             '<span style="background-color: #0d6efd; color: white; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; display: inline-block; white-space: nowrap;">⚡ Incremental</span>'
         )
+        lookback_tag = (
+            f'<span style="background-color: #f8f9fa; color: #495057; border: 1px solid #ced4da; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; display: inline-block; white-space: nowrap;">📅 {obj.n_last_days}d lookback</span>'
+        )
 
         return format_html(
             '<div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">'
@@ -2383,13 +2398,14 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
             '<div style="font-size: 11px; color: #6c757d; white-space: nowrap;">'
             'Target: <a href="{}" style="color: #0d6efd; text-decoration: none; font-weight: 500;">📁 {}</a>'
             '</div>'
-            '<div>{}</div>'
+            '<div style="display: flex; gap: 4px; flex-wrap: wrap;">{}{}</div>'
             '</div>',
             change_url,
             obj.name,
             ws_url,
             obj.workspace.name,
-            mark_safe(reprocess_tag)
+            mark_safe(reprocess_tag),
+            mark_safe(lookback_tag),
         )
     schedule_identity_display.short_description = "Schedule & Target Workflow"
     schedule_identity_display.admin_order_field = "name"
@@ -3579,12 +3595,13 @@ class PaperAdmin(admin.ModelAdmin):
         'workspace',
         'runs_count_badge',
         'source_database_badge',
+        'source_link_badge',
         'created_at'
     )
     ordering = ('-created_at', '-id')
     list_select_related = ('workspace',)
     list_filter = ('source_database', 'workspace')
-    search_fields = ('title', 'authors', 'doi', 'arxiv_id', 'hash_id')
+    search_fields = ('title', 'authors', 'doi', 'arxiv_id', 'source_url', 'hash_id')
     readonly_fields = ('id', 'hash_id', 'created_at')
 
     fieldsets = (
@@ -3592,7 +3609,7 @@ class PaperAdmin(admin.ModelAdmin):
             'fields': ('workspace', 'title', 'authors', 'abstract')
         }),
         ('Identifiers & Source Repository', {
-            'fields': ('source_database', 'doi', 'arxiv_id', 'hash_id')
+            'fields': ('source_database', 'source_url', 'doi', 'arxiv_id', 'hash_id')
         }),
         ('Canonical Document Registry & Local Storage', {
             'fields': ('document_registry', 'original_pdf_path', 'converted_md_path', 'created_at')
@@ -3654,6 +3671,19 @@ class PaperAdmin(admin.ModelAdmin):
         )
     source_database_badge.short_description = "Source"
     source_database_badge.admin_order_field = "source_database"
+
+    def source_link_badge(self, obj):
+        url = obj.source_url
+        if not url:
+            return format_html('<span style="color: #adb5bd;">-</span>')
+        return format_html(
+            '<a href="{}" target="_blank" rel="noopener noreferrer" title="{}" style="text-decoration: none;">'
+            '<span style="background-color: #198754; color: #ffffff; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; white-space: nowrap;">🌐 Source ↗</span>'
+            '</a>',
+            url,
+            url
+        )
+    source_link_badge.short_description = "Source Link"
 
 
 @admin.register(ExtractionDefinition)
@@ -4822,12 +4852,13 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
         'doi_display',
         'arxiv_id_display',
         'primary_source_badge',
+        'source_link_badge',
         'file_size_formatted',
         'ocr_status_badge',
         'access_count_badge',
         'last_accessed_at_display',
     )
-    search_fields = ('title', 'doi', 'arxiv_id', 'sha256_hash', 'canonical_pdf_path')
+    search_fields = ('title', 'doi', 'arxiv_id', 'source_url', 'sha256_hash', 'canonical_pdf_path')
     list_filter = ('primary_source', 'ocr_provider', 'first_ingested_at', 'last_accessed_at')
     readonly_fields = ('id', 'sha256_hash', 'first_ingested_at', 'last_accessed_at', 'access_count')
 
@@ -4838,6 +4869,7 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
                 'title',
                 'doi',
                 'arxiv_id',
+                'source_url',
                 'sha256_hash',
                 'primary_source',
             )
@@ -4957,6 +4989,18 @@ class DocumentRegistryAdmin(admin.ModelAdmin):
         return render_badge((obj.primary_source or 'source').upper(), color)
     primary_source_badge.short_description = "Source"
     primary_source_badge.admin_order_field = "primary_source"
+
+    def source_link_badge(self, obj):
+        if not obj.source_url:
+            return format_html('<span style="color: #adb5bd;">-</span>')
+        return format_html(
+            '<a href="{}" target="_blank" rel="noopener noreferrer" title="{}" style="text-decoration: none;">'
+            '<span style="background-color: #198754; color: #ffffff; padding: 2px 8px; border-radius: 12px; font-weight: 600; font-size: 11px; white-space: nowrap;">🌐 Source ↗</span>'
+            '</a>',
+            obj.source_url,
+            obj.source_url
+        )
+    source_link_badge.short_description = "Source Link"
 
     def file_size_formatted(self, obj):
         formatted = format_human_readable_bytes(obj.pdf_file_size_bytes)

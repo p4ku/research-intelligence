@@ -17,6 +17,7 @@ class DocumentRegistry(models.Model):
     arxiv_id = models.CharField(max_length=100, blank=True, null=True, db_index=True, help_text="arXiv repository ID")
     title = models.CharField(max_length=512)
     primary_source = models.CharField(max_length=50, default="arxiv", help_text="arxiv, openalex, lens, or pubmed")
+    source_url = models.URLField(max_length=1024, blank=True, null=True, help_text="Original public web URL to article or landing page")
 
     # Canonical Storage References
     canonical_pdf_path = models.CharField(max_length=512, blank=True, null=True, help_text="Storage key of canonical PDF binary")
@@ -167,6 +168,7 @@ class Paper(models.Model):
     authors = models.TextField()
     abstract = models.TextField()
     source_database = models.CharField(max_length=50, help_text="arxiv, openalex, or lens")
+    source_url = models.URLField(max_length=1024, blank=True, null=True, help_text="Original public web URL to article landing page or repository")
     original_pdf_path = models.CharField(max_length=512, blank=True, null=True, help_text="S3 key of original PDF")
     converted_md_path = models.CharField(max_length=512, blank=True, null=True, help_text="S3 key of layout Markdown")
     
