@@ -3442,6 +3442,33 @@
         ],
         "additionalProperties": false
       },
+      "NarrativeReportSummary": {
+        "$id": "#/components/schemas/NarrativeReportSummary",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content_markdown": {
+            "type": "string"
+          },
+          "refinement_depth": {
+            "type": "number"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "content_markdown"
+        ],
+        "additionalProperties": false
+      },
       "Palette": {
         "$id": "#/components/schemas/Palette",
         "type": "object",

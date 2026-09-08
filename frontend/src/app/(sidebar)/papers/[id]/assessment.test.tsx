@@ -144,6 +144,16 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('Rule verified')
   })
 
+  test('renders Human verified badge when dimension is_hitl is true', () => {
+    const hitlDim: Dimension = {
+      ...fullDimension,
+      is_hitl: true,
+    }
+    const out = renderToStaticMarkup(<Assessment dimensions={[hitlDim]} t={t} />)
+    expect(out).toContain('data-row="hitl-verified"')
+    expect(out).toContain('Human verified')
+  })
+
   test('shows review warning in metadata when review_required or validation_status is warn/fail', () => {
     const warnDim: Dimension = {
       ...fullDimension,

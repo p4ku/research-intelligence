@@ -187,6 +187,16 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
         {t('Rule verified')}
       </span>,
     )
+  if (d.is_hitl)
+    meta.push(
+      <span
+        key="hitl"
+        data-row="hitl-verified"
+        className="rounded bg-emerald-500/10 px-1.5 py-px text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
+      >
+        {t('Human verified')}
+      </span>,
+    )
   if (review)
     meta.push(
       <span className="font-medium text-zinc-500 dark:text-zinc-400">{t('Needs review')}</span>,

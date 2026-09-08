@@ -204,6 +204,17 @@ export const scoredPaper = z
   .meta({ id: 'ScoredPaper' })
 export type ScoredPaper = z.infer<typeof scoredPaper>
 
+export const narrativeReportSummary = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    content_markdown: z.string(),
+    refinement_depth: z.number().optional(),
+    created_at: z.string().optional(),
+  })
+  .meta({ id: 'NarrativeReportSummary' })
+export type NarrativeReportSummary = z.infer<typeof narrativeReportSummary>
+
 /** What the scorecard endpoint is asked for — the part of the query Django is meant to absorb. */
 export const papersScorecardQuery = listQuery.extend({
   /** 'passed' = the three passed statuses; 'all' = everything. */

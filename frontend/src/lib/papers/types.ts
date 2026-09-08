@@ -11,6 +11,7 @@ export {
   type DimensionFacet,
   type DimensionField,
   type DimensionList,
+  type NarrativeReportSummary,
   type RiskAndAffiliation,
   type RiskFlag,
   type ScoredPaper,
