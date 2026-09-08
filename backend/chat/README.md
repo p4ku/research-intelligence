@@ -60,7 +60,7 @@ All domain logic is organized in an object-oriented design pattern located withi
 | **`PaperChatEngine`** | [`orchestrator.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/chat/engine/orchestrator.py) | Coordinates the end-to-end lifecycle: builds context, manages memory, executes inference, extracts citations, runs fact-checking guards, and tracks token costs. |
 | **`PaperContextBuilder`** | [`context_builder.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/chat/engine/context_builder.py) | Compiles dense, structured knowledge blocks (metadata, OCR Markdown / raw PDF binaries, SLR screening decisions, extracted parameters, AST formula, and composite signal score). |
 | **`GeminiContextCacheManager`** | [`cache_manager.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/chat/engine/cache_manager.py) | Provisions and manages Google Gemini server-side context caches (`CachedContent`), drastically cutting prompt token ingestion costs for multi-turn sessions. |
-| **`HierarchicalSessionSummarizer`** | [`summarizer.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/chat/engine/summarizer.py) | Compresses older conversation turns (`0` to `N-2`) into a concise, technical executive memory digest while preserving recent turns in full fidelity. |
+| **`HierarchicalSessionSummarizer`** | [`summarizer.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/chat/engine/summarizer.py) | Abridges every turn older than the last three (`0` to `N-3`, question cut at 120 characters, answer at 150) into `session.summary`; the last three turns are sent verbatim. |
 | **`VisualCitationExtractor`** | [`citations.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/chat/engine/citations.py) | Extracts structured JSON citations and inline references matching `[Page X, Figure Y, box_2d: [...], quote: "..."]`. |
 | **`CitationFactChecker`** | [`verifier.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/chat/engine/verifier.py) | Verifies quotes and scientific claims deterministically against the source document (exact match and fuzzy n-gram token overlap). |
 
@@ -71,16 +71,17 @@ All domain logic is organized in an object-oriented design pattern located withi
 Adhering to the latest `google-genai` Python SDK specification, the chat subsystem implements native reasoning configuration (**Deep Thinking**) for Gemini 3.7 Flash and Gemini 2.0 Flash Thinking models:
 
 ### 1. `types.ThinkingConfig` Parameter Configuration
-When `deep_thinking=True` or an explicit `thinking_budget` is supplied:
+Chat passes the workspace's `reasoning_effort` (default `medium`, budget 2048) on every turn; `deep_thinking=True` raises it to `high` (budget 8192) and asks for the thought trace:
 ```python
 from google.genai import types
 
 config_args["thinking_config"] = types.ThinkingConfig(
-    thinking_budget=2048,  # Token budget allocated for internal chain-of-thought
+    thinking_budget=8192,  # "high"; ordinary turns use the workspace's reasoning_effort
     include_thoughts=True  # Instructs Gemini to yield thought traces in the response
 )
-config_args["max_output_tokens"] = 8192  # Expanded token ceiling for reasoning + structured output
+config_args["max_output_tokens"] = 16384  # Thinking tokens count against this ceiling
 ```
+Thinking tokens are reported by Gemini in `thoughts_token_count`, separately from the answer; the provider adds them to `candidates_tokens` so they are billed and counted against the workspace quota.
 
 ### 2. Regional Routing & Resilient Timeouts
 - **Location**: Set to `eu` (`https://aiplatform.eu.rep.googleapis.com` / `eu`) for European compliance and full Gemini 3.7 Flash feature parity.
@@ -107,7 +108,7 @@ The chat system utilizes a 3-tier strategy to minimize prompt token overhead, op
 │     └── Full support for both OCR Markdown and raw PDF binaries        │
 │                                                                        │
 │  2. Hierarchical Memory Summarization (Summarizer)                     │
-│     ├── History turns 0..(N-2) compressed into an incremental digest   │
+│     ├── History turns 0..(N-3) abridged; the last three sent verbatim  │
 │     ├── Prevents linear prompt explosion across long chat sessions     │
 │     └── Eliminates duplicate turn accumulation across iterations       │
 │                                                                        │

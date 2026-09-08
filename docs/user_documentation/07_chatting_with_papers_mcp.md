@@ -82,9 +82,9 @@ Unlike standard document chat tools that only pass text fragments, `ask_paper` i
 ### Parameters:
 * `workspace_id` *(required)*: UUID of the workspace.
 * `question` *(required)*: Detailed research question or instruction.
-* `paper_id` *(optional)*: Target Paper UUID. *Omit to perform multi-document synthesis across the entire workspace.*
+* `paper_id` *(optional)*: Target Paper UUID. *Omit for a workspace overview: the model then sees only the titles and signal scores of the top accepted papers, not their text.*
 * `session_id` *(optional)*: UUID of an existing conversation session to continue.
-* `deep_thinking` *(optional, boolean)*: Set to `true` to enable deep mathematical/thermodynamic derivation scratchpad reasoning.
+* `deep_thinking` *(optional, boolean)*: Set to `true` to raise the model's thinking budget, get its thought trace back in `thinking_process`, and have it verify numerical claims against the document. Slower and costs more output tokens.
 
 ### Tool Invocation Example (Turn 1):
 ```json
@@ -104,30 +104,28 @@ Unlike standard document chat tools that only pass text fragments, `ask_paper` i
   "message_id": "1f2e3d4c-5b6a-7890-bcde-f0123456789a",
   "paper_id": "3a4b5c6d-7e8f-9a0b-1c2d-3e4f5a6b7c8d",
   "paper_title": "High-Conductivity Sulfide Solid Electrolytes for 450 Wh/kg Pouch Cells",
-  "answer": "The primary degradation mechanism above 4.2V vs Li/Li+ is the electrochemical oxidation of sulfur anions in the Li10GeP2S12 framework, forming insulating S0, P2S5, and GeS2 interfacial species that increase cell impedance (Section 3.2, Page 5).\n\nTo mitigate this, the authors applied an atomic layer deposition (ALD) nano-coating of LiNbO3 (approx. 5 nm thickness) onto the NCM811 cathode particles. This coating suppressed oxidative decomposition up to 4.5V, maintaining 88.4% capacity retention after 500 cycles at 25°C.",
-  "citations": [
-    {
-      "claim": "electrochemical oxidation of sulfur anions in the Li10GeP2S12 framework",
-      "verbatim_quote": "Cyclic voltammetry reveals irreversible oxidation peaks beginning at 2.3 V with severe interfacial degradation above 4.2 V vs Li/Li+ due to sulfur oxidation.",
-      "page_number": 5
-    }
-  ],
+  "answer": "Above 4.2 V the sulfide framework oxidises [Fig 4, quote: \"irreversible oxidation peaks beginning at 2.3 V with severe interfacial degradation above 4.2 V\"]. The authors mitigate this with a 5 nm LiNbO3 coating on the cathode particles [Table 2, quote: \"88.4% capacity retention after 500 cycles\"].",
+  "thinking_process": "...",
+  "citations": [],
   "visual_citations": [
-    {
-      "caption": "Figure 4: In situ XPS spectra of the electrolyte-cathode interface at 4.5V",
-      "page_number": 6,
-      "bounding_box": [120, 340, 480, 720]
-    }
+    { "label": "Fig 4", "quote": "irreversible oxidation peaks beginning at 2.3 V with severe interfacial degradation above 4.2 V", "verified_in_source": true },
+    { "label": "Table 2", "quote": "88.4% capacity retention after 500 cycles", "verified_in_source": true }
   ],
-  "hallucination_guard": {
-    "status": "verified",
-    "faithfulness_score": 1.0
-  },
+  "hallucination_guard": { "verified": true, "grounding_score": 1.0, "verified_count": 2, "total_count": 2, "status": "PASS" },
   "deep_thinking": true,
-  "usd_cost": 0.0042,
-  "cached_content": "active"
+  "llm_model": "google/gemini-3.8-flash",
+  "tokens_in": 18421,
+  "tokens_out": 1930,
+  "tokens_cached": 17800,
+  "total_tokens": 20351,
+  "usd_cost": 0.0112,
+  "session_total_tokens": 20351,
+  "session_total_usd_cost": 0.0112,
+  "workspace_monthly_tokens": 1483902,
+  "workspace_monthly_usd": 4.87
 }
 ```
+Markers carry a page number (`[Page 5, Fig 4, quote: "..."]`) and a `box_2d` only when the paper was sent as a PDF; the usual OCR-markdown path has no page numbers. Generation failures return `{ "status": "failed", "message_id", "session_id", "error" }`; bad requests return `{ "status": "error", "error" }`.
 
 ---
 

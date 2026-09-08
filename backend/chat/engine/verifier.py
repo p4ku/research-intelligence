@@ -80,8 +80,10 @@ class CitationFactChecker:
             cit_entry["verified_in_source"] = is_valid
             verified_citations.append(cit_entry)
 
-        # Check for direct quotation marks inside answer text
-        inline_quotes = re.findall(r'"([^"]{15,})"', answer_text)
+        # Check for direct quotation marks inside answer text. Marker quotes are
+        # still present in the answer text and were counted above, so skip them.
+        marker_quotes = {cit.get("quote", "") for cit in visual_citations if cit.get("quote")}
+        inline_quotes = [q for q in re.findall(r'"([^"]{15,})"', answer_text) if q not in marker_quotes]
         for q in inline_quotes:
             total_checked += 1
             if self._fuzzy_quote_in_text(q, source_text):

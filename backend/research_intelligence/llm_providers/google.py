@@ -13,6 +13,20 @@ from .base import BaseLLMProvider
 
 logger = logging.getLogger(__name__)
 
+
+def _output_tokens(meta) -> int:
+    """
+    Billable output tokens for a Gemini response: the answer's candidates plus
+    the thinking tokens, which Gemini reports separately in `thoughts_token_count`
+    and bills at the output rate. Tolerates mocks and older SDKs without the field.
+    """
+    candidates = getattr(meta, "candidates_token_count", 0) or 0
+    thoughts = getattr(meta, "thoughts_token_count", 0)
+    if not isinstance(thoughts, int) or isinstance(thoughts, bool):
+        thoughts = 0
+    return candidates + thoughts
+
+
 def _resolve_thinking_config(kwargs: dict, model_name: str):
     """
     Resolves ThinkingConfig for Gemini models supporting Chain of Thought reasoning.
@@ -398,7 +412,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
         if hasattr(response, "usage_metadata") and response.usage_metadata:
             meta = response.usage_metadata
             p_tok = getattr(meta, "prompt_token_count", 0) or 0
-            c_tok = getattr(meta, "candidates_token_count", 0) or 0
+            c_tok = _output_tokens(meta)
             cached_tok = getattr(meta, "cached_content_token_count", 0) or 0
             t_tok = getattr(meta, "total_token_count", 0) or (p_tok + c_tok)
             usage["prompt_tokens"] = p_tok
@@ -506,7 +520,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
                 if hasattr(chunk, 'usage_metadata') and chunk.usage_metadata:
                     meta = chunk.usage_metadata
                     p_tok = getattr(meta, "prompt_token_count", 0) or 0
-                    c_tok = getattr(meta, "candidates_token_count", 0) or 0
+                    c_tok = _output_tokens(meta)
                     cached_tok = getattr(meta, "cached_content_token_count", 0) or 0
                     t_tok = getattr(meta, "total_token_count", 0) or (p_tok + c_tok)
                     if p_tok > 0 or c_tok > 0 or t_tok > 0:
@@ -524,7 +538,7 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
             if not final_captured_usage and hasattr(response_stream, 'usage_metadata') and response_stream.usage_metadata:
                 meta = response_stream.usage_metadata
                 p_tok = getattr(meta, "prompt_token_count", 0) or 0
-                c_tok = getattr(meta, "candidates_token_count", 0) or 0
+                c_tok = _output_tokens(meta)
                 cached_tok = getattr(meta, "cached_content_token_count", 0) or 0
                 t_tok = getattr(meta, "total_token_count", 0) or (p_tok + c_tok)
                 if p_tok > 0 or c_tok > 0:

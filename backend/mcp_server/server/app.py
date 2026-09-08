@@ -2050,8 +2050,9 @@ def ask_paper(
     itself when no markdown exists); the latest screening status with its rationale; the extracted
     parameters with confidence scores; the composite signal score, its computation details and the
     workspace's scoring formula; and earlier turns of the session. Answers may contain inline
-    markers `[Page X, Fig Y, quote: "..."]` (plus `box_2d` when the PDF was attached); these are
-    parsed into `visual_citations`, and every quoted string is checked against the document text.
+    markers `[Page X, Fig Y, quote: "..."]` (`Page X` and `box_2d` only when the PDF itself was
+    attached; OCR markdown has no page numbers, so there the marker is `[Fig Y, quote: "..."]`);
+    these are parsed into `visual_citations`, and quoted text is checked against the document.
     `hallucination_guard` reports how many quotes matched.
 
     Without `paper_id` the model only gets the workspace name, description, and the titles and
@@ -2063,18 +2064,25 @@ def ask_paper(
     implicit prompt cache can reuse it across turns.
 
     Parameters:
-    - workspace_id: workspace UUID; the caller needs admin, manager or researcher access.
+    - workspace_id: workspace UUID; the API key needs the `workspaces:read` scope and the
+      caller admin, manager or researcher membership.
     - question: the question or instruction, in the language the answer should be in.
     - paper_id: paper UUID to ask about (optional, see above).
     - session_id: existing session UUID to continue (optional).
-    - deep_thinking: raises the model's thinking budget, returns its thought trace in
-      `thinking_process`, and asks it to verify numerical claims against the document.
-      Slower and costs more output tokens.
+    - deep_thinking: raises the model's thinking budget to "high" (the workspace's
+      `reasoning_effort` applies otherwise), returns its thought trace in `thinking_process`,
+      and asks it to verify numerical claims against the document. Slower and costs more
+      output tokens.
 
-    Returns a JSON string: `{ "status": "completed", "session_id", "message_id", "paper_id",
-    "paper_title", "answer", "thinking_process", "citations", "visual_citations",
+    Returns a JSON string. On success: `{ "status": "completed", "session_id", "message_id",
+    "paper_id", "paper_title", "answer", "thinking_process", "citations", "visual_citations",
     "hallucination_guard", "deep_thinking", "llm_model", "tokens_in", "tokens_out",
-    "tokens_cached", "usd_cost" }`, or `{ "status": "error", "error": "..." }`.
+    "tokens_cached", "total_tokens", "usd_cost", "session_total_tokens",
+    "session_total_usd_cost", "workspace_monthly_tokens", "workspace_monthly_usd" }`.
+    On a bad request (missing arguments, no access, unknown paper or session):
+    `{ "status": "error", "error": "..." }`. When generation itself fails or the workspace
+    quota is exhausted: `{ "status": "failed", "message_id", "session_id", "error" }`.
+    An authentication or scope failure returns the error message as a plain string.
     """
     try:
         user, workspace, api_key = get_auth_context()
