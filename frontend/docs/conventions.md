@@ -23,10 +23,11 @@ description, rather than letting it ride along with unrelated work.
 bun run check      # format, types, lint + contract specs, tests, scope
 ```
 
-Run it from `frontend/`. It is the same set CI would run if CI ran anything
-for this app — which it currently does not, so the discipline is ours to
-keep. `bun run build` is deliberately not in it: it is slow, and worth
-running by hand when you have touched config, routing, or the build itself.
+Run it from `frontend/`. CI runs the same steps on every pull request, plus
+`bun run build` (`.github/workflows/ci.yml`); only `scope:check` stays local,
+because it is about your branch's provenance. `bun run build` is deliberately
+not in `check`: it is slow, and worth running by hand when you have touched
+config, routing, or the build itself.
 
 After switching branches, `bun install --frozen-lockfile`. Dependencies land
 on `main` regularly and a stale `node_modules` shows up as a confusing
