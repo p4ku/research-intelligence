@@ -238,8 +238,8 @@ export function Ask({
     }
   }, [])
 
-  // The history arrives after paint: the sidecar is closed until asked for,
-  // and a `?session=` deep link opens itself once the list is in (below).
+  // The history arrives after paint: the sidecar is closed until asked for.
+  // A `?session=` deep link opens by id (below), not through this list.
   useEffect(() => {
     void refreshSessions()
   }, [refreshSessions])
@@ -319,12 +319,18 @@ export function Ask({
 
   /* ------------------------------ Sessions ------------------------------ */
 
-  async function openThread(session: ChatSession) {
+  /**
+   * `deepLink` is the `?session=` path: the reader clicked nothing, so a
+   * question they sent meanwhile wins, a draft in the composer survives, and
+   * a failure speaks up as a toast rather than under a row in a closed sidecar.
+   */
+  async function openThread(session: Pick<ChatSession, 'id'>, deepLink = false) {
     if (session.id === activeSessionId || openingId) return
     setOpeningId(session.id)
     setRowError(null)
     try {
       const detail = await bffFetch<ChatSessionDetail>(`/bff/chat/sessions/${session.id}`)
+      if (deepLink && liveQuestionRef.current !== null) return
       const scope: AskScope = { paper_id: detail.paper_id, title: detail.paper_title }
       const loaded: Turn[] = detail.turns.flatMap((turn): Turn[] => [
         { kind: 'question', text: turn.question, askedAt: timeOf(turn.created_at), scope },
@@ -352,7 +358,7 @@ export function Ask({
         : null
       setTarget(paper)
       scopeRef.current = detail.paper_id
-      setInput('')
+      if (!deepLink) setInput('')
       setPicking(false)
       setHeld(null)
       setPickQuery('')
@@ -361,23 +367,23 @@ export function Ask({
     } catch (error) {
       // The console keeps its state; the row says what happened.
       console.error('[ask] open failed:', error)
-      setRowError({ id: session.id, message: t("Couldn't open this conversation. Try again.") })
+      const message = t("Couldn't open this conversation. Try again.")
+      if (deepLink) toast(message)
+      else setRowError({ id: session.id, message })
     } finally {
       setOpeningId(null)
     }
   }
 
-  // Deep link: ?session=<id> opens that thread once.
-  const openedInitial = useRef(false)
+  // Deep link: ?session=<id> opens that thread by id, once per id. The list
+  // behind the sidecar is not consulted — it holds only the newest hundred.
+  const openedFor = useRef<string | null>(null)
   useEffect(() => {
-    if (openedInitial.current || !initialSessionId) return
-    const session = sessions.find((s) => s.id === initialSessionId)
-    // The history arrives after mount, so only spend the flag once it is here.
-    if (!session) return
-    openedInitial.current = true
-    void openThread(session)
+    if (!initialSessionId || openedFor.current === initialSessionId) return
+    openedFor.current = initialSessionId
+    void openThread({ id: initialSessionId }, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialSessionId, sessions])
+  }, [initialSessionId])
 
   function newThread() {
     clearInFlight()
@@ -432,6 +438,9 @@ export function Ask({
     // question, leaving one quiet line in the transcript.
     const switching = turns.length > 0 && scopeRef.current !== entry.id
     if (switching) {
+      // Recorded here, not only on the next ask, so picking the old paper
+      // back is a switch too and gets its own line.
+      scopeRef.current = entry.id
       setActiveSessionId(null)
       setTurns((prev) => [
         ...prev,

@@ -32,7 +32,7 @@ export async function AskSection({
     <Ask
       key={`${initialTarget?.id ?? 'none'}:${initialQuestion ?? ''}`}
       initialTarget={initialTarget}
-      initialSessionId={session}
+      initialSessionId={session && isUuid(session) ? session : undefined}
       initialQuestion={initialQuestion}
     />
   )
