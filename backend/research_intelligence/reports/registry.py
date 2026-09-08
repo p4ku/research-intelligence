@@ -57,6 +57,23 @@ class SubscriptionReporterRegistry:
         if not workspace:
             return {"status": "error", "error": "Workspace is required for dispatch."}
 
+        from research_intelligence.features import is_feature_enabled, Feature
+
+        if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
+            logger.info(f"📧 [REPORT DISPATCH SKIPPED] Feature EMAIL_NOTIFICATIONS is disabled for Workspace '{workspace.name}'.")
+            return {
+                "status": "skipped",
+                "reason": "Email notifications feature disabled",
+                "event_type": event_type,
+                "workspace_id": str(workspace.id),
+                "workspace_name": workspace.name,
+                "pipeline_run_id": str(pipeline_run.id) if pipeline_run else None,
+                "total_recipients": 0,
+                "sent_count": 0,
+                "failed_count": 0,
+                "deliveries": [],
+            }
+
         # 1. Resolve recipients
         recipient_emails = []
         if recipient_override and isinstance(recipient_override, list):

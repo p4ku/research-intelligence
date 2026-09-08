@@ -1,6 +1,6 @@
 import json
 from unittest.mock import patch, MagicMock
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.contrib.auth import get_user_model
 from django.urls import reverse
 from research_intelligence.models import (
@@ -26,6 +26,7 @@ from research_intelligence.reports import (
 User = get_user_model()
 
 
+@override_settings(FEATURES={"EMAIL_NOTIFICATIONS": True})
 class SubscriptionReportsTestCase(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username="report_admin", email="rep_admin@corp.com", password="pass")

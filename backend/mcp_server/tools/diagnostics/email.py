@@ -28,6 +28,13 @@ def send_pipeline_run_digest_email_logic(
     if error:
         return error
 
+    from research_intelligence.features import is_feature_enabled, Feature
+
+    if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
+        return json.dumps({
+            "error": "Email notifications feature is currently disabled by configuration."
+        })
+
     # Check PipelineRun existence and completion
     try:
         pipeline_run = PipelineRun.objects.get(pk=pipeline_run_id, workspace=workspace)

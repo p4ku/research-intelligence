@@ -6,7 +6,7 @@ counts constant O(1) and preventing N+1 queries.
 """
 
 from decimal import Decimal
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.contrib.auth import get_user_model
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
@@ -561,6 +561,7 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
         self.assertEqual(str(data_b[0]["workspace"]), str(ws_b.id))
         self.assertEqual(data_b[0]["provider"], "openalex")
 
+    @override_settings(FEATURES={"SCHEDULING": True})
     def test_user_without_workspaces_short_circuits_all_views(self):
         """
         Verify that a user who does not belong to any workspace gets immediate empty

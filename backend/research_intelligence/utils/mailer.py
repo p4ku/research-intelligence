@@ -27,6 +27,12 @@ def send_mailgun_message(
       from the Django template loader (context must be provided for rendering).
     - Returns (success: bool, response_or_error: dict or error-string).
     """
+    from research_intelligence.features import is_feature_enabled, Feature
+
+    if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
+        logger.info(f"📧 [MAILGUN SUPPRESSED] Feature EMAIL_NOTIFICATIONS is disabled. Suppressed message to '{to_email}'.")
+        return True, {"message": "Email sending suppressed (feature disabled)", "suppressed": True}
+
     mailgun_url = getattr(settings, 'MAILGUN_API_URL', 'https://api.eu.mailgun.net/v3')
     mailgun_domain = getattr(settings, 'MAILGUN_SENDER_DOMAIN', 'soinventive.co.uk')
     api_url = f"{mailgun_url}/{mailgun_domain}/messages"
@@ -83,6 +89,12 @@ def send_mail(subject: str, message: str, from_email: str, recipient_list: List[
     """
     Django send_mail compatible wrapper for send_mailgun_message.
     """
+    from research_intelligence.features import is_feature_enabled, Feature
+
+    if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
+        logger.info(f"📧 [EMAIL SUPPRESSED] send_mail suppressed for {recipient_list}")
+        return 0
+
     success_all = True
     for email in recipient_list:
         success, _ = send_mailgun_message(

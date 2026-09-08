@@ -5,6 +5,7 @@ from typing import Optional, List, Dict, Any, Union
 from django.contrib.auth import get_user_model
 from django.core.serializers.json import DjangoJSONEncoder
 from research_intelligence.models import Workspace, WorkspaceMember
+from research_intelligence.features import is_feature_enabled, Feature
 
 User = get_user_model()
 
@@ -134,7 +135,7 @@ def get_workspace_logic(user, workspace_id: str) -> str:
                 "is_active": sub.is_active
             }
             for sub in workspace.subscribers.all()
-        ],
+        ] if is_feature_enabled(Feature.EMAIL_NOTIFICATIONS) else [],
         "schedules": [
             {
                 "schedule_id": str(sched.id),
@@ -152,7 +153,7 @@ def get_workspace_logic(user, workspace_id: str) -> str:
                 "last_status": sched.current_execution_status or sched.last_status,
             }
             for sched in workspace.schedules.all()
-        ]
+        ] if is_feature_enabled(Feature.SCHEDULING) else []
     }
     return json.dumps(data, indent=2, cls=DjangoJSONEncoder)
 

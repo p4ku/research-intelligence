@@ -28,6 +28,7 @@ from research_intelligence.models import (
     WorkflowSchedule,
     Star,
 )
+from .features import is_feature_enabled, Feature
 
 
 class PrettyJSONWidget(forms.Textarea):
@@ -1759,7 +1760,15 @@ class WorkspaceAdmin(admin.ModelAdmin):
         'full_text_rejection_criteria'
     )
     list_filter = ('ocr_provider', 'llm_provider', 'reasoning_effort', 'skip_abstract_screening', 'reprocess_existing', 'created_at')
-    inlines = [WorkspaceMemberInline, ScraperInline, ExtractionDefinitionInline, SubscriberInline, WorkflowScheduleInline]
+    inlines = [WorkspaceMemberInline, ScraperInline, ExtractionDefinitionInline]
+
+    def get_inlines(self, request, obj=None):
+        inlines = [WorkspaceMemberInline, ScraperInline, ExtractionDefinitionInline]
+        if is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
+            inlines.append(SubscriberInline)
+        if is_feature_enabled(Feature.SCHEDULING):
+            inlines.append(WorkflowScheduleInline)
+        return inlines
 
     def get_queryset(self, request):
         qs = super().get_queryset(request)
@@ -2332,6 +2341,31 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
     search_fields = ('name', 'workspace__name', 'cron_expression')
     actions = ['trigger_now_action', 'activate_schedules_action', 'pause_schedules_action']
 
+    def has_module_permission(self, request):
+        if not is_feature_enabled(Feature.SCHEDULING):
+            return False
+        return super().has_module_permission(request)
+
+    def has_view_permission(self, request, obj=None):
+        if not is_feature_enabled(Feature.SCHEDULING):
+            return False
+        return super().has_view_permission(request, obj=obj)
+
+    def has_add_permission(self, request):
+        if not is_feature_enabled(Feature.SCHEDULING):
+            return False
+        return super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        if not is_feature_enabled(Feature.SCHEDULING):
+            return False
+        return super().has_change_permission(request, obj=obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if not is_feature_enabled(Feature.SCHEDULING):
+            return False
+        return super().has_delete_permission(request, obj=obj)
+
     fieldsets = (
         ('Schedule Target & Basic Info', {
             'fields': ('name', 'workspace', 'is_active', 'created_by')
@@ -2788,7 +2822,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
     stopped_stage_badge.short_description = "Halt / Final Stage"
 
     def schedule_display(self, obj):
-        if not obj.schedule:
+        if not obj.schedule or not is_feature_enabled(Feature.SCHEDULING):
             return format_html('<span style="color: #adb5bd; font-size: 11px;">Manual</span>')
         sched_url = reverse('admin:research_intelligence_workflowschedule_change', args=[obj.schedule.id])
         return format_html(
@@ -4552,6 +4586,31 @@ class SubscriberAdmin(admin.ModelAdmin):
     search_fields = ('email', 'name', 'workspace__name')
     readonly_fields = ('created_at',)
     ordering = ('-created_at', '-id')
+
+    def has_module_permission(self, request):
+        if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
+            return False
+        return super().has_module_permission(request)
+
+    def has_view_permission(self, request, obj=None):
+        if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
+            return False
+        return super().has_view_permission(request, obj=obj)
+
+    def has_add_permission(self, request):
+        if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
+            return False
+        return super().has_add_permission(request)
+
+    def has_change_permission(self, request, obj=None):
+        if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
+            return False
+        return super().has_change_permission(request, obj=obj)
+
+    def has_delete_permission(self, request, obj=None):
+        if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
+            return False
+        return super().has_delete_permission(request, obj=obj)
 
     @admin.display(description="Subscribed Feeds & Reports", ordering="subscription_type")
     def subscribed_reports_display(self, obj):

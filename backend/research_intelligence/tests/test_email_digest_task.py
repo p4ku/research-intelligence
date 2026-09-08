@@ -22,6 +22,7 @@ from mcp_server.tools.diagnostics import send_pipeline_run_digest_email_logic
 User = get_user_model()
 
 
+@override_settings(FEATURES={"EMAIL_NOTIFICATIONS": True})
 class EmailDigestTaskTests(TestCase):
 
     def setUp(self):
@@ -701,6 +702,7 @@ class EmailCompositionBuilderTests(TestCase):
         self.assertIn("95% confidence", html)
 
 
+@override_settings(FEATURES={"EMAIL_NOTIFICATIONS": True})
 class MailgunMailerTests(TestCase):
     """
     Validates direct Mailgun HTTP API client, header/payload construction, and fail-silent wrapping.

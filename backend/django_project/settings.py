@@ -347,15 +347,26 @@ CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 
+# ==============================================================================
+# Feature Switching / Capability Toggles (Default: False for opt-in features)
+# ==============================================================================
+def _env_feature_bool(name: str, default: bool = False) -> bool:
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    return val.strip().lower() in ('true', '1', 'yes', 'on', 't', 'enabled')
+
+
+FEATURES = {
+    'SCHEDULING': _env_feature_bool('FEATURE_SCHEDULING', default=False),
+    'EMAIL_NOTIFICATIONS': _env_feature_bool('FEATURE_EMAIL_NOTIFICATIONS', default=False),
+}
+
+
 # Celery Beat Periodic Scheduled Tasks (Zombie Watchdog, Workflow Dispatcher & Scheduled Digests)
 CELERY_BEAT_SCHEDULE = {
     'reap-zombie-tasks-watchdog': {
         'task': 'research_intelligence.tasks.auxiliary.zombie_watchdog.reap_zombie_tasks_task',
-        'schedule': 60.0,  # runs every 60 seconds
-        'options': {'queue': 'celery'}
-    },
-    'dispatch-scheduled-workflow-runs': {
-        'task': 'research_intelligence.tasks.auxiliary.schedule_dispatcher.dispatch_scheduled_workflow_runs_task',
         'schedule': 60.0,  # runs every 60 seconds
         'options': {'queue': 'celery'}
     },
@@ -365,6 +376,13 @@ CELERY_BEAT_SCHEDULE = {
         'options': {'queue': 'celery'}
     },
 }
+
+if FEATURES.get('SCHEDULING', False):
+    CELERY_BEAT_SCHEDULE['dispatch-scheduled-workflow-runs'] = {
+        'task': 'research_intelligence.tasks.auxiliary.schedule_dispatcher.dispatch_scheduled_workflow_runs_task',
+        'schedule': 60.0,  # runs every 60 seconds
+        'options': {'queue': 'celery'}
+    }
 
 
 if is_testing:
@@ -461,19 +479,3 @@ if SENTRY_DSN and not is_testing:
         # Set profile_lifecycle to "trace" to automatically run the profiler when there is an active transaction
         profile_lifecycle=os.environ.get('SENTRY_PROFILE_LIFECYCLE', 'trace'),
     )
-
-
-# ==============================================================================
-# Feature Switching / Capability Toggles (Default: False for opt-in features)
-# ==============================================================================
-def _env_feature_bool(name: str, default: bool = False) -> bool:
-    val = os.environ.get(name)
-    if val is None:
-        return default
-    return val.strip().lower() in ('true', '1', 'yes', 'on', 't', 'enabled')
-
-
-FEATURES = {
-    'SCHEDULING': _env_feature_bool('FEATURE_SCHEDULING', default=False),
-    'EMAIL_NOTIFICATIONS': _env_feature_bool('FEATURE_EMAIL_NOTIFICATIONS', default=False),
-}

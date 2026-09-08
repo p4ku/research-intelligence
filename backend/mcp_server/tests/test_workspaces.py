@@ -6,6 +6,7 @@ from mcp_server.tools import (
     add_workspace_member_logic,
 )
 from .base import BaseMCPTestCase
+from django.test import override_settings
 
 
 class MCPWorkspacesTestCase(BaseMCPTestCase):
@@ -283,6 +284,7 @@ class MCPWorkspacesTestCase(BaseMCPTestCase):
         ws.refresh_from_db()
         self.assertFalse(ws.skip_abstract_screening)
 
+    @override_settings(FEATURES={"SCHEDULING": True})
     def test_workspace_schedules_nested_mcp_representation(self):
         from research_intelligence.models import WorkflowSchedule
         ws = Workspace.objects.create(name="Schedule Nesting WS")

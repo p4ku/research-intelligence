@@ -17,7 +17,7 @@ from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.db import connection, transaction
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 from django.utils import timezone
 from rest_framework import status
@@ -48,6 +48,7 @@ from research_intelligence.tasks.step_1_search.search import execute_scraper_run
 User = get_user_model()
 
 
+@override_settings(FEATURES={"SCHEDULING": True, "EMAIL_NOTIFICATIONS": True})
 class WorkflowScheduleBaseTestCase(TestCase):
     """
     Shared base fixture for workflow schedule tests.

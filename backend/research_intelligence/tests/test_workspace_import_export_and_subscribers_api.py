@@ -1,5 +1,5 @@
 import json
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from research_intelligence.models import (
@@ -180,6 +180,7 @@ class WorkspaceImportExportAndSubscribersAPITestCase(TestCase):
         cloned_ws.refresh_from_db()
         self.assertEqual(cloned_ws.abstract_acceptance_criteria, "Updated Criteria Marker")
 
+    @override_settings(FEATURES={"EMAIL_NOTIFICATIONS": True})
     def test_subscriber_viewset_crud_and_rbac(self):
         """Test SubscriberViewSet list, create, update, delete, and permission enforcement."""
         # 1. List subscribers as researcher

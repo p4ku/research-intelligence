@@ -6,7 +6,7 @@ counted, and returned across all endpoints and tools, preventing the '0 papers' 
 
 import json
 from decimal import Decimal
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.contrib.auth.models import User
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -270,6 +270,7 @@ class ReprocessedRunsAPIMCPTests(TestCase):
         self.assertIn("Fault-Tolerant Topological Quantum Computation", report.content_markdown)
         self.assertIn("Signal Score: 94.50", report.content_markdown)
 
+    @override_settings(FEATURES={"SCHEDULING": True})
     def test_omitted_and_malformed_query_params_do_not_crash(self):
         """
         Verifies that omitting pipeline_run or passing 'undefined'/'null'/invalid-uuid

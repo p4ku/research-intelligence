@@ -1,5 +1,5 @@
 from unittest.mock import patch, MagicMock
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
 from research_intelligence.models import (
     Workspace,
@@ -62,6 +62,7 @@ class ReportingTaskTestCase(TestCase):
         self.assertIn("context", payload)
         self.assertEqual(payload["stats"]["accepted_papers_count"], 1)
 
+    @override_settings(FEATURES={"EMAIL_NOTIFICATIONS": True})
     @patch("research_intelligence.reports.registry.send_mailgun_message")
     def test_report_registry_dispatch(self, mock_mailer):
         mock_mailer.return_value = (True, {"id": "mailgun_test_id"})

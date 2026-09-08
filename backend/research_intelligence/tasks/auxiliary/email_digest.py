@@ -314,6 +314,22 @@ def dispatch_pipeline_subscriber_digest(
             "error": f"Workspace '{workspace_id}' does not exist."
         }
 
+    from research_intelligence.features import is_feature_enabled, Feature
+
+    if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
+        logger.info(f"📧 [DIGEST DISPATCH SKIPPED] Feature EMAIL_NOTIFICATIONS is disabled for Workspace '{workspace.name}'.")
+        return {
+            "status": "skipped",
+            "reason": "Email notifications feature disabled",
+            "workspace_id": str(workspace.id),
+            "workspace_name": workspace.name,
+            "pipeline_run_id": str(pipeline_run_id),
+            "total_recipients": 0,
+            "sent_count": 0,
+            "failed_count": 0,
+            "deliveries": [],
+        }
+
     # 2. Resolve PipelineRun and validate completion
     try:
         pipeline_run = PipelineRun.objects.select_related('workspace').get(pk=pipeline_run_id, workspace=workspace)

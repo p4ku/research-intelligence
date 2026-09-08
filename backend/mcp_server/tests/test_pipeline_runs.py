@@ -22,6 +22,7 @@ from datetime import timedelta
 from django.utils import timezone
 from .base import BaseMCPTestCase
 from unittest.mock import patch, MagicMock
+from django.test import override_settings
 
 
 class MCPPipelineRunsTestCase(BaseMCPTestCase):
@@ -271,6 +272,7 @@ class MCPPipelineRunsTestCase(BaseMCPTestCase):
         self.assertEqual(res["celery_task_id"], "celery_ext_task_01")
         mock_ext_task.assert_called_once()
 
+    @override_settings(FEATURES={"EMAIL_NOTIFICATIONS": True})
     @patch("mcp_server.tools.diagnostics.email.send_pipeline_subscriber_digest_task.delay")
     def test_send_pipeline_run_digest_email_with_recipient_override(self, mock_email_task):
         mock_email_task.return_value = MagicMock(id="celery_email_task_01")

@@ -21,6 +21,13 @@ class WorkflowScheduleViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     ordering = ['-is_active', 'next_run_at', '-created_at']
 
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        from research_intelligence.features import is_feature_enabled, Feature
+        from rest_framework.exceptions import NotFound
+        if not is_feature_enabled(Feature.SCHEDULING):
+            raise NotFound("Workflow scheduling is currently disabled.")
+
     def get_queryset(self):
         user = self.request.user
         if not user or not user.is_authenticated:

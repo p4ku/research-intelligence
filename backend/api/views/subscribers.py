@@ -16,6 +16,13 @@ class SubscriberViewSet(viewsets.ModelViewSet):
     ordering_fields = ['created_at', 'email', 'subscription_type', 'is_active']
     ordering = ['-created_at']
 
+    def initial(self, request, *args, **kwargs):
+        super().initial(request, *args, **kwargs)
+        from research_intelligence.features import is_feature_enabled, Feature
+        from rest_framework.exceptions import NotFound
+        if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
+            raise NotFound("Email subscribers feature is currently disabled.")
+
     def get_queryset(self):
         user = self.request.user
         if getattr(user, 'is_superuser', False):

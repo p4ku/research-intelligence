@@ -1,6 +1,6 @@
 import json
 from unittest.mock import patch, MagicMock
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 from django.core import mail
@@ -391,6 +391,7 @@ class ResearchAgentProcessTest(TestCase):
         self.assertIn("stages_breakdown", res)
         self.assertEqual(len(res["stages_breakdown"]), 8)
 
+    @override_settings(FEATURES={"EMAIL_NOTIFICATIONS": True})
     def test_email_notification_to_subscribers_on_completion(self):
         """
         Verifies that _send_agent_notification sends emails to active subscribers, workspace members, and override emails.
