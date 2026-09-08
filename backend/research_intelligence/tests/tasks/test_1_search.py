@@ -219,24 +219,36 @@ class IngestionSearchTasksTestCase(TestCase):
         self.assertEqual(one_line(""), "")
         self.assertEqual(one_line(None), "")
 
-        # The wrap after a JSON round-trip: backslash + letter, two characters.
-        # Exactly what OpenAlex serves for W4289606390 — title and abstract.
-        self.assertEqual(
-            one_line("PennyLane: Automatic differentiation of hybrid quantum-classical\\n computations"),
-            "PennyLane: Automatic differentiation of hybrid quantum-classical computations",
-        )
-        # One escape before whitespace or the end marks the field; every
-        # escape in it is then the wrap, letter after it or not.
-        self.assertEqual(one_line("programming of\\nquantum computers.\\n"), "programming of quantum computers.")
-        self.assertEqual(one_line("a\\rb\\tc\\n"), "a b c")
-        # TeX is not a wrap, and it needs no '$' around it (real abstracts).
-        # No escape-before-whitespace, so every backslash stays.
-        self.assertEqual(one_line("$q=\\nabla u$ yields"), "$q=\\nabla u$ yields")
-        self.assertEqual(one_line("We propose RISE (\\textbf{R}efining \\textit{I}magination)"), "We propose RISE (\\textbf{R}efining \\textit{I}magination)")
-        self.assertEqual(one_line("a \\(3.2\\times\\) speedup, Spearman \\r{ho} = 0.9"), "a \\(3.2\\times\\) speedup, Spearman \\r{ho} = 0.9")
-        self.assertEqual(one_line("$\\texttt{DisMorph}$: learning\n  to disentangle"), "$\\texttt{DisMorph}$: learning to disentangle")
-        # TeX's own doubled backslash is never a wrap, even in a marked field.
-        self.assertEqual(one_line("row one \\\\times two\\n"), "row one \\\\times two")
+    def test_one_line_escaped_wrap(self):
+        """
+        The wrap as OpenAlex serves it for W4289606390: backslash and letter as
+        two characters. One before whitespace or the end marks the field, and
+        every escaped wrap in it collapses; a field without the mark keeps
+        every backslash, because TeX starts the same way and abstracts carry
+        it bare.
+        """
+        cases = [
+            # Escape-encoded fields: the mark is present.
+            (
+                "PennyLane: Automatic differentiation of hybrid quantum-classical\\n computations",
+                "PennyLane: Automatic differentiation of hybrid quantum-classical computations",
+            ),
+            ("programming of\\nquantum computers.\\n", "programming of quantum computers."),
+            ("line one\\r\\nline two\\r\\n", "line one line two"),
+            # TeX's own doubled backslash is never a wrap, even in a marked field.
+            ("row one \\\\newline two\\n", "row one \\\\newline two"),
+            # TeX fields: no mark, every backslash stays.
+            ("$q=\\nabla u$ yields", "$q=\\nabla u$ yields"),
+            (
+                "We propose RISE (\\textbf{R}efining \\textit{I}magination)",
+                "We propose RISE (\\textbf{R}efining \\textit{I}magination)",
+            ),
+            ("Assuming $P\\neq NP$, we\\nestablish", "Assuming $P\\neq NP$, we\\nestablish"),
+            ("$\\texttt{DisMorph}$: learning\n  to disentangle", "$\\texttt{DisMorph}$: learning to disentangle"),
+        ]
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                self.assertEqual(one_line(raw), expected)
 
     @patch("research_intelligence.scrapers.openalex.OpenAlexScraperProvider.search")
     def test_ingested_title_and_abstract_are_single_lined(self, mock_openalex_search):

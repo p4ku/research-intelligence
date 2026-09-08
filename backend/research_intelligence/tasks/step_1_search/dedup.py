@@ -3,6 +3,15 @@ Deduplication and Identifier Normalization utilities for scientific papers.
 """
 import re
 
+_WHITESPACE = re.compile(r'[ \t\r\n\f\v]+')
+# A line wrap that took a JSON round-trip upstream: backslash + n as two
+# characters (CRLF included). A doubled backslash is TeX's own '\\', left alone.
+_ESCAPED_WRAP = re.compile(r'(?<!\\)(?:\\r)?\\n')
+# An escaped wrap right before whitespace or the end of the field. No TeX
+# control word looks like that (\nabla, \newline, \neq all continue), so one
+# of these marks the whole field as escape-encoded.
+_ESCAPED_FIELD_MARK = re.compile(r'(?<!\\)(?:\\r)?\\n(?=\s|$)')
+
 
 def normalize_doi(doi: str) -> str:
     """Strips protocol prefix, doi.org base URL, spaces and converts to lowercase."""
@@ -42,32 +51,17 @@ def one_line(text: str) -> str:
     keeps this identical to the frontend's oneLine() — '\\s' differs between the
     two engines on NEL and U+FEFF.
 
-    The same wrap also arrives *escaped*: OpenAlex serves some works with the
-    backslash and the letter as two characters (W4289606390's title is
-    'quantum-classical\\\\n computations' on the wire, its abstract has sixteen
-    more), and so does anything that took a JSON round-trip upstream of us.
-    Those collapse too — per field, not per occurrence. TeX starts the same
-    way (\\nabla, \\neq, \\times, \\textbf{..}, \\r{ho}) and lives in abstracts
-    with no '$' around it, so no local test tells 'of\\\\nquantum' from
-    '\\\\nabla'. What TeX never has is such an escape before whitespace or
-    the end of the field: one of those marks the field as escape-encoded, and
-    every backslash-n/r/t in it is then the wrap. A field without that mark
-    keeps every backslash. Measured against all 1,770 prod papers on
-    2026-09-08: the rule rewrites the one paper and none of the 368 fields
-    holding TeX.
+    The wrap can also arrive *escaped* — OpenAlex serves some works with the
+    backslash and the letter as two characters — and is collapsed only in a
+    field that is escape-encoded as a whole (_ESCAPED_FIELD_MARK). TeX starts
+    the same way and abstracts carry it bare (\\nabla, \\textbf{..}), so
+    nothing local tells 'of\\\\nquantum' from '\\\\nabla'; the mark does.
     """
     if not text:
         return ""
-    if _ESCAPED_FIELD.search(text):
+    if _ESCAPED_FIELD_MARK.search(text):
         text = _ESCAPED_WRAP.sub(' ', text)
-    return _WRAP.sub(' ', text).strip()
-
-
-_WRAP = re.compile(r'[ \t\r\n\f\v]+')
-# Backslash + n/r/t as two characters; a doubled backslash is TeX's own '\\'.
-_ESCAPED_WRAP = re.compile(r'(?<!\\)\\[nrt]')
-# The mark of an escape-encoded field: such an escape before whitespace or the end.
-_ESCAPED_FIELD = re.compile(r'(?<!\\)\\[nrt](?=\s|$)')
+    return _WHITESPACE.sub(' ', text).strip()
 
 
 def normalize_title(title: str) -> str:
