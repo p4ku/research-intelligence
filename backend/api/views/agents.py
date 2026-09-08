@@ -129,8 +129,14 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['post'])
     def pause(self, request, pk=None):
-        res_json = pause_research_agent_logic(request.user, str(pk))
-        return Response(self._parse_mcp_response(res_json))
+        instance = self.get_object()
+        res_json = pause_research_agent_logic(request.user, str(instance.id))
+        parsed = self._parse_mcp_response(res_json)
+        if parsed.get("status") == "error":
+            err_msg = str(parsed.get("error", ""))
+            status_code = status.HTTP_403_FORBIDDEN if "denied" in err_msg.lower() or "permission" in err_msg.lower() else status.HTTP_400_BAD_REQUEST
+            return Response(parsed, status=status_code)
+        return Response(parsed)
 
     @extend_schema(
         responses={
@@ -144,8 +150,14 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['post'])
     def resume(self, request, pk=None):
-        res_json = resume_research_agent_logic(request.user, str(pk))
-        return Response(self._parse_mcp_response(res_json))
+        instance = self.get_object()
+        res_json = resume_research_agent_logic(request.user, str(instance.id))
+        parsed = self._parse_mcp_response(res_json)
+        if parsed.get("status") == "error":
+            err_msg = str(parsed.get("error", ""))
+            status_code = status.HTTP_403_FORBIDDEN if "denied" in err_msg.lower() or "permission" in err_msg.lower() else status.HTTP_400_BAD_REQUEST
+            return Response(parsed, status=status_code)
+        return Response(parsed)
 
     @extend_schema(
         responses={
@@ -159,8 +171,14 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
     )
     @action(detail=True, methods=['post'])
     def abort(self, request, pk=None):
-        res_json = abort_research_agent_logic(request.user, str(pk))
-        return Response(self._parse_mcp_response(res_json))
+        instance = self.get_object()
+        res_json = abort_research_agent_logic(request.user, str(instance.id))
+        parsed = self._parse_mcp_response(res_json)
+        if parsed.get("status") == "error":
+            err_msg = str(parsed.get("error", ""))
+            status_code = status.HTTP_403_FORBIDDEN if "denied" in err_msg.lower() or "permission" in err_msg.lower() else status.HTTP_400_BAD_REQUEST
+            return Response(parsed, status=status_code)
+        return Response(parsed)
 
     @extend_schema(
         responses={

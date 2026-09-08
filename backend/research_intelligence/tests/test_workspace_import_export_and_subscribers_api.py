@@ -276,3 +276,32 @@ class WorkspaceImportExportAndSubscribersAPITestCase(TestCase):
         self.assertEqual(imported_ws.narrative_report_system_prompt, "Executive system prompt.")
         self.assertEqual(imported_ws.narrative_report_top_n_papers, 12)
 
+    def test_import_existing_workspace_unauthorized_user_is_skipped(self):
+        from django.contrib.auth import get_user_model
+        from research_intelligence.services.workspace_service import (
+            serialize_workspace_configuration,
+            import_workspace_configuration_bundle,
+        )
+        User = get_user_model()
+        other_user = User.objects.create_user(username="other_bundle_user", password="password123")
+
+        ws_bundle = serialize_workspace_configuration(self.workspace)
+        ws_bundle_copy = dict(ws_bundle)
+        ws_bundle_copy["narrative_report_prompt"] = "Hacked Prompt by stranger"
+
+        bundle_payload = {
+            "version": "1.0",
+            "workspaces": [ws_bundle_copy]
+        }
+        stats = import_workspace_configuration_bundle(
+            data=bundle_payload,
+            user=other_user,
+        )
+        self.assertEqual(stats["skipped_workspaces"], 1)
+        self.assertEqual(stats["updated_workspaces"], 0)
+        self.workspace.refresh_from_db()
+        self.assertNotEqual(self.workspace.narrative_report_prompt, "Hacked Prompt by stranger")
+        # Ensure other_user was NOT granted membership
+        self.assertFalse(WorkspaceMember.objects.filter(workspace=self.workspace, user=other_user).exists())
+
+

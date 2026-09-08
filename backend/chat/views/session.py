@@ -15,7 +15,7 @@ from chat.serializers import (
 class PaperChatSessionViewSet(viewsets.ModelViewSet):
     """
     CRUD viewset for managing multi-turn PaperChatSessions.
-    Scoped to session owner, workspace admins, managers, and staff.
+    Scoped to session owner, workspace admins, and managers.
     """
     permission_classes = [permissions.IsAuthenticated]
     http_method_names = ['get', 'delete', 'patch', 'head', 'options']

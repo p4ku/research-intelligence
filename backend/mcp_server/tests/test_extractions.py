@@ -8,6 +8,7 @@ from mcp_server.tools import (
     list_extractions_logic,
     get_paper_extractions_matrix_logic,
     get_extraction_logic,
+    get_paper_scoreboard_logic,
 )
 from .base import BaseMCPTestCase
 
@@ -244,5 +245,66 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
         # 2. User querying list_extractions with foreign workspace_id gets error
         res_list = self.parse_res(list_extractions_logic(self.researcher, workspace_id=str(other_ws.id)))
         self.assertIn("error", res_list)
+
+        # 3. User querying list_extractions with own workspace_id does NOT see foreign extractions
+        self.add_member(self.workspace, self.researcher, role="researcher")
+        res_own = self.parse_res(list_extractions_logic(self.researcher, workspace_id=str(self.workspace.id)))
+        self.assertIsInstance(res_own, list)
+        ext_ids = [e["id"] for e in res_own]
+        self.assertNotIn(str(foreign_ext.id), ext_ids)
+
+    def test_paper_scoreboard_logic(self):
+        run = PipelineRun.objects.create(workspace=self.workspace, name="Scoreboard Test Run", status="completed")
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="sha256_scoreboard_p1",
+            title="Quantum Architecture Benchmark Paper",
+            authors="Alice Q., Bob S.",
+            source_url="https://arxiv.org/abs/2603.11111",
+        )
+        PaperMetric.objects.create(
+            paper=paper,
+            pipeline_run=run,
+            workspace=self.workspace,
+            screening_status="accepted",
+            signal_score=91.0,
+            metrics_data={"trl_level": 5},
+        )
+        def_trl = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="TRL Level",
+            response_schema={"type": "object", "properties": {"trl_level": {"type": "integer"}}},
+            exit_metrics="trl_level",
+            is_active=True,
+        )
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=paper,
+            extraction_definition=def_trl,
+            fields_data={"trl_level": 5},
+            confidence_score=0.96,
+            validation_status="pass",
+        )
+
+        # 1. Admin can access paper scoreboard via MCP
+        res = self.parse_res(get_paper_scoreboard_logic(self.admin, paper_id=str(paper.id), pipeline_run_id=str(run.id)))
+        self.assertIn("workspace", res)
+        self.assertIn("paper", res)
+        self.assertIn("definitions", res)
+        self.assertIn("extractions", res)
+        self.assertIn("metric", res)
+
+        self.assertEqual(res["paper"]["title"], "Quantum Architecture Benchmark Paper")
+        self.assertEqual(res["paper"]["signal_score"], 91.0)
+        self.assertEqual(len(res["paper"]["dimensions"]), 1)
+        self.assertEqual(res["paper"]["dimensions"][0]["primary_metric"]["numeric_value"], 5)
+
+        # 2. Unauthorized user gets error
+        from django.contrib.auth import get_user_model
+        unauth_user = get_user_model().objects.create_user(username="stranger_scoreboard", password="password123")
+        err_res = self.parse_res(get_paper_scoreboard_logic(unauth_user, paper_id=str(paper.id)))
+        self.assertIn("error", err_res)
+
 
 

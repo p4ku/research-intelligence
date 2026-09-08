@@ -67,7 +67,7 @@ class ApiEndpointOptimizationsTestCase(TestCase):
         - Deduplicates multiple runs on the same date (keeps newest).
         - Loads scalar fields correctly and constructs funnel counts.
         """
-        now = timezone.now()
+        now = timezone.now().replace(hour=10, minute=0, second=0, microsecond=0)
         day1 = now - timedelta(days=2)
         day2 = now - timedelta(days=1)
 

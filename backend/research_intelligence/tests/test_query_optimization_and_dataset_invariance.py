@@ -530,9 +530,10 @@ class DatasetInvarianceAndQueryBenchmarkTestCase(TestCase):
         self.assertTrue(len(dimensions) > 0)
         # Verify that the newest extraction (999 qubits) was selected
         qubit_dim = next((d for d in dimensions if d["definition_id"] == str(self.ext_def.id)), None)
-        self.assertIsNotNone(qubit_dim)
-        self.assertEqual(qubit_dim["value"], "999")
+        self.assertEqual(qubit_dim["raw"], "999")
+        self.assertIn(qubit_dim["value"], ("999", 999, 999.0))
         self.assertEqual(qubit_dim["confidence"], 0.99)
+
 
     def test_scrapers_endpoint_workspace_filter_and_isolation(self):
         """

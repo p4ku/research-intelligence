@@ -50,6 +50,15 @@ def ask_paper_logic(
         except (ValueError, PaperChatSession.DoesNotExist):
             return json.dumps({"status": "error", "error": f"Chat session '{session_id}' not found in workspace '{workspace.name}'."}, indent=2)
 
+        user_id = getattr(user, 'id', None)
+        if session.user_id and user_id and session.user_id != user_id:
+            role = getattr(membership, 'role', None)
+            if role not in ['admin', 'manager']:
+                return json.dumps({
+                    "status": "error",
+                    "error": "You do not have permission to append to another user's chat session."
+                }, indent=2)
+
     if not session:
         session = PaperChatSession.objects.create(
             workspace=workspace,

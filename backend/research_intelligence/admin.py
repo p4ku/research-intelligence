@@ -2106,7 +2106,8 @@ class WorkspaceAdmin(admin.ModelAdmin):
                 stats = import_workspace_configuration_bundle(
                     data=parsed_data,
                     user=request.user,
-                    update_existing=update_existing
+                    update_existing=update_existing,
+                    allow_superuser=True
                 )
                 mode_desc = "Overwrite / Fine-tune enabled" if update_existing else "Overwrite disabled (skipped existing items)"
                 messages.success(

@@ -28,6 +28,7 @@ from .extractions import (
     list_extractions_logic,
     get_paper_extractions_matrix_logic,
     get_extraction_logic,
+    get_paper_scoreboard_logic,
 )
 from .pipeline_runs import (
     trigger_search_job_logic,
@@ -130,6 +131,7 @@ __all__ = [
     "list_extractions_logic",
     "get_paper_extractions_matrix_logic",
     "get_extraction_logic",
+    "get_paper_scoreboard_logic",
     "trigger_search_job_logic",
     "start_pipeline_run_logic",
     "trigger_pdf_download_job_logic",

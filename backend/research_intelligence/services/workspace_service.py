@@ -220,7 +220,8 @@ def serialize_workspace_configuration(workspace: Workspace) -> dict:
 def import_workspace_configuration_bundle(
     data: Union[dict, list],
     user=None,
-    update_existing: bool = True
+    update_existing: bool = True,
+    allow_superuser: bool = False
 ) -> dict:
     """
     Imports and upserts workspace configuration bundles.
@@ -290,6 +291,19 @@ def import_workspace_configuration_bundle(
 
         existing_ws = Workspace.objects.filter(name=name).first()
         if existing_ws:
+            if user and not getattr(user, "is_anonymous", False) and getattr(user, "pk", None):
+                can_manage = (
+                    (allow_superuser and getattr(user, "is_superuser", False))
+                    or WorkspaceMember.objects.filter(
+                        workspace=existing_ws,
+                        user=user,
+                        role__in=["admin", "manager"]
+                    ).exists()
+                )
+                if not can_manage:
+                    stats["skipped_workspaces"] += 1
+                    continue
+
             if update_existing:
                 for k, v in ws_fields.items():
                     setattr(existing_ws, k, v)
@@ -301,16 +315,15 @@ def import_workspace_configuration_bundle(
         else:
             ws = Workspace.objects.create(name=name, **ws_fields)
             stats["created_workspaces"] += 1
+            # Ensure importing user is workspace admin for newly created workspace
+            if user and not getattr(user, "is_anonymous", False) and getattr(user, "pk", None):
+                WorkspaceMember.objects.get_or_create(
+                    workspace=ws,
+                    user=user,
+                    defaults={"role": "admin"}
+                )
 
         stats["workspaces"].append(ws)
-
-        # Ensure importing user is workspace admin
-        if user and not getattr(user, "is_anonymous", False) and getattr(user, "pk", None):
-            WorkspaceMember.objects.get_or_create(
-                workspace=ws,
-                user=user,
-                defaults={"role": "admin"}
-            )
 
         # Extraction definitions
         for ed_data in ws_data.get("extraction_definitions", []):

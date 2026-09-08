@@ -75,6 +75,7 @@ from mcp_server.tools import (
     list_extractions_logic,
     get_paper_extractions_matrix_logic,
     get_extraction_logic,
+    get_paper_scoreboard_logic,
     trigger_search_job_logic,
     start_pipeline_run_logic,
     trigger_pdf_download_job_logic,
@@ -1308,6 +1309,52 @@ def get_paper_extractions_matrix(
     except Exception as e:
         return str(e)
     return get_paper_extractions_matrix_logic(user, workspace_id, pipeline_run_id, process_id, screening_status, limit)
+
+
+@mcp.tool()
+@with_db_connection
+def paper_scoreboard(
+    paper_id: str,
+    pipeline_run_id: str | None = None,
+) -> str:
+    """
+    [PAPER SCOREBOARD & METRICS SCORECARD]
+    Retrieve the complete, dynamic scorecard and scoreboard payload for a single paper,
+    matching the GET /api/papers/{id}/scorecard/ frontend aggregate contract.
+
+    WHEN TO USE:
+    - Inspect a paper's full scoreboard, primary & secondary metrics (including unpacked exit metrics),
+      unflattened fields_data, JSON response schemas, stage reasonings, composite signal score,
+      and executive narrative report before or independently of the frontend UI.
+
+    PARAMETERS:
+    - paper_id: UUID of the paper to inspect (required).
+    - pipeline_run_id: Optional UUID of a specific pipeline run, or 'latest'.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:read")
+    except Exception as e:
+        return str(e)
+    return get_paper_scoreboard_logic(user, paper_id, pipeline_run_id)
+
+
+@mcp.tool()
+@with_db_connection
+def get_paper_scoreboard(
+    paper_id: str,
+    pipeline_run_id: str | None = None,
+) -> str:
+    """
+    [ALIAS]
+    Alias for `paper_scoreboard`. Retrieves the complete dynamic scorecard for a paper.
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "workspaces:read")
+    except Exception as e:
+        return str(e)
+    return get_paper_scoreboard_logic(user, paper_id, pipeline_run_id)
 
 
 @mcp.tool()

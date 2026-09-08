@@ -230,7 +230,10 @@ export const papers = {
    * request: generateMetadata and the page's streamed sections share the call.
    */
   get: cache(
-    async (id: string): Promise<{ workspace: WorkspaceSummary; paper: ScoredPaper } | null> => {
+    async (
+      id: string,
+      runId?: string,
+    ): Promise<{ workspace: WorkspaceSummary; paper: ScoredPaper } | null> => {
       switch (sourceOf('papers')) {
         case 'stub': {
           const paper = fixturePapers.find((p) => p.id === id) ?? null
@@ -238,8 +241,9 @@ export const papers = {
         }
         case 'django':
           try {
+            const query = runId ? `?pipeline_run=${encodeURIComponent(runId)}` : ''
             return await django(
-              `/api/papers/${assertUuid(id, 'paper id')}/scorecard/`,
+              `/api/papers/${assertUuid(id, 'paper id')}/scorecard/${query}`,
               detailResponse,
             )
           } catch (error) {

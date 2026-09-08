@@ -195,7 +195,7 @@ export async function PaperRecord({
   features: Features
 }) {
   const [result, ctx] = await Promise.all([
-    forPage(papers.get(id)),
+    forPage(papers.get(id, runId)),
     runId ? runContext(id, runId, lang) : null,
   ])
   // The shell has already streamed, so this renders (sidebar)/not-found.tsx

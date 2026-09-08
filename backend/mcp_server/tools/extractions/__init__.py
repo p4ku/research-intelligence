@@ -10,6 +10,9 @@ from .matrix import (
     get_paper_extractions_matrix_logic,
     get_extraction_logic,
 )
+from .scoreboard import (
+    get_paper_scoreboard_logic,
+)
 
 __all__ = [
     "list_extraction_definitions_logic",
@@ -20,4 +23,5 @@ __all__ = [
     "list_extractions_logic",
     "get_paper_extractions_matrix_logic",
     "get_extraction_logic",
+    "get_paper_scoreboard_logic",
 ]

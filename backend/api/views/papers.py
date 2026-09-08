@@ -9,6 +9,8 @@ from ..serializers.papers import PaperSerializer, PaperMetricSerializer
 from ..pagination import StandardResultsSetPagination
 
 
+
+
 @extend_schema(
     tags=['Literature & Papers'],
     parameters=[
@@ -172,99 +174,18 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
 
     @extend_schema(
         tags=['Literature & Papers'],
-        description="One paper in the scorecard shape, with its workspace summary.",
+        parameters=[
+            OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Optional PipelineRun UUID or "latest" to scope evaluation and narrative report'),
+        ],
+        description="Full paper scorecard with run-scoped evaluation metrics, complete extraction fields_data, definition schemas/exit metrics, and narrative report context.",
     )
     @action(detail=True, methods=['get'], url_path='scorecard')
     def scorecard(self, request, pk=None):
+        from .scorecard import build_paper_scorecard_response
         paper = self.get_object()
-        paper_serializer = PaperSerializer(paper, context={'request': request})
-        paper_data = paper_serializer.data
+        return build_paper_scorecard_response(paper, request)
 
-        from research_intelligence.models import Extraction, ExtractionDefinition
-        extractions = list(Extraction.objects.filter(paper=paper).select_related('extraction_definition').order_by('-created_at'))
-        definitions = list(ExtractionDefinition.objects.filter(workspace=paper.workspace, is_active=True).order_by('created_at'))
 
-        raw_authors = paper.authors or ''
-        authors_list = [a.strip() for a in raw_authors.split(',') if a.strip()] if raw_authors else []
-
-        dimensions = []
-        ext_by_def = {}
-        for e in extractions:
-            if e.extraction_definition_id and e.extraction_definition_id not in ext_by_def:
-                ext_by_def[e.extraction_definition_id] = e
-        for d in definitions:
-            e = ext_by_def.get(d.id)
-            val = None
-            if e and e.fields_data and isinstance(e.fields_data, dict):
-                val = next(iter(e.fields_data.values()), None)
-            dimensions.append({
-                'key': d.name.lower().replace(' ', '_'),
-                'label': d.name,
-                'value': str(val) if val is not None else None,
-                'definition_id': str(d.id),
-                'confidence': float(e.confidence_score) if (e and e.confidence_score is not None) else None,
-                'is_hitl': bool(e.is_hitl_validated) if e else False,
-            })
-
-        # Include any extractions on this paper that don't match active definitions
-        matched_ext_ids = {e.id for e in ext_by_def.values() if e}
-        for e in extractions:
-            if e.id not in matched_ext_ids:
-                val = None
-                if e.fields_data and isinstance(e.fields_data, dict):
-                    val = next(iter(e.fields_data.values()), None)
-                dimensions.append({
-                    'key': (e.category or 'custom').lower().replace(' ', '_'),
-                    'label': e.category or 'Custom Extraction',
-                    'value': str(val) if val is not None else None,
-                    'definition_id': str(e.extraction_definition_id) if e.extraction_definition_id else None,
-                    'confidence': float(e.confidence_score) if (e and e.confidence_score is not None) else None,
-                    'is_hitl': bool(e.is_hitl_validated),
-                })
-
-        scored = {
-            'id': str(paper.id),
-            'workspace_id': str(paper.workspace_id),
-            'pipeline_run_id': paper_data.get('pipeline_run') or '',
-            'title': paper.title,
-            'authors': authors_list,
-            'authors_raw': raw_authors,
-            'abstract': paper.abstract or '',
-            'doi': paper.doi or None,
-            'arxiv_id': paper.arxiv_id or None,
-            'source': paper.source_database or '',
-            'screening_status': paper_data.get('screening_status') or 'pending',
-            'screening_reasoning': paper_data.get('screening_reasoning') or None,
-            'signal_score': paper_data.get('signal_score'),
-            'signal_score_details': paper_data.get('signal_score_details'),
-            'dimensions': dimensions,
-            'pdf_key': paper.original_pdf_path or None,
-            'markdown_key': paper.converted_md_path or None,
-            'pdf_url': paper.source_url,
-            'source_url': paper.source_url,
-            'is_benchmark': bool(paper_data.get('is_evaluation_benchmark', False)),
-            'evaluation_label': paper_data.get('evaluation_label'),
-            'created_at': paper.created_at.isoformat(),
-        }
-
-        ws_summary = {
-            'id': str(paper.workspace.id),
-            'name': paper.workspace.name,
-            'definitions': [
-                {
-                    'id': str(d.id),
-                    'name': d.name,
-                    'key': d.name.lower().replace(' ', '_'),
-                    'is_active': d.is_active,
-                    'max': None,
-                    'is_trl': 'trl' in d.name.lower(),
-                }
-                for d in definitions
-            ],
-            'scrapers_count': paper.workspace.scrapers.count(),
-        }
-
-        return Response({'workspace': ws_summary, 'paper': scored})
 
 
 @extend_schema(

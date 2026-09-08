@@ -48,6 +48,7 @@ def list_extractions_logic(
         workspace, _, error = check_workspace_access(user, workspace_id)
         if error:
             return json.dumps({"error": error})
+        qs = qs.filter(workspace=workspace)
     elif user:
         from research_intelligence.models import WorkspaceMember
         user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)

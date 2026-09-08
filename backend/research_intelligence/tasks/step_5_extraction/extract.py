@@ -244,13 +244,34 @@ def _run_single_extraction_impl(paper, definition, workspace):
                     if isinstance(fields_dict, dict):
                         if isinstance(post_res, dict):
                             fields_dict.update(post_res)
-                            first_val = next(iter(post_res.values()), None)
-                            if first_val is not None:
-                                fields_dict[f"{def_slug}_postprocessed"] = first_val
-                                fields_dict[f"{def_slug}_computed"] = first_val
+                            if len(post_res) == 1:
+                                single_k, single_v = next(iter(post_res.items()))
+                                unpacked_v = single_v
+                                if isinstance(unpacked_v, dict):
+                                    if "value" in unpacked_v and len(unpacked_v) <= 2:
+                                        unpacked_v = unpacked_v["value"]
+                                    elif len(unpacked_v) == 1:
+                                        unpacked_v = next(iter(unpacked_v.values()))
+                                fields_dict[single_k] = unpacked_v
+                                fields_dict[f"{def_slug}_postprocessed"] = unpacked_v
+                                fields_dict[f"{def_slug}_computed"] = unpacked_v
                                 if primary_exit:
-                                    fields_dict[f"{primary_exit}_postprocessed"] = first_val
-                                    fields_dict[f"{primary_exit}_computed"] = first_val
+                                    fields_dict[f"{primary_exit}_postprocessed"] = unpacked_v
+                                    fields_dict[f"{primary_exit}_computed"] = unpacked_v
+                            else:
+                                # > 1 keys: all are secondary metrics unless one explicitly matches def_slug_postprocessed
+                                main_k = f"{def_slug}_postprocessed"
+                                found_main = None
+                                for k, v in post_res.items():
+                                    if k.lower().replace(" ", "_") == main_k:
+                                        found_main = v
+                                        break
+                                if found_main is not None:
+                                    fields_dict[main_k] = found_main
+                                    fields_dict[f"{def_slug}_computed"] = found_main
+                                    if primary_exit:
+                                        fields_dict[f"{primary_exit}_postprocessed"] = found_main
+                                        fields_dict[f"{primary_exit}_computed"] = found_main
                         elif post_res is not None:
                             fields_dict[f"{def_slug}_postprocessed"] = post_res
                             fields_dict[f"{def_slug}_computed"] = post_res

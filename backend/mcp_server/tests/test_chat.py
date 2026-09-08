@@ -128,3 +128,23 @@ class MCPChatTestCase(BaseMCPTestCase):
         ))
         self.assertEqual(res["status"], "error")
         self.assertIn("access denied", res["error"].lower())
+
+    def test_ask_paper_session_owner_isolation(self):
+        from chat.models import PaperChatSession
+        self.add_member(self.workspace, self.researcher, role="researcher")
+        # admin user creates a chat session
+        session = PaperChatSession.objects.create(
+            workspace=self.workspace,
+            user=self.admin,
+            title="Admin Private Chat"
+        )
+        # researcher (member of self.workspace, role='researcher') tries to append to admin's session
+        res = self.parse_res(ask_paper_logic(
+            self.researcher,
+            workspace_id=str(self.workspace.id),
+            session_id=str(session.id),
+            question="Can I spy on your chat?"
+        ))
+        self.assertEqual(res["status"], "error")
+        self.assertIn("You do not have permission to append to another user's chat session", res["error"])
+

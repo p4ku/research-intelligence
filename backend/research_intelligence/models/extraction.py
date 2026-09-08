@@ -456,6 +456,43 @@ class Extraction(models.Model):
             if "fields" in data and isinstance(data["fields"], dict):
                 data = data["fields"]
 
+            # 0. If postprocessing_code is configured on definition, the postprocessed metric is primary
+            if self.extraction_definition and self.extraction_definition.postprocessing_code and self.extraction_definition.postprocessing_code.strip():
+                cand_name = self.extraction_definition.name.lower().replace(" ", "_")
+                primary_exit = self.extraction_definition.get_primary_exit_metric()
+                post_cands = [f"{cand_name}_postprocessed", f"{cand_name}_computed"]
+                if primary_exit:
+                    post_cands.insert(0, f"{primary_exit}_postprocessed")
+                    post_cands.insert(1, f"{primary_exit}_computed")
+                def _unwrap_cand(val):
+                    if val is None:
+                        return None
+                    if isinstance(val, dict):
+                        if "value" in val and len(val) <= 2:
+                            return str(val["value"])
+                        if len(val) == 1:
+                            inner_v = next(iter(val.values()))
+                            if isinstance(inner_v, dict) and "value" in inner_v:
+                                return str(inner_v["value"])
+                            if inner_v is not None:
+                                return str(inner_v)
+                        return None
+                    return str(val)
+
+                for pk in post_cands:
+                    for k, v in data.items():
+                        if k.lower().replace(" ", "_") == pk:
+                            unwrapped = _unwrap_cand(v)
+                            if unwrapped is not None:
+                                return unwrapped
+                # Fallback: any key ending with _postprocessed or _computed
+                for k, v in data.items():
+                    k_norm = k.lower().replace(" ", "_")
+                    if k_norm.endswith("_postprocessed") or k_norm.endswith("_computed"):
+                        unwrapped = _unwrap_cand(v)
+                        if unwrapped is not None:
+                            return unwrapped
+
             # 1. Match on configured extraction_definition.exit_metrics (supports comma-separated list)
             if self.extraction_definition and self.extraction_definition.exit_metrics:
                 exit_keys = self.extraction_definition.get_exit_metrics_list()
