@@ -1,6 +1,7 @@
 import { Card } from '@/components/scanner-ui'
 import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
+import { papers } from '@/lib/bff/papers/service'
 import { runs } from '@/lib/bff/pipeline-runs/service'
 import type { Lang, T } from '@/lib/i18n'
 import type { WorkspaceSummary } from '@/lib/papers/types'
@@ -22,8 +23,8 @@ export async function LedgerSection({
   lang: Lang
   t: T
 }) {
-  const [editions, all] = await forPage(
-    Promise.all([briefings.listEverywhere(lang), runs.listEverywhere()]),
+  const [editions, all, capped] = await forPage(
+    Promise.all([briefings.listEverywhere(lang), runs.listEverywhere(), papers.corpusTruncated()]),
   )
   const completed = all.filter((run) => run.status === 'completed')
 
@@ -37,6 +38,13 @@ export async function LedgerSection({
     )
   }
 
-  const rows = composeRows({ editions, runs: completed, domains: domainNames(workspaces), t, lang })
+  const rows = composeRows({
+    editions,
+    runs: completed,
+    domains: domainNames(workspaces),
+    t,
+    lang,
+    capped,
+  })
   return <BriefingLedger rows={rows} domains={workspaces.map(({ id, name }) => ({ id, name }))} />
 }

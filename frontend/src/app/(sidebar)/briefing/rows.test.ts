@@ -16,7 +16,7 @@ import {
 
 const t: T = (s) => s
 const edition = fixtureEditions[0]
-// The fixtures do not share an id as shipped; the archive joins on it.
+// The archive joins on the run id; the fixtures share it.
 const run = { ...fixtureRuns[0], id: edition.run_id }
 const domains = { [fixtureWorkspace.id]: fixtureWorkspace.name }
 const older = {
@@ -56,6 +56,16 @@ describe('composeRows', () => {
     )
     const bare = { ...older, funnel: { ...older.funnel, passed_screening: 0 } }
     expect(composeRows({ editions: [bare], runs: [], domains, t, lang: 'en' })).toEqual([])
+  })
+
+  test('a run whose edition holds none of the papers it passed is not a row either', () => {
+    // The counters promise 25; the edition would open onto nothing.
+    const unfilled = { ...edition, papers: [], funnel: { ...edition.funnel, surfaced: 0 } }
+    expect(composeRows({ editions: [unfilled], runs: [run], domains, t, lang: 'en' })).toEqual([])
+    // Unless the corpus cap dropped older papers: then nothing is known, and the row stays.
+    expect(
+      composeRows({ editions: [unfilled], runs: [run], domains, t, lang: 'en', capped: true }),
+    ).toHaveLength(1)
   })
 
   test('only the newest completed run is current', () => {

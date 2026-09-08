@@ -6,6 +6,7 @@ const paper = (title: string, signal: number | null) => ({
   title,
   authors: [],
   source: 'arxiv',
+  screening_status: 'accepted' as const,
   signal_score: signal,
 })
 
@@ -33,6 +34,31 @@ describe('templateProse', () => {
     })
     expect(p.title).toBe('A quiet run')
     expect(p.in_brief).toContain('fetched 1 paper;')
+  })
+  test('a run that passed papers the edition cannot show does not claim none passed', () => {
+    const p = templateProse({
+      workspaceName: 'Hybrid Computing',
+      fetched: 94,
+      passedScreening: 25,
+      surfaced: 0,
+      papers: [],
+    })
+    expect(p.title).toBe('Papers not on file')
+    expect(p.in_brief).toBe(
+      'The Hybrid Computing scan fetched 94 papers and passed 25 through screening; none of them are on file for this briefing.',
+    )
+    const de = templateProse(
+      {
+        workspaceName: 'Hybrid Computing',
+        fetched: 94,
+        passedScreening: 25,
+        surfaced: 0,
+        papers: [],
+      },
+      'de',
+    )
+    expect(de.title).toBe('Papers nicht hinterlegt')
+    expect(de.in_brief).toContain('und 25 durch das Screening gebracht; keines davon liegt')
   })
   test('unscored leader has no signal clause', () => {
     const p = templateProse({

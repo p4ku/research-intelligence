@@ -3122,6 +3122,9 @@
           "source": {
             "type": "string"
           },
+          "screening_status": {
+            "$ref": "#/components/schemas/ScreeningStatus"
+          },
           "signal_score": {
             "anyOf": [
               {
