@@ -183,7 +183,8 @@ export function RadarChart({
   valueLabels = false,
   className,
 }: {
-  axes: { label: string; value: number }[] // value 0–100
+  /** `value` is 0–100; `shown` is what the value label prints when that is not the figure (a TRL's "4"). */
+  axes: { label: string; value: number; shown?: string }[]
   /** Width of the drawing box; the chart scales to its container up to this. */
   size?: number
   color?: string
@@ -246,7 +247,15 @@ export function RadarChart({
     const rise = (lines.length + extra - 1) * AXIS_LINE
     // Side labels centre on their vertex; top and bottom stack clear of it.
     const y = p.anchor !== 'middle' ? p.y - rise / 2 : p.up ? p.y - rise : p.y
-    return { key: `${full}-${i}`, x: p.x, y, anchor: p.anchor, lines, full, value: axes[i]!.value }
+    return {
+      key: `${full}-${i}`,
+      x: p.x,
+      y,
+      anchor: p.anchor,
+      lines,
+      full,
+      shown: axes[i]!.shown ?? String(Math.round(axes[i]!.value)),
+    }
   })
 
   return (
@@ -312,7 +321,7 @@ export function RadarChart({
               dy={AXIS_LINE + 1}
               className="fill-zinc-950 font-mono font-medium tabular-nums dark:fill-white"
             >
-              {Math.round(l.value)}
+              {l.shown}
             </tspan>
           )}
         </text>

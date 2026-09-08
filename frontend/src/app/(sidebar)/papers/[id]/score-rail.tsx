@@ -1,5 +1,5 @@
 import { RadarChart } from '@/components/charts'
-import { Card, ScreeningPill, TrlBadge, dimensionRadarAxes } from '@/components/scanner-ui'
+import { Card, ScreeningPill, TrlBadge } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import type { T } from '@/lib/i18n'
 import { trlDimension } from '@/lib/papers/select'
@@ -65,14 +65,28 @@ function shortName(d: Dimension): string {
   return d.is_trl ? 'TRL' : d.name.split(/ \(| & /)[0]!
 }
 
+function shownNumber(value: number | null): string {
+  return value === null
+    ? '—'
+    : Number.isInteger(value)
+      ? String(value)
+      : (Math.round(value * 100) / 100).toString()
+}
+
+/** The radar's axes: the scaled dimensions, each printing the figure its bar shows, not a percentage. */
+function radarAxes(dimensions: Dimension[]) {
+  return dimensions
+    .filter((d) => d.value !== null && d.max !== null && d.max > 0)
+    .map((d) => ({
+      label: shortName(d),
+      value: Math.max(0, Math.min(100, (d.value! / d.max!) * 100)),
+      shown: shownNumber(d.value),
+    }))
+}
+
 function railBar(d: Dimension): RailBar {
   const hasBar = d.value !== null && d.max !== null && d.max > 0
-  const shown =
-    d.value === null
-      ? '—'
-      : Number.isInteger(d.value)
-        ? String(d.value)
-        : (Math.round(d.value * 100) / 100).toString()
+  const shown = shownNumber(d.value)
   return {
     key: d.key + (d.extraction_id ?? ''),
     label: shortName(d),
@@ -91,9 +105,7 @@ function railBar(d: Dimension): RailBar {
 
 export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
   const trl = trlDimension(paper)
-  // Name the axes before the helper drops the unscored ones, so the labels
-  // cannot drift out of step with the values.
-  const axes = dimensionRadarAxes(paper.dimensions.map((d) => ({ ...d, name: shortName(d) })))
+  const axes = radarAxes(paper.dimensions)
   const score =
     paper.signal_score === null
       ? '—'

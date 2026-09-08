@@ -186,43 +186,43 @@ function detailsFor(
   matchedKey: string | null,
 ): { rationale?: string; evidence?: string[]; confidence?: number | null; used: string[] } {
   const matched = matchedKey ? data[matchedKey] : undefined
-  if (isFieldExtraction(matched)) {
-    const evidence = (matched.evidence ?? [])
-      .map((e) => e?.quote)
-      .filter((q): q is string => typeof q === 'string' && q.trim() !== '')
-    const rationale = (matched.evidence ?? [])
-      .map((e) => e?.rationale)
-      .filter((r): r is string => typeof r === 'string' && r.trim() !== '')
-      .join(' ')
-    return {
-      rationale: rationale || undefined,
-      evidence: evidence.length ? evidence : undefined,
-      confidence: typeof matched.confidence === 'number' ? matched.confidence : undefined,
-      used: [],
-    }
-  }
   let rationale: string | undefined
   let evidence: string[] | undefined
   let confidence: number | undefined
   const used: string[] = []
-  for (const [k, v] of Object.entries(data)) {
+  // The nested form keeps its reasons on the matched field; a flat sibling
+  // (`justification`, `confidence`) still counts, and is still consumed.
+  if (isFieldExtraction(matched)) {
+    const quotes = (matched.evidence ?? [])
+      .map((e) => e?.quote)
+      .filter((q): q is string => typeof q === 'string' && q.trim() !== '')
+    const reasons = (matched.evidence ?? [])
+      .map((e) => e?.rationale)
+      .filter((r): r is string => typeof r === 'string' && r.trim() !== '')
+      .join(' ')
+    rationale = reasons || undefined
+    evidence = quotes.length ? quotes : undefined
+    confidence = typeof matched.confidence === 'number' ? matched.confidence : undefined
+  }
+  for (const [k, raw] of Object.entries(data)) {
     if (k === matchedKey) continue
-    if (rationale === undefined && RATIONALE_KEY.test(k) && typeof v === 'string' && v.trim()) {
-      rationale = v
+    const v = isFieldExtraction(raw) ? raw.value : raw
+    if (RATIONALE_KEY.test(k) && typeof v === 'string' && v.trim()) {
+      if (rationale === undefined) rationale = v
       used.push(k)
-    } else if (evidence === undefined && EVIDENCE_KEY.test(k)) {
+    } else if (EVIDENCE_KEY.test(k)) {
       if (Array.isArray(v)) {
         const quotes = v.filter((q): q is string => typeof q === 'string' && q.trim() !== '')
         if (quotes.length) {
-          evidence = quotes
+          if (evidence === undefined) evidence = quotes
           used.push(k)
         }
       } else if (typeof v === 'string' && v.trim()) {
-        evidence = [v]
+        if (evidence === undefined) evidence = [v]
         used.push(k)
       }
-    } else if (confidence === undefined && /confidence/i.test(k) && typeof v === 'number') {
-      confidence = v
+    } else if (/confidence/i.test(k) && typeof v === 'number') {
+      if (confidence === undefined) confidence = v
       used.push(k)
     }
   }
@@ -238,17 +238,25 @@ const FACET_KEY = /_score$/i
 const ASSESSMENT_KEY = /_assessment$/i
 const BAND_KEY = /_(band|label)$/i
 const LEVEL_KEY = /_level$/i
-// A string longer than this reads as a paragraph, shorter as a fact.
-const LONG_TEXT = 90
-const ACRONYMS: Record<string, string> = {
+// A string with a sentence in it reads as prose under its own heading; one
+// without ("OpenMPI", "High") is a fact. Length would flip the same key
+// between the two from paper to paper; punctuation is what the model varies
+// least.
+const SENTENCE = /[.!?](\s|$)/
+const WORDS: Record<string, string> = {
   ai: 'AI',
   api: 'API',
   cpu: 'CPU',
   gdpr: 'GDPR',
   gpu: 'GPU',
   hpc: 'HPC',
+  iot: 'IoT',
   llm: 'LLM',
+  lockin: 'lock-in',
+  ml: 'ML',
+  nlp: 'NLP',
   qpu: 'QPU',
+  sla: 'SLA',
   stackit: 'STACKIT',
   trl: 'TRL',
 }
@@ -259,7 +267,7 @@ export function humaniseKey(key: string): string {
     .replace(/_(score|assessment)$/i, '')
     .split('_')
     .filter(Boolean)
-    .map((w) => ACRONYMS[w.toLowerCase()] ?? w)
+    .map((w) => WORDS[w.toLowerCase()] ?? w)
   const s = words.join(' ')
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
@@ -270,17 +278,22 @@ function bandLabel(value: string): string {
 }
 
 /**
- * Tier 1 of the backend's exit-metric resolution, by proxy: the row's own
- * `exit_metric` is the headline value, so the key holding it is the headline
- * key. Score and level keys first, so "63.6" matches `novelty_score` and not
- * a facet that happens to share the value; the duplicates never.
+ * Tier 1 of the backend's exit-metric resolution: the row's own `exit_metric`
+ * is the headline value, and the definition's first exit key names the field
+ * it came from. Without the key (an orphan, an older definition) the field
+ * holding the value stands in — score and level keys first, numbers compared
+ * as numbers — and failing that the name-derived key, so the headline field
+ * is never filed as a facet of itself.
  */
 function exitFromRow(
   extraction: Pick<ExtractionDTO, 'exit_metric'>,
   data: Record<string, unknown>,
+  exitKey: string | undefined,
+  fallbackKey: string | null,
 ): { raw: string; matchedKey: string | null } | null {
   const exit = extraction.exit_metric?.trim()
   if (!exit || exit === '-') return null
+  if (exitKey && scalarToString(data[exitKey]) !== null) return { raw: exit, matchedKey: exitKey }
   const n = Number(exit)
   const entries = Object.entries(data).filter(([k]) => !DUPLICATE_KEY.test(k))
   const ordered = [
@@ -288,11 +301,14 @@ function exitFromRow(
     ...entries.filter(([k]) => !(FACET_KEY.test(k) || LEVEL_KEY.test(k))),
   ]
   for (const [k, v] of ordered) {
-    const s = scalarToString(v)
-    if (s === null) continue
-    if (s === exit || (Number.isFinite(n) && Number(s) === n)) return { raw: s, matchedKey: k }
+    const value = isFieldExtraction(v) ? v.value : v
+    const hit =
+      typeof value === 'number'
+        ? Number.isFinite(n) && value === n
+        : typeof value === 'string' && value.trim() === exit
+    if (hit) return { raw: exit, matchedKey: k }
   }
-  return { raw: exit, matchedKey: null }
+  return { raw: exit, matchedKey: fallbackKey }
 }
 
 type DimensionDetail = Pick<Dimension, 'band' | 'facets' | 'texts' | 'lists' | 'facts'>
@@ -310,6 +326,8 @@ function dimensionDetail(
   used: Set<string>,
   headline: number | null,
   facetMax: number | null,
+  /** The definition's exit keys after the headline: the admin's order for the facets. */
+  order: readonly string[] = [],
 ): DimensionDetail {
   const facets: NonNullable<Dimension['facets']> = []
   const texts: NonNullable<Dimension['texts']> = []
@@ -352,7 +370,7 @@ function dimensionDetail(
     if (typeof value === 'string') {
       const s = value.trim()
       if (!s) continue
-      if (s.length > LONG_TEXT) texts.push({ key, name, value: s })
+      if (SENTENCE.test(s)) texts.push({ key, name, value: s })
       else facts.push({ key, name, value: s })
       continue
     }
@@ -362,6 +380,11 @@ function dimensionDetail(
       facts.push({ key, name, value: String(value) })
     }
   }
+  const rank = (key: string) => {
+    const i = order.indexOf(key)
+    return i < 0 ? order.length : i
+  }
+  facets.sort((a, b) => rank(a.key) - rank(b.key))
   return {
     band,
     facets: facets.length ? facets : undefined,
@@ -513,7 +536,9 @@ export function corpusMaxima(
       (ext.extraction_definition && byDefId.get(ext.extraction_definition)) ||
       byName.get(ext.category)
     if (!def) continue
-    const { raw } = resolveExitMetric(ext.fields_data, def.name, ext.category)
+    // The same headline the dimension will show, so the scale fits it.
+    const raw =
+      ext.exit_metric?.trim() || resolveExitMetric(ext.fields_data, def.name, ext.category).raw
     const n = parseNumeric(raw)
     if (n === null) continue
     const current = maxima.get(def.id) ?? null
@@ -553,9 +578,9 @@ function dimensionFor(
   if (!extraction) return base
 
   const data = fieldsOf(extraction.fields_data)
-  const { raw, matchedKey } =
-    exitFromRow(extraction, data) ??
-    resolveExitMetric(extraction.fields_data, ctx.def.name, extraction.category)
+  const named = resolveExitMetric(extraction.fields_data, ctx.def.name, extraction.category)
+  const exitKeys = ctx.def.exit_metrics ?? []
+  const { raw, matchedKey } = exitFromRow(extraction, data, exitKeys[0], named.matchedKey) ?? named
   // metrics_data is pre-filled with 0.0 for every definition, so a bare 0
   // there is indistinguishable from "never scored" — only a non-zero metric
   // outranks the parsed extraction value ("null not 0", like parseNumeric).
@@ -578,7 +603,7 @@ function dimensionFor(
     // A TRL definition's sub-scores declare no range; the others share the
     // definition's own scale.
     ...(detail && {
-      ...dimensionDetail(data, used, value, ctx.is_trl ? null : ctx.max),
+      ...dimensionDetail(data, used, value, ctx.is_trl ? null : ctx.max, exitKeys.slice(1)),
       model: modelOf(extraction),
     }),
   }
@@ -587,9 +612,8 @@ function dimensionFor(
 /** Extractions whose definition was deleted and matches no current name — detail page only. */
 function orphanDimension(extraction: ExtractionDTO, detail: boolean): Dimension {
   const data = fieldsOf(extraction.fields_data)
-  const { raw, matchedKey } =
-    exitFromRow(extraction, data) ??
-    resolveExitMetric(extraction.fields_data, null, extraction.category)
+  const named = resolveExitMetric(extraction.fields_data, null, extraction.category)
+  const { raw, matchedKey } = exitFromRow(extraction, data, undefined, named.matchedKey) ?? named
   const details = detailsFor(data, matchedKey)
   const used = new Set([...(matchedKey ? [matchedKey] : []), ...details.used])
   const name = extraction.category || 'Extraction'
