@@ -88,7 +88,10 @@ export function useSearch(
         })
         .catch(() => {
           if (controller.signal.aborted) return
-          if (mine === seq.current) setFailed(q)
+          // No sequence gate here: `error` is read against the current q, so a
+          // key for a query the user has left is inert, while gating would
+          // strand a query they backspaced back to as pending forever.
+          setFailed(q)
         })
         .finally(() => {
           if (inFlight.current?.controller === controller) inFlight.current = null
