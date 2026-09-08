@@ -15,7 +15,14 @@ const ENV_TARGETS: Record<string, string> = {
 };
 
 const targetEnv = (process.env.E2E_TARGET_ENV || 'local').toLowerCase();
-const baseURL = process.env.E2E_BASE_URL || ENV_TARGETS[targetEnv] || ENV_TARGETS.local;
+if (!(targetEnv in ENV_TARGETS)) {
+  // A typo must not quietly land on a different environment than the one meant.
+  throw new Error(
+    `Unknown E2E_TARGET_ENV "${process.env.E2E_TARGET_ENV}"; expected one of ${Object.keys(ENV_TARGETS).join(', ')}`,
+  );
+}
+const baseURL = process.env.E2E_BASE_URL || ENV_TARGETS[targetEnv];
+console.log(`[e2e] target=${targetEnv} baseURL=${baseURL}`);
 
 export default defineConfig({
   testDir: './specs',

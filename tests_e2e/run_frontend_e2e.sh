@@ -41,10 +41,10 @@ for arg in "$@"; do
         prod|production)
             TARGET="prod"
             ;;
-        staging|stage|dev)
+        staging|stage)
             TARGET="staging"
             ;;
-        local|localhost)
+        local|localhost|dev)
             TARGET="local"
             ;;
         --ui)

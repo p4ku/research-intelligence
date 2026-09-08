@@ -88,7 +88,7 @@ npm install
 ```
 
 ### 2. Run all frontend user journeys:
-The default target is the local Next.js dev server (`cd frontend && bun run dev`, http://localhost:3000). Nothing touches production unless you ask for it.
+The default target is the local Next.js dev server (`cd frontend && bun run dev`, http://localhost:3000). The browser never touches production unless you ask for it — but the local Next server only proxies, so logins and chat sessions land on whichever Django `frontend/.env` names (`BACKEND_INTERNAL_URL` / `NEXT_PUBLIC_API_URL`, default `http://localhost:8000`). Point that at a local backend that has the `test_e2e` user (`E2E_USERNAME` / `E2E_PASSWORD` override the credentials) and warm the dev server once before the run, or the first compile can outlast the 15 s login redirect wait. An unrecognised `E2E_TARGET_ENV` is an error, not a fallback.
 ```bash
 npm test                             # Runs all specs against Local dev (headless)
 npm run test:staging                 # Runs against Staging
