@@ -176,10 +176,66 @@ export function inferScale(
 
 /* ------------------------------ Field details ------------------------------- */
 
-const RATIONALE_KEY = /(reason|rationale|justif)/i
+const RATIONALE_KEY = /(reason|rationale|justif|insight)/i
 // The quoted evidence — not every key with "evidence" in it: `evidence_gaps`
 // is a list of what is missing and `evidence_of_movement` is prose.
 const EVIDENCE_KEY = /(quote|^evidence$|_evidence$)/i
+// An exit metric the backend serialised from an object — the definition's
+// exit key holds `{score, insight, evidence}` (the 8 Sep 2026 spec shape),
+// and `Extraction.exit_metric` stringifies it. Never a headline.
+const SERIALISED_OBJECT = /^[[{]/
+
+/** A plain nested object of the payload: `{score, insight, evidence}`, `{status, …}`, or a group of fields. */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return Boolean(v) && typeof v === 'object' && !Array.isArray(v)
+}
+
+/** The prose a nested object carries under its own reasoning key. */
+function nestedRationale(obj: Record<string, unknown>): string | undefined {
+  for (const [k, v] of Object.entries(obj)) {
+    if (RATIONALE_KEY.test(k) && typeof v === 'string' && v.trim()) return v
+  }
+  return undefined
+}
+
+/**
+ * The strings of a list. An object in the list — an author contact
+ * `{author_name, email}` — reads as its non-empty string values, joined.
+ */
+function listItems(v: unknown): string[] {
+  if (!Array.isArray(v)) return []
+  const items: string[] = []
+  for (const item of v) {
+    if (typeof item === 'string') {
+      if (item.trim()) items.push(item)
+    } else if (typeof item === 'number' && Number.isFinite(item)) {
+      items.push(String(item))
+    } else if (isRecord(item)) {
+      const parts = Object.values(item).filter(
+        (p): p is string => typeof p === 'string' && p.trim() !== '',
+      )
+      if (parts.length) items.push(parts.join(' · '))
+    }
+  }
+  return items
+}
+
+/** The quotes a nested object carries under its evidence key. */
+function nestedEvidence(obj: Record<string, unknown>): string[] | undefined {
+  for (const [k, v] of Object.entries(obj)) {
+    if (!EVIDENCE_KEY.test(k)) continue
+    const items = listItems(v)
+    if (items.length) return items
+    if (typeof v === 'string' && v.trim()) return [v]
+  }
+  return undefined
+}
+
+/** "YES" → "Yes"; "UNCLEAR" → "Unclear". */
+function statusWord(status: string): string {
+  const s = status.trim()
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase()
+}
 
 function detailsFor(
   data: Record<string, unknown>,
@@ -202,6 +258,11 @@ function detailsFor(
       .join(' ')
     rationale = reasons || undefined
     evidence = quotes.length ? quotes : undefined
+    confidence = typeof matched.confidence === 'number' ? matched.confidence : undefined
+  } else if (isRecord(matched)) {
+    // The spec's nested form: the headline field carries its own insight and quotes.
+    rationale = nestedRationale(matched)
+    evidence = nestedEvidence(matched)
     confidence = typeof matched.confidence === 'number' ? matched.confidence : undefined
   }
   for (const [k, raw] of Object.entries(data)) {
@@ -243,6 +304,8 @@ const LEVEL_KEY = /_level$/i
 // between the two from paper to paper; punctuation is what the model varies
 // least.
 const SENTENCE = /[.!?](\s|$)/
+// A flag's companion that still reads on the flag's own line ("ETH Zürich").
+const SHORT = 60
 const WORDS: Record<string, string> = {
   ai: 'AI',
   api: 'API',
@@ -274,7 +337,7 @@ export function humaniseKey(key: string): string {
 
 /** "TRL 4: Technology validated in lab" → "Technology validated in lab". */
 function bandLabel(value: string): string {
-  return value.replace(/^TRL\s*\d+\s*[:\-–]\s*/i, '').trim()
+  return value.replace(/^TRL\s*\d+\s*[:\-–—]\s*/i, '').trim()
 }
 
 /**
@@ -284,17 +347,41 @@ function bandLabel(value: string): string {
  * holding the value stands in — score and level keys first, numbers compared
  * as numbers — and failing that the name-derived key, so the headline field
  * is never filed as a facet of itself.
+ *
+ * An exit key holding an object (`novelty: {score, insight, evidence}`)
+ * serialises as that object's repr, which is no headline. The definition's
+ * own compound — what its postprocessing wrote under the definition's name,
+ * `schwarz_fit_postprocessed` — is the headline then, else the object's
+ * score; a status object (`{status: "YES", …}`) has no figure at all, and
+ * every object stays in the payload for the facets and facts.
  */
 function exitFromRow(
   extraction: Pick<ExtractionDTO, 'exit_metric'>,
   data: Record<string, unknown>,
   exitKey: string | undefined,
+  compoundKeys: readonly string[],
   fallbackKey: string | null,
 ): { raw: string; matchedKey: string | null } | null {
   const exit = extraction.exit_metric?.trim()
-  if (!exit || exit === '-') return null
-  if (exitKey && scalarToString(data[exitKey]) !== null) return { raw: exit, matchedKey: exitKey }
-  const n = Number(exit)
+  const hasExit = Boolean(exit) && exit !== '-' && !SERIALISED_OBJECT.test(exit as string)
+  if (exitKey) {
+    const scalar = scalarToString(data[exitKey])
+    if (scalar !== null) return { raw: hasExit ? (exit as string) : scalar, matchedKey: exitKey }
+    const nested = data[exitKey]
+    if (isRecord(nested)) {
+      for (const key of compoundKeys) {
+        const n = data[key]
+        if (typeof n === 'number' && Number.isFinite(n)) return { raw: String(n), matchedKey: key }
+      }
+      if (typeof nested.score === 'number' && Number.isFinite(nested.score)) {
+        return { raw: String(nested.score), matchedKey: exitKey }
+      }
+      return { raw: '', matchedKey: null }
+    }
+  }
+  if (!hasExit) return null
+  const text = exit as string
+  const n = Number(text)
   const entries = Object.entries(data).filter(([k]) => !DUPLICATE_KEY.test(k))
   const ordered = [
     ...entries.filter(([k]) => FACET_KEY.test(k) || LEVEL_KEY.test(k)),
@@ -305,10 +392,39 @@ function exitFromRow(
     const hit =
       typeof value === 'number'
         ? Number.isFinite(n) && value === n
-        : typeof value === 'string' && value.trim() === exit
-    if (hit) return { raw: exit, matchedKey: k }
+        : typeof value === 'string' && value.trim() === text
+    if (hit) return { raw: text, matchedKey: k }
   }
-  return { raw: exit, matchedKey: fallbackKey }
+  return { raw: text, matchedKey: fallbackKey }
+}
+
+/** The definition's compound keys: what its postprocessing writes under the definition's own name. */
+function compoundKeys(definitionKey: string): string[] {
+  return [`${definitionKey}_postprocessed`, `${definitionKey}_computed`]
+}
+
+/**
+ * The headline of an extraction under its definition — the row's exit
+ * metric by the definition's exit key, else the name-derived resolution —
+ * and whether tier 1 (the row's own key) produced it. One reading, shared
+ * by the dimension and the corpus maxima so the scale fits what is shown.
+ */
+function headlineOf(
+  extraction: ExtractionDTO,
+  data: Record<string, unknown>,
+  definitionName: string | null,
+  definitionKey: string,
+  exitKey: string | undefined,
+): { raw: string; matchedKey: string | null; fromRow: boolean } {
+  const named = resolveExitMetric(extraction.fields_data, definitionName, extraction.category)
+  const fromRow = exitFromRow(
+    extraction,
+    data,
+    exitKey,
+    compoundKeys(definitionKey),
+    named.matchedKey,
+  )
+  return fromRow ? { ...fromRow, fromRow: true } : { ...named, fromRow: false }
 }
 
 type DimensionDetail = Pick<Dimension, 'band' | 'facets' | 'texts' | 'lists' | 'facts'>
@@ -334,16 +450,23 @@ function dimensionDetail(
   const lists: NonNullable<Dimension['lists']> = []
   const facts: NonNullable<Dimension['facts']> = []
   let band: string | undefined
-  for (const [key, raw] of Object.entries(data)) {
-    if (used.has(key) || DUPLICATE_KEY.test(key)) continue
+  const place = (
+    key: string,
+    raw: unknown,
+    siblings: Record<string, unknown>,
+    name: string,
+    depth: number,
+  ) => {
     const value = isFieldExtraction(raw) ? raw.value : raw
-    const name = humaniseKey(key)
     if (typeof value === 'string' && BAND_KEY.test(key)) {
       if (band === undefined && value.trim()) band = bandLabel(value)
-      continue
+      return
     }
     if (typeof value === 'number' && Number.isFinite(value) && FACET_KEY.test(key)) {
-      const twin = data[key.replace(FACET_KEY, '_assessment')]
+      // `novelty_score` beside `novelty: {score, …}` is the same figure twice.
+      const nested = siblings[key.replace(FACET_KEY, '')]
+      if (isRecord(nested) && typeof nested.score === 'number') return
+      const twin = siblings[key.replace(FACET_KEY, '_assessment')]
       const text = isFieldExtraction(twin) ? twin.value : twin
       facets.push({
         key,
@@ -352,33 +475,83 @@ function dimensionDetail(
         max: facetMax,
         text: typeof text === 'string' && text.trim() ? text : null,
       })
-      continue
+      return
     }
     if (typeof value === 'string' && ASSESSMENT_KEY.test(key)) {
       // Paired with its facet above; on its own it is prose like any other.
-      if (key.replace(ASSESSMENT_KEY, '_score') in data) continue
+      if (key.replace(ASSESSMENT_KEY, '_score') in siblings) return
     }
     if (Array.isArray(value)) {
-      const items = value.filter((i): i is string => typeof i === 'string' && i.trim() !== '')
+      const items = listItems(value)
       if (items.length) lists.push({ key, name, items })
-      continue
+      return
+    }
+    if (isRecord(value)) {
+      if (typeof value.score === 'number' && Number.isFinite(value.score)) {
+        // `{score, insight, evidence}`: a facet with its own text and quotes.
+        // A band word inside it is not shown.
+        const evidence = nestedEvidence(value)
+        facets.push({
+          key,
+          name,
+          value: value.score,
+          max: facetMax,
+          text: nestedRationale(value) ?? null,
+          ...(evidence && { evidence }),
+        })
+        return
+      }
+      if (typeof value.status === 'string' && value.status.trim()) {
+        // `{status, …}`: a flag. Short companions ("ETH Zürich") read on its
+        // line; longer ones (a GDPR concern) are a list under the flag's name.
+        const parts: string[] = []
+        for (const [k, v] of Object.entries(value)) {
+          if (k === 'status') continue
+          const items = typeof v === 'string' && v.trim() ? [v] : listItems(v)
+          if (!items.length) continue
+          if (items.every((i) => i.length <= SHORT && !SENTENCE.test(i))) {
+            parts.push(items.join(', '))
+          } else {
+            lists.push({ key: `${key}.${k}`, name, items })
+          }
+        }
+        const status = value.status.trim().toUpperCase()
+        const plain = parts.length === 0 && (status === 'YES' || status === 'NO')
+        facts.push({
+          key,
+          name,
+          value: plain ? status === 'YES' : [statusWord(status), ...parts].join(' — '),
+        })
+        return
+      }
+      // A plain group (`metadata`): its fields read as the definition's own.
+      if (depth < 2) {
+        for (const [k, v] of Object.entries(value)) {
+          place(`${key}.${k}`, v, value, humaniseKey(k), depth + 1)
+        }
+      }
+      return
     }
     if (typeof value === 'boolean') {
       facts.push({ key, name, value })
-      continue
+      return
     }
     if (typeof value === 'string') {
       const s = value.trim()
-      if (!s) continue
+      if (!s) return
       if (SENTENCE.test(s)) texts.push({ key, name, value: s })
       else facts.push({ key, name, value: s })
-      continue
+      return
     }
     if (typeof value === 'number' && Number.isFinite(value)) {
       // `trl_level` beside a `trl_label` headline is the same number twice.
-      if (LEVEL_KEY.test(key) && value === headline) continue
+      if (LEVEL_KEY.test(key) && value === headline) return
       facts.push({ key, name, value: String(value) })
     }
+  }
+  for (const [key, raw] of Object.entries(data)) {
+    if (used.has(key) || DUPLICATE_KEY.test(key)) continue
+    place(key, raw, data, humaniseKey(key), 0)
   }
   const rank = (key: string) => {
     const i = order.indexOf(key)
@@ -537,8 +710,13 @@ export function corpusMaxima(
       byName.get(ext.category)
     if (!def) continue
     // The same headline the dimension will show, so the scale fits it.
-    const raw =
-      ext.exit_metric?.trim() || resolveExitMetric(ext.fields_data, def.name, ext.category).raw
+    const { raw } = headlineOf(
+      ext,
+      fieldsOf(ext.fields_data),
+      def.name,
+      sanitizeIdentifier(def.name),
+      def.exit_metrics?.[0],
+    )
     const n = parseNumeric(raw)
     if (n === null) continue
     const current = maxima.get(def.id) ?? null
@@ -578,18 +756,30 @@ function dimensionFor(
   if (!extraction) return base
 
   const data = fieldsOf(extraction.fields_data)
-  const named = resolveExitMetric(extraction.fields_data, ctx.def.name, extraction.category)
   const exitKeys = ctx.def.exit_metrics ?? []
-  const { raw, matchedKey } = exitFromRow(extraction, data, exitKeys[0], named.matchedKey) ?? named
-  // metrics_data is pre-filled with 0.0 for every definition, so a bare 0
-  // there is indistinguishable from "never scored" — only a non-zero metric
-  // outranks the parsed extraction value ("null not 0", like parseNumeric).
+  const { raw, matchedKey, fromRow } = headlineOf(
+    extraction,
+    data,
+    ctx.def.name,
+    ctx.key,
+    exitKeys[0],
+  )
+  // The row's own exit key is the reading the backend scored. metrics_data
+  // holds the first exit key's figure — the need-match score, not the
+  // compound, when the exit keys are objects — pre-filled with 0.0 before
+  // scoring, so it outranks only the name-derived fallbacks, and never as a
+  // bare 0 ("null not 0", like parseNumeric).
+  const parsed = parseNumeric(raw)
   const fromMetric = metric?.metrics_data?.[ctx.key]
-  let value = typeof fromMetric === 'number' && fromMetric !== 0 ? fromMetric : parseNumeric(raw)
+  const scored = typeof fromMetric === 'number' && fromMetric !== 0 ? fromMetric : null
+  let value = fromRow && parsed !== null ? parsed : (scored ?? parsed)
   if (ctx.is_trl && value !== null) value = Math.min(9, Math.max(1, Math.round(value)))
 
   const details = detailsFor(data, matchedKey)
   const used = new Set([...(matchedKey ? [matchedKey] : []), ...details.used])
+  // The admin's order for the facets: the exit keys after the headline's —
+  // all of them when the headline is the definition's compound.
+  const facetOrder = matchedKey === exitKeys[0] ? exitKeys.slice(1) : exitKeys
   return {
     ...base,
     value,
@@ -603,7 +793,7 @@ function dimensionFor(
     // A TRL definition's sub-scores declare no range; the others share the
     // definition's own scale.
     ...(detail && {
-      ...dimensionDetail(data, used, value, ctx.is_trl ? null : ctx.max, exitKeys.slice(1)),
+      ...dimensionDetail(data, used, value, ctx.is_trl ? null : ctx.max, facetOrder),
       model: modelOf(extraction),
     }),
   }
@@ -612,11 +802,16 @@ function dimensionFor(
 /** Extractions whose definition was deleted and matches no current name — detail page only. */
 function orphanDimension(extraction: ExtractionDTO, detail: boolean): Dimension {
   const data = fieldsOf(extraction.fields_data)
-  const named = resolveExitMetric(extraction.fields_data, null, extraction.category)
-  const { raw, matchedKey } = exitFromRow(extraction, data, undefined, named.matchedKey) ?? named
+  const name = extraction.category || 'Extraction'
+  const { raw, matchedKey } = headlineOf(
+    extraction,
+    data,
+    null,
+    sanitizeIdentifier(name),
+    undefined,
+  )
   const details = detailsFor(data, matchedKey)
   const used = new Set([...(matchedKey ? [matchedKey] : []), ...details.used])
-  const name = extraction.category || 'Extraction'
   const value = parseNumeric(raw)
   return {
     key: sanitizeIdentifier(name),

@@ -3819,6 +3819,12 @@
                 "type": "null"
               }
             ]
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [

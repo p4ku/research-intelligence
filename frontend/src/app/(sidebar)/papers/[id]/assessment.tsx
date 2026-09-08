@@ -160,8 +160,45 @@ function FacetRow({ facet: f }: { facet: DimensionFacet }) {
         )
       }
       value={shownNumber(f.value)}
-      text={f.text && <p className={SMALL_PROSE}>{f.text}</p>}
+      text={
+        (f.text || f.evidence?.length) && (
+          <div className="space-y-1.5">
+            {f.text && <p className={SMALL_PROSE}>{f.text}</p>}
+            {f.evidence?.map((quote, i) => (
+              <Quote key={i} quote={quote} small />
+            ))}
+          </div>
+        )
+      }
     />
+  )
+}
+
+function Quote({ quote, small }: { quote: string; small?: boolean }) {
+  return (
+    <blockquote
+      className={clsx(
+        'max-w-[72ch] border-l-2 border-line pl-3 leading-relaxed text-zinc-600 dark:text-zinc-400',
+        small ? 'text-[13px]' : 'text-sm',
+      )}
+    >
+      “{unquote(quote)}”
+    </blockquote>
+  )
+}
+
+/** A list item that is a link reads as one — the spec's code and dataset links. */
+function ListItem({ item }: { item: string }) {
+  if (!/^https?:\/\/\S+$/i.test(item)) return <>{item}</>
+  return (
+    <a
+      href={item}
+      target="_blank"
+      rel="noreferrer"
+      className="break-all text-accent underline-offset-2 hover:underline"
+    >
+      {item.replace(/^https?:\/\/(www\.)?/i, '')}
+    </a>
   )
 }
 
@@ -192,7 +229,8 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       {d.rationale ? (
         <AnswerMarkdown text={d.rationale} className={PROSE} />
       ) : (
-        <p className="text-sm text-zinc-400">{t('No rationale recorded.')}</p>
+        // A definition without a figure (a flags block) is its facts; no line is owed.
+        d.value !== null && <p className="text-sm text-zinc-400">{t('No rationale recorded.')}</p>
       )}
       {d.facets && d.facets.length > 0 && (
         <ul className="space-y-2.5">
@@ -200,6 +238,18 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
             <FacetRow key={f.key} facet={f} />
           ))}
         </ul>
+      )}
+      {d.facts && d.facts.length > 0 && (
+        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-sm">
+          {d.facts.map((fact) => (
+            <div key={fact.key} className="contents">
+              <dt className="font-medium text-zinc-950 dark:text-white">{fact.name}</dt>
+              <dd className="text-zinc-600 dark:text-zinc-400">
+                {typeof fact.value === 'boolean' ? (fact.value ? t('Yes') : t('No')) : fact.value}
+              </dd>
+            </div>
+          ))}
+        </dl>
       )}
       {d.texts?.map((field) => (
         <div key={field.key}>
@@ -216,32 +266,15 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
                 key={i}
                 className="relative pl-4 text-sm leading-relaxed text-zinc-700 before:absolute before:top-[0.8em] before:left-0 before:h-px before:w-[7px] before:bg-zinc-500 before:content-[''] dark:text-zinc-300"
               >
-                {item}
+                <ListItem item={item} />
               </li>
             ))}
           </ul>
         </div>
       ))}
       {d.evidence?.map((quote, i) => (
-        <blockquote
-          key={i}
-          className="max-w-[72ch] border-l-2 border-line pl-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
-        >
-          “{unquote(quote)}”
-        </blockquote>
+        <Quote key={i} quote={quote} />
       ))}
-      {d.facts && d.facts.length > 0 && (
-        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-sm">
-          {d.facts.map((fact) => (
-            <div key={fact.key} className="contents">
-              <dt className="font-medium text-zinc-950 dark:text-white">{fact.name}</dt>
-              <dd className="text-zinc-600 dark:text-zinc-400">
-                {typeof fact.value === 'boolean' ? (fact.value ? t('Yes') : t('No')) : fact.value}
-              </dd>
-            </div>
-          ))}
-        </dl>
-      )}
       {meta.length > 0 && (
         <p className={META}>
           {meta.map((part, i) => (
@@ -336,6 +369,20 @@ export function DefinitionSkeleton({ shape }: { shape: DefinitionShape }) {
           ))}
         </ul>
       ) : null}
+      {shape.facts ? (
+        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-sm">
+          {Array.from({ length: shape.facts }, (_, i) => (
+            <div key={i} className="contents">
+              <dt>
+                <Bone.Text widths={['18ch']} />
+              </dt>
+              <dd>
+                <Bone.Text widths={['4ch']} />
+              </dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
       {shape.texts?.map((lines, i) => (
         <div key={i}>
           <h4 className={H4}>
@@ -366,20 +413,6 @@ export function DefinitionSkeleton({ shape }: { shape: DefinitionShape }) {
           <Bone.Text widths={['46%']} />
         </blockquote>
       ))}
-      {shape.facts ? (
-        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-sm">
-          {Array.from({ length: shape.facts }, (_, i) => (
-            <div key={i} className="contents">
-              <dt>
-                <Bone.Text widths={['18ch']} />
-              </dt>
-              <dd>
-                <Bone.Text widths={['4ch']} />
-              </dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
       {shape.meta && (
         <p className={META}>
           <Bone.Text widths={['28ch']} />

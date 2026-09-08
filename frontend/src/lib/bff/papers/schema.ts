@@ -45,6 +45,8 @@ export const dimensionFacet = z
     /** The definition's scale; null → show the figure only (a TRL definition's sub-scores declare no range). */
     max: z.number().nullable(),
     text: z.string().nullable(),
+    /** The quotes a nested `{score, insight, evidence}` facet carries. */
+    evidence: z.array(z.string()).optional(),
   })
   .meta({ id: 'DimensionFacet' })
 export type DimensionFacet = z.infer<typeof dimensionFacet>

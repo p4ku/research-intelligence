@@ -1,4 +1,9 @@
-import type { ExtractionDTO, ExtractionDefinitionDTO, PaperDTO } from '@/lib/api/types'
+import type {
+  ExtractionDTO,
+  ExtractionDefinitionDTO,
+  PaperDTO,
+  PaperMetricDTO,
+} from '@/lib/api/types'
 import { describe, expect, test } from 'bun:test'
 import {
   arxivId,
@@ -839,5 +844,280 @@ describe('definition detail (the rest of the payload, shaped by its keys)', () =
       published_date: null,
       pipeline_run_name: null,
     })
+  })
+})
+
+describe('nested definitions (the 8 Sep 2026 spec shape: objects under the exit keys)', () => {
+  const def = (
+    id: string,
+    name: string,
+    exit_metrics: string[],
+    system_prompt = 'Score each 0-100.',
+  ): ExtractionDefinitionDTO => ({
+    id,
+    name,
+    system_prompt,
+    user_prompt_template: '{paper_text}',
+    response_schema: {},
+    llm_model: 'google/gemini-3.8-flash',
+    is_active: true,
+    created_at: '2026-09-08T00:00:00Z',
+    exit_metrics,
+  })
+  const specDefs = [
+    def('def-trl2', 'Technology Readiness Level (TRL)', ['trl'], 'Assign the TRL.'),
+    def('def-rm', 'Research Metrics', ['novelty', 'significance', 'rigour']),
+    def('def-flags', 'Risk and Affiliation Flagging', [
+      'schwarz_ecosystem_affiliation',
+      'gdpr_concern',
+      'competitor_involvement',
+    ]),
+    def('def-sf', 'Schwarz Fit', [
+      'strategic_operational_need_match',
+      'synergy_index_score',
+      'cross_industry_scalability',
+      'engagement_feasibility',
+    ]),
+  ]
+  const research = extraction({
+    id: 'e-rm',
+    paper: 'p-spec',
+    extraction_definition: 'def-rm',
+    category: 'Research Metrics',
+    // Django stringifies the exit key's object — never a headline.
+    exit_metric: "{'band': 'Substantial', 'score': 72, 'insight': 'First of its kind.'}",
+    fields_data: {
+      rigour: {
+        band: 'Strong',
+        score: 82,
+        insight: 'Ablations throughout.',
+        evidence: ['We ablate.'],
+      },
+      novelty: {
+        band: 'Substantial',
+        score: 72,
+        insight: 'First of its kind.',
+        evidence: ['First.'],
+      },
+      rigour_score: 82,
+      significance: { band: 'Important', score: 74, insight: 'Wide reach.', evidence: [] },
+      novelty_score: 72,
+      novelty_computed: 72,
+      significance_score: 74,
+      novelty_postprocessed: 72,
+      research_quality_insight: 'Rigorous and important; novelty is an adaptation.',
+      research_metrics_computed: 76,
+      research_metrics_postprocessed: 76,
+    },
+  })
+  const fit = extraction({
+    id: 'e-sf',
+    paper: 'p-spec',
+    extraction_definition: 'def-sf',
+    category: 'Schwarz Fit',
+    exit_metric: "{'score': 18, 'insight': 'No genomics at Schwarz.'}",
+    fields_data: {
+      synergy_index: { score: 20, insight: 'Commodity hosting only.', evidence: ['STACKIT.'] },
+      schwarz_fit_insight: 'Minimal fit.',
+      schwarz_fit_computed: 25.2,
+      engagement_feasibility: { score: 28, insight: 'Needs fabrication.', evidence: [] },
+      schwarz_fit_postprocessed: 25.2,
+      cross_industry_scalability: { score: 35, insight: 'Niche graphs.', evidence: [] },
+      strategic_operational_need_match: {
+        score: 18,
+        insight: 'No genomics at Schwarz.',
+        evidence: [],
+      },
+      strategic_operational_need_match_computed: 25.2,
+      strategic_operational_need_match_postprocessed: 25.2,
+    },
+  })
+  const flags = extraction({
+    id: 'e-flags',
+    paper: 'p-spec',
+    extraction_definition: 'def-flags',
+    category: 'Risk and Affiliation Flagging',
+    exit_metric: "{'status': 'YES', 'matched_institutions': ['ETH Zürich']}",
+    fields_data: {
+      metadata: {
+        dataset_links: ['https://example.org/data'],
+        codebase_links: ['https://github.com/example/repo'],
+        author_contacts: [
+          { email: 'ada@example.edu', author_name: 'Ada Lovelace' },
+          { email: null, author_name: 'Grace Hopper' },
+        ],
+        funding_entities: ['Example Foundation'],
+        institutional_affiliations: ['ETH Zürich', 'Example University'],
+      },
+      gdpr_concern: {
+        status: 'YES',
+        concerns: [
+          'Processing of genetic data, which is sensitive personal data under GDPR Article 9',
+        ],
+      },
+      competitor_involvement: { status: 'NO', matches: null },
+      schwarz_ecosystem_affiliation: { status: 'YES', matched_institutions: ['ETH Zürich'] },
+    },
+  })
+  const trl = extraction({
+    id: 'e-trl2',
+    paper: 'p-spec',
+    extraction_definition: 'def-trl2',
+    category: 'Technology Readiness Level (TRL)',
+    exit_metric: '3',
+    fields_data: {
+      trl: 3,
+      reasoning: 'Simulated only.',
+      trl_label: 'TRL 3 — Experimental proof of concept',
+      confidence: 'HIGH',
+      core_technology: 'In-storage genome graph processing',
+    },
+  })
+  const all = [trl, research, flags, fit]
+  const contexts = definitionContexts(specDefs, corpusMaxima(specDefs, all))
+  // metrics_data carries the first exit key's figure, not the compound.
+  const metric: PaperMetricDTO = {
+    id: 'm-spec',
+    paper: 'p-spec',
+    workspace: 'ws-1',
+    pipeline_run: 'run-1',
+    screening_status: 'full_text_passed',
+    signal_score: 50.6,
+    signal_score_details: {},
+    metrics_data: { research_metrics: 72, schwarz_fit: 18, technology_readiness_level_trl: 3 },
+    created_at: '2026-09-08T18:10:00Z',
+  }
+  const p = toScoredPaper(paper({ id: 'p-spec', metrics: [metric] }), all, contexts)
+  const [dTrl, dResearch, dFlags, dFit] = p.dimensions
+
+  test('the definition’s compound is the headline; the objects are facets in the admin’s order, with their insight and quotes', () => {
+    expect(dResearch).toMatchObject({ value: 76, raw: '76', max: 100 })
+    expect(dResearch!.rationale).toBe('Rigorous and important; novelty is an adaptation.')
+    expect(dResearch!.band).toBeUndefined()
+    expect(dResearch!.facets).toEqual([
+      {
+        key: 'novelty',
+        name: 'Novelty',
+        value: 72,
+        max: 100,
+        text: 'First of its kind.',
+        evidence: ['First.'],
+      },
+      { key: 'significance', name: 'Significance', value: 74, max: 100, text: 'Wide reach.' },
+      {
+        key: 'rigour',
+        name: 'Rigour',
+        value: 82,
+        max: 100,
+        text: 'Ablations throughout.',
+        evidence: ['We ablate.'],
+      },
+    ])
+    expect(dResearch!.texts).toBeUndefined()
+    expect(dResearch!.facts).toBeUndefined()
+    const everything = JSON.stringify(dResearch)
+    expect(everything).not.toContain("'band'")
+    expect(everything).not.toContain('Substantial')
+  })
+
+  test('the compound outranks metrics_data (the first exit key’s figure) and the serialised exit metric', () => {
+    expect(dFit).toMatchObject({ value: 25.2, raw: '25.2', rationale: 'Minimal fit.' })
+    expect(dFit!.facets!.map((f) => [f.key, f.value])).toEqual([
+      ['strategic_operational_need_match', 18],
+      ['cross_industry_scalability', 35],
+      ['engagement_feasibility', 28],
+      ['synergy_index', 20],
+    ])
+    expect(dFit!.texts).toBeUndefined()
+  })
+
+  test('a flags definition has no figure: status objects are facts, sentences a list, the metadata group its own lists', () => {
+    expect(dFlags).toMatchObject({ value: null, raw: '' })
+    expect(dFlags!.rationale).toBeUndefined()
+    expect(dFlags!.facets).toBeUndefined()
+    expect(dFlags!.facts).toEqual([
+      { key: 'gdpr_concern', name: 'GDPR concern', value: true },
+      { key: 'competitor_involvement', name: 'Competitor involvement', value: false },
+      {
+        key: 'schwarz_ecosystem_affiliation',
+        name: 'Schwarz ecosystem affiliation',
+        value: 'Yes — ETH Zürich',
+      },
+    ])
+    expect(dFlags!.lists).toEqual([
+      { key: 'metadata.dataset_links', name: 'Dataset links', items: ['https://example.org/data'] },
+      {
+        key: 'metadata.codebase_links',
+        name: 'Codebase links',
+        items: ['https://github.com/example/repo'],
+      },
+      {
+        key: 'metadata.author_contacts',
+        name: 'Author contacts',
+        items: ['ada@example.edu · Ada Lovelace', 'Grace Hopper'],
+      },
+      { key: 'metadata.funding_entities', name: 'Funding entities', items: ['Example Foundation'] },
+      {
+        key: 'metadata.institutional_affiliations',
+        name: 'Institutional affiliations',
+        items: ['ETH Zürich', 'Example University'],
+      },
+      {
+        key: 'gdpr_concern.concerns',
+        name: 'GDPR concern',
+        items: [
+          'Processing of genetic data, which is sensitive personal data under GDPR Article 9',
+        ],
+      },
+    ])
+  })
+
+  test('the spec’s TRL: level, label as the band (em dash stripped), reasoning, confidence word and core technology', () => {
+    expect(dTrl).toMatchObject({
+      value: 3,
+      raw: '3',
+      max: 9,
+      is_trl: true,
+      band: 'Experimental proof of concept',
+      rationale: 'Simulated only.',
+    })
+    expect(dTrl!.facts).toEqual([
+      { key: 'confidence', name: 'Confidence', value: 'HIGH' },
+      {
+        key: 'core_technology',
+        name: 'Core technology',
+        value: 'In-storage genome graph processing',
+      },
+    ])
+    expect(dTrl!.facets).toBeUndefined()
+  })
+
+  test('corpusMaxima reads the compound, never a number inside the serialised object', () => {
+    const maxima = corpusMaxima(specDefs, all)
+    expect(maxima.get('def-rm')).toBe(76)
+    expect(maxima.get('def-sf')).toBe(25.2)
+    expect(maxima.get('def-flags')).toBeNull()
+    expect(maxima.get('def-trl2')).toBe(3)
+  })
+
+  test('a lone nested object under the exit key is the headline itself, its insight the rationale', () => {
+    const one = def('def-one', 'Novelty', ['novelty'])
+    const ext = extraction({
+      id: 'e-one',
+      paper: 'p-one',
+      extraction_definition: 'def-one',
+      category: 'Novelty',
+      exit_metric: "{'score': 61, 'insight': 'Modest.', 'evidence': ['Builds on X.']}",
+      fields_data: { novelty: { score: 61, insight: 'Modest.', evidence: ['Builds on X.'] } },
+    })
+    const ctx = definitionContexts([one], corpusMaxima([one], [ext]))
+    const d = toScoredPaper(paper({ id: 'p-one' }), [ext], ctx).dimensions[0]!
+    expect(d).toMatchObject({
+      value: 61,
+      raw: '61',
+      rationale: 'Modest.',
+      evidence: ['Builds on X.'],
+    })
+    expect(d.facets).toBeUndefined()
   })
 })
