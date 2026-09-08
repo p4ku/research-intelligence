@@ -104,8 +104,14 @@ function railBar(d: Dimension): RailBar {
 }
 
 export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
+  const visibleDimensions = paper.dimensions.filter(
+    (d) =>
+      !d.is_risk_and_affiliation &&
+      !d.key.includes('risk_and_affiliation') &&
+      !d.name.toLowerCase().includes('affiliation'),
+  )
   const trl = trlDimension(paper)
-  const axes = radarAxes(paper.dimensions)
+  const axes = radarAxes(visibleDimensions)
   const score =
     paper.signal_score === null
       ? '—'
@@ -122,7 +128,7 @@ export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
           {trl?.value !== null && trl?.value !== undefined && <TrlBadge trl={trl.value} t={t} />}
         </>
       }
-      bars={<ScoreBars bars={paper.dimensions.map(railBar)} />}
+      bars={<ScoreBars bars={visibleDimensions.map(railBar)} />}
       radar={
         axes.length >= 3 && (
           <RadarChart axes={axes} color="var(--accent)" size={RADAR} valueLabels />

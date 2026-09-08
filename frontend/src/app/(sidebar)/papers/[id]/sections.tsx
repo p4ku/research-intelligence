@@ -74,7 +74,7 @@ export interface RunContext {
 const runContext = cache(
   async (id: string, runId: string, lang: Lang): Promise<RunContext | null> => {
     try {
-      const [result, ledger] = await Promise.all([papers.get(id), runs.listEverywhere()])
+      const [result, ledger] = await Promise.all([papers.get(id, runId), runs.listEverywhere()])
       if (!result) return null
       const run = ledger.find((r) => r.id === runId) ?? null
       if (!run) return null
@@ -120,7 +120,7 @@ export async function RunCrumbs({
   lang: Lang
   features: Features
 }) {
-  const [ctx, result] = await Promise.all([runContext(id, runId, lang), forPage(papers.get(id))])
+  const [ctx, result] = await Promise.all([runContext(id, runId, lang), forPage(papers.get(id, runId))])
   const title = result ? result.paper.title : null
   if (!ctx) {
     if (!features.all_papers) return null
