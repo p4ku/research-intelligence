@@ -17,7 +17,11 @@ import type { ScoredPaper, ScreeningStatus } from './types'
 export interface RunRecord {
   /** null when the deployment's metric serializer omits it (see upstream.ts). */
   screening_status: ScreeningStatus | null
+  /** The run's combined note: the full-text stage's, else the abstract stage's. */
   screening_reasoning: string | null
+  /** The two stages apart, when the run kept them so — the paper page shows them as paragraphs. */
+  abstract_screening_reasoning: string | null
+  full_text_screening_reasoning: string | null
   signal_score: number | null
 }
 
@@ -44,6 +48,8 @@ export function indexRuns(papers: Pick<PaperDTO, 'id' | 'metrics'>[]): RunIndex 
           typeof m.screening_status === 'string' ? normalizeStatus(m.screening_status) : null,
         screening_reasoning:
           m.full_text_screening_reasoning || m.abstract_screening_reasoning || null,
+        abstract_screening_reasoning: m.abstract_screening_reasoning || null,
+        full_text_screening_reasoning: m.full_text_screening_reasoning || null,
         signal_score: typeof m.signal_score === 'number' ? m.signal_score : null,
       })
     }
@@ -99,4 +105,55 @@ export function papersOfRun(
     })
   }
   return out
+}
+
+/** What an edition lists for a paper: the run's decision (when the source serves it) and score. */
+export interface EditionEntry {
+  screening_status?: ScreeningStatus | null
+  signal_score: number | null
+}
+
+/**
+ * One paper as one run recorded it, over its current record — the paper
+ * page's view when opened from that run's briefing. The corpus's own record
+ * when it already reports this run; else the run's index row (decision,
+ * score, the stage reasons, and the run as provenance); else, past the
+ * corpus cap where the index has no row, the edition's entry for status and
+ * score with the reasons withheld — never a later run's words under this
+ * run's decision. Null when the run never recorded the paper: the page then
+ * shows the paper as it stands, as if no run were named.
+ */
+export function paperAsRun(
+  paper: ScoredPaper,
+  runId: string,
+  index: RunIndex | null,
+  entry: EditionEntry | null | undefined,
+): ScoredPaper | null {
+  if (paper.pipeline_run_id === runId) return paper
+  const record = index?.get(runId)?.get(paper.id)
+  if (record) {
+    const [seen] = papersOfRun(runId, new Map([[paper.id, paper]]), index)
+    return {
+      ...paper,
+      pipeline_run_id: runId,
+      // The paper's run name is the latest run's; the ledger carries none.
+      pipeline_run_name: null,
+      screening_status: seen?.status ?? paper.screening_status,
+      signal_score: record.signal_score,
+      screening_reasoning: seen?.reason ?? null,
+      abstract_screening_reasoning: record.abstract_screening_reasoning,
+      full_text_screening_reasoning: record.full_text_screening_reasoning,
+    }
+  }
+  if (!entry) return null
+  return {
+    ...paper,
+    pipeline_run_id: runId,
+    pipeline_run_name: null,
+    screening_status: entry.screening_status ?? paper.screening_status,
+    signal_score: entry.signal_score,
+    screening_reasoning: null,
+    abstract_screening_reasoning: null,
+    full_text_screening_reasoning: null,
+  }
 }

@@ -15,6 +15,7 @@ import { fixtureSteps } from '@/lib/bff/component-runs/fixtures'
 import { fixturePapers, fixtureWorkspace } from '@/lib/bff/papers/fixtures'
 import { fixtureRunDetail, fixtureRuns } from '@/lib/bff/pipeline-runs/fixtures'
 import type { T } from '@/lib/i18n'
+import { paperHref } from '@/lib/papers/href'
 import type { ReactNode } from 'react'
 import { HistorySidecarSkeleton } from '../../(sidebar)/ask/history-sidecar'
 import { PaperPickerSkeleton } from '../../(sidebar)/ask/paper-picker'
@@ -101,6 +102,7 @@ const t: T = (s) => s
 const homeEdition = fixtureEditions[0]
 const homeTop = fivePapers.slice(0, 3).map((p) => ({
   id: p.id,
+  href: paperHref(p.id, { runId: homeEdition.run_id }),
   title: p.title,
   authors: p.authors.slice(0, 3).join(', '),
   score: p.signal_score,

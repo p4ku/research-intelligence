@@ -1,8 +1,10 @@
 import { Card, SectionLabel } from '@/components/scanner-ui'
 import type { Edition } from '@/lib/bff/briefings/schema'
+import { editionDate } from '@/lib/bff/briefings/select'
 import { forPage } from '@/lib/bff/core/page'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
+import { paperHref } from '@/lib/papers/href'
 import { editionHref } from '../briefing/format'
 import { currentRun, inFlightRuns, recentBriefings } from './data'
 import { formatAuthors, formatClock, formatDay, periodLabel } from './format'
@@ -25,6 +27,7 @@ const TOP = 3
 function topPapers(edition: Edition): HomePaper[] {
   return edition.papers.slice(0, TOP).map((p) => ({
     id: p.id,
+    href: paperHref(p.id, { runId: edition.run_id }),
     title: p.title,
     authors: formatAuthors(p.authors),
     score: p.signal_score,
@@ -48,11 +51,6 @@ function rowStatus(run: PipelineRun, currentId: string | null): RowStatus {
     case 'aborted':
       return 'failed'
   }
-}
-
-/** The day a completed run finished (UTC), which is also its edition's date. */
-function completionDay(run: PipelineRun): string {
-  return (run.completed_at ?? run.run_date).slice(0, 10)
 }
 
 /**
@@ -81,7 +79,7 @@ export async function LedgerSection({
       domain: run.workspace_name,
       status,
       period: periodLabel(run, t, lang),
-      generated: completed ? formatDay(completionDay(run), lang) : null,
+      generated: completed ? formatDay(editionDate(run), lang) : null,
       startedClock: run.started_at ? formatClock(run.started_at) : null,
       // Django stamps completed_at on failure and abort alike.
       failedDay:

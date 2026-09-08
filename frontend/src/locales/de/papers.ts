@@ -129,6 +129,7 @@ export const dict: Record<string, string> = {
   'View original paper': 'Originalpaper ansehen',
   'Previous paper': 'Vorheriges Paper',
   'Next paper': 'Nächstes Paper',
+  'Back to briefing': 'Zurück zum Briefing',
   '{n} of {total}': '{n} von {total}',
   'No rationale recorded.': 'Keine Begründung hinterlegt.',
   'Confidence {n}': 'Konfidenz {n}',

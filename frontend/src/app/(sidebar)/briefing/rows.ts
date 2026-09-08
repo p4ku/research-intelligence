@@ -1,6 +1,7 @@
 import type { Edition } from '@/lib/bff/briefings/schema'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
+import { paperHref } from '@/lib/papers/href'
 import type { WorkspaceSummary } from '@/lib/papers/types'
 import { formatAuthors, formatDay, periodLabel } from '../dashboard/format'
 import type { HomeBrief } from '../dashboard/ledger'
@@ -121,6 +122,7 @@ export function composeRows({
         included,
         top: e.papers.slice(0, TOP).map((p) => ({
           id: p.id,
+          href: paperHref(p.id, { runId: e.run_id }),
           title: p.title,
           authors: formatAuthors(p.authors),
           score: p.signal_score,

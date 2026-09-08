@@ -3,6 +3,7 @@
 import { useFeatures } from '@/lib/features-client'
 import { formatDate } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
+import { paperHref } from '@/lib/papers/href'
 import { trlDimension } from '@/lib/papers/select'
 import type { ScoredPaper } from '@/lib/papers/types'
 import clsx from 'clsx'
@@ -96,8 +97,20 @@ function PaperCardFrame({
   )
 }
 
-/** `domain` names the paper's domain in the meta row — for lists that span several. */
-export function PaperCard({ paper, domain }: { paper: ScoredPaper; domain?: string }) {
+/**
+ * `domain` names the paper's domain in the meta row — for lists that span
+ * several. `href` replaces the plain permalink: a briefing's card carries its
+ * run, so the page opens on the reading the card shows (see lib/papers/href).
+ */
+export function PaperCard({
+  paper,
+  domain,
+  href,
+}: {
+  paper: ScoredPaper
+  domain?: string
+  href?: string
+}) {
   const t = useT()
   const { lang } = useLanguage()
   const { stars } = useFeatures()
@@ -107,7 +120,7 @@ export function PaperCard({ paper, domain }: { paper: ScoredPaper; domain?: stri
   const lead = paper.authors[0]
   return (
     <PaperCardFrame
-      href={`/papers/${paper.id}`}
+      href={href ?? paperHref(paper.id)}
       corner={
         // Withheld, not rendered null: the flag hides the affordance, and the
         // slot is already optional and absolutely positioned, so nothing moves.

@@ -20,16 +20,28 @@ import { ScoreRailSkeleton } from './score-rail'
  * Both take the flags as a required prop — nothing outside this route renders
  * them, so a required prop catches a missed call site — and must mirror the
  * page exactly: with `all_papers` off there is no crumb trail and no pager,
- * or the shell paints chrome that then vanishes.
+ * or the shell paints chrome that then vanishes. The page's own fallback
+ * also knows whether the URL names a briefing (`?run=`) and passes the back
+ * label so the nav row does not reflow on load; loading.tsx sees no URL and
+ * keeps the default.
  */
 
 const STAGE_CLASS = 'mt-3 max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300'
 
-export function PaperRecordSkeleton({ t, features }: { t: T; features: Features }) {
+export function PaperRecordSkeleton({
+  t,
+  features,
+  back,
+}: {
+  t: T
+  features: Features
+  /** The loaded row's back label when the paper was opened from a briefing. */
+  back?: string
+}) {
   return (
     <Skeleton.Region status={t('Loading the paper')}>
       <div className="mt-6">
-        <PaperNavSkeleton t={t} features={features} />
+        <PaperNavSkeleton t={t} features={features} back={back} />
 
         <div className="mt-6 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="min-w-0 space-y-9">

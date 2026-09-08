@@ -9,6 +9,7 @@ import { ALL_ON, type Features } from '@/lib/features'
 import { useFeatures } from '@/lib/features-client'
 import { fmt, type Lang } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
+import { paperHref } from '@/lib/papers/href'
 import { useStars } from '@/lib/stars-client'
 import { XMarkIcon } from '@heroicons/react/20/solid'
 import clsx from 'clsx'
@@ -345,7 +346,7 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
                 key={p.id}
                 score={<SignalScore score={p.signal} size="sm" />}
                 title={
-                  <Link href={`/papers/${p.id}`} className={PAPER_LINK}>
+                  <Link href={paperHref(p.id, { runId: active.runId })} className={PAPER_LINK}>
                     {p.title}
                   </Link>
                 }

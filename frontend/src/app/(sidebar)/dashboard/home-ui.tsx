@@ -13,6 +13,8 @@ import Link from 'next/link'
 /** One of the strongest papers in a briefing, as Home lists it. */
 export interface HomePaper {
   id: string
+  /** The paper as this briefing's run read it — `paperHref` with the run, so the page shows the score listed here. */
+  href: string
   title: string
   /** Already worded ("A. Okafor, B. Lindqvist et al."). */
   authors: string
@@ -103,7 +105,7 @@ export function TopPapers({
         <>
           <SignalScore score={p.score} size="sm" />
           <Link
-            href={`/papers/${p.id}`}
+            href={p.href}
             className="min-w-0 flex-1 text-sm font-medium text-zinc-900 hover:underline dark:text-zinc-100"
           >
             <span
