@@ -55,7 +55,7 @@ function StepTimelineFrame({ rows, state }: { rows: StepRow[]; state: 'loaded' |
                 )}
               />
               {!isLast && (
-                <span className="absolute top-2 bottom-[-1.25rem] w-px bg-zinc-200 dark:bg-zinc-700" />
+                <span className="absolute top-2 bottom-[-2.5rem] w-px bg-zinc-200 dark:bg-zinc-700" />
               )}
             </div>
 
