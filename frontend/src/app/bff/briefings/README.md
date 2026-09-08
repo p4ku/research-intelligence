@@ -77,7 +77,7 @@ briefing to open.
 
 ```bash
 curl -s "localhost:3000/bff/briefings?workspace_id=$WS" -b "sri_access=…"
-curl -s "localhost:3000/bff/briefings/2026-08-27?workspace_id=$WS" -b "sri_access=…"
+curl -s "localhost:3000/bff/briefings/2026-08-31?workspace_id=$WS" -b "sri_access=…"
 # Desired:
 curl -s "localhost:8000/api/workspaces/$WS/editions/" -H "authorization: Bearer $TOKEN"
 ```

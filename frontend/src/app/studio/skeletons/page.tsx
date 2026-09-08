@@ -57,7 +57,9 @@ import { HistorySidecarDemo, PaperPickerDemo } from './gallery-clients'
  * Panes are stacked, not side by side, so both are measured at the same width.
  */
 
-const edition = fixtureEditions[0]
+// The morning edition: the one with exclusions. Its noon rerun (the first
+// fixture edition) joins it in the archive ledger as the same-day pair.
+const edition = fixtureEditions[1]
 // The gallery card should show the typical shape: an abstract long enough to
 // hit the two-line clamp, like almost every real paper at desktop width. The
 // contract fixture's abstract is one line, which is the exception, so the
@@ -202,12 +204,14 @@ const browserEditions: BrowserEdition[] = fixtureEditions.map((e) => ({
   papers: e.papers.map((p) => ({ id: p.id, title: p.title, signal: p.signal_score })),
 }))
 
-// The archive ledger: the fixture edition joined to its run (Current, a real
-// period) and an older edition in a second domain whose run is gone (the
-// day-only fallback) — so the domain chips have something to narrow.
+// The archive ledger: the fixture domain's same-day pair joined to their runs
+// (the rerun Current, both stamped with the clock, a real period) and an
+// older edition in a second domain whose run is gone (the day-only
+// fallback) — so the domain chips have something to narrow.
 const secondDomain = { id: '00000000-0000-4000-8000-0000000000a2', name: 'Physical AI' }
 const archiveRows = composeRows({
   editions: [
+    fixtureEditions[0],
     edition,
     {
       ...edition,
@@ -226,7 +230,7 @@ const archiveRows = composeRows({
       papers: [],
     },
   ],
-  runs: [{ ...fixtureRuns[0], id: edition.run_id }],
+  runs: fixtureRuns,
   domains: { [fixtureWorkspace.id]: fixtureWorkspace.name, [secondDomain.id]: secondDomain.name },
   t: (s) => s,
   lang: 'en',

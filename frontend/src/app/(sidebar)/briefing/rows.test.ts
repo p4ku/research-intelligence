@@ -242,7 +242,8 @@ describe('hasBriefing', () => {
 describe('currentRunId', () => {
   test('ignores runs that did not complete', () => {
     // The fixtures: one completed, one failed, one running (newest).
-    expect(currentRunId(fixtureRuns)).toBe(fixtureRuns[0].id)
+    // The noon rerun completed last, so it is current — not the run listed first.
+    expect(currentRunId(fixtureRuns)).toBe(fixtureRuns[3].id)
     expect(currentRunId([])).toBeNull()
   })
 })

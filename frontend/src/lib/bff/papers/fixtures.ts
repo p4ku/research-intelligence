@@ -3,8 +3,13 @@
  * examples. Deterministic fake UUIDs; validated against the schemas by
  * src/lib/bff/fixtures.test.ts. Pure.
  */
+import type * as z from 'zod'
 import type { WorkspaceSummary } from '../workspaces/schema'
 import type { ScoredPaper } from './schema'
+import type { paperDTO, paperMetricDTO } from './upstream'
+
+type PaperDTO = z.infer<typeof paperDTO>
+type PaperMetricDTO = z.infer<typeof paperMetricDTO>
 
 export const fixtureWorkspace: WorkspaceSummary = {
   id: '00000000-0000-4000-8000-000000000001',
@@ -169,5 +174,128 @@ export const fixturePapers: ScoredPaper[] = [
     published_date: null,
     created_at: '2026-08-27T05:59:00Z',
     pipeline_run_name: null,
+  },
+]
+
+/** The fixture runs (../pipeline-runs/fixtures.ts): the morning briefing and the same-day rerun. */
+export const FIXTURE_RUN = '00000000-0000-4000-8000-000000000101'
+export const FIXTURE_RERUN = '00000000-0000-4000-8000-000000000104'
+
+const RERUN_REASON =
+  'Rerun: still squarely on topic; the benchmark has since been superseded, so the score is revised.'
+
+function metricRow(
+  paper: string,
+  pipeline_run: string,
+  n: number,
+  row: Partial<PaperMetricDTO>,
+): PaperMetricDTO {
+  return {
+    id: `00000000-0000-4000-8000-0000000005${String(n).padStart(2, '0')}`,
+    paper,
+    pipeline_run,
+    workspace: fixtureWorkspace.id,
+    signal_score: null,
+    signal_score_details: {},
+    metrics_data: { fit_score: 0, novelty_score: 0, trl_level: 0 },
+    created_at: '2026-08-31T08:28:00Z',
+    ...row,
+  }
+}
+
+/**
+ * The same two papers as Django's paper serializer sends them — the shape
+ * `indexRuns` and the composed source read. The first paper was scored in
+ * both fixture runs, with one metric row per run: 87.5 in the morning,
+ * rescored to 84 by the noon rerun, and the paper-level fields collapsed to
+ * the rerun (the workspace's latest run), as the serializer collapses them.
+ * The second was seen by the morning run only.
+ */
+export const fixturePaperDTOs: PaperDTO[] = [
+  {
+    id: fixturePapers[0]!.id,
+    workspace: fixtureWorkspace.id,
+    pipeline_run: FIXTURE_RERUN,
+    hash_id: 'f1x7ur3-0000-0041',
+    doi: null,
+    arxiv_id: '2608.01234',
+    title: fixturePapers[0]!.title,
+    authors: fixturePapers[0]!.authors_raw,
+    abstract: fixturePapers[0]!.abstract,
+    source_database: 'arxiv',
+    original_pdf_path: null,
+    converted_md_path: null,
+    source_url: fixturePapers[0]!.source_url,
+    screening_status: 'full_text_passed',
+    screening_reasoning: RERUN_REASON,
+    abstract_screening_reasoning: null,
+    full_text_screening_reasoning: RERUN_REASON,
+    published_date: '2026-08-19',
+    pipeline_run_name: null,
+    is_evaluation_benchmark: false,
+    evaluation_label: null,
+    signal_score: 84,
+    signal_score_details: {},
+    metrics: [
+      metricRow(fixturePapers[0]!.id, FIXTURE_RERUN, 2, {
+        signal_score: 84,
+        signal_score_details: {
+          variables: { fit_score: 88, novelty_score: 7.5, trl_level: 4 },
+          code_snippet: 'signal_score = fit_score * 0.7 + novelty_score * 10 * 0.3',
+          calculated_at: '2026-08-31T12:02:30Z',
+          error: null,
+        },
+        metrics_data: { fit_score: 88, novelty_score: 7.5, trl_level: 4 },
+        screening_status: 'full_text_passed',
+        full_text_screening_reasoning: RERUN_REASON,
+        created_at: '2026-08-31T12:02:00Z',
+      }),
+      metricRow(fixturePapers[0]!.id, FIXTURE_RUN, 1, {
+        signal_score: 87.5,
+        signal_score_details: {
+          variables: { fit_score: 92, novelty_score: 8, trl_level: 4 },
+          code_snippet: 'signal_score = fit_score * 0.7 + novelty_score * 10 * 0.3',
+          calculated_at: '2026-08-31T08:28:30Z',
+          error: null,
+        },
+        metrics_data: { fit_score: 92, novelty_score: 8, trl_level: 4 },
+        screening_status: 'full_text_passed',
+        abstract_screening_reasoning: fixturePapers[0]!.abstract_screening_reasoning,
+        full_text_screening_reasoning: fixturePapers[0]!.full_text_screening_reasoning,
+      }),
+    ],
+    created_at: '2026-08-27T05:58:00Z',
+  },
+  {
+    id: fixturePapers[1]!.id,
+    workspace: fixtureWorkspace.id,
+    pipeline_run: FIXTURE_RUN,
+    hash_id: 'f1x7ur3-0000-0042',
+    doi: '10.1000/fixture.42',
+    arxiv_id: null,
+    title: fixturePapers[1]!.title,
+    authors: fixturePapers[1]!.authors_raw,
+    abstract: fixturePapers[1]!.abstract,
+    source_database: 'openalex',
+    original_pdf_path: null,
+    converted_md_path: null,
+    source_url: fixturePapers[1]!.source_url,
+    screening_status: 'rejected',
+    screening_reasoning: fixturePapers[1]!.screening_reasoning,
+    abstract_screening_reasoning: fixturePapers[1]!.screening_reasoning,
+    full_text_screening_reasoning: null,
+    published_date: null,
+    pipeline_run_name: null,
+    is_evaluation_benchmark: false,
+    evaluation_label: null,
+    signal_score: null,
+    signal_score_details: {},
+    metrics: [
+      metricRow(fixturePapers[1]!.id, FIXTURE_RUN, 3, {
+        screening_status: 'rejected',
+        abstract_screening_reasoning: fixturePapers[1]!.screening_reasoning,
+      }),
+    ],
+    created_at: '2026-08-27T05:59:00Z',
   },
 ]

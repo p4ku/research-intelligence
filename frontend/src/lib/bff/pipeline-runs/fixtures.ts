@@ -66,6 +66,30 @@ export const fixtureRuns: PipelineRun[] = [
     lookback_days: 7,
     retryable: true,
   },
+  {
+    // A same-day rerun of the first run (a manual "New briefing" at noon):
+    // the second briefing of 31 Aug in this domain, so the ledgers show a
+    // pair that reads apart only by its clock, and one paper carries a
+    // metric row per run (../papers/fixtures.ts `fixturePaperDTOs`).
+    id: '00000000-0000-4000-8000-000000000104',
+    workspace_id: fixtureWorkspace.id,
+    workspace_name: fixtureWorkspace.name,
+    run_date: '2026-08-31',
+    status: 'completed',
+    current_stage: 'completed',
+    total_papers_fetched: 4,
+    total_papers_passed_screening: 1,
+    status_message:
+      'Full SLR pipeline finished successfully. Papers: 4 fetched, 1 passed screening, 5 parameter extractions completed.',
+    duration_seconds: 180.0,
+    usd_cost: 0.2104,
+    started_at: '2026-08-31T12:00:00.000000Z',
+    completed_at: '2026-08-31T12:03:00.000000Z',
+    period_start: '2026-08-01',
+    period_end: '2026-08-31',
+    lookback_days: null,
+    retryable: true,
+  },
 ]
 
 export const fixtureRunDetail: PipelineRunDetail = {
