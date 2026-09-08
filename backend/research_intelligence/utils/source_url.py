@@ -1,4 +1,39 @@
+import re
 from typing import Any
+
+# New-style "2401.12345(v2)" or old-style "cond-mat/0102536", "cs.CV/0101001".
+# Anything else in `arxiv_id` is not an arXiv id and must never become a link:
+# the arXiv scraper's OpenAlex fallback puts the work id in `hash_id`, and
+# `step_1_search/search.py` copies that into `arxiv_id` when the row is
+# labelled `arxiv`, so a `W2781738013` reaches here routinely.
+ARXIV_ID_RE = re.compile(r'^(\d{4}\.\d{4,5}|[a-z-]+(\.[A-Za-z]{2})?/\d{7})(v\d+)?$', re.IGNORECASE)
+
+# A stored arXiv link, so one minted from an id that was never an arXiv id can
+# be recognised and ignored (migration 0069 backfilled those without a check).
+_ARXIV_URL_RE = re.compile(r'^https?://arxiv\.org/(?:abs|pdf)/(.+?)(?:\.pdf)?$', re.IGNORECASE)
+
+
+def _clean_arxiv(value: Any) -> str:
+    clean = str(value).strip()
+    if clean.lower().startswith("arxiv:"):
+        clean = clean[6:]
+    return clean
+
+
+def is_arxiv_id(value: Any) -> bool:
+    """Whether `value` is shaped like an arXiv id, `arxiv:` prefix allowed."""
+    return bool(value) and bool(ARXIV_ID_RE.match(_clean_arxiv(value)))
+
+
+def _trusted_source_url(value: Any) -> bool:
+    """
+    A stored source_url is taken as given unless it is an arxiv.org link whose
+    id is not arXiv-shaped — a 404 minted by the 0069 backfill, which had no
+    shape check. Ignoring it here re-resolves the row on read, so the rows
+    already written heal without a data migration.
+    """
+    match = _ARXIV_URL_RE.match(str(value).strip())
+    return True if not match else bool(ARXIV_ID_RE.match(match.group(1)))
 
 
 def resolve_paper_source_url(
@@ -41,7 +76,7 @@ def resolve_paper_source_url(
             source_database = source_database or getattr(obj, 'source_database', None) or getattr(obj, 'primary_source', None)
             hash_id = hash_id or getattr(obj, 'hash_id', None)
 
-    if source_url:
+    if source_url and _trusted_source_url(source_url):
         return str(source_url)
 
     # 1. DOI takes precedence if available
@@ -53,12 +88,12 @@ def resolve_paper_source_url(
         if clean_doi:
             return f"https://doi.org/{clean_doi}"
 
-    # 2. arXiv ID
+    # 2. arXiv ID — only when it is actually shaped like one. A value that is
+    #    not falls through to the metadata below, which is where an OpenAlex
+    #    fallback record's real landing page lives.
     if arxiv_id:
-        clean_arxiv = str(arxiv_id).strip()
-        if clean_arxiv.lower().startswith("arxiv:"):
-            clean_arxiv = clean_arxiv[6:]
-        if clean_arxiv:
+        clean_arxiv = _clean_arxiv(arxiv_id)
+        if clean_arxiv and ARXIV_ID_RE.match(clean_arxiv):
             return f"https://arxiv.org/abs/{clean_arxiv}"
 
     # 3. Raw metadata payload (OpenAlex, Lens, CrossRef, PubMed)
