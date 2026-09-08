@@ -1,13 +1,14 @@
 /**
  * Resolving `ComponentRun.metrics` — free-form engine JSON — into the typed
- * `summary` and `cost` the contract promises. Pure: no I/O, no server-only
- * imports, so `service.test.ts` can run it over a production snapshot.
+ * `summary` and `cost` the contract promises, plus the timeline order the
+ * service sorts by. Pure: no I/O, no server-only imports, so
+ * `normalise.test.ts` can run it over a production snapshot.
  *
  * Two rules this module exists to hold:
  *  - absent is not zero (`{kind:'none'}`, `cost.usd === null`);
  *  - never estimate. Only what the engine measured is reported.
  */
-import type { ComponentCost, ComponentSummary, StepType } from './schema'
+import type { ComponentCost, ComponentRun, ComponentSummary, StepType } from './schema'
 
 /* ------------------------------ JSON readers ------------------------------ */
 
@@ -188,4 +189,32 @@ export function toCost(metrics: unknown, outputData: unknown): ComponentCost {
           : null,
     model: typeof model === 'string' && model.trim() !== '' ? model : null,
   }
+}
+
+/* -------------------------------- Ordering -------------------------------- */
+
+/** Execution order for a run's timeline; unknown steps sort last, stably. */
+const STEP_ORDER: StepType[] = [
+  'search',
+  'download',
+  'ocr',
+  'screening',
+  'extraction',
+  'signal_score',
+  'metrics',
+  'deep_research',
+  'reporting',
+  'unknown',
+]
+
+export function chronologically(a: ComponentRun, b: ComponentRun): number {
+  // `started_at` is the truth when both have one — it survives reruns, which
+  // re-execute a single step out of its nominal position. Compared as numbers:
+  // DRF omits the fraction at zero microseconds, so the strings do not sort
+  // (`…T10:00:00Z` > `…T10:00:00.4Z` lexicographically).
+  if (a.started_at && b.started_at) {
+    const d = Date.parse(a.started_at) - Date.parse(b.started_at)
+    if (d) return d // falsy covers both 0 and NaN — fall through to STEP_ORDER
+  }
+  return STEP_ORDER.indexOf(a.step_type) - STEP_ORDER.indexOf(b.step_type)
 }

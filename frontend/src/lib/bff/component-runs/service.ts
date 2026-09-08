@@ -15,7 +15,7 @@ import * as z from 'zod'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { assertUuid } from '../core/validate'
-import { labelFor, toCost, toSummary } from './normalise'
+import { chronologically, labelFor, toCost, toSummary } from './normalise'
 import {
   componentStatus,
   stepType,
@@ -52,29 +52,6 @@ function toComponentRun(dto: ComponentRunDTO): ComponentRun {
     error_message: dto.error_message || null,
     storage_path: dto.raw_storage_path || null,
   }
-}
-
-/** Execution order for a run's timeline; unknown steps sort last, stably. */
-const STEP_ORDER: StepType[] = [
-  'search',
-  'download',
-  'ocr',
-  'screening',
-  'extraction',
-  'signal_score',
-  'metrics',
-  'deep_research',
-  'reporting',
-  'unknown',
-]
-
-function chronologically(a: ComponentRun, b: ComponentRun): number {
-  // `started_at` is the truth when both have one — it survives reruns, which
-  // re-execute a single step out of its nominal position.
-  if (a.started_at && b.started_at && a.started_at !== b.started_at) {
-    return a.started_at < b.started_at ? -1 : 1
-  }
-  return STEP_ORDER.indexOf(a.step_type) - STEP_ORDER.indexOf(b.step_type)
 }
 
 /* --------------------------------- Service -------------------------------- */

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { labelFor, toCost, toSummary } from './normalise'
+import { chronologically, labelFor, toCost, toSummary } from './normalise'
+import type { ComponentRun } from './schema'
 
 /**
  * Shapes below are copied from the 2026-09-01 production snapshot
@@ -158,5 +159,17 @@ describe('labelFor', () => {
 
   test('falls back to the step type for an unknown component', () => {
     expect(labelFor('screening', 'some_future_screener')).toBe('Screening')
+  })
+})
+
+describe('chronologically', () => {
+  test('orders by instant, not by string, when one side has no fraction', () => {
+    // DRF drops the fraction at zero microseconds, so as strings the earlier
+    // step sorts last ('Z' > '.').
+    const at = (step_type: ComponentRun['step_type'], started_at: string) =>
+      ({ step_type, started_at }) as ComponentRun
+    const search = at('search', '2026-09-08T10:00:00Z')
+    const download = at('download', '2026-09-08T10:00:00.412000Z')
+    expect([download, search].sort(chronologically)).toEqual([search, download])
   })
 })
