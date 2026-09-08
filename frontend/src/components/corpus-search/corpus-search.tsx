@@ -150,7 +150,13 @@ export function CorpusSearch({
 
   function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.nativeEvent.isComposing) return
-    const action = reduceKey(e.key, { open, cursor: active, hasText: q !== '' }, rows.length)
+    // `expanded`, not `open`: the reducer's "open" means the panel is on
+    // screen, which is what aria-expanded reports and what Escape closes.
+    const action = reduceKey(
+      e.key,
+      { open: expanded, cursor: active, hasText: q !== '' },
+      rows.length,
+    )
     if (HANDLED_KEYS.has(e.key)) e.preventDefault()
     switch (action.type) {
       case 'open':

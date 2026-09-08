@@ -1,6 +1,9 @@
 /**
  * The field's keyboard, as a pure reducer so the table below is testable.
  *
+ * "Open" is panel visibility, not field focus: the caller passes whether the
+ * panel is actually on screen, so a focused field showing nothing is "closed".
+ *
  * | key       | closed                     | open, nothing highlighted | open, row i highlighted |
  * | --------- | -------------------------- | ------------------------- | ----------------------- |
  * | ArrowDown | open, highlight the first  | highlight the first       | next row (no wrap)      |
