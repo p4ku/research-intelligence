@@ -253,11 +253,28 @@ export function splitAuthors(raw: string | null | undefined): string[] {
  * and NBSP inside a title (`10 kg`, `Fig. 1`) is typography we must keep. It
  * also keeps this identical to the backend's `one_line` — `\s` differs between
  * the two engines on NEL and U+FEFF.
+ *
+ * The wrap can also arrive *escaped* — OpenAlex serves some works with the
+ * backslash and the letter as two characters — and is collapsed only in a
+ * field that is escape-encoded as a whole (ESCAPED_FIELD_MARK). TeX starts
+ * the same way and abstracts carry it bare (`\nabla`, `\textbf{..}`), so
+ * nothing local tells `of\nquantum` from `\nabla`; the mark does. This is
+ * the read side of the backend's rule, cleaning the rows already stored.
  */
 export function oneLine(raw: string | null | undefined): string {
   if (!raw) return ''
-  return raw.replace(/[ \t\r\n\f\v]+/g, ' ').trim()
+  const text = ESCAPED_FIELD_MARK.test(raw) ? raw.replace(ESCAPED_WRAP, ' ') : raw
+  return text.replace(WHITESPACE, ' ').trim()
 }
+
+const WHITESPACE = /[ \t\r\n\f\v]+/g
+// A line wrap that took a JSON round-trip upstream: backslash + n as two
+// characters (CRLF included). A doubled backslash is TeX's own `\\`, left alone.
+const ESCAPED_WRAP = /(?<!\\)(?:\\r)?\\n/g
+// An escaped wrap right before whitespace or the end of the field. No TeX
+// control word looks like that (`\nabla`, `\newline`, `\neq` all continue), so
+// one of these marks the whole field as escape-encoded.
+const ESCAPED_FIELD_MARK = /(?<!\\)(?:\\r)?\\n(?=\s|$)/
 
 /* ---------------------------------- Links ---------------------------------- */
 
