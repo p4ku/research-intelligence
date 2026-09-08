@@ -12,12 +12,19 @@ import type { ReactNode } from 'react'
  * (the list's default sort); a paper outside that order — rejected, unscored
  * — keeps the back link and loses the arrows.
  *
- * With `all_papers` off the list is not a destination: the pager and the
- * "{n} of {total}" position go (they are claims about a list the reader can no
- * longer open) and the back link points at Briefings, but the row itself stays
- * — with the crumb trail gone too, it is the paper's only exit. `features`
- * defaults to ALL_ON because the skeleton gallery renders these three with no
- * such prop; the flag reaches them from PaperRecord and loading.tsx.
+ * Opened from a briefing (`?run=` in the URL) the row is that briefing's:
+ * `back` returns to the edition and the arrows walk its papers in the order
+ * the briefing lists them, whatever `all_papers` says — the briefing is a
+ * destination the reader can always open. The pager shows whenever there is
+ * a briefing or a list to return to.
+ *
+ * With `all_papers` off and no briefing, the list is not a destination: the
+ * pager and the "{n} of {total}" position go (they are claims about a list
+ * the reader can no longer open) and the back link points at Briefings, but
+ * the row itself stays — with the crumb trail gone too, it is the paper's
+ * only exit. `features` defaults to ALL_ON because the skeleton gallery
+ * renders these three with no such prop; the flag reaches them from
+ * PaperRecord and loading.tsx.
  *
  * Briefings is a choice, not the only reading: the design doc leaves the
  * redirected destination open between `/briefing` (`Go to Briefings`) and
@@ -28,11 +35,11 @@ import type { ReactNode } from 'react'
  * and all three move together, or the exit says one thing and the error
  * boundary another.
  *
- * One note for whoever writes the flag-off e2e spec: with `all_papers` off this
- * row is an <a href="/briefing"> inside a <nav>, which matches two members of
- * the SidebarNav.navBriefing union (tests_e2e/pages/SidebarNav.ts). Assert this
- * exit with a scoped locator — [data-shape="paper-nav"] a[href="/briefing"] —
- * never through the sidebar page object.
+ * One note for whoever writes the flag-off e2e spec: with `all_papers` off
+ * this row is an <a href="/briefing"> inside a <nav>, which matches two
+ * members of the SidebarNav.navBriefing union (tests_e2e/pages/SidebarNav.ts).
+ * Assert this exit with a scoped locator — [data-shape="paper-nav"]
+ * a[href="/briefing"] — never through the sidebar page object.
  */
 
 export interface PaperNeighbours {
@@ -41,6 +48,19 @@ export interface PaperNeighbours {
   /** 1-based position and the size of the ordered list. */
   position: number
   total: number
+}
+
+/** Where the back link leads and what it says. */
+export interface PaperExit {
+  href: string
+  label: string
+}
+
+/** The exit for a paper opened on its own: the list, or Briefings when the list is hidden. */
+function defaultExit(features: Features, t: T): PaperExit {
+  return features.all_papers
+    ? { href: '/papers', label: t('All papers') }
+    : { href: '/briefing', label: t('Go to Briefings') }
 }
 
 const BTN =
@@ -54,14 +74,15 @@ export function PaperNavFrame({
   prev,
   position,
   next,
-  features = ALL_ON,
+  pager,
 }: {
   state?: 'loaded' | 'skeleton'
   back: ReactNode
   prev: ReactNode
   position: ReactNode
   next: ReactNode
-  features?: Features
+  /** Whether there is a list or briefing to page through. */
+  pager: boolean
 }) {
   return (
     <nav
@@ -72,7 +93,7 @@ export function PaperNavFrame({
       <div data-row="back">{back}</div>
       {/* The whole div, not just its contents: an empty pager still holds its
           12px position span opposite the back link under justify-between. */}
-      {features.all_papers && (
+      {pager && (
         <div data-row="pager" className="flex items-center gap-1">
           {prev}
           <span className="px-1.5 font-mono text-xs text-zinc-400 tabular-nums">{position}</span>
@@ -112,22 +133,23 @@ export function PaperNav({
   neighbours,
   t,
   features = ALL_ON,
+  back,
 }: {
   neighbours: PaperNeighbours | null
   t: T
   features?: Features
+  /** The briefing the paper was opened from; absent, the list is the exit. */
+  back?: PaperExit
 }) {
   const n = neighbours
+  const exit = back ?? defaultExit(features, t)
   return (
     <PaperNavFrame
-      features={features}
+      pager={features.all_papers || Boolean(back)}
       back={
-        <Link
-          href={features.all_papers ? '/papers' : '/briefing'}
-          className={clsx(BTN, LIVE, '-ml-2.5')}
-        >
+        <Link href={exit.href} className={clsx(BTN, LIVE, '-ml-2.5')}>
           <ChevronLeftIcon aria-hidden="true" className="size-4" />
-          {features.all_papers ? t('All papers') : t('Go to Briefings')}
+          {exit.label}
         </Link>
       }
       prev={<Arrow href={n?.prev ?? null} dir="prev" label={t('Previous paper')} />}
@@ -137,17 +159,27 @@ export function PaperNav({
   )
 }
 
-export function PaperNavSkeleton({ t, features = ALL_ON }: { t: T; features?: Features }) {
+export function PaperNavSkeleton({
+  t,
+  features = ALL_ON,
+  back,
+}: {
+  t: T
+  features?: Features
+  /** The back label the loaded row will show when the URL names a briefing. */
+  back?: string
+}) {
+  const label = back ?? defaultExit(features, t).label
   return (
     <PaperNavFrame
       state="skeleton"
-      features={features}
+      pager={features.all_papers || Boolean(back)}
       back={
         // The same label as the loaded row: two different words are two
         // different widths, and the back slot would reflow on every load.
         <span className={clsx(BTN, '-ml-2.5')}>
           <ChevronLeftIcon aria-hidden="true" className="size-4" />
-          {features.all_papers ? t('All papers') : t('Go to Briefings')}
+          {label}
         </span>
       }
       prev={<Arrow href={null} dir="prev" label={t('Previous paper')} />}

@@ -31,11 +31,7 @@ import {
   type EditionsQuery,
   type EditionSummary,
 } from './schema'
-import { editionFor } from './select'
-
-function editionDate(run: PipelineRun): string {
-  return run.completed_at ? run.completed_at.slice(0, 10) : run.run_date
-}
+import { editionDate, editionFor } from './select'
 
 function composeEdition(
   run: PipelineRun,

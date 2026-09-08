@@ -1,19 +1,29 @@
 import { AnswerMarkdown } from '@/components/answer-markdown'
-import { SectionLabel } from '@/components/scanner-ui'
+import { Breadcrumbs, SectionLabel } from '@/components/scanner-ui'
+import { editionHref } from '@/lib/bff/briefings/href'
+import type { Edition } from '@/lib/bff/briefings/schema'
+import { editionDate } from '@/lib/bff/briefings/select'
+import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import { papers } from '@/lib/bff/papers/service'
+import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
+import { runs } from '@/lib/bff/pipeline-runs/service'
 import type { Features } from '@/lib/features'
 import { formatDate, type Lang, type T } from '@/lib/i18n'
+import { paperHref } from '@/lib/papers/href'
 import { arxivIdOf, doiOf } from '@/lib/papers/map'
+import { papersOfRun, type RunIndex } from '@/lib/papers/runs'
 import { byValueDesc } from '@/lib/papers/select'
 import { PASSED_STATUSES, type ScoredPaper } from '@/lib/papers/types'
 import { ArrowUpRightIcon } from '@heroicons/react/16/solid'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { cache } from 'react'
+import { formatEditionDate } from '../../briefing/format'
 import { Assessment } from './assessment'
 import { PaperChat } from './paper-chat'
 import { PaperHeader } from './paper-header'
-import { PaperNav, type PaperNeighbours } from './paper-nav'
+import { PaperNav, type PaperExit, type PaperNeighbours } from './paper-nav'
 import { ScoreRail } from './score-rail'
 
 /**
@@ -27,6 +37,15 @@ import { ScoreRail } from './score-rail'
  * link into the assessment and mark the definition being read — and the
  * paper's chat behind a pill that opens a sheet, so the scores stay in view
  * while the reasoning is read.
+ *
+ * Opened from a briefing (`?run=`), the record is the paper as that run read
+ * it: its decision, score and screening notes are the run's own row (the
+ * same overlay the edition's cards apply), the crumbs and the back link lead
+ * to the edition, and prev / next walk the edition's papers. Dimensions stay
+ * the paper's — extractions belong to the paper, not to a run. A paper the
+ * corpus already attributes to that run needs no overlay; a run the reader
+ * cannot see, or one that never recorded the paper, leaves the page as it
+ * is without the URL.
  */
 
 /** The title crumb — the only thing above the record that needs the fetch. */
@@ -35,11 +54,97 @@ export async function PaperCrumb({ id }: { id: string }) {
   return result ? result.paper.title : null
 }
 
+/** The briefing a `?run=` opens the paper in. */
+interface RunContext {
+  run: PipelineRun
+  /** The run's edition — null when the run briefed nothing (or is not one the corpus holds). */
+  edition: Edition | null
+  /** Every run's record of every paper, or null when the source keeps none. */
+  index: RunIndex | null
+}
+
 /**
- * Previous / next within the domain, in signal order — the lists' default
- * sort. A failed list is no neighbours, never a failed page.
+ * The run named in the URL, with its edition and the run index. The run
+ * ledger is already in hand for the request (the corpus snapshot reads it),
+ * so finding the run there costs nothing; an id outside the reader's domains
+ * is simply not found. Cached per request: the crumbs and the record share it.
  */
-async function neighboursOf(paper: ScoredPaper): Promise<PaperNeighbours | null> {
+const runContext = cache(async (runId: string, lang: Lang): Promise<RunContext | null> => {
+  const run = (await runs.listEverywhere()).find((r) => r.id === runId) ?? null
+  if (!run) return null
+  const [edition, index] = await Promise.all([
+    briefings.getByDate(run.workspace_id, editionDate(run), lang, runId).catch(() => null),
+    papers.runIndex(),
+  ])
+  // getByDate falls back to the day's newest edition; only the run's own counts.
+  return { run, edition: edition?.run_id === runId ? edition : null, index }
+})
+
+/** The edition's permalink and the words that lead to it. */
+function exitTo(ctx: RunContext, t: T): PaperExit {
+  return {
+    href: editionHref(editionDate(ctx.run), ctx.run.workspace_id, { runId: ctx.run.id }),
+    label: t('Back to briefing'),
+  }
+}
+
+/**
+ * The paper as one run recorded it, over its current record. The run's
+ * index row carries the decision, the score and the screening notes; past
+ * the corpus cap the index has no row and the edition's own entry (status
+ * and score, composed live) stands in, notes untouched. No overlay when the
+ * corpus already reports this run — the record is right as it is.
+ */
+function asRun(paper: ScoredPaper, ctx: RunContext): ScoredPaper {
+  if (paper.pipeline_run_id === ctx.run.id) return paper
+  const [seen] = papersOfRun(ctx.run.id, new Map([[paper.id, paper]]), ctx.index)
+  const record = ctx.index?.get(ctx.run.id)?.get(paper.id)
+  if (seen && record) {
+    return {
+      ...paper,
+      pipeline_run_id: ctx.run.id,
+      pipeline_run_name: null,
+      screening_status: seen.status,
+      signal_score: seen.signal_score,
+      screening_reasoning: seen.reason,
+      abstract_screening_reasoning: record.abstract_screening_reasoning,
+      full_text_screening_reasoning: record.full_text_screening_reasoning,
+    }
+  }
+  const entry = ctx.edition?.papers.find((p) => p.id === paper.id)
+  if (!entry) return paper
+  return {
+    ...paper,
+    pipeline_run_id: ctx.run.id,
+    pipeline_run_name: null,
+    screening_status: entry.screening_status ?? paper.screening_status,
+    signal_score: entry.signal_score,
+  }
+}
+
+/**
+ * Previous / next. Inside a briefing: the edition's papers in the order it
+ * lists them, each link keeping the run. On its own: the domain's papers in
+ * signal order — the lists' default sort. A failed list is no neighbours,
+ * never a failed page.
+ */
+async function neighboursOf(
+  paper: ScoredPaper,
+  ctx: RunContext | null,
+): Promise<PaperNeighbours | null> {
+  if (ctx) {
+    if (!ctx.edition) return null
+    const ids = ctx.edition.papers.map((p) => p.id)
+    const i = ids.indexOf(paper.id)
+    if (i < 0) return null
+    const to = (id: string) => paperHref(id, { runId: ctx.run.id })
+    return {
+      prev: i > 0 ? to(ids[i - 1]!) : null,
+      next: i < ids.length - 1 ? to(ids[i + 1]!) : null,
+      position: i + 1,
+      total: ids.length,
+    }
+  }
   const corpus = await papers.listAll(paper.workspace_id).catch(() => null)
   if (!corpus) return null
   const ordered = corpus.papers
@@ -48,37 +153,89 @@ async function neighboursOf(paper: ScoredPaper): Promise<PaperNeighbours | null>
   const i = ordered.findIndex((p) => p.id === paper.id)
   if (i < 0) return null
   return {
-    prev: i > 0 ? `/papers/${ordered[i - 1]!.id}` : null,
-    next: i < ordered.length - 1 ? `/papers/${ordered[i + 1]!.id}` : null,
+    prev: i > 0 ? paperHref(ordered[i - 1]!.id) : null,
+    next: i < ordered.length - 1 ? paperHref(ordered[i + 1]!.id) : null,
     position: i + 1,
     total: ordered.length,
   }
 }
 
-export async function PaperRecord({
+/**
+ * The crumb trail for a paper opened from a briefing: Briefings, the edition
+ * (domain and day, as the edition page names itself), the paper. An unknown
+ * run gets the plain trail, exactly as without `?run=`.
+ */
+export async function RunCrumbs({
   id,
+  runId,
   t,
   lang,
   features,
 }: {
   id: string
+  runId: string
   t: T
   lang: Lang
   features: Features
 }) {
-  const result = await forPage(papers.get(id))
+  const [ctx, result] = await Promise.all([runContext(runId, lang), forPage(papers.get(id))])
+  const title = result ? result.paper.title : null
+  if (!ctx) {
+    if (!features.all_papers) return null
+    return <Breadcrumbs items={[{ label: t('Papers'), href: '/papers' }, { label: title }]} t={t} />
+  }
+  const day = editionDate(ctx.run)
+  return (
+    <Breadcrumbs
+      items={[
+        { label: t('Briefings'), href: '/briefing' },
+        {
+          label: `${ctx.run.workspace_name} · ${formatEditionDate(day, lang)}`,
+          href: editionHref(day, ctx.run.workspace_id, { runId }),
+        },
+        { label: title },
+      ]}
+      t={t}
+    />
+  )
+}
+
+export async function PaperRecord({
+  id,
+  runId,
+  t,
+  lang,
+  features,
+}: {
+  id: string
+  /** The briefing the paper was opened from, when the URL names one. */
+  runId?: string
+  t: T
+  lang: Lang
+  features: Features
+}) {
+  const [result, ctx] = await Promise.all([
+    forPage(papers.get(id)),
+    runId ? runContext(runId, lang) : null,
+  ])
   // The shell has already streamed, so this renders (sidebar)/not-found.tsx
   // in place with HTTP 200 — the trade for an instant shell, recorded in
   // docs/skeletons.md.
   if (!result) notFound()
-  const { paper } = result
+  const paper = ctx ? asRun(result.paper, ctx) : result.paper
   // With the list hidden the pager is not rendered, so the corpus fetch that
-  // feeds it is not made either: skipping the request is the point.
-  const neighbours = features.all_papers ? await neighboursOf(paper) : null
+  // feeds it is not made either: skipping the request is the point. A
+  // briefing's pager reads the edition, already fetched for the crumbs.
+  const neighbours = ctx || features.all_papers ? await neighboursOf(paper, ctx) : null
 
   return (
     <div className="mt-6">
-      <PaperNav neighbours={neighbours} t={t} features={features} />
+      <PaperNav
+        neighbours={neighbours}
+        t={t}
+        features={features}
+        back={ctx ? exitTo(ctx, t) : undefined}
+      />
 
       <div className="mt-6 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
         <div className="min-w-0 space-y-9">

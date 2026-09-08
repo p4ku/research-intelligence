@@ -1,5 +1,6 @@
 import { Card, SectionLabel } from '@/components/scanner-ui'
 import type { Edition } from '@/lib/bff/briefings/schema'
+import { editionDate } from '@/lib/bff/briefings/select'
 import { forPage } from '@/lib/bff/core/page'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
@@ -50,11 +51,6 @@ function rowStatus(run: PipelineRun, currentId: string | null): RowStatus {
   }
 }
 
-/** The day a completed run finished (UTC), which is also its edition's date. */
-function completionDay(run: PipelineRun): string {
-  return (run.completed_at ?? run.run_date).slice(0, 10)
-}
-
 /**
  * Recent Briefings beside Start New Briefing. One boundary: the form's
  * disabled state depends on the same list the table shows.
@@ -81,7 +77,7 @@ export async function LedgerSection({
       domain: run.workspace_name,
       status,
       period: periodLabel(run, t, lang),
-      generated: completed ? formatDay(completionDay(run), lang) : null,
+      generated: completed ? formatDay(editionDate(run), lang) : null,
       startedClock: run.started_at ? formatClock(run.started_at) : null,
       // Django stamps completed_at on failure and abort alike.
       failedDay:

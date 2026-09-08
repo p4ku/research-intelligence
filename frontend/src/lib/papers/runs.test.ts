@@ -41,11 +41,15 @@ describe('indexRuns', () => {
     expect(index.get(OLD)?.get(a.id)).toEqual({
       screening_status: 'accepted',
       screening_reasoning: null,
+      abstract_screening_reasoning: null,
+      full_text_screening_reasoning: null,
       signal_score: 71.5,
     })
     expect(index.get(NEW)?.get(a.id)).toMatchObject({
       screening_status: 'rejected',
       screening_reasoning: 'Off topic',
+      abstract_screening_reasoning: null,
+      full_text_screening_reasoning: 'Off topic',
     })
     expect(index.get(NEW)?.has(b.id)).toBe(true)
   })

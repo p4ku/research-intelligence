@@ -130,6 +130,7 @@ export async function EditionPapers({
   return (
     <EditionPaperList
       papers={cards}
+      runId={edition.run_id}
       logHref={editionHref(edition.date, edition.workspace_id, {
         runId: edition.run_id,
         sub: 'run',

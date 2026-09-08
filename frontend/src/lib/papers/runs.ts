@@ -17,7 +17,11 @@ import type { ScoredPaper, ScreeningStatus } from './types'
 export interface RunRecord {
   /** null when the deployment's metric serializer omits it (see upstream.ts). */
   screening_status: ScreeningStatus | null
+  /** The run's combined note: the full-text stage's, else the abstract stage's. */
   screening_reasoning: string | null
+  /** The two stages apart, when the run kept them so — the paper page shows them as paragraphs. */
+  abstract_screening_reasoning: string | null
+  full_text_screening_reasoning: string | null
   signal_score: number | null
 }
 
@@ -44,6 +48,8 @@ export function indexRuns(papers: Pick<PaperDTO, 'id' | 'metrics'>[]): RunIndex 
           typeof m.screening_status === 'string' ? normalizeStatus(m.screening_status) : null,
         screening_reasoning:
           m.full_text_screening_reasoning || m.abstract_screening_reasoning || null,
+        abstract_screening_reasoning: m.abstract_screening_reasoning || null,
+        full_text_screening_reasoning: m.full_text_screening_reasoning || null,
         signal_score: typeof m.signal_score === 'number' ? m.signal_score : null,
       })
     }
