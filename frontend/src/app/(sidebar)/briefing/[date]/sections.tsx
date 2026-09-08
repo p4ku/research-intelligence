@@ -57,7 +57,7 @@ export async function EditionHead({
   // A date with no edition is a true 404 — rendered in-stream now that the
   // shell has already gone out (see docs/skeletons.md).
   if (!edition) notFound()
-  const siblings = await sameDayEditions(edition, lang)
+  const editions = await domainEditions(edition, lang)
 
   const copy = funnelCopy(t)
   const funnel = [
@@ -85,7 +85,7 @@ export async function EditionHead({
           </h1>
           {features.stars && <StarToggle kind="briefing" id={edition.run_id} className="mt-px" />}
         </div>
-        <SameDayNotice edition={edition} siblings={siblings} runId={runId} t={t} lang={lang} />
+        <SameDayNotice edition={edition} editions={editions} runId={runId} t={t} lang={lang} />
       </div>
 
       <StatBand items={funnel} flow className="lg:grid-cols-3!" />
@@ -102,81 +102,92 @@ export async function EditionHead({
 }
 
 /**
- * The domain's other briefings of the same day, newest first — those that
- * are rows in the ledgers (the same rule as `hasBriefing`), so the notice
- * never offers an edition the archive hides. The list is the one
- * `findByDate` already read under the composed source; a failed read is
- * no siblings, never a failed page. Cached per request: the edition page
- * and the screening log both ask.
+ * The domain's briefings, newest first — those that are rows in the
+ * ledgers (the same rule as `hasBriefing`), so the notice never offers an
+ * edition the archive hides. The list is the one `findByDate` already read
+ * under the composed source; a failed read is no list, never a failed
+ * page. Cached per request: the edition page and the screening log both ask.
  */
-export const sameDayEditions = cache(async (edition: Edition, lang: Lang): Promise<Edition[]> => {
+export const domainEditions = cache(async (edition: Edition, lang: Lang): Promise<Edition[]> => {
   const [all, capped] = await Promise.all([
     briefings.listAll(edition.workspace_id, lang).catch(() => []),
     papersService.corpusTruncated().catch(() => false),
   ])
-  return all
-    .filter(
-      (e) =>
-        e.date === edition.date &&
-        e.run_id !== edition.run_id &&
-        hasBriefing(e.funnel.passed_screening, e, capped),
-    )
-    .sort(byNewest)
+  return all.filter((e) => hasBriefing(e.funnel.passed_screening, e, capped)).sort(byNewest)
 })
+
+const NOTICE_LINK = 'font-medium text-blue-600 hover:underline dark:text-blue-400'
 
 /**
  * One quiet line under the title when the URL and the day do not tell the
  * whole story. A link that named this run (every link the app mints) lists
  * the day's other briefings; a link that did not — a bookmark from before
  * runs were in the URL — landed on the day's newest and says so, with the
- * earlier ones a click away; a link naming a run that is no longer
- * published (its run passed nothing, or is gone) says that first, even
- * when the day holds only this briefing. Nothing when the URL named this
- * run and the day holds no other.
+ * earlier ones a click away; a link naming a run of another day points at
+ * that day; a link naming a run that is no longer published (its run
+ * passed nothing, or is gone) says so first, even when the day holds only
+ * this briefing. Nothing when the URL named this run and the day holds no
+ * other. `sub` keeps the links on the screening log when that is where
+ * the reader is.
  */
 export function SameDayNotice({
   edition,
-  siblings,
+  editions,
   runId,
+  sub,
   t,
   lang,
 }: {
   edition: Edition
-  /** The domain's other briefings of the day, newest first (`sameDayEditions`). */
-  siblings: Edition[]
+  /** The domain's briefings, newest first (`domainEditions`). */
+  editions: Edition[]
   /** The run the URL named, if any. */
   runId?: string
+  sub?: 'run'
   t: T
   lang: Lang
 }) {
-  const named = runId === edition.run_id
-  const substituted = Boolean(runId) && !named
-  if (siblings.length === 0 && !substituted) return null
-  const gone = substituted ? `${t('The briefing this link named is no longer published.')} ` : ''
+  const siblings = editions.filter((e) => e.date === edition.date && e.run_id !== edition.run_id)
+  const named = !runId || runId === edition.run_id
+  // The named run is a briefing of another day — the URL's date is off, not the run.
+  const elsewhere = !named ? (editions.find((e) => e.run_id === runId) ?? null) : null
+  const gone = !named && !elsewhere
+  if (siblings.length === 0 && named) return null
+  const to = (e: Edition) => editionHref(e.date, e.workspace_id, { runId: e.run_id, sub })
+  const preface = elsewhere ? (
+    <>
+      {t('The briefing this link named is from another day:')}{' '}
+      <Link href={to(elsewhere)} className={NOTICE_LINK}>
+        {formatDay(elsewhere.date, lang)}
+      </Link>
+      .{' '}
+    </>
+  ) : gone ? (
+    `${t('The briefing this link named is no longer published.')} `
+  ) : null
   if (siblings.length === 0) {
     return (
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        {gone}
+        {preface}
         {t("Showing the day's briefing.")}
       </p>
     )
   }
-  const lead = named
-    ? t('Other briefings this day:')
-    : `${gone}${fmt(t('This is the latest of {n} briefings for this domain on {day}.'), {
-        n: siblings.length + 1,
-        day: formatEditionDate(edition.date, lang),
-      })} ${t('Earlier:')}`
+  const lead =
+    runId === edition.run_id
+      ? t('Other briefings this day:')
+      : `${fmt(t('This is the latest of {n} briefings for this domain on {day}.'), {
+          n: siblings.length + 1,
+          day: formatEditionDate(edition.date, lang),
+        })} ${t('Earlier:')}`
   return (
     <p className="text-sm text-zinc-500 dark:text-zinc-400">
+      {preface}
       {lead}{' '}
       {siblings.map((e, i) => (
         <span key={e.run_id}>
           {i > 0 && <span aria-hidden="true"> · </span>}
-          <Link
-            href={editionHref(e.date, e.workspace_id, { runId: e.run_id })}
-            className="font-medium text-blue-600 hover:underline dark:text-blue-400"
-          >
+          <Link href={to(e)} className={NOTICE_LINK}>
             {e.generated_at ? clockStamp(e.generated_at) : formatDay(e.date, lang)}
           </Link>
         </span>

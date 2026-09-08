@@ -12,7 +12,11 @@ import { RunsTable } from './runs-table'
  * can wrap it in a <ViewTransition> with its skeleton.
  */
 export async function RunsSection({ tab }: { tab: Tab }) {
-  const all = await forPage(runsService.listEverywhere())
+  // The service lists by the run clock (completion first); this table's
+  // leading column is Started, so it reads in start order, newest first.
+  const all = (await forPage(runsService.listEverywhere()))
+    .slice()
+    .sort((a, b) => (b.started_at ?? b.run_date).localeCompare(a.started_at ?? a.run_date))
   const shown = all.filter((run) => matches(run, tab))
 
   const fetched = all.reduce((sum, run) => sum + run.total_papers_fetched, 0)

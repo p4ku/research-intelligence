@@ -123,7 +123,8 @@ describe('composeRows', () => {
       started_at: '2026-08-31T12:00:00Z',
       completed_at: null,
     }
-    const its = { ...edition, run_id: stampless.id, generated_at: null }
+    // Addressed by its trigger day, as the service composes it without a completion.
+    const its = { ...edition, run_id: stampless.id, date: '2026-08-31', generated_at: null }
     const rows = composeRows({
       editions: [its, edition],
       runs: [stampless, run],
@@ -133,6 +134,11 @@ describe('composeRows', () => {
     })
     expect(rows.map((r) => r.generated)).toEqual(['31 Aug 2026', '31 Aug 2026'])
     expect(rows.map((r) => r.stamp)).toEqual(['12:00 UTC', '08:29 UTC'])
+    // The cell prints the day the row's link opens, even when the start was another day.
+    const nightOwl = { ...stampless, started_at: '2026-09-01T00:10:00Z' }
+    const [row] = composeRows({ editions: [its], runs: [nightOwl], domains, t, lang: 'en' })
+    expect(row.generated).toBe('31 Aug 2026')
+    expect(row.brief.href).toContain('/briefing/2026-08-31?')
   })
 
   test('the pair is counted on the day the cell prints, so a midnight completion is the next day', () => {

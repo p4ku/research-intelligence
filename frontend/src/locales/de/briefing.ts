@@ -25,6 +25,8 @@ export const dict: Record<string, string> = {
   'The briefing this link named is no longer published.':
     'Das in diesem Link genannte Briefing ist nicht mehr veröffentlicht.',
   "Showing the day's briefing.": 'Gezeigt wird das Briefing des Tages.',
+  'The briefing this link named is from another day:':
+    'Das in diesem Link genannte Briefing stammt von einem anderen Tag:',
   'Nothing was screened out in this run.': 'In diesem Lauf wurde nichts aussortiert.',
   'No completed runs yet.': 'Noch keine abgeschlossenen Läufe.',
   'Once a pipeline run completes in any of your domains, its briefing appears here.':

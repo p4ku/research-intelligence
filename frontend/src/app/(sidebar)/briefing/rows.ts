@@ -65,12 +65,26 @@ export function briefingClock(
   return run?.completed_at ?? e.generated_at ?? run?.started_at ?? null
 }
 
+/**
+ * The day a briefing's Generated cell prints: the run's completion day,
+ * else the edition's own stamp, else the day the edition is addressed by.
+ * Never the start: a run that started after midnight is still addressed
+ * (and linked) by its trigger day, and the cell must print the day the
+ * row's link opens.
+ */
+export function briefingDate(
+  e: Pick<Edition, 'date' | 'generated_at'>,
+  run?: Pick<PipelineRun, 'completed_at'> | null,
+): string {
+  return (run?.completed_at ?? e.generated_at ?? e.date).slice(0, 10)
+}
+
 /** The (domain, day) a briefing is listed under — the day its Generated cell prints. */
 export function briefingDay(
   e: Pick<Edition, 'workspace_id' | 'date' | 'generated_at'>,
-  run?: Pick<PipelineRun, 'completed_at' | 'started_at'> | null,
+  run?: Pick<PipelineRun, 'completed_at'> | null,
 ): string {
-  return `${e.workspace_id}|${(briefingClock(e, run) ?? e.date).slice(0, 10)}`
+  return `${e.workspace_id}|${briefingDate(e, run)}`
 }
 
 /**
@@ -178,7 +192,7 @@ export function composeRows({
       domain: domains[e.workspace_id] ?? run?.workspace_name ?? '—',
       current: e.run_id === currentId,
       period: run ? periodLabel(run, t, lang) : formatDay(e.date, lang),
-      generated: formatDay(briefingClock(e, run) ?? e.date, lang),
+      generated: formatDay(briefingDate(e, run), lang),
       stamp: stampFor(e, run, perDay),
       screened,
       included,

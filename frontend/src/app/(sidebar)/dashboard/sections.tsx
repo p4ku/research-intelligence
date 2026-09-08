@@ -8,7 +8,7 @@ import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
 import { editionHref } from '../briefing/format'
-import { briefingClock, briefingsPerDay, stampFor } from '../briefing/rows'
+import { briefingDate, briefingsPerDay, stampFor } from '../briefing/rows'
 import { allRuns, currentRun, inFlightRuns, recentBriefings } from './data'
 import { formatAuthors, formatClock, formatDay, periodLabel } from './format'
 import { HomeLinks, type HomePaper } from './home-ui'
@@ -93,10 +93,7 @@ export async function LedgerSection({
       status,
       period: periodLabel(run, t, lang),
       generated: completed
-        ? formatDay(
-            edition ? (briefingClock(edition, run) ?? edition.date) : editionDate(run),
-            lang,
-          )
+        ? formatDay(edition ? briefingDate(edition, run) : editionDate(run), lang)
         : null,
       stamp: edition ? stampFor(edition, run, perDay) : null,
       startedClock: run.started_at ? formatClock(run.started_at) : null,
