@@ -63,7 +63,7 @@ JSON Schema; `src/lib/bff/papers/fixtures.ts` for full examples):
       "validation_status": "pass", "review_required": false, "extraction_id": "…" }
   ],
   "pdf_key": null, "markdown_key": null,
-  "pdf_url": "https://arxiv.org/pdf/2608.01234.pdf",
+  "source_url": "https://arxiv.org/abs/2608.01234",   // Paper.source_url verbatim
   "is_benchmark": false, "evaluation_label": null,
   "created_at": "2026-08-27T05:58:00Z"
 }
@@ -83,6 +83,8 @@ JSON Schema; `src/lib/bff/papers/fixtures.ts` for full examples):
 - `rationale`/`evidence`: from the nested `fields_data.evidence[]`
   (`{quote, rationale}`) or sibling `*reason*`/`*evidence*` keys.
 - `signal_score`: the `PaperMetric` matching the paper's run, else the newest.
+- `source_url`: `Paper.source_url` as the backend stores it; `null` when it has
+  none. Never rebuilt from `arxiv_id` / `doi` — the backend owns the link rule.
 
 ### `GET /api/papers/{paper_id}/scorecard/`
 

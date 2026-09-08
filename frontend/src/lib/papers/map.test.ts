@@ -1,9 +1,12 @@
 import type { ExtractionDTO, ExtractionDefinitionDTO, PaperDTO } from '@/lib/api/types'
 import { describe, expect, test } from 'bun:test'
 import {
+  arxivIdOf,
   corpusMaxima,
   definitionContexts,
+  doiOf,
   inferScale,
+  isArxivId,
   oneLine,
   parseNumeric,
   pickMetric,
@@ -248,11 +251,41 @@ describe('toScoredPaper', () => {
   ]
   const contexts = definitionContexts(defs, corpusMaxima(defs, exts))
 
+  test('isArxivId accepts arXiv ids and rejects a leaked OpenAlex W-id', () => {
+    expect(isArxivId('2402.11111')).toBe(true)
+    expect(isArxivId('arXiv:2402.11111v2')).toBe(true)
+    expect(isArxivId('cond-mat.mes-hall/0703029')).toBe(true)
+    expect(isArxivId('W2781738013')).toBe(false)
+    expect(isArxivId(null)).toBe(false)
+  })
+
+  test('arxivIdOf / doiOf read the link, not the raw fields', () => {
+    expect(arxivIdOf('https://arxiv.org/abs/cond-mat/0102536')).toBe('cond-mat/0102536')
+    expect(arxivIdOf('https://doi.org/10.1/x')).toBeNull()
+    expect(doiOf('https://doi.org/10.1/x')).toBe('10.1/x')
+    expect(doiOf(null)).toBeNull()
+  })
+
+  test('source_url is the backend value; never rebuilt from the ids', () => {
+    const doi = toScoredPaper(
+      paper({ id: 'p2', doi: '10.1/x', source_url: 'https://doi.org/10.1/x' }),
+      [],
+      contexts,
+    )
+    expect(doi.source_url).toBe('https://doi.org/10.1/x')
+    // A replay captured before the column existed, with a W-id in arxiv_id.
+    const stale = toScoredPaper(paper({ id: 'p3', arxiv_id: 'W2781738013' }), [], contexts)
+    expect(stale.source_url).toBeNull()
+    const none = toScoredPaper(paper({ id: 'p4', source_url: null }), [], contexts)
+    expect(none.source_url).toBeNull()
+  })
+
   test('dimension values, rationale, and evidence from flat fields', () => {
     const p = toScoredPaper(
       paper({
         id: 'p1',
         arxiv_id: '2402.11111',
+        source_url: 'https://arxiv.org/abs/2402.11111',
         metrics: [
           {
             id: 'm1',
@@ -276,7 +309,7 @@ describe('toScoredPaper', () => {
       contexts,
     )
     expect(p.signal_score).toBe(95.5)
-    expect(p.pdf_url).toBe('https://arxiv.org/pdf/2402.11111.pdf')
+    expect(p.source_url).toBe('https://arxiv.org/abs/2402.11111')
     expect(p.authors).toEqual(['A. Author', 'B. Author'])
     const [fit, nov, trl] = p.dimensions
     expect(fit).toMatchObject({ key: 'fit_score', value: 5, raw: '5', max: 10 })

@@ -4138,7 +4138,7 @@
               }
             ]
           },
-          "pdf_url": {
+          "source_url": {
             "anyOf": [
               {
                 "type": "string"
@@ -4189,7 +4189,7 @@
           "dimensions",
           "pdf_key",
           "markdown_key",
-          "pdf_url",
+          "source_url",
           "is_benchmark",
           "evaluation_label",
           "created_at"

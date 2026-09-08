@@ -100,8 +100,12 @@ export const scoredPaper = z
     /** Storage keys — there is no file endpoint yet. */
     pdf_key: z.string().nullable(),
     markdown_key: z.string().nullable(),
-    /** External link (arXiv / DOI) when the ids allow one. */
-    pdf_url: z.string().nullable(),
+    /**
+     * The one public link for the paper, verbatim from `Paper.source_url`:
+     * arXiv abstract page, DOI, or the provider's landing page. Never rebuilt
+     * from `arxiv_id` / `doi` here — the backend owns that rule.
+     */
+    source_url: z.string().nullable(),
     is_benchmark: z.boolean(),
     evaluation_label: z.enum(['passed', 'rejected']).nullable(),
     /** Ingest time (ISO 8601). The backend stores no publication date. */

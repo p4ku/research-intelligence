@@ -4,6 +4,7 @@ import { forPage } from '@/lib/bff/core/page'
 import { papers } from '@/lib/bff/papers/service'
 import type { Features } from '@/lib/features'
 import { formatDate, type Lang, type T } from '@/lib/i18n'
+import { arxivIdOf, doiOf } from '@/lib/papers/map'
 import { byValueDesc } from '@/lib/papers/select'
 import { PASSED_STATUSES, type ScoredPaper } from '@/lib/papers/types'
 import { ArrowUpRightIcon } from '@heroicons/react/16/solid'
@@ -117,19 +118,28 @@ export async function PaperRecord({
   )
 }
 
+/** The link's own host names it, so a stray value in `arxiv_id` never reads "arXiv …". */
+function sourceLabel(url: string, t: T): string {
+  const arxiv = arxivIdOf(url)
+  if (arxiv) return `arXiv ${arxiv}`
+  const doi = doiOf(url)
+  if (doi) return `DOI ${doi}`
+  return t('Source')
+}
+
 /** Where the record came from, on one quiet line under the abstract. */
 function Provenance({ paper, t, lang }: { paper: ScoredPaper; t: T; lang: Lang }) {
   const parts: React.ReactNode[] = []
-  if (paper.pdf_url) {
+  if (paper.source_url) {
     parts.push(
       <a
         key="src"
-        href={paper.pdf_url}
+        href={paper.source_url}
         target="_blank"
         rel="noreferrer"
         className="inline-flex items-center gap-0.5 font-medium text-blue-600 hover:underline dark:text-blue-400"
       >
-        {paper.arxiv_id ? `arXiv ${paper.arxiv_id}` : paper.doi ? `DOI ${paper.doi}` : t('Source')}
+        {sourceLabel(paper.source_url, t)}
         <ArrowUpRightIcon aria-hidden="true" className="size-3" />
       </a>,
     )

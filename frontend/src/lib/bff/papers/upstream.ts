@@ -44,6 +44,12 @@ export const paperDTO = z.looseObject({
   source_database: z.string(),
   original_pdf_path: z.string().nullable(),
   converted_md_path: z.string().nullable(),
+  /**
+   * `Paper.source_url` — the backend's one public link for the paper (arXiv
+   * abstract page, DOI, or the provider's landing page). Optional only so
+   * replays captured before the column existed still parse.
+   */
+  source_url: z.string().nullable().optional(),
   /** Includes 'accepted', which the model's choices omit — keep it open. */
   screening_status: z.string(),
   screening_reasoning: z.string().nullable(),

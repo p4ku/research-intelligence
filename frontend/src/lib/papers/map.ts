@@ -259,10 +259,26 @@ export function oneLine(raw: string | null | undefined): string {
   return raw.replace(/[ \t\r\n\f\v]+/g, ' ').trim()
 }
 
-export function externalPdfUrl(arxiv_id: string | null, doi: string | null): string | null {
-  if (arxiv_id) return `https://arxiv.org/pdf/${arxiv_id.replace(/^arxiv:/i, '')}.pdf`
-  if (doi) return `https://doi.org/${doi}`
-  return null
+/* ---------------------------------- Links ---------------------------------- */
+
+// New-style "2401.12345(v2)" or old-style "cond-mat/0102536", "cs.CV/0101001".
+// The backend's arXiv fallback can leave an OpenAlex work id ("W2781738013")
+// in `arxiv_id`, so the raw field is checked before it is ever shown as arXiv.
+const ARXIV_ID = /^(\d{4}\.\d{4,5}|[a-z-]+(\.[a-z-]+)?\/\d{7})(v\d+)?$/i
+
+/** True when `value` is shaped like an arXiv id (a leaked OpenAlex W-id is not). */
+export function isArxivId(value: string | null | undefined): boolean {
+  return ARXIV_ID.test((value ?? '').replace(/^arxiv:/i, '').trim())
+}
+
+/** The arXiv id a `source_url` points at, or null. */
+export function arxivIdOf(url: string | null | undefined): string | null {
+  return /^https?:\/\/arxiv\.org\/abs\/(.+)$/.exec(url ?? '')?.[1] ?? null
+}
+
+/** The DOI a `source_url` points at, or null. */
+export function doiOf(url: string | null | undefined): string | null {
+  return /^https?:\/\/doi\.org\/(.+)$/.exec(url ?? '')?.[1] ?? null
 }
 
 export function normalizeStatus(value: string | null | undefined): ScreeningStatus {
@@ -470,7 +486,8 @@ export function toScoredPaper(
     dimensions,
     pdf_key: paper.original_pdf_path || null,
     markdown_key: paper.converted_md_path || null,
-    pdf_url: externalPdfUrl(paper.arxiv_id, paper.doi),
+    // The backend's one link rule, passed through — never rebuilt from the ids.
+    source_url: paper.source_url ?? null,
     is_benchmark: Boolean(paper.is_evaluation_benchmark),
     evaluation_label: paper.evaluation_label ?? null,
     created_at: paper.created_at,
