@@ -13,13 +13,17 @@ export function dimensionByKey(paper: ScoredPaper, key: string): Dimension | und
   return paper.dimensions.find((d) => d.key === key)
 }
 
-/** Definitions worth sorting/filtering by: active and, in this corpus, numeric. */
+/**
+ * Definitions worth sorting/filtering by: active and, in this corpus, numeric.
+ * `!= null` on purpose — a paper from another domain carries no row for this
+ * key at all, and an absent row is not a value.
+ */
 export function numericDefinitions(
   ws: Pick<WorkspaceSummary, 'definitions'>,
   papers: ScoredPaper[],
 ) {
   return ws.definitions.filter(
-    (d) => d.is_active && papers.some((p) => dimensionByKey(p, d.key)?.value !== null),
+    (d) => d.is_active && papers.some((p) => dimensionByKey(p, d.key)?.value != null),
   )
 }
 

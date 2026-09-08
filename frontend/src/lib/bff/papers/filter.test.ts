@@ -22,11 +22,14 @@ function trl(value: number | null) {
 
 /** Five papers with distinct titles, scores, dates and TRLs; two rejected. */
 function corpus(): { workspaces: (typeof fixtureWorkspace)[]; papers: ScoredPaper[] } {
+  // The composer writes one row per active definition of the paper's own
+  // domain, so every paper here carries both non-TRL keys; only `fit_score`
+  // is value-bearing.
   const plain = {
     ...base,
     abstract: '',
     authors: [] as string[],
-    dimensions: [] as ScoredPaper['dimensions'],
+    dimensions: [fit(92), novelty(null)] as ScoredPaper['dimensions'],
   }
   return {
     workspaces: [fixtureWorkspace],
@@ -38,7 +41,7 @@ function corpus(): { workspaces: (typeof fixtureWorkspace)[]; papers: ScoredPape
         signal_score: 90,
         created_at: day(30),
         screening_status: 'accepted',
-        dimensions: [trl(3)],
+        dimensions: [...plain.dimensions, trl(3)],
       },
       {
         ...plain,
@@ -47,7 +50,7 @@ function corpus(): { workspaces: (typeof fixtureWorkspace)[]; papers: ScoredPape
         signal_score: 70,
         created_at: day(20),
         screening_status: 'full_text_passed',
-        dimensions: [trl(8)],
+        dimensions: [...plain.dimensions, trl(8)],
       },
       {
         ...plain,
@@ -56,7 +59,7 @@ function corpus(): { workspaces: (typeof fixtureWorkspace)[]; papers: ScoredPape
         signal_score: 50,
         created_at: day(10),
         screening_status: 'rejected',
-        dimensions: [trl(5)],
+        dimensions: [...plain.dimensions, trl(5)],
       },
       {
         ...plain,
@@ -65,7 +68,7 @@ function corpus(): { workspaces: (typeof fixtureWorkspace)[]; papers: ScoredPape
         signal_score: null,
         created_at: day(1),
         screening_status: 'abstract_passed',
-        dimensions: [trl(null)],
+        dimensions: [...plain.dimensions, trl(null)],
       },
       {
         ...plain,
@@ -84,6 +87,15 @@ const q = (overrides: Partial<PapersQuery> = {}): PapersQuery => ({
   ...papersQuery.parse({}),
   screening: 'passed',
   ...overrides,
+})
+const fit = (value: number | null) => ({
+  key: 'fit_score',
+  definition_id: fixtureWorkspace.definitions[0]!.id,
+  name: 'Fit Score',
+  value,
+  raw: value === null ? '' : String(value),
+  max: 100,
+  is_trl: false,
 })
 const novelty = (value: number | null) => ({
   key: 'novelty_score',
@@ -195,18 +207,14 @@ describe('orderRows', () => {
 
 describe('corpusFacets', () => {
   test('describes the corpus for the rail', () => {
-    // The composer writes one dimension per definition; a paper carrying none
-    // at all reads as "unknown", so both non-TRL definitions stay sortable.
     const facets = corpusFacets(corpus(), new Set([id(1), id(99)]))
     expect(facets).toEqual({
       total: 5,
       score_ceiling: 100,
       newest: day(30),
       has_trl: true,
-      dimension_sorts: [
-        { key: 'fit_score', name: 'Fit Score' },
-        { key: 'novelty_score', name: 'Novelty Score' },
-      ],
+      // Novelty is active but null in every paper, so it is not sortable.
+      dimension_sorts: [{ key: 'fit_score', name: 'Fit Score' }],
       starred_count: 1,
     })
   })
@@ -219,10 +227,20 @@ describe('corpusFacets', () => {
 
   test('dimension sorts list a definition once across domains, only with a value, never TRL', () => {
     const c = corpus()
-    const fit = base.dimensions.find((d) => d.key === 'fit_score')!
-    c.papers = c.papers.map((p) => ({ ...p, dimensions: [novelty(null), ...p.dimensions] }))
-    c.papers[0] = { ...c.papers[0]!, dimensions: [fit, novelty(null), trl(3)] }
-    c.workspaces = [fixtureWorkspace, { ...fixtureWorkspace, id: id(50) }]
+    // A second domain whose key no paper here carries a row for at all — an
+    // absent row is not a value, so it must not reach the sort menu.
+    c.workspaces = [
+      fixtureWorkspace,
+      { ...fixtureWorkspace, id: id(50) },
+      {
+        ...fixtureWorkspace,
+        id: id(51),
+        definitions: [
+          { ...fixtureWorkspace.definitions[1]!, key: 'cost_eur', name: 'Cost EUR' },
+          fixtureWorkspace.definitions[2]!,
+        ],
+      },
+    ]
     expect(corpusFacets(c, none).dimension_sorts).toEqual([{ key: 'fit_score', name: 'Fit Score' }])
   })
 
