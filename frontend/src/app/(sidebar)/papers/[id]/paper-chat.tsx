@@ -290,6 +290,9 @@ export function PaperChatFrame({
         onClick={onOpen}
         disabled={!onOpen}
         aria-expanded={open}
+        // Open, the pill is faded out under the sheet — `inert` keeps the
+        // invisible control out of the tab order too.
+        inert={open}
         className={clsx(PILL_CLASS, 'active:scale-[0.97]', open && 'pointer-events-none opacity-0')}
       >
         <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
@@ -298,7 +301,10 @@ export function PaperChatFrame({
 
       <aside
         aria-label={label}
-        aria-hidden={!open}
+        // Closed, the sheet is parked off the right edge — `inert` keeps the
+        // close button and the composer out of the tab order and off the
+        // accessibility tree while the transform still has something to animate.
+        inert={!open}
         data-shape="paper-chat"
         data-state={state}
         className={clsx(
