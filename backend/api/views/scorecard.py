@@ -613,8 +613,11 @@ def extract_rich_dimension_details(
                 used.add(k_norm)
                 break
 
-    # 3. Facets (sub-scores with progress bars)
+    # 3. Facets, Texts, Lists, Facts
     facets = []
+    texts = []
+    lists = []
+    facts = []
     seen_facet_keys = set()
     facet_order = [k.strip().lower() for k in (order or [])]
 
@@ -623,6 +626,11 @@ def extract_rich_dimension_details(
         mk = m.get("key")
         mk_norm = mk.strip().lower() if mk else ""
         if mk_norm and m.get("is_numeric") and m.get("numeric_value") is not None:
+            num_v = m["numeric_value"]
+            f_max = max_val
+            if 0.0 < float(num_v) <= 1.0 and any(kw in mk_norm for kw in ("confidence", "probability", "prob", "ratio", "rate")):
+                f_max = 1
+
             # Look for assessment twin
             twin_text = None
             twin_candidates = [
@@ -641,12 +649,21 @@ def extract_rich_dimension_details(
             facets.append({
                 "key": mk,
                 "name": humanise_field_label(mk),
-                "value": m["numeric_value"],
-                "max": max_val,
+                "value": num_v,
+                "max": f_max,
                 "text": twin_text,
             })
             seen_facet_keys.add(mk_norm)
             used.add(mk_norm)
+        elif mk_norm and not m.get("is_numeric"):
+            raw_v = m.get("raw") or m.get("value")
+            if raw_v and str(raw_v) != "—":
+                facts.append({
+                    "key": mk,
+                    "name": humanise_field_label(mk),
+                    "value": str(raw_v),
+                })
+                used.add(mk_norm)
 
     # Also scan data for any other _score fields that weren't in secondary_metrics
     for k, v in data.items():
@@ -694,10 +711,6 @@ def extract_rich_dimension_details(
         facets.sort(key=facet_sort_key)
 
     # 4. Texts, Lists, Facts
-    texts = []
-    lists = []
-    facts = []
-
     ignored_keys = {
         "confidence_score", "confidence_level", "confidence_method",
         "validation_status", "validation_errors", "error", "postprocessing_error",
