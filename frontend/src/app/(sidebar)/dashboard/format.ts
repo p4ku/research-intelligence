@@ -54,6 +54,15 @@ export function formatClock(iso: string): string {
 }
 
 /**
+ * "12:03 UTC" — the clock that tells two same-day briefings of one domain
+ * apart, in the ledgers' Generated cell and the edition page's notice.
+ * Labelled, the way the runs page and Home's "started" cell do it.
+ */
+export function clockStamp(iso: string): string {
+  return `${formatClock(iso)} UTC`
+}
+
+/**
  * The Period cell: the window a run searched. Explicit dates read as a
  * range, a relative window as "Last N days", and a run that recorded
  * neither (captures from before the field existed) falls back to the day

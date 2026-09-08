@@ -49,6 +49,12 @@ export interface HomeRow {
   period: string
   /** The completion day, already worded; null until the run completes. */
   generated: string | null
+  /**
+   * "12:03 UTC" — the completion clock, set only when the domain briefed
+   * more than once that day, so the two rows read apart (in the Generated
+   * cell and in the row's accessible name); null otherwise.
+   */
+  stamp?: string | null
   /** "07:12" — when the run started (UTC), for a row still processing. */
   startedClock: string | null
   /** The day the run failed, already worded; null unless it failed. */
@@ -142,6 +148,30 @@ const STATUS_CLASS: Record<Exclude<RowStatus, 'done'>, { text: string; mark: str
 }
 
 /** Latest · Processing · Failed; completed briefings that are not the latest carry none. */
+/**
+ * The Generated cell: the completion day, and the clock when the domain
+ * briefed more than once that day. Home and the archive render it alike.
+ */
+export function Generated({ day, stamp }: { day: string; stamp: string | null }) {
+  return stamp ? (
+    <>
+      {day}
+      <span className="text-zinc-400"> · {stamp}</span>
+    </>
+  ) : (
+    day
+  )
+}
+
+/** The row link's accessible name; the clock joins it when two rows would otherwise read alike. */
+export function rowTitle(
+  row: { domain: string; period: string; stamp?: string | null },
+  t: (s: string) => string,
+): string {
+  const base = `${t('Open briefing')}: ${row.domain}, ${row.period}`
+  return row.stamp ? `${base}, ${row.stamp}` : base
+}
+
 export function StatusLabel({ status }: { status: RowStatus }) {
   const t = useT()
   if (status === 'done') return null
@@ -291,7 +321,7 @@ function Row({
       <TableRow
         data-row="briefing"
         href={brief?.href}
-        title={brief ? `${t('Open briefing')}: ${row.domain}, ${row.period}` : undefined}
+        title={brief ? rowTitle(row, t) : undefined}
         className={clsx('group', current && 'bg-foreground/3')}
       >
         <TableCell className={COL.expand.cell}>
@@ -325,10 +355,13 @@ function Row({
         </TableCell>
         <TableCell className={COL.period.cell}>{row.period}</TableCell>
         <TableCell className={COL.generated.cell}>
-          {row.generated ??
-            (row.failedDay !== null
-              ? fmt(t('failed {date}'), { date: row.failedDay })
-              : fmt(t('started {time} UTC'), { time: row.startedClock ?? '—' }))}
+          {row.generated ? (
+            <Generated day={row.generated} stamp={row.stamp ?? null} />
+          ) : row.failedDay !== null ? (
+            fmt(t('failed {date}'), { date: row.failedDay })
+          ) : (
+            fmt(t('started {time} UTC'), { time: row.startedClock ?? '—' })
+          )}
         </TableCell>
         <TableCell className={COL.papers.cell}>
           {row.papers ?? <span className="text-zinc-400">—</span>}

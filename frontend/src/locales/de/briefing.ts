@@ -17,6 +17,15 @@ export const dict: Record<string, string> = {
   'auto-brief': 'Auto-Briefing',
   'Screening log →': 'Screening-Protokoll →',
   'No papers are on file for this briefing.': 'Für dieses Briefing sind keine Papers hinterlegt.',
+  // The notice when a domain briefed more than once on one day.
+  'This is the latest of {n} briefings for this domain on {day}.':
+    'Dies ist das neueste von {n} Briefings dieser Domäne am {day}.',
+  'Earlier:': 'Früher:',
+  'Other briefings this day:': 'Weitere Briefings an diesem Tag:',
+  'The briefing this link named is no longer published.':
+    'Das in diesem Link genannte Briefing ist nicht mehr veröffentlicht.',
+  "Showing the day's briefing.": 'Gezeigt wird das Briefing des Tages.',
+  'This link named a different briefing:': 'Dieser Link nannte ein anderes Briefing:',
   'Nothing was screened out in this run.': 'In diesem Lauf wurde nichts aussortiert.',
   'No completed runs yet.': 'Noch keine abgeschlossenen Läufe.',
   'Once a pipeline run completes in any of your domains, its briefing appears here.':

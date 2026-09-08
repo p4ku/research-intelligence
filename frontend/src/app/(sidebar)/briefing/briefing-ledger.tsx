@@ -14,9 +14,11 @@ import { useMemo, useState, type ReactNode } from 'react'
 import {
   BriefPanel,
   ExpandButton,
+  Generated,
   LEAD,
   LeadHeading,
   LeadSlot,
+  rowTitle,
   StatusLabel,
 } from '../dashboard/ledger'
 import {
@@ -166,7 +168,7 @@ function Row({
       <TableRow
         data-row="briefing"
         href={row.brief.href}
-        title={`${t('Open briefing')}: ${row.domain}, ${row.period}`}
+        title={rowTitle(row, t)}
         className={clsx('group', row.current && 'bg-foreground/3')}
       >
         <TableCell className={COL.expand.cell}>
@@ -191,7 +193,9 @@ function Row({
           </span>
         </TableCell>
         <TableCell className={COL.period.cell}>{row.period}</TableCell>
-        <TableCell className={COL.generated.cell}>{row.generated}</TableCell>
+        <TableCell className={COL.generated.cell}>
+          <Generated day={row.generated} stamp={row.stamp} />
+        </TableCell>
         <TableCell className={COL.screened.cell}>{row.screened}</TableCell>
         <TableCell className={COL.included.cell}>{row.included}</TableCell>
         <TableCell className={COL.status.cell}>

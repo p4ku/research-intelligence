@@ -64,7 +64,7 @@ export default async function ScreeningLogPage({
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <ScreeningLog wsId={wsId} runId={runId} date={date} lang={lang} t={t} />
+          <ScreeningLog wsId={wsId} runId={runId} date={date} lang={lang} t={t} domains={domains} />
         </ViewTransition>
       </Suspense>
     </div>

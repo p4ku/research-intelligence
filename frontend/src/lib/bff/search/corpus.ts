@@ -8,6 +8,7 @@
  */
 import 'server-only'
 
+import { newest } from '../briefings/select'
 import { briefings } from '../briefings/service'
 import { papers } from '../papers/service'
 import type { LatestEdition, SearchCorpus } from './assemble'
@@ -17,8 +18,9 @@ export async function searchCorpus(): Promise<SearchCorpus> {
   const { workspaces, papers: all } = await papers.listEverywhere()
   const latest = await Promise.all(
     workspaces.map(async (ws): Promise<[string, LatestEdition | null]> => {
-      const [newest] = await briefings.listAll(ws.id, 'en')
-      return [ws.id, newest ? { date: newest.date, runId: newest.run_id } : null]
+      // By the clock, not by position: a source may list editions in run-start order.
+      const top = newest(await briefings.listAll(ws.id, 'en'))
+      return [ws.id, top ? { date: top.date, runId: top.run_id } : null]
     }),
   )
   return { workspaces, papers: all, latestEdition: Object.fromEntries(latest) }
