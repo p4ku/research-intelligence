@@ -88,8 +88,8 @@ Consequences:
 - `screening_status` in the wild includes `'accepted'` (absent from model choices).
 - `Paper.authors` is a comma-joined `TextField`; no publication date (only
   `created_at`); no tldr/lab/citations/code/stars; no PDF-serving endpoint
-  (raw storage keys). We link `https://arxiv.org/pdf/{arxiv_id}.pdf` /
-  `https://doi.org/{doi}` like the MCP matrix tool does.
+  (raw storage keys). We link `Paper.source_url`, which the backend owns
+  (arXiv abstract page, DOI, or provider landing page; since 2026-09-07).
 - Signal score = `workspace.signal_score_code`, a **user-supplied Python
   snippet** run in a sandbox. There is no weights model (hence no Tuning).
 - No sectors, trends, briefings/editions. Nearest analogues: `Workspace`,

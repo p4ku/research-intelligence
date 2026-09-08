@@ -83,8 +83,10 @@ JSON Schema; `src/lib/bff/papers/fixtures.ts` for full examples):
 - `rationale`/`evidence`: from the nested `fields_data.evidence[]`
   (`{quote, rationale}`) or sibling `*reason*`/`*evidence*` keys.
 - `signal_score`: the `PaperMetric` matching the paper's run, else the newest.
-- `source_url`: `Paper.source_url` as the backend stores it; `null` when it has
-  none. Never rebuilt from `arxiv_id` / `doi` — the backend owns the link rule.
+- `source_url`: `Paper.source_url` as the backend stores it, `null` when it has
+  none or the value is not an `http(s)` URL. Never rebuilt from `arxiv_id` /
+  `doi` — the backend owns the link rule. (The scorecard still also sends the
+  old `pdf_url` key with the same value; the BFF ignores it.)
 
 ### `GET /api/papers/{paper_id}/scorecard/`
 

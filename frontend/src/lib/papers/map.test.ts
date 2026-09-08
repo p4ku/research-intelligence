@@ -1,12 +1,13 @@
 import type { ExtractionDTO, ExtractionDefinitionDTO, PaperDTO } from '@/lib/api/types'
 import { describe, expect, test } from 'bun:test'
 import {
+  arxivId,
   arxivIdOf,
   corpusMaxima,
   definitionContexts,
   doiOf,
+  httpUrl,
   inferScale,
-  isArxivId,
   oneLine,
   parseNumeric,
   pickMetric,
@@ -251,19 +252,40 @@ describe('toScoredPaper', () => {
   ]
   const contexts = definitionContexts(defs, corpusMaxima(defs, exts))
 
-  test('isArxivId accepts arXiv ids and rejects a leaked OpenAlex W-id', () => {
-    expect(isArxivId('2402.11111')).toBe(true)
-    expect(isArxivId('arXiv:2402.11111v2')).toBe(true)
-    expect(isArxivId('cond-mat.mes-hall/0703029')).toBe(true)
-    expect(isArxivId('W2781738013')).toBe(false)
-    expect(isArxivId(null)).toBe(false)
+  test('arxivId normalises a real id and rejects a leaked OpenAlex W-id', () => {
+    expect(arxivId('2402.11111')).toBe('2402.11111')
+    expect(arxivId(' arXiv:2402.11111v2 ')).toBe('2402.11111v2')
+    expect(arxivId('cond-mat.mes-hall/0703029')).toBe('cond-mat.mes-hall/0703029')
+    expect(arxivId('W2781738013')).toBeNull()
+    expect(arxivId('2402.111')).toBeNull()
+    expect(arxivId(null)).toBeNull()
   })
 
-  test('arxivIdOf / doiOf read the link, not the raw fields', () => {
+  test('arxivIdOf / doiOf read the link, shape-checked, query and fragment aside', () => {
     expect(arxivIdOf('https://arxiv.org/abs/cond-mat/0102536')).toBe('cond-mat/0102536')
+    expect(arxivIdOf('http://export.arxiv.org/abs/2402.11111v3?context=cs#top')).toBe(
+      '2402.11111v3',
+    )
+    expect(arxivIdOf('https://arxiv.org/abs/2402.11111/')).toBe('2402.11111')
+    // The backend's backfill of a leaked W-id: a 404 that must not read "arXiv".
+    expect(arxivIdOf('https://arxiv.org/abs/W2781738013')).toBeNull()
+    expect(arxivIdOf('https://arxiv.org/pdf/2402.11111.pdf')).toBeNull()
     expect(arxivIdOf('https://doi.org/10.1/x')).toBeNull()
     expect(doiOf('https://doi.org/10.1/x')).toBe('10.1/x')
+    expect(doiOf('https://dx.doi.org/10.1000/abc#frag')).toBe('10.1000/abc')
+    expect(doiOf('https://doi.org/10.1000/a%3Cb')).toBe('10.1000/a<b')
+    expect(doiOf('https://doi.org/')).toBeNull()
+    expect(doiOf('not a url')).toBeNull()
     expect(doiOf(null)).toBeNull()
+  })
+
+  test('httpUrl lets only http(s) through to an href', () => {
+    expect(httpUrl('https://openalex.org/W1')).toBe('https://openalex.org/W1')
+    expect(httpUrl('HTTP://x.org/')).toBe('HTTP://x.org/')
+    expect(httpUrl('javascript:alert(1)')).toBeNull()
+    expect(httpUrl('data:text/html,hi')).toBeNull()
+    expect(httpUrl('')).toBeNull()
+    expect(httpUrl(null)).toBeNull()
   })
 
   test('source_url is the backend value; never rebuilt from the ids', () => {
@@ -278,6 +300,8 @@ describe('toScoredPaper', () => {
     expect(stale.source_url).toBeNull()
     const none = toScoredPaper(paper({ id: 'p4', source_url: null }), [], contexts)
     expect(none.source_url).toBeNull()
+    const unsafe = toScoredPaper(paper({ id: 'p5', source_url: 'javascript:1' }), [], contexts)
+    expect(unsafe.source_url).toBeNull()
   })
 
   test('dimension values, rationale, and evidence from flat fields', () => {

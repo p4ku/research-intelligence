@@ -118,7 +118,7 @@ export async function PaperRecord({
   )
 }
 
-/** The link's own host names it, so a stray value in `arxiv_id` never reads "arXiv …". */
+/** The link names itself: arXiv only for a shape-checked id, so a backfilled W-id link reads "Source". */
 function sourceLabel(url: string, t: T): string {
   const arxiv = arxivIdOf(url)
   if (arxiv) return `arXiv ${arxiv}`
