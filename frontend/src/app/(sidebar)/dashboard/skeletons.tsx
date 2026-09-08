@@ -15,7 +15,7 @@ import { RunCardSkeleton } from './run-card'
  * one status announcement, one scan sweep.
  */
 
-export function LedgerSkeletonRegion({ t }: { t: T }) {
+export function LedgerSkeletonRegion({ t, features }: { t: T; features: Features }) {
   return (
     <Skeleton.Region status={t('Loading recent briefings')}>
       <div className="grid gap-8 lg:grid-cols-3">
@@ -25,7 +25,7 @@ export function LedgerSkeletonRegion({ t }: { t: T }) {
             <HomeLinks t={t} />
           </div>
           <div className="mt-4">
-            <LedgerSkeleton rows={RECENT} />
+            <LedgerSkeleton rows={RECENT} features={features} />
           </div>
         </div>
         <aside className="lg:col-span-1">
@@ -40,8 +40,8 @@ export function LedgerSkeletonRegion({ t }: { t: T }) {
  * The loading.tsx shell: real header and search, skeleton section. The search
  * is the real component, not a bone, so it follows the page's `all_papers`
  * guard exactly — a shell that kept the field would paint a live search above
- * a corpus the reader cannot open. `features` is required because
- * dashboard/loading.tsx is the only caller.
+ * a corpus the reader cannot open. `features` also decides whether the
+ * ledger's bones carry a star column, as the rows will.
  */
 export function DashboardSkeleton({
   t,
@@ -56,7 +56,7 @@ export function DashboardSkeleton({
     <div className="space-y-8">
       <PageHeader eyebrow={t('Home')} title={fmt(t('Good morning, {name}'), { name })} />
       {features.all_papers && <CorpusSearch domains={[]} />}
-      <LedgerSkeletonRegion t={t} />
+      <LedgerSkeletonRegion t={t} features={features} />
     </div>
   )
 }

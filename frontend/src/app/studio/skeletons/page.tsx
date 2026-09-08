@@ -135,18 +135,6 @@ const homeRows: HomeRow[] = [
     },
   },
   {
-    id: `${fixtureRuns[1].id}-empty`,
-    domain: fixtureWorkspace.name,
-    status: 'empty',
-    period: '24–31 Jul 2026',
-    generated: '31 Jul 2026',
-    startedClock: '08:26',
-    failedDay: null,
-    papers: 0,
-    retry: null,
-    brief: null,
-  },
-  {
     id: fixtureRuns[1].id,
     domain: fixtureWorkspace.name,
     status: 'failed',

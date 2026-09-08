@@ -9,10 +9,9 @@ import { useFeatures } from '@/lib/features-client'
 import { useT } from '@/lib/i18n-client'
 import { useStars } from '@/lib/stars-client'
 import clsx from 'clsx'
-import { ChevronRightIcon } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { useMemo, useState, type ReactNode } from 'react'
-import { BriefPanel, StatusLabel } from '../dashboard/ledger'
+import { BriefPanel, ExpandButton, LEAD, LeadSlot, StatusLabel } from '../dashboard/ledger'
 import {
   filterRows,
   paginate,
@@ -32,15 +31,16 @@ import {
  * chevron at the row's end would promise navigation, which is the row's own
  * job; a triangle before the label is the file-tree convention for "unfold".
  * The triangle and the star both sit above the row link, so neither click
- * navigates. Filter and page live in the URL — the ledger reads them from it
- * on every render — so Back and Forward show what the address says.
+ * navigates. Home's Recent Briefings is the same row, and shares the parts.
+ * Filter and page live in the URL — the ledger reads them from it on every
+ * render — so Back and Forward show what the address says.
  */
 
 // One entry per column: the classes of its header and body cells. Both the
 // loaded ledger and its skeleton render from this list, so they cannot drift.
 const COL = {
-  expand: { head: 'w-7 pr-0!', cell: 'w-7 pr-0!' },
-  star: { head: 'w-7 pr-0!', cell: 'w-7 pr-0!' },
+  expand: LEAD.expand,
+  star: LEAD.star,
   domain: { head: '', cell: 'font-medium' },
   period: { head: '', cell: 'font-mono text-xs text-zinc-600 tabular-nums dark:text-zinc-300' },
   generated: {
@@ -137,50 +137,6 @@ function LedgerFrame({
 }
 
 /* --------------------------------- Rows --------------------------------- */
-
-/**
- * The disclosure control: a triangle before the label that turns to point
- * down while the row's brief is open, faint at rest so twenty of them do not
- * shout, darker when the row is hovered. It is positioned, so it sits above
- * the row link: a press unfolds the brief and stays on the page.
- */
-function ExpandButton({
-  open,
-  panelId,
-  onToggle,
-}: {
-  open: boolean
-  panelId: string
-  onToggle: () => void
-}) {
-  const t = useT()
-  const label = open ? t('Hide brief') : t('Show brief')
-  return (
-    <button
-      type="button"
-      aria-expanded={open}
-      aria-controls={open ? panelId : undefined}
-      aria-label={label}
-      title={label}
-      onClick={onToggle}
-      className={clsx(
-        'relative inline-flex size-7 items-center justify-center rounded-sm transition-colors duration-150 ease-out',
-        'text-zinc-300 group-hover:text-zinc-500 hover:text-zinc-950! dark:text-zinc-600 dark:group-hover:text-zinc-400 dark:hover:text-white!',
-        open && 'text-zinc-700 dark:text-zinc-200',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500',
-      )}
-    >
-      <ChevronRightIcon
-        aria-hidden="true"
-        strokeWidth={1.75}
-        className={clsx(
-          'size-4 transition-transform duration-200 ease-out motion-reduce:transition-none',
-          open && 'rotate-90',
-        )}
-      />
-    </button>
-  )
-}
 
 function Row({
   row,
@@ -412,13 +368,11 @@ export function BriefingLedgerSkeleton({
       rows={Array.from({ length: rows }, (_, i) => (
         <TableRow key={i} data-row="briefing" className={clsx(i === 0 && 'bg-foreground/3')}>
           <TableCell className={COL.expand.cell}>
-            {/* The triangle's footprint, so the row keeps its loaded height. */}
-            <span aria-hidden="true" className="flex size-7" />
+            <LeadSlot />
           </TableCell>
           {features.stars && (
             <TableCell className={COL.star.cell}>
-              {/* The star's footprint, as the triangle's. */}
-              <span aria-hidden="true" className="flex size-7" />
+              <LeadSlot />
             </TableCell>
           )}
           <TableCell className={COL.domain.cell}>

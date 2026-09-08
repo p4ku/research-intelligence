@@ -7,6 +7,7 @@ import {
   composeRows,
   currentRunId,
   filterRows,
+  hasBriefing,
   paginate,
   PER_PAGE,
   searchOf,
@@ -84,6 +85,21 @@ describe('composeRows', () => {
       lang: 'en',
     })
     expect(rows.map((r) => r.current)).toEqual([true, false])
+  })
+})
+
+describe('hasBriefing', () => {
+  test('needs papers that cleared screening and an edition that shows them', () => {
+    expect(hasBriefing(25, edition, false)).toBe(true)
+    expect(hasBriefing(0, edition, false)).toBe(false)
+    expect(hasBriefing(25, null, false)).toBe(false)
+    expect(hasBriefing(25, { papers: [] }, false)).toBe(false)
+  })
+
+  test('past the corpus cap an edition with no papers is unknowable, not empty', () => {
+    expect(hasBriefing(25, { papers: [] }, true)).toBe(true)
+    // The counter is the run's own, so a zero there is still a zero.
+    expect(hasBriefing(0, { papers: [] }, true)).toBe(false)
   })
 })
 

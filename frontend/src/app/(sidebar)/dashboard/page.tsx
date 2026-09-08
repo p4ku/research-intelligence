@@ -75,7 +75,7 @@ export default async function DashboardPage() {
       <Suspense
         fallback={
           <ViewTransition exit="bone-exit" default="none">
-            <LedgerSkeletonRegion t={t} />
+            <LedgerSkeletonRegion t={t} features={features} />
           </ViewTransition>
         }
       >
