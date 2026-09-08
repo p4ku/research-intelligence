@@ -51,8 +51,9 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ code: 'invalid-request' satisfies LoginErrorCode }, { status: 400 })
   }
-  // `request.json()` also succeeds for null, a number, a string or an array;
-  // none of those is a login body, and reading fields off them throws.
+  // `request.json()` also succeeds for null, a number or a string; reading
+  // fields off null throws. (An array is an object with no fields, so it
+  // falls through to `missing-credentials` like `{}` does.)
   if (typeof raw !== 'object' || raw === null) {
     return NextResponse.json({ code: 'invalid-request' satisfies LoginErrorCode }, { status: 400 })
   }

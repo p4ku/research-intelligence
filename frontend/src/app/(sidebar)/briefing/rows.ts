@@ -1,6 +1,7 @@
 import type { Edition } from '@/lib/bff/briefings/schema'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
+import { compareInstants } from '@/lib/instant'
 import type { WorkspaceSummary } from '@/lib/papers/types'
 import { formatAuthors, formatDay, periodLabel } from '../dashboard/format'
 import type { HomeBrief } from '../dashboard/ledger'
@@ -52,7 +53,7 @@ export function currentRunId(runs: PipelineRun[]): string | null {
   let best: PipelineRun | null = null
   for (const run of runs) {
     if (run.status !== 'completed') continue
-    if (!best || when(run) > when(best)) best = run
+    if (!best || compareInstants(when(run), when(best)) > 0) best = run
   }
   return best?.id ?? null
 }

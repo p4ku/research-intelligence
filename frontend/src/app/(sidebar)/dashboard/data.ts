@@ -5,6 +5,7 @@ import { briefings } from '@/lib/bff/briefings/service'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import type { Lang } from '@/lib/i18n'
+import { compareInstants } from '@/lib/instant'
 import { cache } from 'react'
 
 /**
@@ -22,7 +23,7 @@ export const allRuns = cache(async (): Promise<PipelineRun[]> => {
   const list = await runsService.listEverywhere()
   return list
     .slice()
-    .sort((a, b) => (b.started_at ?? b.run_date).localeCompare(a.started_at ?? a.run_date))
+    .sort((a, b) => compareInstants(b.started_at ?? b.run_date, a.started_at ?? a.run_date))
 })
 
 export const currentRun = cache(

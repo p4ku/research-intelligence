@@ -93,6 +93,15 @@ describe('currentRunId', () => {
     expect(currentRunId(fixtureRuns)).toBe(fixtureRuns[0].id)
     expect(currentRunId([])).toBeNull()
   })
+
+  test('picks the later of two completed runs started in the same second', () => {
+    // DRF drops the fraction at zero microseconds; as strings the earlier
+    // run would read as newer ('Z' > '.').
+    const earlier = { ...fixtureRuns[0], id: 'earlier', started_at: '2026-08-31T08:26:21Z' }
+    const later = { ...fixtureRuns[0], id: 'later', started_at: '2026-08-31T08:26:21.417680Z' }
+    expect(currentRunId([earlier, later])).toBe('later')
+    expect(currentRunId([later, earlier])).toBe('later')
+  })
 })
 
 function row(id: string, workspaceId: string): ArchiveRow {

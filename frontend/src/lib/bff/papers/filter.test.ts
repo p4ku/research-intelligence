@@ -244,6 +244,36 @@ describe('corpusFacets', () => {
     expect(corpusFacets(c, none).dimension_sorts).toEqual([{ key: 'fit_score', name: 'Fit Score' }])
   })
 
+  test('a key valued in one domain is offered even though the other domain has no row for it', () => {
+    // `some`, not `every`: a unified corpus is exactly the case where most
+    // papers carry no row for a given domain's key.
+    const c = corpus()
+    const costDefinition = {
+      ...fixtureWorkspace.definitions[1]!,
+      key: 'cost_eur',
+      name: 'Cost EUR',
+    }
+    const cost = {
+      ...novelty(12),
+      key: 'cost_eur',
+      definition_id: costDefinition.id,
+      name: 'Cost EUR',
+    }
+    c.papers[0] = { ...c.papers[0]!, dimensions: [...c.papers[0]!.dimensions, cost] }
+    c.workspaces = [
+      fixtureWorkspace,
+      {
+        ...fixtureWorkspace,
+        id: id(51),
+        definitions: [costDefinition, fixtureWorkspace.definitions[2]!],
+      },
+    ]
+    expect(corpusFacets(c, none).dimension_sorts).toEqual([
+      { key: 'fit_score', name: 'Fit Score' },
+      { key: 'cost_eur', name: 'Cost EUR' },
+    ])
+  })
+
   test('an empty corpus', () => {
     expect(corpusFacets({ workspaces: [], papers: [] }, none)).toEqual({
       total: 0,

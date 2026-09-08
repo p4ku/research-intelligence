@@ -8,6 +8,7 @@
  *  - absent is not zero (`{kind:'none'}`, `cost.usd === null`);
  *  - never estimate. Only what the engine measured is reported.
  */
+import { compareInstants } from '@/lib/instant'
 import type { ComponentCost, ComponentRun, ComponentSummary, StepType } from './schema'
 
 /* ------------------------------ JSON readers ------------------------------ */
@@ -209,12 +210,13 @@ const STEP_ORDER: StepType[] = [
 
 export function chronologically(a: ComponentRun, b: ComponentRun): number {
   // `started_at` is the truth when both have one — it survives reruns, which
-  // re-execute a single step out of its nominal position. Compared as numbers:
-  // DRF omits the fraction at zero microseconds, so the strings do not sort
-  // (`…T10:00:00Z` > `…T10:00:00.4Z` lexicographically).
+  // re-execute a single step out of its nominal position, sometimes within
+  // the same millisecond. Compared as instants (see lib/instant.ts for why
+  // neither the strings nor `Date.parse` alone will do); an equal or
+  // unparseable pair falls through to the nominal order.
   if (a.started_at && b.started_at) {
-    const d = Date.parse(a.started_at) - Date.parse(b.started_at)
-    if (d) return d // falsy covers both 0 and NaN — fall through to STEP_ORDER
+    const d = compareInstants(a.started_at, b.started_at)
+    if (d) return d
   }
   return STEP_ORDER.indexOf(a.step_type) - STEP_ORDER.indexOf(b.step_type)
 }

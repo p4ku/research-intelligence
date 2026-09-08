@@ -172,4 +172,28 @@ describe('chronologically', () => {
     const download = at('download', '2026-09-08T10:00:00.412000Z')
     expect([download, search].sort(chronologically)).toEqual([search, download])
   })
+
+  test('a rerun of one step 400µs later keeps its attempt order', () => {
+    // Django lists newest first; the timeline must not inherit that on a
+    // millisecond tie, or the later attempt is labelled "Attempt 1".
+    const at = (step_type: ComponentRun['step_type'], started_at: string) =>
+      ({ step_type, started_at }) as ComponentRun
+    const first = at('ocr', '2026-09-08T10:00:00.412300Z')
+    const second = at('ocr', '2026-09-08T10:00:00.412700Z')
+    expect([second, first].sort(chronologically)).toEqual([first, second])
+  })
+
+  test('equal or unparseable instants fall through to the nominal step order', () => {
+    const at = (step_type: ComponentRun['step_type'], started_at: string) =>
+      ({ step_type, started_at }) as ComponentRun
+    const same = '2026-09-08T10:00:00Z'
+    expect([at('download', same), at('search', same)].sort(chronologically)).toEqual([
+      at('search', same),
+      at('download', same),
+    ])
+    expect([at('download', 'garbage'), at('search', same)].sort(chronologically)).toEqual([
+      at('search', same),
+      at('download', 'garbage'),
+    ])
+  })
 })
