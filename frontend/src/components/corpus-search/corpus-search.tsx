@@ -6,7 +6,7 @@ import { bffFetch } from '@/lib/bff/client'
 import { useFeatures } from '@/lib/features-client'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
-import { tokenize } from '@/lib/search/match'
+import { parseQuery } from '@/lib/search/match'
 import { XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import { useRouter } from 'next/navigation'
@@ -96,7 +96,7 @@ export function CorpusSearch({
   const active = cursor < rows.length ? cursor : -1
   const activeRow: Row | undefined = active >= 0 ? rows[active] : undefined
   const expanded = open && sections.length > 0
-  const tokens = useMemo(() => tokenize(trimmed), [trimmed])
+  const tokens = useMemo(() => parseQuery(trimmed).tokens, [trimmed])
 
   // A slow fetch earns a spinner; a fast one never flickers. The timer
   // records which text was slow, so the spinner is derived, never reset.

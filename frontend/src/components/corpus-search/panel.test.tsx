@@ -1,7 +1,7 @@
 import { assembleSearch } from '@/lib/bff/search/assemble'
 import { fixtureSearchCorpus } from '@/lib/bff/search/fixtures'
 import { ALL_ON } from '@/lib/features'
-import { tokenize } from '@/lib/search/match'
+import { parseQuery } from '@/lib/search/match'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { SearchPanel } from './panel'
@@ -26,7 +26,7 @@ function render(q: string, cursor = -1, pending = false) {
       sections={sections}
       cursor={cursor}
       pending={pending}
-      tokens={tokenize(q)}
+      tokens={parseQuery(q).tokens}
       showDomain
       onCursor={noop}
       onActivate={noop}
@@ -68,6 +68,14 @@ describe('SearchPanel', () => {
     const id = render('2608.01234')
     expect(id).toContain('Open paper')
     expect(id).toContain('href="/papers/00000000-0000-4000-8000-000000000041"')
+  })
+
+  test('only the ranked tokens bold, so stopwords stay plain', () => {
+    // The server ranks with parseQuery, which drops stopwords; highlighting
+    // with the raw tokenizer would light up any word starting with "is"/"the".
+    const marks = render('what is the agent').match(/<mark[^>]*>[^<]*<\/mark>/g) ?? []
+    expect(marks.length).toBeGreaterThan(0)
+    for (const mark of marks) expect(mark.toLowerCase()).toContain('agent')
   })
 
   test('a miss says so in plain words', () => {
