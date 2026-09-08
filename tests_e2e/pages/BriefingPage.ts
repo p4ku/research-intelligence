@@ -6,6 +6,8 @@ export class BriefingPage extends BasePage {
   readonly briefingContent: Locator;
   /** The archive ledger once it has streamed in (its skeleton has rows but no links). */
   readonly loadedLedger: Locator;
+  /** The archive's line when no domain has briefed yet — it renders instead of the ledger. */
+  readonly noBriefingsNotice: Locator;
   /** The archive ledger's row links — one per briefing, each carrying `?domain=` and `&run=`. */
   readonly editionLinks: Locator;
   /** The edition page's paper cards, each linking to the paper as this run read it (`?run=`). */
@@ -18,6 +20,7 @@ export class BriefingPage extends BasePage {
     this.pageTitle = page.locator("h1:has-text('Briefing'), h1:has-text('Briefings')").first();
     this.briefingContent = page.locator("article, main, [data-slot='briefing-content']").first();
     this.loadedLedger = page.locator("[data-shape='briefing-ledger'][data-state='loaded']").first();
+    this.noBriefingsNotice = page.getByText('No briefings have been generated yet.');
     this.editionLinks = page.locator("tr[data-row='briefing'] a[href^='/briefing/']");
     this.paperCards = page.locator("a[data-shape='paper-card']");
     this.noPapersNotice = page.getByText('No papers are on file for this briefing.');
@@ -45,8 +48,9 @@ export class BriefingPage extends BasePage {
    */
   async openFirstEdition(): Promise<string | null> {
     // The ledger streams in behind its skeleton, so wait for the loaded
-    // ledger (which also frames the empty state) rather than the first paint.
-    await this.loadedLedger.waitFor({ state: 'visible', timeout: 15000 });
+    // ledger (which also frames a filter with no matches) or the line that
+    // replaces it when nothing has briefed yet, rather than the first paint.
+    await this.loadedLedger.or(this.noBriefingsNotice).first().waitFor({ state: 'visible', timeout: 15000 });
     if ((await this.editionLinks.count()) === 0) return null;
     // The row link is laid over every cell; the leading cells also hold
     // the expand and star controls, positioned above it, so click the
