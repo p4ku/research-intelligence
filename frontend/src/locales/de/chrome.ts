@@ -35,6 +35,8 @@ export const dict: Record<string, string> = {
   // Accessible name for the mobile nav drawer itself, not a visible label.
   Navigation: 'Navigation',
   Breadcrumb: 'Pfadnavigation',
+  // Accessible name for the pager landmark (src/components/page-nav.tsx).
+  Pagination: 'Seitennavigation',
   'Retrying…': 'Wird erneut versucht …',
   'Reference {id}': 'Referenz {id}',
   "Couldn't load this page.": 'Diese Seite konnte nicht geladen werden.',

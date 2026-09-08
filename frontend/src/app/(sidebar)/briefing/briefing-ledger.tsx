@@ -360,7 +360,7 @@ export function BriefingLedger({
           pageCount={pageCount}
           onChange={(p) => update({ page: p })}
           className="mt-6"
-          labels={{ prev: t('Previous'), next: t('Next') }}
+          labels={{ prev: t('Previous'), next: t('Next'), nav: t('Pagination') }}
         />
       }
     />

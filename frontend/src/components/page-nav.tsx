@@ -36,8 +36,8 @@ export function PageNav({
   page: number
   pageCount: number
   onChange: (page: number) => void
-  /** Translated Prev/Next labels; defaults are English. */
-  labels?: { prev: string; next: string }
+  /** Translated Prev/Next labels and landmark name; defaults are English. */
+  labels?: { prev: string; next: string; nav?: string }
   className?: string
 }) {
   if (pageCount <= 1) return null
@@ -46,7 +46,7 @@ export function PageNav({
 
   return (
     <nav
-      aria-label="Pagination"
+      aria-label={labels?.nav ?? 'Pagination'}
       className={clsx('flex items-center justify-between border-t border-line-soft', className)}
     >
       <div className="-mt-px flex w-0 flex-1">

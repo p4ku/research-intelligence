@@ -361,7 +361,7 @@ export function PapersBrowser({
             pageCount={pageCount}
             onChange={(page) => update({ page })}
             className="mt-6"
-            labels={{ prev: t('Previous'), next: t('Next') }}
+            labels={{ prev: t('Previous'), next: t('Next'), nav: t('Pagination') }}
           />
         </div>
 
