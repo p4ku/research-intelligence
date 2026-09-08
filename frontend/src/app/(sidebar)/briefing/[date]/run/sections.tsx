@@ -3,6 +3,7 @@ import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import type { Lang, T } from '@/lib/i18n'
 import { notFound } from 'next/navigation'
+import { sameDayEditions, SameDayNotice } from '../sections'
 import { ExclusionsTable } from './exclusions-table'
 
 export function funnelCopy(t: T) {
@@ -33,6 +34,7 @@ export async function ScreeningLog({
 }) {
   const edition = await forPage(briefings.findByDate(date, lang, wsId, runId))
   if (!edition) notFound()
+  const siblings = await sameDayEditions(edition, lang)
 
   const copy = funnelCopy(t)
   const funnel = [
@@ -43,6 +45,9 @@ export async function ScreeningLog({
 
   return (
     <>
+      {/* The same line as the edition page: which run this log belongs to,
+          when the URL and the day do not say. */}
+      <SameDayNotice edition={edition} siblings={siblings} runId={runId} t={t} lang={lang} />
       <StatBand items={funnel} flow className="lg:grid-cols-3!" />
 
       <section>

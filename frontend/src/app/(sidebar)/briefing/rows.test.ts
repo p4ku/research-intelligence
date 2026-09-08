@@ -116,6 +116,74 @@ describe('composeRows', () => {
     expect(rows.map((r) => r.stamp)).toEqual([null, null])
   })
 
+  test('a completed run without a completion stamp still carries a clock, from its start', () => {
+    const stampless = {
+      ...run,
+      id: '00000000-0000-4000-8000-000000000035',
+      started_at: '2026-08-31T12:00:00Z',
+      completed_at: null,
+    }
+    const its = { ...edition, run_id: stampless.id, generated_at: null }
+    const rows = composeRows({
+      editions: [its, edition],
+      runs: [stampless, run],
+      domains,
+      t,
+      lang: 'en',
+    })
+    expect(rows.map((r) => r.generated)).toEqual(['31 Aug 2026', '31 Aug 2026'])
+    expect(rows.map((r) => r.stamp)).toEqual(['12:00 UTC', '08:29 UTC'])
+  })
+
+  test('the pair is counted on the day the cell prints, so a midnight completion is the next day', () => {
+    // The backend dated the edition 30 Aug; its run completed 00:20 on the 31st.
+    const late = {
+      ...run,
+      id: older.run_id,
+      started_at: '2026-08-30T23:40:00Z',
+      completed_at: '2026-08-31T00:20:00Z',
+    }
+    const lateEdition = {
+      ...edition,
+      run_id: late.id,
+      date: '2026-08-30',
+      generated_at: late.completed_at,
+    }
+    const rows = composeRows({
+      editions: [edition, lateEdition],
+      runs: [run, late],
+      domains,
+      t,
+      lang: 'en',
+    })
+    expect(rows.map((r) => r.generated)).toEqual(['31 Aug 2026', '31 Aug 2026'])
+    expect(rows.map((r) => r.stamp)).toEqual(['08:29 UTC', '00:20 UTC'])
+  })
+
+  test('a same-day edition that is not a row does not make its twin carry a clock', () => {
+    const emptyRun = {
+      ...run,
+      id: older.run_id,
+      completed_at: '2026-08-31T15:30:00Z',
+      total_papers_passed_screening: 0,
+    }
+    const emptyEdition = {
+      ...edition,
+      run_id: emptyRun.id,
+      papers: [],
+      generated_at: emptyRun.completed_at,
+    }
+    const rows = composeRows({
+      editions: [emptyEdition, edition],
+      runs: [emptyRun, run],
+      domains,
+      t,
+      lang: 'en',
+    })
+    expect(rows.map((r) => r.id)).toEqual([edition.run_id])
+    expect(rows[0].stamp).toBeNull()
+  })
+
   test('the newest completion is current, even when an older run started later', () => {
     const slow = {
       ...run,

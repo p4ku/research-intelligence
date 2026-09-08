@@ -16,6 +16,7 @@ import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { assertUuid } from '../core/validate'
 import { ledgerRequested } from '../corpus/ledger-flag'
+import { byRunClock } from './clock'
 import { isRetryable, runPeriod } from './period'
 import {
   runStatus,
@@ -87,13 +88,19 @@ export const runs = {
    * Always unfiltered and cached per request, so the per-domain and
    * per-status views below, the briefings composed on top of it, and the
    * corpus snapshot's version probe all share the one fetch.
+   *
+   * Newest by the run clock (./clock.ts) — Django lists by start, and a long
+   * run can start first and finish last. Sorted here, once, so a page of
+   * `list` below holds the same runs a page rendered from this list does:
+   * Home's live refresh compares the two and must never see a difference
+   * that is not a run changing.
    */
   listEverywhere: cache(async (): Promise<PipelineRun[]> => {
     // Before the first await: the corpus snapshot reads this flag to know the
     // ledger is in hand for this request, so its probe is free and must run.
     ledgerRequested().yes = true
     const rows = await django('/api/pipeline-runs/', z.array(pipelineRunDTO))
-    return rows.map(toRun)
+    return rows.map(toRun).sort(byRunClock)
   }),
 
   /**

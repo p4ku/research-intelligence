@@ -1,13 +1,16 @@
 import { Card, SectionLabel } from '@/components/scanner-ui'
 import type { Edition } from '@/lib/bff/briefings/schema'
 import { editionDate } from '@/lib/bff/briefings/select'
+import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
+import { papers } from '@/lib/bff/papers/service'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
 import { editionHref } from '../briefing/format'
-import { currentRun, inFlightRuns, recentBriefings } from './data'
-import { clockStamp, formatAuthors, formatClock, formatDay, periodLabel } from './format'
+import { briefingClock, briefingsPerDay, stampFor } from '../briefing/rows'
+import { allRuns, currentRun, inFlightRuns, recentBriefings } from './data'
+import { formatAuthors, formatClock, formatDay, periodLabel } from './format'
 import { HomeLinks, type HomePaper } from './home-ui'
 import { Ledger, type HomeRow, type RowStatus } from './ledger'
 import { LiveRefresh } from './live-refresh'
@@ -68,9 +71,19 @@ export async function LedgerSection({
   domains: RunDomain[]
   today: string
 }) {
-  const [items, current, inFlight] = await forPage(
-    Promise.all([recentBriefings(lang), currentRun(), inFlightRuns()]),
+  const [items, current, inFlight, editions, all, capped] = await forPage(
+    Promise.all([
+      recentBriefings(lang),
+      currentRun(),
+      inFlightRuns(),
+      briefings.listEverywhere(lang),
+      allRuns(),
+      papers.corpusTruncated(),
+    ]),
   )
+  // The same-day clock follows the archive's count over every briefing, not
+  // the five shown: a row must read the same on both screens.
+  const perDay = briefingsPerDay(editions, new Map(all.map((run) => [run.id, run])), capped)
   const rows: HomeRow[] = items.map(({ run, edition }) => {
     const status = rowStatus(run, current?.id ?? null)
     const completed = run.status === 'completed'
@@ -79,7 +92,13 @@ export async function LedgerSection({
       domain: run.workspace_name,
       status,
       period: periodLabel(run, t, lang),
-      generated: completed ? formatDay(editionDate(run), lang) : null,
+      generated: completed
+        ? formatDay(
+            edition ? (briefingClock(edition, run) ?? edition.date) : editionDate(run),
+            lang,
+          )
+        : null,
+      stamp: edition ? stampFor(edition, run, perDay) : null,
       startedClock: run.started_at ? formatClock(run.started_at) : null,
       // Django stamps completed_at on failure and abort alike.
       failedDay:
@@ -105,18 +124,6 @@ export async function LedgerSection({
             top: topPapers(edition),
           }
         : null,
-    }
-  })
-  // A domain that briefed twice in a day has two rows that would read the
-  // same (period and day match): those, and only those, carry the clock.
-  const perDay = new Map<string, number>()
-  const dayOf = (run: PipelineRun) => `${run.workspace_id}|${editionDate(run)}`
-  for (const { run } of items) {
-    if (run.status === 'completed') perDay.set(dayOf(run), (perDay.get(dayOf(run)) ?? 0) + 1)
-  }
-  items.forEach(({ run }, i) => {
-    if (run.status === 'completed' && run.completed_at && (perDay.get(dayOf(run)) ?? 0) > 1) {
-      rows[i]!.stamp = clockStamp(run.completed_at)
     }
   })
   // From every run in flight, not the rows: one may sit below the fifth briefing.

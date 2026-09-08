@@ -1,4 +1,5 @@
 import type { Edition } from '@/lib/bff/briefings/schema'
+import { runClock } from '@/lib/bff/pipeline-runs/clock'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
@@ -48,10 +49,69 @@ export interface ArchiveState {
   page: number
 }
 
-// The clock every briefing list keeps: a briefing is published when its run
-// completes (the start while it is still running). Home's run order and
-// `editionFor` use the same one, so "Current" is the same run everywhere.
-const when = (run: PipelineRun) => run.completed_at ?? run.started_at ?? run.run_date
+// The one run clock (lib/bff/pipeline-runs/clock.ts): Home's order and
+// `editionFor` keep it too, so "Current" is the same run everywhere.
+const when = runClock
+
+/**
+ * The instant a briefing was published: its run's completion, else the
+ * edition's own stamp, else the run's start (a completed run can lack
+ * `completed_at`). Null only for an edition with no run and no stamp.
+ */
+export function briefingClock(
+  e: Pick<Edition, 'generated_at'>,
+  run?: Pick<PipelineRun, 'completed_at' | 'started_at'> | null,
+): string | null {
+  return run?.completed_at ?? e.generated_at ?? run?.started_at ?? null
+}
+
+/** The (domain, day) a briefing is listed under — the day its Generated cell prints. */
+export function briefingDay(
+  e: Pick<Edition, 'workspace_id' | 'date' | 'generated_at'>,
+  run?: Pick<PipelineRun, 'completed_at' | 'started_at'> | null,
+): string {
+  return `${e.workspace_id}|${(briefingClock(e, run) ?? e.date).slice(0, 10)}`
+}
+
+/**
+ * How many briefings each (domain, day) holds, over every edition that is a
+ * row — the rule both ledgers stamp by, so a run reads the same on Home and
+ * in the archive. Counted over the whole list, never a page or a window: a
+ * row's name must not depend on where it landed.
+ */
+export function briefingsPerDay(
+  editions: readonly Pick<
+    Edition,
+    'run_id' | 'workspace_id' | 'date' | 'generated_at' | 'papers' | 'funnel'
+  >[],
+  runs: ReadonlyMap<string, PipelineRun>,
+  capped: boolean,
+): Map<string, number> {
+  const perDay = new Map<string, number>()
+  for (const e of editions) {
+    const run = runs.get(e.run_id)
+    const included = run?.total_papers_passed_screening ?? e.funnel.passed_screening
+    if (!hasBriefing(included, e, capped)) continue
+    const key = briefingDay(e, run)
+    perDay.set(key, (perDay.get(key) ?? 0) + 1)
+  }
+  return perDay
+}
+
+/**
+ * The clock a row carries when its (domain, day) holds more than one
+ * briefing — "12:03 UTC" — so two rows that would otherwise read the same
+ * are told apart. Null for a day with one briefing, or with no instant.
+ */
+export function stampFor(
+  e: Pick<Edition, 'workspace_id' | 'date' | 'generated_at'>,
+  run: Pick<PipelineRun, 'completed_at' | 'started_at'> | null | undefined,
+  perDay: ReadonlyMap<string, number>,
+): string | null {
+  if ((perDay.get(briefingDay(e, run)) ?? 0) < 2) return null
+  const at = briefingClock(e, run)
+  return at ? clockStamp(at) : null
+}
 
 /**
  * Whether a completed run has a briefing to open. It does not when nothing
@@ -103,9 +163,8 @@ export function composeRows({
   // If the newest completed run has no edition (its corpus could not be
   // read) no row is Current.
   const currentId = currentRunId(runs)
+  const perDay = briefingsPerDay(editions, byId, capped)
   const rows: ArchiveRow[] = []
-  // Each row's (domain, day) and completion instant, for the clock below.
-  const days: { key: string; at: string | null }[] = []
   for (const e of editions) {
     const run = byId.get(e.run_id)
     const screened = run?.total_papers_fetched ?? e.funnel.fetched
@@ -113,16 +172,14 @@ export function composeRows({
     // Nothing to open: the archive leaves the run out (and, as on Home, it
     // is never Current).
     if (!hasBriefing(included, e, capped)) continue
-    const at = run?.completed_at ?? e.generated_at ?? null
-    days.push({ key: `${e.workspace_id}|${e.date}`, at })
     rows.push({
       id: e.run_id,
       workspaceId: e.workspace_id,
       domain: domains[e.workspace_id] ?? run?.workspace_name ?? '—',
       current: e.run_id === currentId,
       period: run ? periodLabel(run, t, lang) : formatDay(e.date, lang),
-      generated: formatDay(at ?? e.date, lang),
-      stamp: null,
+      generated: formatDay(briefingClock(e, run) ?? e.date, lang),
+      stamp: stampFor(e, run, perDay),
       screened,
       included,
       brief: {
@@ -140,14 +197,6 @@ export function composeRows({
       },
     })
   }
-  // A domain that briefed twice in a day has two rows that would read the
-  // same (period and day match): those, and only those, carry the clock.
-  const perDay = new Map<string, number>()
-  for (const d of days) perDay.set(d.key, (perDay.get(d.key) ?? 0) + 1)
-  rows.forEach((row, i) => {
-    const d = days[i]!
-    if ((perDay.get(d.key) ?? 0) > 1 && d.at) row.stamp = clockStamp(d.at)
-  })
   return rows
 }
 

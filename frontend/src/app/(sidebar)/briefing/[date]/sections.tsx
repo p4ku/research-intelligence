@@ -11,8 +11,10 @@ import { fmt, type Lang, type T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { clockStamp } from '../../dashboard/format'
+import { cache } from 'react'
+import { clockStamp, formatDay } from '../../dashboard/format'
 import { editionHref, formatEditionDate } from '../format'
+import { hasBriefing } from '../rows'
 import { EditionPaperList } from './edition-paper-list'
 
 /**
@@ -55,11 +57,7 @@ export async function EditionHead({
   // A date with no edition is a true 404 — rendered in-stream now that the
   // shell has already gone out (see docs/skeletons.md).
   if (!edition) notFound()
-  // The domain's other editions of the same day, for the notice below. The
-  // list is the one findByDate already read under the composed source.
-  const siblings = (await briefings.listAll(edition.workspace_id, lang).catch(() => []))
-    .filter((e) => e.date === edition.date && e.run_id !== edition.run_id)
-    .sort(byNewest)
+  const siblings = await sameDayEditions(edition, lang)
 
   const copy = funnelCopy(t)
   const funnel = [
@@ -87,13 +85,7 @@ export async function EditionHead({
           </h1>
           {features.stars && <StarToggle kind="briefing" id={edition.run_id} className="mt-px" />}
         </div>
-        <SameDayNotice
-          edition={edition}
-          siblings={siblings}
-          named={runId === edition.run_id}
-          t={t}
-          lang={lang}
-        />
+        <SameDayNotice edition={edition} siblings={siblings} runId={runId} t={t} lang={lang} />
       </div>
 
       <StatBand items={funnel} flow className="lg:grid-cols-3!" />
@@ -110,31 +102,68 @@ export async function EditionHead({
 }
 
 /**
- * One quiet line when the domain briefed more than once on this day. A link
- * that named this run (every link the app mints) gets the day's other
- * editions; a link that did not — a bookmark from before runs were in the
- * URL, a run since gone — landed on the day's newest, and says so, with the
- * earlier editions a click away. Nothing when the day holds one edition.
+ * The domain's other briefings of the same day, newest first — those that
+ * are rows in the ledgers (the same rule as `hasBriefing`), so the notice
+ * never offers an edition the archive hides. The list is the one
+ * `findByDate` already read under the composed source; a failed read is
+ * no siblings, never a failed page. Cached per request: the edition page
+ * and the screening log both ask.
  */
-function SameDayNotice({
+export const sameDayEditions = cache(async (edition: Edition, lang: Lang): Promise<Edition[]> => {
+  const [all, capped] = await Promise.all([
+    briefings.listAll(edition.workspace_id, lang).catch(() => []),
+    papersService.corpusTruncated().catch(() => false),
+  ])
+  return all
+    .filter(
+      (e) =>
+        e.date === edition.date &&
+        e.run_id !== edition.run_id &&
+        hasBriefing(e.funnel.passed_screening, e, capped),
+    )
+    .sort(byNewest)
+})
+
+/**
+ * One quiet line under the title when the URL and the day do not tell the
+ * whole story. A link that named this run (every link the app mints) lists
+ * the day's other briefings; a link that did not — a bookmark from before
+ * runs were in the URL — landed on the day's newest and says so, with the
+ * earlier ones a click away; a link naming a run that is no longer
+ * published (its run passed nothing, or is gone) says that first, even
+ * when the day holds only this briefing. Nothing when the URL named this
+ * run and the day holds no other.
+ */
+export function SameDayNotice({
   edition,
   siblings,
-  named,
+  runId,
   t,
   lang,
 }: {
   edition: Edition
-  /** The domain's other editions of the day, newest first. */
+  /** The domain's other briefings of the day, newest first (`sameDayEditions`). */
   siblings: Edition[]
-  /** Whether the URL named this very run. */
-  named: boolean
+  /** The run the URL named, if any. */
+  runId?: string
   t: T
   lang: Lang
 }) {
-  if (siblings.length === 0) return null
+  const named = runId === edition.run_id
+  const substituted = Boolean(runId) && !named
+  if (siblings.length === 0 && !substituted) return null
+  const gone = substituted ? `${t('The briefing this link named is no longer published.')} ` : ''
+  if (siblings.length === 0) {
+    return (
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+        {gone}
+        {t("Showing the day's briefing.")}
+      </p>
+    )
+  }
   const lead = named
     ? t('Other briefings this day:')
-    : `${fmt(t('This is the latest of {n} briefings for this domain on {day}.'), {
+    : `${gone}${fmt(t('This is the latest of {n} briefings for this domain on {day}.'), {
         n: siblings.length + 1,
         day: formatEditionDate(edition.date, lang),
       })} ${t('Earlier:')}`
@@ -148,7 +177,7 @@ function SameDayNotice({
             href={editionHref(e.date, e.workspace_id, { runId: e.run_id })}
             className="font-medium text-blue-600 hover:underline dark:text-blue-400"
           >
-            {e.generated_at ? clockStamp(e.generated_at) : formatEditionDate(e.date, lang)}
+            {e.generated_at ? clockStamp(e.generated_at) : formatDay(e.date, lang)}
           </Link>
         </span>
       ))}

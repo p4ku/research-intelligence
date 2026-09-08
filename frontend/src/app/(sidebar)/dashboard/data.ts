@@ -17,19 +17,13 @@ import { inFlightIds, selectRecent, type RecentBriefing } from './recent'
  */
 
 /**
- * Every run the user can see, newest first by the clock the briefings use:
- * completion (a briefing is published when its run completes), else the
- * start while a run is still in flight. Django lists by start, and a long
- * run can start first and finish last — so the order is re-asserted here,
- * and "Current" (below) and the archive's agree on which run is newest.
+ * Every run the user can see, newest first by the run clock — the order
+ * `runs.listEverywhere` keeps (lib/bff/pipeline-runs/clock.ts). Not re-sorted
+ * here: the live refresh polls a page of the same list through
+ * /bff/pipeline-runs and compares in-flight sets, so both windows must be
+ * cut from one order or they can differ forever.
  */
-export const allRuns = cache(async (): Promise<PipelineRun[]> => {
-  const list = await runsService.listEverywhere()
-  return list.slice().sort((a, b) => runClock(b).localeCompare(runClock(a)))
-})
-
-/** When a run last did something: completed, else started, else its day. */
-export const runClock = (run: PipelineRun) => run.completed_at ?? run.started_at ?? run.run_date
+export const allRuns = cache(async (): Promise<PipelineRun[]> => runsService.listEverywhere())
 
 export const currentRun = cache(
   async () => (await allRuns()).find((run) => run.status === 'completed') ?? null,
@@ -39,7 +33,7 @@ export const currentRun = cache(
  * Recent Briefings (see recent.ts for the rule). The editions are the same
  * list the archive reads — one fetch per domain, in parallel, cached — so
  * the two screens agree by construction. A completed run with no edition
- * here is in a domain whose corpus could not be read.
+ * here briefed nothing, or is in a domain whose corpus could not be read.
  */
 export const recentBriefings = cache(async (lang: Lang): Promise<RecentBriefing[]> => {
   // `allRuns` first: the corpus probe reads the run ledger this request already asked for.
