@@ -15,6 +15,13 @@ from research_intelligence.models import (
     NarrativeReport,
 )
 
+from research_intelligence.services.scorecard_extractors import (
+    _unwrap_val,
+    extract_risk_and_affiliation,
+    extract_rich_dimension_details,
+    resolve_field_val,
+)
+
 User = get_user_model()
 
 
@@ -602,6 +609,98 @@ return {
         self.assertIn("NO", ra["gdpr_concerns"])
         self.assertIn("NO", ra["schwarz_ecosystem_affiliation"])
         self.assertEqual(len(ra["flags"]), 3)
+
+    def test_9_nested_value_unwrapping_in_risk_and_affiliation(self):
+        """
+        Verifies SOTA recursive _unwrap_val and extra aliases in extract_risk_and_affiliation:
+        - {"value": ...} recursive unwrapping
+        - Extra repo aliases: github_url, zenodo_link, repository_url, dataset_url
+        - Nested dictionary flag values
+        """
+        # Test unit function _unwrap_val directly
+        self.assertEqual(_unwrap_val({"value": "direct"}), "direct")
+        self.assertEqual(_unwrap_val({"value": {"value": {"value": 42}}}), 42)
+        self.assertEqual(_unwrap_val("scalar"), "scalar")
+        self.assertEqual(_unwrap_val([1, 2]), [1, 2])
+
+        fields_nested = {
+            "fields": {
+                "author_affiliation": {"value": "Schwarz Research, Technical University of Munich"},
+                "author_contacts": {"value": ["researcher@schwarz.de", "info@tum.de"]},
+                "funding_entities": {"value": "Schwarz Innovation Grant 2026"},
+                "github_url": {"value": {"value": "https://github.com/schwarzit/quantum-opt"}},
+                "schwarz_ecosystem_affiliation": {"value": "YES (Schwarz Digits Partner)"},
+                "gdpr_concerns": {"value": "NO (No PII involved)"},
+                "competitor_involvement": {"value": "NO (Independent academic evaluation)"},
+                "risk_score": {"value": 15.0},
+                "risk_score_assessment": {"value": "Low overall sovereign risk profile."},
+            }
+        }
+        res = extract_risk_and_affiliation(fields_nested)
+        self.assertIsNotNone(res)
+        self.assertEqual(res["affiliations"], ["Schwarz Research", "Technical University of Munich"])
+        self.assertEqual(res["author_contacts"], ["researcher@schwarz.de", "info@tum.de"])
+        self.assertEqual(res["funding_entities"], ["Schwarz Innovation Grant 2026"])
+        self.assertEqual(res["codebase_artifact_link"], "https://github.com/schwarzit/quantum-opt")
+        self.assertEqual(res["schwarz_ecosystem_affiliation"], "YES (Schwarz Digits Partner)")
+        self.assertEqual(res["gdpr_concerns"], "NO (No PII involved)")
+        self.assertEqual(res["competitor_involvement"], "NO (Independent academic evaluation)")
+        self.assertEqual(res["risk_score"], 15.0)
+        self.assertEqual(res["risk_score_assessment"], "Low overall sovereign risk profile.")
+
+        # Flag statuses
+        flag_map = {f["key"]: f for f in res["flags"]}
+        self.assertEqual(flag_map["gdpr"]["status"], "safe")
+        self.assertEqual(flag_map["schwarz_ecosystem"]["status"], "highlight")
+        self.assertEqual(flag_map["competitor"]["status"], "safe")
+
+    def test_10_rich_dimension_zero_boundary_probability_scale(self):
+        """
+        Verifies that confidence/probability facets with values between 0.0 and 1.0
+        (including zero boundary 0.0 and 1.0) receive max=1 instead of max=100.
+        """
+        fields_data = {
+            "fields": {
+                "primary_score": 85,
+                "confidence_score": 0.0,  # zero boundary
+                "confidence_assessment": "Uncertain theoretical conjecture",
+                "detection_probability": 0.98,
+                "error_rate": 0.05,
+                "general_score": 75,
+            }
+        }
+        primary_metric = {"key": "primary_score", "numeric_value": 85}
+        secondary_metrics = [
+            {"key": "confidence_score", "is_numeric": True, "numeric_value": 0.0},
+            {"key": "detection_probability", "is_numeric": True, "numeric_value": 0.98},
+            {"key": "error_rate", "is_numeric": True, "numeric_value": 0.05},
+            {"key": "general_score", "is_numeric": True, "numeric_value": 75},
+        ]
+
+        rich = extract_rich_dimension_details(
+            fields_data=fields_data,
+            primary_metric=primary_metric,
+            secondary_metrics=secondary_metrics,
+            max_val=100,
+        )
+
+        facets = {f["key"]: f for f in rich["facets"]}
+        # confidence_score: 0.0 -> max must be 1
+        self.assertEqual(facets["confidence_score"]["value"], 0.0)
+        self.assertEqual(facets["confidence_score"]["max"], 1)
+        self.assertEqual(facets["confidence_score"]["text"], "Uncertain theoretical conjecture")
+
+        # detection_probability: 0.98 -> max must be 1
+        self.assertEqual(facets["detection_probability"]["value"], 0.98)
+        self.assertEqual(facets["detection_probability"]["max"], 1)
+
+        # error_rate: 0.05 -> max must be 1 (rate keyword)
+        self.assertEqual(facets["error_rate"]["value"], 0.05)
+        self.assertEqual(facets["error_rate"]["max"], 1)
+
+        # general_score: 75 -> max must remain 100
+        self.assertEqual(facets["general_score"]["value"], 75)
+        self.assertEqual(facets["general_score"]["max"], 100)
 
     def test_11_workspace_scorecard_endpoint(self):
         """

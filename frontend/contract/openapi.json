@@ -3009,6 +3009,9 @@
           "name": {
             "type": "string"
           },
+          "label": {
+            "type": "string"
+          },
           "value": {
             "anyOf": [
               {
@@ -3034,6 +3037,83 @@
           },
           "is_trl": {
             "type": "boolean"
+          },
+          "is_risk_and_affiliation": {
+            "type": "boolean"
+          },
+          "has_postprocessing": {
+            "type": "boolean"
+          },
+          "primary_metric": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "secondary_metrics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          },
+          "main_metric": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "auxiliary_metrics": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {}
+            }
+          },
+          "is_hitl": {
+            "type": "boolean"
+          },
+          "fields_data": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "response_schema": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exit_metrics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           },
           "rationale": {
             "type": "string"
@@ -4167,6 +4247,139 @@
         },
         "additionalProperties": false
       },
+      "RiskAndAffiliation": {
+        "$id": "#/components/schemas/RiskAndAffiliation",
+        "type": "object",
+        "properties": {
+          "raw": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "affiliations": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "author_contacts": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "funding_entities": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "codebase_artifact_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schwarz_ecosystem_affiliation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gdpr_concerns": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "competitor_involvement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "risk_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "risk_score_assessment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "flags": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskFlag"
+            }
+          }
+        },
+        "required": [
+          "affiliations",
+          "author_contacts",
+          "funding_entities",
+          "flags"
+        ],
+        "additionalProperties": false
+      },
+      "RiskFlag": {
+        "$id": "#/components/schemas/RiskFlag",
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "status"
+        ],
+        "additionalProperties": false
+      },
       "ScoredPaper": {
         "$id": "#/components/schemas/ScoredPaper",
         "type": "object",
@@ -4349,6 +4562,16 @@
             "anyOf": [
               {
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "risk_and_affiliation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskAndAffiliation"
               },
               {
                 "type": "null"

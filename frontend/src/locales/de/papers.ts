@@ -141,6 +141,9 @@ export const dict: Record<string, string> = {
   Published: 'Veröffentlicht',
   'Abstract stage': 'Abstract-Stufe',
   'Full text': 'Volltext',
+  'Benchmark Control': 'Benchmark-Kontrolle',
+  'Scoring formula': 'Bewertungsformel',
+  'Rule verified': 'Regelbasiert verifiziert',
 
   // Ask-this-paper rail
   'Ask this paper': 'Paper befragen',

@@ -5,7 +5,7 @@ import { ALL_ON, type Features } from '@/lib/features'
 import { formatDate, type Lang, type T } from '@/lib/i18n'
 import { arxivId } from '@/lib/papers/map'
 import type { ScoredPaper } from '@/lib/papers/types'
-import { ArrowUpRightIcon } from '@heroicons/react/16/solid'
+import { ArrowUpRightIcon, BookmarkIcon } from '@heroicons/react/16/solid'
 import type { ReactNode } from 'react'
 import { RiskAffiliationFlagging } from './affiliation-flags'
 
@@ -83,6 +83,22 @@ export function PaperHeader({
       meta={
         <>
           <ScreeningPill status={paper.screening_status} t={t} />
+          {paper.is_benchmark && (
+            <>
+              <Dot />
+              <span
+                data-row="benchmark-control"
+                className="inline-flex items-center gap-1 rounded-sm bg-violet-50 px-1.5 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-violet-700/20 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-400/30"
+              >
+                <BookmarkIcon aria-hidden="true" className="size-3" />
+                <span>
+                  {paper.evaluation_label
+                    ? `${t('Benchmark Control')} (${paper.evaluation_label === 'passed' ? t('Passed') : t('Rejected')})`
+                    : t('Benchmark Control')}
+                </span>
+              </span>
+            </>
+          )}
           <Dot />
           <span className={META}>{paper.source}</span>
           <Dot />

@@ -138,6 +138,12 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('Gemini 3.8 Flash')
   })
 
+  test('renders Rule verified badge when dimension has_postprocessing is true', () => {
+    const out = renderToStaticMarkup(<Assessment dimensions={[fullDimension]} t={t} />)
+    expect(out).toContain('data-row="rule-verified"')
+    expect(out).toContain('Rule verified')
+  })
+
   test('shows review warning in metadata when review_required or validation_status is warn/fail', () => {
     const warnDim: Dimension = {
       ...fullDimension,

@@ -105,6 +105,23 @@ describe('PaperHeader Component Rendering', () => {
     expect(out).not.toContain('aria-label="Star this paper"')
   })
 
+  test('renders Benchmark Control badge when is_benchmark is true with evaluation_label', () => {
+    const paper = samplePaper({ is_benchmark: true, evaluation_label: 'passed' })
+    const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
+
+    expect(out).toContain('data-row="benchmark-control"')
+    expect(out).toContain('Benchmark Control (Passed)')
+  })
+
+  test('renders Benchmark Control badge without evaluation_label', () => {
+    const paper = samplePaper({ is_benchmark: true, evaluation_label: null })
+    const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
+
+    expect(out).toContain('data-row="benchmark-control"')
+    expect(out).toContain('Benchmark Control')
+    expect(out).not.toContain('(Passed)')
+  })
+
   test('PaperHeaderSkeleton renders matching structure in skeleton state', () => {
     const out = renderToStaticMarkup(<PaperHeaderSkeleton />)
 

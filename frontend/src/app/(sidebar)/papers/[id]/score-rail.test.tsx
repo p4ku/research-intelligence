@@ -155,4 +155,38 @@ describe('ScoreRail Component Rendering', () => {
     const out = renderToStaticMarkup(<ScoreRail paper={paperFewDims} t={t} />)
     expect(out).not.toContain('data-row="radar"')
   })
+
+  test('renders scoring formula disclosure when signal_score_details contains code_snippet', () => {
+    const paper = mockPaper({
+      signal_score_details: {
+        code_snippet: '0.6 * trl_level + 0.4 * fit_score',
+        variables: { trl_level: 4, fit_score: 92 },
+        calculated_at: '2026-09-08T22:00:00Z',
+        error: null,
+      },
+    })
+    const out = renderToStaticMarkup(<ScoreRail paper={paper} t={t} />)
+    expect(out).toContain('data-row="formula"')
+    expect(out).toContain('Scoring formula')
+    expect(out).toContain('0.6 * trl_level + 0.4 * fit_score')
+    expect(out).toContain('trl_level:')
+    expect(out).toContain('fit_score:')
+  })
+
+  test('omits scoring formula disclosure when signal_score_details is null or lacks code_snippet', () => {
+    const paperNoDetails = mockPaper({ signal_score_details: null })
+    const outNoDetails = renderToStaticMarkup(<ScoreRail paper={paperNoDetails} t={t} />)
+    expect(outNoDetails).not.toContain('data-row="formula"')
+
+    const paperEmptySnippet = mockPaper({
+      signal_score_details: {
+        code_snippet: '',
+        variables: {},
+        calculated_at: '2026-09-08T22:00:00Z',
+        error: null,
+      },
+    })
+    const outEmptySnippet = renderToStaticMarkup(<ScoreRail paper={paperEmptySnippet} t={t} />)
+    expect(outEmptySnippet).not.toContain('data-row="formula"')
+  })
 })

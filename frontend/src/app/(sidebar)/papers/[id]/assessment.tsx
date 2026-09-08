@@ -177,6 +177,16 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
   const meta: ReactNode[] = []
   if (conf) meta.push(fmt(t('Confidence {n}'), { n: conf }))
   if (d.model) meta.push(modelName(d.model))
+  if (d.has_postprocessing)
+    meta.push(
+      <span
+        key="postprocessing"
+        data-row="rule-verified"
+        className="rounded bg-accent/8 px-1.5 py-px text-[11px] font-medium text-accent"
+      >
+        {t('Rule verified')}
+      </span>,
+    )
   if (review)
     meta.push(
       <span className="font-medium text-zinc-500 dark:text-zinc-400">{t('Needs review')}</span>,
