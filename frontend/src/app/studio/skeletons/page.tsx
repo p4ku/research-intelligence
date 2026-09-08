@@ -33,7 +33,11 @@ import { composeRows } from '../../(sidebar)/briefing/rows'
 import { Ledger, LedgerSkeleton, type HomeRow } from '../../(sidebar)/dashboard/ledger'
 import { Masthead, MastheadSkeleton, type MastheadLead } from '../../(sidebar)/dashboard/masthead'
 import { RunCard, RunCardSkeleton } from '../../(sidebar)/dashboard/run-card'
-import { AssessmentRows, AssessmentRowsSkeleton } from '../../(sidebar)/papers/[id]/assessment-rows'
+import {
+  Assessment,
+  AssessmentSkeleton,
+  type DefinitionShape,
+} from '../../(sidebar)/papers/[id]/assessment'
 import { PaperHeader, PaperHeaderSkeleton } from '../../(sidebar)/papers/[id]/paper-header'
 import { PaperNav, PaperNavSkeleton } from '../../(sidebar)/papers/[id]/paper-nav'
 import { ScoreRail, ScoreRailSkeleton } from '../../(sidebar)/papers/[id]/score-rail'
@@ -73,6 +77,15 @@ const paper = {
       : d,
   ),
 }
+// The bones for the fixture's three definitions above: the first carries the
+// four-line justification set above, two facets (the first with two lines of text), a
+// two-item list, one quote, one fact and the provenance line; the other two
+// have only the "No rationale recorded." line (lead 0).
+const ASSESSMENT_FIXTURE_SHAPE: DefinitionShape[] = [
+  { band: true, lead: 4, facets: [2, 0], list: 2, quotes: 1, facts: 1, meta: true },
+  { lead: 0 },
+  { lead: 0 },
+]
 // Five rows so the list pair exercises the page-sized skeleton; ids only need
 // to be unique keys.
 const fivePapers = Array.from({ length: 5 }, (_, i) => ({
@@ -462,14 +475,15 @@ export default async function SkeletonsPage({
         skeleton={<PaperNavSkeleton t={t} />}
       />
 
-      {/* The fixture has three dimensions; production has five, which the
-          route skeleton reserves. The pair keeps the two the same length. */}
+      {/* The fixture has three definitions, the first with the full detail;
+          production has seven, which the route skeleton reserves. The pair
+          keeps the two the same length, line for line. */}
       <Pair
         shape="assessment"
-        title="Assessment rows"
+        title="Assessment"
         status="Loading the paper"
-        loaded={<AssessmentRows dimensions={paper.dimensions} />}
-        skeleton={<AssessmentRowsSkeleton rows={paper.dimensions.length} />}
+        loaded={<Assessment dimensions={paper.dimensions} t={t} />}
+        skeleton={<AssessmentSkeleton shapes={ASSESSMENT_FIXTURE_SHAPE} />}
       />
 
       <Pair

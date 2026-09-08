@@ -31,6 +31,36 @@ export const PASSED_STATUSES: ScreeningStatus[] = [
   'accepted',
 ]
 
+/**
+ * A sub-score a definition emits beside its headline: `need_match_score` →
+ * "Need match", with a `need_match_assessment` twin, when there is one, as
+ * `text`. Names are humanised from the key and never translated — they are
+ * the definition's own vocabulary, like its name.
+ */
+export const dimensionFacet = z
+  .object({
+    key: z.string(),
+    name: z.string(),
+    value: z.number(),
+    /** The definition's scale; null → show the figure only (a TRL definition's sub-scores declare no range). */
+    max: z.number().nullable(),
+    text: z.string().nullable(),
+  })
+  .meta({ id: 'DimensionFacet' })
+export type DimensionFacet = z.infer<typeof dimensionFacet>
+
+/** A labelled string field of a definition's payload (a longer prose field, or a short fact). */
+export const dimensionField = z
+  .object({ key: z.string(), name: z.string(), value: z.union([z.string(), z.boolean()]) })
+  .meta({ id: 'DimensionField' })
+export type DimensionField = z.infer<typeof dimensionField>
+
+/** A labelled string list of a definition's payload ("Key contributions", "Evidence gaps"). */
+export const dimensionList = z
+  .object({ key: z.string(), name: z.string(), items: z.array(z.string()) })
+  .meta({ id: 'DimensionList' })
+export type DimensionList = z.infer<typeof dimensionList>
+
 export const dimension = z
   .object({
     /** Sanitized definition name; also the key in signal-score variables. */
@@ -52,6 +82,20 @@ export const dimension = z
     validation_status: z.string().optional(),
     review_required: z.boolean().optional(),
     extraction_id: z.uuid().optional(),
+    /**
+     * What else the definition emitted, shaped by the payload alone so a new
+     * definition renders without a frontend change: its band label when it
+     * has one ("Sound", "Technology validated in lab"), its sub-scores, its
+     * longer prose fields, its lists, its short facts, and the model that
+     * wrote them. All in payload order; `*_computed` / `*_postprocessed`
+     * duplicates are dropped.
+     */
+    band: z.string().optional(),
+    facets: z.array(dimensionFacet).optional(),
+    texts: z.array(dimensionField).optional(),
+    lists: z.array(dimensionList).optional(),
+    facts: z.array(dimensionField).optional(),
+    model: z.string().nullable().optional(),
   })
   .meta({ id: 'Dimension' })
 export type Dimension = z.infer<typeof dimension>
@@ -93,6 +137,9 @@ export const scoredPaper = z
     source: z.string(),
     screening_status: screeningStatus,
     screening_reasoning: z.string().nullable(),
+    /** The two stages' reasons when the run recorded them apart; `screening_reasoning` stands in otherwise. */
+    abstract_screening_reasoning: z.string().nullable(),
+    full_text_screening_reasoning: z.string().nullable(),
     signal_score: z.number().nullable(),
     signal_score_details: signalScoreDetails.nullable(),
     /** Workspace definition order; definition-less extractions appended. */
@@ -108,8 +155,12 @@ export const scoredPaper = z
     source_url: z.string().nullable(),
     is_benchmark: z.boolean(),
     evaluation_label: z.enum(['passed', 'rejected']).nullable(),
-    /** Ingest time (ISO 8601). The backend stores no publication date. */
+    /** The source's publication date (ISO 8601 date), when the backend has it. */
+    published_date: z.string().nullable(),
+    /** Ingest time (ISO 8601). */
     created_at: z.iso.datetime({ offset: true }),
+    /** The scoring run's display name, beside its id. */
+    pipeline_run_name: z.string().nullable(),
   })
   .meta({ id: 'ScoredPaper' })
 export type ScoredPaper = z.infer<typeof scoredPaper>

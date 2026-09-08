@@ -1,9 +1,8 @@
-import { AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { Breadcrumbs, SectionLabel } from '@/components/scanner-ui'
 import { Bone, Skeleton } from '@/components/skeleton'
 import type { Features } from '@/lib/features'
 import type { T } from '@/lib/i18n'
-import { AssessmentRowsSkeleton } from './assessment-rows'
+import { AssessmentSkeleton } from './assessment'
 import { PaperChatSkeleton } from './paper-chat'
 import { PaperHeaderSkeleton } from './paper-header'
 import { PaperNavSkeleton } from './paper-nav'
@@ -14,9 +13,9 @@ import { ScoreRailSkeleton } from './score-rail'
  * crumbs, the loading.tsx shell, so both are pixel-identical. One record,
  * one Region, one sweep.
  *
- * It reserves production's shape: five assessment rows and five bars with a
- * radar in the rail. A domain with fewer numeric dimensions sees the rail
- * shorten on load.
+ * It reserves the live domain's shape: two screening paragraphs, the
+ * abstract, seven definitions (ASSESSMENT_SHAPE) and seven bars with a radar
+ * in the rail. A domain with fewer definitions sees both shorten on load.
  *
  * Both take the flags as a required prop — nothing outside this route renders
  * them, so a required prop catches a missed call site — and must mirror the
@@ -24,7 +23,7 @@ import { ScoreRailSkeleton } from './score-rail'
  * or the shell paints chrome that then vanishes.
  */
 
-export const ASSESSMENT_ROWS = 5
+const STAGE_CLASS = 'mt-3 max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300'
 
 export function PaperRecordSkeleton({ t, features }: { t: T; features: Features }) {
   return (
@@ -38,15 +37,12 @@ export function PaperRecordSkeleton({ t, features }: { t: T; features: Features 
 
             <section>
               <SectionLabel>{t('Screening')}</SectionLabel>
-              <AnswerMarkdownSkeleton
-                className="mt-3 max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300"
-                paragraphs={[4]}
-              />
-            </section>
-
-            <section>
-              <SectionLabel className="mb-3">{t('Assessment')}</SectionLabel>
-              <AssessmentRowsSkeleton rows={ASSESSMENT_ROWS} />
+              <p className={STAGE_CLASS}>
+                <Bone.Text lines={2} widths={['100%', '58%']} />
+              </p>
+              <p className={STAGE_CLASS}>
+                <Bone.Text lines={4} widths={['100%', '100%', '96%', '40%']} />
+              </p>
             </section>
 
             <section>
@@ -57,6 +53,11 @@ export function PaperRecordSkeleton({ t, features }: { t: T; features: Features 
                   widths={['100%', '100%', '96%', '100%', '98%', '100%', '62%']}
                 />
               </p>
+            </section>
+
+            <section>
+              <SectionLabel className="mb-3">{t('Assessment')}</SectionLabel>
+              <AssessmentSkeleton />
             </section>
 
             <footer className="border-t border-line pt-4 text-xs">

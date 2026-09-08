@@ -16,8 +16,10 @@ dashboard's run list, and the Ask paper palette.
   (`src/lib/features.ts`); the route below is not, and keeps serving detail,
   briefings, scoring and status whatever the cookie says.
 - **Detail** (`/papers/[id]`): everything above plus the score formula and
-  variables, per-dimension rationale/evidence/confidence, screening
-  reasoning, arXiv/DOI links, storage keys.
+  variables, per-definition rationale/evidence/confidence and everything else
+  the definition emitted (band, sub-scores, prose fields, lists, facts — shaped
+  from the payload, see `Dimension` in `schema.ts`), the two screening stages'
+  reasons, the publication date, arXiv/DOI links, storage keys.
 - **Dashboard**: the papers of the latest completed run, sorted by signal.
 
 ## BFF routes

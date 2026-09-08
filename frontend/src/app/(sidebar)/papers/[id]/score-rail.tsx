@@ -5,12 +5,16 @@ import type { T } from '@/lib/i18n'
 import { trlDimension } from '@/lib/papers/select'
 import type { Dimension, ScoredPaper } from '@/lib/papers/types'
 import type { ReactNode } from 'react'
+import { definitionAnchor } from './assessment'
+import { ScoreBarFrame, ScoreBars, type RailBar } from './score-bars'
 
 /**
  * The glance card beside the record: the Schwarz Score, the screening and
- * TRL chips, one bar per dimension, and the profile (the radar) under a
- * hairline. Sticky on wide screens so the score mix stays in view while the
- * assessment is read. Server-safe; the frame keeps the skeleton in step.
+ * TRL chips, one bar per definition — each a link to its article in the
+ * column, the one being read marked — and the profile (the radar, values
+ * under its labels) under a hairline. Sticky on wide screens so the score
+ * mix stays in view while the assessment is read. Server-safe; the frame
+ * keeps the skeleton in step.
  */
 
 // The rail's full inner width: the radar needs every pixel for its labels.
@@ -46,9 +50,9 @@ export function ScoreRailFrame({
       <div data-row="chips" className="mt-3 flex flex-wrap gap-1.5">
         {chips}
       </div>
-      <ul className="mt-5 space-y-2.5">{bars}</ul>
+      <ul className="mt-4 space-y-0.5">{bars}</ul>
       {radar && (
-        <div data-row="radar" className="mt-5 flex justify-center border-t border-line-soft pt-4">
+        <div data-row="radar" className="mt-4 flex justify-center border-t border-line-soft pt-4">
           {radar}
         </div>
       )}
@@ -56,65 +60,33 @@ export function ScoreRailFrame({
   )
 }
 
-export function ScoreBarFrame({
-  label,
-  fill,
-  value,
-}: {
-  label: ReactNode
-  /** The track's fill; the skeleton leaves the track empty. */
-  fill?: ReactNode
-  value: ReactNode
-}) {
-  return (
-    <li
-      data-row="bar"
-      className="grid grid-cols-[88px_minmax(0,1fr)_36px] items-center gap-2.5 text-xs text-zinc-600 dark:text-zinc-300"
-    >
-      <span className="truncate">{label}</span>
-      <span className="block h-1 w-full overflow-hidden bg-line-soft">{fill}</span>
-      <span className="text-right font-mono font-medium text-zinc-950 tabular-nums dark:text-white">
-        {value}
-      </span>
-    </li>
-  )
-}
-
+/** "Sovereign Cloud & Commercial Viability" → "Sovereign Cloud"; a TRL definition is just "TRL". */
 function shortName(d: Dimension): string {
-  return d.is_trl ? 'TRL' : d.name
+  return d.is_trl ? 'TRL' : d.name.split(/ \(| & /)[0]!
 }
 
-function ScoreBar({ dimension: d }: { dimension: Dimension }) {
+function railBar(d: Dimension): RailBar {
   const hasBar = d.value !== null && d.max !== null && d.max > 0
-  const pct = hasBar ? Math.max(0, Math.min(1, d.value! / d.max!)) : 0
   const shown =
     d.value === null
       ? '—'
       : Number.isInteger(d.value)
         ? String(d.value)
         : (Math.round(d.value * 100) / 100).toString()
-  return (
-    <ScoreBarFrame
-      label={shortName(d)}
-      fill={
-        hasBar && (
-          // scaleX rather than width so the glide runs off the main thread
-          <span
-            className="block h-full w-full origin-left bg-accent transition-transform duration-[250ms] ease-out"
-            style={{ transform: `scaleX(${pct})` }}
-          />
-        )
-      }
-      value={
-        <>
-          {shown}
-          {hasBar && d.max !== 100 && (
-            <span className="text-[10px] font-normal text-zinc-400">/{d.max}</span>
-          )}
-        </>
-      }
-    />
-  )
+  return {
+    key: d.key + (d.extraction_id ?? ''),
+    label: shortName(d),
+    anchor: definitionAnchor(d),
+    pct: hasBar ? Math.max(0, Math.min(1, d.value! / d.max!)) : null,
+    value: (
+      <>
+        {shown}
+        {hasBar && d.max !== 100 && (
+          <span className="text-[10px] font-normal text-zinc-400">/{d.max}</span>
+        )}
+      </>
+    ),
+  }
 }
 
 export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
@@ -138,19 +110,21 @@ export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
           {trl?.value !== null && trl?.value !== undefined && <TrlBadge trl={trl.value} t={t} />}
         </>
       }
-      bars={paper.dimensions.map((d) => (
-        <ScoreBar key={d.key + (d.extraction_id ?? '')} dimension={d} />
-      ))}
-      radar={axes.length >= 3 && <RadarChart axes={axes} color="var(--accent)" size={RADAR} />}
+      bars={<ScoreBars bars={paper.dimensions.map(railBar)} />}
+      radar={
+        axes.length >= 3 && (
+          <RadarChart axes={axes} color="var(--accent)" size={RADAR} valueLabels />
+        )
+      }
     />
   )
 }
 
 /**
- * The rail's bones. Five bars and the radar — production's shape; a domain
- * with fewer numeric dimensions sees the card shorten on load.
+ * The rail's bones. Seven bars and the radar — the live domain's shape; a
+ * domain with fewer numeric dimensions sees the card shorten on load.
  */
-export function ScoreRailSkeleton({ t, bars = 5 }: { t: T; bars?: number }) {
+export function ScoreRailSkeleton({ t, bars = 7 }: { t: T; bars?: number }) {
   return (
     <ScoreRailFrame
       state="skeleton"

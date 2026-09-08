@@ -9,9 +9,10 @@ import { ArrowUpRightIcon } from '@heroicons/react/16/solid'
 import type { ReactNode } from 'react'
 
 /**
- * The record's masthead: screening pill and provenance on one line (with the
- * link out to the original paper), the title, the authors, and the star at
- * the right. PaperHeaderFrame owns the layout so PaperHeader and
+ * The record's masthead: screening pill and provenance on one line (the
+ * source, the publication date when the backend has it and the ingest date
+ * otherwise, the link out to the original paper), the title, the authors,
+ * and the star at the right. PaperHeaderFrame owns the layout so PaperHeader and
  * PaperHeaderSkeleton cannot drift.
  *
  * Both take the demo flags, defaulting to ALL_ON because the skeleton gallery
@@ -92,7 +93,11 @@ export function PaperHeader({
           <Dot />
           <span className={META}>{paper.source}</span>
           <Dot />
-          <span className={META}>{formatDate(paper.created_at, lang)}</span>
+          <span className={META}>
+            {paper.published_date
+              ? `${t('Published')} ${formatDate(paper.published_date, lang)}`
+              : formatDate(paper.created_at, lang)}
+          </span>
           {arxiv && (
             <>
               <Dot />

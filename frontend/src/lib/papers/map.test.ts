@@ -7,6 +7,7 @@ import {
   definitionContexts,
   doiOf,
   httpUrl,
+  humaniseKey,
   inferScale,
   oneLine,
   parseNumeric,
@@ -542,5 +543,184 @@ describe('pickMetric', () => {
     expect(pickMetric(p)?.id).toBe('b')
     expect(pickMetric({ ...p, pipeline_run: 'run-9' })?.id).toBe('a')
     expect(pickMetric({ ...p, metrics: [] })).toBeNull()
+  })
+})
+
+describe('definition detail (the rest of the payload, shaped by its keys)', () => {
+  const contexts = definitionContexts(defs, corpusMaxima(defs, []))
+
+  test('humaniseKey reads a key as a name, acronyms upper-cased', () => {
+    expect(humaniseKey('need_match_score')).toBe('Need match')
+    expect(humaniseKey('stackit_sovereignty_score')).toBe('STACKIT sovereignty')
+    expect(humaniseKey('market_width_assessment')).toBe('Market width')
+    expect(humaniseKey('evidence_of_movement')).toBe('Evidence of movement')
+  })
+
+  test('facets with their assessment twins, lists, prose, facts; duplicates dropped', () => {
+    const fit = extraction({
+      id: 'e-fit',
+      paper: 'p-d',
+      extraction_definition: 'def-fit',
+      category: 'Fit Score',
+      exit_metric: '25.1',
+      version_info: { llm_model: 'google/gemini-3.8-flash' },
+      fields_data: {
+        fit_score: 25.1,
+        justification: 'Low fit: quantum chemistry, not retail.',
+        need_match_score: 10,
+        fit_score_computed: 25.1,
+        market_width_score: 22,
+        need_match_assessment: 'No retail relevance.',
+        fit_score_postprocessed: 25.1,
+        market_width_assessment: 'Narrow.',
+        schwarz_fit_computed: 25.1,
+        vendor_lockin_risks: ['IBM cloud backend', ''],
+        interconnect_protocol: 'OpenMPI',
+        containerization_feasibility: 'H'.repeat(120),
+        limitations_acknowledged: true,
+      },
+    })
+    const p = toScoredPaper(paper({ id: 'p-d' }), [fit], contexts)
+    const d = p.dimensions[0]!
+    expect(d).toMatchObject({ value: 25.1, raw: '25.1', max: 10, model: 'google/gemini-3.8-flash' })
+    expect(d.rationale).toBe('Low fit: quantum chemistry, not retail.')
+    expect(d.band).toBeUndefined()
+    expect(d.facets).toEqual([
+      {
+        key: 'need_match_score',
+        name: 'Need match',
+        value: 10,
+        max: 10,
+        text: 'No retail relevance.',
+      },
+      { key: 'market_width_score', name: 'Market width', value: 22, max: 10, text: 'Narrow.' },
+    ])
+    expect(d.lists).toEqual([
+      { key: 'vendor_lockin_risks', name: 'Vendor lockin risks', items: ['IBM cloud backend'] },
+    ])
+    expect(d.texts).toEqual([
+      {
+        key: 'containerization_feasibility',
+        name: 'Containerization feasibility',
+        value: 'H'.repeat(120),
+      },
+    ])
+    expect(d.facts).toEqual([
+      { key: 'interconnect_protocol', name: 'Interconnect protocol', value: 'OpenMPI' },
+      { key: 'limitations_acknowledged', name: 'Limitations acknowledged', value: true },
+    ])
+    const everything = JSON.stringify(d)
+    expect(everything).not.toContain('_computed')
+    expect(everything).not.toContain('_postprocessed')
+  })
+
+  test('a TRL definition: label is the band, level is the headline, sub-scores have no scale', () => {
+    const trl = extraction({
+      id: 'e-trl',
+      paper: 'p-t',
+      extraction_definition: 'def-trl',
+      category: 'TRL Level',
+      exit_metric: '4',
+      fields_data: {
+        trl_label: 'TRL 4: Technology validated in lab',
+        trl_level: 4,
+        justification: 'Validated together in an HPC environment.',
+        evidence_quote: 'multiple variational runs were executed',
+        trl_level_computed: 4,
+        evidence_of_movement: 'E'.repeat(100),
+        prototype_maturity_score: 4,
+        operational_readiness_score: 3,
+      },
+    })
+    const d = toScoredPaper(paper({ id: 'p-t' }), [trl], contexts).dimensions.find((x) => x.is_trl)!
+    expect(d).toMatchObject({ value: 4, max: 9, band: 'Technology validated in lab' })
+    expect(d.rationale).toBe('Validated together in an HPC environment.')
+    expect(d.evidence).toEqual(['multiple variational runs were executed'])
+    expect(d.facets).toEqual([
+      {
+        key: 'prototype_maturity_score',
+        name: 'Prototype maturity',
+        value: 4,
+        max: null,
+        text: null,
+      },
+      {
+        key: 'operational_readiness_score',
+        name: 'Operational readiness',
+        value: 3,
+        max: null,
+        text: null,
+      },
+    ])
+    expect(d.texts?.map((x) => x.key)).toEqual(['evidence_of_movement'])
+    expect(d.facts).toBeUndefined()
+  })
+
+  test('the row’s exit_metric names the headline, so a band string first in the payload is not it', () => {
+    const nov = extraction({
+      id: 'e-nov',
+      paper: 'p-n',
+      extraction_definition: 'def-nov',
+      category: 'Novelty Score',
+      exit_metric: '63.6',
+      fields_data: {
+        novelty_band: 'Additive',
+        justification: 'Combines standard techniques well.',
+        novelty_score: 63.6,
+        novelty_computed: 63.6,
+        key_contributions: ['A self-consistent DFT–VQE loop.'],
+        evidence_gaps: ['Noiseless emulation only.'],
+        empirical_novelty_score: 68,
+      },
+    })
+    const d = toScoredPaper(paper({ id: 'p-n' }), [nov], contexts).dimensions[1]!
+    expect(d).toMatchObject({ key: 'novelty_score', value: 63.6, raw: '63.6', band: 'Additive' })
+    expect(d.facets).toEqual([
+      { key: 'empirical_novelty_score', name: 'Empirical novelty', value: 68, max: 10, text: null },
+    ])
+    // "evidence_gaps" is a list of what is missing, not the quoted evidence.
+    expect(d.evidence).toBeUndefined()
+    expect(d.lists?.map((l) => l.name)).toEqual(['Key contributions', 'Evidence gaps'])
+  })
+
+  test('without exit_metric the name-derived resolution stands, detail still shaped', () => {
+    const nov = extraction({
+      id: 'e-nov2',
+      paper: 'p-n2',
+      extraction_definition: 'def-nov',
+      category: 'Novelty Score',
+      fields_data: { novelty_score: 7, reasoning: 'Fresh angle.', key_contributions: ['x'] },
+    })
+    const d = toScoredPaper(paper({ id: 'p-n2' }), [nov], contexts).dimensions[1]!
+    expect(d).toMatchObject({ value: 7, rationale: 'Fresh angle.' })
+    expect(d.lists).toEqual([{ key: 'key_contributions', name: 'Key contributions', items: ['x'] }])
+    expect(d.facets).toBeUndefined()
+  })
+
+  test('the paper carries the two screening stages, the publication date and the run name', () => {
+    const p = toScoredPaper(
+      paper({
+        id: 'p-s',
+        abstract_screening_reasoning: 'On topic.',
+        full_text_screening_reasoning: 'Full method.',
+        published_date: '2026-08-13',
+        pipeline_run_name: 'Scheduled Run - Hybrid Computing 2AM',
+      }),
+      [],
+      contexts,
+    )
+    expect(p).toMatchObject({
+      abstract_screening_reasoning: 'On topic.',
+      full_text_screening_reasoning: 'Full method.',
+      published_date: '2026-08-13',
+      pipeline_run_name: 'Scheduled Run - Hybrid Computing 2AM',
+    })
+    const bare = toScoredPaper(paper({ id: 'p-b' }), [], contexts)
+    expect(bare).toMatchObject({
+      abstract_screening_reasoning: null,
+      full_text_screening_reasoning: null,
+      published_date: null,
+      pipeline_run_name: null,
+    })
   })
 })
