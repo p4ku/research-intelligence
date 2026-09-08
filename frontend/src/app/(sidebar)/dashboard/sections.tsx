@@ -1,11 +1,10 @@
 import { Card, SectionLabel } from '@/components/scanner-ui'
 import type { Edition } from '@/lib/bff/briefings/schema'
 import { forPage } from '@/lib/bff/core/page'
-import { papers } from '@/lib/bff/papers/service'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
 import { editionHref } from '../briefing/format'
-import { currentRun, recentRuns } from './data'
+import { currentRun, inFlightRuns, recentBriefings } from './data'
 import { formatAuthors, formatClock, formatDay, periodLabel } from './format'
 import { HomeLinks, type HomePaper } from './home-ui'
 import { Ledger, type HomeRow, type RowStatus } from './ledger'
@@ -32,21 +31,15 @@ function topPapers(edition: Edition): HomePaper[] {
   }))
 }
 
-/** The spec's three labels: Current, Processing, Failed; other completed rows carry none. */
-function rowStatus(
-  run: PipelineRun,
-  edition: Edition | null,
-  currentId: string | null,
-  capped: boolean,
-): RowStatus {
+/**
+ * The spec's three labels: Current, Processing, Failed; other completed rows
+ * carry none. A completed run here always has a briefing (data.ts keeps the
+ * rest out), so Current is simply the newest completed run — and unset when
+ * that run briefed nothing, as in the archive.
+ */
+function rowStatus(run: PipelineRun, currentId: string | null): RowStatus {
   switch (run.status) {
     case 'completed':
-      // No briefing to open — nothing cleared screening, no edition was
-      // composed for the run (an older same-day rerun), or the edition
-      // holds none of the papers the run passed — so nothing to be current.
-      // Past the corpus cap an empty edition is unknowable, not empty.
-      if (run.total_papers_passed_screening === 0 || !edition) return 'empty'
-      if (edition.papers.length === 0 && !capped) return 'empty'
       return run.id === currentId ? 'current' : 'done'
     case 'running':
     case 'pending':
@@ -77,11 +70,11 @@ export async function LedgerSection({
   domains: RunDomain[]
   today: string
 }) {
-  const [items, current, capped] = await forPage(
-    Promise.all([recentRuns(lang), currentRun(), papers.corpusTruncated()]),
+  const [items, current, inFlight] = await forPage(
+    Promise.all([recentBriefings(lang), currentRun(), inFlightRuns()]),
   )
   const rows: HomeRow[] = items.map(({ run, edition }) => {
-    const status = rowStatus(run, edition, current?.id ?? null, capped)
+    const status = rowStatus(run, current?.id ?? null)
     const completed = run.status === 'completed'
     return {
       id: run.id,
@@ -105,19 +98,19 @@ export async function LedgerSection({
               lookback_days: run.lookback_days ?? undefined,
             }
           : null,
-      brief:
-        edition && status !== 'empty'
-          ? {
-              href: editionHref(edition.date, run.workspace_id),
-              inBrief: edition.in_brief,
-              screened: run.total_papers_fetched,
-              included: run.total_papers_passed_screening,
-              top: topPapers(edition),
-            }
-          : null,
+      brief: edition
+        ? {
+            href: editionHref(edition.date, run.workspace_id),
+            inBrief: edition.in_brief,
+            screened: run.total_papers_fetched,
+            included: run.total_papers_passed_screening,
+            top: topPapers(edition),
+          }
+        : null,
     }
   })
-  const processing = rows.find((row) => row.status === 'processing') ?? null
+  // From every run in flight, not the rows: one may sit below the fifth briefing.
+  const processing = inFlight[0] ?? null
 
   return (
     <div className="grid gap-8 lg:grid-cols-3">
@@ -139,11 +132,9 @@ export async function LedgerSection({
         </div>
       </div>
       <aside className="lg:col-span-1">
-        <RunCard domains={domains} processing={processing?.domain ?? null} today={today} />
+        <RunCard domains={domains} processing={processing?.workspace_name ?? null} today={today} />
       </aside>
-      <LiveRefresh
-        processingIds={rows.filter((row) => row.status === 'processing').map((row) => row.id)}
-      />
+      <LiveRefresh processingIds={inFlight.map((run) => run.id)} />
     </div>
   )
 }

@@ -12,8 +12,8 @@ import { domainScope } from './scope'
  * the server, the ledger filters them on the client, and bun tests both.
  * An edition is the row; its run (joined by id) supplies the period and the
  * counters Home shows, so the two screens never disagree. A run that briefed
- * nothing has no briefing to open, so it is not a row at all — Home's run log
- * is where those show.
+ * nothing has no briefing to open, so it is not a row at all — here or on
+ * Home, which asks `hasBriefing` too.
  */
 
 /** The spec's page size. */
@@ -46,6 +46,24 @@ export interface ArchiveState {
 }
 
 const when = (run: PipelineRun) => run.started_at ?? run.run_date
+
+/**
+ * Whether a completed run has a briefing to open. It does not when nothing
+ * cleared screening, when no edition was composed for it (an older same-day
+ * rerun collapses into the newer one), or when the edition holds none of the
+ * papers the run passed. Past the corpus cap an edition with no papers is
+ * unknowable, not empty, so it still counts: its page says what is on file.
+ * Home's Recent Briefings and the archive both ask this, so neither lists a
+ * run the other would leave out.
+ */
+export function hasBriefing(
+  included: number,
+  edition: Pick<Edition, 'papers'> | null,
+  capped: boolean,
+): boolean {
+  if (included === 0 || !edition) return false
+  return edition.papers.length > 0 || capped
+}
 
 /** The newest completed run — the same rule Home uses for "Current". */
 export function currentRunId(runs: PipelineRun[]): string | null {
@@ -84,11 +102,9 @@ export function composeRows({
     const run = byId.get(e.run_id)
     const screened = run?.total_papers_fetched ?? e.funnel.fetched
     const included = run?.total_papers_passed_screening ?? e.funnel.passed_screening
-    // Nothing to open — nothing cleared screening, or the run passed papers
-    // the edition cannot show — so the archive leaves the run out (and, as
-    // on Home, it is never Current). Home's run log is where those show.
-    // Past the corpus cap the row stays: its page says what is on file.
-    if (included === 0 || (e.papers.length === 0 && !capped)) continue
+    // Nothing to open: the archive leaves the run out (and, as on Home, it
+    // is never Current).
+    if (!hasBriefing(included, e, capped)) continue
     rows.push({
       id: e.run_id,
       workspaceId: e.workspace_id,

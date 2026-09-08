@@ -2,10 +2,12 @@ import 'server-only'
 
 import type { Edition } from '@/lib/bff/briefings/schema'
 import { briefings } from '@/lib/bff/briefings/service'
+import { papers } from '@/lib/bff/papers/service'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import type { Lang } from '@/lib/i18n'
 import { cache } from 'react'
+import { inFlightIds, selectRecent, type RecentBriefing } from './recent'
 
 /**
  * Per-request accessors for Home's streamed section. `cache()` de-duplicates
@@ -13,9 +15,6 @@ import { cache } from 'react'
  * again for its status column). "Current" is the newest completed run in
  * any of the user's domains.
  */
-
-/** Exactly this many rows in Recent Briefings, newest first. */
-export const RECENT = 5
 
 /** Every run the user can see, newest first (Django's order, re-asserted). */
 export const allRuns = cache(async (): Promise<PipelineRun[]> => {
@@ -30,23 +29,31 @@ export const currentRun = cache(
 )
 
 /**
- * The edition a completed run produced, or null when none was composed
- * for it (an older same-day rerun collapses into the newer one; a domain
- * whose corpus could not be read yields no editions at all).
+ * Recent Briefings (see recent.ts for the rule). The editions are the same
+ * list the archive reads — one fetch per domain, in parallel, cached — so
+ * the two screens agree by construction. A completed run with no edition
+ * here was an older same-day rerun (collapsed into the newer one) or is in
+ * a domain whose corpus could not be read.
  */
-export const editionFor = cache(
-  async (workspaceId: string, runId: string, lang: Lang): Promise<Edition | null> =>
-    (await briefings.listAll(workspaceId, lang)).find((e) => e.run_id === runId) ?? null,
-)
+export const recentBriefings = cache(async (lang: Lang): Promise<RecentBriefing[]> => {
+  // `allRuns` first: the corpus probe reads the run ledger this request already asked for.
+  const [all, editions, capped] = await Promise.all([
+    allRuns(),
+    briefings.listEverywhere(lang),
+    papers.corpusTruncated(),
+  ])
+  const byRun = new Map<string, Edition>(editions.map((e) => [e.run_id, e]))
+  return selectRecent(all, byRun, capped)
+})
 
-export const recentRuns = cache(
-  async (lang: Lang): Promise<{ run: PipelineRun; edition: Edition | null }[]> => {
-    const recent = (await allRuns()).slice(0, RECENT)
-    const editions = await Promise.all(
-      recent.map((run) =>
-        run.status === 'completed' ? editionFor(run.workspace_id, run.id, lang) : null,
-      ),
-    )
-    return recent.map((run, i) => ({ run, edition: editions[i] }))
-  },
-)
+/**
+ * The runs in flight, newest first, within the window the live refresh
+ * polls — what disables Start New Briefing and what the poll compares its
+ * page against. Not the ledger's rows: a run in flight is a row only while
+ * it is newer than the fifth briefing, but it must be watched regardless.
+ */
+export const inFlightRuns = cache(async (): Promise<PipelineRun[]> => {
+  const all = await allRuns()
+  const ids = new Set(inFlightIds(all))
+  return all.filter((run) => ids.has(run.id))
+})

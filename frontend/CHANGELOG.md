@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-09-08 (Home lists briefings, not runs)
+
+- Home's Recent Briefings is the head of the Briefings archive: the five
+  newest briefings across the user's domains, under the one rule both
+  screens now share (`hasBriefing`). A completed run that briefed nothing —
+  nothing cleared screening, no edition, or an edition that shows none of the
+  papers the run passed — is no longer a greyed "No briefing" row; it is not
+  a row. A run in flight keeps its place, and so does a domain's latest
+  failure until that domain briefs again (Retry stays). Only briefings count
+  toward the five.
+- Its rows work as the archive's do: the row is a link into the briefing, the
+  leading triangle unfolds the brief and top papers in place, the star marks
+  the briefing. The triangle, star slot and lead-column classes are shared
+  with the archive, whose star column now sits 16px tighter to the triangle.
+- Home's live refresh and the Start form's disabled state read every run in
+  flight within the same 50-run window the poll reads, not the five rows —
+  a run in flight below the fifth briefing is still watched, and the poll
+  can no longer disagree with the render and stall.
+
 ## 2026-09-08 (paper link from the backend)
 
 - The backend now persists `Paper.source_url` (arXiv abstract page, DOI, or
