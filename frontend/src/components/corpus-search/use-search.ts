@@ -81,6 +81,9 @@ export function useSearch(
       inFlight.current?.controller.abort()
       const controller = new AbortController()
       inFlight.current = { q, controller }
+      // A retry for this text starts clean, so an old failure for the same
+      // query cannot flash as an outage while the new request is in flight.
+      setFailed((f) => (f === q ? null : f))
       bffFetch<SearchResponse>(searchPath(q, limit), { signal: controller.signal })
         .then((response) => {
           setEntries((prev) => remember(prev, q, response))

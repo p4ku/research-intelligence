@@ -167,7 +167,10 @@ export function CorpusSearch({
         setCursor(-1)
         break
       case 'clear':
+        // Escape means dismiss: the idle Recent/Try panel must not pop up
+        // in place of the text that just went.
         setQ('')
+        setOpen(false)
         setCursor(-1)
         break
       case 'cursor':

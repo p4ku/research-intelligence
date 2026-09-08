@@ -72,10 +72,11 @@ describe('SearchPanel', () => {
 
   test('only the ranked tokens bold, so stopwords stay plain', () => {
     // The server ranks with parseQuery, which drops stopwords; highlighting
-    // with the raw tokenizer would light up any word starting with "is"/"the".
-    const marks = render('what is the agent').match(/<mark[^>]*>[^<]*<\/mark>/g) ?? []
+    // with the raw tokenizer lights up "in"/"is" prefixes across the fixtures
+    // (eight marks instead of six for this query).
+    const marks = render('what is new in agent tooling').match(/<mark[^>]*>[^<]*<\/mark>/g) ?? []
     expect(marks.length).toBeGreaterThan(0)
-    for (const mark of marks) expect(mark.toLowerCase()).toContain('agent')
+    for (const mark of marks) expect(mark.toLowerCase()).toMatch(/agent|new|tool/)
   })
 
   test('a miss says so in plain words', () => {
