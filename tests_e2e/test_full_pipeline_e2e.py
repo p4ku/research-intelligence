@@ -31,6 +31,7 @@ from tests_e2e.scenarios import (
     run_workspace_import_export_scenario,
     run_direct_full_text_and_subscribers_scenario,
     run_hitl_validation_journey_scenario,
+    run_stars_curation_journey_scenario,
 )
 
 
@@ -236,6 +237,13 @@ class TestFullPipelineE2E:
         assert results["status"] == "passed"
         assert results["paper_id"] is not None
         assert results["turns_count"] >= 1
+
+    @pytest.mark.e2e
+    def test_stars_curation_journey(self):
+        config = E2EConfig.from_env()
+        results = run_stars_curation_journey_scenario(config)
+        assert results["status"] == "PASSED"
+        assert results["tested_isolation_guard"] is True
 
 
 class TestE2EConfig:

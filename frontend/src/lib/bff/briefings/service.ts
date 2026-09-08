@@ -179,7 +179,27 @@ export const briefings = {
           throw error
         }
       }
-      return (await briefings.listAll(workspaceId, lang)).find((e) => e.date === date) ?? null
+      const found = (await briefings.listAll(workspaceId, lang)).find((e) => e.date === date)
+      if (!found) return null
+      if (sourceOf('briefings') !== 'composed') return found
+      // An edition at or past the corpus snapshot's cap composed from fewer
+      // papers than its run wrote — none, or the cap cut through the run.
+      // `listRun` reads them live in that case; recompose from what it gives.
+      const [completed, scored, index, rows] = await Promise.all([
+        runs.listAll(workspaceId, 'completed'),
+        papers.listAll(workspaceId),
+        papers.runIndex(),
+        papers.listRun(workspaceId, found.run_id),
+      ])
+      const run = completed.find((r) => r.id === found.run_id)
+      if (!run || !scored) return found
+      const corpus = new Map(scored.papers.map((p) => [p.id, p]))
+      const held = papersOfRun(run.id, corpus, index).length
+      if (rows.length <= held) return found
+      // Live rows are run-scoped: each carries this run's decision and
+      // score already, so they are read as the corpus's own attribution.
+      const live = new Map(rows.map((p) => [p.id, p]))
+      return composeEdition(run, scored.workspace.name, live, null, lang)
     },
   ),
 

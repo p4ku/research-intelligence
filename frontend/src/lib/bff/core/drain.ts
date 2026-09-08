@@ -13,12 +13,16 @@ import { problem } from './problem'
 export interface DrainOptions<T> {
   /** Items per page; Django's `max_page_size` is 500. */
   pageSize: number
-  /** Keep at most this many items — the newest, given the upstream order. */
+  /** Keep at most this many items — the newest accepted ones, given the upstream order. */
   maxItems: number
   /** Dedupe key: a run writing rows between two page reads can shift a row across pages. */
   id: (item: T) => string
+  /** Keep only these; the rest are read past and count toward nothing. */
+  accept?: (item: T) => boolean
   /** Stop before this item (it and everything after it are dropped). */
   until?: (item: T) => boolean
+  /** Read at most this many pages, whatever the other bounds say. */
+  maxPages?: number
 }
 
 export interface Drained<T> {
@@ -28,6 +32,8 @@ export interface Drained<T> {
   /** JSON bytes as received, summed over the pages read. */
   bytes: number
   pages: number
+  /** True when `maxPages` ended the walk before the list or another bound did. */
+  cutShort: boolean
 }
 
 export interface FetchedPage<T> {
@@ -37,13 +43,14 @@ export interface FetchedPage<T> {
 
 export async function drain<T>(
   fetchPage: (page: number, pageSize: number) => Promise<FetchedPage<T>>,
-  { pageSize, maxItems, id, until }: DrainOptions<T>,
+  { pageSize, maxItems, id, accept, until, maxPages = Number.POSITIVE_INFINITY }: DrainOptions<T>,
 ): Promise<Drained<T>> {
   const items: T[] = []
   const seen = new Set<string>()
   let total = 0
   let bytes = 0
   let pages = 0
+  const done = (cutShort = false) => ({ items, total, bytes, pages, cutShort })
   for (let n = 1; ; n += 1) {
     const { page, bytes: size } = await fetchPage(n, pageSize)
     pages += 1
@@ -55,13 +62,15 @@ export async function drain<T>(
       })
     }
     for (const item of page.results) {
-      if (until?.(item)) return { items, total, bytes, pages }
+      if (until?.(item)) return done()
+      if (accept && !accept(item)) continue
       const key = id(item)
       if (seen.has(key)) continue
       seen.add(key)
       items.push(item)
-      if (items.length >= maxItems) return { items, total, bytes, pages }
+      if (items.length >= maxItems) return done()
     }
-    if (page.next === null) return { items, total, bytes, pages }
+    if (page.next === null) return done()
+    if (n >= maxPages) return done(true)
   }
 }

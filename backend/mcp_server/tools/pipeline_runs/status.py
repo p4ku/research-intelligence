@@ -21,9 +21,23 @@ logger = logging.getLogger(__name__)
 
 def _get_run_storage_stats(dir_path: str) -> dict:
     """Calculate total size in bytes, total files count, and human-readable formatted size for a storage directory."""
+    clean_dir = dir_path.strip('/')
+    if not clean_dir:
+        return {
+            "storage_path": "",
+            "total_files": 0,
+            "size_bytes": 0,
+            "size_formatted": "0 B"
+        }
+
+    from django.core.cache import cache
+    cache_key = f"storage_stats:{clean_dir}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
     total_bytes = 0
     total_files = 0
-    clean_dir = dir_path.strip('/')
 
     def _format_size(size_bytes: int) -> str:
         if size_bytes is None or size_bytes == 0:
@@ -54,15 +68,16 @@ def _get_run_storage_stats(dir_path: str) -> dict:
         except Exception:
             pass
 
-    if clean_dir:
-        _traverse(clean_dir)
+    _traverse(clean_dir)
 
-    return {
+    result = {
         "storage_path": clean_dir,
         "total_files": total_files,
         "size_bytes": total_bytes,
         "size_formatted": _format_size(total_bytes)
     }
+    cache.set(cache_key, result, timeout=30)
+    return result
 
 
 def compute_active_progress_summary(pipeline_run, comp_runs_list: list) -> dict:

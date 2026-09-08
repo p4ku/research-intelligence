@@ -103,6 +103,26 @@ describe('drain', () => {
     })
   })
 
+  test('`accept` keeps only what it admits, and only those count toward the cap', async () => {
+    const { rows, reads, fetchPage } = upstream(40)
+    const even = (r: Row) => r.at % 2 === 0
+    const out = await drain(fetchPage, { pageSize: 10, maxItems: 5, id, accept: even })
+    expect(out.items).toEqual(rows.filter(even).slice(0, 5))
+    expect(reads).toEqual([1])
+    const all = await drain(fetchPage, { pageSize: 10, maxItems: 100, id, accept: even })
+    expect(all.items).toHaveLength(20)
+  })
+
+  test('`maxPages` ends the walk and says so', async () => {
+    const { reads, fetchPage } = upstream(50)
+    const out = await drain(fetchPage, { pageSize: 10, maxItems: 100, id, maxPages: 2 })
+    expect(out.items).toHaveLength(20)
+    expect(out.cutShort).toBe(true)
+    expect(reads).toEqual([1, 2])
+    const whole = await drain(fetchPage, { pageSize: 10, maxItems: 100, id, maxPages: 5 })
+    expect(whole.cutShort).toBe(false)
+  })
+
   test('bytes sum over the pages read', async () => {
     const sized = async (page: number): Promise<FetchedPage<Row>> => ({
       page: {

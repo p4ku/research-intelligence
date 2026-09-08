@@ -16,8 +16,12 @@ export const editionPaper = z
     title: z.string(),
     authors: z.array(z.string()),
     source: z.string(),
-    /** The run's decision and score for the paper — frozen with the edition, whatever a later run decided. */
-    screening_status: screeningStatus,
+    /**
+     * The run's decision and score for the paper — frozen with the edition,
+     * whatever a later run decided. The status is optional until the Django
+     * editions endpoint serves it; the UI shows the paper's current one then.
+     */
+    screening_status: screeningStatus.optional(),
     signal_score: z.number().nullable(),
   })
   .meta({ id: 'EditionPaper' })

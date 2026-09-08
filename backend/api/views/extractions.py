@@ -42,11 +42,14 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        base_qs = Extraction.objects.select_related('paper', 'extraction_definition', 'workspace')
+        base_qs = Extraction.objects.select_related('extraction_definition')
         if getattr(user, 'is_superuser', False):
             qs = base_qs.all()
+            user_ws_ids = None
         else:
-            user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
+            user_ws_ids = set(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+            if not user_ws_ids:
+                return Extraction.objects.none()
             qs = base_qs.filter(workspace_id__in=user_ws_ids)
 
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
@@ -56,7 +59,9 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
             import uuid
             try:
                 ws_uuid = uuid.UUID(str(ws_id))
-                qs = qs.filter(workspace_id=ws_uuid)
+                if user_ws_ids is not None and ws_uuid not in user_ws_ids:
+                    return qs.none()
+                qs = base_qs.filter(workspace_id=ws_uuid) if user_ws_ids is not None else qs.filter(workspace_id=ws_uuid)
             except (ValueError, TypeError):
                 return qs.none()
 
@@ -90,7 +95,9 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
             import uuid
             try:
                 pr_uuid = uuid.UUID(str(pipeline_run_id))
-                qs = qs.filter(paper__metrics__pipeline_run_id=pr_uuid).distinct()
+                from research_intelligence.models import PaperMetric
+                paper_ids = PaperMetric.objects.filter(pipeline_run_id=pr_uuid).values('paper_id')
+                qs = qs.filter(paper_id__in=paper_ids)
             except (ValueError, TypeError):
                 qs = qs.none()
 

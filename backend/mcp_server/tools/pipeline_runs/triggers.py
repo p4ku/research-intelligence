@@ -56,14 +56,14 @@ def trigger_search_job_logic(
     if scraper_id:
         try:
             s_uuid = uuid.UUID(scraper_id)
-            scrapers = Scraper.objects.filter(workspace=workspace, id=s_uuid, is_active=True)
-            if not scrapers.exists():
+            scrapers = list(Scraper.objects.filter(workspace=workspace, id=s_uuid, is_active=True))
+            if not scrapers:
                 return json.dumps({"status": "error", "error": f"Active scraper with ID '{scraper_id}' not found in workspace '{workspace.name}'."}, indent=2)
         except ValueError:
             return json.dumps({"status": "error", "error": f"'{scraper_id}' is not a valid UUID format."}, indent=2)
     else:
-        scrapers = Scraper.objects.filter(workspace=workspace, is_active=True)
-        if not scrapers.exists():
+        scrapers = list(Scraper.objects.filter(workspace=workspace, is_active=True))
+        if not scrapers:
             return json.dumps({"status": "error", "error": f"No active scrapers configured for workspace '{workspace.name}'. Please create a scraper first."}, indent=2)
 
     effective_n_last_days = n_last_days if n_last_days is not None else 7
@@ -113,19 +113,16 @@ def trigger_search_job_logic(
             step_type='search',
             component_name=f"{scraper.provider}_scraper",
             scraper=scraper,
-            status='pending',
+            status='running',
             input_params=input_params
         )
 
         celery_task_id = None
         try:
-            comp_run.status = 'running'
-            comp_run.save(update_fields=['status'])
             async_res = execute_scraper_run_job.delay(str(comp_run.id), limit=limit)
             celery_task_id = str(async_res.id) if async_res and getattr(async_res, 'id', None) else "async_task"
             comp_run.celery_task_id = celery_task_id
             comp_run.save(update_fields=['celery_task_id'])
-            comp_run.refresh_from_db()
         except Exception:
             # Execute synchronously in case Celery broker is offline
             execute_scraper_run_job(str(comp_run.id), limit=limit)

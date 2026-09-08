@@ -27,11 +27,15 @@ export interface Corpus {
 
 const DAY_MS = 86_400_000
 
+/** An ISO instant as a number; DRF omits the fraction at zero microseconds, so strings do not sort. */
+const at = (iso: string): number => Date.parse(iso)
+
 /** The newest ingest time in the corpus, or null when empty. */
 export function newestOf(papers: readonly ScoredPaper[]): string | null {
-  let newest: string | null = null
-  for (const p of papers) if (newest === null || p.created_at > newest) newest = p.created_at
-  return newest
+  let newest: ScoredPaper | null = null
+  for (const p of papers)
+    if (newest === null || at(p.created_at) > at(newest.created_at)) newest = p
+  return newest?.created_at ?? null
 }
 
 export function hasTrl(papers: readonly ScoredPaper[]): boolean {
@@ -76,7 +80,7 @@ export function orderRows(
     key === 'signal_score' ? p.signal_score : (dimensionByKey(p, key.slice(4))?.value ?? null)
   const byKey = (a: ScoredPaper, b: ScoredPaper): number => {
     if (key === 'created_at') {
-      const d = a.created_at.localeCompare(b.created_at)
+      const d = at(a.created_at) - at(b.created_at)
       return desc ? -d : d
     }
     return desc ? byValueDesc(value(a), value(b)) : byValueAsc(value(a), value(b))
@@ -117,9 +121,7 @@ export function applyPapersQuery(
   // "last 24 hours" is the freshest drop even in a corpus not refreshed today.
   const newest = newestOf(papers)
   const cutoff =
-    query.within_days > 0 && newest !== null
-      ? new Date(newest).getTime() - query.within_days * DAY_MS
-      : null
+    query.within_days > 0 && newest !== null ? at(newest) - query.within_days * DAY_MS : null
 
   const passesExceptScreening = (p: ScoredPaper): boolean => {
     if (query.workspace_id && p.workspace_id !== query.workspace_id) return false
@@ -128,7 +130,7 @@ export function applyPapersQuery(
       const trl = trlDimension(p)?.value ?? null
       if (trl === null || trl < query.min_trl || trl > query.max_trl) return false
     }
-    if (cutoff !== null && new Date(p.created_at).getTime() < cutoff) return false
+    if (cutoff !== null && at(p.created_at) < cutoff) return false
     if (query.min_score > 0 && (p.signal_score === null || p.signal_score < query.min_score))
       return false
     if (searching && !relevance.has(p.id)) return false

@@ -86,9 +86,10 @@ class PipelineRunner:
                 pipeline_run = pipeline_run_id_or_obj
 
             # Refresh and aggregate cost on pipeline_run
+            comp_runs = list(pipeline_run.component_runs.all())
             comp_costs = sum(
                 float((cr.metrics or {}).get("usd_cost") or 0.0)
-                for cr in pipeline_run.component_runs.all()
+                for cr in comp_runs
             )
             if comp_costs > float(pipeline_run.usd_cost or 0.0):
                 pipeline_run.usd_cost = comp_costs
@@ -125,9 +126,11 @@ class PipelineRunner:
                 safe_dispatch_on_commit(_dispatch_pipeline_tick)
             else:
                 # Manual step execution: check if terminal component run completed
-                pending_runs = pipeline_run.component_runs.filter(status__in=['pending', 'running'])
-                if not pending_runs.exists() and pipeline_run.component_runs.filter(status='completed').exists():
-                    last_comp = pipeline_run.component_runs.order_by('-completed_at', '-id').first()
+                has_pending = any(cr.status in ('pending', 'running') for cr in comp_runs)
+                completed_runs = [cr for cr in comp_runs if cr.status == 'completed']
+                if not has_pending and completed_runs:
+                    completed_runs.sort(key=lambda r: (r.completed_at or timezone.now(), r.id or 0), reverse=True)
+                    last_comp = completed_runs[0]
                     if last_comp and last_comp.step_type in ['reporting']:
                         pipeline_run.status = 'completed'
                         pipeline_run.current_stage = 'completed'

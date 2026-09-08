@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiResponse
-from research_intelligence.models import Workspace, WorkspaceMember, ExtractionDefinition
+from research_intelligence.models import Workspace, WorkspaceMember, ExtractionDefinition, PaperMetric, PipelineRun
 from ..serializers.workspaces import WorkspaceSerializer, ExtractionDefinitionSerializer
 from ..serializers.pipeline_runs import StartPipelineRunSerializer
 
@@ -32,10 +32,14 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
+        base_qs = Workspace.objects.prefetch_related('subscribers', 'scrapers', 'extraction_definitions').order_by('-created_at')
         if getattr(user, 'is_superuser', False):
-            return Workspace.objects.all().order_by('-created_at')
-        user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-        return Workspace.objects.filter(id__in=user_ws_ids).order_by('-created_at')
+            return base_qs
+        user_ws_members = dict(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', 'role'))
+        if not user_ws_members:
+            return Workspace.objects.none()
+        self.request._user_ws_roles = user_ws_members
+        return base_qs.filter(id__in=user_ws_members.keys())
 
     def perform_create(self, serializer):
         workspace = serializer.save()
@@ -222,6 +226,305 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 "status": "error",
                 "error": str(exc),
             }, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        tags=['Workspaces Management', 'Scoring & Ranking'],
+        description="Get scoring configuration, variables, weights, and worked example for this workspace.",
+    )
+    @action(detail=True, methods=['get'], url_path='scoring')
+    def scoring(self, request, pk=None):
+        workspace = self.get_object()
+        active_defs = list(workspace.extraction_definitions.filter(is_active=True).order_by('created_at'))
+        active_count = len(active_defs)
+
+        variables = [
+            {
+                "key": d.name.lower().replace(" ", "_"),
+                "definition_id": str(d.id),
+                "name": d.name,
+                "max": None,
+                "is_trl": "trl" in d.name.lower(),
+            }
+            for d in active_defs
+        ]
+
+        weights = [
+            {
+                "key": d.name.lower().replace(" ", "_"),
+                "definition_id": str(d.id),
+                "name": d.name,
+                "weight": round(1000.0 / active_count) / 10.0 if active_count > 0 else 0,
+            }
+            for d in active_defs
+        ]
+
+        pm = (
+            PaperMetric.objects.filter(workspace=workspace, signal_score__isnull=False)
+            .select_related('paper')
+            .order_by('-signal_score', '-created_at')
+            .first()
+        )
+        example_obj = None
+        if pm and pm.paper:
+            example_obj = {
+                "paper_id": str(pm.paper.id),
+                "title": pm.paper.title,
+                "signal_score": pm.signal_score,
+                "variables": (pm.signal_score_details or {}).get("variables", {}),
+            }
+
+        return Response({
+            "workspace_id": str(workspace.id),
+            "code": workspace.signal_score_code or None,
+            "code_source": "workspace" if workspace.signal_score_code else "stub",
+            "variables": variables,
+            "weights": weights,
+            "weights_source": "stub",
+            "example": example_obj,
+        })
+
+    @extend_schema(
+        tags=['Workspaces Management', 'Briefings & Editions'],
+        description="Paginated list of completed briefing editions for this workspace, newest first.",
+    )
+    @action(detail=True, methods=['get'], url_path='editions')
+    def editions(self, request, pk=None):
+        workspace = self.get_object()
+        completed_runs = list(
+            PipelineRun.objects.filter(workspace=workspace, status='completed')
+            .order_by('-completed_at', '-id')
+        )
+        seen_dates = set()
+        deduped_runs = []
+        for run in completed_runs:
+            d = (run.completed_at or run.run_date or run.created_at).strftime('%Y-%m-%d')
+            if d in seen_dates:
+                continue
+            seen_dates.add(d)
+            deduped_runs.append((d, run))
+
+        page_num = request.query_params.get('page', 1)
+        page_size = int(request.query_params.get('page_size', 20))
+        try:
+            page_num = max(1, int(page_num))
+        except (ValueError, TypeError):
+            page_num = 1
+
+        total_count = len(deduped_runs)
+        start_idx = (page_num - 1) * page_size
+        end_idx = start_idx + page_size
+        slice_items = deduped_runs[start_idx:end_idx]
+
+        target_runs = [run for _, run in slice_items]
+        from collections import defaultdict
+        papers_by_run = defaultdict(list)
+        if target_runs:
+            passed_pms = (
+                PaperMetric.objects.filter(
+                    pipeline_run__in=target_runs,
+                    screening_status__in=['accepted', 'full_text_passed', 'abstract_passed']
+                )
+                .select_related('paper')
+                .only(
+                    'id', 'pipeline_run_id', 'signal_score', 'screening_status', 'created_at',
+                    'paper__id', 'paper__title', 'paper__authors', 'paper__source_database'
+                )
+                .order_by('-signal_score', '-created_at')
+            )
+            for pm in passed_pms:
+                if pm.paper:
+                    authors_list = [a.strip() for a in (pm.paper.authors or '').split(',') if a.strip()]
+                    papers_by_run[pm.pipeline_run_id].append({
+                        "id": str(pm.paper.id),
+                        "title": pm.paper.title,
+                        "authors": authors_list,
+                        "source": pm.paper.source_database or 'arXiv',
+                        "signal_score": pm.signal_score,
+                    })
+
+        results = []
+        for d, run in slice_items:
+            surfaced = papers_by_run.get(run.id, [])
+            in_brief_text = (
+                run.status_message
+                or f"{workspace.name} briefing for {d}: {run.total_papers_fetched} papers ingested, {len(surfaced)} surfaced."
+            )
+            results.append({
+                "run_id": str(run.id),
+                "workspace_id": str(workspace.id),
+                "date": d,
+                "title": f"{workspace.name} Briefing — {d}",
+                "in_brief": in_brief_text,
+                "in_brief_source": "template",
+                "funnel": {
+                    "fetched": run.total_papers_fetched or len(surfaced),
+                    "passed_screening": run.total_papers_passed_screening or len(surfaced),
+                    "surfaced": len(surfaced),
+                },
+                "papers": surfaced,
+                "generated_at": run.completed_at.isoformat() if run.completed_at else None,
+            })
+
+        next_url = None
+        if end_idx < total_count:
+            next_url = f"{request.build_absolute_uri(request.path)}?page={page_num + 1}&page_size={page_size}"
+        prev_url = None
+        if page_num > 1:
+            prev_url = f"{request.build_absolute_uri(request.path)}?page={page_num - 1}&page_size={page_size}"
+
+        return Response({
+            "count": total_count,
+            "next": next_url,
+            "previous": prev_url,
+            "results": results,
+        })
+
+    @extend_schema(
+        tags=['Workspaces Management', 'Briefings & Editions'],
+        description="Detail of one briefing edition by date (YYYY-MM-DD), including screening exclusions.",
+    )
+    def edition_detail(self, request, workspace_id=None, edition_date=None, **kwargs):
+        ws_id = workspace_id or kwargs.get('pk')
+        if not ws_id:
+            return Response({"error": "Workspace ID required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        self.kwargs['pk'] = ws_id
+        workspace = self.get_object()
+
+        from datetime import datetime
+        try:
+            target_date = datetime.strptime(edition_date, '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            return Response({"error": "Invalid date format. Expected YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+
+        from django.db.models import Q
+        run = (
+            PipelineRun.objects.filter(
+                Q(workspace=workspace) &
+                Q(status='completed') &
+                (Q(completed_at__date=target_date) | Q(run_date=target_date))
+            )
+            .order_by('-completed_at', '-id')
+            .first()
+        )
+        if not run:
+            return Response({"error": f"No completed briefing edition found for {edition_date}."}, status=status.HTTP_404_NOT_FOUND)
+
+        passed_pms = (
+            PaperMetric.objects.filter(
+                pipeline_run=run,
+                screening_status__in=['accepted', 'full_text_passed', 'abstract_passed']
+            )
+            .select_related('paper')
+            .only(
+                'id', 'pipeline_run_id', 'signal_score', 'screening_status', 'created_at',
+                'paper__id', 'paper__title', 'paper__authors', 'paper__source_database'
+            )
+            .order_by('-signal_score', '-created_at')
+        )
+        surfaced = []
+        for pm in passed_pms:
+            if pm.paper:
+                authors_list = [a.strip() for a in (pm.paper.authors or '').split(',') if a.strip()]
+                surfaced.append({
+                    "id": str(pm.paper.id),
+                    "title": pm.paper.title,
+                    "authors": authors_list,
+                    "source": pm.paper.source_database or 'arXiv',
+                    "signal_score": pm.signal_score,
+                })
+
+        excluded_pms = (
+            PaperMetric.objects.filter(
+                pipeline_run=run,
+                screening_status__in=['rejected', 'withdrawn']
+            )
+            .select_related('paper')
+            .only(
+                'id', 'pipeline_run_id', 'screening_status',
+                'abstract_screening_reasoning', 'full_text_screening_reasoning', 'created_at',
+                'paper__id', 'paper__title', 'paper__source_database'
+            )
+            .order_by('-created_at')
+        )
+        exclusions = []
+        for pm in excluded_pms:
+            if pm.paper:
+                reason = pm.screening_reasoning or pm.abstract_screening_reasoning or pm.full_text_screening_reasoning
+                exclusions.append({
+                    "paper_id": str(pm.paper.id),
+                    "title": pm.paper.title,
+                    "source": pm.paper.source_database or 'arXiv',
+                    "reason": reason,
+                })
+
+        d_str = target_date.strftime('%Y-%m-%d')
+        in_brief_text = (
+            run.status_message
+            or f"{workspace.name} briefing for {d_str}: {run.total_papers_fetched} papers ingested, {len(surfaced)} surfaced, {len(exclusions)} excluded."
+        )
+
+        return Response({
+            "run_id": str(run.id),
+            "workspace_id": str(workspace.id),
+            "date": d_str,
+            "title": f"{workspace.name} Briefing — {d_str}",
+            "in_brief": in_brief_text,
+            "in_brief_source": "template",
+            "funnel": {
+                "fetched": run.total_papers_fetched or (len(surfaced) + len(exclusions)),
+                "passed_screening": run.total_papers_passed_screening or len(surfaced),
+                "surfaced": len(surfaced),
+            },
+            "papers": surfaced,
+            "exclusions": exclusions,
+            "generated_at": run.completed_at.isoformat() if run.completed_at else None,
+        })
+
+    @extend_schema(
+        tags=['Workspaces Management', 'Settings & Preferences'],
+        description="Get or set notification and email digest preferences for the current user in this workspace.",
+    )
+    @action(detail=True, methods=['get', 'put'], url_path='preferences')
+    def preferences(self, request, pk=None):
+        workspace = self.get_object()
+        user = request.user
+        from research_intelligence.models import Subscriber
+        if request.method == 'GET':
+            user_email = user.email or ''
+            has_sub = False
+            if user_email:
+                has_sub = Subscriber.objects.filter(
+                    workspace=workspace,
+                    email__iexact=user_email,
+                    is_active=True
+                ).exists()
+            return Response({"digest_email": has_sub})
+
+        # PUT
+        digest_email = bool(request.data.get('digest_email', True))
+        user_email = (user.email or '').strip()
+        if not user_email:
+            return Response({"digest_email": False})
+
+        if digest_email:
+            Subscriber.objects.update_or_create(
+                workspace=workspace,
+                email=user_email,
+                defaults={
+                    'is_active': True,
+                    'name': user.get_full_name() or user.username,
+                    'subscription_type': 'result_report',
+                }
+            )
+        else:
+            Subscriber.objects.filter(
+                workspace=workspace,
+                email__iexact=user_email
+            ).update(is_active=False)
+
+        return Response({"digest_email": digest_email})
+
 
 
 @extend_schema(tags=['Extraction Definitions'])

@@ -30,19 +30,23 @@ class ReportViewSet(viewsets.ReadOnlyModelViewSet):
         if getattr(user, 'is_superuser', False):
             qs = NarrativeReport.objects.select_related('workspace', 'pipeline_run').all().order_by('-created_at')
         else:
-            user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
+            user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+            if not user_ws_ids:
+                return NarrativeReport.objects.none()
             qs = NarrativeReport.objects.select_related('workspace', 'pipeline_run').filter(workspace_id__in=user_ws_ids).order_by('-created_at')
 
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if ws_id:
             if str(ws_id).lower() in ('undefined', 'null', ''):
-                return qs.none()
+                return NarrativeReport.objects.none()
             import uuid
             try:
                 ws_uuid = uuid.UUID(str(ws_id))
-                qs = qs.filter(workspace_id=ws_uuid)
             except (ValueError, TypeError):
-                return qs.none()
+                return NarrativeReport.objects.none()
+            if not getattr(user, 'is_superuser', False) and ws_uuid not in user_ws_ids:
+                return NarrativeReport.objects.none()
+            qs = qs.filter(workspace_id=ws_uuid)
 
         pipeline_run_id = (
             self.request.query_params.get('pipeline_run')

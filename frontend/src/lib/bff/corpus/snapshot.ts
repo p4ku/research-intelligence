@@ -13,7 +13,10 @@
  * newest-first in pages and stops at `CORPUS_MAX_PAPERS`: an analyst with
  * more history than that sees the newest papers and a line saying so
  * (`truncated`), never a slower page or an outage. Extractions follow the
- * kept papers (./window.ts). Across users, the cache holds at most
+ * kept papers (./window.ts). What lies past the cap is read live where one
+ * record is wanted — a paper's page, one edition — and is simply absent from
+ * the composed lists (briefings, stars), which say nothing about it; the
+ * cap is meant to sit above any real corpus. Across users, the cache holds at most
  * `CORPUS_CACHE_MAX_MB` of JSON as received — least recently used goes
  * first — on top of the key count.
  *
@@ -53,7 +56,7 @@ import { workspaceDTO } from '../workspaces/upstream'
 import { ledgerRequested } from './ledger-flag'
 import { createSnapshotStore, effectiveTrust } from './store'
 import { corpusVersion } from './version'
-import { extractionCutoff } from './window'
+import { extractionCutoff, truncation } from './window'
 
 export interface CorpusSnapshot {
   /** Empty unless papers are `composed` — the other sources never read them. */
@@ -81,8 +84,12 @@ export const CORPUS_MAX_PAPERS = intEnv('CORPUS_MAX_PAPERS', 2000, { min: 1 })
 export const CORPUS_CACHE_MAX_MB = intEnv('CORPUS_CACHE_MAX_MB', 128, { min: 1 })
 /** How long a confirmed version is trusted on a request that did not read the ledger. */
 export const CORPUS_PROBE_COOLDOWN_MS = intEnv('CORPUS_PROBE_COOLDOWN_MS', 5_000, { min: 0 })
-/** Extractions run ~3 per paper; this only bounds a backfill that broke the ordering assumption. */
-const EXTRACTIONS_CEILING = CORPUS_MAX_PAPERS * 8
+/**
+ * Pages of extractions read at most. Kept papers' extractions run ~3 per
+ * paper; the walk also reads past newer extractions of dropped papers (a
+ * reprocess run rewrites whole workspaces), so this bounds pages, not rows.
+ */
+const EXTRACTION_PAGES_CEILING = Math.ceil((CORPUS_MAX_PAPERS * 8) / CORPUS_PAGE_SIZE) + 8
 
 /** One run-ledger probe per request, shared by both stores and the pages. */
 const probe = async () => corpusVersion(await runs.listEverywhere())
@@ -101,10 +108,7 @@ async function loadCorpus(): Promise<CorpusSnapshot> {
     maxItems: CORPUS_MAX_PAPERS,
     id: (p) => p.id,
   })
-  const truncated =
-    papers.total > papers.items.length
-      ? { kept: papers.items.length, total: papers.total }
-      : undefined
+  const truncated = truncation(papers.items.length, papers.total, CORPUS_MAX_PAPERS)
   if (truncated) {
     console.warn(
       '[bff] corpus capped: kept newest %d of %d papers (CORPUS_MAX_PAPERS=%d)',
@@ -113,31 +117,42 @@ async function loadCorpus(): Promise<CorpusSnapshot> {
       CORPUS_MAX_PAPERS,
     )
   }
-  // Newest-first down to the oldest kept paper reaches every extraction of a
-  // kept paper; the id filter then drops the ones that belong to dropped papers.
   const cutoff = extractionCutoff(papers.items)
+  if (cutoff === null) return { papers: [], extractions: [], truncated, bytes: papers.bytes }
+  // Newest-first down to the oldest kept paper reaches every extraction of a
+  // kept paper; only those are kept, so a dropped paper's rows count toward
+  // nothing but the pages read.
+  const kept = new Set(papers.items.map((p) => p.id))
   const extractions = await drain(
     (page, size) => djangoPage('/api/extractions/', extractionDTO, page, size),
     {
       pageSize: CORPUS_PAGE_SIZE,
-      maxItems: EXTRACTIONS_CEILING,
+      maxItems: Number.POSITIVE_INFINITY,
       id: (e) => e.id,
-      until: cutoff === null ? () => true : (e) => e.created_at < cutoff,
+      accept: (e) => kept.has(e.paper),
+      until: (e) => Date.parse(e.created_at) < cutoff,
+      maxPages: EXTRACTION_PAGES_CEILING,
     },
   )
-  if (extractions.items.length >= EXTRACTIONS_CEILING) {
+  if (extractions.cutShort) {
     console.warn(
-      '[bff] extractions drain hit its ceiling (%d); dimensions may be incomplete',
-      EXTRACTIONS_CEILING,
+      '[bff] extractions walk stopped after %d pages; some dimensions may be missing',
+      extractions.pages,
     )
   }
-  const kept = new Set(papers.items.map((p) => p.id))
   return {
     papers: papers.items,
-    extractions: extractions.items.filter((e) => kept.has(e.paper)),
+    extractions: extractions.items,
     truncated,
     bytes: papers.bytes + extractions.bytes,
   }
+}
+
+/** Whether a paper is one the snapshot holds — false past the cap. */
+export async function corpusHolds(paperId: string): Promise<boolean> {
+  const { papers, truncated } = await corpusSnapshot()
+  if (!truncated) return true
+  return papers.some((p) => p.id === paperId)
 }
 
 const corpusStore = createSnapshotStore<CorpusSnapshot>({
@@ -169,6 +184,13 @@ export function trustCorpusFor(ms: number): void {
   trust().ms = Math.max(trust().ms, ms)
 }
 
+/**
+ * Read at the moment a store is consulted. The pages that render the ledger
+ * (Home, /runs, /briefing) call `runs.listEverywhere()` before their first
+ * corpus read reaches this — `composeAll` lists runs first, and both reads
+ * below await `cookies()` before looking — so on those pages the flag is set
+ * in time. Keep that order when adding a page that shows both.
+ */
 function trustMs(): number {
   return effectiveTrust({
     requested: trust().ms,

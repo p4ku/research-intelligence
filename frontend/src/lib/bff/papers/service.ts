@@ -12,7 +12,7 @@
 import 'server-only'
 
 import type { PaperDTO } from '@/lib/api/types'
-import { indexRuns, type RunIndex } from '@/lib/papers/runs'
+import { indexRuns, papersOfRun, type RunIndex } from '@/lib/papers/runs'
 import { cache } from 'react'
 import * as z from 'zod'
 import { django } from '../core/http'
@@ -24,7 +24,7 @@ import { corpusSnapshot } from '../corpus/snapshot'
 import { stars } from '../stars/service'
 import { workspace, type WorkspaceSummary } from '../workspaces/schema'
 import { workspaces } from '../workspaces/service'
-import { composeGet, composeListAll, listPapersRaw } from './compose'
+import { composeGet, composeListAll, composeRunPapers, listPapersRaw } from './compose'
 import { applyPapersQuery, corpusFacets } from './filter'
 import { fixturePapers, fixtureWorkspace } from './fixtures'
 import {
@@ -171,6 +171,25 @@ export const papers = {
   corpusTruncated: cache(async (): Promise<boolean> => {
     if (sourceOf('papers') !== 'composed') return false
     return Boolean((await corpusSnapshot()).truncated)
+  }),
+
+  /**
+   * The papers one run wrote, scored — the corpus's own rows, attributed
+   * through the run index (a paper's `pipeline_run_id` names the run that
+   * saw it last, not every run that did), or read live under `composed` when
+   * the corpus snapshot no longer holds them all (an edition at or past the
+   * cap). Live rows come run-scoped, so they carry that run's decision and
+   * score. Cached per request.
+   */
+  listRun: cache(async (workspaceId: string, runId: string): Promise<ScoredPaper[]> => {
+    const [scored, index] = await Promise.all([papers.listAll(workspaceId), papers.runIndex()])
+    const corpus = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
+    const held = papersOfRun(runId, corpus, index).map((r) => r.paper)
+    if (sourceOf('papers') !== 'composed') return held
+    const { truncated } = await corpusSnapshot()
+    if (!truncated) return held
+    const live = await composeRunPapers(workspaceId, runId)
+    return live.length > held.length ? live : held
   }),
 
   /**

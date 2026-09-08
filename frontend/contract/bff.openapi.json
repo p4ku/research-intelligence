@@ -3804,7 +3804,6 @@
           "title",
           "authors",
           "source",
-          "screening_status",
           "signal_score"
         ],
         "additionalProperties": false

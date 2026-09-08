@@ -11,8 +11,9 @@ and the dashboard's "Today in brief".
 
 `date`, `title`, `in_brief` prose (with a flag distinguishing model-written
 from template), funnel counters, the surfaced papers (id/title/authors/
-source, plus the run's own screening status and signal for the paper), and
-the exclusions (title/source/screening reason).
+source, plus the run's own signal and — still missing from the Django
+editions endpoint — its screening status for the paper), and the exclusions
+(title/source/screening reason).
 
 ## BFF routes
 

@@ -169,6 +169,55 @@ describe('createSnapshotStore', () => {
     expect(calls.load).toBe(2)
   })
 
+  test('a read that trusts nothing does not inherit an in-flight probe that predates it', async () => {
+    const c = clock()
+    const calls = { probe: 0, load: 0 }
+    const probes: Array<(v: string) => void> = []
+    const loads: Array<() => void> = []
+    const store = createSnapshotStore<number>({
+      probe: () =>
+        new Promise<string>((resolve) => {
+          calls.probe += 1
+          probes.push(resolve)
+        }),
+      load: () =>
+        new Promise<number>((resolve) => {
+          const n = ++calls.load
+          loads.push(() => resolve(n))
+        }),
+      ttlMs: 600_000,
+      maxEntries: 4,
+      now: c.now,
+    })
+    const settle = async () => {
+      for (let i = 0; i < 4; i += 1) await Promise.resolve()
+    }
+    const first = store.get('k')
+    await settle()
+    probes.shift()!('v1') // the version lands before the data, so the entry is kept
+    await settle()
+    loads.shift()!()
+    expect(await first).toBe(1)
+    c.tick(10)
+    // A trusting read starts a revalidation; its probe is still out when the
+    // run completes and, a moment later, a ledger-reading request (trust 0) arrives.
+    const trusting = store.get('k', { trustMs: 5 })
+    await settle()
+    c.tick(1)
+    const exact = store.get('k', { trustMs: 0 })
+    await settle()
+    expect(calls.probe).toBe(2)
+    probes.shift()!('v1') // the old probe: saw the ledger before completion
+    expect(await trusting).toBe(1)
+    await settle()
+    // The exact read probed on its own after the stale one settled, and reloads.
+    expect(calls.probe).toBe(3)
+    probes.shift()!('v2')
+    await settle()
+    loads.shift()!()
+    expect(await exact).toBe(2)
+  })
+
   test('a byte budget evicts the least recently used user before the key count does', async () => {
     const calls = { load: 0 }
     const store = createSnapshotStore<{ bytes: number }>({

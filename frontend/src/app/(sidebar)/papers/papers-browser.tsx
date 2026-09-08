@@ -136,11 +136,19 @@ export function PapersBrowser({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, starsTick, attempt, stale])
 
+  const domainsRef = useRef(domains)
+  domainsRef.current = domains
   const update = useCallback((patch: Partial<BrowseState>) => {
-    // From the URL's state, not the forced one: only the rendered value is
-    // forced, and a chip click must not quietly drop a `?starred=1` the
-    // reader never cleared.
-    const next = { ...urlRef.current, ...patch }
+    // From the address bar as it is now, not the forced state and not the
+    // last render's: only the rendered value is forced (a chip click must not
+    // quietly drop a `?starred=1` the reader never cleared), and two writes
+    // inside one render — a reset, then the search settling — must build on
+    // each other.
+    const current = stateFrom(
+      Object.fromEntries(new URLSearchParams(window.location.search)),
+      domainsRef.current,
+    )
+    const next = { ...current, ...patch }
     // A narrower or wider list starts again from its first page.
     if (!('page' in patch)) next.page = 1
     // No navigation: the App Router picks the query up from history and
