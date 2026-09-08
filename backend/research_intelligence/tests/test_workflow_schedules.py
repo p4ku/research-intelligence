@@ -23,6 +23,10 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
+import re
+import urllib.parse
+from unittest.mock import patch, MagicMock
+
 from api.serializers.schedules import WorkflowScheduleSerializer
 from research_intelligence.admin import WorkflowScheduleAdmin
 from research_intelligence.models import (
@@ -30,13 +34,16 @@ from research_intelligence.models import (
     WorkspaceMember,
     WorkflowSchedule,
     PipelineRun,
+    ComponentRun,
+    Scraper,
     ResearchAgentProcess,
 )
 from research_intelligence.tasks.auxiliary.schedule_dispatcher import (
     dispatch_due_workflow_schedules,
     dispatch_scheduled_workflow_runs_task,
 )
-from research_intelligence.tasks.orchestrator.runner import ResearchAgentRunner
+from research_intelligence.tasks.orchestrator.runner import PipelineRunner, ResearchAgentRunner
+from research_intelligence.tasks.step_1_search.search import execute_scraper_run_job
 
 User = get_user_model()
 
@@ -618,3 +625,177 @@ class WorkflowScheduleAdminAndAPITests(WorkflowScheduleBaseTestCase):
         schedule.refresh_from_db()
         serializer = WorkflowScheduleSerializer(schedule)
         self.assertEqual(serializer.data["last_status"], "completed")
+
+
+# ==============================================================================
+# 6. N_LAST_DAYS LOOKBACK WINDOW CONSUMPTION & PROPAGATION TESTS
+# ==============================================================================
+
+class WorkflowScheduleNLastDaysConsumptionTests(WorkflowScheduleBaseTestCase):
+    """
+    Tests verifying that n_last_days (lookback window in days) is an explicit field on
+    WorkflowSchedule (default 7), validated, and consumed during PipelineRun creation,
+    DAG SearchNode execution, and Scraper query formatting.
+    """
+
+    def test_default_n_last_days_is_7(self):
+        schedule = self.create_schedule(name="Default Lookback Schedule")
+        self.assertEqual(schedule.n_last_days, 7)
+
+        schedule.trigger_run(triggered_by_user=self.user)
+        schedule.refresh_from_db()
+
+        pr = schedule.last_pipeline_run
+        self.assertIsNotNone(pr)
+        self.assertEqual(pr.configuration_override.get("n_last_days"), 7)
+
+    def test_custom_n_last_days_consumed_during_run_creation(self):
+        schedule = self.create_schedule(
+            name="14 Days Lookback Schedule",
+            n_last_days=14
+        )
+        self.assertEqual(schedule.n_last_days, 14)
+
+        agent = schedule.trigger_run(triggered_by_user=self.user)
+        schedule.refresh_from_db()
+
+        pr = schedule.last_pipeline_run
+        self.assertEqual(pr.configuration_override.get("n_last_days"), 14)
+        self.assertEqual(agent.configuration_override.get("n_last_days"), 14)
+
+    def test_explicit_configuration_override_takes_precedence(self):
+        schedule = self.create_schedule(
+            name="Override Precedence Schedule",
+            n_last_days=14,
+            configuration_override={"n_last_days": 3}
+        )
+        schedule.trigger_run(triggered_by_user=self.user)
+        schedule.refresh_from_db()
+
+        pr = schedule.last_pipeline_run
+        self.assertEqual(pr.configuration_override.get("n_last_days"), 3)
+
+    @patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay")
+    def test_schedule_n_last_days_propagates_to_dag_search_node_and_component_run(self, mock_delay):
+        mock_delay.return_value = MagicMock(id="celery_task_dag_test")
+
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="quantum error correction",
+            is_active=True
+        )
+
+        schedule = self.create_schedule(
+            name="DAG Node Lookback Test",
+            n_last_days=21
+        )
+        schedule.trigger_run(triggered_by_user=self.user)
+        pr = schedule.last_pipeline_run
+
+        PipelineRunner.tick(pr.id)
+
+        comp_run = ComponentRun.objects.filter(pipeline_run=pr, step_type="search").first()
+        self.assertIsNotNone(comp_run)
+        self.assertEqual(comp_run.input_params.get("n_last_days"), 21)
+
+    @patch("research_intelligence.tasks.orchestrator.agent_engine.notify_pipeline_orchestrator_tick")
+    @patch("research_intelligence.scrapers.arxiv._throttle_request")
+    @patch("urllib.request.urlopen")
+    def test_schedule_n_last_days_consumed_by_scraper_query(self, mock_urlopen, mock_throttle, mock_notify):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = b"<feed xmlns='http://www.w3.org/2005/Atom'></feed>"
+        mock_resp.__enter__.return_value = mock_resp
+        mock_urlopen.return_value = mock_resp
+
+        Scraper.objects.create(
+            workspace=self.workspace,
+            provider="arxiv",
+            search_query="spin qubits",
+            is_active=True
+        )
+
+        schedule = self.create_schedule(
+            name="End to End Scraper Schedule",
+            n_last_days=30
+        )
+        schedule.trigger_run(triggered_by_user=self.user)
+        pr = schedule.last_pipeline_run
+
+        def _sync_delay(cid, limit=None, **kw):
+            execute_scraper_run_job(cid, limit=limit)
+            return MagicMock(id="task_mock_sync")
+
+        with patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay") as mock_delay:
+            mock_delay.side_effect = _sync_delay
+            PipelineRunner.tick(pr.id)
+
+        self.assertTrue(mock_urlopen.called)
+        req = mock_urlopen.call_args[0][0]
+        url_decoded = urllib.parse.unquote(req.full_url)
+        self.assertIn("submittedDate:[", url_decoded)
+
+        match = re.search(r"submittedDate:\[(\d{14}) TO (\d{14})\]", url_decoded)
+        self.assertIsNotNone(match, f"submittedDate range not found in {url_decoded}")
+        start_str, end_str = match.groups()
+        parsed_start = datetime.datetime.strptime(start_str, "%Y%m%d%H%M%S")
+        parsed_end = datetime.datetime.strptime(end_str, "%Y%m%d%H%M%S")
+        diff_days = (parsed_end - parsed_start).days
+        self.assertEqual(diff_days, 30)
+
+    def test_celery_beat_dispatcher_consumes_schedule_n_last_days(self):
+        schedule = self.create_schedule(
+            name="Beat Dispatcher Lookback Test",
+            n_last_days=10,
+            next_run_at=timezone.now() - datetime.timedelta(minutes=5)
+        )
+        res = dispatch_due_workflow_schedules()
+        self.assertEqual(len(res["dispatched"]), 1)
+
+        schedule.refresh_from_db()
+        pr = schedule.last_pipeline_run
+        self.assertIsNotNone(pr)
+        self.assertEqual(pr.configuration_override.get("n_last_days"), 10)
+
+    def test_clean_validation_rejects_non_positive_n_last_days(self):
+        schedule = self.create_schedule(name="Validation Schedule", n_last_days=0)
+        with self.assertRaises(ValidationError) as cm:
+            schedule.clean()
+        self.assertIn("n_last_days", cm.exception.message_dict)
+
+        schedule.n_last_days = -5
+        with self.assertRaises(ValidationError) as cm:
+            schedule.clean()
+        self.assertIn("n_last_days", cm.exception.message_dict)
+
+    def test_api_crud_workflow_schedule_n_last_days(self):
+        url = reverse('schedule-list')
+        payload = {
+            "workspace": str(self.workspace.id),
+            "name": "API Created Schedule",
+            "frequency": "daily",
+            "time_of_day": "04:00:00",
+            "n_last_days": 18,
+            "reprocess_existing": False,
+            "prevent_overlap": True,
+        }
+        create_resp = self.client.post(url, payload, format="json")
+        self.assertEqual(create_resp.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(create_resp.data["n_last_days"], 18)
+
+        sched_id = create_resp.data["id"]
+
+        detail_url = reverse('schedule-detail', args=[sched_id])
+        patch_resp = self.client.patch(detail_url, {"n_last_days": 25}, format="json")
+        self.assertEqual(patch_resp.status_code, status.HTTP_200_OK)
+        self.assertEqual(patch_resp.data["n_last_days"], 25)
+
+        sched = WorkflowSchedule.objects.get(id=sched_id)
+        self.assertEqual(sched.n_last_days, 25)
+
+    def test_admin_displays_n_last_days_lookback_badge(self):
+        schedule = self.create_schedule(name="Admin Badge Schedule", n_last_days=14)
+        admin_obj = WorkflowScheduleAdmin(WorkflowSchedule, AdminSite())
+        rendered = admin_obj.schedule_identity_display(schedule)
+        self.assertIn("14d lookback", rendered)
+

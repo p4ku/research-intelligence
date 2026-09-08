@@ -33,6 +33,7 @@ class WorkflowScheduleSerializer(serializers.ModelSerializer):
             'cron_expression',
             'timezone_name',
             'schedule_description',
+            'n_last_days',
             'reprocess_existing',
             'prevent_overlap',
             'configuration_override',

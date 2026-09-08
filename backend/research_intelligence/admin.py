@@ -1439,7 +1439,7 @@ class ExtractionDefinitionInline(admin.TabularInline):
 class WorkflowScheduleInline(admin.TabularInline):
     model = WorkflowSchedule
     extra = 0
-    fields = ('name', 'frequency', 'time_of_day', 'is_active', 'next_run_at', 'last_run_at')
+    fields = ('name', 'frequency', 'time_of_day', 'n_last_days', 'is_active', 'next_run_at', 'last_run_at')
     readonly_fields = ('next_run_at', 'last_run_at')
     show_change_link = True
 
@@ -2341,8 +2341,8 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
             'fields': ('frequency', 'one_off_datetime', 'time_of_day', 'days_of_week', 'day_of_month', 'interval_hours', 'cron_expression', 'timezone_name')
         }),
         ('Execution Parameters & Overrides', {
-            'fields': ('reprocess_existing', 'prevent_overlap', 'configuration_override'),
-            'classes': ('collapse',)
+            'description': 'Configure execution parameters, scraper lookback window (n_last_days), and concurrency guardrails.',
+            'fields': ('n_last_days', 'reprocess_existing', 'prevent_overlap', 'configuration_override'),
         }),
         ('Telemetry & Run History', {
             'fields': ('next_run_at', 'last_run_at', 'last_pipeline_run', 'last_status', 'total_runs_count', 'consecutive_failures_count', 'max_consecutive_failures', 'created_at', 'updated_at'),
@@ -2386,6 +2386,9 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
             if obj.reprocess_existing else
             '<span style="background-color: #0d6efd; color: white; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; display: inline-block; white-space: nowrap;">⚡ Incremental</span>'
         )
+        lookback_tag = (
+            f'<span style="background-color: #f8f9fa; color: #495057; border: 1px solid #ced4da; padding: 2px 7px; border-radius: 4px; font-size: 10px; font-weight: 600; display: inline-block; white-space: nowrap;">📅 {obj.n_last_days}d lookback</span>'
+        )
 
         return format_html(
             '<div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-start;">'
@@ -2395,13 +2398,14 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
             '<div style="font-size: 11px; color: #6c757d; white-space: nowrap;">'
             'Target: <a href="{}" style="color: #0d6efd; text-decoration: none; font-weight: 500;">📁 {}</a>'
             '</div>'
-            '<div>{}</div>'
+            '<div style="display: flex; gap: 4px; flex-wrap: wrap;">{}{}</div>'
             '</div>',
             change_url,
             obj.name,
             ws_url,
             obj.workspace.name,
-            mark_safe(reprocess_tag)
+            mark_safe(reprocess_tag),
+            mark_safe(lookback_tag),
         )
     schedule_identity_display.short_description = "Schedule & Target Workflow"
     schedule_identity_display.admin_order_field = "name"
