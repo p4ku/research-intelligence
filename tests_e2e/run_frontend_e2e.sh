@@ -3,9 +3,9 @@
 # 🚀 Schwarz Research Intelligence - Next.js Frontend E2E Test Runner (TypeScript / Playwright)
 # ==============================================================================
 # Usage:
-#   ./tests_e2e/run_frontend_e2e.sh                     # Runs all TS specs on Prod (Default)
+#   ./tests_e2e/run_frontend_e2e.sh                     # Runs all TS specs on Local dev (Default, http://localhost:3000)
 #   ./tests_e2e/run_frontend_e2e.sh staging             # Runs on Staging
-#   ./tests_e2e/run_frontend_e2e.sh local               # Runs on Local dev
+#   ./tests_e2e/run_frontend_e2e.sh prod                # Runs on Prod
 #   ./tests_e2e/run_frontend_e2e.sh --ui                # Opens Playwright Interactive UI Mode
 #   ./tests_e2e/run_frontend_e2e.sh --headed            # Opens visible Chrome browser
 #   ./tests_e2e/run_frontend_e2e.sh settings            # Runs specs/settings.spec.ts
@@ -29,7 +29,7 @@ if [ ! -d "${TESTS_DIR}/node_modules" ]; then
 fi
 
 # 2. Parse target environment and arguments
-TARGET="prod"
+TARGET="local"
 SPEC_FILTER=""
 EXTRA_ARGS=()
 UI_MODE=false

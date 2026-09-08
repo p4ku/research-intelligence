@@ -51,10 +51,10 @@ await toggles.turnOn('ask');
 
 `addFeatureCookie` is a thin wrapper over `context.addCookies()`; `BasePage.addCookies()` is the general form for any preference cookie (`rs-lang`, `rs-features`). The first test in the spec states the cookieless default out loud, so a regression in the defaults fails there rather than somewhere in journey 02.
 
-Against a local frontend rather than the default production target:
+The suite targets the local frontend (`http://localhost:3000`) by default; a dev server on another port takes `E2E_BASE_URL`:
 
 ```bash
-E2E_BASE_URL=http://localhost:3008 npx playwright test specs/07_feature_flags.journey.spec.ts
+E2E_BASE_URL=http://localhost:3009 npx playwright test specs/07_feature_flags.journey.spec.ts
 ```
 
 ### 2. Backend & Live Pipeline Scenarios
@@ -88,10 +88,11 @@ npm install
 ```
 
 ### 2. Run all frontend user journeys:
+The default target is the local Next.js dev server (`cd frontend && bun run dev`, http://localhost:3000). Nothing touches production unless you ask for it.
 ```bash
-npm test                             # Runs all specs against Production (headless)
+npm test                             # Runs all specs against Local dev (headless)
 npm run test:staging                 # Runs against Staging
-npm run test:local                   # Runs against Local dev
+npm run test:prod                    # Runs against Production
 ```
 
 ### 3. Interactive UI Mode & Debugging (Time-Travel Debugger):
