@@ -28,9 +28,10 @@ export async function generateMetadata(): Promise<Metadata> {
  * default="none" keeps them quiet during every other transition.
  *
  * The Current briefing's masthead (7 Sep 2026) is hidden from Home: the
- * ledger's Current row discloses the same brief and top papers on a click,
- * so the page opens on the table. `Masthead` itself stays in masthead.tsx
- * for the Studio skeleton gallery.
+ * ledger's Current row unfolds the same brief and top papers behind its
+ * triangle, and a click on the row opens the briefing, so the page opens
+ * on the table. `Masthead` itself stays in masthead.tsx for the Studio
+ * skeleton gallery.
  *
  * The search is the corpus typeahead: every row it offers is a /papers
  * destination, so `all_papers` off removes the whole panel rather than

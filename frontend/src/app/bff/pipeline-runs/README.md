@@ -2,8 +2,9 @@
 
 ## Purpose
 
-Home's Recent Briefings (the five newest runs across the user's domains, with
-their search window, status and counters) and its Start New Briefing form;
+Home's Recent Briefings (the five newest briefings across the user's domains,
+with their search window, status and counters, plus any run in flight or a
+domain's latest failure) and its Start New Briefing form;
 briefing editions are derived from completed runs. The "latest completed
 run" is the Current briefing.
 

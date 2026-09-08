@@ -11,7 +11,14 @@ import { useStars } from '@/lib/stars-client'
 import clsx from 'clsx'
 import { useSearchParams } from 'next/navigation'
 import { useMemo, useState, type ReactNode } from 'react'
-import { BriefPanel, ExpandButton, LEAD, LeadSlot, StatusLabel } from '../dashboard/ledger'
+import {
+  BriefPanel,
+  ExpandButton,
+  LEAD,
+  LeadHeading,
+  LeadSlot,
+  StatusLabel,
+} from '../dashboard/ledger'
 import {
   filterRows,
   paginate,
@@ -102,15 +109,15 @@ function LedgerFrame({
 }) {
   const t = useT()
   const columns = columnsFor(stars)
-  const labels: Record<(typeof COLUMNS)[number], string> = {
-    star: '',
+  const labels: Record<(typeof COLUMNS)[number], ReactNode> = {
+    expand: <LeadHeading>{t('Show brief')}</LeadHeading>,
+    star: <LeadHeading>{t('Star')}</LeadHeading>,
     domain: t('Domain'),
     period: t('Period'),
     generated: t('Generated'),
     screened: t('Screened'),
     included: t('Included'),
     status: '',
-    expand: '',
   }
   return (
     <div data-shape="briefing-ledger" data-state={state} className="space-y-4">

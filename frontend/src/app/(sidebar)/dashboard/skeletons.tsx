@@ -3,9 +3,9 @@ import { PageHeader, SectionLabel } from '@/components/scanner-ui'
 import { Skeleton } from '@/components/skeleton'
 import type { Features } from '@/lib/features'
 import { fmt, type T } from '@/lib/i18n'
-import { RECENT } from './data'
 import { HomeLinks } from './home-ui'
 import { LedgerSkeleton } from './ledger'
+import { RECENT } from './recent'
 import { RunCardSkeleton } from './run-card'
 
 /**

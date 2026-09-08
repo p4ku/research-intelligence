@@ -33,9 +33,11 @@ so non-technical users can see _why_ something ranked where it did.
   - **Home** (`/dashboard`) — one search across every paper (a panel of corpus
     destinations, so the whole typeahead goes when `all_papers` is off); the
     Current briefing (the newest completed run in any domain) read first with
-    its brief and strongest papers; Recent Briefings (the five newest runs,
-    each completed row expandable in place, Retry on a failed one) beside
-    Start New Briefing (domain, window, Run pipeline — one run at a time).
+    its brief and strongest papers; Recent Briefings (the five newest
+    briefings, each row a link into its briefing with a triangle that unfolds
+    the brief in place and a star; a run in flight or a domain's latest
+    failure keeps its place, Retry on a failed one) beside Start New Briefing
+    (domain, window, Run pipeline — one run at a time).
   - **Briefings** (`/briefing`) — one edition per completed run: funnel,
     surfaced papers, the screening log, and a brief (template-written until
     the backend's reporting step lands).

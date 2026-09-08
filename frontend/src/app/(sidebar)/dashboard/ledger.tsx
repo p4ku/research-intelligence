@@ -108,9 +108,9 @@ function LedgerFrame({
   stars: boolean
 }) {
   const t = useT()
-  const labels: Record<(typeof COLUMNS)[number], string> = {
-    expand: '',
-    star: '',
+  const labels: Record<(typeof COLUMNS)[number], ReactNode> = {
+    expand: <LeadHeading>{t('Show brief')}</LeadHeading>,
+    star: <LeadHeading>{t('Star')}</LeadHeading>,
     domain: t('Domain'),
     period: t('Period'),
     generated: t('Generated'),
@@ -191,6 +191,8 @@ export function ExpandButton({
       className={clsx(
         'relative inline-flex size-7 items-center justify-center rounded-sm transition-colors duration-150 ease-out',
         'text-zinc-300 group-hover:text-zinc-500 hover:text-zinc-950! dark:text-zinc-600 dark:group-hover:text-zinc-400 dark:hover:text-white!',
+        // No hover on touch: the triangle must be seen to be pressed.
+        'pointer-coarse:text-zinc-500 dark:pointer-coarse:text-zinc-400',
         open && 'text-zinc-700 dark:text-zinc-200',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500',
       )}
@@ -210,6 +212,11 @@ export function ExpandButton({
 /** A lead control's footprint, so a row (or a bone) without one keeps the loaded height. */
 export function LeadSlot() {
   return <span aria-hidden="true" className="flex size-7" />
+}
+
+/** A lead column's heading: read out, not shown — the control names itself. */
+export function LeadHeading({ children }: { children: ReactNode }) {
+  return <span className="sr-only">{children}</span>
 }
 
 /* ------------------------------- Brief panel ------------------------------- */
@@ -330,11 +337,13 @@ function Row({
           <span className="flex items-center justify-end gap-3">
             <StatusLabel status={row.status} />
             {row.retry && (
+              // Positioned like the triangle and the star: should a linked
+              // row ever carry Retry, the button still takes the click.
               <button
                 type="button"
                 onClick={onRetry}
                 disabled={busy}
-                className="rounded-sm border border-line px-2 py-0.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:text-zinc-200 dark:hover:text-white"
+                className="relative rounded-sm border border-line px-2 py-0.5 text-xs font-medium text-zinc-700 transition-colors hover:border-zinc-400 hover:text-zinc-950 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 disabled:opacity-50 dark:text-zinc-200 dark:hover:text-white"
               >
                 {t('Retry')}
               </button>
