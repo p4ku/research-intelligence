@@ -266,7 +266,7 @@ function ApplicationLayoutInner({ user, children, area = 'core' }: ShellProps) {
           <NavbarSection>
             {mounted ? (
               <Dropdown>
-                <DropdownButton as={NavbarItem}>
+                <DropdownButton as={NavbarItem} aria-label={userName}>
                   <Avatar src={userImage ?? undefined} initials={userName[0]} square />
                 </DropdownButton>
                 <AccountDropdownMenu
@@ -276,7 +276,7 @@ function ApplicationLayoutInner({ user, children, area = 'core' }: ShellProps) {
                 />
               </Dropdown>
             ) : (
-              <NavbarItem>
+              <NavbarItem aria-label={userName}>
                 <Avatar src={userImage ?? undefined} initials={userName[0]} square />
               </NavbarItem>
             )}
