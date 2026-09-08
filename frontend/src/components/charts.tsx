@@ -180,20 +180,25 @@ export function RadarChart({
   axes,
   size = 220,
   color = 'var(--accent)',
+  valueLabels = false,
   className,
 }: {
-  axes: { label: string; value: number }[] // value 0–100
+  /** `value` is 0–100; `shown` is what the value label prints when that is not the figure (a TRL's "4"). */
+  axes: { label: string; value: number; shown?: string }[]
   /** Width of the drawing box; the chart scales to its container up to this. */
   size?: number
   color?: string
+  /** Print each axis's value in mono under its label, so the chart reads without a legend. */
+  valueLabels?: boolean
   className?: string
 }) {
   const w = size
   const h = Math.round(size * 0.76)
   const cx = w / 2
   const cy = h / 2
+  const extra = valueLabels ? 1 : 0
   // A label gutter each side, and headroom for a stacked top or bottom label.
-  const r = Math.max(28, Math.min(w / 2 - 74, h / 2 - AXIS_GAP - AXIS_LINES * AXIS_LINE))
+  const r = Math.max(28, Math.min(w / 2 - 74, h / 2 - AXIS_GAP - (AXIS_LINES + extra) * AXIS_LINE))
   const n = axes.length
   const angle = (i: number) => (Math.PI * 2 * i) / n - Math.PI / 2
   const point = (i: number, radius: number) =>
@@ -231,14 +236,26 @@ export function RadarChart({
         : 2 * (Math.min(p.y, h - p.y) - AXIS_EDGE)
     const maxLines = Math.max(
       1,
-      Math.min(AXIS_LINES_MAX, Math.floor(gap / AXIS_LINE), Math.floor(wall / AXIS_LINE) + 1),
+      Math.min(
+        AXIS_LINES_MAX,
+        Math.floor(gap / AXIS_LINE) - extra,
+        Math.floor(wall / AXIS_LINE) + 1 - extra,
+      ),
     )
     const full = axes[i]!.label
     const lines = wrapAxisLabel(full, room / AXIS_CHAR, maxLines)
-    const rise = (lines.length - 1) * AXIS_LINE
+    const rise = (lines.length + extra - 1) * AXIS_LINE
     // Side labels centre on their vertex; top and bottom stack clear of it.
     const y = p.anchor !== 'middle' ? p.y - rise / 2 : p.up ? p.y - rise : p.y
-    return { key: `${full}-${i}`, x: p.x, y, anchor: p.anchor, lines, full }
+    return {
+      key: `${full}-${i}`,
+      x: p.x,
+      y,
+      anchor: p.anchor,
+      lines,
+      full,
+      shown: axes[i]!.shown ?? String(Math.round(axes[i]!.value)),
+    }
   })
 
   return (
@@ -298,6 +315,15 @@ export function RadarChart({
               {line}
             </tspan>
           ))}
+          {valueLabels && (
+            <tspan
+              x={l.x}
+              dy={AXIS_LINE + 1}
+              className="fill-zinc-950 font-mono font-medium tabular-nums dark:fill-white"
+            >
+              {l.shown}
+            </tspan>
+          )}
         </text>
       ))}
     </svg>

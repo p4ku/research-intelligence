@@ -61,6 +61,15 @@ export const paperDTO = z.looseObject({
   /** Includes 'accepted', which the model's choices omit — keep it open. */
   screening_status: z.string(),
   screening_reasoning: z.string().nullable(),
+  /**
+   * The two stages' reasons and the source's publication date, on the paper
+   * since 8 Sep 2026. Optional so earlier replays still parse; the metric row
+   * carries the same two reasons for a run.
+   */
+  abstract_screening_reasoning: z.string().nullable().optional(),
+  full_text_screening_reasoning: z.string().nullable().optional(),
+  published_date: z.string().nullable().optional(),
+  pipeline_run_name: z.string().nullable().optional(),
   is_evaluation_benchmark: z.boolean(),
   evaluation_label: z.enum(['passed', 'rejected']).nullable(),
   signal_score: z.number().nullable().optional(),
@@ -85,5 +94,12 @@ export const extractionDTO = z.looseObject({
   review_required: z.boolean(),
   confidence_score: z.number().nullable(),
   confidence_method: z.string().nullable(),
+  /**
+   * The model's `exit_metric` property, serialised as a string ("63.6").
+   * Optional: older replays predate it. When present it names the headline
+   * value outright, which is tier 1 of the resolution the mapper otherwise
+   * approximates from the definition's name.
+   */
+  exit_metric: z.string().nullable().optional(),
   created_at: z.string(),
 })

@@ -68,6 +68,10 @@ export const fixturePapers: ScoredPaper[] = [
     screening_status: 'full_text_passed',
     screening_reasoning:
       'Directly on-topic: multi-agent coordination with an empirical evaluation.',
+    abstract_screening_reasoning:
+      'The abstract proposes a coordination protocol for cooperating language-model agents and reports an empirical gain, matching the acceptance criteria.',
+    full_text_screening_reasoning:
+      'The full text carries a complete method, a new benchmark with three suites, and an ablation over the number of agents; directly on-topic for the workspace.',
     signal_score: 87.5,
     signal_score_details: {
       variables: { fit_score: 92, novelty_score: 8, trl_level: 4 },
@@ -87,6 +91,29 @@ export const fixturePapers: ScoredPaper[] = [
         rationale: 'Squarely in the agentic-AI focus.',
         evidence: ['“agents divide tool use adaptively”'],
         confidence: 0.86,
+        band: 'Strong',
+        facets: [
+          {
+            key: 'need_match_score',
+            name: 'Need match',
+            value: 94,
+            max: 100,
+            text: 'Coordinated tool use is the question the workspace scans for; the protocol applies directly to the assistant fleet.',
+          },
+          { key: 'adoption_route_score', name: 'Adoption route', value: 88, max: 100, text: null },
+        ],
+        lists: [
+          {
+            key: 'key_contributions',
+            name: 'Key contributions',
+            items: [
+              'A shared scratchpad and arbitration protocol for cooperating agents.',
+              'A three-suite benchmark for redundant tool calls.',
+            ],
+          },
+        ],
+        facts: [{ key: 'limitations_acknowledged', name: 'Limitations acknowledged', value: true }],
+        model: 'google/gemini-3.8-flash',
       },
       {
         key: 'novelty_score',
@@ -112,7 +139,9 @@ export const fixturePapers: ScoredPaper[] = [
     source_url: 'https://arxiv.org/abs/2608.01234',
     is_benchmark: false,
     evaluation_label: null,
+    published_date: '2026-08-19',
     created_at: '2026-08-27T05:58:00Z',
+    pipeline_run_name: 'Scheduled Run - Agentic AI 2AM',
   },
   {
     id: '00000000-0000-4000-8000-000000000042',
@@ -127,6 +156,8 @@ export const fixturePapers: ScoredPaper[] = [
     source: 'openalex',
     screening_status: 'rejected',
     screening_reasoning: 'Survey without an empirical contribution; excluded by criteria.',
+    abstract_screening_reasoning: null,
+    full_text_screening_reasoning: null,
     signal_score: null,
     signal_score_details: null,
     dimensions: [],
@@ -135,6 +166,8 @@ export const fixturePapers: ScoredPaper[] = [
     source_url: 'https://doi.org/10.1000/fixture.42',
     is_benchmark: false,
     evaluation_label: null,
+    published_date: null,
     created_at: '2026-08-27T05:59:00Z',
+    pipeline_run_name: null,
   },
 ]

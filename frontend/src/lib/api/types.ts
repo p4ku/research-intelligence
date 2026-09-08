@@ -6,8 +6,9 @@
 //   envelope — spanning every workspace the user belongs to.
 // - UUIDs and foreign keys are strings; DRF Decimals are strings.
 // - `PaperDTO` has no signal_score; it lives on the nested `metrics[]`.
-// - `ExtractionDTO` carries `fields_data` but not the model's `exit_metric`
-//   property, so dimension values are derived in src/lib/papers/map.ts.
+// - `ExtractionDTO` carries `fields_data` and, since 8 Sep 2026, the model's
+//   `exit_metric` property as a string; src/lib/papers/map.ts reads the
+//   headline off that and derives it from the fields when it is absent.
 
 import type { componentRunDTO } from '@/lib/bff/component-runs/upstream'
 import type {

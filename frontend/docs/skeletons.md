@@ -148,7 +148,7 @@ when the `all_papers` demo flag is off — no crumb trail, and `PaperNav` keeps
 its (redirected) back link but withholds the pager, so `neighboursOf` is never
 called; the skeletons take the same `features` prop and make the same call, or
 the shell paints a crumb bar that then vanishes. Files:
-`papers/[id]/paper-header.tsx`, `paper-nav.tsx`, `assessment-rows.tsx`,
+`papers/[id]/paper-header.tsx`, `paper-nav.tsx`, `assessment.tsx`, `score-bars.tsx`,
 `score-rail.tsx`, `sections.tsx`, `skeletons.tsx`, `loading.tsx`;
 `PaperChatFrame` / `PaperChatSkeleton` in `paper-chat.tsx` (the pill and the
 sheet it opens). Since the sidecar layout (7 Sep 2026) the rail reserves five

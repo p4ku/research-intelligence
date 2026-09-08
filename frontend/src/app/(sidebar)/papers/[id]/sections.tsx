@@ -10,7 +10,7 @@ import { PASSED_STATUSES, type ScoredPaper } from '@/lib/papers/types'
 import { ArrowUpRightIcon } from '@heroicons/react/16/solid'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { AssessmentRows } from './assessment-rows'
+import { Assessment } from './assessment'
 import { PaperChat } from './paper-chat'
 import { PaperHeader } from './paper-header'
 import { PaperNav, type PaperNeighbours } from './paper-nav'
@@ -22,9 +22,11 @@ import { ScoreRail } from './score-rail'
  * which is why the record is a single boundary rather than one per card.
  *
  * The layout is the "sidecar": the record reads top to bottom in one column
- * (masthead, screening, assessment, abstract, provenance) with the score
- * card sticky beside it, and the paper's chat behind a pill that opens a
- * sheet — so the scores stay in view while the reasoning is read.
+ * (masthead, screening, abstract, then the assessment definition by
+ * definition, provenance) with the score card sticky beside it — its bars
+ * link into the assessment and mark the definition being read — and the
+ * paper's chat behind a pill that opens a sheet, so the scores stay in view
+ * while the reasoning is read.
  */
 
 /** The title crumb — the only thing above the record that needs the fetch. */
@@ -84,19 +86,7 @@ export async function PaperRecord({
 
           <section>
             <SectionLabel>{t('Screening')}</SectionLabel>
-            {paper.screening_reasoning ? (
-              <AnswerMarkdown
-                text={paper.screening_reasoning}
-                className="mt-3 max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300"
-              />
-            ) : (
-              <p className="mt-3 text-sm text-zinc-400">{t('No screening notes.')}</p>
-            )}
-          </section>
-
-          <section>
-            <SectionLabel className="mb-3">{t('Assessment')}</SectionLabel>
-            <AssessmentRows dimensions={paper.dimensions} />
+            <Screening paper={paper} t={t} />
           </section>
 
           <section>
@@ -104,6 +94,11 @@ export async function PaperRecord({
             <p className="mt-3 max-w-[76ch] text-[15px] leading-relaxed text-pretty text-zinc-700 dark:text-zinc-300">
               {paper.abstract}
             </p>
+          </section>
+
+          <section>
+            <SectionLabel className="mb-3">{t('Assessment')}</SectionLabel>
+            <Assessment dimensions={paper.dimensions} t={t} />
           </section>
 
           <Provenance paper={paper} t={t} lang={lang} />
@@ -118,6 +113,36 @@ export async function PaperRecord({
   )
 }
 
+const STAGE_CLASS =
+  'mt-3 max-w-[76ch] text-[15px] leading-relaxed text-pretty text-zinc-700 dark:text-zinc-300'
+
+/**
+ * The screener's reasons, one paragraph per stage when the run kept them
+ * apart, with the stage as a run-in lead; the single combined note when it
+ * did not.
+ */
+function Screening({ paper, t }: { paper: ScoredPaper; t: T }) {
+  const stages = [
+    [t('Abstract stage'), paper.abstract_screening_reasoning],
+    [t('Full text'), paper.full_text_screening_reasoning],
+  ].filter((s): s is [string, string] => Boolean(s[1]))
+  if (stages.length > 0) {
+    return (
+      <>
+        {stages.map(([stage, text]) => (
+          <p key={stage} className={STAGE_CLASS}>
+            <span className="font-medium text-zinc-950 dark:text-white">{stage}.</span> {text}
+          </p>
+        ))}
+      </>
+    )
+  }
+  if (paper.screening_reasoning) {
+    return <AnswerMarkdown text={paper.screening_reasoning} className={STAGE_CLASS} />
+  }
+  return <p className="mt-3 text-sm text-zinc-400">{t('No screening notes.')}</p>
+}
+
 /** The link names itself: arXiv only for a shape-checked id, so a backfilled W-id link reads "Source". */
 function sourceLabel(url: string, t: T): string {
   const arxiv = arxivIdOf(url)
@@ -127,7 +152,7 @@ function sourceLabel(url: string, t: T): string {
   return t('Source')
 }
 
-/** Where the record came from, on one quiet line under the abstract. */
+/** Where the record came from, on one quiet line under the assessment. */
 function Provenance({ paper, t, lang }: { paper: ScoredPaper; t: T; lang: Lang }) {
   const parts: React.ReactNode[] = []
   if (paper.source_url) {
@@ -151,7 +176,11 @@ function Provenance({ paper, t, lang }: { paper: ScoredPaper; t: T; lang: Lang }
   )
   parts.push(
     <Link key="run" href={`/runs/${paper.pipeline_run_id}`} className="hover:underline">
-      {t('Run')} <span className="font-mono">{paper.pipeline_run_id.slice(0, 8)}</span>
+      {paper.pipeline_run_name ?? (
+        <>
+          {t('Run')} <span className="font-mono">{paper.pipeline_run_id.slice(0, 8)}</span>
+        </>
+      )}
     </Link>,
   )
   return (

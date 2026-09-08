@@ -136,6 +136,11 @@ export const dict: Record<string, string> = {
   Run: 'Lauf',
   'Ask a question about this paper…': 'Eine Frage zu diesem Paper stellen…',
 
+  // Paper analysis (definition-shaped assessment)
+  Published: 'Veröffentlicht',
+  'Abstract stage': 'Abstract-Stufe',
+  'Full text': 'Volltext',
+
   // Ask-this-paper rail
   'Ask this paper': 'Paper befragen',
   'Reading the full text…': 'Der Volltext wird gelesen…',
