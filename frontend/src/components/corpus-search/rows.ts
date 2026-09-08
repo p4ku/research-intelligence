@@ -22,7 +22,15 @@ export type Row =
   | { kind: 'recent'; id: string; q: string }
   | { kind: 'try'; id: string; q: string }
 
-export type SectionKey = 'exact' | 'ask' | 'papers' | 'domains' | 'recent' | 'try' | 'note'
+export type SectionKey =
+  | 'exact'
+  | 'ask'
+  | 'papers'
+  | 'domains'
+  | 'recent'
+  | 'try'
+  | 'note'
+  | 'stale'
 
 export interface Section {
   key: SectionKey
@@ -170,7 +178,7 @@ export function buildSections(result: SearchResponse | null, ctx: RowContext): S
   const stale: Section[] = error
     ? [
         {
-          key: 'note',
+          key: 'stale',
           label: null,
           note: t('Search is unavailable — press Enter to open Papers.'),
           rows: [],

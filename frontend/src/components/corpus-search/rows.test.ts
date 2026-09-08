@@ -87,8 +87,18 @@ describe('buildSections', () => {
     expect(flatten(down).map((r) => r.kind)).toEqual(['papers'])
     // With stale results the note sits above them.
     const stale = buildSections(search('agents'), ctx({ error: true }))
-    expect(stale[0]?.key).toBe('note')
+    expect(stale[0]?.key).toBe('stale')
     expect(flatten(stale).map((r) => r.kind)).toEqual(['paper', 'paper', 'domain', 'ask'])
+  })
+
+  test('an outage on top of a stale miss keeps every section key unique', () => {
+    // Both notes render as label-less paragraphs; sharing a key made React
+    // reconcile them onto the wrong node.
+    for (const stale of ['perovskite', '10.9999/nope']) {
+      const sections = buildSections(search(stale), ctx({ q: `${stale}x`, error: true }))
+      expect(sections.length).toBe(3)
+      expect(new Set(sections.map((s) => s.key)).size).toBe(sections.length)
+    }
   })
 
   test('a suggestion already in Recent is not offered twice', () => {
