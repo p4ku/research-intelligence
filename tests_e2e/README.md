@@ -51,10 +51,10 @@ await toggles.turnOn('ask');
 
 `addFeatureCookie` is a thin wrapper over `context.addCookies()`; `BasePage.addCookies()` is the general form for any preference cookie (`rs-lang`, `rs-features`). The first test in the spec states the cookieless default out loud, so a regression in the defaults fails there rather than somewhere in journey 02.
 
-Against a local frontend rather than the default production target:
+The suite targets the local frontend (`http://localhost:3000`) by default; a dev server on another port takes `E2E_BASE_URL`:
 
 ```bash
-E2E_BASE_URL=http://localhost:3008 npx playwright test specs/07_feature_flags.journey.spec.ts
+E2E_BASE_URL=http://localhost:3009 npx playwright test specs/07_feature_flags.journey.spec.ts
 ```
 
 ### 2. Backend & Live Pipeline Scenarios
@@ -88,10 +88,11 @@ npm install
 ```
 
 ### 2. Run all frontend user journeys:
+The default target is the local Next.js dev server (`cd frontend && bun run dev`, http://localhost:3000). The browser never touches production unless you ask for it — but the local Next server only proxies, so logins and chat sessions land on whichever Django `frontend/.env` names (`BACKEND_INTERNAL_URL` / `NEXT_PUBLIC_API_URL`, default `http://localhost:8000`). Point that at a local backend that has the `test_e2e` user (`E2E_USERNAME` / `E2E_PASSWORD` override the credentials) and warm the dev server once before the run, or the first compile can outlast the 15 s login redirect wait. An unrecognised `E2E_TARGET_ENV` is an error, not a fallback.
 ```bash
-npm test                             # Runs all specs against Production (headless)
+npm test                             # Runs all specs against Local dev (headless)
 npm run test:staging                 # Runs against Staging
-npm run test:local                   # Runs against Local dev
+npm run test:prod                    # Runs against Production
 ```
 
 ### 3. Interactive UI Mode & Debugging (Time-Travel Debugger):
