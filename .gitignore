@@ -108,7 +108,10 @@ yarn-error.log*
 
 # Docker / Logs
 *.log
+docker-compose*.override.yml
+docker-compose*.override.yaml
 docker-compose.override.yml
+docker-compose.override.yaml
 *.pdf
 # Temporary directory (local scratchpad / slide exports)
 /tmp/
