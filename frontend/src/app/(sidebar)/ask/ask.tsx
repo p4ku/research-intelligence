@@ -430,7 +430,8 @@ export function Ask({
     setCursor(0)
     // A different paper mid-conversation starts a fresh session on the next
     // question, leaving one quiet line in the transcript.
-    if (turns.length > 0 && scopeRef.current !== entry.id) {
+    const switching = turns.length > 0 && scopeRef.current !== entry.id
+    if (switching) {
       setActiveSessionId(null)
       setTurns((prev) => [
         ...prev,
@@ -441,7 +442,7 @@ export function Ask({
     // pressed send once; the picker was the interruption, not a new step.
     if (held) {
       setHeld(null)
-      ask(held, entry)
+      ask(held, entry, switching)
       return
     }
     focusField()
@@ -470,9 +471,10 @@ export function Ask({
 
   /**
    * `on` lets `pick` send a held question with the paper it just chose:
-   * `target` state has not landed yet on that path.
+   * `target` state has not landed yet on that path. `freshSession` covers the
+   * same lag for `activeSessionId`, which `pick` clears in that render.
    */
-  function ask(q: string, on?: ScopeTarget) {
+  function ask(q: string, on?: ScopeTarget, freshSession = false) {
     const paper = on ?? target
     if (busy || !paper) return
     const scope: AskScope = { paper_id: paper.id, title: paper.title }
@@ -484,7 +486,7 @@ export function Ask({
     void send({
       question: q,
       paper_id: paper.id,
-      session_id: activeSessionId ?? undefined,
+      session_id: freshSession ? undefined : (activeSessionId ?? undefined),
       deep_thinking: false,
     })
   }
