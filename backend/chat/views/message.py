@@ -52,11 +52,10 @@ class ChatMessageDetailView(APIView):
         # Owner isolation check
         session = message.session
         if session.user_id and session.user_id != request.user.id:
-            if not (request.user.is_staff or request.user.is_superuser):
-                if getattr(membership, 'role', None) not in ['admin', 'manager']:
-                    return Response(
-                        {"error": "You do not have permission to view another user's chat message."},
-                        status=status.HTTP_403_FORBIDDEN
-                    )
+            if getattr(membership, 'role', None) not in ['admin', 'manager']:
+                return Response(
+                    {"error": "You do not have permission to view another user's chat message."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
 
         return Response(PaperChatMessageSerializer(message).data, status=status.HTTP_200_OK)

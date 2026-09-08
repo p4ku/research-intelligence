@@ -15,18 +15,15 @@ class StarsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def _stars_payload(self, user, user_ws_ids=None):
-        if not getattr(user, 'is_superuser', False):
-            # Only targets the user can still see: a revoked membership hides its stars.
-            if user_ws_ids is None:
-                user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
-            if not user_ws_ids:
-                return {'papers': [], 'briefings': []}
-            qs = Star.objects.filter(user=user).filter(
-                Q(paper__workspace_id__in=user_ws_ids)
-                | Q(pipeline_run__workspace_id__in=user_ws_ids)
-            )
-        else:
-            qs = Star.objects.filter(user=user)
+        # Only targets the user can still see: a revoked membership hides its stars.
+        if user_ws_ids is None:
+            user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+        if not user_ws_ids:
+            return {'papers': [], 'briefings': []}
+        qs = Star.objects.filter(user=user).filter(
+            Q(paper__workspace_id__in=user_ws_ids)
+            | Q(pipeline_run__workspace_id__in=user_ws_ids)
+        )
 
         papers = []
         briefings = []
@@ -68,12 +65,8 @@ class StarsView(APIView):
         model, fk_field, kind, label = STAR_TARGETS[validated['kind']]
         target_id = validated['id']
 
-        user_ws_ids = None
-        if getattr(request.user, 'is_superuser', False):
-            target_exists = model.objects.filter(id=target_id).exists()
-        else:
-            user_ws_ids = list(WorkspaceMember.objects.filter(user=request.user).values_list('workspace_id', flat=True))
-            target_exists = bool(user_ws_ids) and model.objects.filter(id=target_id, workspace_id__in=user_ws_ids).exists()
+        user_ws_ids = list(WorkspaceMember.objects.filter(user=request.user).values_list('workspace_id', flat=True))
+        target_exists = bool(user_ws_ids) and model.objects.filter(id=target_id, workspace_id__in=user_ws_ids).exists()
 
         if not target_exists:
             return Response({"error": f"{label} not found."}, status=status.HTTP_404_NOT_FOUND)

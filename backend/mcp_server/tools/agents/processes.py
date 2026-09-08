@@ -104,12 +104,9 @@ def list_research_agents_logic(user, workspace_id: str = None, limit: int = 20) 
     else:
         # Accessible workspaces
         from research_intelligence.models import WorkspaceMember
-        if getattr(user, 'is_superuser', False):
-            processes = ResearchAgentProcess.objects.select_related('workspace', 'pipeline_run', 'triggered_by').order_by('-started_at')[:limit]
-        else:
-            memberships = WorkspaceMember.objects.filter(user=user)
-            ws_ids = [m.workspace_id for m in memberships]
-            processes = ResearchAgentProcess.objects.filter(workspace_id__in=ws_ids).select_related('workspace', 'pipeline_run', 'triggered_by').order_by('-started_at')[:limit]
+        memberships = WorkspaceMember.objects.filter(user=user)
+        ws_ids = [m.workspace_id for m in memberships]
+        processes = ResearchAgentProcess.objects.filter(workspace_id__in=ws_ids).select_related('workspace', 'pipeline_run', 'triggered_by').order_by('-started_at')[:limit]
 
     results = []
     for p in processes:

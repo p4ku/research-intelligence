@@ -33,15 +33,12 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if getattr(user, 'is_superuser', False):
-            qs = ResearchAgentProcess.objects.select_related('workspace').all()
-        else:
-            user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
-            if not user_ws_ids:
-                return ResearchAgentProcess.objects.none()
-            qs = ResearchAgentProcess.objects.select_related('workspace').filter(
-                workspace_id__in=user_ws_ids
-            )
+        user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+        if not user_ws_ids:
+            return ResearchAgentProcess.objects.none()
+        qs = ResearchAgentProcess.objects.select_related('workspace').filter(
+            workspace_id__in=user_ws_ids
+        )
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if ws_id:
             if str(ws_id).lower() in ('undefined', 'null', ''):

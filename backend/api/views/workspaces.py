@@ -33,8 +33,6 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         base_qs = Workspace.objects.prefetch_related('subscribers', 'scrapers', 'extraction_definitions').order_by('-created_at')
-        if getattr(user, 'is_superuser', False):
-            return base_qs
         user_ws_members = dict(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', 'role'))
         if not user_ws_members:
             return Workspace.objects.none()
@@ -53,22 +51,20 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         workspace = self.get_object()
         user = self.request.user
-        if not getattr(user, 'is_superuser', False):
-            has_access = WorkspaceMember.objects.filter(
-                workspace=workspace, user=user, role__in=['admin', 'manager']
-            ).exists()
-            if not has_access:
-                raise PermissionDenied("Only workspace admins and managers can modify workspace settings.")
+        has_access = WorkspaceMember.objects.filter(
+            workspace=workspace, user=user, role__in=['admin', 'manager']
+        ).exists()
+        if not has_access:
+            raise PermissionDenied("Only workspace admins and managers can modify workspace settings.")
         serializer.save()
 
     def perform_destroy(self, instance):
         user = self.request.user
-        if not getattr(user, 'is_superuser', False):
-            has_access = WorkspaceMember.objects.filter(
-                workspace=instance, user=user, role='admin'
-            ).exists()
-            if not has_access:
-                raise PermissionDenied("Only workspace admins can delete this workspace.")
+        has_access = WorkspaceMember.objects.filter(
+            workspace=instance, user=user, role='admin'
+        ).exists()
+        if not has_access:
+            raise PermissionDenied("Only workspace admins can delete this workspace.")
 
         # Purge workspace storage artifacts recursively
         try:
@@ -558,11 +554,8 @@ class ExtractionDefinitionViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         user = self.request.user
-        if getattr(user, 'is_superuser', False):
-            qs = ExtractionDefinition.objects.all().order_by('-created_at')
-        else:
-            user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-            qs = ExtractionDefinition.objects.filter(workspace_id__in=user_ws_ids).order_by('-created_at')
+        user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
+        qs = ExtractionDefinition.objects.filter(workspace_id__in=user_ws_ids).order_by('-created_at')
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if ws_id:
             qs = qs.filter(workspace_id=ws_id)
@@ -573,32 +566,29 @@ class ExtractionDefinitionViewSet(viewsets.ModelViewSet):
         if not workspace:
             raise PermissionDenied("Workspace is required.")
         user = self.request.user
-        if not getattr(user, 'is_superuser', False):
-            has_access = WorkspaceMember.objects.filter(
-                workspace=workspace, user=user, role__in=['admin', 'manager']
-            ).exists()
-            if not has_access:
-                raise PermissionDenied("You do not have permission to manage extraction definitions in this workspace.")
+        has_access = WorkspaceMember.objects.filter(
+            workspace=workspace, user=user, role__in=['admin', 'manager']
+        ).exists()
+        if not has_access:
+            raise PermissionDenied("You do not have permission to manage extraction definitions in this workspace.")
         serializer.save()
 
     def perform_update(self, serializer):
         obj = self.get_object()
         user = self.request.user
-        if not getattr(user, 'is_superuser', False):
-            has_access = WorkspaceMember.objects.filter(
-                workspace=obj.workspace, user=user, role__in=['admin', 'manager']
-            ).exists()
-            if not has_access:
-                raise PermissionDenied("You do not have permission to manage extraction definitions in this workspace.")
+        has_access = WorkspaceMember.objects.filter(
+            workspace=obj.workspace, user=user, role__in=['admin', 'manager']
+        ).exists()
+        if not has_access:
+            raise PermissionDenied("You do not have permission to manage extraction definitions in this workspace.")
         serializer.save()
 
     def perform_destroy(self, instance):
         user = self.request.user
-        if not getattr(user, 'is_superuser', False):
-            has_access = WorkspaceMember.objects.filter(
-                workspace=instance.workspace, user=user, role__in=['admin', 'manager']
-            ).exists()
-            if not has_access:
-                raise PermissionDenied("You do not have permission to manage extraction definitions in this workspace.")
+        has_access = WorkspaceMember.objects.filter(
+            workspace=instance.workspace, user=user, role__in=['admin', 'manager']
+        ).exists()
+        if not has_access:
+            raise PermissionDenied("You do not have permission to manage extraction definitions in this workspace.")
         instance.delete()
 

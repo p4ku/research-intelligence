@@ -66,14 +66,10 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             return PipelineRun.objects.none()
 
         base_qs = PipelineRun.objects.select_related('workspace', 'triggered_by', 'schedule').order_by('-started_at')
-        if getattr(user, 'is_superuser', False):
-            qs = base_qs.all()
-            user_ws_ids = None
-        else:
-            user_ws_ids = set(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
-            if not user_ws_ids:
-                return PipelineRun.objects.none()
-            qs = base_qs.filter(workspace_id__in=user_ws_ids)
+        user_ws_ids = set(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+        if not user_ws_ids:
+            return PipelineRun.objects.none()
+        qs = base_qs.filter(workspace_id__in=user_ws_ids)
 
         if getattr(self, 'action', None) == 'retrieve':
             qs = qs.prefetch_related('component_runs')
@@ -85,9 +81,9 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             import uuid
             try:
                 ws_uuid = uuid.UUID(str(workspace_id))
-                if user_ws_ids is not None and ws_uuid not in user_ws_ids:
+                if ws_uuid not in user_ws_ids:
                     return qs.none()
-                qs = base_qs.filter(workspace_id=ws_uuid) if user_ws_ids is not None else qs.filter(workspace_id=ws_uuid)
+                qs = base_qs.filter(workspace_id=ws_uuid)
             except (ValueError, TypeError):
                 return qs.none()
 
@@ -443,23 +439,19 @@ class ComponentRunViewSet(viewsets.ReadOnlyModelViewSet):
             return ComponentRun.objects.none()
 
         base_qs = ComponentRun.objects.all().order_by('-started_at')
-        if getattr(user, 'is_superuser', False):
-            qs = base_qs
-            user_ws_ids = None
-        else:
-            user_ws_ids = set(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
-            if not user_ws_ids:
-                return ComponentRun.objects.none()
-            qs = base_qs.filter(pipeline_run__workspace_id__in=user_ws_ids)
+        user_ws_ids = set(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+        if not user_ws_ids:
+            return ComponentRun.objects.none()
+        qs = base_qs.filter(pipeline_run__workspace_id__in=user_ws_ids)
 
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if ws_id and str(ws_id).lower() not in ('undefined', 'null', ''):
             import uuid
             try:
                 ws_uuid = uuid.UUID(str(ws_id))
-                if user_ws_ids is not None and ws_uuid not in user_ws_ids:
+                if ws_uuid not in user_ws_ids:
                     return qs.none()
-                qs = base_qs.filter(pipeline_run__workspace_id=ws_uuid) if user_ws_ids is not None else qs.filter(pipeline_run__workspace_id=ws_uuid)
+                qs = qs.filter(pipeline_run__workspace_id=ws_uuid)
             except (ValueError, TypeError):
                 return qs.none()
 
@@ -470,7 +462,7 @@ class ComponentRunViewSet(viewsets.ReadOnlyModelViewSet):
                 run_filter = {}
                 if ws_id and str(ws_id).lower() not in ('undefined', 'null', ''):
                     run_filter['workspace_id'] = ws_id
-                elif not getattr(user, 'is_superuser', False):
+                else:
                     run_filter['workspace_id__in'] = user_ws_ids
                 latest_run = (
                     PipelineRun.objects.filter(**run_filter)

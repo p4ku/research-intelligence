@@ -46,11 +46,11 @@ class MCPDiagnosticsTestCase(BaseMCPTestCase):
         self.assertIn(str(log_own.id), log_ids)
         self.assertNotIn(str(log_other.id), log_ids)
 
-        # 2. Superuser sees all logs
+        # 2. Superuser without membership in other workspace does NOT see other workspace logs
         res_admin = self.parse_res(list_user_activity_logs_logic(self.admin))
         admin_log_ids = [l["id"] for l in res_admin["logs"]]
         self.assertIn(str(log_own.id), admin_log_ids)
-        self.assertIn(str(log_other.id), admin_log_ids)
+        self.assertNotIn(str(log_other.id), admin_log_ids)
 
 
 class MCPViewsTestCase(BaseMCPTestCase):

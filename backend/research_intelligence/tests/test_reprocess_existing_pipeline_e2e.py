@@ -388,7 +388,7 @@ class WorkspaceReprocessFlagTestCase(TestCase):
         self.assertFalse(ws2.reprocess_existing)
 
     def test_workspace_create_and_update_with_reprocess_existing_true(self):
-        ws, err = create_workspace_record(user=self.user, name="Reprocess Active WS", reprocess_existing=True)
+        ws, err = create_workspace_record(user=self.admin, name="Reprocess Active WS", reprocess_existing=True)
         self.assertIsNone(err)
         self.assertTrue(ws.reprocess_existing)
 

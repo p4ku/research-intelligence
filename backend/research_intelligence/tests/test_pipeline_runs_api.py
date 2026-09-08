@@ -196,15 +196,13 @@ class PipelineRunsAPITestCase(APITestCase):
         self.assertEqual(res_delete_own.status_code, status.HTTP_200_OK)
         self.assertFalse(PipelineRun.objects.filter(id=self.run_a.id).exists())
 
-    def test_superuser_has_access_to_all_workspaces(self):
-        """Superuser has full visibility across all workspaces."""
+    def test_superuser_without_membership_has_no_access_to_workspaces(self):
+        """Superuser without membership in workspaces must NOT see any pipeline runs."""
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {self.token_super}')
         res = self.client.get('/api/pipeline-runs/')
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         items = res.data if isinstance(res.data, list) else res.data.get('results', [])
-        run_ids = [r['id'] for r in items]
-        self.assertIn(str(self.run_a.id), run_ids)
-        self.assertIn(str(self.run_b.id), run_ids)
+        self.assertEqual(len(items), 0)
 
     def test_pause_and_resume_pipeline_run(self):
         """User A can pause and resume Run A with full audit history tracking."""

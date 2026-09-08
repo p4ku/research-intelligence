@@ -2,9 +2,7 @@
 Security Tests — Workspace Data Isolation (BOLA Protection)
 ============================================================
 Verifies that REST API ViewSets enforce workspace-scoped data isolation:
-- User A (member of Workspace A) MUST NOT see data belonging to Workspace B.
-- Superusers CAN see all data across all workspaces.
-- Each ViewSet must only return records scoped to the user's workspace memberships.
+- Superusers MUST NOT bypass workspace isolation without membership.
 """
 import json
 from django.test import TestCase
@@ -250,11 +248,11 @@ class WorkspaceDataIsolationTest(TestCase):
                          "🔴 BOLA: User A can see User B's activity logs!")
 
     # ─────────────────────────────────────────────
-    # SUPERUSER SEES EVERYTHING
+    # SUPERUSER DOES NOT BYPASS WORKSPACE ISOLATION
     # ─────────────────────────────────────────────
 
-    def test_superuser_sees_all_workspaces(self):
-        """A superuser should see ALL workspaces across all users."""
+    def test_superuser_without_membership_sees_no_workspaces(self):
+        """A superuser without WorkspaceMember records should NOT see any workspaces."""
         superuser = User.objects.create_superuser(
             username="superadmin", email="super@corp.com", password="super123"
         )
@@ -263,12 +261,10 @@ class WorkspaceDataIsolationTest(TestCase):
 
         resp = client_super.get("/api/workspaces/")
         self.assertEqual(resp.status_code, 200)
-        names = [w["name"] for w in resp.data]
-        self.assertIn("Alice's Research Lab", names)
-        self.assertIn("Bob's Secret Project", names)
+        self.assertEqual(len(resp.data), 0, "Superuser without membership should see 0 workspaces")
 
-    def test_superuser_sees_all_papers(self):
-        """A superuser should see ALL papers across all workspaces."""
+    def test_superuser_without_membership_sees_no_papers(self):
+        """A superuser without WorkspaceMember records should NOT see any papers."""
         superuser = User.objects.create_superuser(
             username="superadmin2", email="super2@corp.com", password="super123"
         )
@@ -277,9 +273,7 @@ class WorkspaceDataIsolationTest(TestCase):
 
         resp = client_super.get("/api/papers/")
         self.assertEqual(resp.status_code, 200)
-        titles = [p["title"] for p in resp.data]
-        self.assertIn("Alice's Paper on Quantum AI", titles)
-        self.assertIn("Bob's Confidential Research", titles)
+        self.assertEqual(len(resp.data), 0, "Superuser without membership should see 0 papers")
 
     # ─────────────────────────────────────────────
     # CHAT WORKSPACE ACCESS CONTROL

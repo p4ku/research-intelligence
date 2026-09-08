@@ -29,14 +29,6 @@ class HITLViewSet(viewsets.ModelViewSet):
         base_qs = HITLCorrection.objects.select_related('extraction', 'extraction__workspace')
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
 
-        if getattr(user, 'is_superuser', False):
-            qs = base_qs.all().order_by('-timestamp')
-            if ws_id:
-                if str(ws_id).lower() in ('undefined', 'null', ''):
-                    return HITLCorrection.objects.none()
-                qs = qs.filter(extraction__workspace_id=ws_id)
-            return qs
-
         user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
         if not user_ws_ids:
             return HITLCorrection.objects.none()
@@ -59,12 +51,11 @@ class HITLViewSet(viewsets.ModelViewSet):
         extraction = serializer.validated_data.get('extraction')
         if extraction:
             user = self.request.user
-            if not getattr(user, 'is_superuser', False):
-                has_access = WorkspaceMember.objects.filter(
-                    workspace=extraction.workspace, user=user
-                ).exists()
-                if not has_access:
-                    raise PermissionDenied("You do not have access to this workspace.")
+            has_access = WorkspaceMember.objects.filter(
+                workspace=extraction.workspace, user=user
+            ).exists()
+            if not has_access:
+                raise PermissionDenied("You do not have access to this workspace.")
         operator = serializer.validated_data.get('human_operator')
         if not operator:
             operator = getattr(self.request.user, 'email', '') or getattr(self.request.user, 'username', '') or 'system'
@@ -83,12 +74,11 @@ class HITLViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         hitl = self.get_object()
         user = self.request.user
-        if not getattr(user, 'is_superuser', False):
-            has_access = WorkspaceMember.objects.filter(
-                workspace=hitl.extraction.workspace, user=user
-            ).exists()
-            if not has_access:
-                raise PermissionDenied("You do not have access to this workspace.")
+        has_access = WorkspaceMember.objects.filter(
+            workspace=hitl.extraction.workspace, user=user
+        ).exists()
+        if not has_access:
+            raise PermissionDenied("You do not have access to this workspace.")
         operator = serializer.validated_data.get('human_operator')
         if not operator:
             operator = getattr(self.request.user, 'email', '') or getattr(self.request.user, 'username', '') or 'system'
@@ -96,10 +86,9 @@ class HITLViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         user = self.request.user
-        if not getattr(user, 'is_superuser', False):
-            has_access = WorkspaceMember.objects.filter(
-                workspace=instance.extraction.workspace, user=user, role__in=['admin', 'manager']
-            ).exists()
-            if not has_access:
-                raise PermissionDenied("You do not have permission to delete HITL corrections in this workspace.")
+        has_access = WorkspaceMember.objects.filter(
+            workspace=instance.extraction.workspace, user=user, role__in=['admin', 'manager']
+        ).exists()
+        if not has_access:
+            raise PermissionDenied("You do not have permission to delete HITL corrections in this workspace.")
         instance.delete()

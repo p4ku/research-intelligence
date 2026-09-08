@@ -157,7 +157,7 @@ class UserProfileView(APIView):
         profile_data = UserProfileSerializer(user).data
         
         # Summary of accessible workspaces
-        profile_data['workspaces_count'] = WorkspaceMember.objects.filter(user=user).count() if not user.is_superuser else None
+        profile_data['workspaces_count'] = WorkspaceMember.objects.filter(user=user).count()
         return Response(profile_data, status=status.HTTP_200_OK)
 
     @extend_schema(

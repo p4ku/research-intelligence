@@ -33,15 +33,12 @@ class WorkflowScheduleViewSet(viewsets.ModelViewSet):
         if not user or not user.is_authenticated:
             return WorkflowSchedule.objects.none()
 
-        if getattr(user, 'is_superuser', False):
-            qs = WorkflowSchedule.objects.select_related('workspace', 'created_by', 'last_pipeline_run').all()
-        else:
-            user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
-            if not user_ws_ids:
-                return WorkflowSchedule.objects.none()
-            qs = WorkflowSchedule.objects.select_related('workspace', 'created_by', 'last_pipeline_run').filter(
-                workspace_id__in=user_ws_ids
-            )
+        user_ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
+        if not user_ws_ids:
+            return WorkflowSchedule.objects.none()
+        qs = WorkflowSchedule.objects.select_related('workspace', 'created_by', 'last_pipeline_run').filter(
+            workspace_id__in=user_ws_ids
+        )
 
         workspace_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if workspace_id:

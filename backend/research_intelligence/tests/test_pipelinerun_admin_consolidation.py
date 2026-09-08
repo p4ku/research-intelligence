@@ -321,8 +321,35 @@ class PipelineRunAdminConsolidationTestCase(TestCase):
         res = self.client.get(url)
         self.assertEqual(res.status_code, 200)
         self.assertContains(res, "Papers (In ➔ Out)")
-        self.assertContains(res, "Halt / Final Stage")
+        self.assertContains(res, "Status and details")
         self.assertContains(res, "Alpha Quantum Run")
         self.assertContains(res, "50 in")
         self.assertContains(res, "18 out")
         self.assertContains(res, "$0.0825")
+        self.assertContains(res, "Execution Time &amp; Cost")
+
+    def test_status_and_details_formatting(self):
+        """
+        Validates the merged Status and details column:
+        - Line 1: Status badge (e.g. RUNNING)
+        - Line 2: Halt / final stage badge (e.g. IN PROGRESS (SEARCH))
+        """
+        rendered = str(self.admin_obj.status_and_details(self.pipeline_run))
+        self.assertIn("RUNNING", rendered)
+        self.assertIn("IN PROGRESS", rendered)
+        self.assertIn("SEARCH", rendered)
+        self.assertEqual(self.admin_obj.status_and_details.short_description, "Status and details")
+        self.assertEqual(self.admin_obj.status_and_details.admin_order_field, "status")
+
+    def test_execution_time_and_cost_formatting(self):
+        """
+        Validates the merged Execution Time & Cost column:
+        - Line 1: Black bold execution time.
+        - Line 2: Blue cost ($).
+        """
+        rendered = str(self.admin_obj.execution_time_and_cost(self.pipeline_run))
+        self.assertIn("color: #000000; font-weight: bold;", rendered)
+        self.assertIn("color: #0d6efd;", rendered)
+        self.assertIn("$0.0825", rendered)
+        self.assertEqual(self.admin_obj.execution_time_and_cost.short_description, "Execution Time & Cost")
+        self.assertEqual(self.admin_obj.execution_time_and_cost.admin_order_field, "completed_at")

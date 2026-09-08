@@ -123,8 +123,6 @@ class WorkspaceSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if not request or not getattr(request, 'user', None) or not request.user.is_authenticated:
             return None
-        if getattr(request.user, 'is_superuser', False):
-            return 'admin'
         if not hasattr(self, '_user_roles_cache'):
             req_roles = getattr(request, '_user_ws_roles', None)
             if req_roles is not None:

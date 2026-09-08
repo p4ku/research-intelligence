@@ -191,13 +191,13 @@ class StarsAPITestCase(APITestCase):
 
         self.assertEqual(Star.objects.count(), 0)
 
-    def test_superuser_can_star_any_workspace(self):
+    def test_superuser_cannot_star_unjoined_workspace(self):
         self._as(self.token_super)
         res = self._put('paper', self.paper_b.id)
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
         res = self._put('briefing', self.run_a.id)
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.json(), {'papers': [str(self.paper_b.id)], 'briefings': [str(self.run_a.id)]})
+        self.assertEqual(res.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(Star.objects.count(), 0)
 
     # --- ordering and isolation ---
 

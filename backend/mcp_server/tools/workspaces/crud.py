@@ -15,19 +15,15 @@ from research_intelligence.services import check_workspace_access
 
 def list_workspaces_logic(user) -> str:
     """List all workspaces accessible by the authenticated user along with their role."""
-    if getattr(user, 'is_superuser', False):
-        memberships = {m.workspace_id: m.role for m in WorkspaceMember.objects.filter(user=user)}
-        workspaces = Workspace.objects.all().order_by('-created_at')
-    else:
-        memberships = {m.workspace_id: m.role for m in WorkspaceMember.objects.filter(user=user)}
-        workspaces = Workspace.objects.filter(id__in=memberships.keys()).order_by('-created_at')
+    memberships = {m.workspace_id: m.role for m in WorkspaceMember.objects.filter(user=user)}
+    workspaces = Workspace.objects.filter(id__in=memberships.keys()).order_by('-created_at')
 
     if not workspaces.exists():
         return json.dumps({"message": "No workspaces found for this user."}, indent=2)
 
     results = []
     for ws in workspaces:
-        role = memberships.get(ws.id, "admin" if getattr(user, 'is_superuser', False) else "unknown")
+        role = memberships.get(ws.id, "unknown")
         results.append({
             "workspace_id": str(ws.id),
             "name": ws.name,
@@ -59,7 +55,7 @@ def get_workspace_logic(user, workspace_id: str) -> str:
     data = {
         "workspace_id": str(workspace.id),
         "name": workspace.name,
-        "role": getattr(membership, 'role', 'admin' if getattr(user, 'is_superuser', False) else 'unknown'),
+        "role": getattr(membership, 'role', 'unknown'),
         "ocr_provider": workspace.ocr_provider,
         "llm_provider": workspace.llm_provider,
         "screening_llm_model": workspace.screening_llm_model,

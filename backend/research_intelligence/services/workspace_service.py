@@ -33,9 +33,6 @@ def check_workspace_access(
     except Workspace.DoesNotExist:
         return None, None, f"Error: Workspace with ID '{workspace_id}' does not exist."
 
-    if getattr(user, 'is_superuser', False):
-        return workspace, None, None
-
     try:
         membership = WorkspaceMember.objects.get(workspace=workspace, user=user)
     except WorkspaceMember.DoesNotExist:
@@ -55,12 +52,8 @@ def get_user_accessible_workspaces(user):
     Returns a QuerySet of all workspaces accessible to the user,
     along with a dictionary mapping workspace_id -> member_role.
     """
-    if getattr(user, 'is_superuser', False):
-        memberships = {m.workspace_id: m.role for m in WorkspaceMember.objects.filter(user=user)}
-        workspaces = Workspace.objects.all().order_by('-created_at')
-    else:
-        memberships = {m.workspace_id: m.role for m in WorkspaceMember.objects.filter(user=user)}
-        workspaces = Workspace.objects.filter(id__in=memberships.keys()).order_by('-created_at')
+    memberships = {m.workspace_id: m.role for m in WorkspaceMember.objects.filter(user=user)}
+    workspaces = Workspace.objects.filter(id__in=memberships.keys()).order_by('-created_at')
     return workspaces, memberships
 
 

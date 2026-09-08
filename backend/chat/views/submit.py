@@ -107,15 +107,14 @@ class ChatSubmitView(APIView):
                     status=status.HTTP_404_NOT_FOUND
                 )
             if session.user_id and session.user_id != request.user.id:
-                if not (request.user.is_staff or request.user.is_superuser):
-                    is_admin = WorkspaceMember.objects.filter(
-                        workspace=target_workspace, user=request.user, role__in=['admin', 'manager']
-                    ).exists()
-                    if not is_admin:
-                        return Response(
-                            {"error": "You do not have permission to append to another user's chat session."},
-                            status=status.HTTP_403_FORBIDDEN
-                        )
+                is_admin = WorkspaceMember.objects.filter(
+                    workspace=target_workspace, user=request.user, role__in=['admin', 'manager']
+                ).exists()
+                if not is_admin:
+                    return Response(
+                        {"error": "You do not have permission to append to another user's chat session."},
+                        status=status.HTTP_403_FORBIDDEN
+                    )
         else:
             session = PaperChatSession.objects.create(
                 workspace=target_workspace,

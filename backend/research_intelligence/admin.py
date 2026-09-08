@@ -2699,22 +2699,18 @@ class PipelineRunAdmin(admin.ModelAdmin):
         'id',
         'workspace',
         'name_display',
-        'status_badge',
-        'stopped_stage_badge',
+        'status_and_details',
         'status_message_display',
         'papers_funnel_display',
-        'reprocess_existing_badge',
-        'execution_time',
-        'formatted_usd_cost',
-        'schedule_display',
+        'execution_time_and_cost',
         'started_at',
         'completed_at',
         'triggered_by_display'
     )
     list_display_links = ('id', 'name_display')
     ordering = ('-started_at', '-id')
-    list_select_related = ('workspace', 'triggered_by', 'schedule')
-    list_filter = ('status', 'current_stage', 'stopped_at_stage', 'reprocess_existing', 'schedule', 'run_date', 'workspace', 'triggered_by')
+    list_select_related = ('workspace', 'triggered_by')
+    list_filter = ('status', 'current_stage', 'stopped_at_stage', 'run_date', 'workspace', 'triggered_by')
     search_fields = ('id', 'name', 'workspace__name', 'status_message', 'schedule__name', 'triggered_by__username', 'triggered_by__email')
     readonly_fields = ('started_at', 'completed_at', 'execution_time', 'stage_results_preview', 'step_history_preview')
     inlines = [ComponentRunInline]
@@ -2799,6 +2795,20 @@ class PipelineRunAdmin(admin.ModelAdmin):
     def total_papers_passed_screening(self, obj):
         return obj.total_papers_passed_screening
     total_papers_passed_screening.short_description = "Papers Out (Passed)"
+
+    def status_and_details(self, obj):
+        status_html = self.status_badge(obj)
+        stage_html = self.stopped_stage_badge(obj)
+        return format_html(
+            '<div style="line-height: 1.4;">'
+            '<div>{}</div>'
+            '<div style="margin-top: 3px;">{}</div>'
+            '</div>',
+            status_html,
+            stage_html
+        )
+    status_and_details.short_description = "Status and details"
+    status_and_details.admin_order_field = 'status'
 
     def stopped_stage_badge(self, obj):
         stage = obj.stopped_at_stage or obj.current_stage
@@ -2895,6 +2905,39 @@ class PipelineRunAdmin(admin.ModelAdmin):
     @admin.display(boolean=True, description="Reprocess Existing", ordering="reprocess_existing")
     def reprocess_existing_badge(self, obj):
         return obj.reprocess_existing
+
+    def execution_time_and_cost(self, obj):
+        sec = obj.duration_seconds
+        if sec is None and obj.status != 'running':
+            time_text = "-"
+        else:
+            raw = obj.execution_time_display
+            if obj.status == 'running':
+                time_text = f"⏳ {raw.lstrip('⏳ ')}"
+            elif raw != '-':
+                time_text = f"⏱️ {raw.lstrip('⏱️ ')}"
+            else:
+                time_text = "-"
+
+        cost = float(obj.usd_cost or 0.0)
+        if cost == 0.0 and (obj.tokens_in or obj.tokens_out or obj.tokens_consumed):
+            try:
+                from research_intelligence.llm_providers.pricing import calculate_llm_cost
+                model_name = obj.workspace.screening_llm_model if obj.workspace else "google/gemini-3.8-flash"
+                cost = float(calculate_llm_cost(model_name, obj.tokens_in or 0, obj.tokens_out or 0))
+            except Exception:
+                pass
+
+        return format_html(
+            '<div style="line-height: 1.35;">'
+            '<div style="color: #000000; font-weight: bold; white-space: nowrap;">{}</div>'
+            '<div style="color: #0d6efd; font-weight: 600; font-size: 12px; white-space: nowrap;">${}</div>'
+            '</div>',
+            time_text,
+            f"{cost:.4f}"
+        )
+    execution_time_and_cost.short_description = "Execution Time & Cost"
+    execution_time_and_cost.admin_order_field = 'completed_at'
 
     def execution_time(self, obj):
         sec = obj.duration_seconds

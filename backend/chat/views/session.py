@@ -40,18 +40,15 @@ class PaperChatSessionViewSet(viewsets.ModelViewSet):
         if self.action == 'retrieve':
             base_qs = base_qs.prefetch_related('messages')
 
-        if user.is_staff or user.is_superuser:
-            qs = base_qs.all()
-        else:
-            user_memberships = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', 'role'))
-            admin_ws_ids = [ws_id for ws_id, role in user_memberships if role in ('admin', 'manager')]
-            member_ws_ids = [ws_id for ws_id, _ in user_memberships]
+        user_memberships = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', 'role'))
+        admin_ws_ids = [ws_id for ws_id, role in user_memberships if role in ('admin', 'manager')]
+        member_ws_ids = [ws_id for ws_id, _ in user_memberships]
 
-            # Admins/managers see all sessions in their workspace; regular researchers see only their own sessions
-            qs = base_qs.filter(
-                Q(workspace_id__in=admin_ws_ids) |
-                Q(workspace_id__in=member_ws_ids, user=user)
-            )
+        # Admins/managers see all sessions in their workspace; regular researchers see only their own sessions
+        qs = base_qs.filter(
+            Q(workspace_id__in=admin_ws_ids) |
+            Q(workspace_id__in=member_ws_ids, user=user)
+        )
 
         paper_id = self.request.query_params.get('paper_id')
         if paper_id:
@@ -72,7 +69,7 @@ class PaperChatSessionViewSet(viewsets.ModelViewSet):
     def perform_update(self, serializer):
         session = self.get_object()
         user = self.request.user
-        if not (user.is_staff or user.is_superuser or session.user_id == user.id):
+        if session.user_id != user.id:
             is_admin = WorkspaceMember.objects.filter(
                 workspace=session.workspace, user=user, role__in=['admin', 'manager']
             ).exists()
@@ -82,7 +79,7 @@ class PaperChatSessionViewSet(viewsets.ModelViewSet):
 
     def perform_destroy(self, instance):
         user = self.request.user
-        if not (user.is_staff or user.is_superuser or instance.user_id == user.id):
+        if instance.user_id != user.id:
             is_admin = WorkspaceMember.objects.filter(
                 workspace=instance.workspace, user=user, role__in=['admin', 'manager']
             ).exists()

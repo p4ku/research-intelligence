@@ -38,7 +38,7 @@ def build_paper_extractions_matrix(
 
     target_pr_id = None
     user_ws_ids = None
-    if user and not getattr(user, 'is_superuser', False):
+    if user:
         user_ws_ids = set(Workspace.objects.filter(memberships__user=user).values_list('id', flat=True))
         papers_qs = papers_qs.filter(workspace__id__in=user_ws_ids)
 
