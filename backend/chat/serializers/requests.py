@@ -7,7 +7,7 @@ class PaperChatSubmitSerializer(serializers.Serializer):
     session_id = serializers.UUIDField(required=False, allow_null=True, help_text="Optional existing chat session UUID")
     question = serializers.CharField(required=True, help_text="User question or research prompt")
     sync = serializers.BooleanField(required=False, default=False, help_text="If True, executes synchronously instead of queueing to Celery")
-    deep_thinking = serializers.BooleanField(required=False, default=False, help_text="If True, triggers multi-step scratchpad reasoning and chain-of-thought analysis")
+    deep_thinking = serializers.BooleanField(required=False, default=False, help_text="If True, raises the model's thinking budget, returns its thought trace, and asks it to verify numerical claims against the document")
 
 
 class PaperChatAsyncResponseSerializer(serializers.Serializer):

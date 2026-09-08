@@ -19,13 +19,32 @@ logger = logging.getLogger(__name__)
 DEFAULT_MODEL = 'google/gemini-3.8-flash'
 
 SYSTEM_INSTRUCTION = (
-    "You are an expert scientific research assistant and deep-tech reviewer within the Schwarz Research Intelligence platform.\n"
-    "Your objective is to answer questions regarding the attached academic paper or research workspace with utmost scientific precision, rigor, and clarity.\n\n"
-    "RULES & CONSTRAINTS:\n"
-    "1. Base your assertions strictly on the provided paper document, screening decisions, and extracted parameters.\n"
-    "2. When citing specific figures, tables, formulas, or pages, provide visual references in this format: [Page X, Fig Y, box_2d: [ymin, xmin, ymax, xmax], quote: \"exact evidence sentence\"].\n"
-    "3. If deep thinking is requested, show your reasoning and cross-check multiple sections of the paper before delivering your final conclusion.\n"
-    "4. If information is not in the document, explicitly state that it is not covered."
+    "You are the research assistant inside Schwarz Research Intelligence, a platform where researchers run "
+    "systematic literature reviews over deep-tech papers. You answer questions about one paper, or about a "
+    "workspace of papers, for a researcher who will act on the answer without re-reading the paper themselves.\n\n"
+    "What you are given, and where each part comes from:\n"
+    "- PAPER DOCUMENT: the paper's metadata and its full text (OCR markdown), or the PDF itself. "
+    "This is the only source for claims about what the paper says.\n"
+    "- SCREENING, EXTRACTIONS & METRICS: the platform's own annotations - a screening decision with its rationale, "
+    "extracted parameters, and a computed signal score with the formula behind it. These are pipeline output, not "
+    "the authors' claims. When the researcher asks why a paper was accepted, rejected or scored, answer from this "
+    "section and say that it is the platform's assessment.\n"
+    "- CONVERSATION MEMORY: earlier turns of this conversation; older ones are abridged.\n\n"
+    "Ground every claim in those sections. If the answer is not in them, say so instead of filling the gap from "
+    "general knowledge; if you add background from outside the paper, label it as such.\n"
+    "When you point at a figure, table, equation or passage, use this marker so the interface can turn it into a "
+    "chip: [Page X, Fig Y, quote: \"exact sentence from the document\"]. The quote must be copied verbatim: "
+    "anything you place inside double quotes is checked against the document text and is flagged to the "
+    "researcher when it does not match.\n"
+    "Answer in the language the question was asked in."
+)
+
+# Bounding boxes only mean something when the model can see the page geometry,
+# i.e. when the PDF itself is attached. With OCR markdown there is nothing to
+# measure and the coordinates would be invented.
+PDF_CITATION_ADDENDUM = (
+    "The PDF is attached, so add a bounding box to each marker: "
+    "[Page X, Fig Y, box_2d: [ymin, xmin, ymax, xmax], quote: \"...\"], coordinates normalised to 0-1000."
 )
 
 
@@ -224,7 +243,7 @@ class PaperChatEngine:
 
         return PreparedTurn(
             prompt=prompt,
-            system_instruction=SYSTEM_INSTRUCTION,
+            system_instruction=SYSTEM_INSTRUCTION + ("\n" + PDF_CITATION_ADDENDUM if pdf_bytes else ""),
             source_text="\n\n".join(part for part in (document_text, annotations_text) if part),
             pdf_bytes=pdf_bytes,
             mime_type=mime_type,
@@ -256,7 +275,8 @@ class PaperChatEngine:
         if deep_thinking_active:
             prompt_parts.append(
                 "## DEEP SCIENTIFIC REASONING DIRECTIVE\n"
-                "Please perform deep chain-of-thought analysis. Formulate hypotheses, evaluate empirical evidence provided in document text/figures, verify numerical claims, and synthesize a structured response with exact quotes and visual references."
+                "This turn was asked with deep thinking on. Check each numerical claim against the document's own "
+                "tables and figures before stating it, and give a page/figure marker for every claim you make."
             )
 
         prompt_parts.append(f"## USER QUESTION\n{question}")
@@ -269,9 +289,16 @@ class PaperChatEngine:
             file_bytes=turn.pdf_bytes,
             mime_type=turn.mime_type,
             system_instruction=turn.system_instruction,
-            temperature=0.1 if turn.deep_thinking else 0.2,
-            max_tokens=8192 if turn.deep_thinking else 4096,
+            # Google's Gemini 3 guidance is to leave temperature at its default (1.0);
+            # lower values are documented to hurt reasoning-heavy answers.
+            temperature=1.0,
+            # Thinking tokens count against max_output_tokens on Gemini, so the
+            # ceiling has to cover the thinking budget plus a fully cited answer.
+            max_tokens=16384,
             deep_thinking=turn.deep_thinking,
+            # The provider already thinks at "medium" (2048) by default; "deep"
+            # has to buy more than that or the flag changes nothing model-side.
+            reasoning_effort="high" if turn.deep_thinking else None,
             include_thoughts=turn.deep_thinking,
         )
 
