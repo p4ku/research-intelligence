@@ -1,5 +1,7 @@
 import { Breadcrumbs } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
+import { editionHref } from '@/lib/bff/briefings/href'
+import { editionDate } from '@/lib/bff/briefings/select'
 import { forPage } from '@/lib/bff/core/page'
 import { isUuid } from '@/lib/bff/core/validate'
 import { papers } from '@/lib/bff/papers/service'
@@ -8,8 +10,9 @@ import { getLang, getT } from '@/lib/i18n-server'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Suspense, ViewTransition } from 'react'
+import { formatEditionDate } from '../../briefing/format'
 import { runScope } from '../../briefing/scope'
-import { PaperCrumb, PaperRecord, RunCrumbs } from './sections'
+import { PaperCrumb, PaperRecord, runContext } from './sections'
 import { PaperRecordSkeleton } from './skeletons'
 
 export const dynamic = 'force-dynamic'
@@ -33,8 +36,11 @@ export async function generateMetadata({
  *
  * `?run=` names the briefing the paper was opened from. The page then shows
  * the paper as that run read it, the crumb trail leads back through the
- * edition, and the pager walks the edition's papers — see sections.tsx.
- * Without it the page is the paper as it stands today.
+ * edition, and the pager walks the edition's papers — see sections.tsx. The
+ * run is resolved here, above the boundary, so the shell and the record
+ * agree on the trail and the exit: a run that cannot be resolved (another
+ * domain's, one that never recorded the paper) means the plain page, in
+ * both. Without `?run=` the page is the paper as it stands today.
  *
  * Detail is NOT behind `all_papers` — it is reached from briefings, Home and
  * chat citations — but everything on it that is derived from the list is: with
@@ -58,39 +64,32 @@ export default async function PaperDetailPage({
   ])
   if (!isUuid(id)) notFound()
   const runId = runScope(run)
+  const ctx = runId ? await runContext(id, runId, lang) : null
+
+  const title = (
+    <Suspense fallback={<Bone.Text widths={['28ch']} />}>
+      <PaperCrumb id={id} />
+    </Suspense>
+  )
+  const day = ctx && editionDate(ctx.run)
 
   return (
     <div className="mx-auto max-w-7xl">
-      {runId ? (
-        <Suspense
-          fallback={
-            <Breadcrumbs
-              items={[
-                { label: t('Briefings'), href: '/briefing' },
-                { label: <Bone.Text widths={['24ch']} /> },
-                { label: <Bone.Text widths={['28ch']} /> },
-              ]}
-              t={t}
-            />
-          }
-        >
-          <RunCrumbs id={id} runId={runId} t={t} lang={lang} features={features} />
-        </Suspense>
+      {ctx && day ? (
+        <Breadcrumbs
+          items={[
+            { label: t('Briefings'), href: '/briefing' },
+            {
+              label: `${ctx.run.workspace_name} · ${formatEditionDate(day, lang)}`,
+              href: editionHref(day, ctx.run.workspace_id, { runId: ctx.run.id }),
+            },
+            { label: title },
+          ]}
+          t={t}
+        />
       ) : (
         features.all_papers && (
-          <Breadcrumbs
-            items={[
-              { label: t('Papers'), href: '/papers' },
-              {
-                label: (
-                  <Suspense fallback={<Bone.Text widths={['28ch']} />}>
-                    <PaperCrumb id={id} />
-                  </Suspense>
-                ),
-              },
-            ]}
-            t={t}
-          />
+          <Breadcrumbs items={[{ label: t('Papers'), href: '/papers' }, { label: title }]} t={t} />
         )
       )}
 
@@ -100,13 +99,13 @@ export default async function PaperDetailPage({
             <PaperRecordSkeleton
               t={t}
               features={features}
-              back={runId ? t('Back to briefing') : undefined}
+              back={ctx ? t('Back to briefing') : undefined}
             />
           </ViewTransition>
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <PaperRecord id={id} runId={runId} t={t} lang={lang} features={features} />
+          <PaperRecord id={id} ctx={ctx} t={t} lang={lang} features={features} />
         </ViewTransition>
       </Suspense>
     </div>

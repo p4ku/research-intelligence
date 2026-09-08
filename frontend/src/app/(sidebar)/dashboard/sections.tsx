@@ -4,6 +4,7 @@ import { editionDate } from '@/lib/bff/briefings/select'
 import { forPage } from '@/lib/bff/core/page'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
+import { paperHref } from '@/lib/papers/href'
 import { editionHref } from '../briefing/format'
 import { currentRun, inFlightRuns, recentBriefings } from './data'
 import { formatAuthors, formatClock, formatDay, periodLabel } from './format'
@@ -26,6 +27,7 @@ const TOP = 3
 function topPapers(edition: Edition): HomePaper[] {
   return edition.papers.slice(0, TOP).map((p) => ({
     id: p.id,
+    href: paperHref(p.id, { runId: edition.run_id }),
     title: p.title,
     authors: formatAuthors(p.authors),
     score: p.signal_score,

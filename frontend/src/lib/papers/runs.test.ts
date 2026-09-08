@@ -1,6 +1,6 @@
 import { fixturePapers } from '@/lib/bff/papers/fixtures'
 import { describe, expect, test } from 'bun:test'
-import { indexRuns, papersOfRun } from './runs'
+import { indexRuns, paperAsRun, papersOfRun } from './runs'
 
 const OLD = '00000000-0000-4000-8000-0000000000a1'
 const NEW = '00000000-0000-4000-8000-0000000000a2'
@@ -112,5 +112,65 @@ describe('papersOfRun', () => {
     const ids = papersOfRun(NEW, corpus, null).map((r) => r.paper.id)
     expect(ids).toEqual([a.id, b.id])
     expect(papersOfRun(OLD, corpus, null)).toEqual([])
+  })
+})
+
+describe('paperAsRun', () => {
+  const paper = corpus.get(a.id)!
+  const index = indexRuns([
+    {
+      id: a.id,
+      metrics: [
+        metric(OLD, {
+          screening_status: 'accepted',
+          signal_score: 71.5,
+          abstract_screening_reasoning: 'On topic',
+          full_text_screening_reasoning: 'Solid method',
+        }),
+        metric(NEW, { screening_status: 'rejected', full_text_screening_reasoning: 'Off topic' }),
+      ],
+    },
+  ])
+
+  test('the run the corpus already reports needs no overlay', () => {
+    expect(paperAsRun(paper, NEW, index, null)).toBe(paper)
+    expect(paperAsRun(paper, NEW, null, null)).toBe(paper)
+  })
+
+  test('an older run’s row: its decision, score, stage reasons and provenance', () => {
+    const asOld = paperAsRun(paper, OLD, index, null)
+    expect(asOld).toMatchObject({
+      id: a.id,
+      pipeline_run_id: OLD,
+      pipeline_run_name: null,
+      screening_status: 'accepted',
+      signal_score: 71.5,
+      screening_reasoning: 'Solid method',
+      abstract_screening_reasoning: 'On topic',
+      full_text_screening_reasoning: 'Solid method',
+    })
+    // Everything else is the paper's: extractions belong to it, not to a run.
+    expect(asOld?.dimensions).toBe(paper.dimensions)
+    expect(asOld?.title).toBe(paper.title)
+  })
+
+  test('past the corpus cap the edition’s entry stands in, with the reasons withheld', () => {
+    const asOld = paperAsRun(paper, OLD, null, { screening_status: 'accepted', signal_score: 68 })
+    expect(asOld).toMatchObject({
+      pipeline_run_id: OLD,
+      screening_status: 'accepted',
+      signal_score: 68,
+      screening_reasoning: null,
+      abstract_screening_reasoning: null,
+      full_text_screening_reasoning: null,
+    })
+    // An entry without a decision (the serializer lag) keeps the paper's.
+    expect(paperAsRun(paper, OLD, null, { signal_score: 68 })?.screening_status).toBe('accepted')
+  })
+
+  test('a run that never recorded the paper is null — the page shows the paper as it stands', () => {
+    const other = '00000000-0000-4000-8000-0000000000a3'
+    expect(paperAsRun(paper, other, index, null)).toBeNull()
+    expect(paperAsRun(paper, other, null, undefined)).toBeNull()
   })
 })
