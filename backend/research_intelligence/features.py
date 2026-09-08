@@ -148,10 +148,6 @@ def require_feature(feature_name: Union[str, Feature], fallback: Any = None) -> 
         @wraps(func)
         def wrapper(*args, **kwargs):
             if not is_feature_enabled(feature_name):
-                flag_str = feature_name.value if isinstance(feature_name, Feature) else str(feature_name)
-                logger.debug(
-                    f"Feature '{flag_str}' is disabled; skipping execution of '{func.__qualname__}'."
-                )
                 if callable(fallback):
                     return fallback(*args, **kwargs)
                 return fallback

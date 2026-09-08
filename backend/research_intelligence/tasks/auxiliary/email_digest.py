@@ -317,7 +317,6 @@ def dispatch_pipeline_subscriber_digest(
     from research_intelligence.features import is_feature_enabled, Feature
 
     if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
-        logger.info(f"📧 [DIGEST DISPATCH SKIPPED] Feature EMAIL_NOTIFICATIONS is disabled for Workspace '{workspace.name}'.")
         return {
             "status": "skipped",
             "reason": "Email notifications feature disabled",

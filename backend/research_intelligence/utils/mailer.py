@@ -30,7 +30,6 @@ def send_mailgun_message(
     from research_intelligence.features import is_feature_enabled, Feature
 
     if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
-        logger.info(f"📧 [MAILGUN SUPPRESSED] Feature EMAIL_NOTIFICATIONS is disabled. Suppressed message to '{to_email}'.")
         return True, {"message": "Email sending suppressed (feature disabled)", "suppressed": True}
 
     mailgun_url = getattr(settings, 'MAILGUN_API_URL', 'https://api.eu.mailgun.net/v3')
@@ -92,7 +91,6 @@ def send_mail(subject: str, message: str, from_email: str, recipient_list: List[
     from research_intelligence.features import is_feature_enabled, Feature
 
     if not is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
-        logger.info(f"📧 [EMAIL SUPPRESSED] send_mail suppressed for {recipient_list}")
         return 0
 
     success_all = True
