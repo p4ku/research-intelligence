@@ -45,14 +45,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ code: 'cross-site' satisfies LoginErrorCode }, { status: 403 })
   }
 
-  let body: LoginBody
+  let raw: unknown
   try {
-    body = (await request.json()) as LoginBody
+    raw = await request.json()
   } catch {
     return NextResponse.json({ code: 'invalid-request' satisfies LoginErrorCode }, { status: 400 })
   }
-  const identifier = body.identifier?.trim()
-  const password = body.password
+  // `request.json()` also succeeds for null, a number, a string or an array;
+  // none of those is a login body, and reading fields off them throws.
+  if (typeof raw !== 'object' || raw === null) {
+    return NextResponse.json({ code: 'invalid-request' satisfies LoginErrorCode }, { status: 400 })
+  }
+  const body = raw as LoginBody
+  const identifier = typeof body.identifier === 'string' ? body.identifier.trim() : ''
+  const password = typeof body.password === 'string' ? body.password : ''
   if (!identifier || !password) {
     return NextResponse.json(
       { code: 'missing-credentials' satisfies LoginErrorCode },
