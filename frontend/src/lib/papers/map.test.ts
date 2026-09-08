@@ -683,6 +683,28 @@ describe('definition detail (the rest of the payload, shaped by its keys)', () =
     expect(d.lists?.map((l) => l.name)).toEqual(['Key contributions', 'Evidence gaps'])
   })
 
+  test('the list composition leaves the detail out', () => {
+    const nov = extraction({
+      id: 'e-nov3',
+      paper: 'p-l',
+      extraction_definition: 'def-nov',
+      category: 'Novelty Score',
+      exit_metric: '7',
+      version_info: { llm_model: 'google/gemini-3.8-flash' },
+      fields_data: {
+        novelty_score: 7,
+        novelty_band: 'Fresh',
+        reasoning: 'r',
+        key_contributions: ['x'],
+      },
+    })
+    const d = toScoredPaper(paper({ id: 'p-l' }), [nov], contexts, { detail: false }).dimensions[1]!
+    expect(d).toMatchObject({ value: 7, rationale: 'r' })
+    expect(d.band).toBeUndefined()
+    expect(d.lists).toBeUndefined()
+    expect(d.model).toBeUndefined()
+  })
+
   test('without exit_metric the name-derived resolution stands, detail still shaped', () => {
     const nov = extraction({
       id: 'e-nov2',

@@ -538,6 +538,7 @@ function dimensionFor(
   ctx: DefinitionContext,
   extraction: ExtractionDTO | undefined,
   metric: PaperMetricDTO | null,
+  detail: boolean,
 ): Dimension {
   const base: Dimension = {
     key: ctx.key,
@@ -576,13 +577,15 @@ function dimensionFor(
     extraction_id: extraction.id,
     // A TRL definition's sub-scores declare no range; the others share the
     // definition's own scale.
-    ...dimensionDetail(data, used, value, ctx.is_trl ? null : ctx.max),
-    model: modelOf(extraction),
+    ...(detail && {
+      ...dimensionDetail(data, used, value, ctx.is_trl ? null : ctx.max),
+      model: modelOf(extraction),
+    }),
   }
 }
 
 /** Extractions whose definition was deleted and matches no current name — detail page only. */
-function orphanDimension(extraction: ExtractionDTO): Dimension {
+function orphanDimension(extraction: ExtractionDTO, detail: boolean): Dimension {
   const data = fieldsOf(extraction.fields_data)
   const { raw, matchedKey } =
     exitFromRow(extraction, data) ??
@@ -605,8 +608,7 @@ function orphanDimension(extraction: ExtractionDTO): Dimension {
     validation_status: extraction.validation_status,
     review_required: extraction.review_required,
     extraction_id: extraction.id,
-    ...dimensionDetail(data, used, value, null),
-    model: modelOf(extraction),
+    ...(detail && { ...dimensionDetail(data, used, value, null), model: modelOf(extraction) }),
   }
 }
 
@@ -630,10 +632,17 @@ function legacyTrlDimension(metric: PaperMetricDTO | null): Dimension | null {
   }
 }
 
+/**
+ * `detail` shapes the rest of each definition's payload (facets, prose,
+ * lists, facts, model) — the paper page reads it; the list and run
+ * compositions, which score the whole corpus, leave it out so a briefing or
+ * the papers list never carries seven definitions' prose per paper.
+ */
 export function toScoredPaper(
   paper: PaperDTO,
   extractions: ExtractionDTO[],
   contexts: DefinitionContext[],
+  { detail = true }: { detail?: boolean } = {},
 ): ScoredPaper {
   const metric = pickMetric(paper)
   const byDefId = new Map<string, ExtractionDTO>()
@@ -652,7 +661,7 @@ export function toScoredPaper(
     if (ext) byCategory.delete(ctx.def.name)
     // Inactive definitions only show when this paper actually has a value.
     if (!ctx.def.is_active && !ext) continue
-    dimensions.push(dimensionFor(ctx, ext, metric))
+    dimensions.push(dimensionFor(ctx, ext, metric, detail))
   }
   for (const ext of extractions) {
     if (
@@ -662,7 +671,9 @@ export function toScoredPaper(
       orphans.push(ext)
     }
   }
-  for (const ext of [...byCategory.values(), ...orphans]) dimensions.push(orphanDimension(ext))
+  for (const ext of [...byCategory.values(), ...orphans]) {
+    dimensions.push(orphanDimension(ext, detail))
+  }
   if (!dimensions.some((d) => d.is_trl)) {
     const legacy = legacyTrlDimension(metric)
     if (legacy) dimensions.push(legacy)

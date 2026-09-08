@@ -62,7 +62,9 @@ export async function composeListAll(
     workspace: ctx.summary,
     papers: papers
       .filter((p) => p.workspace === workspaceId)
-      .map((p) => toScoredPaper(p, ctx.extractionsByPaper.get(p.id) ?? [], ctx.contexts)),
+      .map((p) =>
+        toScoredPaper(p, ctx.extractionsByPaper.get(p.id) ?? [], ctx.contexts, { detail: false }),
+      ),
   }
 }
 
@@ -99,7 +101,9 @@ export async function composeRunPapers(workspaceId: string, runId: string): Prom
     `/api/papers/?pipeline_run=${assertUuid(runId, 'run id')}`,
     z.array(paperDTO),
   )
-  return rows.map((p) => toScoredPaper(p, ctx.extractionsByPaper.get(p.id) ?? [], ctx.contexts))
+  return rows.map((p) =>
+    toScoredPaper(p, ctx.extractionsByPaper.get(p.id) ?? [], ctx.contexts, { detail: false }),
+  )
 }
 
 function groupBy(items: ExtractionDTO[], key: (item: ExtractionDTO) => string) {
