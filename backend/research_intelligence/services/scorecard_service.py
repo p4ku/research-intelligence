@@ -77,8 +77,9 @@ def build_single_scored_paper(
     # 1. Resolve target_metric
     target_metric = None
     if target_pr_id:
+        norm_target_pr = str(target_pr_id)
         for m in metrics_list:
-            if m.pipeline_run_id == target_pr_id:
+            if str(m.pipeline_run_id) == norm_target_pr:
                 target_metric = m
                 break
     if not target_metric and metrics_list:
@@ -87,6 +88,9 @@ def build_single_scored_paper(
     if not target_pr_id and target_metric and target_metric.pipeline_run_id:
         target_pr_id = target_metric.pipeline_run_id
         target_pr = target_metric.pipeline_run
+    if not target_pr_id and getattr(paper, 'pipeline_run_id', None):
+        target_pr_id = paper.pipeline_run_id
+        target_pr = getattr(paper, 'pipeline_run', None)
 
     raw_authors = paper.authors or ''
     authors_list = [a.strip() for a in raw_authors.split(',') if a.strip()] if raw_authors else []
@@ -394,6 +398,9 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
         if latest_m and latest_m.pipeline_run_id:
             target_pr_id = latest_m.pipeline_run_id
             target_pr = latest_m.pipeline_run
+        elif getattr(paper, 'pipeline_run_id', None):
+            target_pr_id = paper.pipeline_run_id
+            target_pr = getattr(paper, 'pipeline_run', None)
 
     target_metric = None
     if target_pr_id:
