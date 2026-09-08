@@ -37,6 +37,8 @@ export const dict: Record<string, string> = {
   Breadcrumb: 'Pfadnavigation',
   // Accessible name for the pager landmark (src/components/page-nav.tsx).
   Pagination: 'Seitennavigation',
+  // Accessible name for icon-only dismiss buttons (the paper chat sheet today).
+  Close: 'Schließen',
   'Retrying…': 'Wird erneut versucht …',
   'Reference {id}': 'Referenz {id}',
   "Couldn't load this page.": 'Diese Seite konnte nicht geladen werden.',

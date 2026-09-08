@@ -13,7 +13,7 @@ import type { ScoredPaper } from '@/lib/papers/types'
 import { PaperAirplaneIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import { useReducedMotion } from 'motion/react'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 
 interface Msg {
   role: 'user' | 'scanner'
@@ -129,18 +129,19 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
     if (open && msgs.length > 0) follow()
   }, [open, msgs, follow])
 
-  // The sheet: focus the composer once it has slid in; Escape closes it.
+  // The sheet: the composer takes focus in the same commit that makes the
+  // pill inert (a delay would drop focus to <body> meanwhile); preventScroll
+  // keeps the slide-in from being yanked. Escape closes it.
+  useLayoutEffect(() => {
+    if (open) inputRef.current?.focus({ preventScroll: true })
+  }, [open])
   useEffect(() => {
     if (!open) return
-    const timer = window.setTimeout(() => inputRef.current?.focus(), 260)
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeChat()
     }
     document.addEventListener('keydown', onKey)
-    return () => {
-      window.clearTimeout(timer)
-      document.removeEventListener('keydown', onKey)
-    }
+    return () => document.removeEventListener('keydown', onKey)
   }, [open, closeChat])
 
   function ask(q: string) {
@@ -282,9 +283,18 @@ export function PaperChatFrame({
   footer: ReactNode
 }) {
   const t = useT()
+  // Making the sheet inert on close throws focus to <body>; it comes back to
+  // the pill, which the same commit has just made focusable again.
+  const pillRef = useRef<HTMLButtonElement>(null)
+  const wasOpen = useRef(open)
+  useLayoutEffect(() => {
+    if (wasOpen.current && !open) pillRef.current?.focus({ preventScroll: true })
+    wasOpen.current = open
+  }, [open])
   return (
     <>
       <button
+        ref={pillRef}
         type="button"
         data-shape="paper-chat-pill"
         data-state={state}
@@ -292,7 +302,8 @@ export function PaperChatFrame({
         disabled={!onOpen}
         aria-expanded={open}
         // Open, the pill is faded out under the sheet — `inert` keeps the
-        // invisible control out of the tab order too.
+        // invisible control out of the tab order too (so aria-expanded only
+        // ever reads false; the sheet replaces the pill rather than extends it).
         inert={open}
         className={clsx(PILL_CLASS, 'active:scale-[0.97]', open && 'pointer-events-none opacity-0')}
       >
