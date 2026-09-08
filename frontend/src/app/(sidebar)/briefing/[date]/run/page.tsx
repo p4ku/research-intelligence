@@ -5,7 +5,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Suspense, ViewTransition } from 'react'
 import { isEditionDate } from '../../format'
-import { domainNames, domainScope } from '../../scope'
+import { domainNames, domainScope, runScope } from '../../scope'
 import { ScreeningLog } from './sections'
 import { ScreeningLogHeader, ScreeningLogSkeleton } from './skeletons'
 
@@ -20,8 +20,8 @@ export async function generateMetadata(): Promise<Metadata> {
 // Showing the near-misses is the credibility move — the briefing's short list
 // means something because the exclusions are inspectable.
 //
-// Crumbs and title render with the shell (the date and domain are in the
-// URL); the funnel and the table stream behind one boundary. loading.tsx
+// Crumbs and title render with the shell (the date, domain and run are in
+// the URL); the funnel and the table stream behind one boundary. loading.tsx
 // shows the same skeleton on navigation.
 
 export default async function ScreeningLogPage({
@@ -29,9 +29,9 @@ export default async function ScreeningLogPage({
   searchParams,
 }: {
   params: Promise<{ date: string }>
-  searchParams: Promise<{ domain?: string }>
+  searchParams: Promise<{ domain?: string; run?: string }>
 }) {
-  const [{ date }, { domain }, state, t, lang] = await Promise.all([
+  const [{ date }, { domain, run }, state, t, lang] = await Promise.all([
     params,
     searchParams,
     getWorkspacesState(),
@@ -42,6 +42,7 @@ export default async function ScreeningLogPage({
   if (state.kind !== 'ok') return <WorkspaceNotice kind={state.kind} />
   if (!isEditionDate(date)) notFound()
   const wsId = domainScope(state.all, domain)
+  const runId = runScope(run)
   const domains = domainNames(state.all)
 
   return (
@@ -51,6 +52,7 @@ export default async function ScreeningLogPage({
         lang={lang}
         date={date}
         wsId={wsId}
+        runId={runId}
         domain={wsId && domains[wsId]}
       />
 
@@ -62,7 +64,7 @@ export default async function ScreeningLogPage({
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <ScreeningLog wsId={wsId} date={date} lang={lang} t={t} />
+          <ScreeningLog wsId={wsId} runId={runId} date={date} lang={lang} t={t} />
         </ViewTransition>
       </Suspense>
     </div>

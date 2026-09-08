@@ -31,13 +31,15 @@ export function ScreeningLogHeader({
   lang,
   date,
   wsId,
+  runId,
   domain,
 }: {
   t: T
   lang: Lang
   date?: string
-  /** The domain from the URL (id and display name); the crumb keeps it. */
+  /** The domain (id and display name) and run from the URL; the crumb keeps them. */
   wsId?: string
+  runId?: string
   domain?: string
 }) {
   const dateLabel = date ? formatEditionDate(date, lang) : null
@@ -49,7 +51,7 @@ export function ScreeningLogHeader({
           date && dateLabel
             ? {
                 label: domain ? `${domain} · ${dateLabel}` : dateLabel,
-                href: wsId ? editionHref(date, wsId) : `/briefing/${date}`,
+                href: editionHref(date, wsId, { runId }),
               }
             : { label: <Bone.Text widths={['20ch']} /> },
           { label: t('Screening log') },

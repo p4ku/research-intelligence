@@ -85,9 +85,11 @@ describe('assembleSearch', () => {
     const word = fixtureWorkspace.name.split(' ')[0]!
     const withEdition = run(word)
     expect(withEdition.domains).toHaveLength(1)
-    expect(withEdition.domains[0]?.latest_edition?.href).toBe(
-      `/briefing/${fixtureSearchCorpus.latestEdition[fixtureWorkspace.id]}?domain=${fixtureWorkspace.id}`,
-    )
+    const latest = fixtureSearchCorpus.latestEdition[fixtureWorkspace.id]!
+    expect(withEdition.domains[0]?.latest_edition).toEqual({
+      date: latest.date,
+      href: `/briefing/${latest.date}?domain=${fixtureWorkspace.id}&run=${latest.runId}`,
+    })
     const without = run(word, 8, { ...fixtureSearchCorpus, latestEdition: {} })
     expect(without.domains[0]?.latest_edition).toBeNull()
   })

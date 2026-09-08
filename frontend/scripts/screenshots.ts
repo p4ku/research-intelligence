@@ -270,8 +270,9 @@ async function discover(
       .evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).getAttribute('href') ?? ''))
     return hrefs.find((h) => h.length > prefix.length && (withQuery || !h.includes('?'))) ?? null
   }
-  // Edition links carry `?domain=` (two domains can share a date); the query
-  // is kept so the `[date]` routes open the same edition the list links to.
+  // Edition links carry `?domain=&run=` (two domains can share a date, and one
+  // domain two runs); the query is kept so the `[date]` routes open the same
+  // edition the list links to.
   const briefing =
     (await firstHref('/briefing', '/briefing/', true)) ??
     (await firstHref('/dashboard', '/briefing/', true))

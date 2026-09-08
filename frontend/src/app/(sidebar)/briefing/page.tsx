@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 // /briefing is the archive of every completed briefing — the spec's ledger:
 // domain, period, generated, screened, included; the Current one highlighted;
 // a domain filter, a star per row, twenty a page. Each row opens to its brief
-// and leads to /briefing/[date]?domain=. Filter and page ride in the URL,
+// and leads to /briefing/[date]?domain=&run=. Filter and page ride in the URL,
 // read by the ledger itself (useSearchParams), so this page ignores them.
 //
 // The header renders with the shell; the ledger streams in behind one

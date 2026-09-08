@@ -11,8 +11,9 @@ import { funnelCopy } from './sections'
 /**
  * The edition page's section skeletons — the page's Suspense fallbacks and,
  * stacked, the loading.tsx shell. The page knows the date (and, from
- * `?domain=`, the domain) from the URL and passes them so the crumb and the
- * log link are real; loading.tsx does not get params, so there they are bones.
+ * `?domain=` and `?run=`, the domain and run) from the URL and passes them so
+ * the crumb and the log link are real; loading.tsx does not get params, so
+ * there they are bones.
  *
  * All three take the flags as a required prop — nothing outside this route
  * renders them — and must mirror the page: with `stars` off there is no star
@@ -86,13 +87,15 @@ export function EditionPapersSkeleton({
   t,
   date,
   wsId,
+  runId,
   cards = 5,
   features,
 }: {
   t: T
   date?: string
-  /** The domain from the URL; without it the log link resolves the day's newest edition. */
+  /** The domain and run from the URL; without them the log link resolves the day's newest edition. */
   wsId?: string
+  runId?: string
   cards?: number
   features: Features
 }) {
@@ -109,7 +112,7 @@ export function EditionPapersSkeleton({
             {features.stars && <Bone.Chip width={82} />}
             {date ? (
               <Link
-                href={wsId ? editionHref(date, wsId, 'run') : `/briefing/${date}/run`}
+                href={editionHref(date, wsId, { runId, sub: 'run' })}
                 className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
               >
                 {t('Screening log →')}

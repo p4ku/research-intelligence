@@ -14,8 +14,9 @@ import { EditionPaperList } from './edition-paper-list'
 /**
  * One edition's streamed sections. The head needs the edition; the papers
  * need the edition and the scored corpus. Both services are React-cached, so
- * the two sections share one edition fetch. `wsId` is the domain from the
- * URL; without one, the newest edition of the day in any domain is shown.
+ * the two sections share one edition fetch. `wsId` and `runId` are the
+ * domain and run from the URL; without them, the newest edition of the day
+ * (in any domain, or in that domain) is shown.
  */
 
 export function funnelCopy(t: T) {
@@ -29,6 +30,7 @@ export function funnelCopy(t: T) {
 /** Crumbs and title, the funnel, the brief. */
 export async function EditionHead({
   wsId,
+  runId,
   date,
   lang,
   t,
@@ -36,6 +38,7 @@ export async function EditionHead({
   features,
 }: {
   wsId?: string
+  runId?: string
   date: string
   lang: Lang
   t: T
@@ -44,7 +47,7 @@ export async function EditionHead({
   /** Required: page.tsx is the only caller, and its skeleton must agree. */
   features: Features
 }) {
-  const edition = await forPage(briefings.findByDate(date, lang, wsId))
+  const edition = await forPage(briefings.findByDate(date, lang, wsId, runId))
   // A date with no edition is a true 404 — rendered in-stream now that the
   // shell has already gone out (see docs/skeletons.md).
   if (!edition) notFound()
@@ -93,14 +96,16 @@ export async function EditionHead({
 /** The papers that passed, as cards with their stars, and the link to the screening log. */
 export async function EditionPapers({
   wsId,
+  runId,
   date,
   lang,
 }: {
   wsId?: string
+  runId?: string
   date: string
   lang: Lang
 }) {
-  const edition = await forPage(briefings.findByDate(date, lang, wsId))
+  const edition = await forPage(briefings.findByDate(date, lang, wsId, runId))
   if (!edition) notFound()
   // The run's own rows: the corpus's, or read live past the snapshot's cap.
   const scored = await forPage(papersService.listRun(edition.workspace_id, edition.run_id))
@@ -125,7 +130,10 @@ export async function EditionPapers({
   return (
     <EditionPaperList
       papers={cards}
-      logHref={editionHref(edition.date, edition.workspace_id, 'run')}
+      logHref={editionHref(edition.date, edition.workspace_id, {
+        runId: edition.run_id,
+        sub: 'run',
+      })}
     />
   )
 }

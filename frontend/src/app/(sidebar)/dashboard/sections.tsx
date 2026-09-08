@@ -100,7 +100,7 @@ export async function LedgerSection({
           : null,
       brief: edition
         ? {
-            href: editionHref(edition.date, run.workspace_id),
+            href: editionHref(edition.date, run.workspace_id, { runId: run.id }),
             inBrief: edition.in_brief,
             screened: run.total_papers_fetched,
             included: run.total_papers_passed_screening,
