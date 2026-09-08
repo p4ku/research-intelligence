@@ -334,6 +334,12 @@ class PipelineRun(models.Model):
     class Meta:
         app_label = 'research_intelligence'
         ordering = ['-started_at', '-id']
+        indexes = [
+            models.Index(fields=['workspace', 'status', '-completed_at']),
+            models.Index(fields=['workspace', '-started_at']),
+            models.Index(fields=['status', '-started_at']),
+            models.Index(fields=['schedule', '-started_at']),
+        ]
 
     def __str__(self):
         return f"{self.workspace.name} - Run {self.run_date} ({self.status})"

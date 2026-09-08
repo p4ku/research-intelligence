@@ -292,12 +292,16 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         workspace = self.get_object()
         completed_runs = list(
             PipelineRun.objects.filter(workspace=workspace, status='completed')
+            .only(
+                'id', 'workspace_id', 'completed_at', 'run_date', 'started_at',
+                'status_message', 'total_papers_fetched', 'total_papers_passed_screening'
+            )
             .order_by('-completed_at', '-id')
         )
         seen_dates = set()
         deduped_runs = []
         for run in completed_runs:
-            d = (run.completed_at or run.run_date or run.created_at).strftime('%Y-%m-%d')
+            d = (run.completed_at or run.run_date or run.started_at).strftime('%Y-%m-%d')
             if d in seen_dates:
                 continue
             seen_dates.add(d)
@@ -391,18 +395,33 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         self.kwargs['pk'] = ws_id
         workspace = self.get_object()
 
-        from datetime import datetime
+        from datetime import datetime, time, timedelta
+        from django.utils import timezone
         try:
             target_date = datetime.strptime(edition_date, '%Y-%m-%d').date()
         except (ValueError, TypeError):
             return Response({"error": "Invalid date format. Expected YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if timezone.is_aware(timezone.now()):
+            start_dt = timezone.make_aware(datetime.combine(target_date, time.min))
+            end_dt = start_dt + timedelta(days=1)
+        else:
+            start_dt = datetime.combine(target_date, time.min)
+            end_dt = start_dt + timedelta(days=1)
 
         from django.db.models import Q
         run = (
             PipelineRun.objects.filter(
                 Q(workspace=workspace) &
                 Q(status='completed') &
-                (Q(completed_at__date=target_date) | Q(run_date=target_date))
+                (
+                    (Q(completed_at__gte=start_dt) & Q(completed_at__lt=end_dt)) |
+                    Q(run_date=target_date)
+                )
+            )
+            .only(
+                'id', 'workspace_id', 'completed_at', 'run_date', 'status_message',
+                'total_papers_fetched', 'total_papers_passed_screening'
             )
             .order_by('-completed_at', '-id')
             .first()
@@ -410,46 +429,30 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         if not run:
             return Response({"error": f"No completed briefing edition found for {edition_date}."}, status=status.HTTP_404_NOT_FOUND)
 
-        passed_pms = (
+        all_metrics = list(
             PaperMetric.objects.filter(
                 pipeline_run=run,
-                screening_status__in=['accepted', 'full_text_passed', 'abstract_passed']
+                screening_status__in=['accepted', 'full_text_passed', 'abstract_passed', 'rejected', 'withdrawn']
             )
             .select_related('paper')
             .only(
                 'id', 'pipeline_run_id', 'signal_score', 'screening_status', 'created_at',
+                'abstract_screening_reasoning', 'full_text_screening_reasoning',
                 'paper__id', 'paper__title', 'paper__authors', 'paper__source_database'
-            )
-            .order_by('-signal_score', '-created_at')
-        )
-        surfaced = []
-        for pm in passed_pms:
-            if pm.paper:
-                authors_list = [a.strip() for a in (pm.paper.authors or '').split(',') if a.strip()]
-                surfaced.append({
-                    "id": str(pm.paper.id),
-                    "title": pm.paper.title,
-                    "authors": authors_list,
-                    "source": pm.paper.source_database or 'arXiv',
-                    "signal_score": pm.signal_score,
-                })
-
-        excluded_pms = (
-            PaperMetric.objects.filter(
-                pipeline_run=run,
-                screening_status__in=['rejected', 'withdrawn']
-            )
-            .select_related('paper')
-            .only(
-                'id', 'pipeline_run_id', 'screening_status',
-                'abstract_screening_reasoning', 'full_text_screening_reasoning', 'created_at',
-                'paper__id', 'paper__title', 'paper__source_database'
             )
             .order_by('-created_at')
         )
+
+        passed_statuses = {'accepted', 'full_text_passed', 'abstract_passed'}
+        surfaced_metrics = []
         exclusions = []
-        for pm in excluded_pms:
-            if pm.paper:
+
+        for pm in all_metrics:
+            if not pm.paper:
+                continue
+            if pm.screening_status in passed_statuses:
+                surfaced_metrics.append(pm)
+            else:
                 reason = pm.screening_reasoning or pm.abstract_screening_reasoning or pm.full_text_screening_reasoning
                 exclusions.append({
                     "paper_id": str(pm.paper.id),
@@ -457,6 +460,22 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                     "source": pm.paper.source_database or 'arXiv',
                     "reason": reason,
                 })
+
+        surfaced_metrics.sort(
+            key=lambda m: (m.signal_score is not None, m.signal_score or 0.0, m.created_at or timezone.now()),
+            reverse=True
+        )
+
+        surfaced = []
+        for pm in surfaced_metrics:
+            authors_list = [a.strip() for a in (pm.paper.authors or '').split(',') if a.strip()]
+            surfaced.append({
+                "id": str(pm.paper.id),
+                "title": pm.paper.title,
+                "authors": authors_list,
+                "source": pm.paper.source_database or 'arXiv',
+                "signal_score": pm.signal_score,
+            })
 
         d_str = target_date.strftime('%Y-%m-%d')
         in_brief_text = (

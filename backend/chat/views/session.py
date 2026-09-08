@@ -43,12 +43,9 @@ class PaperChatSessionViewSet(viewsets.ModelViewSet):
         if user.is_staff or user.is_superuser:
             qs = base_qs.all()
         else:
-            admin_ws_ids = list(WorkspaceMember.objects.filter(
-                user=user, role__in=['admin', 'manager']
-            ).values_list('workspace_id', flat=True))
-            member_ws_ids = list(WorkspaceMember.objects.filter(
-                user=user
-            ).values_list('workspace_id', flat=True))
+            user_memberships = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', 'role'))
+            admin_ws_ids = [ws_id for ws_id, role in user_memberships if role in ('admin', 'manager')]
+            member_ws_ids = [ws_id for ws_id, _ in user_memberships]
 
             # Admins/managers see all sessions in their workspace; regular researchers see only their own sessions
             qs = base_qs.filter(

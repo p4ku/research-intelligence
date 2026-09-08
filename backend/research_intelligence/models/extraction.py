@@ -531,6 +531,7 @@ class Extraction(models.Model):
             models.Index(fields=['workspace', 'validation_status']),
             models.Index(fields=['paper', 'validation_status']),
             models.Index(fields=['workspace', '-created_at']),
+            models.Index(fields=['paper', '-created_at']),
         ]
 
     def __str__(self):
