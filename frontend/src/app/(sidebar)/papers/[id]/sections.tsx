@@ -315,7 +315,7 @@ function Provenance({ paper, t, lang }: { paper: ScoredPaper; t: T; lang: Lang }
     <Link key="run" href={`/runs/${paper.pipeline_run_id}`} className="hover:underline">
       {paper.pipeline_run_name ?? (
         <>
-          {t('Run')} <span className="font-mono">{paper.pipeline_run_id.slice(0, 8)}</span>
+          {t('Run')} <span className="font-mono">{(paper.pipeline_run_id ?? '').slice(0, 8)}</span>
         </>
       )}
     </Link>,

@@ -277,7 +277,7 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
 }
 
 export function Assessment({ dimensions, t }: { dimensions: Dimension[]; t: T }) {
-  const visibleDimensions = dimensions.filter(
+  const visibleDimensions = (dimensions ?? []).filter(
     (d) =>
       !d.is_risk_and_affiliation &&
       !d.key.includes('risk_and_affiliation') &&

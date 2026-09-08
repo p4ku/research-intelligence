@@ -6,11 +6,11 @@ import type { DefinitionSummary, Dimension, ScoredPaper, WorkspaceSummary } from
 export const shortTitle = (title: string) => title.split(':')[0]!
 
 export function trlDimension(paper: ScoredPaper): Dimension | undefined {
-  return paper.dimensions.find((d) => d.is_trl)
+  return (paper.dimensions ?? []).find((d) => d.is_trl)
 }
 
 export function dimensionByKey(paper: ScoredPaper, key: string): Dimension | undefined {
-  return paper.dimensions.find((d) => d.key === key)
+  return (paper.dimensions ?? []).find((d) => d.key === key)
 }
 
 /** Definitions worth sorting/filtering by: active and, in this corpus, numeric. */

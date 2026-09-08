@@ -49,8 +49,37 @@ export interface CorpusPapers {
   truncated?: { kept: number; total: number }
 }
 
-const detailResponse = z.object({ workspace, paper: scoredPaper }).passthrough()
-const workspaceScorecardResponse = z.object({ workspace, papers: z.array(scoredPaper) }).passthrough()
+const scorecardWorkspace = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    user_role: z.string().nullable().optional().default(null),
+    definitions: z
+      .array(
+        z
+          .object({
+            id: z.string(),
+            name: z.string(),
+            key: z.string(),
+            is_active: z.boolean().optional().default(true),
+            is_trl: z.boolean().optional().default(false),
+            max: z.number().nullable().optional().default(null),
+          })
+          .passthrough(),
+      )
+      .optional()
+      .default([]),
+    scrapers: z.array(z.any()).optional().default([]),
+    scrapers_count: z.number().optional().default(0),
+    digest_schedule: z.string().nullable().optional().default(null),
+    screening_llm_model: z.string().nullable().optional().default(null),
+    llm_provider: z.string().nullable().optional().default(null),
+    created_at: z.string().optional().default(() => new Date().toISOString()),
+  })
+  .passthrough()
+
+const detailResponse = z.object({ workspace: scorecardWorkspace, paper: scoredPaper }).passthrough()
+const workspaceScorecardResponse = z.object({ workspace: scorecardWorkspace, papers: z.array(scoredPaper) }).passthrough()
 
 /** The requested endpoint: retrieves the workspace scorecard directly. */
 async function djangoPapersOf(workspaceId: string, runId?: string): Promise<ScoredPaper[]> {

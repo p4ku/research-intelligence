@@ -27,6 +27,8 @@ def format_definitions_metadata(definitions: list) -> list:
         exit_list = d.get_exit_metrics_list()
         prim_exit = d.get_primary_exit_metric()
         d_slug = d.name.lower().replace(' ', '_').replace('-', '_')
+        is_trl = bool(re.search(r'\btrl\b', d.name, re.IGNORECASE))
+        max_val = 9 if is_trl else (10 if '(1-10)' in d.name else None)
 
         if has_post:
             main_key = f"{d_slug}_postprocessed"
@@ -34,6 +36,11 @@ def format_definitions_metadata(definitions: list) -> list:
         else:
             main_key = exit_list[0] if exit_list else prim_exit
             aux_keys = exit_list[1:] if len(exit_list) > 1 else []
+
+        created_str = None
+        if hasattr(d, 'created_at') and d.created_at:
+            dt = d.created_at
+            created_str = dt.isoformat() if (hasattr(dt, 'tzinfo') and dt.tzinfo) else (dt.isoformat() + "Z")
 
         definitions_data.append({
             'id': str(d.id),
@@ -50,10 +57,50 @@ def format_definitions_metadata(definitions: list) -> list:
             'secondary_metric_keys': aux_keys,
             'auxiliary_metric_keys': aux_keys,
             'llm_model': d.llm_model,
-            'is_active': d.is_active,
-            'created_at': d.created_at.isoformat(),
+            'is_active': bool(d.is_active),
+            'is_trl': is_trl,
+            'max': max_val,
+            'created_at': created_str,
         })
     return definitions_data
+
+
+def format_workspace_summary(workspace, definitions_data: list, request=None) -> dict:
+    """Formats full WorkspaceSummary matching frontend contract (WorkspaceSummary)."""
+    scrapers = []
+    if hasattr(workspace, 'scrapers'):
+        for s in workspace.scrapers.all():
+            scrapers.append({
+                'id': str(s.id),
+                'provider': s.provider,
+                'search_query': s.search_query,
+                'is_active': bool(s.is_active),
+            })
+
+    user_role = None
+    if request and getattr(request, 'user', None) and request.user.is_authenticated:
+        from research_intelligence.models import WorkspaceMember
+        member = WorkspaceMember.objects.filter(workspace=workspace, user=request.user).first()
+        if member:
+            user_role = member.role
+
+    created_at_str = "2026-01-01T00:00:00Z"
+    if hasattr(workspace, 'created_at') and workspace.created_at:
+        dt = workspace.created_at
+        created_at_str = dt.isoformat() if (hasattr(dt, 'tzinfo') and dt.tzinfo) else (dt.isoformat() + "Z")
+
+    return {
+        'id': str(workspace.id),
+        'name': workspace.name,
+        'user_role': user_role,
+        'definitions': definitions_data,
+        'scrapers': scrapers,
+        'scrapers_count': len(scrapers),
+        'digest_schedule': getattr(workspace, 'digest_schedule', None) or None,
+        'screening_llm_model': getattr(workspace, 'screening_llm_model', None) or None,
+        'llm_provider': getattr(workspace, 'llm_provider', None) or None,
+        'created_at': created_at_str,
+    }
 
 
 def build_single_scored_paper(
@@ -179,16 +226,16 @@ def build_single_scored_paper(
             'response_schema': d.response_schema,
             'exit_metrics': d.get_exit_metrics_list(),
             'rationale': rich_details.get('rationale'),
-            'evidence': rich_details.get('evidence', []),
+            'evidence': rich_details.get('evidence') or [],
             'confidence': float(e.confidence_score) if (e and e.confidence_score is not None) else None,
             'validation_status': e.validation_status if e else 'valid',
             'review_required': bool(e.review_required) if e else False,
             'extraction_id': str(e.id) if e else None,
-            'band': rich_details.get('band'),
-            'facets': rich_details.get('facets', []),
-            'texts': rich_details.get('texts', []),
-            'lists': rich_details.get('lists', []),
-            'facts': rich_details.get('facts', []),
+            'band': rich_details.get('band') or None,
+            'facets': rich_details.get('facets') or [],
+            'texts': rich_details.get('texts') or [],
+            'lists': rich_details.get('lists') or [],
+            'facts': rich_details.get('facts') or [],
             'model': (
                 e.version_info.get('llm_model')
                 if (e and isinstance(e.version_info, dict) and e.version_info.get('llm_model'))
@@ -240,16 +287,16 @@ def build_single_scored_paper(
                 'response_schema': None,
                 'exit_metrics': [primary_metric['key']] if primary_metric else [],
                 'rationale': rich_details.get('rationale'),
-                'evidence': rich_details.get('evidence', []),
+                'evidence': rich_details.get('evidence') or [],
                 'confidence': float(e.confidence_score) if e.confidence_score is not None else None,
                 'validation_status': e.validation_status,
                 'review_required': bool(e.review_required),
                 'extraction_id': str(e.id),
-                'band': rich_details.get('band'),
-                'facets': rich_details.get('facets', []),
-                'texts': rich_details.get('texts', []),
-                'lists': rich_details.get('lists', []),
-                'facts': rich_details.get('facts', []),
+                'band': rich_details.get('band') or None,
+                'facets': rich_details.get('facets') or [],
+                'texts': rich_details.get('texts') or [],
+                'lists': rich_details.get('lists') or [],
+                'facts': rich_details.get('facts') or [],
                 'model': e.version_info.get('llm_model') if isinstance(e.version_info, dict) else None,
             })
 
@@ -288,7 +335,7 @@ def build_single_scored_paper(
         )
     )
 
-    final_evaluation_label = (
+    raw_eval_label = (
         target_metric.evaluation_label
         if target_metric
         else (
@@ -296,6 +343,9 @@ def build_single_scored_paper(
             if paper_data
             else getattr(paper, 'evaluation_label', None)
         )
+    )
+    final_evaluation_label = (
+        raw_eval_label if (isinstance(raw_eval_label, str) and raw_eval_label in ('passed', 'rejected')) else None
     )
 
     pub_date = None
@@ -312,6 +362,9 @@ def build_single_scored_paper(
             else (paper_data.get('pipeline_run_name') if paper_data else (f"Run #{str(target_pr_id)[:8]}" if target_pr_id else None))
         )
     )
+
+    dt = paper.created_at
+    created_at_str = dt.isoformat() if (hasattr(dt, 'tzinfo') and dt.tzinfo) else (dt.isoformat() + "Z")
 
     return {
         'id': str(paper.id),
@@ -349,7 +402,7 @@ def build_single_scored_paper(
         'is_benchmark': final_is_benchmark,
         'evaluation_label': final_evaluation_label,
         'published_date': pub_date,
-        'created_at': paper.created_at.isoformat(),
+        'created_at': created_at_str,
         'pipeline_run_name': run_name,
         'risk_and_affiliation': risk_and_affiliation_info,
     }
@@ -509,12 +562,7 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
             'definition': def_dict,
         })
 
-    ws_summary = {
-        'id': str(paper.workspace.id),
-        'name': paper.workspace.name,
-        'definitions': definitions_data,
-        'scrapers_count': paper.workspace.scrapers.count(),
-    }
+    ws_summary = format_workspace_summary(paper.workspace, definitions_data, request=request)
 
     report = None
     if target_pr_id:
@@ -589,12 +637,7 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
     )
     definitions_data = format_definitions_metadata(definitions)
 
-    ws_summary = {
-        'id': str(workspace.id),
-        'name': workspace.name,
-        'definitions': definitions_data,
-        'scrapers_count': workspace.scrapers.count(),
-    }
+    ws_summary = format_workspace_summary(workspace, definitions_data, request=request)
 
     # 1. Resolve pipeline_run filter
     target_pr = None
@@ -686,15 +729,30 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
         )
         scored_papers.append(sp)
 
+    next_url = None
+    prev_url = None
+    if page_size:
+        base_url = f"/api/workspaces/{workspace.id}/scorecard/"
+        params = []
+        if target_pr_id:
+            params.append(f"run_id={target_pr_id}")
+        params.append(f"page_size={page_size}")
+        p_str = "&".join(params)
+
+        if page_obj.has_next():
+            next_url = f"{base_url}?page={page_number + 1}&{p_str}"
+        if page_obj.has_previous():
+            prev_url = f"{base_url}?page={page_number - 1}&{p_str}"
+
     res = {
         'workspace': ws_summary,
         'papers': scored_papers,
         'results': scored_papers,
         'count': total_count,
+        'next': next_url,
+        'previous': prev_url,
     }
     if page_size:
-        res['next'] = has_next
-        res['previous'] = has_prev
         res['page'] = page_number
         res['page_size'] = page_size
     return res

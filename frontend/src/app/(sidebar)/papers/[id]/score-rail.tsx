@@ -139,7 +139,7 @@ function railBar(d: Dimension): RailBar {
 }
 
 export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
-  const visibleDimensions = paper.dimensions.filter(
+  const visibleDimensions = (paper.dimensions ?? []).filter(
     (d) =>
       !d.is_risk_and_affiliation &&
       !d.key.includes('risk_and_affiliation') &&

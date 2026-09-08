@@ -18,11 +18,16 @@ export interface Page<T> {
   results: T[]
 }
 
+const pageLink = z
+  .union([z.string(), z.boolean()])
+  .nullable()
+  .transform((v) => (typeof v === 'string' ? v : null))
+
 export function pageSchema<T extends z.ZodType>(item: T) {
   return z.object({
     count: z.number().int().min(0),
-    next: z.string().nullable(),
-    previous: z.string().nullable(),
+    next: pageLink.optional().default(null),
+    previous: pageLink.optional().default(null),
     results: z.array(item),
   })
 }

@@ -130,7 +130,11 @@ export function PaperHeader({
         </>
       }
       title={paper.title}
-      authors={paper.authors.join(', ') || paper.authors_raw}
+      authors={
+        Array.isArray(paper.authors)
+          ? paper.authors.join(', ') || paper.authors_raw
+          : paper.authors || paper.authors_raw || ''
+      }
       // Withheld, not rendered null: PaperHeaderFrame's `{action && …}` would
       // otherwise wrap an empty node in a shrink-0 flex item and open a gap
       // beside the masthead on a narrow viewport.

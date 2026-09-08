@@ -114,12 +114,12 @@ export const dimension = z
     fields_data: z.record(z.string(), z.any()).nullable().optional(),
     response_schema: z.record(z.string(), z.any()).nullable().optional(),
     exit_metrics: z.array(z.string()).optional(),
-    rationale: z.string().optional(),
-    evidence: z.array(z.string()).optional(),
+    rationale: z.string().nullable().optional(),
+    evidence: z.array(z.string()).nullable().optional(),
     confidence: z.number().nullable().optional(),
-    validation_status: z.string().optional(),
+    validation_status: z.string().nullable().optional(),
     review_required: z.boolean().optional(),
-    extraction_id: z.uuid().optional(),
+    extraction_id: z.string().nullable().optional(),
     /**
      * What else the definition emitted, shaped by the payload alone so a new
      * definition renders without a frontend change: its band label when it
@@ -128,11 +128,11 @@ export const dimension = z
      * wrote them. All in payload order; `*_computed` / `*_postprocessed`
      * duplicates are dropped.
      */
-    band: z.string().optional(),
-    facets: z.array(dimensionFacet).optional(),
-    texts: z.array(dimensionField).optional(),
-    lists: z.array(dimensionList).optional(),
-    facts: z.array(dimensionField).optional(),
+    band: z.string().nullable().optional(),
+    facets: z.array(dimensionFacet).nullable().optional(),
+    texts: z.array(dimensionField).nullable().optional(),
+    lists: z.array(dimensionList).nullable().optional(),
+    facts: z.array(dimensionField).nullable().optional(),
     model: z.string().nullable().optional(),
   })
   .meta({ id: 'Dimension' })
@@ -162,13 +162,13 @@ export type SignalScoreDetails = z.infer<typeof signalScoreDetails>
 
 export const scoredPaper = z
   .object({
-    id: z.uuid(),
-    workspace_id: z.uuid(),
-    pipeline_run_id: z.uuid(),
+    id: z.string(),
+    workspace_id: z.string(),
+    pipeline_run_id: z.string(),
     title: z.string(),
-    authors: z.array(z.string()),
-    authors_raw: z.string(),
-    abstract: z.string(),
+    authors: z.array(z.string()).default([]),
+    authors_raw: z.string().default(''),
+    abstract: z.string().default(''),
     doi: z.string().nullable(),
     arxiv_id: z.string().nullable(),
     /** 'arxiv' | 'openalex' | 'lens' | … */
@@ -181,7 +181,7 @@ export const scoredPaper = z
     signal_score: z.number().nullable(),
     signal_score_details: signalScoreDetails.nullable(),
     /** Workspace definition order; definition-less extractions appended. */
-    dimensions: z.array(dimension),
+    dimensions: z.array(dimension).default([]),
     /** Storage keys — there is no file endpoint yet. */
     pdf_key: z.string().nullable(),
     markdown_key: z.string().nullable(),
@@ -191,12 +191,12 @@ export const scoredPaper = z
      * from `arxiv_id` / `doi` here — the backend owns that rule.
      */
     source_url: z.string().nullable(),
-    is_benchmark: z.boolean(),
-    evaluation_label: z.enum(['passed', 'rejected']).nullable(),
+    is_benchmark: z.boolean().default(false),
+    evaluation_label: z.string().nullable().optional().default(null),
     /** The source's publication date (ISO 8601 date), when the backend has it. */
     published_date: z.string().nullable(),
     /** Ingest time (ISO 8601). */
-    created_at: z.iso.datetime({ offset: true }),
+    created_at: z.string(),
     /** The scoring run's display name, beside its id. */
     pipeline_run_name: z.string().nullable(),
     risk_and_affiliation: riskAndAffiliation.nullable().optional(),

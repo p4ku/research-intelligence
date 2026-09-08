@@ -729,10 +729,10 @@ def extract_rich_dimension_details(
 
     return {
         "rationale": rationale,
-        "evidence": evidence if evidence else None,
-        "band": band,
-        "facets": facets if facets else None,
-        "texts": texts if texts else None,
-        "facts": facts if facts else None,
-        "lists": lists if lists else None,
+        "evidence": evidence if evidence else [],
+        "band": band or None,
+        "facets": facets if facets else [],
+        "texts": texts if texts else [],
+        "facts": facts if facts else [],
+        "lists": lists if lists else [],
     }
