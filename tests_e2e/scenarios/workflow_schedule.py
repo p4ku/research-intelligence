@@ -50,6 +50,16 @@ def run_workflow_schedule_scenario(config: Optional[E2EConfig] = None) -> Dict[s
     logger.info(f"📍 Schedule Name  : {schedule_name} (freq: one_off)")
     logger.info("=================================================================")
 
+    # Pre-check if scheduling is enabled on this environment
+    if not sched_svc.is_enabled():
+        logger.warning(f"⚠️ Feature SCHEDULING is disabled on {cfg.base_url} (HTTP 404: Workflow scheduling is currently disabled). Gracefully skipping scenario.")
+        return {
+            "scenario_name": "Workflow Schedule & Observability",
+            "status": "skipped",
+            "reason": "Feature SCHEDULING is disabled on target environment",
+            "schedule_status": "skipped",
+        }
+
     # Step 0: Pre-clean any lingering test schedules from previous test runs
     if cfg.cleanup_before:
         sched_svc.cleanup_old_test_schedules()

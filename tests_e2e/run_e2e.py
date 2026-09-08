@@ -222,9 +222,14 @@ def print_suite_summary(scenario_results: list, total_elapsed: float, config=Non
 
     for idx, s in enumerate(scenario_results, start=1):
         s_name = s.get("scenario_name", f"Scenario {idx}")
-        s_status = "✅ PASS" if str(s.get("status", "")).lower() in ("passed", "completed") else "❌ FAIL"
-        if "PASS" in s_status:
+        raw_status = str(s.get("status", "")).lower()
+        if raw_status in ("passed", "completed"):
+            s_status = "✅ PASS"
             passed_count += 1
+        elif raw_status == "skipped":
+            s_status = "⏭️ SKIP"
+        else:
+            s_status = "❌ FAIL"
         s_time = f"{s.get('elapsed_sec', 0.0):.1f}s"
         s_papers = str(s.get("total_papers") or s.get("total_papers_fetched") or s.get("papers_count") or "-")
         if str(s_papers).isdigit():
@@ -435,7 +440,10 @@ def main():
         elif args.scenario == "schedule":
             res = run_workflow_schedule_scenario(config)
             total_elapsed = time.time() - t0
-            print(f"\n✅ WORKFLOW SCHEDULE & OBSERVABILITY SCENARIO COMPLETED in {total_elapsed:.1f}s (Status: {res.get('schedule_status')})\n")
+            if str(res.get("status", "")).lower() == "skipped":
+                print(f"\n⏭️ WORKFLOW SCHEDULE & OBSERVABILITY SCENARIO SKIPPED in {total_elapsed:.1f}s (Reason: {res.get('reason')})\n")
+            else:
+                print(f"\n✅ WORKFLOW SCHEDULE & OBSERVABILITY SCENARIO COMPLETED in {total_elapsed:.1f}s (Status: {res.get('schedule_status')})\n")
 
         elif args.scenario == "evidence":
             res = run_paper_evidence_and_pdf_scenario(config)
@@ -499,6 +507,12 @@ def main():
                     res = fn(*fn_args, **fn_kwargs)
                     s_elapsed = time.time() - s_t0
                     res_dict = dict(res) if isinstance(res, dict) else {}
+                    if str(res_dict.get("status", "")).lower() == "skipped":
+                        res_dict["scenario_name"] = name
+                        res_dict["elapsed_sec"] = s_elapsed
+                        suite_results.append(res_dict)
+                        logger.info(f"⏭️ [{name}] skipped ({res_dict.get('reason', 'feature disabled')}) in {s_elapsed:.1f}s")
+                        return res
                     res_dict.setdefault("status", "passed")
                     res_dict["scenario_name"] = name
                     res_dict["elapsed_sec"] = s_elapsed

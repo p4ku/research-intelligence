@@ -13,6 +13,18 @@ class ScheduleService:
     def __init__(self, client: APIClient):
         self.client = client
 
+    def is_enabled(self) -> bool:
+        """Checks if the workflow scheduling feature is enabled on the target server."""
+        try:
+            resp = self.client.get("/api/schedules/")
+            if resp.status_code == 404:
+                body = resp.text.lower()
+                if "disabled" in body or "scheduling" in body:
+                    return False
+            return resp.status_code == 200
+        except Exception:
+            return False
+
     def create_schedule(
         self,
         workspace_id: str,

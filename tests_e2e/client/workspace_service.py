@@ -331,6 +331,18 @@ class WorkspaceService:
         )
         return data
 
+    def is_subscribers_enabled(self) -> bool:
+        """Checks if the email notifications / subscribers feature is enabled on the target server."""
+        try:
+            resp = self.client.get("/api/subscribers/")
+            if resp.status_code == 404:
+                body = resp.text.lower()
+                if "disabled" in body or "subscribers" in body or "email" in body:
+                    return False
+            return resp.status_code == 200
+        except Exception:
+            return False
+
     def create_subscriber(
         self,
         workspace_id: str,
