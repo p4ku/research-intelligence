@@ -213,7 +213,7 @@ class PipelineRunAdminConsolidationTestCase(TestCase):
         pr_success = PipelineRun(
             status="completed",
             stopped_at_stage="completed",
-            status_message="Full SLR pipeline finished successfully. Papers: 94 fetched, 25 passed screening, 140 parameter extractions completed."
+            status_message="Full pipeline finished successfully. Papers: 94 fetched, 25 passed screening, 140 parameter extractions completed."
         )
         msg_success = str(self.admin_obj.status_message_display(pr_success))
         self.assertIn("✅", msg_success)

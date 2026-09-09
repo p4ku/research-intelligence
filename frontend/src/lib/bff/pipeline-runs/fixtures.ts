@@ -18,7 +18,7 @@ export const fixtureRuns: PipelineRun[] = [
     total_papers_fetched: 10,
     total_papers_passed_screening: 9,
     status_message:
-      'Full SLR pipeline finished successfully. Papers: 10 fetched, 9 passed screening, 45 parameter extractions completed.',
+      'Full pipeline finished successfully. Papers: 10 fetched, 9 passed screening, 45 parameter extractions completed.',
     duration_seconds: 164.052377,
     usd_cost: 0.7531,
     started_at: '2026-08-31T08:26:21.417680Z',
@@ -80,7 +80,7 @@ export const fixtureRuns: PipelineRun[] = [
     total_papers_fetched: 4,
     total_papers_passed_screening: 1,
     status_message:
-      'Full SLR pipeline finished successfully. Papers: 4 fetched, 1 passed screening, 5 parameter extractions completed.',
+      'Full pipeline finished successfully. Papers: 4 fetched, 1 passed screening, 5 parameter extractions completed.',
     duration_seconds: 180.0,
     usd_cost: 0.2104,
     started_at: '2026-08-31T12:00:00.000000Z',

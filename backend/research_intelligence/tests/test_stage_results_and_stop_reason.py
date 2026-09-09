@@ -228,7 +228,7 @@ class StageResultsAndStopReasonTestCase(TestCase):
 
         self.assertEqual(agent.status, "completed")
         self.assertEqual(agent.stopped_at_step, "completed")
-        self.assertIn("Full SLR pipeline finished successfully", agent.stop_reason)
+        self.assertIn("Full pipeline finished successfully", agent.stop_reason)
 
         # Check all stages recorded in stage_results
         self.assertIn("search", agent.stage_results)

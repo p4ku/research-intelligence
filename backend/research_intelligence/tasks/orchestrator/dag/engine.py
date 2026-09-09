@@ -511,7 +511,7 @@ class WorkflowDAG:
                 extracted_count = Extraction.objects.filter(paper__in=pipeline_run.get_papers()).count()
                 total_fetched = pipeline_run.get_papers().count()
                 summary_msg = (
-                    f"Full SLR pipeline finished successfully. "
+                    f"Full pipeline finished successfully. "
                     f"Papers: {total_fetched} fetched, {accepted_count} passed screening, "
                     f"{extracted_count} parameter extractions completed."
                 )
