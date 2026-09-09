@@ -584,11 +584,7 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       band={d.band && <Band>{d.band}</Band>}
       value={shownValue(d)}
     >
-      {d.rationale ? (
-        <AnswerMarkdown text={d.rationale} className={PROSE} />
-      ) : (
-        <p className="text-sm text-zinc-400">{t('No rationale recorded.')}</p>
-      )}
+      {d.rationale ? <AnswerMarkdown text={d.rationale} className={PROSE} /> : null}
 
       {/* Sub-metrics / Secondary metrics with progress bar, band, score, prose & evidence */}
       {subMeasures.length > 0 && (
@@ -741,11 +737,7 @@ export function DefinitionSkeleton({ shape }: { shape: DefinitionShape }) {
     >
       {shape.lead > 0 ? (
         <AnswerMarkdownSkeleton className={PROSE} paragraphs={[shape.lead]} />
-      ) : (
-        <p className="text-sm">
-          <Bone.Text widths={['20ch']} />
-        </p>
-      )}
+      ) : null}
       {shape.facets?.length ? (
         <ul className="space-y-2.5">
           {shape.facets.map((lines, i) => (

@@ -93,6 +93,12 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('Comprehensive benchmark evaluation across multiple simulator backends.')
   })
 
+  test('omits rationale placeholder when rationale is absent or null', () => {
+    const dimWithoutRationale = { ...fullDimension, rationale: null }
+    const out = renderToStaticMarkup(<Assessment dimensions={[dimWithoutRationale]} t={t} />)
+    expect(out).not.toContain('No rationale recorded.')
+  })
+
   test('renders facets with progress fill and twin assessment notes', () => {
     const out = renderToStaticMarkup(<Assessment dimensions={[fullDimension]} t={t} />)
     expect(out).toContain('Confidence score')
