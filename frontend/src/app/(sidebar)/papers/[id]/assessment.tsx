@@ -433,9 +433,9 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
       data-type={sub.is_dict ? 'submetric-dict' : undefined}
       data-submetric={sub.key}
       className={clsx(
-        'space-y-2',
+        'space-y-3',
         isRich &&
-          'rounded-lg border border-line-soft/80 bg-zinc-50/50 p-3.5 dark:border-zinc-800 dark:bg-zinc-900/30',
+          'rounded-lg border border-line-soft/70 bg-transparent p-4 sm:p-4.5 transition-colors hover:border-line',
       )}
     >
       <div
@@ -461,7 +461,7 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
         </div>
 
         {hasBar && (
-          <span className="col-span-full block h-[4px] w-full overflow-hidden rounded-full bg-line-soft sm:col-span-1">
+          <span className="col-span-full block h-[3px] w-full overflow-hidden rounded-full bg-line-soft/70 sm:col-span-1">
             <span
               className="block h-full w-full origin-left rounded-full bg-accent"
               style={{ transform: `scaleX(${pct})` }}
@@ -484,14 +484,14 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
       )}
 
       {hasEvidence && (
-        <div className="mt-2 space-y-1.5 border-l-2 border-line pl-3">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+        <div className="mt-2.5 space-y-1.5 border-l-2 border-line-soft pl-3.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
             Evidence
           </span>
           {sub.evidence!.map((quote, i) => (
             <blockquote
               key={i}
-              className="max-w-[72ch] text-sm leading-relaxed italic text-zinc-600 dark:text-zinc-400"
+              className="max-w-[72ch] text-[13px] leading-relaxed italic text-zinc-600 dark:text-zinc-400"
             >
               “{unquote(quote)}”
             </blockquote>
