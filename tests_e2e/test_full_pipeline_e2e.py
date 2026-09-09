@@ -32,6 +32,7 @@ from tests_e2e.scenarios import (
     run_direct_full_text_and_subscribers_scenario,
     run_hitl_validation_journey_scenario,
     run_stars_curation_journey_scenario,
+    run_paper_page_scorecard_journey_scenario,
 )
 
 
@@ -244,6 +245,14 @@ class TestFullPipelineE2E:
         results = run_stars_curation_journey_scenario(config)
         assert results["status"] == "PASSED"
         assert results["tested_isolation_guard"] is True
+
+    @pytest.mark.e2e
+    def test_paper_page_scorecard_journey(self):
+        config = E2EConfig.from_env()
+        results = run_paper_page_scorecard_journey_scenario(config)
+        assert results["status"] == "passed"
+        assert results["dimensions_count"] > 0
+        assert results["paper_id"] is not None
 
 
 class TestE2EConfig:

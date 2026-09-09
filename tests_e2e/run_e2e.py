@@ -47,6 +47,7 @@ from tests_e2e.scenarios import (
     run_direct_full_text_and_subscribers_scenario,
     run_hitl_validation_journey_scenario,
     run_stars_curation_journey_scenario,
+    run_paper_page_scorecard_journey_scenario,
 )
 
 # Configure rich colored terminal logging
@@ -78,6 +79,7 @@ def parse_args():
             "direct_ft", "direct_full_text", "subscribers",
             "hitl", "hitl_validation", "correction",
             "stars", "curation",
+            "paper_page", "paper_scorecard", "scorecard_page",
             "all"
         ],
         default="slr",
@@ -496,6 +498,11 @@ def main():
             res = run_stars_curation_journey_scenario(config)
             total_elapsed = time.time() - t0
             print(f"\n✅ STARS & PERSONAL CURATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Status: {res.get('status')})\n")
+
+        elif args.scenario in ("paper_page", "paper_scorecard", "scorecard_page"):
+            res = run_paper_page_scorecard_journey_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ PAPER PAGE SCORECARD SCENARIO COMPLETED in {total_elapsed:.1f}s (Dimensions: {res.get('dimensions_count')}, Risk: {res.get('has_risk_and_affiliation')})\n")
 
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")

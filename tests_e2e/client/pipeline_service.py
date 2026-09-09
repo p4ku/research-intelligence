@@ -124,8 +124,8 @@ class PipelineService:
         resp = self.client.get(f"/api/papers/{paper_id}/", expected_status=200)
         return resp.json()
 
-    def get_paper_scorecard(self, paper_id: str) -> Dict[str, Any]:
-        resp = self.client.get(f"/api/papers/{paper_id}/scorecard/", expected_status=200)
+    def get_paper_scorecard(self, paper_id: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        resp = self.client.get(f"/api/papers/{paper_id}/scorecard/", params=params, expected_status=200)
         return resp.json()
 
     def get_paper_pdf_status(self, paper_id: str) -> int:
