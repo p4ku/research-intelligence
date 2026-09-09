@@ -17,6 +17,12 @@ export interface RailBar {
   label: string
   /** The article id the bar links to. */
   anchor: string
+  /**
+   * Further ids whose passing the reading line also marks this bar — a
+   * sub-score's bar watches its definition's article too, so the rail says
+   * where the reader is through the heading and rationale above the rows.
+   */
+  watch?: string[]
   /** 0–1, or null when the dimension has no scale. */
   pct: number | null
   value: ReactNode
@@ -78,15 +84,19 @@ export function ScoreBarFrame({
 
 export function ScoreBars({ bars }: { bars: RailBar[] }) {
   const [active, setActive] = useState<string | null>(null)
-  const anchors = bars.map((b) => b.anchor).join(' ')
+  // "id=bar id=bar …", in rail order, so the effect re-binds only when the ids change.
+  const anchors = bars
+    .flatMap((b) => [b.anchor, ...(b.watch ?? [])].map((id) => `${id}=${b.anchor}`))
+    .join(' ')
 
   useEffect(() => {
     let frame = 0
     const measure = () => {
       frame = 0
       let current: string | null = null
-      for (const anchor of anchors.split(' ')) {
-        const el = document.getElementById(anchor)
+      for (const pair of anchors.split(' ')) {
+        const [id, anchor] = pair.split('=') as [string, string]
+        const el = document.getElementById(id)
         if (el && el.getBoundingClientRect().top <= READING_LINE) current = anchor
       }
       setActive(current)

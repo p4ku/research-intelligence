@@ -5,7 +5,7 @@ import type { T } from '@/lib/i18n'
 import { isResearchMetrics, trlDimension } from '@/lib/papers/select'
 import type { Dimension, ScoredPaper } from '@/lib/papers/types'
 import type { ReactNode } from 'react'
-import { definitionAnchor, resolveSubMeasures, subMeasureAnchor } from './assessment'
+import { definitionAnchor, subMeasureAnchor, subMeasuresOf } from './assessment'
 import { ScoreBarFrame, ScoreBars, type RailBar } from './score-bars'
 
 /**
@@ -63,9 +63,14 @@ export function ScoreRailFrame({
   )
 }
 
-/** "Sovereign Cloud & Commercial Viability" → "Sovereign Cloud"; a TRL definition is just "TRL". */
+/** "Sovereign Cloud & Commercial Viability" → "Sovereign Cloud". */
+function shortLabel(name: string): string {
+  return name.split(/ \(| & /)[0]!
+}
+
+/** A definition's bar label; a TRL definition is just "TRL". */
 function shortName(d: Dimension): string {
-  return d.is_trl ? 'TRL' : d.name.split(/ \(| & /)[0]!
+  return d.is_trl ? 'TRL' : shortLabel(d.name)
 }
 
 function shownNumber(value: number | null): string {
@@ -85,13 +90,16 @@ export interface RailEntry {
   value: number | null
   /** The scale the value is read against; null draws the figure without a track. */
   max: number | null
+  /** See RailBar.watch: the first sub-score's row also answers for its article. */
+  watch?: string[]
 }
 
 /**
  * The rail's rows, in definition order. Risk & Affiliation never appears
  * (it flags, it does not score). A Research Metrics definition with at
- * least two sub-scores is replaced by them; with fewer it stays one row,
- * so a domain whose definition has no sub-scores renders as before.
+ * least two numeric sub-scores is replaced by them; with fewer it stays
+ * one row, so a domain whose definition has no sub-scores — or whose
+ * sub-scores arrived as prose only — keeps the figure it had.
  */
 export function railEntries(paper: ScoredPaper): RailEntry[] {
   const visible = (paper.dimensions ?? []).filter(
@@ -109,14 +117,17 @@ export function railEntries(paper: ScoredPaper): RailEntry[] {
       max: d.max,
     }
     if (!isResearchMetrics(d)) return [own]
-    const { subMeasures } = resolveSubMeasures(d.facets, d.texts, d.max, d.response_schema)
-    if (subMeasures.length < 2) return [own]
-    return subMeasures.map((sub) => ({
+    const { subMeasures } = subMeasuresOf(d)
+    const figure = (v: number | null | undefined) =>
+      typeof v === 'number' && Number.isFinite(v) ? v : null
+    if (subMeasures.filter((sub) => figure(sub.value) !== null).length < 2) return [own]
+    return subMeasures.map((sub, i) => ({
       key: `${own.key}-${sub.key}`,
-      label: sub.name,
+      label: shortLabel(sub.name),
       anchor: subMeasureAnchor(d, sub),
-      value: typeof sub.value === 'number' && Number.isFinite(sub.value) ? sub.value : null,
+      value: figure(sub.value),
       max: typeof sub.max === 'number' ? sub.max : null,
+      ...(i === 0 ? { watch: [own.anchor] } : {}),
     }))
   })
 }
@@ -139,6 +150,7 @@ function railBar(e: RailEntry): RailBar {
     key: e.key,
     label: e.label,
     anchor: e.anchor,
+    watch: e.watch,
     pct: hasBar ? Math.max(0, Math.min(1, e.value! / e.max!)) : null,
     value: (
       <>

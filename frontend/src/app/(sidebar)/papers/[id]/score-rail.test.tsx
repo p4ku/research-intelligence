@@ -47,11 +47,22 @@ function researchMetrics(
   }
 }
 
-/** The bar labels in rail order. */
-function barLabels(out: string): string[] {
+/** Each bar in rail order: "label → anchor", and the figure its value cell prints. */
+function bars(out: string): { link: string; figure: string }[] {
   return [
-    ...out.matchAll(/<li data-row="bar"><a href="#([^"]+)"[^>]*><span class="truncate">([^<]*)</g),
-  ].map((m) => `${m[2]} → ${m[1]}`)
+    ...out.matchAll(
+      /<li data-row="bar"><a href="#([^"]+)"[^>]*><span class="truncate">([^<]*)<\/span>.*?<span class="text-right[^"]*">(.*?)<\/span><\/a>/g,
+    ),
+  ].map((m) => ({ link: `${m[2]} → ${m[1]}`, figure: m[3]!.replace(/<[^>]+>/g, '') }))
+}
+const barLabels = (out: string) => bars(out).map((b) => b.link)
+
+/** The radar's axes as printed: the label and the figure under it, in axis order. */
+function radarAxes(out: string): string[] {
+  return [...out.matchAll(/<text [^>]*>(.*?)<\/text>/g)].map((m) => {
+    const spans = [...m[1]!.matchAll(/<tspan[^>]*>([^<]*)<\/tspan>/g)].map((s) => s[1])
+    return `${spans.slice(0, -1).join(' ')} ${spans.at(-1)}`
+  })
 }
 
 function mockPaper(overrides: Partial<ScoredPaper> = {}): ScoredPaper {
@@ -217,19 +228,31 @@ describe('ScoreRail Component Rendering', () => {
     ])
     expect(out).not.toContain('Research Metrics')
     expect(out).not.toContain('href="#dimension-research_metrics"')
-    // Each bar prints its own figure, not the headline's.
-    expect(out).toContain('>72<')
-    expect(out).toContain('>67<')
+    // Each bar prints its own figure, not the headline's 68.
+    expect(bars(out).map((b) => b.figure)).toEqual(['72', '68', '67', '92', '4/9'])
   })
 
-  test('the radar draws the same five axes as the bars, with the sub-score figures', () => {
+  test('the first sub-score bar also answers for the article above the rows', () => {
+    const entries = railEntries(mockPaper({ dimensions: [researchMetrics()] }))
+    expect(entries.map((e) => e.watch)).toEqual([
+      ['dimension-research_metrics'],
+      undefined,
+      undefined,
+    ])
+  })
+
+  test('the radar draws the same five axes as the bars, printing the sub-score figures', () => {
     const paper = mockPaper({
       dimensions: [researchMetrics(), mockPaper().dimensions[0]!, mockPaper().dimensions[1]!],
     })
     const out = renderToStaticMarkup(<ScoreRail paper={paper} t={t} />)
-    expect(out).toContain(
-      'aria-label="Rigour 72, Novelty 68, Significance 67, Fit Score 92, TRL 44"',
-    )
+    expect(radarAxes(out)).toEqual([
+      'Rigour 72',
+      'Novelty 68',
+      'Significance 67',
+      'Fit Score 92',
+      'TRL 4',
+    ])
   })
 
   test('keeps the single Research Metrics bar when the definition has fewer than two sub-scores', () => {
@@ -238,11 +261,25 @@ describe('ScoreRail Component Rendering', () => {
     one.texts = one.texts!.slice(0, 1)
     const paper = mockPaper({ dimensions: [one, ...mockPaper().dimensions] })
     const out = renderToStaticMarkup(<ScoreRail paper={paper} t={t} />)
-    expect(barLabels(out)[0]).toBe('Research Metrics → dimension-research_metrics')
+    expect(bars(out)[0]).toEqual({
+      link: 'Research Metrics → dimension-research_metrics',
+      figure: '68',
+    })
     expect(out).not.toContain('dimension-research_metrics-rigour_score')
   })
 
-  test('a sub-score without a figure shows a dash and stays off the radar', () => {
+  test('keeps the single bar when the sub-scores arrived as prose without figures', () => {
+    const prose = researchMetrics({ rigour: null, novelty: null, significance: null })
+    const paper = mockPaper({ dimensions: [prose, ...mockPaper().dimensions] })
+    const out = renderToStaticMarkup(<ScoreRail paper={paper} t={t} />)
+    expect(bars(out)[0]).toEqual({
+      link: 'Research Metrics → dimension-research_metrics',
+      figure: '68',
+    })
+    expect(radarAxes(out)).toHaveLength(4)
+  })
+
+  test('a single sub-score without a figure shows a dash and stays off the radar', () => {
     const paper = mockPaper({
       dimensions: [
         researchMetrics({ rigour: 72, novelty: null, significance: 67 }),
@@ -250,12 +287,38 @@ describe('ScoreRail Component Rendering', () => {
       ],
     })
     const out = renderToStaticMarkup(<ScoreRail paper={paper} t={t} />)
-    expect(barLabels(out)).toHaveLength(6)
-    expect(out).toContain(
-      'aria-label="Rigour 72, Significance 67, Fit Score 92, TRL 44, Novelty Score 75"',
-    )
-    const entries = railEntries(paper)
-    expect(entries[1]).toMatchObject({ label: 'Novelty', value: null, max: 100 })
+    expect(bars(out).map((b) => b.figure)).toEqual(['72', '—', '67', '92', '4/9', '75'])
+    expect(radarAxes(out).map((a) => a.split(' ')[0])).toEqual([
+      'Rigour',
+      'Significance',
+      'Fit',
+      'TRL',
+      'Novelty',
+    ])
+    expect(railEntries(paper)[1]).toMatchObject({ label: 'Novelty', value: null, max: 100 })
+  })
+
+  test('leaves out the sub-score the column hides, so no bar links to a missing row', () => {
+    // A definition the column reads as TRL by name hides a "Confidence" sub-score.
+    const d = researchMetrics()
+    d.name = 'Research Metrics (TRL)'
+    d.facets!.push({
+      key: 'confidence',
+      name: 'Confidence',
+      value: 90,
+      max: 100,
+      text: null,
+      band: null,
+    })
+    const entries = railEntries(mockPaper({ dimensions: [d] }))
+    expect(entries.map((e) => e.label)).toEqual(['Rigour', 'Novelty', 'Significance'])
+  })
+
+  test('trims a long sub-score name the way it trims a definition name', () => {
+    const d = researchMetrics()
+    d.facets![0]!.name = 'Rigour (methods & analysis)'
+    d.texts![0]!.name = 'Rigour (methods & analysis)'
+    expect(railEntries(mockPaper({ dimensions: [d] }))[0]!.label).toBe('Rigour')
   })
 
   test('does not render scoring formula collapsible disclosure even when signal_score_details contains code_snippet', () => {

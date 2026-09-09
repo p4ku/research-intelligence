@@ -10,8 +10,12 @@ describe('isResearchMetrics', () => {
     expect(
       isResearchMetrics({ key: 'quality', name: 'Research metrics (v2)', is_trl: false }),
     ).toBe(true)
+    expect(isResearchMetrics({ key: 'rm', name: 'Research-Metrics', is_trl: false })).toBe(true)
   })
   test('leaves the other scoring definitions alone', () => {
+    expect(isResearchMetrics({ key: 'nrm', name: 'Non-research metrics', is_trl: false })).toBe(
+      false,
+    )
     expect(isResearchMetrics({ key: 'schwarz_fit', name: 'Schwarz Fit', is_trl: false })).toBe(
       false,
     )

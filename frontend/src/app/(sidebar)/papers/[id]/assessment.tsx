@@ -545,31 +545,45 @@ function SubMeasureRow({ sub, id }: { sub: SubMeasure; id?: string }) {
   )
 }
 
-function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
-  const isTrl =
-    d.is_trl || d.key.toLowerCase().includes('trl') || d.name.toLowerCase().includes('trl')
+/** TRL by flag or by name — the column's own reading, wider than the wire's flag. */
+function isTrlLike(d: Pick<Dimension, 'key' | 'name' | 'is_trl'>): boolean {
+  return d.is_trl || d.key.toLowerCase().includes('trl') || d.name.toLowerCase().includes('trl')
+}
 
+/**
+ * The sub-scores the column shows for a definition — resolved, then minus
+ * a TRL's verbalised confidence. The rail draws from the same list, so a
+ * bar never links to a row the column left out.
+ */
+export function subMeasuresOf(d: Dimension): {
+  subMeasures: SubMeasure[]
+  generalTexts: UnpackedField[]
+} {
   const { subMeasures, generalTexts } = resolveSubMeasures(
     d.facets,
     d.texts,
     d.max,
     d.response_schema,
   )
-
-  const visibleSubMeasures = subMeasures.filter((sub) => {
-    const k = sub.key.toLowerCase()
-    const n = sub.name.toLowerCase()
-    if (
-      isTrl &&
-      (k === 'confidence' ||
+  if (!isTrlLike(d)) return { subMeasures, generalTexts }
+  return {
+    subMeasures: subMeasures.filter((sub) => {
+      const k = sub.key.toLowerCase()
+      const n = sub.name.toLowerCase()
+      return !(
+        k === 'confidence' ||
         n === 'confidence' ||
         k === 'confidence_level' ||
-        n === 'confidence level')
-    ) {
-      return false
-    }
-    return true
-  })
+        n === 'confidence level'
+      )
+    }),
+    generalTexts,
+  }
+}
+
+function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
+  const isTrl = isTrlLike(d)
+  const { subMeasures: visibleSubMeasures, generalTexts } = subMeasuresOf(d)
 
   const visibleTexts = generalTexts.filter((field) => {
     const k = (field.key ?? '').toLowerCase()
