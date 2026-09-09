@@ -186,7 +186,7 @@ def serialize_workspace_configuration(workspace: Workspace) -> dict:
                 "response_schema": ed.response_schema,
                 "exit_metrics": ed.get_exit_metrics_list(),
                 "primary_frontend_metric": ed.primary_frontend_metric or None,
-                "secondary_frontend_metrics": ed.get_secondary_frontend_metrics_list(),
+                "secondary_frontend_metrics": ed.get_explicit_secondary_frontend_metrics_list(),
                 "postprocessing_code": ed.postprocessing_code or "",
                 "llm_model": ed.llm_model,
                 "version": ed.version,

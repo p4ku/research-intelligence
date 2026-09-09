@@ -3801,7 +3801,7 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
     @admin.display(description="Frontend Metrics")
     def frontend_metrics_status(self, obj):
         prim = obj.primary_frontend_metric
-        sec = obj.get_secondary_frontend_metrics_list()
+        sec = obj.get_explicit_secondary_frontend_metrics_list()
         if not prim and not sec:
             return mark_safe("<span style='color: #94a3b8; font-style: italic;'>auto</span>")
         badges = []

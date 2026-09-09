@@ -1693,8 +1693,165 @@ return {
         self.assertIsNone(risk_notes["codebase_artifact_link"])
         self.assertEqual(risk_notes["flags"], [])
 
+    def test_21_definition_get_put_roundtrip_preserves_auto_mode_and_headline(self):
+        """
+        Issue #139: GET->PUT round trip of an ExtractionDefinition must NOT persist
+        fallback secondary metrics (exit_metrics[1:]) into secondary_frontend_metrics.
+        If persisted, has_explicit_frontend_metrics() flips to True, which overrides
+        Rule 2 postprocessing and breaks the headline score (e.g. 37 down to 30).
+        """
+        # 1. Create definition in auto mode with exit_metrics and postprocessing code
+        def_auto = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Strategic Schwarz Fit",
+            system_prompt="Extract metrics",
+            user_prompt_template="Paper: {paper_text}",
+            response_schema={
+                "type": "object",
+                "properties": {
+                    "raw_score": {"type": "number"},
+                    "sub_a": {"type": "number"},
+                    "sub_b": {"type": "number"},
+                }
+            },
+            exit_metrics="raw_score, sub_a, sub_b",
+            postprocessing_code="""
+def postprocess(fields_data):
+    return {"schwarz_fit": 37, "fit_confidence": 0.95}
+""".strip(),
+            primary_frontend_metric="",
+            secondary_frontend_metrics="",
+            is_active=True,
+        )
 
+        # Verify initial model state
+        self.assertFalse(def_auto.has_explicit_frontend_metrics())
+        self.assertEqual(def_auto.get_explicit_secondary_frontend_metrics_list(), [])
+        self.assertEqual(def_auto.get_secondary_frontend_metrics_list(), ["sub_a", "sub_b"])
 
+        # 2. Client performs GET /api/extraction-definitions/{id}/
+        get_url = f"/api/extraction-definitions/{def_auto.id}/"
+        get_resp = self.client.get(get_url)
+        self.assertEqual(get_resp.status_code, 200)
+        get_data = get_resp.json()
 
+        # Representation MUST emit empty list for secondary_frontend_metrics (NOT the fallback ["sub_a", "sub_b"])
+        self.assertIsNone(get_data["primary_frontend_metric"])
+        self.assertEqual(get_data["secondary_frontend_metrics"], [])
+        self.assertEqual(get_data["exit_metrics"], ["raw_score", "sub_a", "sub_b"])
 
+        # 3. Client performs PUT /api/extraction-definitions/{id}/ with unchanged payload
+        put_resp = self.client.put(get_url, data=get_data, format="json")
+        self.assertEqual(put_resp.status_code, 200)
 
+        # 4. Refresh definition and verify that has_explicit_frontend_metrics is STILL False
+        def_auto.refresh_from_db()
+        self.assertFalse(def_auto.has_explicit_frontend_metrics())
+        self.assertEqual(def_auto.get_explicit_secondary_frontend_metrics_list(), [])
+        self.assertEqual(def_auto.get_secondary_frontend_metrics_list(), ["sub_a", "sub_b"])
+        self.assertEqual(def_auto.secondary_frontend_metrics, "")
+
+        # 5. Verify scorecard evaluation for paper
+        ext = Extraction.objects.create(
+            paper=self.paper,
+            workspace=self.workspace,
+            extraction_definition=def_auto,
+            category="Strategic Schwarz Fit",
+            fields_data={
+                "raw_score": 30,
+                "sub_a": 8,
+                "sub_b": 6,
+                "strategic_schwarz_fit_postprocessed": 37,
+            },
+        )
+
+        scorecard_url = f"/api/papers/{self.paper.id}/scorecard/?pipeline_run={self.run_beta.id}"
+        sc_resp = self.client.get(scorecard_url)
+        self.assertEqual(sc_resp.status_code, 200)
+        sc_data = sc_resp.json()
+
+        dim = next((d for d in sc_data["paper"]["dimensions"] if d["definition_id"] == str(def_auto.id)), None)
+        self.assertIsNotNone(dim)
+        # Headline value MUST be postprocessed 37, NOT raw_score 30!
+        self.assertEqual(dim["value"], 37)
+        self.assertEqual(dim["primary_metric"]["numeric_value"], 37)
+        self.assertEqual(dim["primary_metric"]["source"], "postprocessing")
+        self.assertTrue(dim["has_postprocessing"])
+        sec_keys = [s["key"] for s in dim["secondary_metrics"]]
+        self.assertIn("raw_score", sec_keys)
+        self.assertIn("sub_a", sec_keys)
+        self.assertIn("sub_b", sec_keys)
+
+    def test_22_workspace_export_import_roundtrip_preserves_auto_mode(self):
+        """
+        Verify serialize_workspace_configuration and import_workspace_configuration_bundle
+        round-trip does not leak fallback exit metrics into secondary_frontend_metrics.
+        """
+        from research_intelligence.services.workspace_service import (
+            serialize_workspace_configuration,
+            import_workspace_configuration_bundle,
+        )
+
+        def_auto = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Export Auto Definition",
+            system_prompt="Extract info",
+            user_prompt_template="Paper: {paper_text}",
+            response_schema={"type": "object"},
+            exit_metrics="score, metric_x, metric_y",
+            primary_frontend_metric="",
+            secondary_frontend_metrics="",
+            is_active=True,
+        )
+        self.assertFalse(def_auto.has_explicit_frontend_metrics())
+
+        # Serialize workspace
+        exported = serialize_workspace_configuration(self.workspace)
+        ed_export = next(ed for ed in exported["extraction_definitions"] if ed["name"] == "Export Auto Definition")
+        self.assertEqual(ed_export["secondary_frontend_metrics"], [])
+        self.assertIsNone(ed_export["primary_frontend_metric"])
+
+        # Re-import configuration
+        stats = import_workspace_configuration_bundle(exported, user=self.user, update_existing=True)
+        self.assertGreaterEqual(stats["updated_workspaces"], 1)
+
+        def_auto.refresh_from_db()
+        self.assertFalse(def_auto.has_explicit_frontend_metrics())
+        self.assertEqual(def_auto.get_explicit_secondary_frontend_metrics_list(), [])
+        self.assertEqual(def_auto.get_secondary_frontend_metrics_list(), ["metric_x", "metric_y"])
+
+    def test_23_explicit_frontend_metrics_roundtrip_preserves_values(self):
+        """
+        Verify that definitions with explicitly configured secondary frontend metrics
+        continue to serialize and round-trip their explicit metrics correctly.
+        """
+        def_explicit = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Explicit Metrics Roundtrip",
+            system_prompt="Extract info",
+            user_prompt_template="Paper: {paper_text}",
+            response_schema={"type": "object"},
+            exit_metrics="raw_total, sec_one, sec_two, sec_three",
+            primary_frontend_metric="sec_one",
+            secondary_frontend_metrics="sec_two, sec_three",
+            is_active=True,
+        )
+        self.assertTrue(def_explicit.has_explicit_frontend_metrics())
+        self.assertEqual(def_explicit.get_explicit_secondary_frontend_metrics_list(), ["sec_two", "sec_three"])
+
+        # GET API
+        get_url = f"/api/extraction-definitions/{def_explicit.id}/"
+        get_resp = self.client.get(get_url)
+        self.assertEqual(get_resp.status_code, 200)
+        data = get_resp.json()
+        self.assertEqual(data["primary_frontend_metric"], "sec_one")
+        self.assertEqual(data["secondary_frontend_metrics"], ["sec_two", "sec_three"])
+
+        # PUT API
+        put_resp = self.client.put(get_url, data=data, format="json")
+        self.assertEqual(put_resp.status_code, 200)
+
+        def_explicit.refresh_from_db()
+        self.assertTrue(def_explicit.has_explicit_frontend_metrics())
+        self.assertEqual(def_explicit.primary_frontend_metric, "sec_one")
+        self.assertEqual(def_explicit.get_explicit_secondary_frontend_metrics_list(), ["sec_two", "sec_three"])

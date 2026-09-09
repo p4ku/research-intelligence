@@ -149,7 +149,7 @@ def get_extraction_logic(user, extraction_id: str) -> str:
         "category": ext.category,
         "exit_metric": ext.exit_metric,
         "primary_frontend_metric": ext.extraction_definition.primary_frontend_metric if ext.extraction_definition else None,
-        "secondary_frontend_metrics": ext.extraction_definition.get_secondary_frontend_metrics_list() if ext.extraction_definition else [],
+        "secondary_frontend_metrics": ext.extraction_definition.get_explicit_secondary_frontend_metrics_list() if ext.extraction_definition else [],
         "has_postprocessing_code": bool(ext.extraction_definition.postprocessing_code) if ext.extraction_definition else False,
         "fields_data": ext.fields_data,
         "validation_status": ext.validation_status,

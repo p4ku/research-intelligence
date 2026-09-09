@@ -111,7 +111,7 @@ def get_workspace_logic(user, workspace_id: str) -> str:
                 "name": d.name,
                 "exit_metrics": d.get_exit_metrics_list(),
                 "primary_frontend_metric": d.primary_frontend_metric or None,
-                "secondary_frontend_metrics": d.get_secondary_frontend_metrics_list(),
+                "secondary_frontend_metrics": d.get_explicit_secondary_frontend_metrics_list(),
                 "has_postprocessing_code": bool(d.postprocessing_code),
                 "postprocessing_code": d.postprocessing_code or "",
                 "system_prompt": d.system_prompt,

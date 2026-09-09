@@ -47,7 +47,7 @@ class ExtractionDefinitionSerializer(serializers.ModelSerializer):
         ret = super().to_representation(instance)
         ret['exit_metrics'] = instance.get_exit_metrics_list()
         ret['primary_frontend_metric'] = instance.primary_frontend_metric or None
-        ret['secondary_frontend_metrics'] = instance.get_secondary_frontend_metrics_list()
+        ret['secondary_frontend_metrics'] = instance.get_explicit_secondary_frontend_metrics_list()
         ret['has_postprocessing_code'] = bool(instance.postprocessing_code)
         if ret.get('postprocessing_code') is None:
             ret['postprocessing_code'] = ""

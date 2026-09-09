@@ -22,7 +22,7 @@ def list_extraction_definitions_logic(user, workspace_id: str) -> str:
             "name": d.name,
             "exit_metrics": d.get_exit_metrics_list(),
             "primary_frontend_metric": d.primary_frontend_metric or None,
-            "secondary_frontend_metrics": d.get_secondary_frontend_metrics_list(),
+            "secondary_frontend_metrics": d.get_explicit_secondary_frontend_metrics_list(),
             "llm_model": d.llm_model,
             "version": d.version,
             "requires_consensus": d.requires_consensus,
@@ -63,7 +63,7 @@ def get_extraction_definition_logic(user, definition_id: str) -> str:
         "name": definition.name,
         "exit_metrics": definition.get_exit_metrics_list(),
         "primary_frontend_metric": definition.primary_frontend_metric or None,
-        "secondary_frontend_metrics": definition.get_secondary_frontend_metrics_list(),
+        "secondary_frontend_metrics": definition.get_explicit_secondary_frontend_metrics_list(),
         "system_prompt": definition.system_prompt,
         "user_prompt_template": definition.user_prompt_template,
         "response_schema": definition.response_schema,
@@ -183,7 +183,7 @@ def create_extraction_definition_logic(
         "name": definition.name,
         "exit_metrics": definition.get_exit_metrics_list(),
         "primary_frontend_metric": definition.primary_frontend_metric or None,
-        "secondary_frontend_metrics": definition.get_secondary_frontend_metrics_list(),
+        "secondary_frontend_metrics": definition.get_explicit_secondary_frontend_metrics_list(),
         "postprocessing_code": definition.postprocessing_code or "",
         "has_postprocessing_code": bool(definition.postprocessing_code),
         "llm_model": definition.llm_model
@@ -312,7 +312,7 @@ def update_extraction_definition_logic(
         "updated_fields": updated_fields,
         "exit_metrics": definition.get_exit_metrics_list(),
         "primary_frontend_metric": definition.primary_frontend_metric or None,
-        "secondary_frontend_metrics": definition.get_secondary_frontend_metrics_list(),
+        "secondary_frontend_metrics": definition.get_explicit_secondary_frontend_metrics_list(),
         "postprocessing_code": definition.postprocessing_code or "",
         "has_postprocessing_code": bool(definition.postprocessing_code)
     }
@@ -394,7 +394,7 @@ def set_extraction_frontend_metrics_logic(
             "definition_id": str(definition.id),
             "name": definition.name,
             "primary_frontend_metric": definition.primary_frontend_metric or None,
-            "secondary_frontend_metrics": definition.get_secondary_frontend_metrics_list(),
+            "secondary_frontend_metrics": definition.get_explicit_secondary_frontend_metrics_list(),
         }, indent=2)
 
     definition.save(update_fields=updated_fields)
@@ -406,6 +406,6 @@ def set_extraction_frontend_metrics_logic(
         "name": definition.name,
         "updated_fields": updated_fields,
         "primary_frontend_metric": definition.primary_frontend_metric or None,
-        "secondary_frontend_metrics": definition.get_secondary_frontend_metrics_list(),
+        "secondary_frontend_metrics": definition.get_explicit_secondary_frontend_metrics_list(),
     }, indent=2, cls=DjangoJSONEncoder)
 

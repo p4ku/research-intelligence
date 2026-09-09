@@ -130,11 +130,11 @@ class ExtractionDefinition(models.Model):
         prim = self.get_primary_exit_metric()
         return prim if prim else None
 
-    def get_secondary_frontend_metrics_list(self) -> list[str]:
+    def get_explicit_secondary_frontend_metrics_list(self) -> list[str]:
         """
-        Returns ordered list of explicit secondary frontend metric keys if configured.
-        If explicit frontend metrics are configured but secondary is blank, returns [].
-        If no explicit frontend metrics are configured, falls back to exit metrics after primary.
+        Returns ordered list of explicit secondary frontend metric keys as stored,
+        sanitized and deduplicated, WITHOUT falling back to exit metrics.
+        Returns [] when no explicit secondary frontend metrics are configured.
         """
         if self.secondary_frontend_metrics:
             from ..tasks.step_6_signal_score.scorer import _sanitize_identifier
@@ -150,6 +150,18 @@ class ExtractionDefinition(models.Model):
                     seen.add(clean_item)
                     res.append(clean_item)
             return res
+        return []
+
+    def get_secondary_frontend_metrics_list(self) -> list[str]:
+        """
+        Returns ordered list of explicit secondary frontend metric keys if configured.
+        If explicit frontend metrics are configured but secondary is blank, returns [].
+        If no explicit frontend metrics are configured, falls back to exit metrics after primary.
+        Used for scorecard evaluation and display.
+        """
+        explicit = self.get_explicit_secondary_frontend_metrics_list()
+        if explicit:
+            return explicit
         if self.has_explicit_frontend_metrics():
             return []
         # Fallback for definitions without explicit secondary frontend metrics:

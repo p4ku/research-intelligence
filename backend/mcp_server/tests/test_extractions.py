@@ -212,6 +212,56 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
         # 7. Clean up
         delete_extraction_definition_logic(self.admin, definition_id=d_id)
 
+    def test_mcp_auto_mode_preservation_and_explicit_secondary_metrics(self):
+        """
+        Issue #139: MCP definition tools must emit explicit secondary frontend metrics
+        without falling back to exit_metrics[1:] when unconfigured.
+        An MCP get -> update workflow must not corrupt auto mode or flip has_explicit_frontend_metrics.
+        """
+        # 1. Create definition with multiple exit metrics and NO explicit frontend metrics
+        create_res = self.parse_res(create_extraction_definition_logic(
+            self.admin,
+            workspace_id=str(self.workspace.id),
+            name="Multi Metric Auto Definition",
+            exit_metrics=["prim_score", "sec_metric_1", "sec_metric_2"],
+            system_prompt="Extract metrics",
+            user_prompt_template="Paper: {paper_text}",
+            response_schema={"type": "object"}
+        ))
+        self.assertEqual(create_res["status"], "success")
+        self.assertIsNone(create_res["primary_frontend_metric"])
+        self.assertEqual(create_res["secondary_frontend_metrics"], [])
+        d_id = create_res["definition_id"]
+
+        # 2. get_extraction_definition_logic emits empty secondary_frontend_metrics
+        details = self.parse_res(get_extraction_definition_logic(self.admin, definition_id=d_id))
+        self.assertIsNone(details["primary_frontend_metric"])
+        self.assertEqual(details["secondary_frontend_metrics"], [])
+
+        # 3. list_extraction_definitions_logic emits empty secondary_frontend_metrics
+        defs = self.parse_res(list_extraction_definitions_logic(self.admin, workspace_id=str(self.workspace.id)))
+        found = next(d for d in defs if d["definition_id"] == d_id)
+        self.assertIsNone(found["primary_frontend_metric"])
+        self.assertEqual(found["secondary_frontend_metrics"], [])
+
+        # 4. update_extraction_definition_logic without changing frontend metrics
+        up_res = self.parse_res(update_extraction_definition_logic(
+            self.admin,
+            definition_id=d_id,
+            system_prompt="Updated extraction prompt"
+        ))
+        self.assertEqual(up_res["status"], "success")
+        self.assertIsNone(up_res["primary_frontend_metric"])
+        self.assertEqual(up_res["secondary_frontend_metrics"], [])
+
+        # 5. Verify database model has not flipped has_explicit_frontend_metrics
+        def_obj = ExtractionDefinition.objects.get(id=d_id)
+        self.assertFalse(def_obj.has_explicit_frontend_metrics())
+        self.assertEqual(def_obj.get_explicit_secondary_frontend_metrics_list(), [])
+        self.assertEqual(def_obj.get_secondary_frontend_metrics_list(), ["sec_metric_1", "sec_metric_2"])
+
+        delete_extraction_definition_logic(self.admin, definition_id=d_id)
+
     def test_list_and_get_extractions_mcp_tools(self):
         run = PipelineRun.objects.create(workspace=self.workspace)
         p = Paper.objects.create(
