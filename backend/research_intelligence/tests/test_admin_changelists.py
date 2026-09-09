@@ -386,6 +386,44 @@ class AdminChangelistViewsTestCase(TestCase):
         self.assertContains(response, "white-space: nowrap;")
         self.assertContains(response, "gemini-3.8-flash")
 
+        # Check User filter is rendered in the sidebar
+        self.assertContains(response, "By User")
+        self.assertContains(response, "⚙️ System / Automated")
+        self.assertContains(response, self.user.username)
+
+        # Create a second record by another user and a third record by system
+        other_user = User.objects.create_user(username="other_researcher", password="password123")
+        LLMUsageRecord.record_usage(
+            tokens_in=5000,
+            tokens_out=1000,
+            llm_model="google/gemini-3.8-flash",
+            operation_type="extraction",
+            workspace=self.workspace,
+            user=other_user,
+        )
+        LLMUsageRecord.record_usage(
+            tokens_in=2000,
+            tokens_out=500,
+            llm_model="google/gemini-3.8-flash",
+            operation_type="reporting",
+            workspace=self.workspace,
+            user=None,  # System
+        )
+
+        # 1. Filter by specific user
+        user_url = f"{url}?user={self.user.username}"
+        user_resp = self.client.get(user_url)
+        self.assertEqual(user_resp.status_code, 200)
+        self.assertContains(user_resp, "15,700")  # filtered total for self.user (12500 + 3200)
+        self.assertContains(user_resp, "full_text_screening")
+
+        # 2. Filter by system / automated
+        sys_url = f"{url}?user=system"
+        sys_resp = self.client.get(sys_url)
+        self.assertEqual(sys_resp.status_code, 200)
+        self.assertContains(sys_resp, "2,500")  # filtered total for system (2000 + 500)
+        self.assertContains(sys_resp, "reporting")
+
     def test_documentregistry_changeform_renders_meta_field(self):
         self.doc_registry.meta = {
             "id": "http://arxiv.org/abs/2608.01939v2",

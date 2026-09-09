@@ -4940,6 +4940,41 @@ class UserActivityLogAdmin(admin.ModelAdmin):
     execution_duration_fmt.admin_order_field = "execution_time_ms"
 
 
+class LLMUsageUserFilter(admin.SimpleListFilter):
+    title = "User"
+    parameter_name = "user"
+
+    def lookups(self, request, model_admin):
+        lookups_list = [("system", "⚙️ System / Automated")]
+        usernames = set(
+            LLMUsageRecord.objects.exclude(user_username_snapshot="")
+            .values_list("user_username_snapshot", flat=True)
+            .distinct()[:50]
+        )
+        user_fks = set(
+            LLMUsageRecord.objects.filter(user__isnull=False)
+            .values_list("user__username", flat=True)
+            .distinct()[:50]
+        )
+        all_usernames = sorted(u for u in (usernames | user_fks) if u)
+        for u in all_usernames:
+            lookups_list.append((u, f"👤 {u}"))
+        return lookups_list
+
+    def queryset(self, request, queryset):
+        val = self.value()
+        if val == "system":
+            return queryset.filter(
+                (models.Q(user__isnull=True) & (models.Q(user_username_snapshot="") | models.Q(user_username_snapshot__isnull=True)))
+                | models.Q(user_username_snapshot__iexact="system")
+            )
+        if val:
+            return queryset.filter(
+                models.Q(user__username=val) | models.Q(user_username_snapshot=val)
+            )
+        return queryset
+
+
 @admin.register(LLMUsageRecord)
 class LLMUsageRecordAdmin(admin.ModelAdmin):
     """
@@ -4962,14 +4997,24 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
         'pipeline_run_link',
     )
     ordering = ('-timestamp', '-id')
-    list_filter = ('operation_type', 'llm_model', 'llm_provider', 'timestamp')
+    list_select_related = ('workspace', 'user')
+    list_filter = (
+        LLMUsageUserFilter,
+        'workspace',
+        'operation_type',
+        'llm_model',
+        'llm_provider',
+        'timestamp',
+    )
     search_fields = (
         'workspace_name_snapshot',
         'workspace_id_snapshot',
         'user_username_snapshot',
+        'user__username',
+        'user__email',
         'pipeline_run_id',
         'component_run_id',
-        'llm_model'
+        'llm_model',
     )
     readonly_fields = [f.name for f in LLMUsageRecord._meta.fields]
     date_hierarchy = 'timestamp'
@@ -5096,6 +5141,7 @@ class LLMUsageRecordAdmin(admin.ModelAdmin):
     def user_display(self, obj):
         return obj.user_username_snapshot or (obj.user.username if obj.user else "System")
     user_display.short_description = "User"
+    user_display.admin_order_field = "user_username_snapshot"
 
     def pipeline_run_link(self, obj):
         if not obj.pipeline_run_id:
