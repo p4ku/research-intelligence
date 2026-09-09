@@ -245,12 +245,15 @@ class ApiEndpointOptimizationsTestCase(TestCase):
         self.assertEqual(len(detail["papers"]), 3)
         self.assertEqual(len(detail["exclusions"]), 2)
 
-        # Verify descending order by signal_score
+        # Verify descending order by signal_score and presence of screening_status
         scores = [p["signal_score"] for p in detail["papers"]]
         self.assertEqual(scores, [95.5, 82.0, 60.0])
         self.assertEqual(detail["papers"][0]["title"], "High Score Paper")
+        self.assertEqual(detail["papers"][0]["screening_status"], "accepted")
         self.assertEqual(detail["papers"][1]["title"], "Medium Score Paper")
+        self.assertEqual(detail["papers"][1]["screening_status"], "full_text_passed")
         self.assertEqual(detail["papers"][2]["title"], "Low Score Paper")
+        self.assertEqual(detail["papers"][2]["screening_status"], "abstract_passed")
 
         # Verify exclusions retain their screening reasoning
         rej_reasons = {ex["title"]: ex["reason"] for ex in detail["exclusions"]}
@@ -258,6 +261,11 @@ class ApiEndpointOptimizationsTestCase(TestCase):
         self.assertEqual(rej_reasons["Abstract Rejected Paper"], "Abstract does not meet clinical benchmark criteria")
         self.assertIn("Full Text Rejected Paper", rej_reasons)
         self.assertEqual(rej_reasons["Full Text Rejected Paper"], "Failed methodology replication threshold")
+
+        # Verify explicit ?run_id query param
+        resp_run = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}")
+        self.assertEqual(resp_run.status_code, 200)
+        self.assertEqual(resp_run.json()["run_id"], str(run.id))
 
     def test_chat_sessions_single_workspacemember_query(self):
         """

@@ -356,6 +356,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                         "title": pm.paper.title,
                         "authors": authors_list,
                         "source": pm.paper.source_database or 'arXiv',
+                        "screening_status": pm.screening_status,
                         "signal_score": pm.signal_score,
                     })
 
@@ -422,16 +423,19 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             start_dt = datetime.combine(target_date, time.min)
             end_dt = start_dt + timedelta(days=1)
 
+        requested_run_id = request.query_params.get('run_id')
         from django.db.models import Q
-        run = (
-            PipelineRun.objects.filter(
-                Q(workspace=workspace) &
-                Q(status='completed') &
-                (
-                    (Q(completed_at__gte=start_dt) & Q(completed_at__lt=end_dt)) |
-                    Q(run_date=target_date)
-                )
+        run_q = Q(workspace=workspace) & Q(status='completed')
+        if requested_run_id:
+            run_q &= Q(id=requested_run_id)
+        else:
+            run_q &= (
+                (Q(completed_at__gte=start_dt) & Q(completed_at__lt=end_dt)) |
+                Q(run_date=target_date)
             )
+
+        run = (
+            PipelineRun.objects.filter(run_q)
             .only(
                 'id', 'workspace_id', 'completed_at', 'run_date', 'status_message',
                 'total_papers_fetched', 'total_papers_passed_screening'
@@ -487,6 +491,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 "title": pm.paper.title,
                 "authors": authors_list,
                 "source": pm.paper.source_database or 'arXiv',
+                "screening_status": pm.screening_status,
                 "signal_score": pm.signal_score,
             })
 

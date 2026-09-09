@@ -4248,7 +4248,112 @@ class ExtractionAdmin(admin.ModelAdmin):
         if not metric_str or metric_str == "-":
             return mark_safe('<span style="color: #6c757d; font-size: 0.85em;">-</span>')
 
-        lower_str = metric_str.lower()
+        parsed = None
+        if isinstance(metric_str, (dict, list)):
+            parsed = metric_str
+        elif isinstance(metric_str, str):
+            s = metric_str.strip()
+            if (s.startswith('{') and s.endswith('}')) or (s.startswith('[') and s.endswith(']')):
+                import json
+                try:
+                    parsed = json.loads(s)
+                except Exception:
+                    pass
+                if parsed is None:
+                    try:
+                        import ast
+                        parsed = ast.literal_eval(s)
+                    except Exception:
+                        pass
+
+        # 1. Unpack structured Dictionary output (e.g. Risk and Affiliation, composite metrics)
+        if isinstance(parsed, dict):
+            elements = []
+            status_key = next((k for k in ('status', 'flag', 'verdict', 'result', 'state', 'decision') if k in parsed), None)
+            if status_key is not None and parsed[status_key] is not None:
+                s_val = str(parsed[status_key]).strip()
+                s_upper = s_val.upper()
+                if s_upper in ('YES', 'TRUE', 'PASS', 'ACCEPTED', 'SAFE', 'POSITIVE'):
+                    bg = "#198754"  # Emerald Green
+                    color = "#ffffff"
+                elif s_upper in ('NO', 'FALSE', 'NONE', 'NEGATIVE'):
+                    bg = "#6c757d"  # Slate Gray
+                    color = "#ffffff"
+                elif s_upper in ('WARN', 'WARNING', 'MEDIUM', 'BORDERLINE'):
+                    bg = "#ffc107"  # Amber
+                    color = "#000000"
+                elif s_upper in ('FAIL', 'FAILED', 'REJECTED', 'HIGH_RISK', 'FLAGGED'):
+                    bg = "#dc3545"  # Crimson Red
+                    color = "#ffffff"
+                else:
+                    bg = "#0d6efd"  # Blue
+                    color = "#ffffff"
+
+                elements.append(format_html(
+                    '<span style="background-color: {}; color: {}; padding: 3px 8px; border-radius: 4px; '
+                    'font-size: 0.82em; font-weight: 700; display: inline-block; vertical-align: middle; '
+                    'box-shadow: 0 1px 2px rgba(0,0,0,0.1);" title="{}">{}</span>',
+                    bg, color, f"{status_key}: {s_val}", s_val
+                ))
+
+            for k, v in parsed.items():
+                if k == status_key:
+                    continue
+                if v is None or str(v).strip() in ('', 'None', 'null', 'NoneType'):
+                    continue
+                if isinstance(v, (list, tuple)):
+                    clean_items = [str(x).strip() for x in v if x is not None and str(x).strip() not in ('', 'None', 'null')]
+                    if not clean_items:
+                        continue
+                    for item in clean_items:
+                        elements.append(format_html(
+                            '<span style="background-color: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; '
+                            'padding: 2px 7px; border-radius: 4px; font-size: 0.78em; font-weight: 600; '
+                            'display: inline-block; margin-left: 4px; vertical-align: middle;" title="{}">{}</span>',
+                            f"{k}: {item}", item
+                        ))
+                elif isinstance(v, bool):
+                    badge_bg = "#d1e7dd" if v else "#f8d7da"
+                    badge_fg = "#0f5132" if v else "#842029"
+                    val_text = "Yes" if v else "No"
+                    label = k.replace('_', ' ').capitalize()
+                    elements.append(format_html(
+                        '<span style="background-color: {}; color: {}; border: 1px solid rgba(0,0,0,0.08); '
+                        'padding: 2px 6px; border-radius: 4px; font-size: 0.78em; font-weight: 600; '
+                        'display: inline-block; margin-left: 4px; vertical-align: middle;">{}: {}</span>',
+                        badge_bg, badge_fg, label, val_text
+                    ))
+                else:
+                    label = k.replace('_', ' ')
+                    val_str = str(v).strip()
+                    elements.append(format_html(
+                        '<span style="background-color: #f8fafc; color: #334155; border: 1px solid #cbd5e1; '
+                        'padding: 2px 6px; border-radius: 4px; font-size: 0.78em; display: inline-block; '
+                        'margin-left: 4px; vertical-align: middle;"><span style="color: #64748b; font-weight: 600;">{}:</span> '
+                        '<strong style="color: #0f172a;">{}</strong></span>',
+                        label, val_str
+                    ))
+
+            if elements:
+                return mark_safe(''.join(elements))
+
+        # 2. Unpack List output
+        if isinstance(parsed, (list, tuple)):
+            clean_items = [str(x).strip() for x in parsed if x is not None and str(x).strip() not in ('', 'None', 'null')]
+            if clean_items:
+                chips = [
+                    format_html(
+                        '<span style="background-color: #f1f5f9; color: #1e293b; border: 1px solid #cbd5e1; '
+                        'padding: 2px 7px; border-radius: 4px; font-size: 0.78em; font-weight: 600; '
+                        'display: inline-block; margin-right: 4px; vertical-align: middle;">{}</span>',
+                        item
+                    )
+                    for item in clean_items
+                ]
+                return mark_safe(''.join(chips))
+
+        # 3. Scalar string or number
+        lower_str = str(metric_str).lower()
         if any(k in lower_str for k in ("fit_score", "schwarz", "trl", "score")):
             bg = "#0d6efd"  # Primary Blue
             color = "#ffffff"
@@ -4269,12 +4374,49 @@ class ExtractionAdmin(admin.ModelAdmin):
             '<span style="background-color: {}; color: {}; padding: 4px 9px; border-radius: 5px; '
             'font-size: 0.82em; font-weight: 600; display: inline-block; white-space: nowrap; '
             'box-shadow: 0 1px 3px rgba(0,0,0,0.12);" title="{}">{}</span>',
-            bg, color, metric_str, metric_str
+            bg, color, str(metric_str), str(metric_str)
         )
     exit_metrics_badge.short_description = "Exit Metrics / Output"
 
     def exit_metrics_preview(self, obj):
         metric_str = obj.exit_metric
+        if not metric_str or metric_str == "-":
+            return mark_safe('<span style="color: #6c757d; font-size: 0.95em;">-</span>')
+
+        parsed = None
+        if isinstance(metric_str, (dict, list)):
+            parsed = metric_str
+        elif isinstance(metric_str, str):
+            s = metric_str.strip()
+            if (s.startswith('{') and s.endswith('}')) or (s.startswith('[') and s.endswith(']')):
+                import json
+                try:
+                    parsed = json.loads(s)
+                except Exception:
+                    pass
+                if parsed is None:
+                    try:
+                        import ast
+                        parsed = ast.literal_eval(s)
+                    except Exception:
+                        pass
+
+        if isinstance(parsed, (dict, list)):
+            import json
+            badges_html = self.exit_metrics_badge(obj)
+            try:
+                formatted_json = json.dumps(parsed, indent=2, ensure_ascii=False)
+            except Exception:
+                formatted_json = str(parsed)
+            return format_html(
+                '<div style="display: flex; flex-direction: column; gap: 8px;">'
+                '  <div>{}</div>'
+                '  <pre style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 14px; font-size: 12px; font-family: monospace; color: #1e293b; max-width: 650px; overflow-x: auto; margin: 0;"><code>{}</code></pre>'
+                '</div>',
+                badges_html,
+                formatted_json
+            )
+
         return format_html('<strong style="font-size: 1.1em; color: #0d6efd;">{}</strong>', metric_str)
     exit_metrics_preview.short_description = "Exit Metrics"
 
