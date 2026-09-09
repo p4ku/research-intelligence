@@ -117,7 +117,10 @@ export function PaperCard({
   const { stars } = useFeatures()
   const trl = trlDimension(paper)
   // Two headline dimensions besides TRL, in the workspace's definition order.
-  const stats = paper.dimensions.filter((d) => !d.is_trl && d.value !== null).slice(0, 2)
+  const stats = (paper.dimensions ?? [])
+    .filter((d) => !d.is_trl && d.value !== null)
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .slice(0, 2)
   const lead = paper.authors[0]
   return (
     <PaperCardFrame

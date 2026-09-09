@@ -118,9 +118,9 @@ function railBar(d: Dimension, t: T, lang: Lang): RailBar {
 
 export function ScoreRail({ paper, t, lang = 'en' }: { paper: ScoredPaper; t: T; lang?: Lang }) {
   // Exclude Risk & Affiliation dimensions from the score rail bars
-  const visibleDimensions = (paper.dimensions ?? []).filter(
-    (d) => !d.is_risk_and_affiliation && d.key !== 'risk_and_affiliation',
-  )
+  const visibleDimensions = (paper.dimensions ?? [])
+    .filter((d) => !d.is_risk_and_affiliation && d.key !== 'risk_and_affiliation')
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   const trl = trlDimension(paper)
   const axes = radarAxes(visibleDimensions, t, lang)
   const score =

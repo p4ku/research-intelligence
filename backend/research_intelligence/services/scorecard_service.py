@@ -81,8 +81,10 @@ def format_definitions_metadata(definitions: list) -> list:
             'is_risk_and_affiliation': is_risk_dimension(d.name, d_slug),
             'max': max_val,
             'scale_max': max_val,
+            'order': getattr(d, 'order', 0),
             'created_at': created_str,
         })
+    definitions_data.sort(key=lambda item: (item.get('order', 0), item.get('name', '')))
     return definitions_data
 
 
@@ -228,14 +230,24 @@ def build_single_scored_paper(
         risk_and_affiliation_info = {k: v for k, v in risk_and_affiliation_info.items() if k != 'raw'}
 
     # 3. Dynamic dimensions with rich layout details (facets, texts, facts, lists, rationale, evidence)
+    # 3. Dynamic dimensions with rich layout details (facets, texts, facts, lists, rationale, evidence)
     ext_by_def = {}
+    ext_by_cat = {}
     for e in extractions_list:
-        if e.extraction_definition_id and e.extraction_definition_id not in ext_by_def:
-            ext_by_def[e.extraction_definition_id] = e
+        if e.extraction_definition_id and str(e.extraction_definition_id) not in ext_by_def:
+            ext_by_def[str(e.extraction_definition_id)] = e
+        if e.category and e.category.strip().lower() not in ext_by_cat:
+            ext_by_cat[e.category.strip().lower()] = e
 
+    matched_extraction_ids = set()
     dimensions = []
     for d in definitions:
-        e = ext_by_def.get(d.id)
+        e = ext_by_def.get(str(d.id))
+        if not e and d.name:
+            e = ext_by_cat.get(d.name.strip().lower())
+        if e:
+            matched_extraction_ids.add(e.id)
+
         if not d.is_active and not e:
             continue
 
@@ -271,6 +283,7 @@ def build_single_scored_paper(
             'definition_id': str(d.id),
             'name': d.name,
             'label': d.name,
+            'order': getattr(d, 'order', 0),
             'value': numeric_val,
             'raw': raw_val,
             'max': max_val,
@@ -308,9 +321,8 @@ def build_single_scored_paper(
         dimensions.append(dim_dict)
 
     # Trailing definition-less extractions
-    def_ids = {d.id for d in definitions}
-    for e in extractions_list:
-        if not e.extraction_definition_id or e.extraction_definition_id not in def_ids:
+    for idx, e in enumerate(extractions_list, start=1000):
+        if e.id not in matched_extraction_ids:
             primary_metric, secondary_metrics, has_post = extract_metrics_for_extraction(e, None)
             dim_key = (e.category or 'custom').lower().replace(' ', '_').replace('-', '_')
             max_val, is_trl = resolve_dimension_scale(e.category or '')
@@ -339,6 +351,7 @@ def build_single_scored_paper(
                 'definition_id': None,
                 'name': e.category or 'Extraction',
                 'label': e.category or 'Extraction',
+                'order': idx,
                 'value': numeric_val,
                 'raw': raw_val,
                 'max': max_val,
@@ -370,6 +383,9 @@ def build_single_scored_paper(
                 dim_dict['main_metric'] = primary_metric
                 dim_dict['auxiliary_metrics'] = secondary_metrics
             dimensions.append(dim_dict)
+
+    # Strictly sort dimensions by configured definition order
+    dimensions.sort(key=lambda dim: (dim.get('order', 999), dim.get('name', '')))
 
     # 4. Resolve source_url
     final_source_url = None

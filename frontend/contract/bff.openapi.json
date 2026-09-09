@@ -3727,6 +3727,10 @@
           "is_trl": {
             "type": "boolean"
           },
+          "order": {
+            "default": 0,
+            "type": "number"
+          },
           "is_risk_and_affiliation": {
             "type": "boolean"
           },
@@ -3983,7 +3987,8 @@
           "name",
           "value",
           "max",
-          "is_trl"
+          "is_trl",
+          "order"
         ],
         "additionalProperties": {}
       },
@@ -4440,6 +4445,10 @@
           "is_trl": {
             "type": "boolean"
           },
+          "order": {
+            "default": 0,
+            "type": "number"
+          },
           "max": {
             "anyOf": [
               {
@@ -4473,6 +4482,7 @@
           "key",
           "is_active",
           "is_trl",
+          "order",
           "max"
         ],
         "additionalProperties": false

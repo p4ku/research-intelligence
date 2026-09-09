@@ -129,6 +129,7 @@ export const dimension = z
     /** Scale for bars/radar; null → show the number only. */
     max: z.number().nullable(),
     is_trl: z.boolean(),
+    order: z.number().optional().default(0),
     is_risk_and_affiliation: z.boolean().optional(),
     has_postprocessing: z.boolean().optional(),
     primary_metric: z.record(z.string(), z.any()).nullable().optional(),
