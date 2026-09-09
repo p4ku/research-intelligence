@@ -3,9 +3,9 @@
 import { usePathname, useRouter } from 'next/navigation'
 import { createContext, useCallback, useContext, useMemo } from 'react'
 import {
-  ALL_ON,
-  decodeFeaturesCookie,
+  DEFAULT_FEATURES,
   encodeFeaturesCookie,
+  FEATURE_KEYS,
   featureOwning,
   FEATURES_COOKIE,
   type FeatureKey,
@@ -18,7 +18,8 @@ import {
  * a render), toggled from the account menu, and re-seeded on every server
  * render — the same shape as LanguageProvider.
  *
- * Without a provider (Studio's page tree, unit renders) everything is on.
+ * Without a provider (unit renders) the flags read as a cookieless request
+ * would: fixed values fixed, the rest on.
  */
 
 interface FeaturesValue {
@@ -27,7 +28,7 @@ interface FeaturesValue {
 }
 
 const FeaturesContext = createContext<FeaturesValue>({
-  features: ALL_ON,
+  features: DEFAULT_FEATURES,
   setFeature: () => {},
 })
 
@@ -62,13 +63,18 @@ export function FeaturesProvider({
 }) {
   const router = useRouter()
   const pathname = usePathname()
-  // The shell hands in a fresh object every render; keying on the encoded
-  // string keeps the context value stable across refreshes that change nothing.
-  const encoded = encodeFeaturesCookie(features)
+  // The shell hands in a fresh object every render; keying on the flags'
+  // values keeps the context stable across refreshes that change nothing.
+  // The prop is carried as given — not round-tripped through the cookie
+  // codec, which would silently replace a pinned value (Studio's provider)
+  // with the fixed one.
+  const signature = FEATURE_KEYS.map((k) => (features[k] ? '1' : '0')).join('')
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- signature stands in for features
+  const stable = useMemo(() => features, [signature])
 
   const setFeature = useCallback(
     (key: FeatureKey, on: boolean) => {
-      const next = { ...decodeFeaturesCookie(encoded), [key]: on }
+      const next = { ...stable, [key]: on }
       // Same attributes as the language cookie (src/lib/i18n-client.tsx).
       document.cookie = `${FEATURES_COOKIE}=${encodeFeaturesCookie(next)};path=/;max-age=31536000;samesite=lax`
       // Turning off the flag that owns the current route would 404 it under
@@ -83,13 +89,10 @@ export function FeaturesProvider({
       }
       router.refresh()
     },
-    [encoded, pathname, router],
+    [stable, pathname, router],
   )
 
-  const value = useMemo(
-    () => ({ features: decodeFeaturesCookie(encoded), setFeature }),
-    [encoded, setFeature],
-  )
+  const value = useMemo(() => ({ features: stable, setFeature }), [stable, setFeature])
   return <FeaturesContext.Provider value={value}>{children}</FeaturesContext.Provider>
 }
 

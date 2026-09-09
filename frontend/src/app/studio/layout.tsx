@@ -1,6 +1,6 @@
 import { ApplicationLayout } from '@/components/application-layout'
 import { getSessionUser } from '@/lib/auth/session'
-import { ALL_ON } from '@/lib/features'
+import { DEFAULT_FEATURES } from '@/lib/features'
 import { FeaturesProvider } from '@/lib/features-client'
 import { getFeatures } from '@/lib/features-server'
 import { getLang } from '@/lib/i18n-server'
@@ -22,12 +22,12 @@ export default async function StudioLayout({ children }: { children: React.React
   const [lang, features] = await Promise.all([getLang(), getFeatures()])
   return (
     <ApplicationLayout lang={lang} features={features} user={user} area="studio">
-      {/* The account menu (inside the shell) shows the real switches, so the
-          operator can flip flags from here. Everything Studio renders is
-          pinned all-on by this nested provider: the skeleton gallery must show
-          every shape whatever the demo cookie says, and skeleton:drift must
-          never measure a cookie. Nested context wins for the subtree. */}
-      <FeaturesProvider features={ALL_ON}>{children}</FeaturesProvider>
+      {/* Everything Studio renders is pinned to the shipped defaults by this
+          nested provider: the skeleton gallery must show the product's shapes
+          whatever the demo cookie says, and skeleton:drift must never measure
+          a cookie. Nested context wins for the subtree. (The account menu
+          shows the switches for any flag the registry has not fixed.) */}
+      <FeaturesProvider features={DEFAULT_FEATURES}>{children}</FeaturesProvider>
     </ApplicationLayout>
   )
 }

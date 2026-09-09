@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { bffFetch } from '@/lib/bff/client'
 import type { StartRun } from '@/lib/bff/pipeline-runs/schema'
 import { errorsFromSubmit } from '@/lib/bff/problem-copy'
-import { ALL_ON, type Features } from '@/lib/features'
+import { DEFAULT_FEATURES, type Features } from '@/lib/features'
 import { useFeatures } from '@/lib/features-client'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
@@ -471,7 +471,7 @@ const DOMAIN_DIGITS = [16, 11, 14, 16, 11]
 
 export function LedgerSkeleton({
   rows = 5,
-  features = ALL_ON,
+  features = DEFAULT_FEATURES,
 }: {
   rows?: number
   /** The page's flags, so the bones have the star column exactly when the rows will. */

@@ -59,6 +59,7 @@ export const TOGGLE_KEYS: FeatureKey[] = FEATURE_KEYS.filter((k) => FEATURES[k].
 
 export type Features = Record<FeatureKey, boolean>
 
+/** The registry with nothing hidden — a test value, not what any request sees. */
 export const ALL_ON: Features = { all_papers: true, stars: true, ask: true }
 
 /** Separator that survives cookie serialisation unencoded (see bff/stars/cookie.ts). */
@@ -79,6 +80,14 @@ export function decodeFeaturesCookie(
     FEATURE_KEYS.map((k) => [k, registry[k].fixed ?? !off.has(k)]),
   ) as Features
 }
+
+/**
+ * What a request with no cookie reads: every fixed flag at its value, every
+ * other flag on. The runtime default everywhere a component or provider has
+ * no cookie to read — the no-provider context, Studio's pin, prop defaults —
+ * so a unit render or the skeleton gallery shows the product as shipped.
+ */
+export const DEFAULT_FEATURES: Features = decodeFeaturesCookie(undefined)
 
 /**
  * Registry order, so the value never churns between writes; all-on is ''.

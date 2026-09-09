@@ -46,16 +46,19 @@ writes; `bun run check` verifies. One thing is deliberately excluded in
 ## Feature flags are read at the page layer
 
 The three demo flags (`all_papers`, `stars`, `ask`, registry in
-`src/lib/features.ts`) live in one readable cookie and default ON. Read them
-in exactly two kinds of place:
+`src/lib/features.ts`) are each either fixed in the registry or live in one
+readable cookie and default ON (today all three are fixed: `all_papers` and
+`ask` off, `stars` on). Read them in exactly two kinds of place:
 
 - **Server**: a `page.tsx` or a `loading.tsx` calls `getFeatures()` from
   `src/lib/features-server.ts` (or `requireFeature(key)`, which `notFound()`s
   a hidden route). A page and its `loading.tsx` each read once, so a Suspense
   fallback and its content cannot disagree mid-stream.
 - **Client**: a `'use client'` component calls `useFeatures()`. It needs no
-  prop, and with no provider — a unit render — every flag reads ON, so a
-  component in isolation shows its full self.
+  prop, and with no provider — a unit render — the flags read as a cookieless
+  request would (`DEFAULT_FEATURES`: fixed values fixed, the rest ON), so a
+  component in isolation shows the product as shipped. A test that needs a
+  different state mounts `FeaturesTestProvider`.
 
 Never below that. Not in a service, not in a BFF route handler, not in
 `src/proxy.ts`: hiding is a UI concern, and the cookie is a preference the

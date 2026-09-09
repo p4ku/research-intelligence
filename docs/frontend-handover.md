@@ -157,7 +157,8 @@ curl -si https://<host>/health/        # Django, via the router
 
 Since 9 Sep 2026 the demo flags are fixed in `frontend/src/lib/features.ts`
 (`docs/design/feature-flags.md`): `all_papers` and `ask` off, `stars` on, and
-no toggles in the account menu. So `/papers` is a 404 by design and `/ask`
-renders the not-found card, whatever the `rs-features` cookie says; `/bff/status`
+no toggles in the account menu. So `/papers` and `/ask` both render the
+not-found card (HTTP 200, streamed inside the shell, since each has a
+`loading.tsx`), whatever the `rs-features` cookie says; `/bff/status`
 reports the flags under `features`. Delete a flag's `fixed` property to hand
 its switch back to the menu.

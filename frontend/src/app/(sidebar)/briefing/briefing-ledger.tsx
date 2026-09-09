@@ -4,7 +4,7 @@ import { PageNav } from '@/components/page-nav'
 import { Bone } from '@/components/skeleton'
 import { StarButton, StarredChip } from '@/components/star'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
-import { ALL_ON, type Features } from '@/lib/features'
+import { DEFAULT_FEATURES, type Features } from '@/lib/features'
 import { useFeatures } from '@/lib/features-client'
 import { useT } from '@/lib/i18n-client'
 import { useStars } from '@/lib/stars-client'
@@ -347,7 +347,7 @@ const DOMAIN_DIGITS = [16, 11, 14, 16, 11]
 export function BriefingLedgerSkeleton({
   rows = 10,
   domains,
-  features = ALL_ON,
+  features = DEFAULT_FEATURES,
 }: {
   rows?: number
   domains: string[] | null

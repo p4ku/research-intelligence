@@ -24,6 +24,7 @@
 import { mkdir, rm, symlink, writeFile } from 'node:fs/promises'
 import { join, relative, resolve, sep } from 'node:path'
 import { chromium, type Browser, type Page } from 'playwright'
+import { FEATURES, type FeatureKey } from '../src/lib/features'
 import {
   login,
   newContext,
@@ -163,6 +164,9 @@ function usage(): string {
  * Every screen in the app, in the order they should appear. `[date]` and
  * `[id]` are filled in by `discover()`. `interact` runs before the shot;
  * `only` restricts a screen to some viewports (the mobile nav is `lg:hidden`).
+ * `feature` names the demo flag that owns the screen: while the registry
+ * fixes that flag off (src/lib/features.ts) the screen is skipped, not shot
+ * as a not-found card.
  */
 interface Screen {
   name: string
@@ -170,7 +174,13 @@ interface Screen {
   auth: boolean
   only?: string[]
   viewportOnly?: boolean
+  feature?: FeatureKey
   interact?: (page: Page) => Promise<void>
+}
+
+/** A screen whose flag the registry fixes off does not exist to photograph. */
+function hiddenBy(screen: Screen): FeatureKey | null {
+  return screen.feature && FEATURES[screen.feature].fixed === false ? screen.feature : null
 }
 
 const SCREENS: Screen[] = [
@@ -198,6 +208,7 @@ const SCREENS: Screen[] = [
     route: '/search-open',
     auth: true,
     viewportOnly: true,
+    feature: 'all_papers',
     interact: async (page) => {
       await page.getByRole('combobox', { name: 'Search papers' }).fill('machine learning')
       await page.getByRole('listbox').waitFor()
@@ -207,9 +218,9 @@ const SCREENS: Screen[] = [
   { name: 'briefing', route: '/briefing', auth: true },
   { name: 'briefing-edition', route: '/briefing/[date]', auth: true },
   { name: 'briefing-run', route: '/briefing/[date]/run', auth: true },
-  { name: 'papers', route: '/papers', auth: true },
+  { name: 'papers', route: '/papers', auth: true, feature: 'all_papers' },
   { name: 'paper-detail', route: '/papers/[id]', auth: true },
-  { name: 'ask', route: '/ask', auth: true },
+  { name: 'ask', route: '/ask', auth: true, feature: 'ask' },
   { name: 'tuning', route: '/tuning', auth: true },
   { name: 'runs', route: '/runs', auth: true },
   { name: 'run', route: '/runs/[run]', auth: true },
@@ -276,13 +287,18 @@ async function discover(
   const briefing =
     (await firstHref('/briefing', '/briefing/', true)) ??
     (await firstHref('/dashboard', '/briefing/', true))
-  const paper = await firstHref('/papers', '/papers/')
+  // A paper is found on that edition, where every card links to
+  // /papers/<id>?run=; the corpus list is only tried while the registry
+  // leaves all_papers on (fixed off, /papers is the not-found card).
+  const paper =
+    (briefing ? await firstHref(briefing, '/papers/', true) : null) ??
+    (FEATURES.all_papers.fixed === false ? null : await firstHref('/papers', '/papers/'))
   const run = await firstHref('/runs', '/runs/')
   await ctx.close()
   const edition = briefing ? new URL(briefing, 'http://localhost') : null
   const date = edition?.pathname.split('/')[2] ?? null
   const dateQuery = edition?.search ?? ''
-  const id = paper?.split('/')[2] ?? null
+  const id = paper ? (new URL(paper, 'http://localhost').pathname.split('/')[2] ?? null) : null
   const runId = run?.split('/')[2] ?? null
   return { date, dateQuery, id, runId }
 }
@@ -347,6 +363,11 @@ async function main() {
       for (const screen of SCREENS) {
         if (!wanted(screen, opts)) continue
         if (screen.only && !screen.only.includes(vpName)) continue
+        const hidden = hiddenBy(screen)
+        if (hidden) {
+          log(`  skip ${screen.name.padEnd(28)} ${hidden} is fixed off in src/lib/features.ts`)
+          continue
+        }
         // Number by position in SCREENS so the same screen keeps the same
         // filename across viewports, runs and --routes subsets (gaps are fine).
         const file = `${String(SCREENS.indexOf(screen) + 1).padStart(2, '0')}-${screen.name}.png`

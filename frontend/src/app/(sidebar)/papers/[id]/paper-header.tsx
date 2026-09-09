@@ -1,6 +1,6 @@
 import { Bone } from '@/components/skeleton'
 import { StarToggle } from '@/components/star'
-import { ALL_ON, type Features } from '@/lib/features'
+import { DEFAULT_FEATURES, type Features } from '@/lib/features'
 import { formatDate, type Lang, type T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { ArrowUpRightIcon, BookmarkIcon } from '@heroicons/react/16/solid'
@@ -68,7 +68,7 @@ export function PaperHeader({
   paper,
   t,
   lang,
-  features = ALL_ON,
+  features = DEFAULT_FEATURES,
 }: {
   paper: ScoredPaper
   t: T
@@ -134,7 +134,7 @@ export function PaperHeader({
   )
 }
 
-export function PaperHeaderSkeleton({ features = ALL_ON }: { features?: Features }) {
+export function PaperHeaderSkeleton({ features = DEFAULT_FEATURES }: { features?: Features }) {
   return (
     <PaperHeaderFrame
       state="skeleton"

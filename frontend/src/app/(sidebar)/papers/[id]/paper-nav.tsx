@@ -1,5 +1,5 @@
 import { Bone } from '@/components/skeleton'
-import { ALL_ON, type Features } from '@/lib/features'
+import { DEFAULT_FEATURES, type Features } from '@/lib/features'
 import { fmt, type T } from '@/lib/i18n'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
@@ -22,7 +22,7 @@ import type { ReactNode } from 'react'
  * pager and the "{n} of {total}" position go (they are claims about a list
  * the reader can no longer open) and the back link points at Briefings, but
  * the row itself stays — with the crumb trail gone too, it is the paper's
- * only exit. `features` defaults to ALL_ON because the skeleton gallery
+ * only exit. `features` defaults to DEFAULT_FEATURES because the skeleton gallery
  * renders these three with no such prop; the flag reaches them from
  * PaperRecord and loading.tsx.
  *
@@ -132,7 +132,7 @@ function Arrow({ href, dir, label }: { href: string | null; dir: 'prev' | 'next'
 export function PaperNav({
   neighbours,
   t,
-  features = ALL_ON,
+  features = DEFAULT_FEATURES,
   back,
 }: {
   neighbours: PaperNeighbours | null
@@ -161,7 +161,7 @@ export function PaperNav({
 
 export function PaperNavSkeleton({
   t,
-  features = ALL_ON,
+  features = DEFAULT_FEATURES,
   back,
 }: {
   t: T

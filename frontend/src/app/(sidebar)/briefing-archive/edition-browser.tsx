@@ -5,7 +5,7 @@ import { DomainBadge, SignalScore } from '@/components/scanner-ui'
 import { SearchFrame } from '@/components/search-frame'
 import { Bone } from '@/components/skeleton'
 import { StarButton, StarredChip, StarToggle } from '@/components/star'
-import { ALL_ON, type Features } from '@/lib/features'
+import { DEFAULT_FEATURES, type Features } from '@/lib/features'
 import { useFeatures } from '@/lib/features-client'
 import { fmt, type Lang } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
@@ -438,7 +438,7 @@ export function EditionBrowserSkeleton({
   papers = 5,
   briefParagraphs = [3, 2],
   railLines = [2],
-  features = ALL_ON,
+  features = DEFAULT_FEATURES,
 }: {
   editions?: number
   papers?: number

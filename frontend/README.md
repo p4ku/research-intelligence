@@ -40,8 +40,9 @@ so non-technical users can see _why_ something ranked where it did.
   - **Briefings** (`/briefing`) — one edition per completed run: funnel,
     surfaced papers, the screening log, and executive brief prose served
     canonically from the backend editions engine.
-  - **Papers** (`/papers`) — behind the `all_papers` preference; off, the route
-    renders the not-found card. Every paper from every domain, scored against its domain's
+  - **Papers** (`/papers`) — behind the `all_papers` flag, **fixed off** since
+    9 Sep 2026: the route renders the not-found card and the nav row is gone.
+    When on: every paper from every domain, scored against its domain's
     extraction definitions plus the backend's composite signal score; domain,
     screening, sort, ingest-window, signal-strength and (when defined) TRL
     filters; a detail page (not flagged) with the score formula, per-dimension
@@ -49,19 +50,23 @@ so non-technical users can see _why_ something ranked where it did.
     by the backend's single-stream scorecard endpoint.
   - **Ask** (`/ask`) — corpus- or paper-scoped Q&A streamed from the
     backend's chat engine, with citations, visual evidence, a fact-check
-    verdict, and Django-backed history. Behind the `ask` demo switch: off, the
-    nav row and Home's "Ask about …" search row are gone and the URL answers
-    the not-found card. The per-paper "Ask this paper" sidecar stays.
+    verdict, and Django-backed history. Behind the `ask` flag, **fixed off**
+    since 9 Sep 2026: the nav row and Home's "Ask about …" search row are gone
+    and the URL answers the not-found card. The per-paper "Ask this paper"
+    sidecar stays.
   - **Settings** (`/settings`) — profile/password edits and the digest
     toggle, saved to the backend where it can.
 - **Bilingual UI** — English source strings with a German dictionary
   (`src/locales/de/`), switched from the user menu.
-- **Demo feature switches** — three per-browser flags (`all_papers`, `stars`,
-  `ask`) flipped from the same user menu and stored in one `rs-features` cookie
-  (`src/lib/features*.ts`). Everything defaults on; off means removed, not
-  disabled — the nav row goes, every link into the feature goes, and the route
-  itself renders the not-found card. Nothing in env, CI or the proxy, and the
-  BFF stays live. See `docs/design/feature-flags.md`.
+- **Demo feature flags** — three flags (`all_papers`, `stars`, `ask`) in a
+  registry (`src/lib/features*.ts`). Each is either _fixed_ in the registry or
+  flipped per browser from the user menu and stored in one `rs-features`
+  cookie. Since 9 Sep 2026 all three are fixed — `all_papers` and `ask` off,
+  `stars` on — so the menu shows no switches; delete a flag's `fixed` property
+  to hand its switch back. Off means removed, not disabled — the nav row goes,
+  every link into the feature goes, and the route itself renders the not-found
+  card. Nothing in env, CI or the proxy, and the BFF stays live. See
+  `docs/design/feature-flags.md`.
 
 ## Documentation
 

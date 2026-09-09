@@ -3,6 +3,7 @@ import { de } from '../locales/de'
 import {
   ALL_ON,
   decodeFeaturesCookie,
+  DEFAULT_FEATURES,
   encodeFeaturesCookie,
   FEATURE_KEYS,
   featureOwning,
@@ -65,6 +66,11 @@ describe('fixed flags', () => {
       ['ask', false],
     ])
     expect(TOGGLE_KEYS).toEqual([])
+  })
+
+  test('the runtime default is the cookieless request, not all-on', () => {
+    expect(DEFAULT_FEATURES).toEqual(TODAY)
+    expect(DEFAULT_FEATURES).not.toEqual(ALL_ON)
   })
 
   test('the cookie cannot move a fixed flag, in either direction', () => {

@@ -10,7 +10,7 @@ test.describe('Journey 2: Analyst Daily Review & Literature Scouting', () => {
     await loginPage.login(USERNAME, PASSWORD, true);
   });
 
-  test('Complete Daily Review Journey: Dashboard metrics -> Briefing reading -> Papers exploration & scorecard inspection', async ({ page }) => {
+  test('Complete Daily Review Journey: Dashboard metrics -> Briefing reading -> a paper from the briefing', async ({ page }) => {
     const sidebar = new SidebarNav(page);
     const dashboard = new DashboardPage(page);
     const briefing = new BriefingPage(page);

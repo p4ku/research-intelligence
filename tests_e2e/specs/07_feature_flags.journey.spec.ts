@@ -93,7 +93,7 @@ async function openAPaper(page: Page): Promise<string | null> {
 }
 
 test.describe('Journey 7: Demo feature flags (all_papers, ask fixed off; stars fixed on)', () => {
-  test('Fixed state: three nav rows, /papers and /ask are the not-found card, no corpus search, stars on, no toggles', async ({
+  test('Fixed state: three nav rows, /papers and /ask are the not-found card, no corpus search, no toggles', async ({
     page,
     baseURL,
   }) => {
@@ -117,7 +117,7 @@ test.describe('Journey 7: Demo feature flags (all_papers, ask fixed off; stars f
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: /Open navigation|Navigation öffnen/ }).click();
     const drawer = page.getByRole('dialog');
-    await expect(drawer.getByRole('link', { name: /^(Home|Heute)$/ })).toBeVisible();
+    await expect(drawer.getByRole('link', { name: /^(Home|Start)$/ })).toBeVisible();
     for (const href of HIDDEN_HREFS) {
       await expect(drawer.locator(`a[href='${href}']`)).toHaveCount(0);
     }
@@ -145,21 +145,7 @@ test.describe('Journey 7: Demo feature flags (all_papers, ask fixed off; stars f
     expect(inbound?.status()).toBe(200);
     await expect(page.getByText(NOT_FOUND_COPY)).toBeVisible();
 
-    console.log('📍 Step 7: A paper is still readable from its briefing, keeps its star, and never links to /papers...');
-    const paperUrl = await openAPaper(page);
-    if (!paperUrl) {
-      console.log('  ⏭ SKIPPED: no briefing with papers in this environment.');
-    } else {
-      expect(paperUrl).toMatch(/^\/papers\/[0-9a-f-]{36}/);
-      await expect(page.getByText(NOT_FOUND_COPY)).toHaveCount(0);
-      // data-state='loaded' scopes past the streamed skeleton row, which
-      // carries the same data-shape.
-      await expect(page.locator("[data-shape='paper-nav'][data-state='loaded']")).toBeVisible();
-      expect(await page.getByRole('button', { name: STAR_CONTROL }).count()).toBeGreaterThan(0);
-      await expect(page.locator("[data-shape='paper-nav'] a[href='/papers']")).toHaveCount(0);
-    }
-
-    console.log('📍 Step 8: The account menu has no Demo features section and no switches.');
+    console.log('📍 Step 7: The account menu has no Demo features section and no switches.');
     await toggles.openMenu();
     await expect(toggles.menu).toBeVisible();
     await expect(toggles.sectionHeading).toHaveCount(0);
@@ -191,11 +177,30 @@ test.describe('Journey 7: Demo feature flags (all_papers, ask fixed off; stars f
 
     console.log('📍 Step 3: ...with the star still on the paper masthead.');
     const paperUrl = await openAPaper(page);
-    if (!paperUrl) {
-      console.log('  ⏭ SKIPPED: no briefing with papers in this environment.');
-    } else {
-      await expect(page.locator("[data-shape='paper-nav'][data-state='loaded']")).toBeVisible();
-      expect(await page.getByRole('button', { name: STAR_CONTROL }).count()).toBeGreaterThan(0);
-    }
+    // The star is this test's claim, so no briefing means SKIPPED in the
+    // report, never a green run that proved only the cookie and the rail.
+    test.skip(paperUrl === null, 'no briefing with papers in this environment');
+    await expect(page.locator("[data-shape='paper-nav'][data-state='loaded']")).toBeVisible();
+    expect(await page.getByRole('button', { name: STAR_CONTROL }).count()).toBeGreaterThan(0);
+  });
+
+  test('A paper is still readable from its briefing, keeps its star, and never links to /papers', async ({
+    page,
+    baseURL,
+  }) => {
+    await signInWithFlagsOff(page, baseURL!, []);
+
+    console.log('📍 Step 1: Newest briefing, first card...');
+    const paperUrl = await openAPaper(page);
+    test.skip(paperUrl === null, 'no briefing with papers in this environment');
+    expect(paperUrl).toMatch(/^\/papers\/[0-9a-f-]{36}/);
+    await expect(page.getByText(NOT_FOUND_COPY)).toHaveCount(0);
+
+    console.log('📍 Step 2: ...has its star and exactly one exit, to the briefing.');
+    // data-state='loaded' scopes past the streamed skeleton row, which
+    // carries the same data-shape.
+    await expect(page.locator("[data-shape='paper-nav'][data-state='loaded']")).toBeVisible();
+    expect(await page.getByRole('button', { name: STAR_CONTROL }).count()).toBeGreaterThan(0);
+    await expect(page.locator("[data-shape='paper-nav'] a[href='/papers']")).toHaveCount(0);
   });
 });
