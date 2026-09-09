@@ -15,6 +15,11 @@ export function unpackFlag(flag: RiskFlag): { label: string; value: string; stat
   let val = flag.value
   let status = flag.status
 
+  // If already a clean string that isn't serialized JSON, return immediately
+  if (typeof val === 'string' && !val.trim().startsWith('{')) {
+    return { label: flag.label, value: val, status }
+  }
+
   let parsed: Record<string, unknown> | null = null
   if (flag.dict_value && typeof flag.dict_value === 'object') {
     parsed = flag.dict_value as Record<string, unknown>

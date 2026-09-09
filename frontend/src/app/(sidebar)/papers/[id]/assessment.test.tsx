@@ -353,4 +353,88 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('“quantum-assisted framework for PDE-based Bayesian inverse problems”')
     expect(out).toContain('“mitigates the cubic complexity barrier in large-scale inverse problems”')
   })
+
+  test('applies dynamic schema titles, descriptions, and maximums to sub-measures and prose texts', () => {
+    const schemaDimension: Dimension = {
+      key: 'quantum_advantage',
+      definition_id: '22222222-2222-2222-2222-222222222222',
+      name: 'Quantum Advantage',
+      value: 8,
+      raw: '8',
+      max: 10,
+      is_trl: false,
+      response_schema: {
+        type: 'object',
+        properties: {
+          fidelity: {
+            type: 'number',
+            title: 'Physical Qubit Fidelity',
+            description: 'Two-qubit gate benchmark fidelity across simulator backends',
+            minimum: 0,
+            maximum: 10,
+          },
+          novelty: {
+            type: 'object',
+            title: 'Novelty Assessment',
+            description: 'Algorithmic novelty and theoretical speedup over classical baselines',
+            properties: {
+              score: { type: 'number', maximum: 10 },
+            },
+          },
+          hardware_notes: {
+            type: 'string',
+            title: 'Hardware Architecture Notes',
+            description: 'Specific superconducting processor requirements',
+          },
+        },
+      },
+      facets: [
+        {
+          key: 'fidelity',
+          name: 'fidelity',
+          value: 8.5,
+          max: 100, // facet max was 100, schema maximum is 10
+          text: 'Benchmark completed on noisy simulator.',
+        },
+      ],
+      texts: [
+        {
+          key: 'novelty',
+          name: 'novelty',
+          type: 'dict',
+          is_dict: true,
+          score: 7,
+          value: 'Introduces a new tensor contraction ordering.',
+          dict_value: {
+            score: 7,
+            insight: 'Introduces a new tensor contraction ordering.',
+          },
+        },
+        {
+          key: 'hardware_notes',
+          name: 'hardware_notes',
+          value: 'Requires at least 64 physical transmon qubits with all-to-all connectivity.',
+        },
+      ],
+      evidence: [],
+      facts: [],
+      lists: [],
+    }
+
+    const out = renderToStaticMarkup(<Assessment dimensions={[schemaDimension]} t={t} />)
+
+    // Title from schema replaces raw key
+    expect(out).toContain('Physical Qubit Fidelity')
+    expect(out).toContain('Novelty Assessment')
+    expect(out).toContain('Hardware Architecture Notes')
+
+    // Description from schema rendered as subtitle/caption
+    expect(out).toContain('Two-qubit gate benchmark fidelity across simulator backends')
+    expect(out).toContain('Algorithmic novelty and theoretical speedup over classical baselines')
+    expect(out).toContain('Specific superconducting processor requirements')
+
+    // Maximum from schema (10, not 100) used for fidelity progress bar (8.5 / 10 = 0.85)
+    expect(out).toContain('scaleX(0.85)')
+  })
 })
+

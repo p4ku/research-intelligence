@@ -171,8 +171,74 @@ function FacetRow({ facet: f }: { facet: DimensionFacet }) {
   )
 }
 
+interface SchemaProperty {
+  title?: string
+  description?: string
+  maximum?: number
+  minimum?: number
+  type?: string
+}
+
+export function getSchemaProperty(
+  schema: Record<string, unknown> | null | undefined,
+  key: string,
+): SchemaProperty | null {
+  if (!schema || typeof schema !== 'object') return null
+  const properties = schema.properties as Record<string, unknown> | undefined
+  if (!properties || typeof properties !== 'object') return null
+
+  // 1. Direct key match
+  let prop = properties[key] as Record<string, unknown> | undefined
+
+  // 2. Case and underscore insensitive match
+  if (!prop) {
+    const cleanKey = key.toLowerCase().replace(/[-_ ]/g, '')
+    for (const [k, v] of Object.entries(properties)) {
+      if (k.toLowerCase().replace(/[-_ ]/g, '') === cleanKey) {
+        prop = v as Record<string, unknown>
+        break
+      }
+    }
+  }
+
+  // 3. Match without _score or _assessment suffix
+  if (!prop) {
+    const cleanBase = key.toLowerCase().replace(/[-_ ]/g, '').replace(/(score|assessment)$/, '')
+    if (cleanBase) {
+      for (const [k, v] of Object.entries(properties)) {
+        const kBase = k.toLowerCase().replace(/[-_ ]/g, '').replace(/(score|assessment)$/, '')
+        if (kBase === cleanBase) {
+          prop = v as Record<string, unknown>
+          break
+        }
+      }
+    }
+  }
+
+  if (!prop || typeof prop !== 'object') return null
+
+  const title = typeof prop.title === 'string' && prop.title.trim() ? prop.title.trim() : undefined
+  const description =
+    typeof prop.description === 'string' && prop.description.trim() ? prop.description.trim() : undefined
+  const type = typeof prop.type === 'string' ? prop.type : undefined
+
+  let maximum: number | undefined
+  if (typeof prop.maximum === 'number' && Number.isFinite(prop.maximum)) {
+    maximum = prop.maximum
+  } else if (prop.properties && typeof prop.properties === 'object') {
+    const nestedScore = (prop.properties as Record<string, unknown>).score as Record<string, unknown> | undefined
+    if (nestedScore && typeof nestedScore.maximum === 'number' && Number.isFinite(nestedScore.maximum)) {
+      maximum = nestedScore.maximum
+    }
+  }
+
+  return { title, description, maximum, type }
+}
+
 interface UnpackedField {
+  key?: string
   name: string
+  description?: string | null
   value: string | boolean
   band?: string | null
   evidence?: string[] | null
@@ -214,59 +280,49 @@ function unpackField(field: DimensionField): UnpackedField {
         .map((s) => s.trim())
         .filter(Boolean)
     }
-  } else if (typeof value === 'string') {
-    // 2. Stringified dict fallback (legacy / cache)
-    const trimmed = value.trim()
-    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-      isDict = true
-      let parsed: Record<string, unknown> | null = null
+  } else if (typeof value === 'string' && value.trim().startsWith('{') && value.trim().endsWith('}')) {
+    // 2. Safe JSON parse for stringified dictionary (legacy fallback)
+    isDict = true
+    let parsed: Record<string, unknown> | null = null
+    try {
+      parsed = JSON.parse(value.trim())
+    } catch {
       try {
-        parsed = JSON.parse(trimmed)
+        const jsonLike = value
+          .trim()
+          .replace(/'/g, '"')
+          .replace(/\bNone\b/g, 'null')
+          .replace(/\bTrue\b/g, 'true')
+          .replace(/\bFalse\b/g, 'false')
+        parsed = JSON.parse(jsonLike)
       } catch {
-        try {
-          const jsonLike = trimmed
-            .replace(/'/g, '"')
-            .replace(/\bNone\b/g, 'null')
-            .replace(/\bTrue\b/g, 'true')
-            .replace(/\bFalse\b/g, 'false')
-          parsed = JSON.parse(jsonLike)
-        } catch {
-          const bandMatch = /'band':\s*'([^']+)'|"band":\s*"([^"]+)"/.exec(trimmed)
-          if (!band && bandMatch) band = bandMatch[1] ?? bandMatch[2]
-          const insightMatch =
-            /'(?:insight|rationale|reasoning|explanation)':\s*'((?:\\'|[^'])*)'|"(?:insight|rationale|reasoning|explanation)":\s*"((?:\\"|[^"])*)"/.exec(
-              trimmed,
-            )
-          if (insightMatch) {
-            value = (insightMatch[1] ?? insightMatch[2]).replace(/\\'/g, "'").replace(/\\"/g, '"')
-          }
-        }
+        // Leave unparsed
       }
+    }
 
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        if (!band && parsed.band) band = String(parsed.band).trim()
-        if (score == null && parsed.score != null) {
-          const s = Number(parsed.score)
-          if (Number.isFinite(s)) score = s
-        }
-        if (parsed.insight) value = String(parsed.insight).trim()
-        else if (parsed.rationale) value = String(parsed.rationale).trim()
-        else if (parsed.reasoning) value = String(parsed.reasoning).trim()
-        else if (parsed.explanation) value = String(parsed.explanation).trim()
-        else if (parsed.text) value = String(parsed.text).trim()
-        else if (parsed.summary) value = String(parsed.summary).trim()
-        else value = ''
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      if (!band && parsed.band) band = String(parsed.band).trim()
+      if (score == null && parsed.score != null) {
+        const s = Number(parsed.score)
+        if (Number.isFinite(s)) score = s
+      }
+      if (parsed.insight) value = String(parsed.insight).trim()
+      else if (parsed.rationale) value = String(parsed.rationale).trim()
+      else if (parsed.reasoning) value = String(parsed.reasoning).trim()
+      else if (parsed.explanation) value = String(parsed.explanation).trim()
+      else if (parsed.text) value = String(parsed.text).trim()
+      else if (parsed.summary) value = String(parsed.summary).trim()
+      else value = ''
 
-        if (!evidence && Array.isArray(parsed.evidence)) {
-          evidence = (parsed.evidence as unknown[])
-            .map((e) =>
-              typeof e === 'object' && e !== null && 'quote' in e
-                ? String((e as { quote: unknown }).quote)
-                : String(e),
-            )
-            .map((s) => s.trim())
-            .filter(Boolean)
-        }
+      if (!evidence && Array.isArray(parsed.evidence)) {
+        evidence = (parsed.evidence as unknown[])
+          .map((e) =>
+            typeof e === 'object' && e !== null && 'quote' in e
+              ? String((e as { quote: unknown }).quote)
+              : String(e),
+          )
+          .map((s) => s.trim())
+          .filter(Boolean)
       }
     }
   }
@@ -280,6 +336,7 @@ function unpackField(field: DimensionField): UnpackedField {
 interface SubMeasure {
   key: string
   name: string
+  description?: string | null
   band?: string | null
   value?: number | null
   max?: number | null
@@ -288,17 +345,15 @@ interface SubMeasure {
   is_dict: boolean
 }
 
-function normalizeSubKey(k: string): string {
-  return k
-    .toLowerCase()
-    .replace(/[-_ ]/g, '')
-    .replace(/(score|assessment|postprocessed|computed|metric|level|band)$/, '')
+function subMeasureKey(key: string, name?: string): string {
+  return (name || key).toLowerCase().replace(/[-_ ]/g, '').replace(/_?score$/, '')
 }
 
 function resolveSubMeasures(
   facets?: DimensionFacet[] | null,
   texts?: DimensionField[] | null,
   fallbackMax: number | null = 100,
+  responseSchema?: Record<string, unknown> | null,
 ): { subMeasures: SubMeasure[]; generalTexts: UnpackedField[] } {
   const subMeasures: SubMeasure[] = []
   const seenBases = new Map<string, SubMeasure>()
@@ -306,12 +361,18 @@ function resolveSubMeasures(
 
   // 1. Process facets first
   for (const f of facets ?? []) {
-    const norm = normalizeSubKey(f.key) || normalizeSubKey(f.name)
+    const schemaProp = getSchemaProperty(responseSchema, f.key)
+    const displayName = schemaProp?.title || f.name
+    const description = schemaProp?.description || null
+    const maxVal = schemaProp?.maximum ?? f.max ?? fallbackMax
+
+    const norm = subMeasureKey(f.key, f.name)
     if (seenBases.has(norm)) {
       const existing = seenBases.get(norm)!
       if (!existing.band && f.band) existing.band = f.band
       if (existing.value == null && f.value != null) existing.value = f.value
       if (!existing.text && f.text) existing.text = f.text
+      if (!existing.description && description) existing.description = description
       const fEv = (f as { evidence?: string[] }).evidence
       if ((!existing.evidence || existing.evidence.length === 0) && fEv?.length) {
         existing.evidence = fEv
@@ -321,10 +382,11 @@ function resolveSubMeasures(
 
     const sub: SubMeasure = {
       key: f.key,
-      name: f.name,
+      name: displayName,
+      description,
       band: f.band ?? null,
       value: f.value,
-      max: f.max ?? fallbackMax,
+      max: maxVal,
       text: f.text ?? null,
       evidence: (f as { evidence?: string[] }).evidence ?? null,
       is_dict: Boolean(f.band || (f as { evidence?: string[] }).evidence),
@@ -338,7 +400,11 @@ function resolveSubMeasures(
     const field = unpackField(rawField)
     if (!field.value && !field.band && (!field.evidence || field.evidence.length === 0)) continue
 
-    const norm = normalizeSubKey(rawField.key) || normalizeSubKey(field.name)
+    const schemaProp = getSchemaProperty(responseSchema, rawField.key)
+    const displayName = schemaProp?.title || field.name
+    const description = schemaProp?.description || null
+
+    const norm = subMeasureKey(rawField.key, field.name)
     if (seenBases.has(norm)) {
       const existing = seenBases.get(norm)!
       if (!existing.band && field.band) existing.band = field.band
@@ -346,6 +412,7 @@ function resolveSubMeasures(
       if (!existing.text && typeof field.value === 'string' && field.value) {
         existing.text = field.value
       }
+      if (!existing.description && description) existing.description = description
       if ((!existing.evidence || existing.evidence.length === 0) && field.evidence?.length) {
         existing.evidence = field.evidence
       }
@@ -353,10 +420,11 @@ function resolveSubMeasures(
     } else if (field.is_dict) {
       const sub: SubMeasure = {
         key: rawField.key,
-        name: field.name,
+        name: displayName,
+        description,
         band: field.band ?? null,
         value: field.score ?? null,
-        max: fallbackMax ?? 100,
+        max: schemaProp?.maximum ?? fallbackMax ?? 100,
         text: typeof field.value === 'string' && field.value ? field.value : null,
         evidence: field.evidence ?? null,
         is_dict: true,
@@ -364,7 +432,12 @@ function resolveSubMeasures(
       seenBases.set(norm, sub)
       subMeasures.push(sub)
     } else {
-      generalTexts.push(field)
+      generalTexts.push({
+        ...field,
+        key: rawField.key,
+        name: displayName,
+        description,
+      })
     }
   }
 
@@ -396,11 +469,18 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
             : 'grid-cols-[minmax(0,1fr)_44px]',
         )}
       >
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
-            {sub.name}
-          </span>
-          {sub.band && <Band>{sub.band}</Band>}
+        <div className="flex flex-col min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+              {sub.name}
+            </span>
+            {sub.band && <Band>{sub.band}</Band>}
+          </div>
+          {sub.description && (
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
+              {sub.description}
+            </span>
+          )}
         </div>
 
         {hasBar && (
@@ -482,7 +562,7 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       <span className="font-medium text-zinc-500 dark:text-zinc-400">{t('Needs review')}</span>,
     )
 
-  const { subMeasures, generalTexts } = resolveSubMeasures(d.facets, d.texts, d.max)
+  const { subMeasures, generalTexts } = resolveSubMeasures(d.facets, d.texts, d.max, d.response_schema)
 
   return (
     <DefinitionFrame
@@ -510,6 +590,9 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       {generalTexts.map((field) => (
         <div key={field.name} className="space-y-1.5">
           <h4 className={H4}>{field.name}</h4>
+          {field.description && (
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">{field.description}</p>
+          )}
           <AnswerMarkdown text={String(field.value)} className={clsx(PROSE, 'mt-1.5')} />
         </div>
       ))}
