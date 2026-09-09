@@ -144,6 +144,52 @@ class ExtractionDefinitionOrderingTestCase(TestCase):
         self.assertEqual(d2.order, 2)
         self.assertEqual(d3.order, 3)
 
+    def test_admin_move_up_and_down_via_http_client_and_query_preservation(self):
+        """
+        Verifies actual HTTP GET requests to move-up and move-down resolve through
+        Django Admin URL routing (does not trigger 'does not exist' 404/change-view error),
+        successfully reorder definitions, and preserve query parameters like '?o=6.1.12'.
+        Also verifies that ordering columns are at the end of list_display.
+        """
+        from django.contrib import admin as django_admin
+        registered_admin = django_admin.site._registry[ExtractionDefinition]
+
+        # 1. Verify column ordering: 'name' is first and clickable, order columns are at the end
+        ld = registered_admin.get_list_display(None)
+        self.assertEqual(ld[0], 'name')
+        self.assertEqual(ld[-2], '_reorder_')
+        self.assertEqual(ld[-1], 'order_display')
+        links = registered_admin.get_list_display_links(None, ld)
+        self.assertEqual(links, ['name'])
+
+        # 2. Test HTTP GET with query params '?o=6.1.12'
+        d1 = ExtractionDefinition.objects.create(workspace=self.workspace_a, name="Alpha 1", order=1, response_schema={"type": "object"})
+        d2 = ExtractionDefinition.objects.create(workspace=self.workspace_a, name="Alpha 2", order=2, response_schema={"type": "object"})
+
+        self.client.force_login(self.user)
+
+        # Move d2 UP via HTTP
+        up_url = f"/admin/research_intelligence/extractiondefinition/{d2.pk}/move-up/?o=6.1.12"
+        resp_up = self.client.get(up_url)
+        self.assertEqual(resp_up.status_code, 302)
+        self.assertIn("?o=6.1.12", resp_up.url)
+
+        d1.refresh_from_db()
+        d2.refresh_from_db()
+        self.assertEqual(d2.order, 1)
+        self.assertEqual(d1.order, 2)
+
+        # Move d2 DOWN via HTTP
+        down_url = f"/admin/research_intelligence/extractiondefinition/{d2.pk}/move-down/?o=6.1.12"
+        resp_down = self.client.get(down_url)
+        self.assertEqual(resp_down.status_code, 302)
+        self.assertIn("?o=6.1.12", resp_down.url)
+
+        d1.refresh_from_db()
+        d2.refresh_from_db()
+        self.assertEqual(d1.order, 1)
+        self.assertEqual(d2.order, 2)
+
     def test_scorecard_dimensions_and_definitions_follow_configured_order(self):
         """
         Verifies build_paper_scorecard_data and build_workspace_scorecard_data

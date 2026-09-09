@@ -3773,7 +3773,6 @@ class ExtractionDefinitionAdmin(SortableAdminMixin, admin.ModelAdmin):
         models.JSONField: {'widget': PrettyJSONWidget},
     }
     list_display = (
-        'order_display',
         'name',
         'frontend_metrics_status',
         'exit_metrics_status',
@@ -3784,7 +3783,10 @@ class ExtractionDefinitionAdmin(SortableAdminMixin, admin.ModelAdmin):
         'requires_consensus',
         'is_active',
         'created_at',
+        'order',
+        'order_display',
     )
+    list_display_links = ('name',)
     ordering = ('order', 'created_at')
     list_filter = ('is_active', 'requires_consensus', 'workspace')
     search_fields = ('name', 'exit_metrics', 'primary_frontend_metric', 'secondary_frontend_metrics', 'system_prompt', 'user_prompt_template', 'postprocessing_code')
@@ -3826,6 +3828,16 @@ class ExtractionDefinitionAdmin(SortableAdminMixin, admin.ModelAdmin):
                 '<uuid:pk>/move-down/',
                 self.admin_site.admin_view(self.move_down_view),
                 name='research_intelligence_extractiondefinition_move_down',
+            ),
+            path(
+                '<path:object_id>/test-postprocessing/',
+                self.admin_site.admin_view(self.test_postprocessing_view),
+                name='research_intelligence_extractiondefinition_test_postprocessing',
+            ),
+            path(
+                'test-postprocessing/',
+                self.admin_site.admin_view(self.test_postprocessing_view),
+                name='research_intelligence_extractiondefinition_test_postprocessing_generic',
             ),
         ]
         return custom_urls + urls
@@ -4067,23 +4079,6 @@ class ExtractionDefinitionAdmin(SortableAdminMixin, admin.ModelAdmin):
             )
 
         return form
-
-    def get_urls(self):
-        from django.urls import path
-        urls = super().get_urls()
-        custom_urls = [
-            path(
-                '<path:object_id>/test-postprocessing/',
-                self.admin_site.admin_view(self.test_postprocessing_view),
-                name='research_intelligence_extractiondefinition_test_postprocessing'
-            ),
-            path(
-                'test-postprocessing/',
-                self.admin_site.admin_view(self.test_postprocessing_view),
-                name='research_intelligence_extractiondefinition_test_postprocessing_generic'
-            ),
-        ]
-        return custom_urls + urls
 
     def test_postprocessing_view(self, request, object_id=None):
         """
