@@ -560,6 +560,21 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
     return true
   })
 
+  const isInsight = (field: UnpackedField) => {
+    const k = (field.key ?? '').toLowerCase().replace(/[-_ ]/g, '')
+    const n = field.name.toLowerCase().replace(/[-_ ]/g, '')
+    return k.includes('insight') || n.includes('insight')
+  }
+
+  const topInsights = visibleTexts.filter(
+    (field) =>
+      isInsight(field) &&
+      field.value != null &&
+      String(field.value).trim() !== '' &&
+      (!d.rationale || d.rationale.trim() !== String(field.value).trim()),
+  )
+  const remainingTexts = visibleTexts.filter((field) => !isInsight(field))
+
   const visibleFacts = (d.facts ?? []).filter((fact) => {
     const k = fact.key.toLowerCase()
     const n = fact.name.toLowerCase()
@@ -577,7 +592,16 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
     >
       {d.rationale ? <AnswerMarkdown text={d.rationale} className={PROSE} /> : null}
 
-      {/* Sub-metrics / Secondary metrics with progress bar, band, score, prose & evidence */}
+      {/* Top insight prose boxes (e.g. "Research Quality Insight", "Schwarz Fit Insight") without subtitle */}
+      {topInsights.map((field) => (
+        <AnswerMarkdown
+          key={field.key ?? field.name}
+          text={String(field.value)}
+          className={PROSE}
+        />
+      ))}
+
+      {/* Sub-metrics / Secondary metrics with progress bar, score, prose & evidence */}
       {visibleSubMeasures.length > 0 && (
         <div className="space-y-3">
           {visibleSubMeasures.map((sub) => (
@@ -586,8 +610,8 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
         </div>
       )}
 
-      {/* General dimension-level prose texts (e.g. "Research quality insight", "Core technology") */}
-      {visibleTexts.map((field) => (
+      {/* Remaining dimension-level prose texts (e.g. "Hardware Architecture Notes", "Core technology") */}
+      {remainingTexts.map((field) => (
         <div key={field.name} className="space-y-1.5">
           <h4 className={H4}>{field.name}</h4>
           {field.description && (

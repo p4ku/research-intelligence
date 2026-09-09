@@ -664,4 +664,73 @@ describe('Assessment Component Rendering', () => {
     // Responsive grid classes are present
     expect(out).toContain('grid-cols-[minmax(0,1fr)_44px] sm:grid-cols-[200px_minmax(0,1fr)_44px]')
   })
+
+  test('moves Research Quality Insight and Schwarz Fit Insight text boxes to the top under section headers without subtitle', () => {
+    const researchMetricsWithInsight: Dimension = {
+      key: 'research_metrics',
+      definition_id: '00000000-0000-4000-8000-000000000002',
+      name: 'Research Metrics',
+      value: 68,
+      raw: '68',
+      max: 100,
+      is_trl: false,
+      facets: [
+        {
+          key: 'rigour',
+          name: 'Rigour',
+          value: 74,
+          max: 100,
+          text: 'Rigour text details...',
+        },
+        {
+          key: 'novelty',
+          name: 'Novelty',
+          value: 68,
+          max: 100,
+          text: 'Novelty text details...',
+        },
+      ],
+      texts: [
+        {
+          key: 'research_quality_insight',
+          name: 'Research quality insight',
+          value:
+            'The paper excels in its cross-layer co-design, demonstrating that rethinking mathematical algorithm parameters yields dramatic hardware utilization gains.',
+        },
+        {
+          key: 'hardware_architecture_notes',
+          name: 'Hardware Architecture Notes',
+          value: 'Requires at least 64 physical qubits.',
+        },
+      ],
+      evidence: [],
+      facts: [],
+      lists: [],
+    }
+
+    const out = renderToStaticMarkup(<Assessment dimensions={[researchMetricsWithInsight]} t={t} />)
+
+    // 1. The insight text content IS rendered
+    expect(out).toContain(
+      'The paper excels in its cross-layer co-design, demonstrating that rethinking mathematical algorithm parameters yields dramatic hardware utilization gains.',
+    )
+
+    // 2. The subtitle / heading "Research quality insight" is REMOVED
+    expect(out).not.toContain('Research quality insight')
+    expect(out).not.toContain('Research Quality Insight')
+
+    // 3. The insight text appears BEFORE the submeasures in the DOM
+    const insightIdx = out.indexOf('The paper excels in its cross-layer co-design')
+    const submeasureIdx = out.indexOf('data-submetric="rigour"')
+    const remainingTextIdx = out.indexOf('Hardware Architecture Notes')
+
+    expect(insightIdx).toBeGreaterThan(0)
+    expect(submeasureIdx).toBeGreaterThan(insightIdx)
+    expect(remainingTextIdx).toBeGreaterThan(submeasureIdx)
+
+    // 4. Non-insight general prose text still keeps its h4 heading
+    expect(out).toContain(
+      '<h4 class="text-sm font-semibold text-zinc-950 dark:text-white">Hardware Architecture Notes</h4>',
+    )
+  })
 })
