@@ -2,7 +2,7 @@
 
 import { AnswerMarkdown } from '@/components/answer-markdown'
 import { LiveAnswer } from '@/components/live-answer'
-import { ErrorNote } from '@/components/scanner-ui'
+import { Card, ErrorNote } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import type { VisualCitation } from '@/lib/bff/chat/schema'
 import { problemMessage } from '@/lib/bff/problem-copy'
@@ -10,10 +10,18 @@ import { useChatStream, type ChatStreamState } from '@/lib/chat/use-chat-stream'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import type { ScoredPaper } from '@/lib/papers/types'
-import { PaperAirplaneIcon, XMarkIcon } from '@heroicons/react/16/solid'
+import { ChatBubbleLeftRightIcon, PaperAirplaneIcon, XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import { useReducedMotion } from 'motion/react'
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+  type RefObject,
+} from 'react'
 
 interface Msg {
   role: 'user' | 'scanner'
@@ -25,11 +33,14 @@ interface Msg {
 }
 
 /**
- * Ask this paper: a pill fixed to the bottom-right of the page that opens a
- * sheet from the right edge with a plain vertical conversation scoped to this
- * one paper, streamed from POST /bff/chat/stream. Every open is a new
- * conversation: closing the sheet drops the thread and the session with it, so
- * the next open starts empty. Deliberately bare — history lives on Ask.
+ * Ask this paper: a composer card under the score rail where the first
+ * question is typed, and a sheet from the right edge that opens with that
+ * question asked — a plain vertical conversation scoped to this one paper,
+ * streamed from POST /bff/chat/stream. On narrow screens the rail stacks
+ * under the record, so a pill fixed to the bottom-right opens the sheet
+ * empty instead. Every open is a new conversation: closing the sheet drops
+ * the thread and the session with it, so the next open starts empty.
+ * Deliberately bare — history lives on Ask.
  */
 export function PaperChat({ paper }: { paper: ScoredPaper }) {
   const t = useT()
@@ -37,6 +48,8 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
   const [msgs, setMsgs] = useState<Msg[]>([])
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [input, setInput] = useState('')
+  // The rail composer's own draft: it survives a closed sheet, the sheet's does not.
+  const [draft, setDraft] = useState('')
   const [asking, setAskingState] = useState(false)
   const askingRef = useRef(false)
   const setAsking = (v: boolean) => {
@@ -143,7 +156,12 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
     }
   }, [open, closeChat])
 
-  function ask(q: string) {
+  /**
+   * `session` is the conversation to continue — this render's, unless the
+   * caller knows state has not landed yet (the rail opens a new sitting and
+   * asks in the same tick, so it passes null rather than the last one's id).
+   */
+  function ask(q: string, session: string | null = sessionId) {
     if (asking) return
     setMsgs((prev) => [...prev, { role: 'user', text: q, visualCitations: [] }])
     setAsking(true)
@@ -152,9 +170,24 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
     void send({
       question: q,
       paper_id: paper.id,
-      session_id: sessionId ?? undefined,
+      session_id: session ?? undefined,
       deep_thinking: false,
     })
+  }
+
+  /**
+   * The rail composer: a question typed under the score opens the sheet
+   * with it already asked — always the first turn of a new sitting, so the
+   * previous sitting's session id is not carried over. Guarded by the refs,
+   * not the render's values: the sheet may have opened this same tick.
+   */
+  function askFromRail(e: FormEvent) {
+    e.preventDefault()
+    const q = draft.trim()
+    if (!q || open || askingRef.current) return
+    openChat()
+    ask(q, null)
+    setDraft('')
   }
 
   return (
@@ -165,6 +198,19 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
       label={fmt(t('Ask about {title}'), { title: paper.title })}
       title={t('Ask this paper')}
       subtitle={paper.title}
+      hint={t('Answered from this paper alone.')}
+      composer={
+        <Composer
+          name="rail-question"
+          value={draft}
+          onChange={setDraft}
+          onSubmit={askFromRail}
+          placeholder={t('What would you like to know?')}
+          label={t('Ask a question about this paper')}
+          send={t('Send')}
+          disabled={open}
+        />
+      }
       body={
         msgs.length === 0 && !asking ? (
           <p className="text-sm leading-relaxed text-balance text-muted-foreground">
@@ -213,52 +259,98 @@ export function PaperChat({ paper }: { paper: ScoredPaper }) {
         )
       }
       footer={
-        <form
+        <Composer
+          inputRef={inputRef}
+          name="question"
+          value={input}
+          onChange={setInput}
           onSubmit={(e) => {
             e.preventDefault()
             if (input.trim()) ask(input.trim())
           }}
-          className="border-t border-line-soft transition-colors focus-within:border-foreground/20"
-        >
-          <div className="flex items-center gap-2 p-1.5 pl-4">
-            <input
-              ref={inputRef}
-              name="question"
-              aria-label={t('Ask a question about this paper')}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={t('Ask a question about this paper…')}
-              className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none max-sm:text-base"
-            />
-            <button
-              type="submit"
-              aria-label={t('Send')}
-              disabled={asking}
-              className={clsx(
-                'flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-                input.trim() && !asking
-                  ? 'bg-foreground text-background hover:bg-foreground/85'
-                  : 'bg-foreground/10 text-muted-foreground',
-              )}
-            >
-              <PaperAirplaneIcon className="size-4" />
-            </button>
-          </div>
-        </form>
+          placeholder={t('Ask a question about this paper…')}
+          label={t('Ask a question about this paper')}
+          send={t('Send')}
+          disabled={asking}
+        />
       }
     />
   )
 }
 
+/**
+ * One question line with a send button, under a hairline — the same row in
+ * the rail card and at the foot of the sheet. `disabled` holds the send
+ * (an answer streaming, or the sheet already open) while the text stays
+ * editable.
+ */
+function Composer({
+  inputRef,
+  name,
+  value,
+  onChange,
+  onSubmit,
+  placeholder,
+  label,
+  send,
+  disabled = false,
+}: {
+  inputRef?: RefObject<HTMLInputElement | null>
+  name: string
+  value: string
+  onChange: (value: string) => void
+  onSubmit: (e: FormEvent) => void
+  placeholder: string
+  label: string
+  send: string
+  disabled?: boolean
+}) {
+  const ready = value.trim() !== '' && !disabled
+  return (
+    <form
+      onSubmit={onSubmit}
+      className="border-t border-line-soft transition-colors focus-within:border-foreground/20"
+    >
+      <div className="flex items-center gap-2 p-1.5 pl-4">
+        <input
+          ref={inputRef}
+          name={name}
+          aria-label={label}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoComplete="off"
+          className="min-w-0 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none max-sm:text-base"
+        />
+        <button
+          type="submit"
+          aria-label={send}
+          disabled={disabled}
+          className={clsx(
+            'flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
+            ready
+              ? 'bg-foreground text-background hover:bg-foreground/85'
+              : 'bg-foreground/10 text-muted-foreground',
+          )}
+        >
+          <PaperAirplaneIcon className="size-4" />
+        </button>
+      </div>
+    </form>
+  )
+}
+
 const PILL_CLASS =
-  'bg-foreground text-background fixed right-6 bottom-6 z-30 inline-flex h-11 items-center gap-2.5 rounded-full pr-[18px] pl-3.5 text-[13.5px] font-medium shadow-[0_8px_24px_-6px_rgba(19,19,17,0.35)] transition-[transform,opacity] duration-150 ease-out'
+  'bg-foreground text-background fixed right-6 bottom-6 z-30 inline-flex h-11 items-center gap-2.5 rounded-full pr-[18px] pl-3.5 text-[13.5px] font-medium shadow-[0_8px_24px_-6px_rgba(19,19,17,0.35)] transition-[transform,opacity] duration-150 ease-out lg:hidden'
 
 /**
- * The chat's chrome: the pill, and the sheet it opens — header strip with
- * the title, the scrolling body, and whatever sits under
- * it (the composer, an error). PaperChat and PaperChatSkeleton both fill it.
- * The sheet stays mounted (translated off-screen) so the thread keeps its
- * scroll position between opens.
+ * The chat's chrome: the composer card under the score rail (title, one
+ * line on scope, the question line), the pill that stands in for it on
+ * narrow screens, and the sheet — header strip with the title, the
+ * scrolling body, and whatever sits under it (the composer, an error).
+ * PaperChat and PaperChatSkeleton both fill it. The sheet stays mounted
+ * (translated off-screen) so the thread keeps its scroll position between
+ * opens.
  */
 export function PaperChatFrame({
   state = 'loaded',
@@ -268,6 +360,8 @@ export function PaperChatFrame({
   label,
   title,
   subtitle,
+  hint,
+  composer,
   body,
   footer,
 }: {
@@ -278,11 +372,46 @@ export function PaperChatFrame({
   label: string
   title: string
   subtitle?: ReactNode
+  /** The one line under the card's title saying what the answers draw on. */
+  hint: ReactNode
+  /** The rail's question line. */
+  composer: ReactNode
   body: ReactNode
   footer: ReactNode
 }) {
   return (
     <>
+      {/*
+        `inert` while the sheet is open: the browser blurs the card, keeps
+        Tab out of it and drops it from the accessibility tree, where
+        aria-hidden alone would hide a subtree that still holds focus for the
+        260ms before the sheet's composer takes it. mt-3 is the gap to the
+        score card above; the rail wrapper carries no space-y, which would
+        also margin the fixed pill and sheet rendered after this card.
+      */}
+      <Card
+        flush
+        data-shape="paper-chat-composer"
+        data-state={state}
+        inert={open}
+        className={clsx(
+          'mt-3 overflow-hidden transition-opacity duration-150 ease-out',
+          open && 'opacity-55',
+        )}
+      >
+        <div
+          data-row="title"
+          className="flex items-center gap-2 px-4 pt-3 font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase"
+        >
+          <ChatBubbleLeftRightIcon aria-hidden="true" className="size-3.5 shrink-0 text-accent" />
+          {title}
+        </div>
+        <p data-row="hint" className="px-4 pt-1.5 pb-2.5 text-xs text-muted-foreground">
+          {hint}
+        </p>
+        {composer}
+      </Card>
+
       <button
         type="button"
         data-shape="paper-chat-pill"
@@ -299,6 +428,7 @@ export function PaperChatFrame({
       <aside
         aria-label={label}
         aria-hidden={!open}
+        inert={!open}
         data-shape="paper-chat"
         data-state={state}
         className={clsx(
@@ -309,7 +439,10 @@ export function PaperChatFrame({
         <div className="flex items-start justify-between gap-3 border-b border-line-soft py-3 pr-3 pl-[18px]">
           <div className="min-w-0">
             <div className="flex items-center gap-2 font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase">
-              <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent" />
+              <ChatBubbleLeftRightIcon
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-accent"
+              />
               {title}
             </div>
             {subtitle && (
@@ -337,28 +470,31 @@ export function PaperChatFrame({
   )
 }
 
-/** Before the record arrives: the pill, and the sheet closed with a bone hint. */
+/** Before the record arrives: the composer card with its rows boned, the pill, and the sheet closed. */
 export function PaperChatSkeleton({ label, title }: { label: string; title: string }) {
+  const composer = (
+    <div className="border-t border-line-soft">
+      <div className="flex items-center gap-2 p-1.5 pl-4">
+        <span className="min-w-0 flex-1 text-sm max-sm:text-base">
+          <Bone.Text widths={['20ch']} />
+        </span>
+        <Bone.Block className="size-8" round />
+      </div>
+    </div>
+  )
   return (
     <PaperChatFrame
       state="skeleton"
       label={label}
       title={title}
+      hint={<Bone.Text widths={['26ch']} />}
+      composer={composer}
       body={
         <p className="text-sm leading-relaxed text-muted-foreground">
           <Bone.Text lines={2} widths={['92%', '48%']} />
         </p>
       }
-      footer={
-        <div className="border-t border-line-soft">
-          <div className="flex items-center gap-2 p-1.5 pl-4">
-            <span className="min-w-0 flex-1 text-sm max-sm:text-base">
-              <Bone.Text widths={['20ch']} />
-            </span>
-            <Bone.Block className="size-8" round />
-          </div>
-        </div>
-      }
+      footer={composer}
     />
   )
 }

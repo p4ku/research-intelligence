@@ -154,6 +154,8 @@ export const dict: Record<string, string> = {
     'Fragen hier werden allein aus diesem Paper beantwortet.',
   'Ask a question about this paper': 'Eine Frage zu diesem Paper stellen',
   'Ask about this paper…': 'Zu diesem Paper fragen…',
+  'Answered from this paper alone.': 'Wird allein aus diesem Paper beantwortet.',
+  'What would you like to know?': 'Was möchten Sie wissen?',
   Send: 'Senden',
   'Loading the paper': 'Das Paper wird geladen',
   "I couldn't ground an answer to that in this paper's text — try asking about what it enables, how solid the evidence is, or where it could apply.":

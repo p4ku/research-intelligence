@@ -12,9 +12,10 @@ import { ScoreBarFrame, ScoreBars, type RailBar } from './score-bars'
  * The glance card beside the record: the Schwarz Score, the TRL chip,
  * one bar per definition — each a link to its article in the column, the
  * one being read marked — and the profile (the radar, values under its
- * labels) under a hairline. Sticky on wide screens so the score mix stays
- * in view while the assessment is read. Server-safe; the frame keeps the
- * skeleton in step.
+ * labels) under a hairline. The rail column it sits in (sections.tsx) is
+ * sticky on wide screens so the score mix stays in view while the
+ * assessment is read; the card itself is not, so the ask composer under it
+ * travels with it. Server-safe; the frame keeps the skeleton in step.
  */
 
 // The rail's full inner width: the radar needs every pixel for its labels.
@@ -40,7 +41,7 @@ export function ScoreRailFrame({
   radar?: ReactNode
 }) {
   return (
-    <Card data-shape="score-rail" data-state={state} className="lg:sticky lg:top-8">
+    <Card data-shape="score-rail" data-state={state}>
       <div data-row="score" className="flex items-baseline justify-between gap-4">
         <span className={SCORE_CLASS}>{score}</span>
         <span className="text-[11px] font-semibold tracking-[0.18em] text-zinc-400 uppercase dark:text-zinc-500">

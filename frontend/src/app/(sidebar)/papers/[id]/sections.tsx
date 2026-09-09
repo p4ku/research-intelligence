@@ -34,8 +34,9 @@ import { ScoreRail } from './score-rail'
  * (masthead, abstract, then the assessment definition by
  * definition, provenance) with the score card sticky beside it — its bars
  * link into the assessment and mark the definition being read — and the
- * paper's chat behind a pill that opens a sheet, so the scores stay in view
- * while the reasoning is read.
+ * paper's chat composer directly under the card: the first question is
+ * typed there and the conversation opens in a sheet, so the scores stay in
+ * view while the reasoning is read.
  *
  * Opened from a briefing (`?run=`), the record is the paper as that run read
  * it: its decision, score and screening notes are the run's own row (the
@@ -238,11 +239,16 @@ export async function PaperRecord({
           <Provenance paper={paper} t={t} lang={lang} />
         </div>
 
-        <ScoreRail paper={paper} t={t} />
+        {/*
+          The rail: the score card and, right under it, the ask composer —
+          the first question is typed here and answered in the sheet. Sticky
+          as one unit so both stay in view while the assessment is read.
+        */}
+        <div className="lg:sticky lg:top-8">
+          <ScoreRail paper={paper} t={t} />
+          <PaperChat paper={paper} />
+        </div>
       </div>
-
-      {/* Ask the paper: a scoped conversation in a sheet, opened from the pill. */}
-      <PaperChat paper={paper} />
     </div>
   )
 }

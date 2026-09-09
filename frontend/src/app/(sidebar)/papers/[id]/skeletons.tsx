@@ -65,10 +65,11 @@ export function PaperRecordSkeleton({
             </footer>
           </div>
 
-          <ScoreRailSkeleton t={t} />
+          <div className="lg:sticky lg:top-8">
+            <ScoreRailSkeleton t={t} />
+            <PaperChatSkeleton label={t('Ask this paper')} title={t('Ask this paper')} />
+          </div>
         </div>
-
-        <PaperChatSkeleton label={t('Ask this paper')} title={t('Ask this paper')} />
       </div>
     </Skeleton.Region>
   )
