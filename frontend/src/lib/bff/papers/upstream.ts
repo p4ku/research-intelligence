@@ -23,7 +23,7 @@ export const paperMetricDTO = z.looseObject({
   pipeline_run: z.string().nullable(),
   workspace: z.string(),
   signal_score: z.number().nullable(),
-  signal_score_details: signalScoreDetailsDTO,
+  signal_score_details: signalScoreDetailsDTO.nullable().optional(),
   /** Sanitized definition name → value; pre-filled with 0.0 for every definition. */
   metrics_data: z.record(z.string(), z.unknown()),
   /**
@@ -47,7 +47,7 @@ export const paperDTO = z.looseObject({
   arxiv_id: z.string().nullable(),
   title: z.string(),
   /** Comma-joined at ingest ("A. Author, B. Author"). */
-  authors: z.string(),
+  authors: z.string().default(''),
   abstract: z.string(),
   source_database: z.string(),
   original_pdf_path: z.string().nullable(),
@@ -71,9 +71,9 @@ export const paperDTO = z.looseObject({
   published_date: z.string().nullable().optional(),
   pipeline_run_name: z.string().nullable().optional(),
   is_evaluation_benchmark: z.boolean(),
-  evaluation_label: z.enum(['passed', 'rejected']).nullable(),
+  evaluation_label: z.string().nullable().optional(),
   signal_score: z.number().nullable().optional(),
-  signal_score_details: signalScoreDetailsDTO.optional(),
+  signal_score_details: signalScoreDetailsDTO.nullable().optional(),
   metrics: z.array(paperMetricDTO),
   created_at: z.string(),
 })

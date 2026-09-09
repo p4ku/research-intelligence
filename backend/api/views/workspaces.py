@@ -409,7 +409,11 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                     "surfaced": len(surfaced),
                 },
                 "papers": surfaced,
-                "generated_at": run.completed_at.isoformat() if run.completed_at else None,
+                "generated_at": (
+                    run.completed_at.isoformat()
+                    if (hasattr(run.completed_at, 'tzinfo') and run.completed_at.tzinfo)
+                    else (run.completed_at.isoformat() + "Z")
+                ) if run.completed_at else None,
             })
 
         next_url = None
@@ -566,7 +570,11 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             },
             "papers": surfaced,
             "exclusions": exclusions,
-            "generated_at": run.completed_at.isoformat() if run.completed_at else None,
+            "generated_at": (
+                run.completed_at.isoformat()
+                if (hasattr(run.completed_at, 'tzinfo') and run.completed_at.tzinfo)
+                else (run.completed_at.isoformat() + "Z")
+            ) if run.completed_at else None,
         })
 
     @extend_schema(

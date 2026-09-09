@@ -407,7 +407,7 @@ def build_single_scored_paper(
         'signal_score': final_signal_score,
         'signal_score_details': formatted_ssd,
         'dimensions': dimensions,
-        'pdf_key': getattr(paper, 'pdf_path', None) or None,
+        'pdf_key': getattr(paper, 'original_pdf_path', None) or getattr(paper, 'pdf_path', None) or None,
         'markdown_key': getattr(paper, 'converted_md_path', None) or getattr(paper, 'markdown_path', None) or None,
         'source_url': final_source_url,
         'is_benchmark': final_is_benchmark,
