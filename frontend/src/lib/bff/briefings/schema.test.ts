@@ -234,4 +234,24 @@ describe('Briefings BFF Schema Contracts', () => {
     expect(q2.page_size).toBe(10)
     expect(q2.workspace_id).toBeUndefined()
   })
+
+  test('editionSummary and edition accept optional workspace_name from backend', () => {
+    const payload = {
+      run_id: '00000000-0000-4000-8000-000000000020',
+      workspace_id: '00000000-0000-4000-8000-000000000010',
+      workspace_name: 'Hybrid Computing',
+      date: '2026-09-09',
+      title: 'Hybrid Computing Briefing — 2026-09-09',
+      in_brief: 'Summary text.',
+      in_brief_source: 'template' as const,
+      funnel: { fetched: 10, passed_screening: 5, surfaced: 3 },
+      papers: [],
+      generated_at: null,
+    }
+    const summaryParsed = editionSummary.parse(payload)
+    expect(summaryParsed.workspace_name).toBe('Hybrid Computing')
+
+    const editionParsed = edition.parse({ ...payload, exclusions: [] })
+    expect(editionParsed.workspace_name).toBe('Hybrid Computing')
+  })
 })

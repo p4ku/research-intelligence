@@ -323,14 +323,10 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             )
             .order_by('-completed_at', '-id')
         )
-        seen_dates = set()
-        deduped_runs = []
+        run_items = []
         for run in completed_runs:
             d = (run.completed_at or run.run_date or run.started_at).strftime('%Y-%m-%d')
-            if d in seen_dates:
-                continue
-            seen_dates.add(d)
-            deduped_runs.append((d, run))
+            run_items.append((d, run))
 
         page_num = request.query_params.get('page', 1)
         page_size = int(request.query_params.get('page_size', 20))
@@ -339,10 +335,10 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         except (ValueError, TypeError):
             page_num = 1
 
-        total_count = len(deduped_runs)
+        total_count = len(run_items)
         start_idx = (page_num - 1) * page_size
         end_idx = start_idx + page_size
-        slice_items = deduped_runs[start_idx:end_idx]
+        slice_items = run_items[start_idx:end_idx]
 
         target_runs = [run for _, run in slice_items]
         from collections import defaultdict
@@ -411,6 +407,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             results.append({
                 "run_id": str(run.id),
                 "workspace_id": str(workspace.id),
+                "workspace_name": workspace.name,
                 "date": d,
                 "title": f"{workspace.name} Briefing — {d}",
                 "in_brief": in_brief_text,
@@ -489,26 +486,32 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 target_run_uuid = None
 
         from django.db.models import Q
-        run_q = Q(workspace=workspace) & Q(status='completed')
-        if target_run_uuid:
-            run_q &= Q(id=target_run_uuid)
-        else:
-            run_q &= (
-                (Q(completed_at__gte=start_dt) & Q(completed_at__lt=end_dt)) |
-                Q(run_date=target_date)
-            )
-
-        run = (
-            PipelineRun.objects.filter(run_q)
+        date_q = Q(workspace=workspace) & Q(status='completed') & (
+            (Q(completed_at__gte=start_dt) & Q(completed_at__lt=end_dt)) |
+            Q(run_date=target_date)
+        )
+        date_runs = (
+            PipelineRun.objects.filter(date_q)
             .only(
-                'id', 'workspace_id', 'completed_at', 'run_date', 'status_message',
+                'id', 'workspace_id', 'completed_at', 'run_date', 'started_at', 'status_message',
                 'total_papers_fetched', 'total_papers_passed_screening'
             )
             .order_by('-completed_at', '-id')
-            .first()
         )
+
+        run = None
+        if target_run_uuid:
+            run = date_runs.filter(id=target_run_uuid).first()
+
+        # If run_id was not provided, or does not exist on that date, fall back to the day's newest run
         if not run:
-            return Response({"error": f"No completed briefing edition found for {edition_date}."}, status=status.HTTP_404_NOT_FOUND)
+            run = date_runs.first()
+
+        if not run:
+            return Response(
+                {"error": f"No completed briefing edition found for {edition_date}."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         all_metrics = list(
             PaperMetric.objects.filter(
@@ -573,17 +576,19 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             sp['signal_score'] = pm.signal_score
             surfaced.append(sp)
 
-        d_str = target_date.strftime('%Y-%m-%d')
+        run_dt = run.completed_at or run.run_date or run.started_at
+        actual_date_str = run_dt.strftime('%Y-%m-%d')
         in_brief_text = (
             run.status_message
-            or f"{workspace.name} briefing for {d_str}: {run.total_papers_fetched} papers ingested, {len(surfaced)} surfaced, {len(exclusions)} excluded."
+            or f"{workspace.name} briefing for {actual_date_str}: {run.total_papers_fetched} papers ingested, {len(surfaced)} surfaced, {len(exclusions)} excluded."
         )
 
         return Response({
             "run_id": str(run.id),
             "workspace_id": str(workspace.id),
-            "date": d_str,
-            "title": f"{workspace.name} Briefing — {d_str}",
+            "workspace_name": workspace.name,
+            "date": actual_date_str,
+            "title": f"{workspace.name} Briefing — {actual_date_str}",
             "in_brief": in_brief_text,
             "in_brief_source": "template",
             "funnel": {

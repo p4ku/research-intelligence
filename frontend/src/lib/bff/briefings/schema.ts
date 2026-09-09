@@ -27,6 +27,7 @@ export const editionSummary = z
   .object({
     run_id: z.uuid(),
     workspace_id: z.uuid(),
+    workspace_name: z.string().optional(),
     /** The edition's day (from the run's completion). */
     date: z.iso.date(),
     title: z.string(),

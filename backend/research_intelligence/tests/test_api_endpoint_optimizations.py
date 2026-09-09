@@ -64,8 +64,8 @@ class ApiEndpointOptimizationsTestCase(TestCase):
     def test_editions_list_field_pruning_and_deduplication(self):
         """
         Verify GET /api/workspaces/{id}/editions/:
-        - Deduplicates multiple runs on the same date (keeps newest).
-        - Loads scalar fields correctly and constructs funnel counts.
+        - Returns one entry per completed run (preserves same-day runs per #117/#123/#127).
+        - Loads scalar fields correctly, constructs funnel counts, and returns workspace_name.
         """
         now = timezone.now().replace(hour=10, minute=0, second=0, microsecond=0)
         day1 = now - timedelta(days=2)
@@ -82,7 +82,7 @@ class ApiEndpointOptimizationsTestCase(TestCase):
             configuration_override={"huge_payload": "x" * 1000},
             step_history=[{"step": "search", "event": "done"}] * 50
         )
-        # Run 2 on day 1 (later in the day - should be chosen for day 1)
+        # Run 2 on day 1 (later in the day)
         r2 = PipelineRun.objects.create(
             workspace=self.workspace,
             name="Run Day 1 Evening",
@@ -109,21 +109,122 @@ class ApiEndpointOptimizationsTestCase(TestCase):
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
 
-        # Should be deduped to exactly 2 editions (day2 and day1)
-        self.assertEqual(data["count"], 2)
+        # One entry per completed run (3 total: day 2, day 1 evening, day 1 morning)
+        self.assertEqual(data["count"], 3)
         results = data["results"]
-        self.assertEqual(len(results), 2)
+        self.assertEqual(len(results), 3)
 
         # Newest edition first
         day2_str = day2.strftime("%Y-%m-%d")
         day1_str = day1.strftime("%Y-%m-%d")
+
         self.assertEqual(results[0]["date"], day2_str)
         self.assertEqual(results[0]["run_id"], str(r3.id))
+        self.assertEqual(results[0]["workspace_name"], self.workspace.name)
         self.assertEqual(results[0]["funnel"]["fetched"], 20)
 
         self.assertEqual(results[1]["date"], day1_str)
         self.assertEqual(results[1]["run_id"], str(r2.id))
+        self.assertEqual(results[1]["workspace_name"], self.workspace.name)
         self.assertEqual(results[1]["funnel"]["fetched"], 12)
+
+        self.assertEqual(results[2]["date"], day1_str)
+        self.assertEqual(results[2]["run_id"], str(r1.id))
+        self.assertEqual(results[2]["workspace_name"], self.workspace.name)
+        self.assertEqual(results[2]["funnel"]["fetched"], 10)
+
+    def test_editions_same_day_pair_and_run_id_selection(self):
+        """
+        Verify that multiple runs on the same date can be selected by run_id,
+        and omitting run_id defaults to the day's newest completed run.
+        """
+        target_date = timezone.now().replace(hour=8, minute=0, second=0, microsecond=0)
+        target_date_str = target_date.strftime("%Y-%m-%d")
+
+        r_morning = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Morning Run",
+            status="completed",
+            completed_at=target_date,
+            total_papers_fetched=10,
+            total_papers_passed_screening=4
+        )
+        r_evening = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Evening Run",
+            status="completed",
+            completed_at=target_date + timedelta(hours=6),
+            total_papers_fetched=15,
+            total_papers_passed_screening=7
+        )
+
+        # 1. Omitting run_id returns newest run (evening)
+        resp_default = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/")
+        self.assertEqual(resp_default.status_code, 200)
+        self.assertEqual(resp_default.json()["run_id"], str(r_evening.id))
+        self.assertEqual(resp_default.json()["funnel"]["fetched"], 15)
+
+        # 2. Specifying morning run_id returns morning run
+        resp_morning = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={r_morning.id}")
+        self.assertEqual(resp_morning.status_code, 200)
+        self.assertEqual(resp_morning.json()["run_id"], str(r_morning.id))
+        self.assertEqual(resp_morning.json()["funnel"]["fetched"], 10)
+
+        # 3. Specifying evening run_id returns evening run
+        resp_evening = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={r_evening.id}")
+        self.assertEqual(resp_evening.status_code, 200)
+        self.assertEqual(resp_evening.json()["run_id"], str(r_evening.id))
+        self.assertEqual(resp_evening.json()["funnel"]["fetched"], 15)
+
+    def test_editions_cross_date_and_unknown_run_fallback(self):
+        """
+        Verify:
+        - When run_id belongs to another date, fallback to the day's newest run (Issue #127).
+        - When run_id is an unknown UUID, fallback to the day's newest run.
+        - When the requested date has no completed runs, return 404 even if run_id is passed.
+        - date and title in the response are derived from the run.
+        """
+        import uuid
+        day1 = timezone.now().replace(hour=9, minute=0, second=0, microsecond=0) - timedelta(days=3)
+        day2 = day1 + timedelta(days=1)
+        day1_str = day1.strftime("%Y-%m-%d")
+        day2_str = day2.strftime("%Y-%m-%d")
+
+        r_day1 = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Day 1 Run",
+            status="completed",
+            completed_at=day1,
+            total_papers_fetched=5,
+            total_papers_passed_screening=2
+        )
+        r_day2 = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Day 2 Run",
+            status="completed",
+            completed_at=day2,
+            total_papers_fetched=8,
+            total_papers_passed_screening=4
+        )
+
+        # 1. Query day1 with r_day2's run_id -> falls back to r_day1 (not 404!)
+        resp_cross = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{day1_str}/?run_id={r_day2.id}")
+        self.assertEqual(resp_cross.status_code, 200)
+        cross_data = resp_cross.json()
+        self.assertEqual(cross_data["run_id"], str(r_day1.id))
+        self.assertEqual(cross_data["date"], day1_str)
+        self.assertEqual(cross_data["title"], f"{self.workspace.name} Briefing — {day1_str}")
+        self.assertEqual(cross_data["workspace_name"], self.workspace.name)
+
+        # 2. Query day1 with non-existent UUID -> falls back to r_day1
+        unknown_id = uuid.uuid4()
+        resp_unknown = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{day1_str}/?run_id={unknown_id}")
+        self.assertEqual(resp_unknown.status_code, 200)
+        self.assertEqual(resp_unknown.json()["run_id"], str(r_day1.id))
+
+        # 3. Query a date with no runs at all (e.g. 2030-01-01) -> returns 404
+        resp_empty_day = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/2030-01-01/?run_id={r_day1.id}")
+        self.assertEqual(resp_empty_day.status_code, 404)
 
     def test_edition_detail_single_papermetric_query_and_sorting(self):
         """

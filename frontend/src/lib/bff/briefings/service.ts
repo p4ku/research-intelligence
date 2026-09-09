@@ -21,6 +21,7 @@ import { runs } from '../pipeline-runs/service'
 import { workspaces } from '../workspaces/service'
 import { composeEdition, composeEditions } from './compose'
 import { fixtureEditions } from './fixtures'
+import { templateProse } from './prose'
 import {
   edition,
   editionPage,
@@ -57,16 +58,45 @@ export const briefings = {
           `/api/workspaces/${workspaceId}/editions/?page_size=200`,
           editionPage,
         )
+        const wsList = await workspaces.listAll().catch(() => [])
+        const ws = wsList.find((w) => w.id === workspaceId)
+        const fallbackWsName = ws?.name ?? 'Briefing'
+
+        // Apply empty-run rule: runs that cleared nothing get no published briefing (PR #85)
+        const briefed = page.results.filter((summary) => summary.funnel.passed_screening > 0)
+
         // The list serves summaries; details carry exclusions.
-        return page.results.map((summary: EditionSummary) => ({
-          ...summary,
-          exclusions: [],
-          papers: (summary.papers || []).map((p) => ({
+        return briefed.map((summary: EditionSummary) => {
+          const papers = (summary.papers || []).map((p) => ({
             ...p,
             workspace_id: p.workspace_id || summary.workspace_id,
             pipeline_run_id: p.pipeline_run_id || summary.run_id,
-          })),
-        }))
+          }))
+          const workspaceName = summary.workspace_name || fallbackWsName
+          let title = summary.title
+          let in_brief = summary.in_brief
+          if (summary.in_brief_source === 'template') {
+            const prose = templateProse(
+              {
+                workspaceName,
+                fetched: summary.funnel.fetched,
+                passedScreening: summary.funnel.passed_screening,
+                surfaced: summary.funnel.surfaced,
+                papers,
+              },
+              lang,
+            )
+            title = prose.title
+            in_brief = prose.in_brief
+          }
+          return {
+            ...summary,
+            title,
+            in_brief,
+            exclusions: [],
+            papers,
+          }
+        })
       }
       default:
         return composeAll(workspaceId, lang)
@@ -116,10 +146,37 @@ export const briefings = {
       if (sourceOf('briefings') === 'django') {
         try {
           const q = runId ? `?run_id=${assertUuid(runId, 'run_id')}` : ''
-          return await django(
+          const ed = await django(
             `/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/editions/${date}/${q}`,
             edition,
           )
+          // Empty-run rule: a run that cleared nothing has no published briefing (PR #85)
+          if (ed.funnel.passed_screening <= 0) return null
+
+          let title = ed.title
+          let in_brief = ed.in_brief
+          if (ed.in_brief_source === 'template') {
+            const wsList = await workspaces.listAll().catch(() => [])
+            const ws = wsList.find((w) => w.id === workspaceId)
+            const workspaceName = ed.workspace_name || ws?.name || 'Briefing'
+            const prose = templateProse(
+              {
+                workspaceName,
+                fetched: ed.funnel.fetched,
+                passedScreening: ed.funnel.passed_screening,
+                surfaced: ed.funnel.surfaced,
+                papers: ed.papers || [],
+              },
+              lang,
+            )
+            title = prose.title
+            in_brief = prose.in_brief
+          }
+          return {
+            ...ed,
+            title,
+            in_brief,
+          }
         } catch (error) {
           if (error instanceof ProblemError && error.problem.status === 404) return null
           throw error
