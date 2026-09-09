@@ -333,3 +333,63 @@ class ExtractionDefinitionOrderingTestCase(TestCase):
         self.assertEqual(d1.order, 1)
         self.assertEqual(d2.order, 2)
 
+    def test_ensure_sequential_ordering_self_heals_zeros_and_duplicates(self):
+        """
+        When definitions have order=0 or duplicate orders in database (e.g. legacy prod data),
+        changelist_view executes _ensure_sequential_ordering to re-sequence them strictly to 1, 2, 3...
+        """
+        # Create definitions with order=0 directly via queryset update
+        d1 = ExtractionDefinition.objects.create(workspace=self.workspace_a, name="Legacy A1", response_schema={})
+        d2 = ExtractionDefinition.objects.create(workspace=self.workspace_a, name="Legacy A2", response_schema={})
+        d3 = ExtractionDefinition.objects.create(workspace=self.workspace_a, name="Legacy A3", response_schema={})
+        ExtractionDefinition.objects.filter(workspace=self.workspace_a).update(order=0)
+
+        d_b1 = ExtractionDefinition.objects.create(workspace=self.workspace_b, name="Legacy B1", response_schema={})
+        d_b2 = ExtractionDefinition.objects.create(workspace=self.workspace_b, name="Legacy B2", response_schema={})
+        ExtractionDefinition.objects.filter(workspace=self.workspace_b).update(order=0)
+
+        # Trigger changelist_view
+        req = self.factory.get("/admin/research_intelligence/extractiondefinition/")
+        req.user = self.user
+        setattr(req, 'session', {})
+        setattr(req, '_messages', FallbackStorage(req))
+        self.admin.changelist_view(req)
+
+        # Verify all definitions in Workspace A are sequentially 1, 2, 3
+        d1.refresh_from_db()
+        d2.refresh_from_db()
+        d3.refresh_from_db()
+        self.assertEqual(sorted([d1.order, d2.order, d3.order]), [1, 2, 3])
+
+        # Verify definitions in Workspace B are sequentially 1, 2
+        d_b1.refresh_from_db()
+        d_b2.refresh_from_db()
+        self.assertEqual(sorted([d_b1.order, d_b2.order]), [1, 2])
+
+    def test_update_order_handles_drag_and_drop_cleanly_per_workspace(self):
+        """
+        Simulate adminsortable2 drag-and-drop AJAX callback to _update_order,
+        verifying that positions are updated strictly sequentially per workspace.
+        """
+        d1 = ExtractionDefinition.objects.create(workspace=self.workspace_a, name="Item 1", order=1, response_schema={})
+        d2 = ExtractionDefinition.objects.create(workspace=self.workspace_a, name="Item 2", order=2, response_schema={})
+        d3 = ExtractionDefinition.objects.create(workspace=self.workspace_a, name="Item 3", order=3, response_schema={})
+
+        # Drag Item 3 to the top (position 1)
+        # adminsortable2 sends updated items with new proposed ranks
+        updated_items = [
+            [str(d3.pk), 1],
+            [str(d1.pk), 2],
+            [str(d2.pk), 3],
+        ]
+        res = self.admin._update_order(updated_items, {})
+        self.assertGreater(res, 0)
+
+        d1.refresh_from_db()
+        d2.refresh_from_db()
+        d3.refresh_from_db()
+
+        self.assertEqual(d3.order, 1)
+        self.assertEqual(d1.order, 2)
+        self.assertEqual(d2.order, 3)
+

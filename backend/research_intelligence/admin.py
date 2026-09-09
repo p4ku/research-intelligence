@@ -3810,9 +3810,85 @@ class ExtractionDefinitionAdmin(SortableAdminMixin, admin.ModelAdmin):
         'is_active'
     )
 
+    def _ensure_sequential_ordering(self):
+        """
+        Self-healing pass: ensure all definitions within each workspace have
+        distinct, sequential 1-based order numbers (1, 2, 3...) so that both
+        drag-and-drop and arrow buttons work deterministically without duplicate zeros.
+        """
+        from django.db.models import Count, F
+        has_zeros = ExtractionDefinition.objects.filter(order=0).exists()
+        workspaces_with_dups = (
+            ExtractionDefinition.objects.values('workspace_id')
+            .annotate(total=Count('id'), distinct_orders=Count('order', distinct=True))
+            .filter(total__gt=F('distinct_orders'))
+        )
+        if has_zeros or workspaces_with_dups.exists():
+            ws_ids = set(ExtractionDefinition.objects.values_list('workspace_id', flat=True).distinct())
+            for ws_id in ws_ids:
+                if ws_id is None:
+                    defs = list(
+                        ExtractionDefinition.objects.filter(workspace_id__isnull=True)
+                        .order_by('order', 'created_at', 'id')
+                    )
+                else:
+                    defs = list(
+                        ExtractionDefinition.objects.filter(workspace_id=ws_id)
+                        .order_by('order', 'created_at', 'id')
+                    )
+                for idx, d in enumerate(defs, start=1):
+                    if d.order != idx:
+                        d.order = idx
+                        d.save(update_fields=['order'])
+
+    def _update_order(self, updated_items, extra_model_filters):
+        """
+        Handle drag-and-drop reordering per-workspace so that ordering is always
+        deterministic and sequential (1, 2, 3...) within each workspace.
+        """
+        if not updated_items:
+            return 0
+
+        drag_orders = {str(item[0]): int(item[1]) for item in updated_items}
+        affected_objs = list(ExtractionDefinition.objects.filter(pk__in=drag_orders.keys()))
+        if not affected_objs:
+            return 0
+
+        workspaces = set(obj.workspace_id for obj in affected_objs)
+        total_updated = 0
+
+        for ws_id in workspaces:
+            if ws_id is None:
+                ws_defs = list(
+                    ExtractionDefinition.objects.filter(workspace_id__isnull=True)
+                    .order_by('order', 'created_at', 'id')
+                )
+            else:
+                ws_defs = list(
+                    ExtractionDefinition.objects.filter(workspace_id=ws_id)
+                    .order_by('order', 'created_at', 'id')
+                )
+
+            def sort_key(d):
+                pk_str = str(d.pk)
+                if pk_str in drag_orders:
+                    return (drag_orders[pk_str], d.order, d.created_at)
+                return (d.order, d.order, d.created_at)
+
+            ws_defs.sort(key=sort_key)
+
+            for idx, d in enumerate(ws_defs, start=1):
+                if d.order != idx:
+                    d.order = idx
+                    d.save(update_fields=['order'])
+                    total_updated += 1
+
+        return total_updated
+
     def changelist_view(self, request, extra_context=None):
         self._current_request = request
         self._ws_exit_metrics_cache = {}
+        self._ensure_sequential_ordering()
         return super().changelist_view(request, extra_context=extra_context)
 
     def get_urls(self):
