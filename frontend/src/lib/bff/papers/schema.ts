@@ -153,6 +153,7 @@ export const dimension = z
     facts: z.array(dimensionField).nullable().optional(),
     model: z.string().nullable().optional(),
   })
+  .passthrough()
   .meta({ id: 'Dimension' })
 export type Dimension = z.infer<typeof dimension>
 

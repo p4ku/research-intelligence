@@ -855,10 +855,16 @@ def extract_rich_dimension_details(
 
                 # Update matching facet if one exists in facets
                 matched_facet = None
+                generic_sub_keys = {"score", "value", "val", "level", "metric", "submetric"}
                 for f in facets:
                     fk = (f.get("key") or "").strip().lower()
                     fn = (f.get("name") or "").strip().lower()
-                    if fk == k_norm or fn == label.lower() or fk.startswith(f"{k_norm}_") or fk.endswith(f"_{k_norm}"):
+                    exact_match = (fk == k_norm or fn == label.lower())
+                    affix_match = (
+                        k_norm not in generic_sub_keys
+                        and (fk.startswith(f"{k_norm}_") or fk.endswith(f"_{k_norm}"))
+                    )
+                    if exact_match or affix_match:
                         matched_facet = f
                         break
 

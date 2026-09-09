@@ -80,7 +80,8 @@ function Band({ children }: { children: ReactNode }) {
 }
 
 /** Integers plain, otherwise at most two decimals — the same reading as the rail. */
-function shownNumber(n: number): string {
+function shownNumber(n: number | null | undefined): string {
+  if (n === null || n === undefined || !Number.isFinite(n)) return '—'
   return Number.isInteger(n) ? String(n) : (Math.round(n * 100) / 100).toString()
 }
 
@@ -118,14 +119,14 @@ function FacetRowFrame({
 }: {
   name: ReactNode
   /** The 3px track's fill; omitted when the facet has no scale (figure only). */
-  fill?: ReactNode | false
+  fill?: ReactNode
   value: ReactNode
   text?: ReactNode
 }) {
   return (
     <li
       className={clsx(
-        'grid items-center gap-x-3.5 gap-y-1',
+        'grid items-center gap-x-3 gap-y-1',
         fill === undefined || fill === false
           ? 'grid-cols-[minmax(0,1fr)_44px]'
           : 'grid-cols-[minmax(0,1fr)_44px] sm:grid-cols-[200px_minmax(0,1fr)_44px]',
@@ -146,8 +147,8 @@ function FacetRowFrame({
 }
 
 function FacetRow({ facet: f }: { facet: DimensionFacet }) {
-  const hasBar = f.max !== null && f.max > 0
-  const pct = hasBar ? Math.max(0, Math.min(1, f.value / f.max!)) : 0
+  const hasBar = f.max !== null && f.max > 0 && f.value !== null && Number.isFinite(f.value)
+  const pct = hasBar && f.value !== null ? Math.max(0, Math.min(1, f.value / f.max!)) : 0
   return (
     <FacetRowFrame
       name={
@@ -400,14 +401,22 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
           </ul>
         </div>
       ))}
-      {d.evidence?.map((quote, i) => (
-        <blockquote
-          key={i}
-          className="max-w-[72ch] border-l-2 border-line pl-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
-        >
-          “{unquote(quote)}”
-        </blockquote>
-      ))}
+      {d.evidence
+        ?.filter((quote) => {
+          const unq = unquote(quote).trim()
+          return !d.texts?.some((rawField) => {
+            const field = unpackField(rawField)
+            return field.evidence?.some((ev) => unquote(ev).trim() === unq)
+          })
+        })
+        .map((quote, i) => (
+          <blockquote
+            key={i}
+            className="max-w-[72ch] border-l-2 border-line pl-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
+          >
+            “{unquote(quote)}”
+          </blockquote>
+        ))}
       {d.facts && d.facts.length > 0 && (
         <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-sm">
           {d.facts.map((fact) => (
