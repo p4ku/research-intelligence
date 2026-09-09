@@ -562,10 +562,10 @@ def extract_risk_and_affiliation(fields_data: dict) -> dict:
     """
     Extracts structured Risk & Affiliation data to display directly under authors.
     Delegates to `adapt_risk_and_affiliation` (Option A Tolerant Adapter).
-    See `risk_affiliation_adapter.py` for comprehensive architecture notes and Option B roadmap.
+    See `affiliation_adapter.py` for comprehensive architecture notes and Option B roadmap.
     """
-    from .risk_affiliation_adapter import adapt_risk_and_affiliation
-    return adapt_risk_and_affiliation(fields_data)
+    from .affiliation_adapter import adapt_affiliation_data
+    return adapt_affiliation_data(fields_data)
 
 
 def extract_rich_dimension_details(

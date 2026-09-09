@@ -1453,6 +1453,113 @@ return {
         self.assertEqual(risk["risk_score"], 25.0)
         self.assertEqual(risk["risk_score_assessment"], "Moderate compliance review required for Article 9 processing.")
 
+    def test_19_exact_tum_mqt_core_production_extraction(self):
+        """
+        Validates the exact production extraction for TUM / mqt-core:
+        - metadata.institutional_affiliations -> affiliations (3 German/Austrian research institutions)
+        - metadata.funding_entities -> funding_entities (ERC, Bavarian Ministry, BMBF)
+        - metadata.author_contacts -> author_contacts (clean emails for mailto links)
+        - metadata.codebase_links -> codebase_artifact_link (GitHub URL)
+        - gdpr_concern -> status NO (safe)
+        - competitor_involvement -> status NO (safe)
+        - schwarz_ecosystem_affiliation -> status YES with matched TUM (highlight)
+        """
+        raw_extraction = {
+            "metadata": {
+                "dataset_links": [],
+                "codebase_links": [
+                    "https://github.com/cda-tum/mqt-core"
+                ],
+                "author_contacts": [
+                    {
+                        "email": "lukas.berent@tum.de",
+                        "author_name": "L. Berent"
+                    },
+                    {
+                        "email": "robert.wille@tum.de",
+                        "author_name": "R. Wille"
+                    }
+                ],
+                "funding_entities": [
+                    "European Research Council (ERC)",
+                    "Bavarian State Ministry of Science and Arts",
+                    "Federal Ministry of Education and Research (BMBF)"
+                ],
+                "institutional_affiliations": [
+                    "Technical University of Munich, Germany",
+                    "Munich Quantum Valley, Germany",
+                    "Software Competence Center Hagenberg GmbH, Austria"
+                ]
+            },
+            "gdpr_concern": {
+                "status": "NO",
+                "concerns": None
+            },
+            "competitor_involvement": {
+                "status": "NO",
+                "matches": None
+            },
+            "schwarz_ecosystem_affiliation": {
+                "status": "YES",
+                "matched_institutions": [
+                    "TUM"
+                ]
+            }
+        }
+
+        # Test both direct adapter and scorecard extractor
+        from research_intelligence.services.affiliation_adapter import adapt_affiliation_data
+        result = adapt_affiliation_data(raw_extraction)
+
+        self.assertIsNotNone(result)
+
+        # 1. Institutional affiliations
+        self.assertEqual(
+            result["affiliations"],
+            [
+                "Technical University of Munich, Germany",
+                "Munich Quantum Valley, Germany",
+                "Software Competence Center Hagenberg GmbH, Austria",
+            ]
+        )
+
+        # 2. Author contacts (clean emails for mailto links in frontend header)
+        self.assertEqual(
+            result["author_contacts"],
+            ["lukas.berent@tum.de", "robert.wille@tum.de"]
+        )
+
+        # 3. Funding entities
+        self.assertEqual(
+            result["funding_entities"],
+            [
+                "European Research Council (ERC)",
+                "Bavarian State Ministry of Science and Arts",
+                "Federal Ministry of Education and Research (BMBF)",
+            ]
+        )
+
+        # 4. Codebase artifact repository link
+        self.assertEqual(
+            result["codebase_artifact_link"],
+            "https://github.com/cda-tum/mqt-core"
+        )
+
+        # 5. Sovereignty & Risk flags
+        self.assertEqual(result["gdpr_concerns"], "NO")
+        self.assertEqual(result["competitor_involvement"], "None")
+        self.assertEqual(result["schwarz_ecosystem_affiliation"], "YES (TUM)")
+
+        flags_by_key = {f["key"]: f for f in result["flags"]}
+        self.assertEqual(flags_by_key["gdpr"]["status"], "safe")
+        self.assertEqual(flags_by_key["gdpr"]["value"], "NO")
+
+        self.assertEqual(flags_by_key["competitor"]["status"], "safe")
+        self.assertEqual(flags_by_key["competitor"]["value"], "None")
+
+        self.assertEqual(flags_by_key["schwarz_ecosystem"]["status"], "highlight")
+        self.assertEqual(flags_by_key["schwarz_ecosystem"]["value"], "YES (TUM)")
+
 
 
 
