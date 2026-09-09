@@ -21,6 +21,12 @@ serve this code path (it never captured `/scorecard/` or `/editions/`).
 Sizes: S = under an hour, M = half a day, L = a day or more. "Live" means
 users see it on prod now; "latent" means it needs a trigger.
 
+GitHub issues filed on 9 Sep 2026 for the same findings, so PRs can close
+them: item 1 → #128 · item 2 → #129 · item 3 → #127 (and the older #120) ·
+item 6 → #134 · item 7 → #130 and #134 · items 10, 15, 16 → #132 · item 12
+→ #131 · item 17 → #133 · item 18 → #135. Items 4, 5, 8, 9, 11, 13, 14, 19
+and 20 have no issue yet; cite this file.
+
 ---
 
 ## P0 — prod is degraded until these land
