@@ -19,6 +19,7 @@ class HITLViewSet(viewsets.ModelViewSet):
     Scientists validation overrides (verify, modify, reject).
     Scoped to workspaces the authenticated user is a member of.
     """
+    queryset = HITLCorrection.objects.none()
     serializer_class = HITLCorrectionSerializer
     permission_classes = [permissions.IsAuthenticated]
     ordering_fields = ['timestamp', 'action']

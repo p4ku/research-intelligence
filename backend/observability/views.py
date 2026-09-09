@@ -17,6 +17,14 @@ class PrometheusMetricsView(APIView):
     permission_classes = [permissions.AllowAny]
     authentication_classes = []
 
+    @extend_schema(
+        tags=['Health & Diagnostics'],
+        description="Prometheus / OpenTelemetry Metrics Exporter Endpoint. Exposes platform-wide operational telemetry in standard Prometheus text exposition format (v0.0.4).",
+        responses={
+            200: OpenApiResponse(description="Prometheus text exposition format (v0.0.4) metrics scrape output", response=str),
+            401: OpenApiResponse(description="Unauthorized: Valid metrics scrape token or APIKey required"),
+        }
+    )
     def get(self, request, *args, **kwargs):
         if not verify_metrics_credentials(request):
             return HttpResponse(

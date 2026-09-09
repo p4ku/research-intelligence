@@ -18,6 +18,7 @@ class ReportViewSet(viewsets.ReadOnlyModelViewSet):
     Read-only: reports are synthesized by the reporting engine.
     Scoped to workspaces the authenticated user is a member of.
     """
+    queryset = NarrativeReport.objects.none()
     serializer_class = NarrativeReportSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = StandardResultsSetPagination

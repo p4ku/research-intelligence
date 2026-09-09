@@ -11,6 +11,7 @@ class ScraperViewSet(viewsets.ModelViewSet):
     CRUD endpoints for Scraper configurations.
     Accessible only to members of the workspace.
     """
+    queryset = Scraper.objects.none()
     serializer_class = ScraperSerializer
     permission_classes = [permissions.IsAuthenticated]
     ordering_fields = ['created_at', 'provider', 'is_active', 'search_query']

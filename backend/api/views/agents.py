@@ -25,6 +25,7 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
     Orchestrates the SLR pipeline from Search & Screening to Parameter Extraction and Composite Signal Scoring.
     Scoped strictly to workspaces the authenticated user belongs to.
     """
+    queryset = ResearchAgentProcess.objects.none()
     serializer_class = ResearchAgentProcessSerializer
     permission_classes = [permissions.IsAuthenticated]
     http_method_names = ['get', 'post', 'delete', 'head', 'options']

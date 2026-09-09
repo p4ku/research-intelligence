@@ -114,7 +114,8 @@ class PipelineRunDetailSerializer(PipelineRunSerializer):
             'extractions_count',
         ]
 
-    def get_storage_stats(self, obj):
+    @extend_schema_field(serializers.DictField)
+    def get_storage_stats(self, obj) -> dict:
         ws_id = str(obj.workspace_id)
         run_id = str(obj.id)
         run_dir = f"workspaces/{ws_id}/runs/{run_id}"
@@ -123,17 +124,20 @@ class PipelineRunDetailSerializer(PipelineRunSerializer):
         except Exception:
             return {"total_bytes": 0, "total_files": 0, "size_formatted": "0 B"}
 
-    def get_papers_count(self, obj):
+    @extend_schema_field(serializers.IntegerField)
+    def get_papers_count(self, obj) -> int:
         return obj.paper_metrics.count()
 
-    def get_duplicates_count(self, obj):
+    @extend_schema_field(serializers.IntegerField)
+    def get_duplicates_count(self, obj) -> int:
         search_runs = [cr for cr in obj.component_runs.all() if cr.step_type == 'search']
         return sum(
             int((cr.metrics or {}).get("duplicates_count", 0))
             for cr in search_runs
         )
 
-    def get_extractions_count(self, obj):
+    @extend_schema_field(serializers.IntegerField)
+    def get_extractions_count(self, obj) -> int:
         return Extraction.objects.filter(paper_id__in=obj.paper_metrics.values('paper_id')).count()
 
 

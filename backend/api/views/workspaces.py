@@ -25,6 +25,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
     CRUD endpoints for Workspace (Projects), dual-stage criteria, and processing policies.
     Scoped to workspaces the authenticated user is a member of.
     """
+    queryset = Workspace.objects.none()
     serializer_class = WorkspaceSerializer
     permission_classes = [permissions.IsAuthenticated]
     ordering_fields = ['created_at', 'name', 'monthly_usd_limit']
@@ -114,6 +115,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             OpenApiParameter(name='page_size', type=int, location=OpenApiParameter.QUERY, description='Page size'),
         ],
         description="Dynamic Workspace Scorecard containing all evaluated papers with run-scoped metrics and rich dimension details.",
+        responses={200: OpenApiResponse(description="Dynamic Workspace Scorecard containing all evaluated papers with run-scoped metrics, dimensions, and filter statistics.")},
     )
     @action(detail=True, methods=['get'], url_path='scorecard')
     def scorecard(self, request, pk=None):
@@ -243,6 +245,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
     @extend_schema(
         tags=['Workspaces Management', 'Scoring & Ranking'],
         description="Get scoring configuration, variables, weights, and worked example for this workspace.",
+        responses={200: OpenApiResponse(description="Workspace scoring formula configuration, active variables, calculated weights, and top paper calculation example")},
     )
     @action(detail=True, methods=['get'], url_path='scoring')
     def scoring(self, request, pk=None):
@@ -297,8 +300,14 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         })
 
     @extend_schema(
+        operation_id="workspace_editions_list",
         tags=['Workspaces Management', 'Briefings & Editions'],
         description="Paginated list of completed briefing editions for this workspace, newest first.",
+        parameters=[
+            OpenApiParameter(name='page', type=int, location=OpenApiParameter.QUERY, description='Page number (default: 1)'),
+            OpenApiParameter(name='page_size', type=int, location=OpenApiParameter.QUERY, description='Number of editions per page (default: 20)'),
+        ],
+        responses={200: OpenApiResponse(description="Paginated list of completed briefing editions with surfaced papers")},
     )
     @action(detail=True, methods=['get'], url_path='editions')
     def editions(self, request, pk=None):
@@ -431,8 +440,19 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         })
 
     @extend_schema(
+        operation_id="workspace_edition_detail",
         tags=['Workspaces Management', 'Briefings & Editions'],
         description="Detail of one briefing edition by date (YYYY-MM-DD), including screening exclusions.",
+        parameters=[
+            OpenApiParameter(name='workspace_id', type=str, location=OpenApiParameter.PATH, description='Target workspace UUID'),
+            OpenApiParameter(name='edition_date', type=str, location=OpenApiParameter.PATH, description='Edition date in YYYY-MM-DD format'),
+            OpenApiParameter(name='run_id', type=str, location=OpenApiParameter.QUERY, description='Optional PipelineRun UUID to select a specific run for that date'),
+        ],
+        responses={
+            200: OpenApiResponse(description="Briefing edition details including surfaced papers, exclusions, and funnel counts"),
+            400: OpenApiResponse(description="Bad request or invalid date format"),
+            404: OpenApiResponse(description="Workspace or edition not found"),
+        }
     )
     def edition_detail(self, request, workspace_id=None, edition_date=None, **kwargs):
         ws_id = workspace_id or kwargs.get('pk')
@@ -580,6 +600,9 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
     @extend_schema(
         tags=['Workspaces Management', 'Settings & Preferences'],
         description="Get or set notification and email digest preferences for the current user in this workspace.",
+        responses={
+            200: OpenApiResponse(description="User workspace notification and email digest preferences (e.g. {'digest_email': true})"),
+        }
     )
     @action(detail=True, methods=['get', 'put'], url_path='preferences')
     def preferences(self, request, pk=None):
@@ -628,6 +651,7 @@ class ExtractionDefinitionViewSet(viewsets.ModelViewSet):
     """
     CRUD endpoints for dynamic Extraction Definitions within a workspace.
     """
+    queryset = ExtractionDefinition.objects.none()
     serializer_class = ExtractionDefinitionSerializer
     permission_classes = [permissions.IsAuthenticated]
     ordering_fields = ['created_at', 'name', 'version', 'is_active']

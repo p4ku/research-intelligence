@@ -34,6 +34,7 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
     Lists extracted claims and parameters matching schema settings.
     Scoped to workspaces the authenticated user is a member of.
     """
+    queryset = Extraction.objects.none()
     serializer_class = ExtractionSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = StandardResultsSetPagination
