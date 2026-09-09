@@ -309,3 +309,81 @@ class ApiEndpointOptimizationsTestCase(TestCase):
         ]
         self.assertEqual(len(ws_member_queries), 1, "WorkspaceMember should be queried at most once to evaluate chat session access")
         self.assertEqual(len(resp.json()), 2)
+
+    def test_workspace_scorecard_run_id_filters_papers_and_orders_by_signal_score(self):
+        """
+        Verify GET /api/workspaces/{id}/scorecard/?run_id={run_id}:
+        - Scopes papers strictly to those evaluated in the specified pipeline run.
+        - Does NOT leak or serialize papers belonging exclusively to other runs.
+        - Orders returned scored papers descending by signal_score.
+        """
+        run_a = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Run Alpha",
+            status="completed",
+            completed_at=timezone.now()
+        )
+        run_b = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Run Beta",
+            status="completed",
+            completed_at=timezone.now()
+        )
+
+        p_a = Paper.objects.create(
+            workspace=self.workspace,
+            title="Paper A from Run Alpha",
+            source_database="arXiv",
+            hash_id="p_a_hash"
+        )
+        PaperMetric.objects.create(
+            paper=p_a,
+            workspace=self.workspace,
+            pipeline_run=run_a,
+            signal_score=50.0,
+            screening_status="accepted"
+        )
+
+        p_b1 = Paper.objects.create(
+            workspace=self.workspace,
+            title="Paper B1 from Run Beta (Low Score)",
+            source_database="arXiv",
+            hash_id="p_b1_hash"
+        )
+        PaperMetric.objects.create(
+            paper=p_b1,
+            workspace=self.workspace,
+            pipeline_run=run_b,
+            signal_score=65.0,
+            screening_status="accepted"
+        )
+
+        p_b2 = Paper.objects.create(
+            workspace=self.workspace,
+            title="Paper B2 from Run Beta (High Score)",
+            source_database="arXiv",
+            hash_id="p_b2_hash"
+        )
+        PaperMetric.objects.create(
+            paper=p_b2,
+            workspace=self.workspace,
+            pipeline_run=run_b,
+            signal_score=92.5,
+            screening_status="accepted"
+        )
+
+        # Query scorecard scoped to run_b
+        resp = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run_b.id}")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        returned_ids = [p["id"] for p in data["papers"]]
+        self.assertIn(str(p_b1.id), returned_ids)
+        self.assertIn(str(p_b2.id), returned_ids)
+        self.assertNotIn(str(p_a.id), returned_ids, "Papers from other runs must not be returned when run_id is scoped")
+
+        # Must be sorted descending by signal_score
+        scores = [p["signal_score"] for p in data["papers"]]
+        self.assertEqual(scores, [92.5, 65.0])
+
+

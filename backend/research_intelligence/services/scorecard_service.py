@@ -674,8 +674,14 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
                 target_pr_id = None
 
     # 2. Query papers for workspace
+    papers_qs = Paper.objects.filter(workspace=workspace)
+    if target_pr:
+        papers_qs = papers_qs.filter(metrics__pipeline_run=target_pr).distinct()
+    elif target_pr_id:
+        papers_qs = papers_qs.filter(metrics__pipeline_run_id=target_pr_id).distinct()
+
     papers_qs = (
-        Paper.objects.filter(workspace=workspace)
+        papers_qs
         .select_related('workspace')
         .prefetch_related(
             'metrics',
@@ -738,6 +744,12 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
             request=request,
         )
         scored_papers.append(sp)
+
+    if target_pr_id:
+        scored_papers.sort(
+            key=lambda sp: (sp.get('signal_score') is not None, sp.get('signal_score') or 0.0),
+            reverse=True
+        )
 
     next_url = None
     prev_url = None

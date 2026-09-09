@@ -258,6 +258,19 @@ export async function EditionPapers({
 }) {
   const edition = await forPage(briefings.findByDate(date, lang, wsId, runId))
   if (!edition) notFound()
+  if (edition.papers.length === 0) {
+    return (
+      <EditionPaperList
+        papers={[]}
+        runId={edition.run_id}
+        logHref={editionHref(edition.date, edition.workspace_id, {
+          runId: edition.run_id,
+          sub: 'run',
+        })}
+      />
+    )
+  }
+
   // The run's own rows: the corpus's, or read live past the snapshot's cap.
   const scored = await forPage(papersService.listRun(edition.workspace_id, edition.run_id))
 
@@ -270,7 +283,37 @@ export async function EditionPapers({
   const cards: ScoredPaper[] = []
   for (const entry of edition.papers) {
     const paper = byId.get(entry.id)
-    if (!paper) continue
+    if (!paper) {
+      cards.push({
+        id: entry.id,
+        workspace_id: edition.workspace_id,
+        pipeline_run_id: edition.run_id,
+        title: entry.title,
+        authors: entry.authors,
+        authors_raw: entry.authors.join(', '),
+        abstract: '',
+        doi: null,
+        arxiv_id: null,
+        source: entry.source,
+        screening_status: entry.screening_status ?? 'accepted',
+        screening_reasoning: null,
+        abstract_screening_reasoning: null,
+        full_text_screening_reasoning: null,
+        signal_score: entry.signal_score,
+        signal_score_details: null,
+        dimensions: [],
+        pdf_key: null,
+        markdown_key: null,
+        source_url: null,
+        is_benchmark: false,
+        evaluation_label: null,
+        published_date: null,
+        created_at: edition.date,
+        pipeline_run_name: null,
+        risk_and_affiliation: null,
+      })
+      continue
+    }
     cards.push({
       ...paper,
       screening_status: entry.screening_status ?? paper.screening_status,
