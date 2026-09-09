@@ -95,8 +95,8 @@ export async function LedgerSection({
       generated: completed
         ? formatDay(edition ? briefingDate(edition, run) : editionDate(run), lang)
         : null,
-      stamp: edition ? stampFor(edition, run, perDay) : null,
-      startedClock: run.started_at ? formatClock(run.started_at) : null,
+      stamp: edition ? stampFor(edition, run, perDay, lang) : null,
+      startedClock: run.started_at ? formatClock(run.started_at, lang) : null,
       // Django stamps completed_at on failure and abort alike.
       failedDay:
         status === 'failed'

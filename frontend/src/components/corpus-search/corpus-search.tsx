@@ -4,8 +4,8 @@ import { SearchFrame } from '@/components/search-frame'
 import { Spinner } from '@/components/ui/spinner'
 import { bffFetch } from '@/lib/bff/client'
 import { useFeatures } from '@/lib/features-client'
-import { fmt } from '@/lib/i18n'
-import { useT } from '@/lib/i18n-client'
+import { fmt, formatNumber } from '@/lib/i18n'
+import { useLanguage, useT } from '@/lib/i18n-client'
 import { tokenize } from '@/lib/search/match'
 import { XMarkIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
@@ -58,6 +58,7 @@ export function CorpusSearch({
   limit?: number
 }) {
   const t = useT()
+  const { lang } = useLanguage()
   // The panel's Ask row is flagged; every other row is a corpus destination
   // and goes with the whole field when `all_papers` is off (Home's page).
   const features = useFeatures()
@@ -196,7 +197,7 @@ export function CorpusSearch({
     : pending
       ? t('Searching…')
       : fresh && result.intent !== 'empty'
-        ? fmt(t('{n} hits'), { n: result.papers_total })
+        ? fmt(t('{n} hits'), { n: formatNumber(result.papers_total, lang) })
         : ''
 
   return (
@@ -246,7 +247,7 @@ export function CorpusSearch({
           <>
             <span className="min-w-[6ch] shrink-0 text-right font-mono text-xs text-zinc-400 tabular-nums">
               {fresh && result.intent !== 'empty'
-                ? fmt(t('{n} hits'), { n: result.papers_total })
+                ? fmt(t('{n} hits'), { n: formatNumber(result.papers_total, lang) })
                 : ''}
             </span>
             <button

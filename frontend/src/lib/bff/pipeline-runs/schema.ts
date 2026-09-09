@@ -109,8 +109,18 @@ export type PipelineRunDetail = z.infer<typeof pipelineRunDetail>
  * step, so a run that finished everything and then had one step re-run carries
  * an early stage name while being entirely complete. Label it, do not diagnose
  * from it.
+ *
+ * The labels are English *source strings*, not display strings: this is the
+ * wire-shaped layer and stays language-free. Callers render `t(stageLabel(s))`
+ * and the German lives in `src/locales/de/runs.ts` under these exact keys.
  */
-const STAGE_LABELS: Record<string, string> = {
+/**
+ * The English name of each known stage — frontend copy, rendered through
+ * `t(stageLabel(stage))`. Exported so `runs/run-presentation.test.ts` can
+ * check the dictionary covers it; the call site is dynamic, so the static
+ * i18n audit cannot.
+ */
+export const STAGE_LABELS: Record<string, string> = {
   ocr: 'OCR',
   full_text_screening: 'Full-text screening',
   abstract_screening: 'Abstract screening',

@@ -4,8 +4,8 @@ import { AnswerMarkdown } from '@/components/answer-markdown'
 import { LiveAnswer as SharedLiveAnswer } from '@/components/live-answer'
 import { ErrorNote } from '@/components/scanner-ui'
 import type { ChatStreamState } from '@/lib/chat/use-chat-stream'
-import { fmt } from '@/lib/i18n'
-import { useT } from '@/lib/i18n-client'
+import { fmt, formatNumber } from '@/lib/i18n'
+import { useLanguage, useT } from '@/lib/i18n-client'
 import { CheckCircleIcon } from '@heroicons/react/16/solid'
 import { motion, useReducedMotion } from 'motion/react'
 import Link from 'next/link'
@@ -148,6 +148,7 @@ const item = {
  */
 function TurnExtras({ turn, anchor }: { turn: AnswerTurn; anchor: string }) {
   const t = useT()
+  const { lang } = useLanguage()
   const reduceMotion = useReducedMotion()
   const hasExtras =
     turn.citations.length > 0 ||
@@ -212,14 +213,14 @@ function TurnExtras({ turn, anchor }: { turn: AnswerTurn; anchor: string }) {
             <>
               {t('Fact check')} {turn.factCheck.verified ? t('passed') : t('flagged')} ·{' '}
               {fmt(t('{n} of {total} claims grounded'), {
-                n: turn.factCheck.verified_count,
-                total: turn.factCheck.total_count,
+                n: formatNumber(turn.factCheck.verified_count, lang),
+                total: formatNumber(turn.factCheck.total_count, lang),
               })}
             </>
           )}
           {turn.factCheck && turn.usage?.total_tokens != null && ' · '}
           {turn.usage?.total_tokens != null &&
-            fmt(t('{n} tokens'), { n: turn.usage.total_tokens.toLocaleString() })}
+            fmt(t('{n} tokens'), { n: formatNumber(turn.usage.total_tokens, lang) })}
         </motion.p>
       )}
     </motion.div>

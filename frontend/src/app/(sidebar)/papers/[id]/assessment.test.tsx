@@ -612,7 +612,9 @@ describe('Assessment Component Rendering', () => {
     // Header has the score 88
     const headerMatch = out.match(/<header[^>]*>([\s\S]*?)<\/header>/)
     expect(headerMatch).not.toBeNull()
-    expect(headerMatch![1]).toContain('Fit Score')
+    // dimensionLabel maps this name, so the heading carries the product's
+    // spelling ("Fit-Score" in German), not the backend's casing.
+    expect(headerMatch![1]).toContain('Fit score')
     expect(headerMatch![1]).toContain('88')
 
     // No submetric rows rendered

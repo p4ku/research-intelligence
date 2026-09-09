@@ -379,6 +379,7 @@ export function PaperChatFrame({
   body: ReactNode
   footer: ReactNode
 }) {
+  const t = useT()
   return (
     <>
       {/*
@@ -455,7 +456,7 @@ export function PaperChatFrame({
             type="button"
             onClick={onClose}
             disabled={!onClose}
-            aria-label="Close"
+            aria-label={t('Close')}
             className="rounded-sm p-1.5 text-zinc-500 transition-colors hover:bg-line-soft"
           >
             <XMarkIcon aria-hidden="true" className="size-4" />

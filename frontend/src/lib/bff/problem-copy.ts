@@ -30,6 +30,18 @@ export const PROBLEM_COPY: Record<string, string> = {
 
 const FALLBACK = 'Something went wrong. Try again.'
 
+/**
+ * Field messages this app writes itself — the zod refinements in
+ * src/lib/bff/<area>/schema.ts — travel over the wire in English and are
+ * printed verbatim under the field. Only these are translated: Django's own
+ * field prose has no dictionary entry, and routing every message through t()
+ * would warn on each one and still print English.
+ */
+const OWN_FIELD_COPY = new Set(['New passwords do not match.'])
+
+const fieldText = (messages: string[], t: T): string =>
+  messages.map((m) => (OWN_FIELD_COPY.has(m) ? t(m) : m)).join(' ')
+
 /** The sentence a user should read for this problem, in the current language. */
 export function problemMessage(problem: Problem | null | undefined, t: T): string {
   if (!problem) return t(FALLBACK)
@@ -61,10 +73,10 @@ export function errorsFromSubmit(
     if (p.type === '/problems/validation') {
       const rest: string[] = []
       for (const [field, messages] of Object.entries(p.errors ?? {})) {
-        if (fieldNames.includes(field)) out[field] = messages.join(' ')
+        if (fieldNames.includes(field)) out[field] = fieldText(messages, t)
         else rest.push(...messages)
       }
-      if (rest.length > 0) out._ = rest.join(' ')
+      if (rest.length > 0) out._ = fieldText(rest, t)
     }
     if (Object.keys(out).length === 0) out._ = problemMessage(p, t)
   } else {

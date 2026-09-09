@@ -1,6 +1,6 @@
 import { SignalScore } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
-import type { T } from '@/lib/i18n'
+import type { Lang, T } from '@/lib/i18n'
 import clsx from 'clsx'
 import Link from 'next/link'
 
@@ -90,11 +90,14 @@ export function TopPapers({
   dense = false,
   wrap = false,
   className,
+  lang = 'en',
 }: {
   papers: HomePaper[]
   dense?: boolean
   wrap?: boolean
   className?: string
+  /** For the score ring's figure; a prop, since the masthead renders on the server. */
+  lang?: Lang
 }) {
   return (
     <TopPapersFrame
@@ -103,7 +106,7 @@ export function TopPapers({
       className={className}
       items={papers.map((p) => (
         <>
-          <SignalScore score={p.score} size="sm" />
+          <SignalScore score={p.score} size="sm" lang={lang} />
           <Link
             href={p.href}
             className="min-w-0 flex-1 text-sm font-medium text-zinc-900 hover:underline dark:text-zinc-100"

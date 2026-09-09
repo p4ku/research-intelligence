@@ -1,7 +1,7 @@
 'use client'
 
 import { MiniScore, screeningLabel } from '@/components/scanner-ui'
-import { fmt, formatDate } from '@/lib/i18n'
+import { fmt, formatDate, formatNumber } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
 import { PASSED_STATUSES } from '@/lib/papers/types'
 import { highlight, type Segment } from '@/lib/search/match'
@@ -104,7 +104,7 @@ function RowContent({
       return (
         <>
           <span className="min-w-0 flex-1 text-[13px] font-medium text-blue-700">
-            {fmt(t('See all {n} papers'), { n: row.total })}
+            {fmt(t('See all {n} papers'), { n: formatNumber(row.total, lang) })}
           </span>
           <Arrow />
         </>
@@ -112,7 +112,10 @@ function RowContent({
     case 'domain':
       return (
         <>
-          <Body title={row.name} sub={fmt(t('{n} matching'), { n: row.matched })} />
+          <Body
+            title={row.name}
+            sub={fmt(t('{n} matching'), { n: formatNumber(row.matched, lang) })}
+          />
           <Arrow />
         </>
       )

@@ -3,7 +3,8 @@
 import { AnswerMarkdown } from '@/components/answer-markdown'
 import type { ChatStreamState } from '@/lib/chat/use-chat-stream'
 import { useSmoothText } from '@/lib/chat/use-smooth-text'
-import { useT } from '@/lib/i18n-client'
+import { formatNumber } from '@/lib/i18n'
+import { useLanguage, useT } from '@/lib/i18n-client'
 import { useEffect, useState, type ReactNode } from 'react'
 
 /**
@@ -29,6 +30,10 @@ function useElapsed(active: boolean) {
 /** Retrieval status shown until the first word arrives, with the wait counted. */
 export function ScanningLine({ children }: { children: ReactNode }) {
   const ms = useElapsed(true)
+  const { lang } = useLanguage()
+  // "3.2s" / "3,2 s" — DIN 5008 puts a narrow no-break space before the unit.
+  const elapsed =
+    lang === 'de' ? `${formatNumber(ms / 1000, lang, 1)} s` : `${formatNumber(ms / 1000, lang, 1)}s`
   return (
     <p className="mt-1 flex items-center gap-2 font-mono text-xs text-muted-foreground tabular-nums">
       <span className="relative flex size-2 shrink-0">
@@ -36,7 +41,7 @@ export function ScanningLine({ children }: { children: ReactNode }) {
         <span className="relative size-2 rounded-full bg-accent" />
       </span>
       <span className="min-w-0 truncate">{children}</span>
-      <span className="ml-auto shrink-0">{(ms / 1000).toFixed(1)}s</span>
+      <span className="ml-auto shrink-0">{elapsed}</span>
     </p>
   )
 }

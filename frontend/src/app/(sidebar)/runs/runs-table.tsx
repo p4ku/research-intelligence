@@ -1,6 +1,7 @@
 import { Bone } from '@/components/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { stageLabel, type PipelineRun } from '@/lib/bff/pipeline-runs/schema'
+import { fmt, formatNumber, localeOf, type Lang, type T } from '@/lib/i18n'
 import type { ReactNode } from 'react'
 import { formatDuration, formatUsd, RunStatus as RunStatusPill } from './run-presentation'
 
@@ -11,11 +12,12 @@ import { formatDuration, formatUsd, RunStatus as RunStatusPill } from './run-pre
  * the Node process's zone, which is the *server's*, not the reader's — a
  * Berlin operator would silently read Cloud Foundry's UTC as local time. The
  * backend stores and logs UTC, so showing UTC is also what correlates with the
- * logs an operator is cross-referencing.
+ * logs an operator is cross-referencing. The *locale* follows the UI language;
+ * the zone does not.
  */
-function timestampUtc(iso: string | null): string {
+function timestampUtc(iso: string | null, lang: Lang): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleString('en-GB', {
+  return new Date(iso).toLocaleString(localeOf(lang), {
     timeZone: 'UTC',
     day: '2-digit',
     month: 'short',
@@ -25,10 +27,12 @@ function timestampUtc(iso: string | null): string {
   })
 }
 
-// One entry per column: the header label and the classes of its header and
-// body cells. Both the loaded table and its skeleton render from this list, so
-// the columns cannot drift (scripts/skeleton-drift.ts measures each header).
-const COLUMNS: { key: string; label: string; head?: string; cell?: string }[] = [
+// One entry per column: the English header string (translated at render) and
+// the classes of its header and body cells. Both the loaded table and its
+// skeleton render from this list, so the columns cannot drift
+// (scripts/skeleton-drift.ts measures each header). Exported because the
+// headers reach t() dynamically: run-presentation.test.ts guards the German.
+export const COLUMNS: { key: string; label: string; head?: string; cell?: string }[] = [
   { key: 'started', label: 'Started (UTC)', cell: 'font-medium tabular-nums' },
   { key: 'domain', label: 'Domain', cell: 'max-w-48 truncate text-zinc-500 dark:text-zinc-400' },
   { key: 'outcome', label: 'Outcome' },
@@ -65,14 +69,22 @@ interface RunRow {
  * carries data-row="col": the drift check then catches a skeleton whose bones
  * push a column wider or narrower than the real cells do.
  */
-function RunsTableFrame({ rows, state }: { rows: RunRow[]; state: 'loaded' | 'skeleton' }) {
+function RunsTableFrame({
+  rows,
+  state,
+  t,
+}: {
+  rows: RunRow[]
+  state: 'loaded' | 'skeleton'
+  t: T
+}) {
   return (
     <Table dense data-shape="runs-table" data-state={state}>
       <TableHead>
         <TableRow>
           {COLUMNS.map((column) => (
             <TableHeader key={column.key} data-row="col" className={column.head}>
-              {column.label}
+              {t(column.label)}
             </TableHeader>
           ))}
         </TableRow>
@@ -92,29 +104,38 @@ function RunsTableFrame({ rows, state }: { rows: RunRow[]; state: 'loaded' | 'sk
   )
 }
 
-export function RunsTable({ runs }: { runs: PipelineRun[] }) {
+export function RunsTable({
+  runs,
+  t = (s) => s,
+  lang = 'en',
+}: {
+  runs: PipelineRun[]
+  t?: T
+  lang?: Lang
+}) {
   const rows = runs.map(
     (run): RunRow => ({
       key: run.id,
       href: `/runs/${run.id}`,
-      title: `Run ${run.id}`,
+      title: fmt(t('Run {id}'), { id: run.id }),
       cells: [
-        timestampUtc(run.started_at),
+        timestampUtc(run.started_at, lang),
         run.workspace_name,
-        <RunStatusPill key="status" run={run} />,
+        <RunStatusPill key="status" run={run} t={t} />,
         // The stage the engine last dispatched — reported, not interpreted. A
         // rerun rewrites it to the re-triggered step, so it is not evidence
-        // that a run stopped there.
-        run.current_stage ? stageLabel(run.current_stage) : '—',
-        run.total_papers_fetched.toLocaleString('en-US'),
-        run.total_papers_passed_screening.toLocaleString('en-US'),
-        formatDuration(run.duration_seconds),
-        formatUsd(run.usd_cost),
+        // that a run stopped there. `stageLabel` returns the English source
+        // string; the dictionary carries the German for each known stage.
+        run.current_stage ? t(stageLabel(run.current_stage)) : '—',
+        formatNumber(run.total_papers_fetched, lang),
+        formatNumber(run.total_papers_passed_screening, lang),
+        formatDuration(run.duration_seconds, lang),
+        formatUsd(run.usd_cost, lang),
         run.status_message ?? '—',
       ],
     }),
   )
-  return <RunsTableFrame rows={rows} state="loaded" />
+  return <RunsTableFrame rows={rows} state="loaded" t={t} />
 }
 
 // Fixed per-row width patterns, never random, so screenshots and drift runs
@@ -127,7 +148,7 @@ const STAGE_WIDTHS = ['7.5ch', '15ch', '8.5ch']
 const SUMMARY_WIDTHS = ['28rem', '28rem', '16rem']
 
 /** The table's loading state: the real headers over `rows` bone rows. */
-export function RunsTableSkeleton({ rows = 8 }: { rows?: number }) {
+export function RunsTableSkeleton({ rows = 8, t = (s) => s }: { rows?: number; t?: T }) {
   const bones = Array.from(
     { length: rows },
     (_, i): RunRow => ({
@@ -145,5 +166,5 @@ export function RunsTableSkeleton({ rows = 8 }: { rows?: number }) {
       ],
     }),
   )
-  return <RunsTableFrame rows={bones} state="skeleton" />
+  return <RunsTableFrame rows={bones} state="skeleton" t={t} />
 }

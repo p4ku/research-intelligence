@@ -16,28 +16,29 @@ export const dict: Record<string, string> = {
     'Bei uns ist etwas schiefgelaufen. Versuchen Sie es erneut.',
   "This isn't available yet.": 'Das ist noch nicht verfügbar.',
   "The backend didn't respond. Try again in a moment.":
-    'Das Backend hat nicht geantwortet. Versuchen Sie es gleich noch einmal.',
+    'Der Dienst hat nicht geantwortet. Versuchen Sie es gleich noch einmal.',
   'The backend had a problem. Try again in a moment.':
-    'Das Backend hatte ein Problem. Versuchen Sie es gleich noch einmal.',
+    'Der Dienst hatte ein Problem. Versuchen Sie es gleich noch einmal.',
   'The backend sent something unexpected. Try again in a moment.':
-    'Das Backend hat eine unerwartete Antwort gesendet. Versuchen Sie es gleich noch einmal.',
+    'Der Dienst hat eine unerwartete Antwort gesendet. Versuchen Sie es gleich noch einmal.',
 
   // Form fallbacks (settings-form.tsx)
   "Couldn't save your profile. Try again.":
     'Ihr Profil konnte nicht gespeichert werden. Versuchen Sie es erneut.',
   "Couldn't delete this conversation. Try again.":
-    'Das Gespräch konnte nicht gelöscht werden. Versuchen Sie es erneut.',
+    'Der Chat konnte nicht gelöscht werden. Versuchen Sie es erneut.',
   "Couldn't open this conversation. Try again.":
-    'Das Gespräch konnte nicht geöffnet werden. Versuchen Sie es erneut.',
+    'Der Chat konnte nicht geöffnet werden. Versuchen Sie es erneut.',
   "Couldn't change your password. Try again.":
     'Ihr Passwort konnte nicht geändert werden. Versuchen Sie es erneut.',
 
-  // Workspace notice (workspace-notice.tsx) — "domain" is the analyst-facing word
-  // for a workspace; the outage line reuses the chrome's "Nothing was lost…".
-  "Couldn't reach the backend.": 'Das Backend ist nicht erreichbar.',
-  'No domains yet': 'Noch keine Domänen',
+  // Workspace notice (workspace-notice.tsx) — a workspace reads as a
+  // "Themenfeld" to the analyst; the outage line reuses the chrome's
+  // "Nothing was lost…".
+  "Couldn't reach the backend.": 'Der Dienst ist nicht erreichbar.',
+  'No domains yet': 'Noch keine Themenfelder',
   "You don't have access to any domain yet. Ask an administrator for access.":
-    'Sie haben noch keinen Zugriff auf eine Domäne. Wenden Sie sich für Zugriff an die Administration.',
+    'Sie haben noch keinen Zugriff auf ein Themenfeld. Bitten Sie eine Administratorin oder einen Administrator um Zugriff.',
 
   // Not-found pages ((sidebar)/not-found.tsx and the root not-found.tsx)
   "We couldn't find that.": 'Das konnten wir nicht finden.',
@@ -45,5 +46,9 @@ export const dict: Record<string, string> = {
     'Möglicherweise wurde es entfernt, oder der Link ist veraltet.',
   'Go to Papers': 'Zu den Papers',
   'Go to Briefings': 'Zu den Briefings',
-  'Go to Dashboard': 'Zum Dashboard',
+  'Go to Dashboard': 'Zur Startseite',
+
+  // Field-level validation we author ourselves (src/lib/bff/settings/schema.ts).
+  // Reaches t() through errorsFromSubmit, so no static caller names it.
+  'New passwords do not match.': 'Die neuen Passwörter stimmen nicht überein.',
 }

@@ -7,16 +7,20 @@
 // markup — so a reader moving between Tuning and a paper sees one system.
 
 import { SectionLabel } from '@/components/scanner-ui'
-import { fmt as interpolate } from '@/lib/i18n'
-import { useT } from '@/lib/i18n-client'
+import { formatPercent, fmt as interpolate, type Lang } from '@/lib/i18n'
+import { useLanguage, useT } from '@/lib/i18n-client'
 import type { Influence } from '@/lib/papers/tuning-profile'
 import clsx from 'clsx'
 
+/** The CSS length a segment takes — never read by a person, so never localised. */
 const pctOf = (share: number) => `${Math.round(share * 100)}%`
+/** The same figure as words: "41%" / "41 %" (DIN 5008). */
+const pctText = (share: number, lang: Lang) => formatPercent(Math.round(share * 100), lang)
 
 /** The base bar: fit and novelty, in the ledger's colours and proportions. */
 export function InfluenceBar({ profile }: { profile: Influence[] }) {
   const t = useT()
+  const { lang } = useLanguage()
   const shares = profile.filter((i) => i.kind === 'share')
   const gate = profile.find((i) => i.kind === 'gate')
 
@@ -25,7 +29,7 @@ export function InfluenceBar({ profile }: { profile: Influence[] }) {
       <div
         className="relative h-3 w-full bg-line-soft"
         role="img"
-        aria-label={shares.map((s) => `${t(s.label)} ${pctOf(s.share!)}`).join(', ')}
+        aria-label={shares.map((s) => `${t(s.label)} ${pctText(s.share!, lang)}`).join(', ')}
       >
         {shares.map((s, i) => (
           <span
@@ -47,7 +51,7 @@ export function InfluenceBar({ profile }: { profile: Influence[] }) {
             key={s.key}
             swatch={i === 0 ? 'bg-accent' : 'bg-accent/45'}
             label={t(s.label)}
-            value={interpolate(t('{n} of the base'), { n: pctOf(s.share!) })}
+            value={interpolate(t('{n} of the base'), { n: pctText(s.share!, lang) })}
           />
         ))}
       </dl>
@@ -75,6 +79,7 @@ export function InfluenceBar({ profile }: { profile: Influence[] }) {
 /** The same controls, disabled, at the values in force. */
 export function TuningPanel({ profile }: { profile: Influence[] }) {
   const t = useT()
+  const { lang } = useLanguage()
   const shares = profile.filter((i) => i.kind === 'share')
   const gate = profile.find((i) => i.kind === 'gate')
 
@@ -90,7 +95,7 @@ export function TuningPanel({ profile }: { profile: Influence[] }) {
           <Dial
             key={s.key}
             label={t(s.label)}
-            display={pctOf(s.share!)}
+            display={pctText(s.share!, lang)}
             value={s.share! * 100}
             max={100}
           />

@@ -1,3 +1,4 @@
+import { fmt, type T } from '@/lib/i18n'
 import type { RiskAndAffiliation, RiskFlag } from '@/lib/papers/types'
 import {
   ArrowUpRightIcon,
@@ -11,7 +12,13 @@ import {
 } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 
-export function unpackFlag(flag: RiskFlag): { label: string; value: string; status: string } {
+// The verdicts this file writes itself (never backend prose), so they are
+// translated; `t` defaults to identity for the unit tests that call the
+// unpacker directly.
+export function unpackFlag(
+  flag: RiskFlag,
+  t: T = (s) => s,
+): { label: string; value: string; status: string } {
   let val = flag.value
   let status = flag.status
 
@@ -82,11 +89,11 @@ export function unpackFlag(flag: RiskFlag): { label: string; value: string; stat
     const isNeg = /^(no|false|none|safe|low)$/i.test(statStr)
 
     if (isPos) {
-      val = items.length > 0 ? `YES (${items.join(', ')})` : 'YES'
+      val = items.length > 0 ? `${t('YES')} (${items.join(', ')})` : t('YES')
       if (flag.key.includes('schwarz') || flag.key.includes('ecosystem')) status = 'highlight'
       else status = 'warn'
     } else if (isNeg) {
-      val = flag.key.includes('competitor') ? 'None' : 'NO'
+      val = flag.key.includes('competitor') ? t('None') : t('NO')
       status = 'safe'
     } else {
       val = items.length > 0 ? `${statStr} (${items.join(', ')})` : statStr || '—'
@@ -99,9 +106,11 @@ export function unpackFlag(flag: RiskFlag): { label: string; value: string; stat
 export function RiskAffiliationFlagging({
   risk,
   className,
+  t = (s) => s,
 }: {
   risk?: RiskAndAffiliation | null
   className?: string
+  t?: T
 }) {
   if (!risk) return null
 
@@ -150,7 +159,7 @@ export function RiskAffiliationFlagging({
                       <a
                         href={`mailto:${contact}`}
                         className="hover:text-accent hover:underline"
-                        title={`Email ${contact}`}
+                        title={fmt(t('Email {contact}'), { contact })}
                       >
                         {contact}
                       </a>
@@ -169,10 +178,10 @@ export function RiskAffiliationFlagging({
               target="_blank"
               rel="noreferrer"
               className="inline-flex items-center gap-1 font-medium text-blue-600 hover:underline dark:text-blue-400"
-              title="View codebase or artifact"
+              title={t('View codebase or artifact')}
             >
               <CodeBracketIcon aria-hidden="true" className="size-3.5" />
-              <span>Artifact Repository</span>
+              <span>{t('Artifact Repository')}</span>
               <ArrowUpRightIcon aria-hidden="true" className="size-3" />
             </a>
           )}
@@ -182,7 +191,7 @@ export function RiskAffiliationFlagging({
       {/* 2. Funding Entities */}
       {hasFunding && (
         <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">Funding: </span>
+          <span className="font-medium text-zinc-700 dark:text-zinc-300">{t('Funding: ')}</span>
           {risk.funding_entities.join('; ')}
         </div>
       )}
@@ -191,7 +200,7 @@ export function RiskAffiliationFlagging({
       {hasFlags && (
         <div className="flex flex-wrap items-center gap-2 pt-0.5">
           {risk.flags.map((rawFlag) => {
-            const flag = unpackFlag(rawFlag)
+            const flag = unpackFlag(rawFlag, t)
             const isSafe = flag.status === 'safe'
             const isWarn = flag.status === 'warn'
             const isHighlight = flag.status === 'highlight'
@@ -243,7 +252,7 @@ export function RiskAffiliationFlagging({
 
           {typeof risk.risk_score === 'number' && (
             <span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700 ring-1 ring-zinc-500/15 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700">
-              <span className="font-semibold">Risk Score:</span> {risk.risk_score}/100
+              <span className="font-semibold">{t('Risk Score:')}</span> {risk.risk_score}/100
               {risk.risk_score_assessment && (
                 <span className="text-zinc-500 dark:text-zinc-400">
                   ({risk.risk_score_assessment})

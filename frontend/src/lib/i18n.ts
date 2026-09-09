@@ -36,9 +36,41 @@ export function fmt(s: string, vars: Record<string, string | number>): string {
 // Locale-aware short date ("Jun 3, 2026" / "3. Juni 2026"). Lives here — not
 // in a client component — so server components can call it too.
 export function formatDate(iso: string, lang: Lang = 'en'): string {
+  // UTC, like every other date in the app: German readers sit at UTC+1/+2 and
+  // would otherwise see a late-UTC paper dated one day later than its edition.
   return new Date(iso).toLocaleDateString(lang === 'de' ? 'de-DE' : 'en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    timeZone: 'UTC',
   })
+}
+
+/** BCP 47 tag for Intl formatting in the UI language. */
+export function localeOf(lang: Lang): string {
+  return lang === 'de' ? 'de-DE' : 'en-GB'
+}
+
+// Locale-aware number: "88.5" / "88,5", "1,234" / "1.234". `digits` fixes the
+// fraction digits (toFixed semantics); omit it to print integers with grouping.
+// `maxDigits` widens the ceiling without forcing a floor — pass it alone
+// (`formatNumber(n, lang, undefined, 2)`) for "as many decimals as it has, at
+// most two", the reading the paper page's figures use.
+export function formatNumber(
+  n: number,
+  lang: Lang = 'en',
+  digits?: number,
+  maxDigits?: number,
+): string {
+  return n.toLocaleString(localeOf(lang), {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: maxDigits ?? digits,
+  })
+}
+
+// Locale-aware percentage: "90%" in English, "90 %" (DIN 5008, narrow no-break
+// space) in German. `n` is already 0–100.
+export function formatPercent(n: number, lang: Lang = 'en', digits = 0): string {
+  const num = formatNumber(n, lang, digits)
+  return lang === 'de' ? `${num}\u202f%` : `${num}%`
 }

@@ -8,8 +8,8 @@ import { StarredChip } from '@/components/star'
 import { bffFetch } from '@/lib/bff/client'
 import type { PapersList } from '@/lib/bff/papers/schema'
 import { useFeatures } from '@/lib/features-client'
-import { fmt } from '@/lib/i18n'
-import { useT } from '@/lib/i18n-client'
+import { fmt, formatNumber } from '@/lib/i18n'
+import { useLanguage, useT } from '@/lib/i18n-client'
 import {
   DEFAULT_STATE,
   keyOf,
@@ -79,6 +79,7 @@ export function PapersBrowser({
   domains: { id: string; name: string }[]
 }) {
   const t = useT()
+  const { lang } = useLanguage()
   const { stars: starSet } = useStars()
   const { stars } = useFeatures()
   const params = useSearchParams()
@@ -241,7 +242,7 @@ export function PapersBrowser({
     },
     state.minScore > 0 && {
       key: 'signal',
-      label: fmt(t('Signal ≥ {n}'), { n: state.minScore }),
+      label: fmt(t('Signal ≥ {n}'), { n: formatNumber(state.minScore, lang) }),
       clear: () => update({ minScore: 0 }),
     },
     trlNarrowed && {
@@ -279,7 +280,7 @@ export function PapersBrowser({
           <div className="mb-3 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm text-zinc-500 dark:text-zinc-400">
             <p>
               <span className="font-mono font-medium text-zinc-950 tabular-nums dark:text-white">
-                {count}
+                {formatNumber(count, lang)}
               </span>{' '}
               {count === 1 ? t('paper') : t('papers')}
               {filterContext && (
@@ -312,8 +313,8 @@ export function PapersBrowser({
           {facets.truncated && (
             <p className="mb-3 text-xs text-zinc-400 dark:text-zinc-500">
               {fmt(t('Showing the newest {n} of {m} papers'), {
-                n: facets.truncated.shown,
-                m: facets.truncated.total,
+                n: formatNumber(facets.truncated.shown, lang),
+                m: formatNumber(facets.truncated.total, lang),
               })}
             </p>
           )}
@@ -547,13 +548,16 @@ function OptionButton({
  */
 function ScreeningHint({ n, onShow }: { n: number; onShow: () => void }) {
   const t = useT()
+  const { lang } = useLanguage()
   return (
     <button
       type="button"
       onClick={onShow}
       className="text-left font-medium text-blue-700 hover:underline dark:text-blue-300"
     >
-      {fmt(t('{n} more matches in other screening states — show them'), { n })}
+      {fmt(t('{n} more matches in other screening states — show them'), {
+        n: formatNumber(n, lang),
+      })}
     </button>
   )
 }
@@ -569,6 +573,7 @@ function SearchField({
   resultCount: number
 }) {
   const t = useT()
+  const { lang } = useLanguage()
   const ref = useRef<HTMLInputElement>(null)
 
   return (
@@ -592,7 +597,7 @@ function SearchField({
       {value !== '' && (
         <>
           <span className="shrink-0 font-mono text-xs text-zinc-400 tabular-nums">
-            {fmt(t('{n} hits'), { n: resultCount })}
+            {fmt(t('{n} hits'), { n: formatNumber(resultCount, lang) })}
           </span>
           <button
             type="button"

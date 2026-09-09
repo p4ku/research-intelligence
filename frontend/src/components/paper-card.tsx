@@ -1,8 +1,9 @@
 'use client'
 
 import { useFeatures } from '@/lib/features-client'
-import { formatDate } from '@/lib/i18n'
+import { formatDate, formatNumber } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
+import { dimensionLabel } from '@/lib/papers/dimension-label'
 import { paperHref } from '@/lib/papers/href'
 import { trlDimension } from '@/lib/papers/select'
 import type { ScoredPaper } from '@/lib/papers/types'
@@ -128,7 +129,7 @@ export function PaperCard({
           <StarButton kind="paper" id={paper.id} className="absolute top-2.5 right-2.5" />
         ) : undefined
       }
-      score={<SignalScore score={paper.signal_score} />}
+      score={<SignalScore score={paper.signal_score} lang={lang} />}
       meta={
         <>
           {domain && (
@@ -150,7 +151,13 @@ export function PaperCard({
         <>
           {trl?.value !== null && trl?.value !== undefined && <TrlBadge trl={trl.value} t={t} />}
           {stats.map((d) => (
-            <ScoreStat key={d.key} label={d.name} value={d.raw ?? String(d.value)} />
+            <ScoreStat
+              key={d.key}
+              label={dimensionLabel(d.name, t)}
+              // `raw` is the model's own words and stays as written; a bare
+              // number is ours to format, so it reads "88,5" in German.
+              value={d.raw ?? formatNumber(d.value!, lang, undefined, 2)}
+            />
           ))}
           {paper.signal_score === null && <span className="text-zinc-400">{t('Unscored')}</span>}
           {lead && (

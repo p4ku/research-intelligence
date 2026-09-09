@@ -15,7 +15,8 @@ export class SidebarNav extends BasePage {
 
   constructor(page: Page, baseURL?: string) {
     super(page, baseURL);
-    this.navDashboard = page.locator("a[href='/dashboard'], nav a:has-text('Today'), nav a:has-text('Heute'), aside a[href='/dashboard']").first();
+    // The German nav row is "Start" (it stopped being "Heute" on 9 Sep 2026).
+    this.navDashboard = page.locator("a[href='/dashboard'], nav a:has-text('Home'), nav a:has-text('Start'), aside a[href='/dashboard']").first();
     this.navBriefing = page.locator("a[href='/briefing'], nav a:has-text('Briefings'), aside a[href='/briefing']").first();
     this.navPapers = page.locator("a[href='/papers'], nav a:has-text('Papers'), aside a[href='/papers']").first();
     this.navTuning = page.locator("a[href='/tuning'], nav a:has-text('Tuning'), aside a[href='/tuning']").first();
@@ -34,7 +35,7 @@ export class SidebarNav extends BasePage {
     const targetLower = target.toLowerCase().trim();
     const currentUrl = this.page.url();
 
-    if (['dashboard', 'today', 'heute', '/dashboard'].includes(targetLower)) {
+    if (['dashboard', 'home', 'today', 'heute', 'start', '/dashboard'].includes(targetLower)) {
       if (!currentUrl.includes('/dashboard')) {
         try {
           if (await this.navDashboard.isVisible({ timeout: 3000 })) {

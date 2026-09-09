@@ -1,6 +1,6 @@
 import { Bone } from '@/components/skeleton'
 import { ALL_ON, type Features } from '@/lib/features'
-import { fmt, type T } from '@/lib/i18n'
+import { fmt, formatNumber, type Lang, type T } from '@/lib/i18n'
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import Link from 'next/link'
@@ -132,11 +132,13 @@ function Arrow({ href, dir, label }: { href: string | null; dir: 'prev' | 'next'
 export function PaperNav({
   neighbours,
   t,
+  lang = 'en',
   features = ALL_ON,
   back,
 }: {
   neighbours: PaperNeighbours | null
   t: T
+  lang?: Lang
   features?: Features
   /** The briefing the paper was opened from; absent, the list is the exit. */
   back?: PaperExit
@@ -153,7 +155,14 @@ export function PaperNav({
         </Link>
       }
       prev={<Arrow href={n?.prev ?? null} dir="prev" label={t('Previous paper')} />}
-      position={n ? fmt(t('{n} of {total}'), { n: n.position, total: n.total }) : '—'}
+      position={
+        n
+          ? fmt(t('{n} of {total}'), {
+              n: formatNumber(n.position, lang),
+              total: formatNumber(n.total, lang),
+            })
+          : '—'
+      }
       next={<Arrow href={n?.next ?? null} dir="next" label={t('Next paper')} />}
     />
   )

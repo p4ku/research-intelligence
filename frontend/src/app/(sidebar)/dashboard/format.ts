@@ -1,4 +1,4 @@
-import { fmt, type Lang, type T } from '@/lib/i18n'
+import { fmt, formatNumber, localeOf, type Lang, type T } from '@/lib/i18n'
 
 /**
  * Home's date words. Calendar days are rendered in UTC so the day never
@@ -7,15 +7,13 @@ import { fmt, type Lang, type T } from '@/lib/i18n'
  * runs page does it. Pure, unit-tested.
  */
 
-const locale = (lang: Lang) => (lang === 'de' ? 'de-DE' : 'en-GB')
-
 /** Noon UTC on the day, so no zone arithmetic can move it. */
 function noon(iso: string): Date {
   return new Date(`${iso.slice(0, 10)}T12:00:00Z`)
 }
 
 function dayPart(iso: string, lang: Lang, opts: Intl.DateTimeFormatOptions): string {
-  const s = noon(iso).toLocaleDateString(locale(lang), { timeZone: 'UTC', ...opts })
+  const s = noon(iso).toLocaleDateString(localeOf(lang), { timeZone: 'UTC', ...opts })
   // en-GB spells "Sept"; the spec writes "Sep". German's "Sept." is correct.
   return lang === 'de' ? s : s.replace('Sept', 'Sep')
 }
@@ -43,9 +41,9 @@ export function formatPeriod(from: string, to: string, lang: Lang): string {
   return `${fromLabel}–${formatDay(to, lang)}`
 }
 
-/** "07:12" — the UTC clock time of an instant. */
-export function formatClock(iso: string): string {
-  return new Date(iso).toLocaleTimeString('en-GB', {
+/** "07:12" — the UTC clock time of an instant, in the reader's locale. */
+export function formatClock(iso: string, lang: Lang = 'en'): string {
+  return new Date(iso).toLocaleTimeString(localeOf(lang), {
     timeZone: 'UTC',
     hour: '2-digit',
     minute: '2-digit',
@@ -58,8 +56,8 @@ export function formatClock(iso: string): string {
  * apart, in the ledgers' Generated cell and the edition page's notice.
  * Labelled, the way the runs page and Home's "started" cell do it.
  */
-export function clockStamp(iso: string): string {
-  return `${formatClock(iso)} UTC`
+export function clockStamp(iso: string, lang: Lang = 'en'): string {
+  return `${formatClock(iso, lang)} UTC`
 }
 
 /**
@@ -82,7 +80,10 @@ export function periodLabel(
     return formatPeriod(run.period_start, run.period_end, lang)
   if (run.period_start) return fmt(t('From {date}'), { date: formatDay(run.period_start, lang) })
   if (run.period_end) return fmt(t('Until {date}'), { date: formatDay(run.period_end, lang) })
-  if (run.lookback_days) return fmt(t('Last {n} days'), { n: run.lookback_days })
+  // "Letzte 1 Tage" is not a sentence: one day gets its own key.
+  if (run.lookback_days === 1) return t('Last day')
+  if (run.lookback_days)
+    return fmt(t('Last {n} days'), { n: formatNumber(run.lookback_days, lang) })
   return formatDay(run.run_date, lang)
 }
 

@@ -93,7 +93,10 @@ describe('ScoreRail Component Rendering', () => {
   test('renders dimension bars linking to definition anchors', () => {
     const paper = mockPaper()
     const out = renderToStaticMarkup(<ScoreRail paper={paper} t={t} />)
-    expect(out).toContain('Fit Score')
+    // "Fit Score" is one of the names dimensionLabel maps, so the bar prints
+    // the product's own spelling ("Fit-Score" in German) rather than the
+    // backend's casing — the same reading the assessment heading gives it.
+    expect(out).toContain('Fit score')
     expect(out).toContain('TRL')
     expect(out).toContain('Novelty Score')
     expect(out).toContain('href="#dimension-fit_score"')

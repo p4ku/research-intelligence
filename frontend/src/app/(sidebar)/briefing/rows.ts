@@ -121,10 +121,11 @@ export function stampFor(
   e: Pick<Edition, 'workspace_id' | 'date' | 'generated_at'>,
   run: Pick<PipelineRun, 'completed_at' | 'started_at'> | null | undefined,
   perDay: ReadonlyMap<string, number>,
+  lang: Lang = 'en',
 ): string | null {
   if ((perDay.get(briefingDay(e, run)) ?? 0) < 2) return null
   const at = briefingClock(e, run)
-  return at ? clockStamp(at) : null
+  return at ? clockStamp(at, lang) : null
 }
 
 /**
@@ -193,7 +194,7 @@ export function composeRows({
       current: e.run_id === currentId,
       period: run ? periodLabel(run, t, lang) : formatDay(e.date, lang),
       generated: formatDay(briefingDate(e, run), lang),
-      stamp: stampFor(e, run, perDay),
+      stamp: stampFor(e, run, perDay, lang),
       screened,
       included,
       brief: {

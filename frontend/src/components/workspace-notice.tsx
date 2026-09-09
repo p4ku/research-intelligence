@@ -9,16 +9,9 @@ import { ExclamationTriangleIcon } from '@heroicons/react/16/solid'
  *  - `none`: the user belongs to no workspace — an account fact, membership copy.
  *  - `unavailable`: the workspace list could not be fetched — an outage,
  *    named as such, with a Retry. Never the membership copy.
- * English-only pages pass `english` (operator copy, untranslated by decision).
  */
-export async function WorkspaceNotice({
-  kind,
-  english = false,
-}: {
-  kind: 'none' | 'unavailable'
-  english?: boolean
-}) {
-  const t = english ? (s: string) => s : await getT()
+export async function WorkspaceNotice({ kind }: { kind: 'none' | 'unavailable' }) {
+  const t = await getT()
 
   if (kind === 'none') {
     return (

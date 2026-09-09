@@ -1,29 +1,29 @@
 // Core area: Papers list, filters, and paper detail page
 export const dict: Record<string, string> = {
   // Papers list page
-  Corpus: 'Korpus',
+  Corpus: 'Bestand',
   Papers: 'Papers',
 
   // Result count and filter context
   paper: 'Paper',
   papers: 'Papers',
   'last {n} days': 'letzte {n} Tage',
-  'full corpus': 'gesamter Korpus',
+  'full corpus': 'gesamter Bestand',
   'Showing the newest {n} of {m} papers': 'Die neuesten {n} von {m} Papers',
   'Could not load these papers.': 'Diese Papers konnten nicht geladen werden.',
   'matching “{q}”': 'passend zu „{q}“',
   'Reset filters': 'Filter zurücksetzen',
-  'No papers match these filters.': 'Keine Papers entsprechen diesen Filtern.',
+  'No papers match these filters.': 'Keine Papers passen zu diesen Filtern.',
 
   // Filter sidebar
   Search: 'Suche',
   'Search papers': 'Papers durchsuchen',
   '{n} hits': '{n} Treffer',
   'Clear search': 'Suche zurücksetzen',
-  'Sort by': 'Sortieren nach',
+  'Sort by': 'Sortierung',
   'TRL window': 'TRL-Fenster',
-  'Minimum TRL': 'Minimales TRL',
-  'Maximum TRL': 'Maximales TRL',
+  'Minimum TRL': 'TRL min.',
+  'Maximum TRL': 'TRL max.',
   to: 'bis',
   '1–3 research': '1–3 Forschung',
   '4–6 development': '4–6 Entwicklung',
@@ -34,7 +34,7 @@ export const dict: Record<string, string> = {
   Relevance: 'Relevanz',
   'Most recent': 'Neueste zuerst',
   '{n} more matches in other screening states — show them':
-    '{n} weitere Treffer in anderen Screening-Status — anzeigen',
+    '{n} weitere Treffer in anderen Screening-Stufen – anzeigen',
   'Search titles, abstracts, authors, arXiv ids…':
     'Titel, Abstracts, Autoren, arXiv-IDs durchsuchen…',
 
@@ -48,14 +48,14 @@ export const dict: Record<string, string> = {
   Pending: 'Ausstehend',
   Rejected: 'Abgelehnt',
   Withdrawn: 'Zurückgezogen',
-  'All statuses': 'Alle Status',
-  'through screening': 'durch das Screening',
-  Ingested: 'Aufgenommen',
+  'All statuses': 'Alle Stufen',
+  'through screening': 'Screening bestanden',
+  Ingested: 'Erfasst',
   Unscored: 'Nicht bewertet',
 
   // Domain scope and empty states
-  'All domains': 'Alle Domänen',
-  Domain: 'Domäne',
+  'All domains': 'Alle Themenfelder',
+  Domain: 'Themenfeld',
   'No papers yet.': 'Noch keine Papers.',
   'Something went wrong loading papers.': 'Beim Laden der Papers ist ein Fehler aufgetreten.',
   Retry: 'Erneut versuchen',
@@ -81,7 +81,7 @@ export const dict: Record<string, string> = {
   Profile: 'Profil',
   Dimensions: 'Dimensionen',
   'Scored by the domain’s extraction definitions, with the model’s rationale where it gave one.':
-    'Bewertet nach den Extraktionsdefinitionen der Domäne, mit Begründung des Modells, wo vorhanden.',
+    'Bewertet nach den Extraktionsdefinitionen des Themenfelds, mit Begründung des Modells, wo vorhanden.',
   Formula: 'Formel',
   Variables: 'Variablen',
   'Formula error': 'Formelfehler',
@@ -93,23 +93,23 @@ export const dict: Record<string, string> = {
   No: 'Nein',
   // Signal ledger
   'What the score is made of — and what would move it.':
-    'Woraus sich der Score zusammensetzt — und was ihn verändern würde.',
+    'Woraus sich der Score zusammensetzt – und was ihn verändern würde.',
   'Fit score': 'Fit-Score',
   'Novelty score': 'Neuheits-Score',
   'TRL level': 'TRL-Stufe',
   'as scored': 'wie bewertet',
-  'Reset to actual {n}': 'Zurück auf tatsächlich {n}',
+  'Reset to actual {n}': 'Zurück auf den Istwert {n}',
   'TRL {n}+ bonus': 'Bonus ab TRL {n}',
   'Below TRL {n} the score is 0, whatever the fit and novelty.':
     'Unter TRL {n} ist der Score 0, unabhängig von Fit und Neuheit.',
   gate: 'Schwelle',
-  actual: 'tatsächlich',
+  actual: 'Istwert',
   'Not scored yet': 'Noch nicht bewertet',
   'Composite score from the domain’s signal-score formula.':
-    'Gesamtscore aus der Signal-Score-Formel der Domäne.',
+    'Gesamt-Score aus der Signal-Score-Formel des Themenfelds.',
   Evidence: 'Belege',
   Confidence: 'Konfidenz',
-  'Needs review': 'Prüfung nötig',
+  'Needs review': 'Prüfung erforderlich',
   'No screening notes.': 'Keine Screening-Notizen.',
   Files: 'Dateien',
   'Open on arXiv': 'Auf arXiv öffnen',
@@ -137,14 +137,48 @@ export const dict: Record<string, string> = {
   Run: 'Lauf',
   'Ask a question about this paper…': 'Eine Frage zu diesem Paper stellen…',
 
+  // Provenance and masthead dates: the date is inside the phrase, so the
+  // components interpolate rather than concatenate ("Erfasst am 3. Juli 2026").
+  'Ingested {date}': 'Erfasst am {date}',
+  'Published {date}': 'Veröffentlicht am {date}',
+
+  /*
+   * Display names for the dimensions the product itself scores, under the
+   * 'dimension' context (lib/papers/dimension-label.ts). Every other
+   * definition name is the domain's own and stays as the backend wrote it.
+   * "Signifikanz" is a false friend for Significance — the reading here is
+   * "how much it matters", which is Bedeutung.
+   */
+  'dimension|Rigour': 'Methodik',
+  'dimension|Novelty': 'Neuheit',
+  'dimension|Significance': 'Bedeutung',
+  'dimension|Readiness': 'Reifegrad',
+  'dimension|Schwarz Fit': 'Schwarz-Fit',
+  'dimension|Research Quality': 'Forschungsqualität',
+  // Two names the frontend supplies itself, so they are ours to translate.
+  'Technology being Assessed': 'Bewertete Technologie',
+  Extraction: 'Extraktion',
+  'Sub-score: {n}': 'Teilscore: {n}',
+
+  // Risk & affiliation card (affiliation-flags.tsx). The verdicts are the
+  // frontend's own wording, not backend prose.
+  'Artifact Repository': 'Artefakt-Repository',
+  'View codebase or artifact': 'Code oder Artefakt ansehen',
+  'Email {contact}': 'E-Mail an {contact}',
+  'Funding: ': 'Förderung: ',
+  'Risk Score:': 'Risiko-Score:',
+  YES: 'JA',
+  NO: 'NEIN',
+  None: 'Keine',
+
   // Paper analysis (definition-shaped assessment)
   Published: 'Veröffentlicht',
   'Abstract stage': 'Abstract-Stufe',
   'Full text': 'Volltext',
   'Benchmark Control': 'Benchmark-Kontrolle',
   'Scoring formula': 'Bewertungsformel',
-  'Rule verified': 'Regelbasiert verifiziert',
-  'Human verified': 'Menschlich verifiziert',
+  'Rule verified': 'Regelbasiert geprüft',
+  'Human verified': 'Von Menschen geprüft',
 
   // Ask-this-paper rail
   'Ask this paper': 'Paper befragen',
@@ -153,11 +187,13 @@ export const dict: Record<string, string> = {
   'Questions here are answered from this paper alone.':
     'Fragen hier werden allein aus diesem Paper beantwortet.',
   'Ask a question about this paper': 'Eine Frage zu diesem Paper stellen',
+  // The chat sheet's dismiss button.
+  Close: 'Schließen',
   'Ask about this paper…': 'Zu diesem Paper fragen…',
   'Answered from this paper alone.': 'Wird allein aus diesem Paper beantwortet.',
   'What would you like to know?': 'Was möchten Sie wissen?',
   Send: 'Senden',
   'Loading the paper': 'Das Paper wird geladen',
   "I couldn't ground an answer to that in this paper's text — try asking about what it enables, how solid the evidence is, or where it could apply.":
-    'Dazu ließ sich im Text dieses Papers keine belegte Antwort finden — fragen Sie etwa, was es ermöglicht, wie belastbar die Evidenz ist oder wo es einsetzbar wäre.',
+    'Dazu ließ sich im Text dieses Papers keine belegte Antwort finden – fragen Sie etwa, was es ermöglicht, wie belastbar die Belege sind oder wo es einsetzbar wäre.',
 }

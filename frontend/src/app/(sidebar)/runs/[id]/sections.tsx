@@ -3,6 +3,7 @@ import { componentRuns as componentRunsService } from '@/lib/bff/component-runs/
 import { forPage } from '@/lib/bff/core/page'
 import { ProblemError } from '@/lib/bff/core/problem'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
+import { fmt, formatNumber, formatPercent, type Lang, type T } from '@/lib/i18n'
 import { notFound } from 'next/navigation'
 import { formatUsd, RunStatus, shortId } from '../run-presentation'
 import { RunFacts } from './run-facts'
@@ -34,44 +35,61 @@ function getSteps(id: string) {
 }
 
 /** Header, funnel band and the facts card — everything the run record alone gives. */
-export async function RunHead({ id }: { id: string }) {
+export async function RunHead({ id, t, lang }: { id: string; t: T; lang: Lang }) {
   const run = await forPage(getRun(id))
 
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow={run.workspace_name}
-        title={`Run ${shortId(run.id)}`}
+        title={fmt(t('Run {id}'), { id: shortId(run.id) })}
         description={run.status_message ?? undefined}
-        actions={<RunStatus run={run} />}
+        actions={<RunStatus run={run} t={t} />}
       />
 
       <StatBand
         flow
         items={[
-          { label: 'Fetched', value: run.total_papers_fetched, sub: 'from the sources' },
           {
-            label: 'Passed screening',
-            value: run.total_papers_passed_screening,
+            label: t('Fetched'),
+            value: formatNumber(run.total_papers_fetched, lang),
+            sub: t('from the sources'),
+          },
+          {
+            label: t('Passed screening'),
+            value: formatNumber(run.total_papers_passed_screening, lang),
             sub:
               run.total_papers_fetched > 0
-                ? `${Math.round((run.total_papers_passed_screening / run.total_papers_fetched) * 100)}% of fetched`
+                ? fmt(t('{share} of fetched'), {
+                    share: formatPercent(
+                      (run.total_papers_passed_screening / run.total_papers_fetched) * 100,
+                      lang,
+                    ),
+                  })
                 : undefined,
           },
-          { label: 'Papers stored', value: run.papers_count, sub: 'rows in this run' },
-          { label: 'Extractions', value: run.extractions_count, sub: 'parameter values' },
+          {
+            label: t('Papers stored'),
+            value: formatNumber(run.papers_count, lang),
+            sub: t('rows in this run'),
+          },
+          {
+            label: t('Extractions'),
+            value: formatNumber(run.extractions_count, lang),
+            sub: t('parameter values'),
+          },
         ]}
       />
 
       <Card>
-        <RunFacts run={run} />
+        <RunFacts run={run} t={t} lang={lang} />
       </Card>
     </div>
   )
 }
 
 /** The failed-steps notice and the timeline — everything that needs the step list. */
-export async function Steps({ id }: { id: string }) {
+export async function Steps({ id, t, lang }: { id: string; t: T; lang: Lang }) {
   const [run, steps] = await forPage(Promise.all([getRun(id), getSteps(id)]))
 
   const failedSteps = steps.filter((step) => step.status === 'failed' || step.status === 'aborted')
@@ -85,24 +103,37 @@ export async function Steps({ id }: { id: string }) {
       {failedSteps.length > 0 && (
         <div className="rounded-sm border border-red-300/60 bg-red-50 p-4 dark:border-red-400/25 dark:bg-red-500/10">
           <p className="text-sm font-medium text-red-900 dark:text-red-200">
-            {failedSteps.length} step{failedSteps.length === 1 ? '' : 's'} did not succeed:{' '}
-            {failedSteps.map((step) => step.label).join(', ')}.
+            {fmt(
+              failedSteps.length === 1
+                ? t('{n} step did not succeed: {steps}.')
+                : t('{n} steps did not succeed: {steps}.'),
+              {
+                n: formatNumber(failedSteps.length, lang),
+                // Step titles are frontend copy (component-runs/normalise.ts),
+                // so the list reads in the UI language, like the timeline.
+                steps: failedSteps.map((step) => t(step.label)).join(', '),
+              },
+            )}
           </p>
         </div>
       )}
 
       <section className="space-y-4">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <SectionLabel>Steps</SectionLabel>
+          <SectionLabel>{t('Steps')}</SectionLabel>
           {steps.length > 0 && (
             <p className="text-xs text-zinc-500 dark:text-zinc-400">
-              {steps.length} step{steps.length === 1 ? '' : 's'} · {formatUsd(stepSpend)} attributed
+              {fmt(steps.length === 1 ? t('{n} step') : t('{n} steps'), {
+                n: formatNumber(steps.length, lang),
+              })}
+              {' · '}
+              {fmt(t('{usd} attributed'), { usd: formatUsd(stepSpend, lang) })}
               {/* A gap here means spend the engine booked on the run but not on
                   any step — worth seeing rather than silently absorbing. */}
               {Math.abs(unattributed) >= 0.0001 && (
                 <span className="text-amber-700 dark:text-amber-400">
                   {' · '}
-                  {formatUsd(unattributed)} unattributed
+                  {fmt(t('{usd} unattributed'), { usd: formatUsd(unattributed, lang) })}
                 </span>
               )}
             </p>
@@ -112,12 +143,12 @@ export async function Steps({ id }: { id: string }) {
         {steps.length === 0 ? (
           <Card>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              No steps recorded for this run.
+              {t('No steps recorded for this run.')}
             </p>
           </Card>
         ) : (
           <Card className="py-1">
-            <StepTimeline steps={steps} />
+            <StepTimeline steps={steps} t={t} lang={lang} />
           </Card>
         )}
       </section>

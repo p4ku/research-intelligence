@@ -6,6 +6,7 @@ import {
   StatBandSkeleton,
 } from '@/components/scanner-ui'
 import { Bone, Skeleton } from '@/components/skeleton'
+import { fmt, type T } from '@/lib/i18n'
 import { shortId } from '../run-presentation'
 import { RunFactsSkeleton } from './run-facts'
 import { StepTimelineSkeleton } from './step-timeline'
@@ -21,18 +22,18 @@ import { StepTimelineSkeleton } from './step-timeline'
  * Header, band and facts. The page knows the id from the URL and passes it so
  * the title is real; loading.tsx does not get params, so there it is a bone.
  */
-export function RunHeadSkeleton({ id }: { id?: string }) {
+export function RunHeadSkeleton({ id, t }: { id?: string; t: T }) {
   return (
-    <Skeleton.Region status="Loading the run">
+    <Skeleton.Region status={t('Loading the run')}>
       <div className="space-y-8">
         <PageHeader
           eyebrow={<Bone.Text widths={['14ch']} />}
           title={
             id ? (
-              `Run ${shortId(id)}`
+              fmt(t('Run {id}'), { id: shortId(id) })
             ) : (
               <>
-                Run <Bone.Number digits={8} />
+                {t('Run')} <Bone.Number digits={8} />
               </>
             )
           }
@@ -42,29 +43,30 @@ export function RunHeadSkeleton({ id }: { id?: string }) {
         <StatBandSkeleton
           flow
           count={4}
-          labels={['Fetched', 'Passed screening', 'Papers stored', 'Extractions']}
-          subs={['from the sources', undefined, 'rows in this run', 'parameter values']}
+          labels={[t('Fetched'), t('Passed screening'), t('Papers stored'), t('Extractions')]}
+          subs={[t('from the sources'), undefined, t('rows in this run'), t('parameter values')]}
           digits={2}
         />
         <Card>
-          <RunFactsSkeleton />
+          <RunFactsSkeleton t={t} />
         </Card>
       </div>
     </Skeleton.Region>
   )
 }
 
-export function StepsSkeleton() {
+export function StepsSkeleton({ t }: { t: T }) {
   return (
-    <Skeleton.Region status="Loading the steps">
+    <Skeleton.Region status={t('Loading the steps')}>
       <section className="space-y-4">
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <SectionLabel>Steps</SectionLabel>
+          <SectionLabel>{t('Steps')}</SectionLabel>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
             <Bone.Text widths={['24ch']} />
           </p>
         </div>
         <Card className="py-1">
+          {/* No copy of its own: every bone row is shape, not words. */}
           <StepTimelineSkeleton />
         </Card>
       </section>
@@ -73,17 +75,18 @@ export function StepsSkeleton() {
 }
 
 /** The loading.tsx shell: real crumbs where known, skeleton sections. */
-export function RunPageSkeleton({ id }: { id?: string }) {
+export function RunPageSkeleton({ id, t }: { id?: string; t: T }) {
   return (
     <div className="space-y-8">
       <Breadcrumbs
+        t={t}
         items={[
-          { label: 'Runs', href: '/runs' },
+          { label: t('Runs'), href: '/runs' },
           { label: id ? shortId(id) : <Bone.Text widths={['8ch']} /> },
         ]}
       />
-      <RunHeadSkeleton id={id} />
-      <StepsSkeleton />
+      <RunHeadSkeleton id={id} t={t} />
+      <StepsSkeleton t={t} />
     </div>
   )
 }

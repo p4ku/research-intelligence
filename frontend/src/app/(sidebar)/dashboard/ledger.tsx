@@ -9,8 +9,8 @@ import type { StartRun } from '@/lib/bff/pipeline-runs/schema'
 import { errorsFromSubmit } from '@/lib/bff/problem-copy'
 import { ALL_ON, type Features } from '@/lib/features'
 import { useFeatures } from '@/lib/features-client'
-import { fmt } from '@/lib/i18n'
-import { useT } from '@/lib/i18n-client'
+import { fmt, formatNumber } from '@/lib/i18n'
+import { useLanguage, useT } from '@/lib/i18n-client'
 import clsx from 'clsx'
 import { ChevronRightIcon } from 'lucide-react'
 import { useRouter } from 'next/navigation'
@@ -116,7 +116,7 @@ function LedgerFrame({
   const t = useT()
   const labels: Record<(typeof COLUMNS)[number], ReactNode> = {
     expand: <LeadHeading>{t('Show brief')}</LeadHeading>,
-    star: <LeadHeading>{t('Star')}</LeadHeading>,
+    star: <LeadHeading>{t('Star', 'column')}</LeadHeading>,
     domain: t('Domain'),
     period: t('Period'),
     generated: t('Generated'),
@@ -258,6 +258,7 @@ export function LeadHeading({ children }: { children: ReactNode }) {
  */
 export function BriefPanel({ brief }: { brief: HomeBrief }) {
   const t = useT()
+  const { lang } = useLanguage()
   return (
     <div
       className={clsx(
@@ -270,8 +271,8 @@ export function BriefPanel({ brief }: { brief: HomeBrief }) {
       <div className={clsx(brief.top.length > 0 && 'lg:col-span-3')}>
         <p className="font-mono text-[11px] text-zinc-500 tabular-nums dark:text-zinc-400">
           {fmt(t('{screened} screened → {included} included'), {
-            screened: brief.screened,
-            included: brief.included,
+            screened: formatNumber(brief.screened, lang),
+            included: formatNumber(brief.included, lang),
           })}
         </p>
         <AnswerMarkdown
@@ -284,7 +285,7 @@ export function BriefPanel({ brief }: { brief: HomeBrief }) {
       </div>
       {brief.top.length > 0 && (
         <div className="lg:col-span-2">
-          <TopPapers papers={brief.top} dense />
+          <TopPapers papers={brief.top} dense lang={lang} />
         </div>
       )}
     </div>
@@ -309,6 +310,7 @@ function Row({
   stars: boolean
 }) {
   const t = useT()
+  const { lang } = useLanguage()
   const panelId = `briefing-${row.id}`
   const current = row.status === 'current'
   const { brief } = row
@@ -364,7 +366,11 @@ function Row({
           )}
         </TableCell>
         <TableCell className={COL.papers.cell}>
-          {row.papers ?? <span className="text-zinc-400">—</span>}
+          {row.papers === null ? (
+            <span className="text-zinc-400">—</span>
+          ) : (
+            formatNumber(row.papers, lang)
+          )}
         </TableCell>
         <TableCell className={COL.status.cell}>
           <span className="flex items-center justify-end gap-3">

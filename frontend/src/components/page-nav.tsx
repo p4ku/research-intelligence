@@ -1,3 +1,6 @@
+'use client'
+
+import { useT } from '@/lib/i18n-client'
 import { ArrowLongLeftIcon, ArrowLongRightIcon } from '@heroicons/react/20/solid'
 import clsx from 'clsx'
 
@@ -40,13 +43,14 @@ export function PageNav({
   labels?: { prev: string; next: string }
   className?: string
 }) {
+  const t = useT()
   if (pageCount <= 1) return null
   const prev = labels?.prev ?? 'Previous'
   const next = labels?.next ?? 'Next'
 
   return (
     <nav
-      aria-label="Pagination"
+      aria-label={t('Pagination')}
       className={clsx('flex items-center justify-between border-t border-line-soft', className)}
     >
       <div className="-mt-px flex w-0 flex-1">

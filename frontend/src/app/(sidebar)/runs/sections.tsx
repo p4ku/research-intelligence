@@ -1,6 +1,7 @@
 import { Card, StatBand } from '@/components/scanner-ui'
 import { forPage } from '@/lib/bff/core/page'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
+import { fmt, formatNumber, formatPercent, type Lang, type T } from '@/lib/i18n'
 import { formatUsd } from './run-presentation'
 import { matches, RunTabs, type Tab } from './run-tabs'
 import { RunsTable } from './runs-table'
@@ -11,7 +12,7 @@ import { RunsTable } from './runs-table'
  * boundary; they cannot arrive separately. Returns a single root so the page
  * can wrap it in a <ViewTransition> with its skeleton.
  */
-export async function RunsSection({ tab }: { tab: Tab }) {
+export async function RunsSection({ tab, t, lang }: { tab: Tab; t: T; lang: Lang }) {
   // The service lists by the run clock (completion first); this table's
   // leading column is Started, so it reads in start order, newest first.
   const all = (await forPage(runsService.listEverywhere()))
@@ -27,32 +28,43 @@ export async function RunsSection({ tab }: { tab: Tab }) {
     <div className="space-y-8">
       <StatBand
         items={[
-          { label: 'Runs', value: all.length },
-          { label: 'Papers fetched', value: fetched.toLocaleString('en-US') },
+          { label: t('Runs'), value: formatNumber(all.length, lang) },
+          { label: t('Papers fetched'), value: formatNumber(fetched, lang) },
           {
-            label: 'Passed screening',
-            value: passed.toLocaleString('en-US'),
+            label: t('Passed screening'),
+            value: formatNumber(passed, lang),
             sub:
               fetched > 0
-                ? `${Math.round((passed / fetched) * 100)}% of ${fetched.toLocaleString('en-US')} fetched`
+                ? fmt(t('{share} of {n} fetched'), {
+                    share: formatPercent((passed / fetched) * 100, lang),
+                    n: formatNumber(fetched, lang),
+                  })
                 : undefined,
           },
-          { label: 'Total spend', value: formatUsd(spend) },
+          { label: t('Total spend'), value: formatUsd(spend, lang) },
         ]}
       />
 
-      <RunTabs tab={tab} runs={all} />
+      <RunTabs tab={tab} runs={all} t={t} lang={lang} />
 
       {shown.length === 0 ? (
         <Card>
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            {/* Status-neutral: the old line interpolated the raw `?status=`
+                enum into an English sentence, which no dictionary can carry.
+                The filter is already named in the strip above. */}
             {all.length === 0
-              ? 'No pipeline runs yet.'
-              : `No ${tab} runs. ${all.length} run${all.length === 1 ? '' : 's'} in total.`}
+              ? t('No pipeline runs yet.')
+              : fmt(
+                  all.length === 1
+                    ? t('No runs match this filter. {n} run in total.')
+                    : t('No runs match this filter. {n} runs in total.'),
+                  { n: formatNumber(all.length, lang) },
+                )}
           </p>
         </Card>
       ) : (
-        <RunsTable runs={shown} />
+        <RunsTable runs={shown} t={t} lang={lang} />
       )}
     </div>
   )

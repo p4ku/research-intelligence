@@ -63,6 +63,17 @@ describe('periodLabel', () => {
     expect(periodLabel({ ...base, lookback_days: 7 }, t, 'en')).toBe('Last 7 days')
     expect(periodLabel(base, t, 'en')).toBe('31 Aug 2026')
   })
+
+  test('a one-day window gets its own sentence, not "Last 1 days"', () => {
+    expect(periodLabel({ ...base, lookback_days: 1 }, t, 'en')).toBe('Last day')
+  })
+
+  test('the window length is a formatted number', () => {
+    // "Letzte 1.000 Tage" — the count goes through formatNumber like every
+    // other figure, so a long window groups its digits in the UI language.
+    expect(periodLabel({ ...base, lookback_days: 1000 }, t, 'en')).toBe('Last 1,000 days')
+    expect(periodLabel({ ...base, lookback_days: 1000 }, t, 'de')).toBe('Last 1.000 days')
+  })
 })
 
 describe('shiftDays', () => {

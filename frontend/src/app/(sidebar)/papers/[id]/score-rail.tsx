@@ -1,7 +1,8 @@
 import { RadarChart } from '@/components/charts'
 import { Card, TrlBadge } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
-import type { T } from '@/lib/i18n'
+import { formatNumber, type Lang, type T } from '@/lib/i18n'
+import { dimensionLabel } from '@/lib/papers/dimension-label'
 import { trlDimension } from '@/lib/papers/select'
 import type { Dimension, ScoredPaper } from '@/lib/papers/types'
 import type { ReactNode } from 'react'
@@ -61,36 +62,47 @@ export function ScoreRailFrame({
   )
 }
 
-/** "Sovereign Cloud & Commercial Viability" → "Sovereign Cloud"; a TRL definition is just "TRL". */
-function shortName(d: Dimension): string {
-  return d.is_trl ? 'TRL' : d.name.split(/ \(| & /)[0]!
+/**
+ * "Sovereign Cloud & Commercial Viability" → "Sovereign Cloud"; a TRL
+ * definition is just "TRL".
+ *
+ * The whole name is offered to the mapper first: a mapped dimension ("Fit
+ * score", "Schwarz Fit") is product vocabulary and keeps the reading the
+ * heading and the assessment give it, whatever punctuation it contains. Only
+ * a name the mapper does not know — a domain's own wording — is shortened,
+ * and then the shortened half goes through the mapper too, so a compound like
+ * "Novelty (weighted)" still reads as the dimension.
+ */
+function shortName(d: Dimension, t: T): string {
+  if (d.is_trl) return 'TRL'
+  const mapped = dimensionLabel(d.name, t)
+  if (mapped !== d.name) return mapped
+  return dimensionLabel(d.name.split(/ \(| & /)[0]!, t)
 }
 
-function shownNumber(value: number | null): string {
-  return value === null
-    ? '—'
-    : Number.isInteger(value)
-      ? String(value)
-      : (Math.round(value * 100) / 100).toString()
+/** Integers plain, otherwise at most two decimals — the reading the assessment uses too. */
+function shownNumber(value: number | null, lang: Lang): string {
+  return value === null ? '—' : formatNumber(value, lang, undefined, 2)
 }
 
 /** The radar's axes: the scaled dimensions, each printing the figure its bar shows, not a percentage. */
-function radarAxes(dimensions: Dimension[]) {
+function radarAxes(dimensions: Dimension[], t: T, lang: Lang) {
   return dimensions
     .filter((d) => d.value !== null && d.max !== null && d.max > 0)
     .map((d) => ({
-      label: shortName(d),
+      label: shortName(d, t),
       value: Math.max(0, Math.min(100, (d.value! / d.max!) * 100)),
-      shown: shownNumber(d.value),
+      shown: shownNumber(d.value, lang),
     }))
 }
 
-function railBar(d: Dimension): RailBar {
+function railBar(d: Dimension, t: T, lang: Lang): RailBar {
   const hasBar = d.value !== null && d.max !== null && d.max > 0
-  const shown = d.value !== null ? shownNumber(d.value) : d.raw && d.raw !== '—' ? d.raw : null
+  const shown =
+    d.value !== null ? shownNumber(d.value, lang) : d.raw && d.raw !== '—' ? d.raw : null
   return {
     key: d.key + (d.extraction_id ?? ''),
-    label: shortName(d),
+    label: shortName(d, t),
     anchor: definitionAnchor(d),
     pct: hasBar ? Math.max(0, Math.min(1, d.value! / d.max!)) : null,
     value: (
@@ -104,7 +116,7 @@ function railBar(d: Dimension): RailBar {
   }
 }
 
-export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
+export function ScoreRail({ paper, t, lang = 'en' }: { paper: ScoredPaper; t: T; lang?: Lang }) {
   // Exclude Risk & Affiliation dimensions from the score rail bars
   const visibleDimensions = (paper.dimensions ?? []).filter(
     (d) =>
@@ -113,13 +125,13 @@ export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
       !d.name.toLowerCase().includes('affiliation'),
   )
   const trl = trlDimension(paper)
-  const axes = radarAxes(visibleDimensions)
+  const axes = radarAxes(visibleDimensions, t, lang)
   const score =
     paper.signal_score === null
       ? '—'
       : Number.isInteger(paper.signal_score)
-        ? String(paper.signal_score)
-        : paper.signal_score.toFixed(1)
+        ? formatNumber(paper.signal_score, lang)
+        : formatNumber(paper.signal_score, lang, 1)
   return (
     <ScoreRailFrame
       label={t('Schwarz Score')}
@@ -129,7 +141,7 @@ export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
           <TrlBadge trl={trl.value} t={t} />
         ) : undefined
       }
-      bars={<ScoreBars bars={visibleDimensions.map(railBar)} />}
+      bars={<ScoreBars bars={visibleDimensions.map((d) => railBar(d, t, lang))} />}
       radar={
         axes.length >= 3 && (
           <RadarChart axes={axes} color="var(--accent)" size={RADAR} valueLabels />

@@ -6,13 +6,13 @@ export const dict: Record<string, string> = {
   Assistant: 'Assistent',
   'Ask Research Intelligence': 'Research Intelligence fragen',
   // Tab title. The nav's 'Ask' translates via the 'nav' context in chrome.ts.
-  'Ask the scanner': 'Scanner fragen',
+  'Ask the scanner': 'Research Intelligence fragen',
 
   // ask.tsx — canvas chrome
   'New chat': 'Neuer Chat',
   'Recent chats': 'Letzte Chats',
   'What should we look into?': 'Was sollen wir uns ansehen?',
-  'Ask anything': 'Frag irgendetwas',
+  'Ask anything': 'Stellen Sie Ihre Frage',
   'Remove this paper': 'Dieses Paper entfernen',
 
   // tool-menu.tsx — the composer's "+" menu. Only 'Attach a paper' is wired;
@@ -22,23 +22,24 @@ export const dict: Record<string, string> = {
   "Scope to one paper's full text": 'Auf den Volltext eines Papers eingrenzen',
   'Not yet available': 'Noch nicht verfügbar',
   'Across papers': 'Über alle Papers',
-  'Read the corpus and answer with citations': 'Den Korpus lesen und mit Belegen antworten',
+  'Read the corpus and answer with citations': 'Den Bestand lesen und mit Belegen antworten',
   'Web search': 'Websuche',
-  'Look beyond the scanned corpus': 'Über den gescannten Korpus hinaus suchen',
+  'Look beyond the scanned corpus': 'Über den gescannten Bestand hinaus suchen',
   'Run a scan': 'Einen Scan starten',
-  'Fetch new papers for a domain now': 'Jetzt neue Papers für eine Domäne holen',
+  'Fetch new papers for a domain now': 'Jetzt neue Papers für ein Themenfeld holen',
   'Deep research': 'Tiefenrecherche',
   'Longer, multi-step investigation': 'Längere, mehrstufige Untersuchung',
 
   // scanner-turn.tsx — the question bubble's scope, shown on hover.
-  'Asked {time} · {title} · full text': 'Gefragt {time} · {title} · Volltext',
-  'Asked {time} · all papers': 'Gefragt {time} · alle Papers',
+  // "Gefragt 14:02" reads as a bare label; the clock needs its preposition.
+  'Asked {time} · {title} · full text': 'Gefragt um {time} · {title} · Volltext',
+  'Asked {time} · all papers': 'Gefragt um {time} · alle Papers',
 
   // history-sidecar.tsx
   Recent: 'Zuletzt',
 
   // ask.tsx — console chrome
-  'Ask console': 'Fragen-Konsole',
+  'Ask console': 'Fragen',
   'Find a paper': 'Ein Paper finden',
   'Which paper? Type a title, author, or source…':
     'Welches Paper? Titel, Autor oder Quelle tippen…',
@@ -58,14 +59,14 @@ export const dict: Record<string, string> = {
   // paper-picker.tsx
   Papers: 'Papers',
   'No papers match “{q}” — {n} papers to choose from.':
-    'Keine Papers passen zu „{q}“ — {n} Papers stehen zur Auswahl.',
-  choose: 'wählen',
-  'scope the conversation': 'Gespräch eingrenzen',
+    'Keine Papers passen zu „{q}“ – {n} Papers stehen zur Auswahl.',
+  choose: 'auswählen',
+  'scope the conversation': 'Chat eingrenzen',
   'Top {n} of {total}': 'Top {n} von {total}',
   '{n} of {total}': '{n} von {total}',
   // The corpus arrives after the console paints; a picker opened first shows bones.
   'Loading papers': 'Papers werden geladen',
-  "Couldn't load your papers.": 'Deine Papers konnten nicht geladen werden.',
+  "Couldn't load your papers.": 'Ihre Papers konnten nicht geladen werden.',
   'Try again': 'Erneut versuchen',
   // A reopened thread whose paper title the backend did not keep.
   'Untitled paper': 'Paper ohne Titel',
@@ -74,14 +75,14 @@ export const dict: Record<string, string> = {
   'full text': 'Volltext',
   Today: 'Heute',
   Yesterday: 'Gestern',
-  'Delete conversation': 'Gespräch löschen',
-  'Delete this conversation?': 'Dieses Gespräch löschen?',
+  'Delete conversation': 'Chat löschen',
+  'Delete this conversation?': 'Diesen Chat löschen?',
   '"{title}" and every answer in it will be deleted. This cannot be undone.':
     '„{title}“ und alle darin enthaltenen Antworten werden gelöscht. Dies kann nicht rückgängig gemacht werden.',
   Cancel: 'Abbrechen',
   Delete: 'Löschen',
-  'Deleting…': 'Wird gelöscht …',
-  'Conversation deleted': 'Gespräch gelöscht',
+  'Deleting…': 'Wird gelöscht…',
+  'Conversation deleted': 'Chat gelöscht',
   'Loading recent chats': 'Letzte Chats werden geladen',
   'History may be out of date.': 'Der Verlauf ist möglicherweise nicht aktuell.',
   Refresh: 'Aktualisieren',
@@ -91,18 +92,18 @@ export const dict: Record<string, string> = {
   'Reading “{title}” · full text': '„{title}“ wird gelesen · Volltext',
   // Same value in de/papers.ts — the dictionary test enforces that.
   'Reading the full text…': 'Der Volltext wird gelesen…',
-  'The answer failed.': 'Die Antwort ist fehlgeschlagen.',
+  'The answer failed.': 'Die Antwort konnte nicht erstellt werden.',
   'The answer stopped part-way through.': 'Die Antwort ist mittendrin abgebrochen.',
   'Ask again': 'Erneut fragen',
   'Answer ready': 'Antwort bereit',
-  Stopped: 'Gestoppt',
+  Stopped: 'Abgebrochen',
   'p. {n}': 'S. {n}',
   'Verified in source': 'In der Quelle belegt',
   'Fact check': 'Faktencheck',
   passed: 'bestanden',
   flagged: 'auffällig',
   '{n} of {total} claims grounded': '{n} von {total} Aussagen belegt',
-  '{n} tokens': '{n} Tokens',
+  '{n} tokens': '{n} Token',
   // Follow-up questions offered under the newest answer.
   'What does this actually enable?': 'Was ermöglicht das konkret?',
   'What is the strongest counter-argument?': 'Was ist das stärkste Gegenargument?',
