@@ -177,10 +177,44 @@ describe('Assessment Component Rendering', () => {
       ],
     }
     const out = renderToStaticMarkup(<Assessment dimensions={[trlDim]} t={t} />)
-    expect(out).toContain('Core technology')
+    expect(out).toContain('Technology being Assessed')
     expect(out).toContain('Hardware target')
     expect(out).not.toContain('Confidence')
     expect(out).not.toContain('HIGH')
+  })
+
+  test('renames Core Technology subtitle to Technology being Assessed, removes grey description, and removes extra bottom border', () => {
+    const trlDim: Dimension = {
+      ...fullDimension,
+      key: 'trl_level',
+      name: 'Technology Readiness Level (TRL)',
+      is_trl: true,
+      response_schema: {
+        type: 'object',
+        properties: {
+          core_technology: {
+            type: 'string',
+            title: 'Core technology',
+            description: 'The technology being assessed.',
+          },
+        },
+      },
+      texts: [
+        {
+          key: 'core_technology',
+          name: 'Core technology',
+          value:
+            'Hardware-algorithm co-designed accelerator architecture and algorithmic optimizations for fully homomorphic encryption (FHE)',
+        },
+      ],
+      facets: [],
+      facts: [],
+    }
+    const out = renderToStaticMarkup(<Assessment dimensions={[trlDim]} t={t} />)
+    expect(out).toContain('Technology being Assessed')
+    expect(out).not.toContain('Core technology')
+    expect(out).not.toContain('The technology being assessed.')
+    expect(out).toContain('last:border-b-0')
   })
 
   test('filters out risk and affiliation dimensions from the Assessment article list', () => {

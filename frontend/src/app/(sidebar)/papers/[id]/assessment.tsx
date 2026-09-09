@@ -57,7 +57,11 @@ export function DefinitionFrame({
   children: ReactNode
 }) {
   return (
-    <article id={id} data-row="definition" className="scroll-mt-6 border-b border-line-soft py-6">
+    <article
+      id={id}
+      data-row="definition"
+      className="scroll-mt-6 border-b border-line-soft py-6 last:border-b-0"
+    >
       <header className="flex items-baseline gap-2.5">
         <h3 className="text-[17px] font-semibold tracking-[-0.005em] text-zinc-950 dark:text-white">
           {name}
@@ -358,9 +362,22 @@ function resolveSubMeasures(
   // 1. Process facets first
   for (const f of facets ?? []) {
     const schemaProp = getSchemaProperty(responseSchema, f.key)
-    const displayName = schemaProp?.title || f.name
-    const description = schemaProp?.description || null
+    let displayName = schemaProp?.title || f.name
+    let description = schemaProp?.description || null
     const maxVal = schemaProp?.maximum ?? f.max ?? fallbackMax
+
+    const fKeyNorm = (f.key || '').toLowerCase().replace(/[-_ ]/g, '')
+    const fNameNorm = displayName.toLowerCase().replace(/[-_ ]/g, '')
+    if (fKeyNorm === 'coretechnology' || fNameNorm === 'coretechnology') {
+      displayName = 'Technology being Assessed'
+      description = null
+    } else if (
+      description &&
+      (description.toLowerCase() === 'the technology being assessed.' ||
+        description.toLowerCase() === 'the technology being assessed')
+    ) {
+      description = null
+    }
 
     const norm = subMeasureKey(f.key, f.name)
     if (seenBases.has(norm)) {
@@ -397,8 +414,21 @@ function resolveSubMeasures(
     if (!field.value && !field.band && (!field.evidence || field.evidence.length === 0)) continue
 
     const schemaProp = getSchemaProperty(responseSchema, rawField.key)
-    const displayName = schemaProp?.title || field.name
-    const description = schemaProp?.description || null
+    let displayName = schemaProp?.title || field.name
+    let description = schemaProp?.description || null
+
+    const kNorm = (rawField.key || '').toLowerCase().replace(/[-_ ]/g, '')
+    const dNorm = displayName.toLowerCase().replace(/[-_ ]/g, '')
+    if (kNorm === 'coretechnology' || dNorm === 'coretechnology') {
+      displayName = 'Technology being Assessed'
+      description = null
+    } else if (
+      description &&
+      (description.toLowerCase() === 'the technology being assessed.' ||
+        description.toLowerCase() === 'the technology being assessed')
+    ) {
+      description = null
+    }
 
     const norm = subMeasureKey(rawField.key, field.name)
     if (seenBases.has(norm)) {
@@ -611,15 +641,24 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
 
   const remainingTexts = visibleTexts.filter((field) => !isInsight(field))
 
-  const visibleFacts = (d.facts ?? []).filter((fact) => {
-    const k = fact.key.toLowerCase()
-    const n = fact.name.toLowerCase()
-    if (isTrl && (k.includes('confidence') || n.includes('confidence'))) return false
-    if (k === 'confidence' || n === 'confidence') return false
-    if (isInsight(fact)) return false
-    if (isSubMeasureDuplicate(fact)) return false
-    return true
-  })
+  const visibleFacts = (d.facts ?? [])
+    .filter((fact) => {
+      const k = fact.key.toLowerCase()
+      const n = fact.name.toLowerCase()
+      if (isTrl && (k.includes('confidence') || n.includes('confidence'))) return false
+      if (k === 'confidence' || n === 'confidence') return false
+      if (isInsight(fact)) return false
+      if (isSubMeasureDuplicate(fact)) return false
+      return true
+    })
+    .map((fact) => {
+      const kNorm = (fact.key || '').toLowerCase().replace(/[-_ ]/g, '')
+      const nNorm = fact.name.toLowerCase().replace(/[-_ ]/g, '')
+      if (kNorm === 'coretechnology' || nNorm === 'coretechnology') {
+        return { ...fact, name: 'Technology being Assessed' }
+      }
+      return fact
+    })
 
   return (
     <DefinitionFrame
