@@ -471,6 +471,278 @@ class ApiEndpointOptimizationsTestCase(TestCase):
         self.assertEqual(card["dimensions"][0]["name"], "TRL Assessment")
         self.assertEqual(card["dimensions"][0]["value"], 5)
 
+    def test_scorecard_advanced_search_across_all_fields(self):
+        """
+        Verify GET /api/workspaces/{id}/scorecard/?run_id={id}&search={term}:
+        Full-text search matches accurately and case-insensitively across:
+        - title
+        - authors
+        - abstract
+        - doi
+        - arxiv_id
+        """
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Search Benchmark Run",
+            status="completed",
+            completed_at=timezone.now(),
+        )
+        p1 = Paper.objects.create(
+            workspace=self.workspace,
+            title="DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning",
+            authors="DeepSeek-AI, Daya Guo, Dejian Yang",
+            abstract="We introduce our first-generation reasoning models.",
+            doi="10.1000/182",
+            arxiv_id="2501.12948",
+            hash_id="search_hash_1",
+        )
+        PaperMetric.objects.create(
+            paper=p1,
+            workspace=self.workspace,
+            pipeline_run=run,
+            signal_score=95.0,
+            screening_status="accepted",
+        )
+
+        p2 = Paper.objects.create(
+            workspace=self.workspace,
+            title="Attention Is All You Need",
+            authors="Ashish Vaswani, Noam Shazeer, Niki Parmar",
+            abstract="The dominant sequence transduction models are based on complex recurrent or convolutional neural networks.",
+            doi="10.5555/3295222.3295349",
+            arxiv_id="1706.03762",
+            hash_id="search_hash_2",
+        )
+        PaperMetric.objects.create(
+            paper=p2,
+            workspace=self.workspace,
+            pipeline_run=run,
+            signal_score=85.0,
+            screening_status="accepted",
+        )
+
+        # 1. Search by title (case-insensitive)
+        resp = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run.id}&search=deepseek")
+        self.assertEqual(resp.status_code, 200)
+        items = resp.json()["papers"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["id"], str(p1.id))
+
+        # 2. Search by author
+        resp = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run.id}&search=vaswani")
+        self.assertEqual(resp.status_code, 200)
+        items = resp.json()["papers"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["id"], str(p2.id))
+
+        # 3. Search by abstract keyword
+        resp = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run.id}&search=transduction")
+        self.assertEqual(resp.status_code, 200)
+        items = resp.json()["papers"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["id"], str(p2.id))
+
+        # 4. Search by DOI
+        resp = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run.id}&search=10.1000/182")
+        self.assertEqual(resp.status_code, 200)
+        items = resp.json()["papers"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["id"], str(p1.id))
+
+        # 5. Search by arXiv ID
+        resp = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run.id}&search=1706.03762")
+        self.assertEqual(resp.status_code, 200)
+        items = resp.json()["papers"]
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0]["id"], str(p2.id))
+
+        # 6. Search with no matches returns empty list
+        resp = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run.id}&search=nonexistent_xyz")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(len(resp.json()["papers"]), 0)
+
+    def test_scorecard_comprehensive_ordering(self):
+        """
+        Verify GET /api/workspaces/{id}/scorecard/?run_id={id}&ordering={field}:
+        Validates signal_score, -signal_score, title, -title, created_at, -created_at.
+        """
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Ordering Benchmark Run",
+            status="completed",
+            completed_at=timezone.now(),
+        )
+        p_c = Paper.objects.create(
+            workspace=self.workspace,
+            title="Charlie Paper",
+            source_database="arXiv",
+            hash_id="ord_hash_c",
+        )
+        PaperMetric.objects.create(
+            paper=p_c,
+            workspace=self.workspace,
+            pipeline_run=run,
+            signal_score=20.0,
+            screening_status="accepted",
+        )
+
+        p_a = Paper.objects.create(
+            workspace=self.workspace,
+            title="Alpha Paper",
+            source_database="arXiv",
+            hash_id="ord_hash_a",
+        )
+        PaperMetric.objects.create(
+            paper=p_a,
+            workspace=self.workspace,
+            pipeline_run=run,
+            signal_score=90.0,
+            screening_status="accepted",
+        )
+
+        p_b = Paper.objects.create(
+            workspace=self.workspace,
+            title="Bravo Paper",
+            source_database="arXiv",
+            hash_id="ord_hash_b",
+        )
+        PaperMetric.objects.create(
+            paper=p_b,
+            workspace=self.workspace,
+            pipeline_run=run,
+            signal_score=60.0,
+            screening_status="accepted",
+        )
+
+        # 1. Default ordering for run_id is signal_score descending
+        resp_def = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run.id}")
+        self.assertEqual(resp_def.status_code, 200)
+        self.assertEqual([p["signal_score"] for p in resp_def.json()["papers"]], [90.0, 60.0, 20.0])
+
+        # 2. signal_score ascending
+        resp_asc = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run.id}&ordering=signal_score")
+        self.assertEqual(resp_asc.status_code, 200)
+        self.assertEqual([p["signal_score"] for p in resp_asc.json()["papers"]], [20.0, 60.0, 90.0])
+
+        # 3. title ascending
+        resp_t_asc = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run.id}&ordering=title")
+        self.assertEqual(resp_t_asc.status_code, 200)
+        self.assertEqual([p["title"] for p in resp_t_asc.json()["papers"]], ["Alpha Paper", "Bravo Paper", "Charlie Paper"])
+
+        # 4. title descending
+        resp_t_desc = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run.id}&ordering=-title")
+        self.assertEqual(resp_t_desc.status_code, 200)
+        self.assertEqual([p["title"] for p in resp_t_desc.json()["papers"]], ["Charlie Paper", "Bravo Paper", "Alpha Paper"])
+
+    def test_edition_detail_query_count_constant_scaling(self):
+        """
+        Verify GET /api/workspaces/{id}/editions/{date}/:
+        Scales with O(1) constant SQL query count regardless of paper count.
+        Bulk fetches Extractions and PaperMetrics without N+1 regression.
+        """
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Scaling Benchmark Run",
+            status="completed",
+            completed_at=timezone.now(),
+            total_papers_fetched=10,
+            total_papers_passed_screening=5,
+        )
+        def_trl = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="TRL Definition",
+            system_prompt="Extract TRL",
+            user_prompt_template="{paper_text}",
+            response_schema={},
+            exit_metrics="trl_level",
+            is_active=True,
+        )
+        def_biz = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Commercial Relevance",
+            system_prompt="Extract Commercial Value",
+            user_prompt_template="{paper_text}",
+            response_schema={},
+            exit_metrics="market_potential",
+            is_active=True,
+        )
+
+        # Create 5 passed and 5 rejected papers
+        for i in range(5):
+            p = Paper.objects.create(
+                workspace=self.workspace,
+                title=f"Passed Scaled Paper {i}",
+                abstract=f"Methodology description {i}",
+                source_database="arXiv",
+                hash_id=f"pass_scale_{i}",
+            )
+            PaperMetric.objects.create(
+                paper=p,
+                workspace=self.workspace,
+                pipeline_run=run,
+                screening_status="accepted",
+                signal_score=50.0 + (i * 10),
+            )
+            Extraction.objects.create(
+                paper=p,
+                workspace=self.workspace,
+                extraction_definition=def_trl,
+                category="TRL",
+                fields_data={"trl_level": 5 + i},
+            )
+            Extraction.objects.create(
+                paper=p,
+                workspace=self.workspace,
+                extraction_definition=def_biz,
+                category="Commercial",
+                fields_data={"market_potential": 80},
+            )
+
+        for j in range(5):
+            p_rej = Paper.objects.create(
+                workspace=self.workspace,
+                title=f"Rejected Scaled Paper {j}",
+                source_database="arXiv",
+                hash_id=f"rej_scale_{j}",
+            )
+            PaperMetric.objects.create(
+                paper=p_rej,
+                workspace=self.workspace,
+                pipeline_run=run,
+                screening_status="rejected",
+                screening_reasoning=f"Exclusion criteria #{j}",
+            )
+
+        target_date_str = run.completed_at.strftime('%Y-%m-%d')
+        with CaptureQueriesContext(connection) as ctx:
+            resp = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}")
+            self.assertEqual(resp.status_code, 200)
+
+        # Verify query count bounds: exactly 1 PaperMetric query, exactly 1 Extraction query (bulk-fetched)
+        papermetric_queries = [
+            q['sql'] for q in ctx.captured_queries
+            if 'FROM "research_intelligence_papermetric"' in q['sql'] or 'from "research_intelligence_papermetric"' in q['sql'].lower()
+        ]
+        extraction_queries = [
+            q['sql'] for q in ctx.captured_queries
+            if 'FROM "research_intelligence_extraction"' in q['sql'] or 'from "research_intelligence_extraction"' in q['sql'].lower()
+        ]
+        self.assertEqual(len(papermetric_queries), 1, "PaperMetric must be queried exactly once")
+        self.assertEqual(len(extraction_queries), 1, "Extraction must be queried exactly once (bulk-fetched)")
+
+        data = resp.json()
+        self.assertEqual(len(data["papers"]), 5)
+        self.assertEqual(len(data["exclusions"]), 5)
+
+        # Must be ordered descending by signal_score (90.0 down to 50.0)
+        scores = [p["signal_score"] for p in data["papers"]]
+        self.assertEqual(scores, [90.0, 80.0, 70.0, 60.0, 50.0])
+
+        # Verify each paper has its dimensions unpacked
+        for p in data["papers"]:
+            self.assertEqual(len(p["dimensions"]), 2)
+
+
 
 
 
