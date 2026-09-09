@@ -2059,3 +2059,64 @@ def postprocess(fields_data):
         self.assertIn("secondary_metrics", dim)
         self.assertNotIn("main_metric", dim, "Duplicate main_metric should be eliminated from dimensions")
         self.assertNotIn("auxiliary_metrics", dim, "Duplicate auxiliary_metrics should be eliminated from dimensions")
+
+    def test_29_unhandled_exception_in_scorecard_captured_and_returns_safe_500(self):
+        """
+        Issue #133: An unhandled exception in scorecard view must not echo str(exc)
+        or leak arbitrary keys like workspace_id. Instead, it must be logged and
+        return a standard 500 JSON envelope.
+        """
+        with patch(
+            "api.views.scorecard.build_workspace_scorecard_data",
+            side_effect=RuntimeError("Simulated internal catastrophic failure: SELECT secret FROM db")
+        ):
+            with patch("api.exceptions.logger.exception") as mock_log:
+                resp = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/")
+
+        self.assertEqual(resp.status_code, 500)
+        data = resp.json()
+        self.assertEqual(data["status_code"], 500)
+        self.assertEqual(data["error"], "An internal server error occurred.")
+
+        # Ensure no sensitive details or bogus field error keys were leaked
+        self.assertNotIn("detail", data)
+        self.assertNotIn("workspace_id", data)
+        self.assertNotIn("Simulated internal catastrophic failure", str(data))
+
+        # Ensure exception was logged with traceback
+        mock_log.assert_called_once()
+
+    def test_30_drf_not_found_preserves_proper_404_status_code(self):
+        """
+        Issue #133: A 404 (e.g. non-existent workspace) must preserve 404 status code
+        and not be swallowed into a 500.
+        """
+        random_id = uuid.uuid4()
+        resp = self.client.get(f"/api/workspaces/{random_id}/scorecard/")
+        self.assertEqual(resp.status_code, 404)
+        data = resp.json()
+        self.assertEqual(data["status_code"], 404)
+        self.assertIn("error", data)
+
+    def test_31_page_size_clamping_negative_and_zero(self):
+        """
+        Issue #133: page_size <= 0 must be clamped to >= 1 rather than causing
+        an uncaught exception or returning 500.
+        """
+        # Test negative page_size
+        r_neg = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?page_size=-5")
+        self.assertEqual(r_neg.status_code, 200)
+        d_neg = r_neg.json()
+        self.assertEqual(d_neg.get("page_size"), 1)
+
+        # Test zero page_size
+        r_zero = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?page_size=0")
+        self.assertEqual(r_zero.status_code, 200)
+        d_zero = r_zero.json()
+        self.assertEqual(d_zero.get("page_size"), 1)
+
+        # Test overly large page_size clamped to 200
+        r_large = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?page_size=999")
+        self.assertEqual(r_large.status_code, 200)
+        d_large = r_large.json()
+        self.assertEqual(d_large.get("page_size"), 200)

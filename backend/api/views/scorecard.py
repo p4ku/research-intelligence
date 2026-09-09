@@ -51,41 +51,21 @@ __all__ = [
 
 def build_paper_scorecard_response(paper: Paper, request) -> Response:
     """HTTP view controller for GET /api/papers/{id}/scorecard/."""
-    try:
-        pipeline_run_param = (
-            request.query_params.get('pipeline_run')
-            or request.query_params.get('pipeline_run_id')
-            or request.query_params.get('run_id')
-        )
-        data = build_paper_scorecard_data(paper, pipeline_run_id=pipeline_run_param, request=request)
-        return Response(data, status=status.HTTP_200_OK)
-    except Exception as exc:
-        return Response(
-            {
-                'error': 'Failed to build paper scorecard',
-                'detail': str(exc),
-                'paper_id': str(paper.id),
-            },
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+    pipeline_run_param = (
+        request.query_params.get('pipeline_run')
+        or request.query_params.get('pipeline_run_id')
+        or request.query_params.get('run_id')
+    )
+    data = build_paper_scorecard_data(paper, pipeline_run_id=pipeline_run_param, request=request)
+    return Response(data, status=status.HTTP_200_OK)
 
 
 def build_workspace_scorecard_response(workspace, request) -> Response:
     """HTTP view controller for GET /api/workspaces/{id}/scorecard/."""
-    try:
-        pipeline_run_param = (
-            request.query_params.get('run_id')
-            or request.query_params.get('pipeline_run')
-            or request.query_params.get('pipeline_run_id')
-        )
-        data = build_workspace_scorecard_data(workspace, pipeline_run_id=pipeline_run_param, request=request)
-        return Response(data, status=status.HTTP_200_OK)
-    except Exception as exc:
-        return Response(
-            {
-                'error': 'Failed to build workspace scorecard',
-                'detail': str(exc),
-                'workspace_id': str(workspace.id),
-            },
-            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        )
+    pipeline_run_param = (
+        request.query_params.get('run_id')
+        or request.query_params.get('pipeline_run')
+        or request.query_params.get('pipeline_run_id')
+    )
+    data = build_workspace_scorecard_data(workspace, pipeline_run_id=pipeline_run_param, request=request)
+    return Response(data, status=status.HTTP_200_OK)

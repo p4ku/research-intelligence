@@ -805,10 +805,7 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
         if size_param:
             try:
                 raw_size = int(size_param)
-                if raw_size > 0:
-                    page_size = min(raw_size, 200)
-                else:
-                    page_size = None
+                page_size = max(1, min(raw_size, 200))
             except (ValueError, TypeError):
                 page_size = None
 
