@@ -140,37 +140,21 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('Qiskit &amp; Cirq')
   })
 
-  test('renders metadata: formatted confidence percentage and humanised model name', () => {
-    const out = renderToStaticMarkup(<Assessment dimensions={[fullDimension]} t={t} />)
-    expect(out).toContain('Confidence 92%')
-    expect(out).toContain('Gemini 3.8 Flash')
-  })
-
-  test('renders Rule verified badge when dimension has_postprocessing is true', () => {
-    const out = renderToStaticMarkup(<Assessment dimensions={[fullDimension]} t={t} />)
-    expect(out).toContain('data-row="rule-verified"')
-    expect(out).toContain('Rule verified')
-  })
-
-  test('renders Human verified badge when dimension is_hitl is true', () => {
+  test('does not render bottom metadata (confidence, model, badges) under definitions', () => {
     const hitlDim: Dimension = {
       ...fullDimension,
       is_hitl: true,
+      has_postprocessing: true,
+      validation_status: 'warn',
+      confidence: 0.92,
+      model: 'google/gemini-3.8-flash',
     }
     const out = renderToStaticMarkup(<Assessment dimensions={[hitlDim]} t={t} />)
-    expect(out).toContain('data-row="hitl-verified"')
-    expect(out).toContain('Human verified')
-  })
-
-  test('shows review warning in metadata when review_required or validation_status is warn/fail', () => {
-    const warnDim: Dimension = {
-      ...fullDimension,
-      key: 'novelty_check',
-      name: 'Novelty Check',
-      validation_status: 'warn',
-    }
-    const out = renderToStaticMarkup(<Assessment dimensions={[warnDim]} t={t} />)
-    expect(out).toContain('Needs review')
+    expect(out).not.toContain('Confidence 92%')
+    expect(out).not.toContain('Gemini 3.8 Flash')
+    expect(out).not.toContain('Rule verified')
+    expect(out).not.toContain('Human verified')
+    expect(out).not.toContain('Needs review')
   })
 
   test('filters out risk and affiliation dimensions from the Assessment article list', () => {

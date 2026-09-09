@@ -1,6 +1,6 @@
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { Bone } from '@/components/skeleton'
-import { fmt, type T } from '@/lib/i18n'
+import type { T } from '@/lib/i18n'
 import type { Dimension, DimensionFacet, DimensionField } from '@/lib/papers/types'
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
@@ -28,7 +28,6 @@ const PROSE = 'max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-
 const SMALL_PROSE = 'max-w-[76ch] text-sm leading-relaxed text-zinc-600 dark:text-zinc-400'
 const H4 = 'text-sm font-semibold text-zinc-950 dark:text-white'
 const FIGURE = 'font-mono font-medium text-zinc-950 tabular-nums dark:text-white'
-const META = 'text-xs text-zinc-400 dark:text-zinc-500'
 
 export function AssessmentFrame({
   state = 'loaded',
@@ -104,11 +103,6 @@ function unquote(quote: string): string {
     .trim()
     .replace(/^[“"„']+/, '')
     .replace(/[”"“']+$/, '')
-}
-
-/** "google/gemini-3.8-flash" → "Gemini 3.8 Flash". */
-function modelName(id: string): string {
-  return (id.split('/').pop() ?? id).replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 function FacetRowFrame({
@@ -534,42 +528,6 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
 }
 
 function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
-  const conf =
-    typeof d.confidence === 'number'
-      ? d.confidence <= 1
-        ? `${Math.round(d.confidence * 100)}%`
-        : String(d.confidence)
-      : null
-  const review =
-    d.review_required || d.validation_status === 'warn' || d.validation_status === 'fail'
-  const meta: ReactNode[] = []
-  if (conf) meta.push(fmt(t('Confidence {n}'), { n: conf }))
-  if (d.model) meta.push(modelName(d.model))
-  if (d.has_postprocessing)
-    meta.push(
-      <span
-        key="postprocessing"
-        data-row="rule-verified"
-        className="rounded bg-accent/8 px-1.5 py-px text-[11px] font-medium text-accent"
-      >
-        {t('Rule verified')}
-      </span>,
-    )
-  if (d.is_hitl)
-    meta.push(
-      <span
-        key="hitl"
-        data-row="hitl-verified"
-        className="rounded bg-emerald-500/10 px-1.5 py-px text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
-      >
-        {t('Human verified')}
-      </span>,
-    )
-  if (review)
-    meta.push(
-      <span className="font-medium text-zinc-500 dark:text-zinc-400">{t('Needs review')}</span>,
-    )
-
   const { subMeasures, generalTexts } = resolveSubMeasures(
     d.facets,
     d.texts,
@@ -659,16 +617,6 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
           ))}
         </dl>
       )}
-      {meta.length > 0 && (
-        <p className={META}>
-          {meta.map((part, i) => (
-            <span key={i}>
-              {i > 0 && <span aria-hidden="true"> · </span>}
-              {part}
-            </span>
-          ))}
-        </p>
-      )}
     </DefinitionFrame>
   )
 }
@@ -725,7 +673,6 @@ export const ASSESSMENT_SHAPE: DefinitionShape[] = Array.from({ length: 7 }, () 
   facets: [0, 0, 0],
   texts: [3],
   list: 3,
-  meta: true,
 }))
 
 export function DefinitionSkeleton({ shape }: { shape: DefinitionShape }) {
@@ -801,11 +748,6 @@ export function DefinitionSkeleton({ shape }: { shape: DefinitionShape }) {
           ))}
         </dl>
       ) : null}
-      {shape.meta && (
-        <p className={META}>
-          <Bone.Text widths={['28ch']} />
-        </p>
-      )}
     </DefinitionFrame>
   )
 }
