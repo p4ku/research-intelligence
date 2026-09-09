@@ -323,4 +323,41 @@ describe('Scorecard data flow through stack contracts', () => {
     expect(parsed.data.paper.title).toBe(mockRawPaperPayload.title)
     expect(parsed.data.paper.signal_score).toBe(84.6)
   })
+
+  test('dimension facet schema cleanly parses null facet values without 502 shape error', () => {
+    const facetWithNull = dimensionFacet.parse({
+      key: 'novelty',
+      name: 'Novelty',
+      value: null,
+      max: 100,
+      text: 'Exploratory findings without quantifiable benchmark.',
+      band: 'Emerging',
+    })
+    expect(facetWithNull.value).toBeNull()
+    expect(facetWithNull.name).toBe('Novelty')
+    expect(facetWithNull.band).toBe('Emerging')
+
+    const dimWithNullFacets = dimension.parse({
+      ...mockRawPaperPayload.dimensions[0],
+      facets: [
+        {
+          key: 'novelty',
+          name: 'Novelty',
+          value: null,
+          max: 100,
+          text: 'Qualitative analysis only',
+        },
+        {
+          key: 'methodology',
+          name: 'Methodology',
+          value: null,
+          max: null,
+          text: null,
+        },
+      ],
+    })
+    expect(dimWithNullFacets.facets).toHaveLength(2)
+    expect(dimWithNullFacets.facets![0].value).toBeNull()
+    expect(dimWithNullFacets.facets![1].value).toBeNull()
+  })
 })

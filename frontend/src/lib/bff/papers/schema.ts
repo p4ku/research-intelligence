@@ -41,11 +41,12 @@ export const dimensionFacet = z
   .object({
     key: z.string(),
     name: z.string(),
-    value: z.number(),
+    value: z.number().nullable(),
     /** The definition's scale; null → show the figure only (a TRL definition's sub-scores declare no range). */
-    max: z.number().nullable(),
-    text: z.string().nullable(),
+    max: z.number().nullable().optional(),
+    text: z.string().nullable().optional(),
     band: z.string().nullable().optional(),
+    evidence: z.array(z.string()).nullable().optional(),
   })
   .passthrough()
   .meta({ id: 'DimensionFacet' })
@@ -56,7 +57,7 @@ export const dimensionField = z
   .object({
     key: z.string(),
     name: z.string(),
-    value: z.union([z.string(), z.boolean(), z.record(z.string(), z.unknown())]),
+    value: z.union([z.string(), z.boolean(), z.number(), z.record(z.string(), z.unknown()), z.null()]),
     type: z.string().optional(),
     is_dict: z.boolean().optional(),
     dict_value: z.record(z.string(), z.unknown()).nullable().optional(),
@@ -124,10 +125,10 @@ export const dimension = z
     is_trl: z.boolean(),
     is_risk_and_affiliation: z.boolean().optional(),
     has_postprocessing: z.boolean().optional(),
-    primary_metric: z.record(z.string(), z.any()).optional(),
-    secondary_metrics: z.array(z.record(z.string(), z.any())).optional(),
-    main_metric: z.record(z.string(), z.any()).optional(),
-    auxiliary_metrics: z.array(z.record(z.string(), z.any())).optional(),
+    primary_metric: z.record(z.string(), z.any()).nullable().optional(),
+    secondary_metrics: z.array(z.record(z.string(), z.any())).nullable().optional(),
+    main_metric: z.record(z.string(), z.any()).nullable().optional(),
+    auxiliary_metrics: z.array(z.record(z.string(), z.any())).nullable().optional(),
     is_hitl: z.boolean().optional(),
     fields_data: z.record(z.string(), z.any()).nullable().optional(),
     response_schema: z.record(z.string(), z.any()).nullable().optional(),

@@ -147,8 +147,8 @@ function FacetRowFrame({
 }
 
 function FacetRow({ facet: f }: { facet: DimensionFacet }) {
-  const hasBar = f.max !== null && f.max > 0 && f.value !== null && Number.isFinite(f.value)
-  const pct = hasBar && f.value !== null ? Math.max(0, Math.min(1, f.value / f.max!)) : 0
+  const hasBar = typeof f.max === 'number' && f.max > 0 && typeof f.value === 'number' && Number.isFinite(f.value)
+  const pct = hasBar && typeof f.value === 'number' && typeof f.max === 'number' ? Math.max(0, Math.min(1, f.value / f.max)) : 0
   return (
     <FacetRowFrame
       name={
@@ -239,7 +239,7 @@ interface UnpackedField {
   key?: string
   name: string
   description?: string | null
-  value: string | boolean
+  value: string | boolean | number | null
   band?: string | null
   evidence?: string[] | null
   score?: number | null
@@ -248,7 +248,8 @@ interface UnpackedField {
 
 function unpackField(field: DimensionField): UnpackedField {
   let band = field.band ?? null
-  let value = field.value
+  let value: string | boolean | number | null =
+    typeof field.value === 'object' && field.value !== null ? '' : field.value
   let evidence = field.evidence ?? null
   let score = field.score ?? null
   let isDict = Boolean(field.is_dict || field.type === 'dict')
