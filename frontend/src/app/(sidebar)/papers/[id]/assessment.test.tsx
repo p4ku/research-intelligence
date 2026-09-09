@@ -2,7 +2,19 @@ import { makeT } from '@/lib/i18n'
 import type { Dimension } from '@/lib/papers/types'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { Assessment, definitionAnchor } from './assessment'
+import { Assessment, definitionAnchor, subMeasureAnchor } from './assessment'
+
+describe('subMeasureAnchor', () => {
+  test('extends the definition anchor with the sub-score key, made safe for the rail', () => {
+    const d = { key: 'research_metrics', extraction_id: 'abcdef12-3456-7890-abcd-ef1234567890' }
+    expect(subMeasureAnchor(d, { key: 'rigour_score' })).toBe(
+      'dimension-research_metrics-abcdef12-rigour_score',
+    )
+    expect(subMeasureAnchor({ key: 'research_metrics' }, { key: 'Rigour (1-10)' })).toBe(
+      'dimension-research_metrics-Rigour__1-10_',
+    )
+  })
+})
 
 const t = makeT('en')
 
@@ -294,6 +306,8 @@ describe('Assessment Component Rendering', () => {
     }
     const out = renderToStaticMarkup(<Assessment dimensions={[structuredDimension]} t={t} />)
     expect(out).toContain('data-type="submetric-dict"')
+    // The row carries the id a rail bar links to.
+    expect(out).toContain('id="dimension-research_metrics-novelty"')
     expect(out).toContain('Substantial')
     expect(out).toContain('Sub-score: 68')
     expect(out).toContain('Evidence')

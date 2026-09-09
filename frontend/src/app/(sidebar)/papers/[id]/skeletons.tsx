@@ -14,8 +14,9 @@ import { ScoreRailSkeleton } from './score-rail'
  * one Region, one sweep.
  *
  * It reserves the live domain's shape: the abstract, seven definitions
- * (ASSESSMENT_SHAPE) and seven bars with a radar in the rail. A domain with
- * fewer definitions sees both shorten on load.
+ * (ASSESSMENT_SHAPE) and five bars with a radar in the rail (Research
+ * Metrics counts three there, one per sub-score). A domain with fewer
+ * definitions sees both shorten on load.
  *
  * Both take the flags as a required prop — nothing outside this route renders
  * them, so a required prop catches a missed call site — and must mirror the

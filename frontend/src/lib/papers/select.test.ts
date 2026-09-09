@@ -1,6 +1,26 @@
 import { describe, expect, test } from 'bun:test'
-import { byValueAsc, byValueDesc, unionDefinitions } from './select'
+import { byValueAsc, byValueDesc, isResearchMetrics, unionDefinitions } from './select'
 import type { DefinitionSummary } from './types'
+
+describe('isResearchMetrics', () => {
+  test('matches the prod key and any name that says research metrics', () => {
+    expect(
+      isResearchMetrics({ key: 'research_metrics', name: 'Research Metrics', is_trl: false }),
+    ).toBe(true)
+    expect(
+      isResearchMetrics({ key: 'quality', name: 'Research metrics (v2)', is_trl: false }),
+    ).toBe(true)
+  })
+  test('leaves the other scoring definitions alone', () => {
+    expect(isResearchMetrics({ key: 'schwarz_fit', name: 'Schwarz Fit', is_trl: false })).toBe(
+      false,
+    )
+    expect(isResearchMetrics({ key: 'research_metrics', name: 'TRL', is_trl: true })).toBe(false)
+    expect(isResearchMetrics({ key: 'novelty_score', name: 'Novelty Score', is_trl: false })).toBe(
+      false,
+    )
+  })
+})
 
 describe('byValueDesc / byValueAsc', () => {
   const values = [5, null, 3, 8, null, 1]

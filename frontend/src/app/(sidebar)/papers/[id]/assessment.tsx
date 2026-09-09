@@ -24,6 +24,18 @@ export function definitionAnchor(d: Pick<Dimension, 'key' | 'extraction_id'>): s
   return `dimension-${d.key}${d.extraction_id ? `-${d.extraction_id.slice(0, 8)}` : ''}`
 }
 
+/**
+ * The row id a rail bar links to when it stands for one of a definition's
+ * sub-scores rather than the definition itself. Sanitised: the rail joins
+ * its anchors on a space, and a fallback-path key is a raw field name.
+ */
+export function subMeasureAnchor(
+  d: Pick<Dimension, 'key' | 'extraction_id'>,
+  sub: Pick<SubMeasure, 'key'>,
+): string {
+  return `${definitionAnchor(d)}-${sub.key.replace(/[^A-Za-z0-9_-]/g, '_')}`
+}
+
 const PROSE = 'max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300'
 const SMALL_PROSE = 'max-w-[76ch] text-sm leading-relaxed text-zinc-600 dark:text-zinc-400'
 const H4 = 'text-sm font-semibold text-zinc-950 dark:text-white'
@@ -321,7 +333,7 @@ function unpackField(field: DimensionField): UnpackedField {
   return { name: field.name, value, band, evidence, score, is_dict: isDict }
 }
 
-interface SubMeasure {
+export interface SubMeasure {
   key: string
   name: string
   description?: string | null
@@ -340,7 +352,12 @@ function subMeasureKey(key: string, name?: string): string {
     .replace(/_?score$/, '')
 }
 
-function resolveSubMeasures(
+/**
+ * A definition's sub-scores as one list: the facets first, then the
+ * dict-shaped texts merged into them by name (or added when new). Shared
+ * with the rail, which draws some of these as bars of their own.
+ */
+export function resolveSubMeasures(
   facets?: DimensionFacet[] | null,
   texts?: DimensionField[] | null,
   fallbackMax: number | null = 100,
@@ -435,7 +452,7 @@ function resolveSubMeasures(
   return { subMeasures, generalTexts }
 }
 
-function SubMeasureRow({ sub }: { sub: SubMeasure }) {
+function SubMeasureRow({ sub, id }: { sub: SubMeasure; id?: string }) {
   const hasBar =
     typeof sub.max === 'number' &&
     sub.max > 0 &&
@@ -451,10 +468,11 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
 
   return (
     <div
+      id={id}
       data-type={sub.is_dict ? 'submetric-dict' : undefined}
       data-submetric={sub.key}
       className={clsx(
-        'space-y-3',
+        'scroll-mt-6 space-y-3',
         isRich &&
           'rounded-lg border border-line-soft/70 bg-transparent p-4 transition-colors hover:border-line sm:p-4.5',
       )}
@@ -582,7 +600,7 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       {visibleSubMeasures.length > 0 && (
         <div className="space-y-3">
           {visibleSubMeasures.map((sub) => (
-            <SubMeasureRow key={sub.key} sub={sub} />
+            <SubMeasureRow key={sub.key} id={subMeasureAnchor(d, sub)} sub={sub} />
           ))}
         </div>
       )}

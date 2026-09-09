@@ -2,19 +2,22 @@ import { RadarChart } from '@/components/charts'
 import { Card, TrlBadge } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import type { T } from '@/lib/i18n'
-import { trlDimension } from '@/lib/papers/select'
+import { isResearchMetrics, trlDimension } from '@/lib/papers/select'
 import type { Dimension, ScoredPaper } from '@/lib/papers/types'
 import type { ReactNode } from 'react'
-import { definitionAnchor } from './assessment'
+import { definitionAnchor, resolveSubMeasures, subMeasureAnchor } from './assessment'
 import { ScoreBarFrame, ScoreBars, type RailBar } from './score-bars'
 
 /**
  * The glance card beside the record: the Schwarz Score, the TRL chip,
  * one bar per definition — each a link to its article in the column, the
  * one being read marked — and the profile (the radar, values under its
- * labels) under a hairline. Sticky on wide screens so the score mix stays
- * in view while the assessment is read. Server-safe; the frame keeps the
- * skeleton in step.
+ * labels) under a hairline. Research Metrics is the exception: its three
+ * sub-scores (Rigour, Novelty, Significance) stand in for it, each a bar
+ * and an axis of its own linking to its row, because the headline hides
+ * how differently they can move. Sticky on wide screens so the score mix
+ * stays in view while the assessment is read. Server-safe; the frame keeps
+ * the skeleton in step.
  */
 
 // The rail's full inner width: the radar needs every pixel for its labels.
@@ -73,30 +76,75 @@ function shownNumber(value: number | null): string {
       : (Math.round(value * 100) / 100).toString()
 }
 
-/** The radar's axes: the scaled dimensions, each printing the figure its bar shows, not a percentage. */
-function radarAxes(dimensions: Dimension[]) {
-  return dimensions
-    .filter((d) => d.value !== null && d.max !== null && d.max > 0)
-    .map((d) => ({
+/** One row of the rail — a definition, or one of Research Metrics' sub-scores. */
+export interface RailEntry {
+  key: string
+  label: string
+  /** The column id the bar links to: the definition's article, or the sub-score's row. */
+  anchor: string
+  value: number | null
+  /** The scale the value is read against; null draws the figure without a track. */
+  max: number | null
+}
+
+/**
+ * The rail's rows, in definition order. Risk & Affiliation never appears
+ * (it flags, it does not score). A Research Metrics definition with at
+ * least two sub-scores is replaced by them; with fewer it stays one row,
+ * so a domain whose definition has no sub-scores renders as before.
+ */
+export function railEntries(paper: ScoredPaper): RailEntry[] {
+  const visible = (paper.dimensions ?? []).filter(
+    (d) =>
+      d.key !== 'risk_and_affiliation' &&
+      !d.name.toLowerCase().includes('risk') &&
+      !d.name.toLowerCase().includes('affiliation'),
+  )
+  return visible.flatMap((d): RailEntry[] => {
+    const own: RailEntry = {
+      key: d.key + (d.extraction_id ?? ''),
       label: shortName(d),
-      value: Math.max(0, Math.min(100, (d.value! / d.max!) * 100)),
-      shown: shownNumber(d.value),
+      anchor: definitionAnchor(d),
+      value: d.value,
+      max: d.max,
+    }
+    if (!isResearchMetrics(d)) return [own]
+    const { subMeasures } = resolveSubMeasures(d.facets, d.texts, d.max, d.response_schema)
+    if (subMeasures.length < 2) return [own]
+    return subMeasures.map((sub) => ({
+      key: `${own.key}-${sub.key}`,
+      label: sub.name,
+      anchor: subMeasureAnchor(d, sub),
+      value: typeof sub.value === 'number' && Number.isFinite(sub.value) ? sub.value : null,
+      max: typeof sub.max === 'number' ? sub.max : null,
+    }))
+  })
+}
+
+/** The radar's axes: the scaled entries, each printing the figure its bar shows, not a percentage. */
+function radarAxes(entries: RailEntry[]) {
+  return entries
+    .filter((e) => e.value !== null && e.max !== null && e.max > 0)
+    .map((e) => ({
+      label: e.label,
+      value: Math.max(0, Math.min(100, (e.value! / e.max!) * 100)),
+      shown: shownNumber(e.value),
     }))
 }
 
-function railBar(d: Dimension): RailBar {
-  const hasBar = d.value !== null && d.max !== null && d.max > 0
-  const shown = shownNumber(d.value)
+function railBar(e: RailEntry): RailBar {
+  const hasBar = e.value !== null && e.max !== null && e.max > 0
+  const shown = shownNumber(e.value)
   return {
-    key: d.key + (d.extraction_id ?? ''),
-    label: shortName(d),
-    anchor: definitionAnchor(d),
-    pct: hasBar ? Math.max(0, Math.min(1, d.value! / d.max!)) : null,
+    key: e.key,
+    label: e.label,
+    anchor: e.anchor,
+    pct: hasBar ? Math.max(0, Math.min(1, e.value! / e.max!)) : null,
     value: (
       <>
         {shown}
-        {hasBar && d.max !== 100 && (
-          <span className="text-[10px] font-normal text-zinc-400">/{d.max}</span>
+        {hasBar && e.max !== 100 && (
+          <span className="text-[10px] font-normal text-zinc-400">/{e.max}</span>
         )}
       </>
     ),
@@ -104,15 +152,9 @@ function railBar(d: Dimension): RailBar {
 }
 
 export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
-  // Exclude Risk & Affiliation dimensions from the score rail bars
-  const visibleDimensions = (paper.dimensions ?? []).filter(
-    (d) =>
-      d.key !== 'risk_and_affiliation' &&
-      !d.name.toLowerCase().includes('risk') &&
-      !d.name.toLowerCase().includes('affiliation'),
-  )
+  const entries = railEntries(paper)
   const trl = trlDimension(paper)
-  const axes = radarAxes(visibleDimensions)
+  const axes = radarAxes(entries)
   const score =
     paper.signal_score === null
       ? '—'
@@ -128,7 +170,7 @@ export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
           <TrlBadge trl={trl.value} t={t} />
         ) : undefined
       }
-      bars={<ScoreBars bars={visibleDimensions.map(railBar)} />}
+      bars={<ScoreBars bars={entries.map(railBar)} />}
       radar={
         axes.length >= 3 && (
           <RadarChart axes={axes} color="var(--accent)" size={RADAR} valueLabels />
@@ -139,10 +181,11 @@ export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
 }
 
 /**
- * The rail's bones. Seven bars and the radar — the live domain's shape; a
- * domain with fewer numeric dimensions sees the card shorten on load.
+ * The rail's bones. Five bars and the radar — the live domain's shape
+ * (three Research Metrics sub-scores, Schwarz Fit, TRL); a domain with
+ * fewer numeric rows sees the card shorten on load.
  */
-export function ScoreRailSkeleton({ t, bars = 7 }: { t: T; bars?: number }) {
+export function ScoreRailSkeleton({ t, bars = 5 }: { t: T; bars?: number }) {
   return (
     <ScoreRailFrame
       state="skeleton"

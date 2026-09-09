@@ -9,6 +9,15 @@ export function trlDimension(paper: ScoredPaper): Dimension | undefined {
   return (paper.dimensions ?? []).find((d) => d.is_trl)
 }
 
+/**
+ * The definition whose sub-scores (Rigour, Novelty, Significance) the rail
+ * unpacks into bars of their own. Known by name, as TRL is — the backend
+ * carries no flag for it.
+ */
+export function isResearchMetrics(d: Pick<Dimension, 'key' | 'name' | 'is_trl'>): boolean {
+  return !d.is_trl && (d.key === 'research_metrics' || /\bresearch\s+metrics\b/i.test(d.name))
+}
+
 export function dimensionByKey(paper: ScoredPaper, key: string): Dimension | undefined {
   return (paper.dimensions ?? []).find((d) => d.key === key)
 }

@@ -41,7 +41,7 @@ import {
 } from '../../(sidebar)/papers/[id]/assessment'
 import { PaperHeader, PaperHeaderSkeleton } from '../../(sidebar)/papers/[id]/paper-header'
 import { PaperNav, PaperNavSkeleton } from '../../(sidebar)/papers/[id]/paper-nav'
-import { ScoreRail, ScoreRailSkeleton } from '../../(sidebar)/papers/[id]/score-rail'
+import { railEntries, ScoreRail, ScoreRailSkeleton } from '../../(sidebar)/papers/[id]/score-rail'
 import { RunFacts, RunFactsSkeleton } from '../../(sidebar)/runs/[id]/run-facts'
 import { StepTimeline, StepTimelineSkeleton } from '../../(sidebar)/runs/[id]/step-timeline'
 import { RunsTable, RunsTableSkeleton } from '../../(sidebar)/runs/runs-table'
@@ -493,7 +493,7 @@ export default async function SkeletonsPage({
         }
         skeleton={
           <div className="max-w-[300px]">
-            <ScoreRailSkeleton t={t} bars={paper.dimensions.length} />
+            <ScoreRailSkeleton t={t} bars={railEntries(paper).length} />
           </div>
         }
       />
