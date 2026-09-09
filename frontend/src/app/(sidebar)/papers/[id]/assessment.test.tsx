@@ -485,7 +485,9 @@ describe('Assessment Component Rendering', () => {
 
     // Sub-measure descriptions removed to prevent duplicate grey text under score dimensions
     expect(out).not.toContain('Two-qubit gate benchmark fidelity across simulator backends')
-    expect(out).not.toContain('Algorithmic novelty and theoretical speedup over classical baselines')
+    expect(out).not.toContain(
+      'Algorithmic novelty and theoretical speedup over classical baselines',
+    )
     // Prose text description is preserved
     expect(out).toContain('Specific superconducting processor requirements')
 
@@ -663,5 +665,3 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('grid-cols-[minmax(0,1fr)_44px] sm:grid-cols-[200px_minmax(0,1fr)_44px]')
   })
 })
-
-

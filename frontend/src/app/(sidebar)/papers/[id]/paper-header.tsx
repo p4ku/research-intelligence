@@ -51,7 +51,7 @@ export function PaperHeaderFrame({
         </div>
         <h1
           data-row="title"
-          className="mt-2 text-2xl font-semibold tracking-tight text-pretty text-zinc-950 break-words sm:text-[28px] sm:leading-[1.2] dark:text-white"
+          className="mt-2 text-2xl font-semibold tracking-tight text-pretty break-words text-zinc-950 sm:text-[28px] sm:leading-[1.2] dark:text-white"
         >
           {title}
         </h1>
