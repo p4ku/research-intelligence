@@ -63,7 +63,7 @@ const scorecardWorkspace = z
             key: z.string(),
             is_active: z.boolean().optional().default(true),
             is_trl: z.boolean().optional().default(false),
-            order: z.number().optional().default(0),
+            order: z.number().optional(),
             max: z.number().nullable().optional().default(null),
           })
           .passthrough(),

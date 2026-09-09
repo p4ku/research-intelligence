@@ -3055,7 +3055,6 @@
             "type": "boolean"
           },
           "order": {
-            "default": 0,
             "type": "number"
           },
           "is_risk_and_affiliation": {
@@ -3314,8 +3313,7 @@
           "name",
           "value",
           "max",
-          "is_trl",
-          "order"
+          "is_trl"
         ],
         "additionalProperties": {}
       },
@@ -3773,7 +3771,6 @@
             "type": "boolean"
           },
           "order": {
-            "default": 0,
             "type": "number"
           },
           "max": {
@@ -3809,7 +3806,6 @@
           "key",
           "is_active",
           "is_trl",
-          "order",
           "max"
         ],
         "additionalProperties": false

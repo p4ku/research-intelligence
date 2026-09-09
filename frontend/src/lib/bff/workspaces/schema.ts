@@ -15,7 +15,7 @@ export const definitionSummary = z
     key: z.string(),
     is_active: z.boolean(),
     is_trl: z.boolean(),
-    order: z.number().optional().default(0),
+    order: z.number().optional(),
     /** Inferred scale for bars/radar; null when unknown. */
     max: z.number().nullable(),
     primary_frontend_metric: z.string().nullable().optional(),
