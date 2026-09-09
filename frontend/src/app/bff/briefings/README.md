@@ -38,8 +38,10 @@ These endpoints are implemented in Django `WorkspaceViewSet` (`editions` and `ed
 
 ## Current implementation
 
-`django` (default): Served natively from the backend editions engine.
-The backend compiles the full edition context: surfaced papers (ordered by signal score), exclusions with screening reasoning, funnel counters, and briefing prose.
+- `django`: Served natively from the backend editions engine (`WorkspaceViewSet.editions` and `edition_detail`).
+  The backend compiles the full edition context: surfaced papers (ordered by signal score), exclusions with screening reasoning, funnel counters, and briefing prose.
+- `composed`: `service.ts` reads `GET /api/pipeline-runs/?workspace=&status=completed` and the scored corpus, and `compose.ts` (pure, tested) turns them into editions — surfaced = passed papers of the run (signal-first), exclusions = rejected/withdrawn papers with their `screening_reasoning`, funnel = the run's counters. `title`/`in_brief` come from `prose.ts` templates filled with real numbers and titles, flagged `in_brief_source: 'template'`.
+- `stub`: Serves `fixtures.ts`.
 
 ## curl
 
@@ -50,11 +52,11 @@ WS=$(curl -s localhost:8000/api/workspaces/ -H "authorization: Bearer $TOKEN" | 
 
 # Backend canonical editions:
 curl -s "localhost:8000/api/workspaces/$WS/editions/" -H "authorization: Bearer $TOKEN"
-curl -s "localhost:8000/api/workspaces/$WS/editions/2026-08-27/" -H "authorization: Bearer $TOKEN"
+curl -s "localhost:8000/api/workspaces/$WS/editions/2026-08-31/" -H "authorization: Bearer $TOKEN"
 
 # BFF:
 curl -s "localhost:3000/bff/briefings?workspace_id=$WS" -b "sri_access=…"
-curl -s "localhost:3000/bff/briefings/2026-08-27?workspace_id=$WS" -b "sri_access=…"
+curl -s "localhost:3000/bff/briefings/2026-08-31?workspace_id=$WS" -b "sri_access=…"
 ```
 
 ## Status

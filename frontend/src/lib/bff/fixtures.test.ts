@@ -7,8 +7,9 @@ import { fixtureSessionDetails, fixtureSessions, fixtureStreamFrames } from './c
 import { chatEvent, chatSession, chatSessionDetail } from './chat/schema'
 import { fixtureSteps } from './component-runs/fixtures'
 import { componentRun } from './component-runs/schema'
-import { fixturePapers, fixtureWorkspace } from './papers/fixtures'
+import { fixturePaperDTOs, fixturePapers, fixtureWorkspace } from './papers/fixtures'
 import { scoredPaper } from './papers/schema'
+import { paperDTO } from './papers/upstream'
 import { fixtureRunDetail, fixtureRuns } from './pipeline-runs/fixtures'
 import { pipelineRun, pipelineRunDetail } from './pipeline-runs/schema'
 import { fixtureSearchResponse } from './search/fixtures'
@@ -16,6 +17,16 @@ import { searchResponse } from './search/schema'
 import { workspace } from './workspaces/schema'
 
 describe('fixtures match their contract schemas', () => {
+  test('papers as Django sends them: one metric row per run', () => {
+    for (const fixture of fixturePaperDTOs) {
+      const parsed = paperDTO.safeParse(fixture)
+      expect(parsed.success, JSON.stringify(parsed.error?.issues)).toBe(true)
+    }
+    // The fixture that the rerun tests rely on: one paper seen by both runs.
+    const runs = fixturePaperDTOs[0]!.metrics.map((m) => m.pipeline_run)
+    expect(new Set(runs).size).toBe(2)
+  })
+
   test('papers', () => {
     for (const fixture of fixturePapers) {
       const parsed = scoredPaper.safeParse(fixture)

@@ -2,16 +2,14 @@
  * Briefings service. Source `composed` (default): one edition per completed
  * PipelineRun — funnel from the run's counters, papers/exclusions from the
  * scored corpus as that run recorded them (src/lib/papers/runs.ts), prose
- * from ./prose.ts templates (flagged 'template'). `django` = the requested
- * editions endpoints. Server-only.
+ * from ./prose.ts templates (flagged 'template'); the composition itself is
+ * ./compose.ts, this file does the I/O. `django` = the requested editions
+ * endpoints. Server-only.
  */
 import 'server-only'
 
 import type { Lang } from '@/lib/i18n'
-import { isPassed } from '@/lib/papers/map'
-import { papersOfRun, type RunIndex } from '@/lib/papers/runs'
-import { byValueDesc } from '@/lib/papers/select'
-import type { ScoredPaper } from '@/lib/papers/types'
+import { papersOfRun } from '@/lib/papers/runs'
 import { cache } from 'react'
 import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
@@ -19,11 +17,10 @@ import { problem, ProblemError } from '../core/problem'
 import { sourceOf } from '../core/source'
 import { assertUuid } from '../core/validate'
 import { papers } from '../papers/service'
-import type { PipelineRun } from '../pipeline-runs/schema'
 import { runs } from '../pipeline-runs/service'
 import { workspaces } from '../workspaces/service'
+import { composeEdition, composeEditions } from './compose'
 import { fixtureEditions } from './fixtures'
-import { templateProse } from './prose'
 import {
   edition,
   editionPage,
@@ -31,62 +28,9 @@ import {
   type EditionsQuery,
   type EditionSummary,
 } from './schema'
-import { byNewest, editionDate, editionFor } from './select'
+import { byNewest, editionFor } from './select'
 
-function composeEdition(
-  run: PipelineRun,
-  workspaceName: string,
-  corpus: ReadonlyMap<string, ScoredPaper>,
-  index: RunIndex | null,
-  lang: Lang,
-): Edition {
-  // The run's own record of each paper — its decision and score then — not
-  // the paper's latest, which belongs to whichever run saw it last.
-  const ofRun = papersOfRun(run.id, corpus, index)
-  const surfaced = ofRun
-    .filter((r) => isPassed(r.status))
-    .sort((a, b) => byValueDesc(a.signal_score, b.signal_score))
-    .map(({ paper, status, signal_score }) => ({
-      ...paper,
-      screening_status: status,
-      signal_score,
-    }))
-  const exclusions = ofRun
-    .filter((r) => r.status === 'rejected' || r.status === 'withdrawn')
-    .map(({ paper, reason }) => ({
-      paper_id: paper.id,
-      title: paper.title,
-      source: paper.source,
-      reason,
-    }))
-  const prose = templateProse(
-    {
-      workspaceName,
-      fetched: run.total_papers_fetched,
-      passedScreening: run.total_papers_passed_screening,
-      surfaced: surfaced.length,
-      papers: surfaced,
-    },
-    lang,
-  )
-  return {
-    run_id: run.id,
-    workspace_id: run.workspace_id,
-    date: editionDate(run),
-    title: prose.title,
-    in_brief: prose.in_brief,
-    in_brief_source: 'template',
-    funnel: {
-      fetched: run.total_papers_fetched,
-      passed_screening: run.total_papers_passed_screening,
-      surfaced: surfaced.length,
-    },
-    papers: surfaced,
-    exclusions,
-    generated_at: run.completed_at,
-  }
-}
-
+/** The I/O half of the `composed` source: the domain's runs, corpus and run index into `composeEditions`. */
 async function composeAll(workspaceId: string, lang: Lang): Promise<Edition[]> {
   const [completed, scored, index] = await Promise.all([
     runs.listAll(workspaceId, 'completed'),
@@ -95,17 +39,7 @@ async function composeAll(workspaceId: string, lang: Lang): Promise<Edition[]> {
   ])
   if (!scored) return []
   const corpus = new Map(scored.papers.map((p) => [p.id, p]))
-  // One edition per completed run that passed something, newest by
-  // completion first: a domain that ran twice in a day has two, and the
-  // URL's run id tells them apart. A run that passed nothing — a search
-  // that found only papers already on file halts as "completed" with no
-  // rows — is not a briefing (Home and the archive already leave it out),
-  // so it gets no edition and a bare date link cannot land on it. The run
-  // itself stays on /runs.
-  return completed
-    .filter((run) => run.total_papers_passed_screening > 0)
-    .map((run) => composeEdition(run, scored.workspace.name, corpus, index, lang))
-    .sort(byNewest)
+  return composeEditions(completed, scored.workspace.name, corpus, index, lang)
 }
 
 export const briefings = {
