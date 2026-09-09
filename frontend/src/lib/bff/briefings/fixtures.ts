@@ -17,16 +17,7 @@ export const fixtureEditions: Edition[] = [
       'The Agentic AI scan fetched 12 papers, passed 5 through screening, and surfaced 1 for this briefing. Leading the list: “Coordinated Tool Use in Multi-Agent Language Model Systems” at signal 88.',
     in_brief_source: 'template',
     funnel: { fetched: 12, passed_screening: 5, surfaced: 1 },
-    papers: [
-      {
-        id: surfaced.id,
-        title: surfaced.title,
-        authors: surfaced.authors,
-        source: surfaced.source,
-        screening_status: surfaced.screening_status,
-        signal_score: surfaced.signal_score,
-      },
-    ],
+    papers: [surfaced],
     exclusions: [
       {
         paper_id: excluded.id,

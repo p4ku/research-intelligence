@@ -8,7 +8,6 @@ import { forPage } from '@/lib/bff/core/page'
 import { papers as papersService } from '@/lib/bff/papers/service'
 import type { Features } from '@/lib/features'
 import { fmt, type Lang, type T } from '@/lib/i18n'
-import type { ScoredPaper } from '@/lib/papers/types'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
@@ -261,7 +260,7 @@ export async function EditionPapers({
 
   return (
     <EditionPaperList
-      papers={edition.papers as unknown as ScoredPaper[]}
+      papers={edition.papers}
       runId={edition.run_id}
       logHref={editionHref(edition.date, edition.workspace_id, {
         runId: edition.run_id,

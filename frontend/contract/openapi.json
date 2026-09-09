@@ -994,7 +994,7 @@
                     "papers": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/$defs/EditionPaper"
+                        "$ref": "#/$defs/ScoredPaper"
                       }
                     },
                     "generated_at": {
@@ -1662,7 +1662,7 @@
           "papers": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/EditionPaper"
+              "$ref": "#/components/schemas/ScoredPaper"
             }
           },
           "generated_at": {
@@ -1803,7 +1803,7 @@
           "papers": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/EditionPaper"
+              "$ref": "#/components/schemas/ScoredPaper"
             }
           },
           "generated_at": {
@@ -3531,203 +3531,6 @@
           "reason"
         ],
         "additionalProperties": false
-      },
-      "EditionPaper": {
-        "$id": "#/components/schemas/EditionPaper",
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "workspace_id": {
-            "type": "string"
-          },
-          "pipeline_run_id": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "authors": {
-            "default": [],
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "authors_raw": {
-            "type": "string"
-          },
-          "abstract": {
-            "type": "string"
-          },
-          "doi": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "arxiv_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "source": {
-            "type": "string"
-          },
-          "screening_status": {
-            "$ref": "#/components/schemas/ScreeningStatus"
-          },
-          "screening_reasoning": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "abstract_screening_reasoning": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "full_text_screening_reasoning": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "signal_score": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "signal_score_details": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SignalScoreDetails"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "dimensions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Dimension"
-            }
-          },
-          "pdf_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "markdown_key": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "source_url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "is_benchmark": {
-            "type": "boolean"
-          },
-          "evaluation_label": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "published_date": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "created_at": {
-            "type": "string"
-          },
-          "pipeline_run_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "risk_and_affiliation": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RiskAndAffiliation"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "title",
-          "authors",
-          "source",
-          "signal_score"
-        ],
-        "additionalProperties": {}
       },
       "ExtractionDefinitionSummary": {
         "$id": "#/components/schemas/ExtractionDefinitionSummary",
