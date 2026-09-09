@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { LoginPage, SidebarNav, DashboardPage, BriefingPage, PapersPage } from '../pages/index.js';
+import { LoginPage, SidebarNav, DashboardPage, BriefingPage } from '../pages/index.js';
 
 const USERNAME = process.env.E2E_USERNAME || process.env.TEST_USERNAME || 'test_e2e';
 const PASSWORD = process.env.E2E_PASSWORD || process.env.TEST_PASSWORD || 't4st_pa55w0rD!#';
@@ -14,7 +14,6 @@ test.describe('Journey 2: Analyst Daily Review & Literature Scouting', () => {
     const sidebar = new SidebarNav(page);
     const dashboard = new DashboardPage(page);
     const briefing = new BriefingPage(page);
-    const papers = new PapersPage(page);
 
     console.log('📍 Step 1: Inspecting Dashboard (Today view)...');
     await sidebar.navigateTo('dashboard');
@@ -58,17 +57,11 @@ test.describe('Journey 2: Analyst Daily Review & Literature Scouting', () => {
       expect(await briefing.isLoaded()).toBe(true);
     }
 
-    console.log('📍 Step 3: Navigating to Systematic Papers Explorer (/papers)...');
-    await sidebar.navigateTo('papers');
-    expect(await papers.isLoaded()).toBe(true);
-    const paperCount = await papers.getPapersCount();
-    console.log(`  Total Ingested Papers listed: ${paperCount}`);
-
-    console.log('📍 Step 4: Inspecting Paper detail view & parameter extraction scorecards...');
-    if (paperCount > 0) {
-      const opened = await papers.openFirstPaper();
-      expect(opened).toBe(true);
-      console.log('  ✅ Opened paper detail view and verified parameters/scores.');
-    }
+    // /papers is fixed off since 9 Sep 2026 (frontend/src/lib/features.ts);
+    // journey 07 asserts its absence. SidebarNav.navigateTo('papers') would
+    // fall back to goto('/papers') and pass on the not-found card, so the
+    // former Steps 3-4 (corpus list, first paper's scorecard) are gone rather
+    // than skipped. The paper detail itself is still reached from the
+    // briefing in Step 2.
   });
 });

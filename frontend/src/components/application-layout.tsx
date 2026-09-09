@@ -29,7 +29,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { VersionStamp } from '@/components/version-stamp'
 import type { SessionUser } from '@/lib/auth/cookies'
 import { performSignOut } from '@/lib/auth/leave'
-import { FEATURE_KEYS, FEATURES, isVisible, type FeatureKey, type Features } from '@/lib/features'
+import { FEATURES, isVisible, TOGGLE_KEYS, type FeatureKey, type Features } from '@/lib/features'
 import { FeaturesProvider, useFeatures, useSetFeature } from '@/lib/features-client'
 import type { Lang } from '@/lib/i18n'
 import { LanguageProvider, useLanguage, useT } from '@/lib/i18n-client'
@@ -138,37 +138,42 @@ function AccountDropdownMenu({
         />
       </DropdownItem>
       <DropdownDivider />
-      {/* Demo flags: hide a feature live and put it back. These rows are never
-          hidden themselves — they are how a feature comes back — and they show
-          in the Studio menu too. */}
-      <DropdownSection>
-        <DropdownHeading>{t('Demo features')}</DropdownHeading>
-        {FEATURE_KEYS.map((key) => {
-          const Icon = FEATURE_ICONS[key]
-          const def = FEATURES[key]
-          return (
-            <DropdownItem
-              key={key}
-              onClick={(e: React.MouseEvent) => {
-                // Same trick as the language row: the menu stays open, so two
-                // flags can be flipped without reopening it.
-                e.preventDefault()
-                setFeature(key, !features[key])
-              }}
-            >
-              <Icon />
-              <DropdownLabel>{t(def.label, def.ctx)}</DropdownLabel>
-              <Switch
-                as="span"
-                checked={features[key]}
-                color="dark/zinc"
-                className="pointer-events-none ml-auto"
-              />
-            </DropdownItem>
-          )
-        })}
-      </DropdownSection>
-      <DropdownDivider />
+      {/* Demo flags: hide a feature live and put it back. A toggle row is never
+          hidden by its own flag — it is how a feature comes back — and the rows
+          show in the Studio menu too. The section only exists while some flag
+          is not fixed in the registry (src/lib/features.ts). */}
+      {TOGGLE_KEYS.length > 0 && (
+        <>
+          <DropdownSection>
+            <DropdownHeading>{t('Demo features')}</DropdownHeading>
+            {TOGGLE_KEYS.map((key) => {
+              const Icon = FEATURE_ICONS[key]
+              const def = FEATURES[key]
+              return (
+                <DropdownItem
+                  key={key}
+                  onClick={(e: React.MouseEvent) => {
+                    // Same trick as the language row: the menu stays open, so two
+                    // flags can be flipped without reopening it.
+                    e.preventDefault()
+                    setFeature(key, !features[key])
+                  }}
+                >
+                  <Icon />
+                  <DropdownLabel>{t(def.label, def.ctx)}</DropdownLabel>
+                  <Switch
+                    as="span"
+                    checked={features[key]}
+                    color="dark/zinc"
+                    className="pointer-events-none ml-auto"
+                  />
+                </DropdownItem>
+              )
+            })}
+          </DropdownSection>
+          <DropdownDivider />
+        </>
+      )}
       <DropdownItem
         disabled={signingOut}
         aria-busy={signingOut || undefined}
