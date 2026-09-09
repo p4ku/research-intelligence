@@ -34,6 +34,7 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
     Lists extracted claims and parameters matching schema settings.
     Scoped to workspaces the authenticated user is a member of.
     """
+    queryset = Extraction.objects.none()
     serializer_class = ExtractionSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = StandardResultsSetPagination
@@ -57,7 +58,7 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
                 ws_uuid = uuid.UUID(str(ws_id))
                 if ws_uuid not in user_ws_ids:
                     return qs.none()
-                qs = base_qs.filter(workspace_id=ws_uuid)
+                qs = qs.filter(workspace_id=ws_uuid)
             except (ValueError, TypeError):
                 return qs.none()
 

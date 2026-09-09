@@ -444,3 +444,102 @@ class StageResultsAndStopReasonTestCase(TestCase):
 
         cr_link = ext_admin.component_run_link(ext_pass)
         self.assertIn(str(cr.id)[:8], str(cr_link))
+
+    def test_extraction_admin_exit_metrics_badge_and_preview_unpacking(self):
+        """
+        Verifies ExtractionAdmin.exit_metrics_badge and exit_metrics_preview:
+        - Unpacks stringified/native dictionaries into structured status and chips.
+        - Handles status: 'YES' with matched_institutions list.
+        - Handles status: 'NO' with matched_institutions: None (omits None).
+        - Handles general multi-key dictionaries.
+        - Preserves clean scalar badges for floats/integers.
+        - Provides formatted JSON in exit_metrics_preview.
+        """
+        from research_intelligence.admin import ExtractionAdmin
+        from research_intelligence.models import Extraction, ExtractionDefinition, Paper
+
+        ext_admin = ExtractionAdmin(Extraction, self.site)
+        test_paper = Paper.objects.create(workspace=self.workspace, title="Extraction Admin Test Paper")
+
+        # 1. Scalar metric (e.g. 24.5)
+        ext_def_scalar = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Schwarz Fit",
+            response_schema={"type": "object"},
+            exit_metrics="fit_score"
+        )
+        ext_scalar = Extraction.objects.create(
+            workspace=self.workspace,
+            paper=test_paper,
+            extraction_definition=ext_def_scalar,
+            fields_data={"fields": {"fit_score": 24.5}},
+            validation_status="pass"
+        )
+        badge_scalar = str(ext_admin.exit_metrics_badge(ext_scalar))
+        self.assertIn("24.5", badge_scalar)
+        preview_scalar = str(ext_admin.exit_metrics_preview(ext_scalar))
+        self.assertIn("24.5", preview_scalar)
+
+        # 2. Risk & Affiliation Dict with YES and institutions list
+        ext_def_risk = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Risk and Affiliation Flagging",
+            response_schema={"type": "object"},
+            exit_metrics="risk_affiliation"
+        )
+        ext_dict_yes = Extraction.objects.create(
+            workspace=self.workspace,
+            paper=test_paper,
+            extraction_definition=ext_def_risk,
+            fields_data={"fields": {"risk_affiliation": {"status": "YES", "matched_institutions": ["TUM", "Fraunhofer"]}}},
+            validation_status="pass"
+        )
+        badge_yes = str(ext_admin.exit_metrics_badge(ext_dict_yes))
+        self.assertIn("YES", badge_yes)
+        self.assertIn("#198754", badge_yes)
+        self.assertIn("TUM", badge_yes)
+        self.assertIn("Fraunhofer", badge_yes)
+
+        preview_yes = str(ext_admin.exit_metrics_preview(ext_dict_yes))
+        self.assertIn("YES", preview_yes)
+        self.assertIn("<pre", preview_yes)
+        self.assertIn("matched_institutions", preview_yes)
+
+        # 3. Risk & Affiliation Dict with NO and None (None should not render)
+        ext_dict_no = Extraction.objects.create(
+            workspace=self.workspace,
+            paper=test_paper,
+            extraction_definition=ext_def_risk,
+            fields_data={"fields": {"risk_affiliation": "{'status': 'NO', 'matched_institutions': None}"}},
+            validation_status="pass"
+        )
+        badge_no = str(ext_admin.exit_metrics_badge(ext_dict_no))
+        self.assertIn("NO", badge_no)
+        self.assertIn("#6c757d", badge_no)
+        self.assertNotIn("None", badge_no)
+
+        # 4. General multi-key dictionary
+        ext_def_composite = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Research Quality",
+            response_schema={"type": "object"},
+            exit_metrics="metrics"
+        )
+        ext_dict_multi = Extraction.objects.create(
+            workspace=self.workspace,
+            paper=test_paper,
+            extraction_definition=ext_def_composite,
+            fields_data={"fields": {"metrics": {"novelty": 68, "significance": 75}}},
+            validation_status="pass"
+        )
+        badge_multi = str(ext_admin.exit_metrics_badge(ext_dict_multi))
+        self.assertIn("novelty:", badge_multi)
+        self.assertIn("68", badge_multi)
+        self.assertIn("significance:", badge_multi)
+        self.assertIn("75", badge_multi)
+
+        # 5. Empty / null exit metric
+        ext_empty = Extraction(workspace=self.workspace, paper=test_paper, fields_data={})
+        badge_empty = str(ext_admin.exit_metrics_badge(ext_empty))
+        self.assertIn("-", badge_empty)
+

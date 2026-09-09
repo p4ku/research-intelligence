@@ -1,6 +1,6 @@
 # 💬 Schwarz Research Intelligence - Chat & Interactive Knowledge Explorer
 
-Enterprise-grade, multimodal scientific paper interrogation, workspace synthesis, and deep-tech conversational reasoning engine powered by **Google Gemini 3.7 Flash** and the modern `google-genai` SDK.
+Enterprise-grade, multimodal scientific paper interrogation, workspace synthesis, and deep-tech conversational reasoning engine powered by **Google Gemini 3.8 Flash** and the modern `google-genai` SDK.
 
 ---
 
@@ -38,7 +38,7 @@ flowchart TD
 
     subgraph LLM Inference & Deep Thinking
         Orchestrator --> GoogleProvider[GoogleAgentAPIProvider]
-        GoogleProvider -->|ThinkingConfig thinking_budget=2048| GeminiAPI[Google Gemini 3.7 Flash]
+        GoogleProvider -->|ThinkingConfig thinking_budget=2048| GeminiAPI[Google Gemini 3.8 Flash]
     end
 
     subgraph Grounding & Hallucination Guard
@@ -68,7 +68,7 @@ All domain logic is organized in an object-oriented design pattern located withi
 
 ## 🧠 3. Gemini Native Thinking (ThinkingConfig & Thoughts Extraction)
 
-Adhering to the latest `google-genai` Python SDK specification, the chat subsystem implements native reasoning configuration (**Deep Thinking**) for Gemini 3.7 Flash and Gemini 2.0 Flash Thinking models:
+Adhering to the latest `google-genai` Python SDK specification, the chat subsystem implements native reasoning configuration (**Deep Thinking**) for Gemini 3.8 Flash and Gemini 2.0 Flash Thinking models:
 
 ### 1. `types.ThinkingConfig` Parameter Configuration
 Chat passes the workspace's `reasoning_effort` (default `medium`, budget 2048) on every turn; `deep_thinking=True` raises it to `high` (budget 8192) and asks for the thought trace:
@@ -84,7 +84,7 @@ config_args["max_output_tokens"] = 16384  # Thinking tokens count against this c
 Thinking tokens are reported by Gemini in `thoughts_token_count`, separately from the answer; the provider adds them to `candidates_tokens` so they are billed and counted against the workspace quota.
 
 ### 2. Regional Routing & Resilient Timeouts
-- **Location**: Set to `eu` (`https://aiplatform.eu.rep.googleapis.com` / `eu`) for European compliance and full Gemini 3.7 Flash feature parity.
+- **Location**: Set to `eu` (`https://aiplatform.eu.rep.googleapis.com` / `eu`) for European compliance and full Gemini 3.8 Flash feature parity.
 - **Timeout**: `types.HttpOptions(timeout=300000)` sets a resilient 5-minute window (300,000 ms) preventing timeouts during deep multimodal PDF analyses.
 
 ### 2. Thought Token Extraction & Separation (`part.thought` vs `part.text`)
@@ -175,13 +175,13 @@ Comprehensive test suites are located in `backend/chat/tests/` and `backend/mcp_
 
 ```bash
 # Run Chat test suite
-./run_tests.sh chat
+uv run pytest backend/chat/tests/
 
 # Run FastMCP Chat tool test suite
-./run_tests.sh mcp_server
+uv run pytest backend/mcp_server/tests/
 
 # Run complete platform test suite
-./run_tests.sh
+uv run pytest
 ```
 
-All 383+ test cases execute in-memory (`:memory:` SQLite) in ~10 seconds with 100% PASS rate.
+All 383+ chat & MCP test cases execute in-memory (`:memory:` SQLite) with 100% PASS rate.

@@ -11,6 +11,7 @@ class SubscriberViewSet(viewsets.ModelViewSet):
     CRUD endpoints for Workspace Subscribers (email notifications and report recipients).
     Accessible only to members of the workspace.
     """
+    queryset = Subscriber.objects.none()
     serializer_class = SubscriberSerializer
     permission_classes = [permissions.IsAuthenticated]
     ordering_fields = ['created_at', 'email', 'subscription_type', 'is_active']

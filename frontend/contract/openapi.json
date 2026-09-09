@@ -3009,6 +3009,9 @@
           "name": {
             "type": "string"
           },
+          "label": {
+            "type": "string"
+          },
           "value": {
             "anyOf": [
               {
@@ -3035,14 +3038,149 @@
           "is_trl": {
             "type": "boolean"
           },
-          "rationale": {
-            "type": "string"
+          "is_risk_and_affiliation": {
+            "type": "boolean"
           },
-          "evidence": {
+          "has_postprocessing": {
+            "type": "boolean"
+          },
+          "primary_metric": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondary_metrics": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "main_metric": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "auxiliary_metrics": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_hitl": {
+            "type": "boolean"
+          },
+          "fields_data": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "response_schema": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exit_metrics": {
             "type": "array",
             "items": {
               "type": "string"
             }
+          },
+          "primary_frontend_metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondary_frontend_metrics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "rationale": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "confidence": {
             "anyOf": [
@@ -3055,42 +3193,89 @@
             ]
           },
           "validation_status": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "review_required": {
             "type": "boolean"
           },
           "extraction_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "band": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "facets": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DimensionFacet"
-            }
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DimensionFacet"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "texts": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DimensionField"
-            }
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DimensionField"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "lists": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DimensionList"
-            }
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DimensionList"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "facts": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DimensionField"
-            }
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DimensionField"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "model": {
             "anyOf": [
@@ -3112,7 +3297,7 @@
           "max",
           "is_trl"
         ],
-        "additionalProperties": false
+        "additionalProperties": {}
       },
       "DimensionFacet": {
         "$id": "#/components/schemas/DimensionFacet",
@@ -3125,7 +3310,14 @@
             "type": "string"
           },
           "value": {
-            "type": "number"
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "max": {
             "anyOf": [
@@ -3146,16 +3338,37 @@
                 "type": "null"
               }
             ]
+          },
+          "band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "key",
           "name",
-          "value",
-          "max",
-          "text"
+          "value"
         ],
-        "additionalProperties": false
+        "additionalProperties": {}
       },
       "DimensionField": {
         "$id": "#/components/schemas/DimensionField",
@@ -3174,6 +3387,82 @@
               },
               {
                 "type": "boolean"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "type": {
+            "type": "string"
+          },
+          "is_dict": {
+            "type": "boolean"
+          },
+          "dict_value": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "insight": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
               }
             ]
           }
@@ -3183,7 +3472,7 @@
           "name",
           "value"
         ],
-        "additionalProperties": false
+        "additionalProperties": {}
       },
       "DimensionList": {
         "$id": "#/components/schemas/DimensionList",
@@ -3248,29 +3537,184 @@
         "type": "object",
         "properties": {
           "id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            "type": "string"
           },
           "title": {
             "type": "string"
           },
           "authors": {
+            "default": [],
             "type": "array",
             "items": {
               "type": "string"
             }
           },
           "source": {
+            "default": "arXiv",
             "type": "string"
           },
           "screening_status": {
             "$ref": "#/components/schemas/ScreeningStatus"
           },
           "signal_score": {
+            "default": null,
             "anyOf": [
               {
                 "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "pipeline_run_id": {
+            "type": "string"
+          },
+          "authors_raw": {
+            "type": "string"
+          },
+          "abstract": {
+            "type": "string"
+          },
+          "doi": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "arxiv_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "screening_reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "abstract_screening_reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "full_text_screening_reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signal_score_details": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SignalScoreDetails"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dimensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Dimension"
+            }
+          },
+          "pdf_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "markdown_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_benchmark": {
+            "type": "boolean"
+          },
+          "evaluation_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "published_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "pipeline_run_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "risk_and_affiliation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskAndAffiliation"
               },
               {
                 "type": "null"
@@ -3285,7 +3729,7 @@
           "source",
           "signal_score"
         ],
-        "additionalProperties": false
+        "additionalProperties": {}
       },
       "ExtractionDefinitionSummary": {
         "$id": "#/components/schemas/ExtractionDefinitionSummary",
@@ -3317,6 +3761,22 @@
                 "type": "null"
               }
             ]
+          },
+          "primary_frontend_metric": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "secondary_frontend_metrics": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -3359,6 +3819,33 @@
           "verified_count",
           "total_count",
           "status"
+        ],
+        "additionalProperties": false
+      },
+      "NarrativeReportSummary": {
+        "$id": "#/components/schemas/NarrativeReportSummary",
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content_markdown": {
+            "type": "string"
+          },
+          "refinement_depth": {
+            "type": "number"
+          },
+          "created_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "content_markdown"
         ],
         "additionalProperties": false
       },
@@ -4167,38 +4654,199 @@
         },
         "additionalProperties": false
       },
+      "RiskAndAffiliation": {
+        "$id": "#/components/schemas/RiskAndAffiliation",
+        "type": "object",
+        "properties": {
+          "raw": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {}
+          },
+          "affiliations": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "author_contacts": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "funding_entities": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "codebase_artifact_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "schwarz_ecosystem_affiliation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "gdpr_concerns": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "competitor_involvement": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "risk_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "risk_score_assessment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "flags": {
+            "default": [],
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RiskFlag"
+            }
+          }
+        },
+        "required": [
+          "affiliations",
+          "author_contacts",
+          "funding_entities",
+          "flags"
+        ],
+        "additionalProperties": false
+      },
+      "RiskFlag": {
+        "$id": "#/components/schemas/RiskFlag",
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              }
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "is_dict": {
+            "type": "boolean"
+          },
+          "dict_value": {
+            "anyOf": [
+              {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string"
+                },
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "value",
+          "status"
+        ],
+        "additionalProperties": {}
+      },
       "ScoredPaper": {
         "$id": "#/components/schemas/ScoredPaper",
         "type": "object",
         "properties": {
           "id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            "type": "string"
           },
           "workspace_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            "type": "string"
           },
           "pipeline_run_id": {
-            "type": "string",
-            "format": "uuid",
-            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            "type": "string"
           },
           "title": {
             "type": "string"
           },
           "authors": {
+            "default": [],
             "type": "array",
             "items": {
               "type": "string"
             }
           },
           "authors_raw": {
+            "default": "",
             "type": "string"
           },
           "abstract": {
+            "default": "",
             "type": "string"
           },
           "doi": {
@@ -4278,6 +4926,7 @@
             ]
           },
           "dimensions": {
+            "default": [],
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Dimension"
@@ -4314,16 +4963,14 @@
             ]
           },
           "is_benchmark": {
+            "default": false,
             "type": "boolean"
           },
           "evaluation_label": {
+            "default": null,
             "anyOf": [
               {
-                "type": "string",
-                "enum": [
-                  "passed",
-                  "rejected"
-                ]
+                "type": "string"
               },
               {
                 "type": "null"
@@ -4341,14 +4988,22 @@
             ]
           },
           "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+            "type": "string"
           },
           "pipeline_run_name": {
             "anyOf": [
               {
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "risk_and_affiliation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RiskAndAffiliation"
               },
               {
                 "type": "null"

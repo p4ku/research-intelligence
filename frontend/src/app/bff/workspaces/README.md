@@ -33,12 +33,8 @@ would remove a whole class of frontend derivation.
 `django` (default): today's bare array via `src/lib/bff/workspaces/service.ts`,
 validated (`upstream.ts`) and normalised into the contract shape.
 
-Calibration domains are dropped from `workspaces.listAll()` — the one list
-every page reads — so they never appear in a domain picker, the papers table
-or the briefings ledger. The predicate is `src/lib/bff/workspaces/visible.ts`
-(name contains `calibration` or the misspelt `callibration`). Papers
-composition reads the unfiltered `listWorkspacesRaw`, so a paper pointing at a
-hidden domain keeps its extraction definitions.
+All workspaces the authenticated user belongs to are served via
+`workspaces.listAll()` and displayed across the UI.
 
 ## curl
 

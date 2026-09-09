@@ -203,6 +203,7 @@ def build_paper_extractions_matrix(
             "signal_score": score_val,
             "signal_score_details": details_val or {},
             "pdf_url": (f"https://arxiv.org/pdf/{paper.arxiv_id}.pdf" if paper.arxiv_id else None) or paper.original_pdf_path,
+            "source_url": paper.source_url or (f"https://arxiv.org/abs/{paper.arxiv_id}" if paper.arxiv_id else None) or (f"https://doi.org/{paper.doi}" if paper.doi else None),
             "original_pdf_path": paper.original_pdf_path,
             "converted_md_path": paper.converted_md_path,
             "abstract": paper.abstract,

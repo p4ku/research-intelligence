@@ -8,24 +8,9 @@
  */
 import * as z from 'zod'
 import { listQuery, pageSchema } from '../core/pagination'
-import { screeningStatus } from '../papers/schema'
+import { editionPaper } from '../papers/schema'
 
-export const editionPaper = z
-  .object({
-    id: z.uuid(),
-    title: z.string(),
-    authors: z.array(z.string()),
-    source: z.string(),
-    /**
-     * The run's decision and score for the paper — frozen with the edition,
-     * whatever a later run decided. The status is optional until the Django
-     * editions endpoint serves it; the UI shows the paper's current one then.
-     */
-    screening_status: screeningStatus.optional(),
-    signal_score: z.number().nullable(),
-  })
-  .meta({ id: 'EditionPaper' })
-export type EditionPaper = z.infer<typeof editionPaper>
+export { editionPaper, type EditionPaper } from '../papers/schema'
 
 export const editionExclusion = z
   .object({

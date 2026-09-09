@@ -334,6 +334,111 @@ function dimensionDetail(
   const lists: NonNullable<Dimension['lists']> = []
   const facts: NonNullable<Dimension['facts']> = []
   let band: string | undefined
+  // 1. If explicit secondary metrics are specified in `order`, build facets directly
+  if (order.length > 0) {
+    for (const secKey of order) {
+      if (used.has(secKey)) continue
+      const raw =
+        data[secKey] ??
+        Object.entries(data).find(
+          ([k]) =>
+            k.toLowerCase().replace(/[-_ ]/g, '') === secKey.toLowerCase().replace(/[-_ ]/g, ''),
+        )?.[1]
+      if (raw === undefined) continue
+      const value = isFieldExtraction(raw) ? raw.value : raw
+      const name = humaniseKey(secKey)
+
+      let dictValue: Record<string, unknown> | null = null
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        dictValue = value as Record<string, unknown>
+      } else if (
+        typeof value === 'string' &&
+        value.trim().startsWith('{') &&
+        value.trim().endsWith('}')
+      ) {
+        try {
+          const parsed = JSON.parse(value.trim())
+          if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+            dictValue = parsed
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (dictValue) {
+        const b = dictValue.band ? String(dictValue.band).trim() : null
+        const insRaw =
+          dictValue.insight ??
+          dictValue.rationale ??
+          dictValue.reasoning ??
+          dictValue.explanation ??
+          dictValue.text ??
+          dictValue.summary
+        const ins = insRaw !== undefined && insRaw !== null ? String(insRaw).trim() : null
+        const evRaw = dictValue.evidence ?? dictValue.quotes ?? dictValue.snippets
+        let ev: string[] | null = null
+        if (Array.isArray(evRaw)) {
+          ev = evRaw
+            .map((e) =>
+              typeof e === 'object' && e !== null && 'quote' in e
+                ? String((e as { quote: unknown }).quote)
+                : String(e),
+            )
+            .map((s) => s.trim())
+            .filter(Boolean)
+        }
+        const sRaw = dictValue.score ?? dictValue.value
+        const sc = typeof sRaw === 'number' && Number.isFinite(sRaw) ? sRaw : null
+
+        if (sc !== null) {
+          facets.push({
+            key: secKey,
+            name,
+            value: sc,
+            max: facetMax,
+            text: ins,
+            band: b,
+          })
+        } else {
+          texts.push({
+            key: secKey,
+            name,
+            value: ins || (b ? b : '—'),
+            type: 'dict',
+            is_dict: true,
+            dict_value: dictValue,
+            band: b,
+            insight: ins,
+            evidence: ev,
+            score: sc,
+          })
+        }
+        used.add(secKey)
+        continue
+      }
+
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        const twin = data[secKey.replace(FACET_KEY, '_assessment')] ?? data[`${secKey}_assessment`]
+        const text = isFieldExtraction(twin) ? twin.value : twin
+        facets.push({
+          key: secKey,
+          name,
+          value,
+          max: facetMax,
+          text: typeof text === 'string' && text.trim() ? text : null,
+        })
+        used.add(secKey)
+        continue
+      }
+
+      if (typeof value === 'string') {
+        facts.push({ key: secKey, name, value })
+        used.add(secKey)
+      }
+    }
+  }
+
   for (const [key, raw] of Object.entries(data)) {
     if (used.has(key) || DUPLICATE_KEY.test(key)) continue
     const value = isFieldExtraction(raw) ? raw.value : raw
@@ -342,7 +447,13 @@ function dimensionDetail(
       if (band === undefined && value.trim()) band = bandLabel(value)
       continue
     }
-    if (typeof value === 'number' && Number.isFinite(value) && FACET_KEY.test(key)) {
+    // Only scan for _score facets if no secondary metrics order was specified (legacy fallback)
+    if (
+      order.length === 0 &&
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      FACET_KEY.test(key)
+    ) {
       const twin = data[key.replace(FACET_KEY, '_assessment')]
       const text = isFieldExtraction(twin) ? twin.value : twin
       facets.push({
@@ -358,6 +469,76 @@ function dimensionDetail(
       // Paired with its facet above; on its own it is prose like any other.
       if (key.replace(ASSESSMENT_KEY, '_score') in data) continue
     }
+    // Dictionary / structured sub-metric (e.g. { band: 'Substantial', score: 68, insight: '...', evidence: [...] })
+    let dictValue: Record<string, unknown> | null = null
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      dictValue = value as Record<string, unknown>
+    } else if (
+      typeof value === 'string' &&
+      value.trim().startsWith('{') &&
+      value.trim().endsWith('}')
+    ) {
+      try {
+        const parsed = JSON.parse(value.trim())
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          dictValue = parsed
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (dictValue) {
+      const b = dictValue.band ? String(dictValue.band).trim() : null
+      const insRaw =
+        dictValue.insight ??
+        dictValue.rationale ??
+        dictValue.reasoning ??
+        dictValue.explanation ??
+        dictValue.text ??
+        dictValue.summary
+      const ins = insRaw !== undefined && insRaw !== null ? String(insRaw).trim() : null
+      const evRaw = dictValue.evidence ?? dictValue.quotes ?? dictValue.snippets
+      let ev: string[] | null = null
+      if (Array.isArray(evRaw)) {
+        ev = evRaw
+          .map((e) =>
+            typeof e === 'object' && e !== null && 'quote' in e
+              ? String((e as { quote: unknown }).quote)
+              : String(e),
+          )
+          .map((s) => s.trim())
+          .filter(Boolean)
+      }
+      const sRaw = dictValue.score ?? dictValue.value
+      const sc = typeof sRaw === 'number' && Number.isFinite(sRaw) ? sRaw : null
+
+      if (order.length === 0 && sc !== null && !facets.some((f) => f.key === key)) {
+        facets.push({
+          key,
+          name,
+          value: sc,
+          max: facetMax,
+          text: ins,
+          band: b,
+        })
+      } else {
+        texts.push({
+          key,
+          name,
+          value: ins || (b ? b : '—'),
+          type: 'dict',
+          is_dict: true,
+          dict_value: dictValue,
+          band: b,
+          insight: ins,
+          evidence: ev,
+          score: sc,
+        })
+      }
+      continue
+    }
+
     if (Array.isArray(value)) {
       const items = value.filter((i): i is string => typeof i === 'string' && i.trim() !== '')
       if (items.length) lists.push({ key, name, items })
@@ -579,8 +760,12 @@ function dimensionFor(
 
   const data = fieldsOf(extraction.fields_data)
   const named = resolveExitMetric(extraction.fields_data, ctx.def.name, extraction.category)
+  const explicitPrim = ctx.def.primary_frontend_metric ?? undefined
+  const explicitSec = ctx.def.secondary_frontend_metrics
   const exitKeys = ctx.def.exit_metrics ?? []
-  const { raw, matchedKey } = exitFromRow(extraction, data, exitKeys[0], named.matchedKey) ?? named
+  const targetPrim = explicitPrim || exitKeys[0]
+  const targetSec = explicitSec !== undefined ? explicitSec : exitKeys.slice(1)
+  const { raw, matchedKey } = exitFromRow(extraction, data, targetPrim, named.matchedKey) ?? named
   // metrics_data is pre-filled with 0.0 for every definition, so a bare 0
   // there is indistinguishable from "never scored" — only a non-zero metric
   // outranks the parsed extraction value ("null not 0", like parseNumeric).
@@ -603,8 +788,10 @@ function dimensionFor(
     // A TRL definition's sub-scores declare no range; the others share the
     // definition's own scale.
     ...(detail && {
-      ...dimensionDetail(data, used, value, ctx.is_trl ? null : ctx.max, exitKeys.slice(1)),
+      ...dimensionDetail(data, used, value, ctx.is_trl ? null : ctx.max, targetSec),
       model: modelOf(extraction),
+      primary_frontend_metric: explicitPrim ?? null,
+      secondary_frontend_metrics: targetSec,
     }),
   }
 }
@@ -771,6 +958,8 @@ export function toWorkspaceSummary(
         is_active: d.is_active,
         is_trl: isTrlName(d.name),
         max: inferScale(d, maxima.get(d.id) ?? null),
+        primary_frontend_metric: d.primary_frontend_metric ?? null,
+        secondary_frontend_metrics: d.secondary_frontend_metrics ?? [],
       }),
     ),
   }

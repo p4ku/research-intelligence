@@ -129,11 +129,12 @@ graph TD
 - **Strict Storage Isolation**: Workspace run deletions purge only their local workspace run folder (`workspaces/{ws_id}/runs/{run_id}/`), keeping canonical registry binaries and other workspaces' files 100% intact.
 
 ### 4. Dynamic Parameter Extraction & Multi-Metric Postprocessing
-- **Schema-Validated Extraction**: Evaluates papers against `ExtractionDefinition` prompts and JSON schemas using Gemini 3.7 Flash.
+- **Schema-Validated Extraction**: Evaluates papers against `ExtractionDefinition` prompts and JSON schemas using Gemini 3.8 Flash (`google/gemini-3.8-flash`).
+- **Explicit Primary & Secondary Frontend Metrics**: Supports explicit `primary_frontend_metric` (e.g. `'fit_score'` or `'trl_level'`) and `secondary_frontend_metrics` (e.g. `['novelty', 'significance']`) configured on `ExtractionDefinition`, completely eliminating fragile fuzzy heuristic affix matching.
 - **Exit Metrics List**: Directly accepts an explicit list of parameters (`exit_metrics: ["rigour_score", "sample_size", "p_value"]`) to unpack multiple distinct variables from a single extraction definition into Signal Scoring.
 - **Python AST-Sandboxed Postprocessing Snippet**: Optional Python code (`postprocessing_code`) executed in a secure sandbox with full access to the raw LLM JSON response (`data`, `response`, `json_response`) and extracted variables. Automatically injects a derived variable `<first_metric>_postprocessed` into the scoring environment.
 - **Evidence & Confidence Scores**: Stores results in `Extraction` objects containing exact evidence quotes, normalized values, confidence scores, and validation statuses (`pass`, `warn`, `fail`).
-- **REST API & FastMCP Tools**: Full programmatic manipulation via `/api/extraction-definitions/` and FastMCP tools (`create_extraction_definition`, `update_extraction_definition`, `get_extraction_definition`, `list_extraction_definitions`).
+- **REST API & FastMCP Tools**: Full programmatic manipulation via `/api/extraction-definitions/` and FastMCP tools (`create_extraction_definition`, `update_extraction_definition`, `set_extraction_frontend_metrics`, `get_extraction_definition`, `list_extraction_definitions`).
 
 ### 5. Custom Python AST Signal Scoring
 - Evaluates sandboxed mathematical ranking formulas (`workspace.signal_score_code`) securely using Python AST analysis.
@@ -143,9 +144,14 @@ graph TD
 - Export full workspace configurations as JSON bundles (criteria, prompts, schemas, scrapers, subscribers, formulas).
 - Import with explicit **Yes/No overwrite prompt** to fine-tune existing workspaces or import new ones.
 
-### 7. Dual Protocol Interface
+### 7. Dual Protocol Interface & Canonical Scorecard Endpoints
 - **FastMCP SSE Interface (Port 8001)**: Exposes workspace tools, scrapers, state machine controls, parameter extraction, and document registry stats to LLM clients (Claude, Gemini, Cursor, Antigravity) via `@mcp.tool()` and `@mcp.prompt()`.
-- **Django REST API (Port 8000)**: Exposes `/api/workspaces/`, `/api/extraction-definitions/`, `/api/agents/`, `/api/extractions/`, `/api/pipeline-runs/`, and `/api/chat/` endpoints for web frontends.
+- **Django REST API (Port 8000)**: Exposes core resources along with unified scorecard and briefing editions:
+  - `/api/workspaces/{id}/scorecard/`: High-performance, workspace-scoped canonical scorecard with run-scoping, multi-field search, screening status filter, and database-level ordering (`-signal_score`, `title`, `created_at`).
+  - `/api/papers/{id}/scorecard/`: Dedicated paper scorecard delivering structured dimensions, facets, prose insights, evidence quotes, and risk/affiliation flags.
+  - `/api/workspaces/{id}/editions/` & `/api/workspaces/{id}/editions/{date}/`: Briefing editions delivering pre-scored paper lists and exclusions directly, eliminating client-side paper composition.
+  - `/api/pipeline-runs/`: Paginated execution telemetry with heavy JSON fields (`stage_results`, `step_history`) deferred on list views for 10x smaller payload, and available on retrieve.
+  - `/api/chat/`, `/api/auth/`, `/api/extraction-definitions/`, `/api/papers/`.
 
 ### 8. The 5 Pipeline Triggering Pathways & Concurrency Controls
 The Systematic Literature Review (SLR) pipeline can be dispatched through **5 distinct, enterprise-grade execution channels**, all converging into the unified `ResearchAgentRunner` and `WorkflowDAG` orchestrator:
@@ -195,10 +201,11 @@ The data layer is structured into 5 cohesive domains:
 │   ├── chat/                    # Interactive Knowledge Explorer & Paper Chat (/api/chat/)
 │   ├── mcp_server/              # FastMCP Server (Port 8001) & Tool Registry (/mcp/)
 │   └── research_intelligence/   # Core intelligence platform
+│       ├── services/            # Scorecard service & extraction parsing architecture
 │       ├── tasks/               # 8-Stage Pipeline & Orchestrator DAG State Engine
 │       ├── models/              # Workspace, DocumentRegistry, Paper, Extraction models
-│       └── tests/               # Automated unit & integration test suite (440+ tests)
-├── frontend/                    # Next.js User Interface
+│       └── tests/               # Automated unit & integration test suite (949+ tests)
+├── frontend/                    # Next.js 15 App Router SPA + BFF Seam (586 tests)
 ├── docs/                        # Architecture documentation, diagrams & image generators
 │   ├── generate_db_schema.py    # Automated DB schema diagram builder (Mermaid/PNG/SVG)
 │   ├── diagrams/                # Raw Mermaid diagram definitions (.mmd)
@@ -221,12 +228,12 @@ The data layer is structured into 5 cohesive domains:
 | :--- | :--- | :--- |
 | **Backend Framework** | Python 3.12+, Django 6.0, DRF | Core models, database management, and REST API. |
 | **MCP SSE Server** | FastMCP | Model Context Protocol SSE server on port 8001. |
-| **Frontend Framework** | Next.js 15, React 19, TailwindCSS | Modern responsive literature intelligence dashboard. |
+| **Frontend Framework** | Next.js 15, React 19, TailwindCSS 4, Bun | Modern responsive literature intelligence dashboard with Souverän design system. |
 | **Task Queue** | Celery, Redis | Distributed async pipeline execution and DAG state engine polling. |
-| **Database Layer** | PostgreSQL (Prod) / SQLite (Tests) | Persistent storage, audit logs, and in-memory test runner. |
+| **Database Layer** | PostgreSQL (Prod) / SQLite (Tests) | Persistent storage, composite B-tree indexes, audit logs, and in-memory test runner. |
 | **Storage Layer** | Django `default_storage` | Local filesystem / AWS S3 / MinIO storage abstraction. |
 | **Telemetry & APM** | Sentry SDK | Error tracking, distributed performance tracing, and profiler. |
-| **LLM Engine** | Google GenAI / Gemini 3.7 Flash | Enterprise AI provider with reasoning effort support hosted on Schwarz Digits Cloud. |
+| **LLM Engine** | Google GenAI / Gemini 3.8 Flash | Enterprise AI provider with reasoning effort support hosted on Schwarz Digits Cloud. |
 | **OCR Providers** | PyPDF / Mistral OCR / Gemini Vision | Document layout parsing. |
 | **Diagram Engine** | Mermaid CLI / Python Generator | Automated DB schema and architecture diagram generation. |
 | **CI/CD** | GitHub Actions | Automated build, test, and container layer caching. |
@@ -251,7 +258,11 @@ docker compose up --build
 ```
 
 ### Run Unit Tests Locally
-Tests automatically run on an in-memory SQLite database:
+Tests automatically run on an in-memory SQLite database (0 tokens consumed):
 ```bash
-./backend/run_tests.sh
+# Backend test suite (949 tests)
+cd backend && uv run pytest
+
+# Frontend test suite (586 tests)
+cd frontend && bun test
 ```

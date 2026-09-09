@@ -72,6 +72,7 @@ from mcp_server.tools import (
     create_extraction_definition_logic,
     update_extraction_definition_logic,
     delete_extraction_definition_logic,
+    set_extraction_frontend_metrics_logic,
     list_extractions_logic,
     get_paper_extractions_matrix_logic,
     get_extraction_logic,
@@ -479,8 +480,11 @@ Workspace: {workspace_id}
           }},
           "required": ["trl_level", "fit_score", "novelty_score"]
       }},
-      exit_metrics=["fit_score"]
+      exit_metrics=["fit_score"],
+      primary_frontend_metric="fit_score",
+      secondary_frontend_metrics=["novelty_score", "trl_level"]
   )`
+- Or call `set_extraction_frontend_metrics(definition_id="...", primary_frontend_metric="fit_score", secondary_frontend_metrics=["novelty_score"])` to reconfigure metrics anytime.
 
 ### 2. Define Custom Signal Score Formula (AST Sandboxed Python)
 - Call `update_workspace(
@@ -552,23 +556,23 @@ def create_workspace(
     abstract_rejection_criteria: str = "",
     full_text_acceptance_criteria: str = "",
     full_text_rejection_criteria: str = "",
-    abstract_screening_system_prompt: str = None,
-    abstract_screening_user_prompt_template: str = None,
-    abstract_screening_response_schema: dict = None,
-    abstract_screening_exit_metric: str = None,
-    full_text_screening_system_prompt: str = None,
-    full_text_screening_user_prompt_template: str = None,
-    full_text_screening_response_schema: dict = None,
-    full_text_screening_exit_metric: str = None,
-    narrative_report_prompt: str = None,
-    narrative_report_system_prompt: str = None,
+    abstract_screening_system_prompt: str | None = None,
+    abstract_screening_user_prompt_template: str | None = None,
+    abstract_screening_response_schema: dict | None = None,
+    abstract_screening_exit_metric: str | None = None,
+    full_text_screening_system_prompt: str | None = None,
+    full_text_screening_user_prompt_template: str | None = None,
+    full_text_screening_response_schema: dict | None = None,
+    full_text_screening_exit_metric: str | None = None,
+    narrative_report_prompt: str | None = None,
+    narrative_report_system_prompt: str | None = None,
     narrative_report_top_n_papers: int = 10,
-    ocr_provider: str = None,
+    ocr_provider: str | None = None,
     screening_llm_model: str = "google/gemini-3.8-flash",
     llm_provider: str = "google",
     monthly_token_limit: int = 10000000,
     cost_limit_usd: float = 100.00,
-    signal_score_code: str = None,
+    signal_score_code: str | None = None,
     skip_abstract_screening: bool = False,
     reprocess_existing: bool = False
 ) -> str:
@@ -655,30 +659,30 @@ def create_workspace(
 @with_db_connection
 def update_workspace(
     workspace_id: str,
-    name: str = None,
-    abstract_acceptance_criteria: str = None,
-    abstract_rejection_criteria: str = None,
-    full_text_acceptance_criteria: str = None,
-    full_text_rejection_criteria: str = None,
-    abstract_screening_system_prompt: str = None,
-    abstract_screening_user_prompt_template: str = None,
-    abstract_screening_response_schema: dict = None,
-    abstract_screening_exit_metric: str = None,
-    full_text_screening_system_prompt: str = None,
-    full_text_screening_user_prompt_template: str = None,
-    full_text_screening_response_schema: dict = None,
-    full_text_screening_exit_metric: str = None,
-    narrative_report_prompt: str = None,
-    narrative_report_system_prompt: str = None,
-    narrative_report_top_n_papers: int = None,
-    ocr_provider: str = None,
-    screening_llm_model: str = None,
-    llm_provider: str = None,
-    monthly_token_limit: int = None,
-    cost_limit_usd: float = None,
-    signal_score_code: str = None,
-    skip_abstract_screening: bool = None,
-    reprocess_existing: bool = None
+    name: str | None = None,
+    abstract_acceptance_criteria: str | None = None,
+    abstract_rejection_criteria: str | None = None,
+    full_text_acceptance_criteria: str | None = None,
+    full_text_rejection_criteria: str | None = None,
+    abstract_screening_system_prompt: str | None = None,
+    abstract_screening_user_prompt_template: str | None = None,
+    abstract_screening_response_schema: dict | None = None,
+    abstract_screening_exit_metric: str | None = None,
+    full_text_screening_system_prompt: str | None = None,
+    full_text_screening_user_prompt_template: str | None = None,
+    full_text_screening_response_schema: dict | None = None,
+    full_text_screening_exit_metric: str | None = None,
+    narrative_report_prompt: str | None = None,
+    narrative_report_system_prompt: str | None = None,
+    narrative_report_top_n_papers: int | None = None,
+    ocr_provider: str | None = None,
+    screening_llm_model: str | None = None,
+    llm_provider: str | None = None,
+    monthly_token_limit: int | None = None,
+    cost_limit_usd: float | None = None,
+    signal_score_code: str | None = None,
+    skip_abstract_screening: bool | None = None,
+    reprocess_existing: bool | None = None
 ) -> str:
     """
     [SETTINGS UPDATE]
@@ -937,6 +941,7 @@ def list_papers(workspace_id: str, pipeline_run_id: str | None = None, limit: in
     - JSON list of papers with:
       • paper_id, workspace_id, pipeline_run
       • title, authors, abstract, doi, arxiv_id, source_database
+      • source_url: Canonical public web URL to article landing page or repository
       • pdf_url, original_pdf_path, converted_md_path
       • screening_status: Review decision ('abstract_passed', 'full_text_passed', 'accepted', 'rejected', 'withdrawn', 'pending')
       • abstract_screening_reasoning: LLM justification from Stage 1 Abstract Screening
@@ -995,8 +1000,10 @@ def create_extraction_definition(
     system_prompt: str,
     user_prompt_template: str,
     response_schema: dict,
-    exit_metrics: list[str] = None,
-    postprocessing_code: str = None,
+    exit_metrics: list[str] | None = None,
+    primary_frontend_metric: str | None = None,
+    secondary_frontend_metrics: list[str] | None = None,
+    postprocessing_code: str | None = None,
     llm_model: str = "google/gemini-3.8-flash",
     version: int = 1,
     requires_consensus: bool = False,
@@ -1016,6 +1023,8 @@ def create_extraction_definition(
     - user_prompt_template: Template with variables `{{paper_title}}`, `{{abstract}}`, `{{full_text}}`.
     - response_schema: JSON Schema dictionary defining the expected structure, field types, and constraints.
     - exit_metrics: List of field keys (e.g. ['rigour_score', 'param1', 'param2']) to unpack from extracted JSON for Signal Score.
+    - primary_frontend_metric: Optional explicit headline field key displayed on the frontend dimension badge (e.g. 'fit_score' or 'trl_level').
+    - secondary_frontend_metrics: Optional explicit list of sub-metric field keys displayed with progress bars and insight prose on frontend (e.g. ['novelty', 'significance']).
     - postprocessing_code: Optional Python snippet executed in a secure AST sandbox with full access to `data`, `response`, `json_response` and extracted fields. Computes an extra variable `<primary_metric>_postprocessed` for Signal Score.
     - llm_model: Default 'google/gemini-3.8-flash'.
     """
@@ -1032,6 +1041,8 @@ def create_extraction_definition(
         user_prompt_template=user_prompt_template,
         response_schema=response_schema,
         exit_metrics=exit_metrics,
+        primary_frontend_metric=primary_frontend_metric,
+        secondary_frontend_metrics=secondary_frontend_metrics,
         postprocessing_code=postprocessing_code,
         llm_model=llm_model,
         version=version,
@@ -1046,6 +1057,8 @@ def update_extraction_definition(
     definition_id: str,
     name: str | None = None,
     exit_metrics: list[str] | None = None,
+    primary_frontend_metric: str | None = None,
+    secondary_frontend_metrics: list[str] | None = None,
     postprocessing_code: str | None = None,
     system_prompt: str | None = None,
     user_prompt_template: str | None = None,
@@ -1057,11 +1070,13 @@ def update_extraction_definition(
 ) -> str:
     """
     [PARAMETER DEFINITION UPDATE]
-    Update an existing extraction definition's schema, prompts, exit metrics list, postprocessing code, or LLM configuration.
+    Update an existing extraction definition's schema, prompts, exit metrics list, primary/secondary frontend metrics, postprocessing code, or LLM configuration.
     
     PARAMETERS:
     - definition_id: UUID of the extraction definition.
     - exit_metrics: List of exit parameter keys (e.g. ['rigour_score', 'param1']) to expose for Signal Score.
+    - primary_frontend_metric: Optional explicit headline field key displayed on the frontend dimension badge (e.g. 'fit_score').
+    - secondary_frontend_metrics: Optional explicit list of sub-metric field keys displayed on frontend (e.g. ['novelty', 'significance']).
     - postprocessing_code: Python snippet executed in secure AST sandbox. Set empty string to clear.
     """
     try:
@@ -1074,6 +1089,8 @@ def update_extraction_definition(
         definition_id=definition_id,
         name=name,
         exit_metrics=exit_metrics,
+        primary_frontend_metric=primary_frontend_metric,
+        secondary_frontend_metrics=secondary_frontend_metrics,
         postprocessing_code=postprocessing_code,
         system_prompt=system_prompt,
         user_prompt_template=user_prompt_template,
@@ -1082,6 +1099,40 @@ def update_extraction_definition(
         version=version,
         requires_consensus=requires_consensus,
         is_active=is_active
+    )
+
+
+@mcp.tool()
+@with_db_connection
+def set_extraction_frontend_metrics(
+    definition_id: str,
+    primary_frontend_metric: str | None = None,
+    secondary_frontend_metrics: list[str] | None = None,
+) -> str:
+    """
+    [FRONTEND DISPLAY METRICS]
+    Explicitly configure which extracted parameters are displayed as the primary headline badge and secondary sub-metrics on the frontend scorecard.
+    
+    WHEN TO USE:
+    - Use when you want to define or reconfigure which field key appears on the frontend dimension headline badge
+      and which field keys appear as secondary sub-measures (with progress bars, band badges, insights, and quotes)
+      without needing to re-send the full schema, prompts, or postprocessing code.
+      
+    PARAMETERS:
+    - definition_id: UUID of the target extraction definition.
+    - primary_frontend_metric: Optional field key for the headline dimension badge (e.g. 'fit_score', 'trl_level').
+    - secondary_frontend_metrics: Optional list of field keys for sub-metrics (e.g. ['novelty', 'significance']).
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "prompts:write")
+    except Exception as e:
+        return str(e)
+    return set_extraction_frontend_metrics_logic(
+        user=user,
+        definition_id=definition_id,
+        primary_frontend_metric=primary_frontend_metric,
+        secondary_frontend_metrics=secondary_frontend_metrics,
     )
 
 

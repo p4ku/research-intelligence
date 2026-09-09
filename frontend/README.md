@@ -11,14 +11,13 @@ briefing, an analyst who lives in the filters, and a domain expert who wants a
 protected hour with one paper. Every score ships with a plain-English rationale
 so non-technical users can see _why_ something ranked where it did.
 
-> **Status: Phase 2 core, fully behind the BFF seam.** This branch
-> (`phase-2-core`) is the frontend for the Django backend in
-> `schwarz-research-intelligence`. Every surface reads real data through
-> `src/lib/bff/*` — Ask streams the backend's chat, Briefings derive from
-> completed runs (template prose until the backend writes it), Settings save.
-> Each `src/app/bff/<resource>/` folder documents the Django endpoint we are
-> asking the backend team to build; start at `docs/backend-handoff.md`.
-> The concept prototypes and pitch material live on `main`.
+> **Status: Canonical Scorecard & Editions Engine Connected.**
+> Every surface reads real, canonical data through `src/lib/bff/*` and the backend's
+> single-stream endpoints. The backend natively implements the scorecard
+> (`GET /api/workspaces/{id}/scorecard/` and `/api/papers/{id}/scorecard/`) and
+> briefing editions (`GET /api/workspaces/{id}/editions/` and `/editions/{date}/`).
+> Client-side paper composition has been retired in favor of high-performance backend
+> queries. Ask streams Gemini 3.8 Flash chat, and Settings persist to Django.
 
 ## What's here
 
@@ -39,14 +38,15 @@ so non-technical users can see _why_ something ranked where it did.
     failure keeps its place, Retry on a failed one) beside Start New Briefing
     (domain, window, Run pipeline — one run at a time).
   - **Briefings** (`/briefing`) — one edition per completed run: funnel,
-    surfaced papers, the screening log, and a brief (template-written until
-    the backend's reporting step lands).
+    surfaced papers, the screening log, and executive brief prose served
+    canonically from the backend editions engine.
   - **Papers** (`/papers`) — behind the `all_papers` preference; off, the route
     renders the not-found card. Every paper from every domain, scored against its domain's
     extraction definitions plus the backend's composite signal score; domain,
     screening, sort, ingest-window, signal-strength and (when defined) TRL
     filters; a detail page (not flagged) with the score formula, per-dimension
-    rationale and evidence, screening notes, and arXiv/DOI links.
+    rationale and evidence, screening notes, and arXiv/DOI links. Served directly
+    by the backend's single-stream scorecard endpoint.
   - **Ask** (`/ask`) — corpus- or paper-scoped Q&A streamed from the
     backend's chat engine, with citations, visual evidence, a fact-check
     verdict, and Django-backed history. Behind the `ask` demo switch: off, the
@@ -143,6 +143,7 @@ hostname across the backend apps and this one.
 ### Tests and checks
 
 ```bash
+bun test                 # run the test suite (586+ unit & component tests in ~1.5s)
 bun run check            # format, types, lint + contract specs, tests, scope
 bun run build            # not in `check` — slow; run it after config or routing changes
 bun run contract:check   # validates a live Django against the contract

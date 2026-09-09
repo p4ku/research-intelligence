@@ -185,6 +185,8 @@ def serialize_workspace_configuration(workspace: Workspace) -> dict:
                 "user_prompt_template": ed.user_prompt_template,
                 "response_schema": ed.response_schema,
                 "exit_metrics": ed.get_exit_metrics_list(),
+                "primary_frontend_metric": ed.primary_frontend_metric or None,
+                "secondary_frontend_metrics": ed.get_secondary_frontend_metrics_list(),
                 "postprocessing_code": ed.postprocessing_code or "",
                 "llm_model": ed.llm_model,
                 "version": ed.version,
@@ -336,11 +338,25 @@ def import_workspace_configuration_bundle(
             elif exit_m:
                 exit_m = str(exit_m)
 
+            prim_f = ed_data.get("primary_frontend_metric") or ed_data.get("primary_frontend_metrics")
+            if isinstance(prim_f, (list, tuple)):
+                prim_f = str(prim_f[0]).strip() if prim_f else None
+            elif prim_f:
+                prim_f = str(prim_f).strip() or None
+
+            sec_f = ed_data.get("secondary_frontend_metrics")
+            if isinstance(sec_f, (list, tuple)):
+                sec_f = ", ".join(str(m).strip() for m in sec_f if str(m).strip())
+            elif sec_f:
+                sec_f = str(sec_f).strip() or ""
+
             ed_fields = {
                 "system_prompt": ed_data.get("system_prompt", ""),
                 "user_prompt_template": ed_data.get("user_prompt_template", ""),
                 "response_schema": ed_data.get("response_schema", {}),
                 "exit_metrics": exit_m,
+                "primary_frontend_metric": prim_f,
+                "secondary_frontend_metrics": sec_f,
                 "postprocessing_code": ed_data.get("postprocessing_code"),
                 "llm_model": ed_data.get("llm_model", "google/gemini-3.8-flash"),
                 "version": ed_data.get("version", 1),

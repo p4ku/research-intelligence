@@ -5,27 +5,17 @@ import { ALL_ON, type Features } from '@/lib/features'
 import { formatDate, type Lang, type T } from '@/lib/i18n'
 import { arxivId } from '@/lib/papers/map'
 import type { ScoredPaper } from '@/lib/papers/types'
-import { ArrowUpRightIcon } from '@heroicons/react/16/solid'
+import { ArrowUpRightIcon, BookmarkIcon } from '@heroicons/react/16/solid'
 import type { ReactNode } from 'react'
+import { RiskAffiliationFlagging } from './affiliation-flags'
 
 /**
  * The record's masthead: screening pill and provenance on one line (the
  * source, the publication date when the backend has it and the ingest date
  * otherwise, the link out to the original paper), the title, the authors,
- * and the star at the right. PaperHeaderFrame owns the layout so PaperHeader and
- * PaperHeaderSkeleton cannot drift.
- *
- * Both take the demo flags, defaulting to ALL_ON because the skeleton gallery
- * renders them directly with no such prop. Nothing in the masthead answers to
- * `all_papers`; the prop is here so the star affordance in the `action` slot
- * has the flags to read.
- *
- * `stars` is now wired, and it is wired as a withhold rather than a null
- * render: both signatures read `features.stars` and pass `undefined` into the
- * `action` slot when it is off, so PaperHeaderFrame drops the wrapping
- * `shrink-0` div entirely instead of keeping an empty flex item that opens a
- * gap beside the masthead on a narrow viewport. Same rule in the skeleton, or
- * the bone promises a control the loaded row never grows.
+ * the risk & affiliation flagging card, and the star at the right.
+ * PaperHeaderFrame owns the layout so PaperHeader and PaperHeaderSkeleton
+ * cannot drift.
  */
 
 const META = 'text-xs text-zinc-400'
@@ -39,12 +29,14 @@ export function PaperHeaderFrame({
   meta,
   title,
   authors,
+  children,
   action,
 }: {
   state?: 'loaded' | 'skeleton'
   meta: ReactNode
   title: ReactNode
   authors: ReactNode
+  children?: ReactNode
   /** The star toggle, right of the masthead. */
   action?: ReactNode
 }) {
@@ -67,6 +59,7 @@ export function PaperHeaderFrame({
         <p data-row="authors" className="mt-2.5 text-[15px] text-zinc-500 dark:text-zinc-400">
           {authors}
         </p>
+        {children}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>
@@ -90,6 +83,22 @@ export function PaperHeader({
       meta={
         <>
           <ScreeningPill status={paper.screening_status} t={t} />
+          {paper.is_benchmark && (
+            <>
+              <Dot />
+              <span
+                data-row="benchmark-control"
+                className="inline-flex items-center gap-1 rounded-sm bg-violet-50 px-1.5 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-violet-700/20 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-400/30"
+              >
+                <BookmarkIcon aria-hidden="true" className="size-3" />
+                <span>
+                  {paper.evaluation_label
+                    ? `${t('Benchmark Control')} (${paper.evaluation_label === 'passed' ? t('Passed') : t('Rejected')})`
+                    : t('Benchmark Control')}
+                </span>
+              </span>
+            </>
+          )}
           <Dot />
           <span className={META}>{paper.source}</span>
           <Dot />
@@ -121,12 +130,18 @@ export function PaperHeader({
         </>
       }
       title={paper.title}
-      authors={paper.authors.join(', ') || paper.authors_raw}
+      authors={
+        Array.isArray(paper.authors)
+          ? paper.authors.join(', ') || paper.authors_raw
+          : paper.authors || paper.authors_raw || ''
+      }
       // Withheld, not rendered null: PaperHeaderFrame's `{action && …}` would
       // otherwise wrap an empty node in a shrink-0 flex item and open a gap
       // beside the masthead on a narrow viewport.
       action={features.stars ? <StarToggle kind="paper" id={paper.id} /> : undefined}
-    />
+    >
+      <RiskAffiliationFlagging risk={paper.risk_and_affiliation} />
+    </PaperHeaderFrame>
   )
 }
 

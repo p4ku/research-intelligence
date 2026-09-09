@@ -47,7 +47,7 @@ export default async function DashboardPage() {
     getLang(),
     getFeatures(),
   ])
-  const name = user?.name.split(' ')[0] || t('there')
+  const name = user?.name?.split(' ')[0] || t('there')
   const header = <PageHeader eyebrow={t('Home')} title={fmt(t('Good morning, {name}'), { name })} />
 
   if (state.kind !== 'ok') {

@@ -15,6 +15,7 @@ class MCPInfoView(APIView):
     permission_classes = [permissions.AllowAny]
 
     @extend_schema(
+        tags=['MCP Server & Tools'],
         summary="MCP Server Discovery & Capabilities",
         description="Returns MCP metadata, transport URLs, and tool registry summary.",
         responses={200: OpenApiResponse(description="MCP Server Info & Tools Catalog")}
@@ -56,7 +57,9 @@ class MCPHealthView(APIView):
     permission_classes = [permissions.AllowAny]
 
     @extend_schema(
+        tags=['MCP Server & Tools'],
         summary="MCP Server Health Check",
+        description="Health check for the FastMCP Model Context Protocol background daemon.",
         responses={200: OpenApiResponse(description="MCP Health Status")}
     )
     def get(self, request):

@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from research_intelligence.models import UserActivityLog
 
 
@@ -31,8 +32,10 @@ class UserActivityLogSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_user_display(self, obj):
+    @extend_schema_field(serializers.CharField)
+    def get_user_display(self, obj) -> str:
         return obj.user_username or (obj.user.username if obj.user else "Anonymous")
 
-    def get_workspace_display(self, obj):
+    @extend_schema_field(serializers.CharField)
+    def get_workspace_display(self, obj) -> str:
         return obj.workspace_name or (obj.workspace.name if obj.workspace else "")

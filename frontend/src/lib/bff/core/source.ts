@@ -47,12 +47,12 @@ function def(
 }
 
 export const RESOURCES: Record<ResourceName, ResourceDef> = {
-  papers: def('papers', 'BFF_SOURCE_PAPERS', ['stub', 'composed', 'django'], 'composed'),
+  papers: def('papers', 'BFF_SOURCE_PAPERS', ['stub', 'composed', 'django'], 'django'),
   workspaces: def('workspaces', 'BFF_SOURCE_WORKSPACES', ['django'], 'django'),
   'pipeline-runs': def('pipeline-runs', 'BFF_SOURCE_PIPELINE_RUNS', ['django'], 'django'),
   'component-runs': def('component-runs', 'BFF_SOURCE_COMPONENT_RUNS', ['django'], 'django'),
   chat: def('chat', 'BFF_SOURCE_CHAT', ['stub', 'django'], 'django'),
-  briefings: def('briefings', 'BFF_SOURCE_BRIEFINGS', ['stub', 'composed', 'django'], 'composed'),
+  briefings: def('briefings', 'BFF_SOURCE_BRIEFINGS', ['stub', 'composed', 'django'], 'django'),
   preferences: def('preferences', 'BFF_SOURCE_PREFERENCES', ['stub', 'django'], 'stub'),
   scoring: def('scoring', 'BFF_SOURCE_SCORING', ['stub', 'composed', 'django'], 'composed'),
   stars: def('stars', 'BFF_SOURCE_STARS', ['stub', 'django'], 'stub'),

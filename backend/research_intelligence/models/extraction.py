@@ -22,6 +22,18 @@ class ExtractionDefinition(models.Model):
         null=True,
         help_text="Comma-separated field keys to unpack from extracted data for Signal Score (e.g. 'rigour_score, param1, param2'). The first metric is used for postprocessing naming."
     )
+    primary_frontend_metric = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Explicit field key for the primary metric shown on the frontend (e.g. 'fit_score' or 'trl_level')."
+    )
+    secondary_frontend_metrics = models.CharField(
+        max_length=512,
+        blank=True,
+        null=True,
+        help_text="Comma-separated field keys for secondary metrics/facets displayed on the frontend (e.g. 'novelty, significance')."
+    )
     postprocessing_code = models.TextField(
         blank=True,
         null=True,
@@ -42,6 +54,29 @@ class ExtractionDefinition(models.Model):
                 kwargs['exit_metrics'] = ", ".join(str(m).strip() for m in val if m and str(m).strip())
             elif val is None:
                 kwargs['exit_metrics'] = ""
+
+        # Handle primary_frontend_metric and plural alias primary_frontend_metrics
+        prim_val = kwargs.get('primary_frontend_metric')
+        if prim_val is None and 'primary_frontend_metrics' in kwargs:
+            prim_val = kwargs.pop('primary_frontend_metrics')
+        if prim_val is not None:
+            if isinstance(prim_val, (list, tuple)):
+                kwargs['primary_frontend_metric'] = str(prim_val[0]).strip() if prim_val else ""
+            elif prim_val is None:
+                kwargs['primary_frontend_metric'] = ""
+            else:
+                kwargs['primary_frontend_metric'] = str(prim_val).strip()
+
+        # Handle secondary_frontend_metrics
+        sec_val = kwargs.get('secondary_frontend_metrics')
+        if sec_val is not None:
+            if isinstance(sec_val, (list, tuple)):
+                kwargs['secondary_frontend_metrics'] = ", ".join(str(m).strip() for m in sec_val if m and str(m).strip())
+            elif sec_val is None:
+                kwargs['secondary_frontend_metrics'] = ""
+            else:
+                kwargs['secondary_frontend_metrics'] = str(sec_val).strip()
+
         super().__init__(*args, **kwargs)
 
     def get_exit_metrics_list(self) -> list[str]:
@@ -66,6 +101,33 @@ class ExtractionDefinition(models.Model):
         """Returns the first exit metric from the list, used for primary exit metric lookups and _postprocessed suffix."""
         metrics = self.get_exit_metrics_list()
         return metrics[0] if metrics else ""
+
+    def get_primary_frontend_metric(self) -> str:
+        """Returns explicit primary frontend metric key, or falls back to primary exit metric."""
+        if self.primary_frontend_metric and self.primary_frontend_metric.strip():
+            return self.primary_frontend_metric.strip()
+        return self.get_primary_exit_metric()
+
+    def get_secondary_frontend_metrics_list(self) -> list[str]:
+        """Returns ordered list of explicit secondary frontend metric keys, or falls back to exit metrics after primary."""
+        if self.secondary_frontend_metrics:
+            from ..tasks.step_6_signal_score.scorer import _sanitize_identifier
+            if isinstance(self.secondary_frontend_metrics, (list, tuple)):
+                raw_items = [str(x).strip() for x in self.secondary_frontend_metrics if str(x).strip()]
+            else:
+                raw_items = [x.strip() for x in str(self.secondary_frontend_metrics).split(',') if x.strip()]
+            seen = set()
+            res = []
+            for item in raw_items:
+                clean_item = _sanitize_identifier(item)
+                if clean_item and clean_item not in seen:
+                    seen.add(clean_item)
+                    res.append(clean_item)
+            return res
+        # Fallback for definitions without explicit secondary frontend metrics:
+        exit_list = self.get_exit_metrics_list()
+        prim = self.get_primary_frontend_metric()
+        return [m for m in exit_list if m != prim]
 
     def get_available_postprocessing_variables(self) -> list[dict]:
         """
@@ -492,6 +554,21 @@ class Extraction(models.Model):
                         unwrapped = _unwrap_cand(v)
                         if unwrapped is not None:
                             return unwrapped
+
+            # 0.5 Explicit primary_frontend_metric prioritized if set
+            if self.extraction_definition and self.extraction_definition.primary_frontend_metric and self.extraction_definition.primary_frontend_metric.strip():
+                prim_k = self.extraction_definition.primary_frontend_metric.strip()
+                val = data.get(prim_k)
+                if isinstance(val, dict) and "value" in val:
+                    return str(val["value"])
+                if val is not None:
+                    return str(val)
+                for k, v in data.items():
+                    if k.lower().replace(" ", "_") == prim_k.lower().replace(" ", "_"):
+                        if isinstance(v, dict) and "value" in v:
+                            return str(v["value"])
+                        elif v is not None:
+                            return str(v)
 
             # 1. Match on configured extraction_definition.exit_metrics (supports comma-separated list)
             if self.extraction_definition and self.extraction_definition.exit_metrics:

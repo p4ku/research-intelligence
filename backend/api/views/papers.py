@@ -25,6 +25,7 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
     Explore papers ingested in weekly batch runs.
     Scoped to workspaces the authenticated user is a member of.
     """
+    queryset = Paper.objects.none()
     serializer_class = PaperSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = StandardResultsSetPagination
@@ -54,7 +55,7 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
                 ws_uuid = uuid.UUID(str(ws_id))
                 if ws_uuid not in user_ws_ids:
                     return qs.none()
-                qs = base_qs.filter(workspace_id=ws_uuid)
+                qs = qs.filter(workspace_id=ws_uuid)
             except (ValueError, TypeError):
                 return qs.none()
 
@@ -178,6 +179,7 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
             OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Optional PipelineRun UUID or "latest" to scope evaluation and narrative report'),
         ],
         description="Full paper scorecard with run-scoped evaluation metrics, complete extraction fields_data, definition schemas/exit metrics, and narrative report context.",
+        responses={200: OpenApiResponse(description="Full paper scorecard with run-scoped evaluation metrics, extraction fields_data, dimensions, and narrative report context.")}
     )
     @action(detail=True, methods=['get'], url_path='scorecard')
     def scorecard(self, request, pk=None):
@@ -202,6 +204,7 @@ class PaperMetricViewSet(viewsets.ReadOnlyModelViewSet):
     Explore paper-level evaluations, screening statuses, dynamic metric dictionaries,
     and composite signal scores evaluated per pipeline run.
     """
+    queryset = PaperMetric.objects.none()
     serializer_class = PaperMetricSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = StandardResultsSetPagination

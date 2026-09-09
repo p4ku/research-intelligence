@@ -5,6 +5,7 @@ from mcp_server.tools import (
     list_extraction_definitions_logic,
     update_extraction_definition_logic,
     delete_extraction_definition_logic,
+    set_extraction_frontend_metrics_logic,
     list_extractions_logic,
     get_paper_extractions_matrix_logic,
     get_extraction_logic,
@@ -141,6 +142,74 @@ class MCPExtractionsTestCase(BaseMCPTestCase):
         self.assertIn("Invalid Python syntax", err_res)
 
         # 6. Clean up
+        delete_extraction_definition_logic(self.admin, definition_id=d_id)
+
+    def test_set_extraction_frontend_metrics_mcp_tool(self):
+        """
+        Verify setting and updating primary and secondary frontend metrics via MCP tools:
+        - create_extraction_definition_logic with primary/secondary metrics
+        - set_extraction_frontend_metrics_logic dedicated tool
+        - update_extraction_definition_logic
+        - get_extraction_definition_logic and list_extraction_definitions_logic output
+        """
+        # 1. Create with primary and secondary frontend metrics
+        res = self.parse_res(create_extraction_definition_logic(
+            self.admin,
+            workspace_id=str(self.workspace.id),
+            name="Quantum Advantage Definition",
+            exit_metrics=["advantage_score"],
+            primary_frontend_metric="advantage_score",
+            secondary_frontend_metrics=["gate_fidelity", "circuit_depth"],
+            system_prompt="Extract quantum advantage metrics",
+            user_prompt_template="Paper: {paper_text}",
+            response_schema={"type": "object"}
+        ))
+        self.assertEqual(res["status"], "success")
+        self.assertEqual(res["primary_frontend_metric"], "advantage_score")
+        self.assertEqual(res["secondary_frontend_metrics"], ["gate_fidelity", "circuit_depth"])
+        d_id = res["definition_id"]
+
+        # 2. Verify in get details
+        details = self.parse_res(get_extraction_definition_logic(self.admin, definition_id=d_id))
+        self.assertEqual(details["primary_frontend_metric"], "advantage_score")
+        self.assertEqual(details["secondary_frontend_metrics"], ["gate_fidelity", "circuit_depth"])
+
+        # 3. Use dedicated set_extraction_frontend_metrics_logic tool
+        set_res = self.parse_res(set_extraction_frontend_metrics_logic(
+            self.admin,
+            definition_id=d_id,
+            primary_frontend_metric="qubit_fidelity",
+            secondary_frontend_metrics=["advantage_score", "error_mitigation_ratio"]
+        ))
+        self.assertEqual(set_res["status"], "success")
+        self.assertEqual(set_res["primary_frontend_metric"], "qubit_fidelity")
+        self.assertEqual(set_res["secondary_frontend_metrics"], ["advantage_score", "error_mitigation_ratio"])
+
+        # 4. Verify in list
+        defs = self.parse_res(list_extraction_definitions_logic(self.admin, workspace_id=str(self.workspace.id)))
+        found = next(d for d in defs if d["definition_id"] == d_id)
+        self.assertEqual(found["primary_frontend_metric"], "qubit_fidelity")
+        self.assertEqual(found["secondary_frontend_metrics"], ["advantage_score", "error_mitigation_ratio"])
+
+        # 5. Non-admin user gets permission error
+        from django.contrib.auth import get_user_model
+        stranger = get_user_model().objects.create_user(username="stranger_metrics", password="password123")
+        err_perm = set_extraction_frontend_metrics_logic(
+            stranger,
+            definition_id=d_id,
+            primary_frontend_metric="illegal"
+        )
+        self.assertIn("Access denied", err_perm)
+
+        # 6. Invalid UUID format handling
+        err_uuid = set_extraction_frontend_metrics_logic(
+            self.admin,
+            definition_id="not-a-uuid",
+            primary_frontend_metric="test"
+        )
+        self.assertIn("not a valid UUID format", err_uuid)
+
+        # 7. Clean up
         delete_extraction_definition_logic(self.admin, definition_id=d_id)
 
     def test_list_and_get_extractions_mcp_tools(self):

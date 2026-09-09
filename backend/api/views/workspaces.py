@@ -2,7 +2,7 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
-from drf_spectacular.utils import extend_schema, OpenApiResponse
+from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter
 from research_intelligence.models import Workspace, WorkspaceMember, ExtractionDefinition, PaperMetric, PipelineRun
 from ..serializers.workspaces import WorkspaceSerializer, ExtractionDefinitionSerializer
 from ..serializers.pipeline_runs import StartPipelineRunSerializer
@@ -25,6 +25,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
     CRUD endpoints for Workspace (Projects), dual-stage criteria, and processing policies.
     Scoped to workspaces the authenticated user is a member of.
     """
+    queryset = Workspace.objects.none()
     serializer_class = WorkspaceSerializer
     permission_classes = [permissions.IsAuthenticated]
     ordering_fields = ['created_at', 'name', 'monthly_usd_limit']
@@ -103,6 +104,24 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             return paper_view.get_paginated_response(serializer.data)
         serializer = PaperSerializer(qs, many=True, context={'request': request, 'workspace': workspace})
         return Response(serializer.data)
+
+    @extend_schema(
+        tags=['Workspaces Management', 'Literature & Papers'],
+        parameters=[
+            OpenApiParameter(name='pipeline_run', type=str, location=OpenApiParameter.QUERY, description='Optional PipelineRun UUID or "latest" to scope evaluation'),
+            OpenApiParameter(name='run_id', type=str, location=OpenApiParameter.QUERY, description='Alias for pipeline_run parameter'),
+            OpenApiParameter(name='screening_status', type=str, location=OpenApiParameter.QUERY, description='Filter papers by screening status (e.g. passed, accepted, rejected)'),
+            OpenApiParameter(name='page', type=int, location=OpenApiParameter.QUERY, description='Page number'),
+            OpenApiParameter(name='page_size', type=int, location=OpenApiParameter.QUERY, description='Page size'),
+        ],
+        description="Dynamic Workspace Scorecard containing all evaluated papers with run-scoped metrics and rich dimension details.",
+        responses={200: OpenApiResponse(description="Dynamic Workspace Scorecard containing all evaluated papers with run-scoped metrics, dimensions, and filter statistics.")},
+    )
+    @action(detail=True, methods=['get'], url_path='scorecard')
+    def scorecard(self, request, pk=None):
+        from .scorecard import build_workspace_scorecard_response
+        workspace = self.get_object()
+        return build_workspace_scorecard_response(workspace, request)
 
     @extend_schema(
         tags=['Workspaces Management', 'Pipeline Runs & Components'],
@@ -226,6 +245,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
     @extend_schema(
         tags=['Workspaces Management', 'Scoring & Ranking'],
         description="Get scoring configuration, variables, weights, and worked example for this workspace.",
+        responses={200: OpenApiResponse(description="Workspace scoring formula configuration, active variables, calculated weights, and top paper calculation example")},
     )
     @action(detail=True, methods=['get'], url_path='scoring')
     def scoring(self, request, pk=None):
@@ -280,8 +300,14 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         })
 
     @extend_schema(
+        operation_id="workspace_editions_list",
         tags=['Workspaces Management', 'Briefings & Editions'],
         description="Paginated list of completed briefing editions for this workspace, newest first.",
+        parameters=[
+            OpenApiParameter(name='page', type=int, location=OpenApiParameter.QUERY, description='Page number (default: 1)'),
+            OpenApiParameter(name='page_size', type=int, location=OpenApiParameter.QUERY, description='Number of editions per page (default: 20)'),
+        ],
+        responses={200: OpenApiResponse(description="Paginated list of completed briefing editions with surfaced papers")},
     )
     @action(detail=True, methods=['get'], url_path='editions')
     def editions(self, request, pk=None):
@@ -324,22 +350,52 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                     pipeline_run__in=target_runs,
                     screening_status__in=['accepted', 'full_text_passed', 'abstract_passed']
                 )
-                .select_related('paper')
+                .select_related('paper', 'pipeline_run')
                 .only(
                     'id', 'pipeline_run_id', 'signal_score', 'screening_status', 'created_at',
-                    'paper__id', 'paper__title', 'paper__authors', 'paper__source_database'
+                    'pipeline_run__id', 'pipeline_run__name',
+                    'paper__id', 'paper__workspace_id', 'paper__title', 'paper__authors',
+                    'paper__abstract', 'paper__doi', 'paper__arxiv_id', 'paper__source_database',
+                    'paper__source_url', 'paper__original_pdf_path', 'paper__created_at'
                 )
                 .order_by('-signal_score', '-created_at')
             )
             for pm in passed_pms:
                 if pm.paper:
                     authors_list = [a.strip() for a in (pm.paper.authors or '').split(',') if a.strip()]
+                    source_url = pm.paper.source_url
+                    if not source_url:
+                        if pm.paper.arxiv_id:
+                            source_url = f"https://arxiv.org/abs/{pm.paper.arxiv_id}"
+                        elif pm.paper.doi:
+                            source_url = f"https://doi.org/{pm.paper.doi}"
+
                     papers_by_run[pm.pipeline_run_id].append({
                         "id": str(pm.paper.id),
+                        "workspace_id": str(pm.paper.workspace_id or workspace.id),
+                        "pipeline_run_id": str(pm.pipeline_run_id),
                         "title": pm.paper.title,
                         "authors": authors_list,
+                        "authors_raw": pm.paper.authors or '',
+                        "abstract": pm.paper.abstract or '',
+                        "doi": pm.paper.doi or None,
+                        "arxiv_id": pm.paper.arxiv_id or None,
                         "source": pm.paper.source_database or 'arXiv',
+                        "screening_status": pm.screening_status,
+                        "screening_reasoning": None,
+                        "abstract_screening_reasoning": None,
+                        "full_text_screening_reasoning": None,
                         "signal_score": pm.signal_score,
+                        "signal_score_details": None,
+                        "dimensions": [],
+                        "pdf_key": pm.paper.original_pdf_path or None,
+                        "markdown_key": None,
+                        "source_url": source_url,
+                        "is_benchmark": False,
+                        "evaluation_label": None,
+                        "published_date": None,
+                        "created_at": pm.paper.created_at.isoformat() if pm.paper.created_at else "",
+                        "pipeline_run_name": pm.pipeline_run.name if (pm.pipeline_run and hasattr(pm.pipeline_run, 'name')) else None,
                     })
 
         results = []
@@ -362,7 +418,11 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                     "surfaced": len(surfaced),
                 },
                 "papers": surfaced,
-                "generated_at": run.completed_at.isoformat() if run.completed_at else None,
+                "generated_at": (
+                    run.completed_at.isoformat()
+                    if (hasattr(run.completed_at, 'tzinfo') and run.completed_at.tzinfo)
+                    else (run.completed_at.isoformat() + "Z")
+                ) if run.completed_at else None,
             })
 
         next_url = None
@@ -380,8 +440,19 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         })
 
     @extend_schema(
+        operation_id="workspace_edition_detail",
         tags=['Workspaces Management', 'Briefings & Editions'],
         description="Detail of one briefing edition by date (YYYY-MM-DD), including screening exclusions.",
+        parameters=[
+            OpenApiParameter(name='workspace_id', type=str, location=OpenApiParameter.PATH, description='Target workspace UUID'),
+            OpenApiParameter(name='edition_date', type=str, location=OpenApiParameter.PATH, description='Edition date in YYYY-MM-DD format'),
+            OpenApiParameter(name='run_id', type=str, location=OpenApiParameter.QUERY, description='Optional PipelineRun UUID to select a specific run for that date'),
+        ],
+        responses={
+            200: OpenApiResponse(description="Briefing edition details including surfaced papers, exclusions, and funnel counts"),
+            400: OpenApiResponse(description="Bad request or invalid date format"),
+            404: OpenApiResponse(description="Workspace or edition not found"),
+        }
     )
     def edition_detail(self, request, workspace_id=None, edition_date=None, **kwargs):
         ws_id = workspace_id or kwargs.get('pk')
@@ -405,16 +476,27 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             start_dt = datetime.combine(target_date, time.min)
             end_dt = start_dt + timedelta(days=1)
 
+        requested_run_id = request.query_params.get('run_id')
+        target_run_uuid = None
+        if requested_run_id and str(requested_run_id).lower() not in ('undefined', 'null', ''):
+            import uuid
+            try:
+                target_run_uuid = uuid.UUID(str(requested_run_id))
+            except (ValueError, TypeError):
+                target_run_uuid = None
+
         from django.db.models import Q
-        run = (
-            PipelineRun.objects.filter(
-                Q(workspace=workspace) &
-                Q(status='completed') &
-                (
-                    (Q(completed_at__gte=start_dt) & Q(completed_at__lt=end_dt)) |
-                    Q(run_date=target_date)
-                )
+        run_q = Q(workspace=workspace) & Q(status='completed')
+        if target_run_uuid:
+            run_q &= Q(id=target_run_uuid)
+        else:
+            run_q &= (
+                (Q(completed_at__gte=start_dt) & Q(completed_at__lt=end_dt)) |
+                Q(run_date=target_date)
             )
+
+        run = (
+            PipelineRun.objects.filter(run_q)
             .only(
                 'id', 'workspace_id', 'completed_at', 'run_date', 'status_message',
                 'total_papers_fetched', 'total_papers_passed_screening'
@@ -431,11 +513,6 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 screening_status__in=['accepted', 'full_text_passed', 'abstract_passed', 'rejected', 'withdrawn']
             )
             .select_related('paper')
-            .only(
-                'id', 'pipeline_run_id', 'signal_score', 'screening_status', 'created_at',
-                'abstract_screening_reasoning', 'full_text_screening_reasoning',
-                'paper__id', 'paper__title', 'paper__authors', 'paper__source_database'
-            )
             .order_by('-created_at')
         )
 
@@ -462,16 +539,36 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             reverse=True
         )
 
+        definitions = list(workspace.extraction_definitions.filter(is_active=True).order_by('created_at'))
+        surfaced_paper_ids = [pm.paper_id for pm in surfaced_metrics if pm.paper_id]
+
+        extractions_map = {}
+        if surfaced_paper_ids:
+            from research_intelligence.models import Extraction
+            exts = list(
+                Extraction.objects.filter(paper_id__in=surfaced_paper_ids)
+                .select_related('extraction_definition')
+                .order_by('-created_at')
+            )
+            for ext in exts:
+                extractions_map.setdefault(ext.paper_id, []).append(ext)
+
+        from research_intelligence.services.scorecard_service import build_single_scored_paper
+
         surfaced = []
         for pm in surfaced_metrics:
-            authors_list = [a.strip() for a in (pm.paper.authors or '').split(',') if a.strip()]
-            surfaced.append({
-                "id": str(pm.paper.id),
-                "title": pm.paper.title,
-                "authors": authors_list,
-                "source": pm.paper.source_database or 'arXiv',
-                "signal_score": pm.signal_score,
-            })
+            sp = build_single_scored_paper(
+                paper=pm.paper,
+                definitions=definitions,
+                target_pr_id=run.id,
+                target_pr=run,
+                metrics_list=[pm],
+                extractions_list=extractions_map.get(pm.paper.id, []),
+                request=request,
+            )
+            sp['screening_status'] = pm.screening_status
+            sp['signal_score'] = pm.signal_score
+            surfaced.append(sp)
 
         d_str = target_date.strftime('%Y-%m-%d')
         in_brief_text = (
@@ -493,12 +590,19 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             },
             "papers": surfaced,
             "exclusions": exclusions,
-            "generated_at": run.completed_at.isoformat() if run.completed_at else None,
+            "generated_at": (
+                run.completed_at.isoformat()
+                if (hasattr(run.completed_at, 'tzinfo') and run.completed_at.tzinfo)
+                else (run.completed_at.isoformat() + "Z")
+            ) if run.completed_at else None,
         })
 
     @extend_schema(
         tags=['Workspaces Management', 'Settings & Preferences'],
         description="Get or set notification and email digest preferences for the current user in this workspace.",
+        responses={
+            200: OpenApiResponse(description="User workspace notification and email digest preferences (e.g. {'digest_email': true})"),
+        }
     )
     @action(detail=True, methods=['get', 'put'], url_path='preferences')
     def preferences(self, request, pk=None):
@@ -547,6 +651,7 @@ class ExtractionDefinitionViewSet(viewsets.ModelViewSet):
     """
     CRUD endpoints for dynamic Extraction Definitions within a workspace.
     """
+    queryset = ExtractionDefinition.objects.none()
     serializer_class = ExtractionDefinitionSerializer
     permission_classes = [permissions.IsAuthenticated]
     ordering_fields = ['created_at', 'name', 'version', 'is_active']

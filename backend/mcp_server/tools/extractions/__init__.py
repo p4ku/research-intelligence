@@ -4,6 +4,7 @@ from .definitions import (
     create_extraction_definition_logic,
     update_extraction_definition_logic,
     delete_extraction_definition_logic,
+    set_extraction_frontend_metrics_logic,
 )
 from .matrix import (
     list_extractions_logic,
@@ -20,6 +21,7 @@ __all__ = [
     "create_extraction_definition_logic",
     "update_extraction_definition_logic",
     "delete_extraction_definition_logic",
+    "set_extraction_frontend_metrics_logic",
     "list_extractions_logic",
     "get_paper_extractions_matrix_logic",
     "get_extraction_logic",

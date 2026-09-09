@@ -22,9 +22,9 @@ import { sourceOf } from '../core/source'
 import { assertUuid } from '../core/validate'
 import { corpusSnapshot } from '../corpus/snapshot'
 import { stars } from '../stars/service'
-import { workspace, type WorkspaceSummary } from '../workspaces/schema'
+import type { WorkspaceSummary } from '../workspaces/schema'
 import { workspaces } from '../workspaces/service'
-import { composeGet, composeListAll, composeRunPapers, listPapersRaw } from './compose'
+import { listPapersRaw } from './compose'
 import { applyPapersQuery, corpusFacets } from './filter'
 import { fixturePapers, fixtureWorkspace } from './fixtures'
 import {
@@ -49,16 +49,52 @@ export interface CorpusPapers {
   truncated?: { kept: number; total: number }
 }
 
-const detailResponse = z.object({ workspace, paper: scoredPaper })
+const scorecardWorkspace = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    user_role: z.string().nullable().optional().default(null),
+    definitions: z
+      .array(
+        z
+          .object({
+            id: z.string(),
+            name: z.string(),
+            key: z.string(),
+            is_active: z.boolean().optional().default(true),
+            is_trl: z.boolean().optional().default(false),
+            max: z.number().nullable().optional().default(null),
+          })
+          .passthrough(),
+      )
+      .optional()
+      .default([]),
+    scrapers: z.array(z.any()).optional().default([]),
+    scrapers_count: z.number().optional().default(0),
+    digest_schedule: z.string().nullable().optional().default(null),
+    screening_llm_model: z.string().nullable().optional().default(null),
+    llm_provider: z.string().nullable().optional().default(null),
+    created_at: z
+      .string()
+      .optional()
+      .default(() => new Date().toISOString()),
+  })
+  .passthrough()
 
-/** The requested endpoint, drained page by page (the UI holds the whole corpus in memory anyway). */
-async function djangoPapersOf(workspaceId: string): Promise<ScoredPaper[]> {
+const detailResponse = z.object({ workspace: scorecardWorkspace, paper: scoredPaper }).passthrough()
+const workspaceScorecardResponse = z
+  .object({ workspace: scorecardWorkspace, papers: z.array(scoredPaper) })
+  .passthrough()
+
+/** The requested endpoint: retrieves the workspace scorecard directly. */
+async function djangoPapersOf(workspaceId: string, runId?: string): Promise<ScoredPaper[]> {
   assertUuid(workspaceId, 'workspace_id')
   const papers: ScoredPaper[] = []
   let page = 1
+  const runQuery = runId ? `&run_id=${encodeURIComponent(runId)}` : ''
   for (;;) {
     const result = await django(
-      `/api/workspaces/${workspaceId}/papers/?page=${page}&page_size=200`,
+      `/api/workspaces/${workspaceId}/scorecard/?page=${page}&page_size=200${runQuery}`,
       paperPage,
     )
     papers.push(...result.results)
@@ -68,17 +104,19 @@ async function djangoPapersOf(workspaceId: string): Promise<ScoredPaper[]> {
   return papers
 }
 
-async function djangoListAll(workspaceId: string): Promise<WorkspacePapers | null> {
-  // Only a genuine 404 (workspace gone) may become null; an outage must
-  // throw, or a fetched corpus gets presented as "no membership" (#2).
-  const [papers, ws] = await Promise.all([
-    djangoPapersOf(workspaceId),
-    django(`/api/workspaces/${workspaceId}/`, workspace).catch((error: unknown) => {
-      if (error instanceof ProblemError && error.problem.status === 404) return null
-      throw error
-    }),
-  ])
-  return ws ? { workspace: ws, papers } : null
+async function djangoListAll(workspaceId: string, runId?: string): Promise<WorkspacePapers | null> {
+  assertUuid(workspaceId, 'workspace_id')
+  const runQuery = runId ? `?run_id=${encodeURIComponent(runId)}` : ''
+  try {
+    const res = await django(
+      `/api/workspaces/${workspaceId}/scorecard/${runQuery}`,
+      workspaceScorecardResponse,
+    )
+    return { workspace: res.workspace, papers: res.papers }
+  } catch (error) {
+    if (error instanceof ProblemError && error.problem.status === 404) return null
+    throw error
+  }
 }
 
 function stubListAll(workspaceId: string): WorkspacePapers {
@@ -100,14 +138,10 @@ export const papers = {
    * React-cached per request so sibling streamed sections share one fetch.
    */
   listAll: cache(async (workspaceId: string): Promise<WorkspacePapers | null> => {
-    switch (sourceOf('papers')) {
-      case 'stub':
-        return stubListAll(workspaceId)
-      case 'django':
-        return djangoListAll(workspaceId)
-      default:
-        return composeListAll(workspaceId)
+    if (sourceOf('papers') === 'stub') {
+      return stubListAll(workspaceId)
     }
+    return djangoListAll(workspaceId)
   }),
 
   /**
@@ -174,22 +208,18 @@ export const papers = {
   }),
 
   /**
-   * The papers one run wrote, scored — the corpus's own rows, attributed
-   * through the run index (a paper's `pipeline_run_id` names the run that
-   * saw it last, not every run that did), or read live under `composed` when
-   * the corpus snapshot no longer holds them all (an edition at or past the
-   * cap). Live rows come run-scoped, so they carry that run's decision and
-   * score. Cached per request.
+   * The papers one run wrote, scored against the workspace's definitions.
+   * Directly queries the Django workspace scorecard scoped by ?run_id=.
+   * Cached per request.
    */
   listRun: cache(async (workspaceId: string, runId: string): Promise<ScoredPaper[]> => {
-    const [scored, index] = await Promise.all([papers.listAll(workspaceId), papers.runIndex()])
-    const corpus = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
-    const held = papersOfRun(runId, corpus, index).map((r) => r.paper)
-    if (sourceOf('papers') !== 'composed') return held
-    const { truncated } = await corpusSnapshot()
-    if (!truncated) return held
-    const live = await composeRunPapers(workspaceId, runId)
-    return live.length > held.length ? live : held
+    if (sourceOf('papers') === 'stub') {
+      const [scored, index] = await Promise.all([papers.listAll(workspaceId), papers.runIndex()])
+      const corpus = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
+      return papersOfRun(runId, corpus, index).map((r) => r.paper)
+    }
+    const res = await djangoListAll(workspaceId, runId)
+    return res ? res.papers : []
   }),
 
   /**
@@ -234,24 +264,19 @@ export const papers = {
       id: string,
       runId?: string,
     ): Promise<{ workspace: WorkspaceSummary; paper: ScoredPaper } | null> => {
-      switch (sourceOf('papers')) {
-        case 'stub': {
-          const paper = fixturePapers.find((p) => p.id === id) ?? null
-          return paper ? { workspace: fixtureWorkspace, paper } : null
-        }
-        case 'django':
-          try {
-            const query = runId ? `?pipeline_run=${encodeURIComponent(runId)}` : ''
-            return await django(
-              `/api/papers/${assertUuid(id, 'paper id')}/scorecard/${query}`,
-              detailResponse,
-            )
-          } catch (error) {
-            if (error instanceof ProblemError && error.problem.status === 404) return null
-            throw error
-          }
-        default:
-          return composeGet(id)
+      if (sourceOf('papers') === 'stub') {
+        const paper = fixturePapers.find((p) => p.id === id) ?? null
+        return paper ? { workspace: fixtureWorkspace, paper } : null
+      }
+      try {
+        const query = runId ? `?pipeline_run=${encodeURIComponent(runId)}` : ''
+        return await django(
+          `/api/papers/${assertUuid(id, 'paper id')}/scorecard/${query}`,
+          detailResponse,
+        )
+      } catch (error) {
+        if (error instanceof ProblemError && error.problem.status === 404) return null
+        throw error
       }
     },
   ),

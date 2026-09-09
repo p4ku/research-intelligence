@@ -17,6 +17,8 @@ export const definitionSummary = z
     is_trl: z.boolean(),
     /** Inferred scale for bars/radar; null when unknown. */
     max: z.number().nullable(),
+    primary_frontend_metric: z.string().nullable().optional(),
+    secondary_frontend_metrics: z.array(z.string()).optional(),
   })
   .meta({ id: 'ExtractionDefinitionSummary' })
 

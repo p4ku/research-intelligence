@@ -58,7 +58,15 @@ export const briefings = {
           editionPage,
         )
         // The list serves summaries; details carry exclusions.
-        return page.results.map((summary: EditionSummary) => ({ ...summary, exclusions: [] }))
+        return page.results.map((summary: EditionSummary) => ({
+          ...summary,
+          exclusions: [],
+          papers: (summary.papers || []).map((p) => ({
+            ...p,
+            workspace_id: p.workspace_id || summary.workspace_id,
+            pipeline_run_id: p.pipeline_run_id || summary.run_id,
+          })),
+        }))
       }
       default:
         return composeAll(workspaceId, lang)

@@ -32,22 +32,23 @@ backend/
 │   ├── tools/                  # Domain tool logic (agent_processes, workspaces, extractions, etc.)
 │   ├── views.py                # MCP Discovery & Capabilities endpoints
 │   └── management/commands/    # Django management command (python manage.py run_mcp)
-└── research_intelligence/      # Core Platform Domain Logic
-    ├── llm_providers/          # LLM Drivers (Google Vertex AI / Gemini 3.7 Flash, OpenRouter)
-    ├── ocr_providers/          # Document OCR Parsers (PyPDF, Mistral OCR, Gemini)
-    ├── tasks/                  # Celery Tasks & Orchestrator DAG State Engine
-    │   ├── orchestrator/       # ResearchAgentProcess State Machine & DAG Runner
-    │   ├── step_1_search/      # Multi-source querying & deduplication (ArXiv, OpenAlex, Lens, PubMed)
-    │   ├── step_2_download/    # Parallel document fetch & SHA-256 PDF caching
-    │   ├── step_3_ocr/         # PDF layout parsing (skipped by default for multimodal)
-    │   ├── step_4_screening/   # 2-Stage Abstract & Multimodal Full-Text Screening
-    │   ├── step_5_extraction/  # Schema-validated JSON parameter extraction
-    │   ├── step_6_signal_score/# AST-sandboxed mathematical composite scoring
-    │   ├── step_7_reporting/   # Executive narrative report synthesis & notification dispatch
-    │   └── auxiliary/          # Email digest notifications & health monitoring
-    ├── utils/                  # Mailgun HTTP transactional emailer & sandbox
-    ├── management/commands/    # Management commands (python manage.py seed)
-    └── tests/                  # Complete test suite (400+ tests running on in-memory SQLite)
+├── research_intelligence/      # Core Platform Domain Logic
+│   ├── llm_providers/          # LLM Drivers (Google Vertex AI / Gemini 3.8 Flash, OpenRouter)
+│   ├── ocr_providers/          # Document OCR Parsers (PyPDF, Mistral OCR, Gemini)
+│   ├── services/               # Domain Services (ScorecardService, modular scorecard extractors)
+│   ├── tasks/                  # Celery Tasks & Orchestrator DAG State Engine
+│   │   ├── orchestrator/       # ResearchAgentProcess State Machine & DAG Runner
+│   │   ├── step_1_search/      # Multi-source querying & deduplication (ArXiv, OpenAlex, Lens, PubMed)
+│   │   ├── step_2_download/    # Parallel document fetch & SHA-256 PDF caching
+│   │   ├── step_3_ocr/         # PDF layout parsing (skipped by default for multimodal)
+│   │   ├── step_4_screening/   # 2-Stage Abstract & Multimodal Full-Text Screening
+│   │   ├── step_5_extraction/  # Schema-validated JSON parameter extraction
+│   │   ├── step_6_signal_score/# AST-sandboxed mathematical composite scoring
+│   │   ├── step_7_reporting/   # Executive narrative report synthesis & notification dispatch
+│   │   └── auxiliary/          # Email digest notifications & health monitoring
+│   ├── utils/                  # Mailgun HTTP transactional emailer & sandbox
+│   ├── management/commands/    # Management commands (python manage.py seed)
+│   └── tests/                  # Comprehensive test suite (949+ tests running on in-memory SQLite)
 ```
 
 ---
@@ -71,7 +72,7 @@ graph TD
     OCRCheck -->|Yes: pypdf / mistral / gemini| OCRStep[OCR Conversion<br/>State: ocr<br/>Parses layout to structured Markdown]
     OCRCheck -->|No: ocr_provider is None| SkipOCR[Auto-Skip OCR Step<br/>Direct pass-through for multimodal screening]
     
-    OCRStep --> FullTextScreening[Full-Text Screening<br/>State: full_text_screening<br/>Multimodal analysis of raw PDF via Gemini 3.7 Flash]
+    OCRStep --> FullTextScreening[Full-Text Screening<br/>State: full_text_screening<br/>Multimodal analysis of raw PDF via Gemini 3.8 Flash]
     SkipOCR --> FullTextScreening
     
     FullTextScreening --> ExtractionStep[Dynamic Parameter Extraction<br/>State: extraction<br/>Schema-validated JSON parameter extraction]
@@ -87,9 +88,12 @@ graph TD
 * **Abstract Screening**: Fast AI triage evaluating title & abstract against `abstract_acceptance_criteria` with Indirect Prompt Injection guard.
 * **Parallel PDF Download**: Multi-threaded document fetching for passed papers with SHA-256 caching and SSRF private IP protection.
 * **Layout OCR Parsing**: Layout Markdown parsing (skipped by default for multimodal Gemini).
-* **Dynamic Parameter Extraction & Multi-Metric Postprocessing**: Schema-validated parameter extraction with evidence quotes, confidence scores, multi-exit parameter lists (`exit_metrics`), and AST-sandboxed Python postprocessing snippets (`postprocessing_code`). Fully configurable via `/api/extraction-definitions/` and FastMCP tools (`create_extraction_definition`, `update_extraction_definition`).
+* **Dynamic Parameter Extraction & Multi-Metric Postprocessing**: Schema-validated parameter extraction with evidence quotes, confidence scores, multi-exit parameter lists (`exit_metrics`), and AST-sandboxed Python postprocessing snippets (`postprocessing_code`). Fully configurable via `/api/extraction-definitions/` and FastMCP tools (`create_extraction_definition`, `update_extraction_definition`, `set_extraction_frontend_metrics`).
+* **Explicit Frontend Metric Selection**: Each `ExtractionDefinition` supports an explicit `primary_frontend_metric` (rendered as primary badge/score in scorecard tables) and `secondary_frontend_metrics` (JSON array of secondary metrics, displayed in subtle inspection panels).
 * **Composite Signal Scoring**: Sandboxed mathematical formula execution (`workspace.signal_score_code`) combining direct extracted parameters, multi-exit metric variables, and postcalculated metrics (`<primary_metric>_postprocessed`).
-* **Executive Reporting & Notification Dispatch**: Narrative synthesis and email delivery via Mailgun.
+* **Executive Reporting & Briefing Editions**: Narrative synthesis and email delivery via Mailgun. Completed runs feed canonical briefing editions (`GET /api/workspaces/{id}/editions/` and `/editions/{date}/`).
+* **Canonical Scorecard Engine**: Single-stream, server-side scorecard compilation via `ScorecardService` (`GET /api/workspaces/{id}/scorecard/` and `GET /api/papers/{id}/scorecard/`), eliminating client-side derivation bottlenecks.
+* **Optimized Pipeline Run Telemetry**: `GET /api/pipeline-runs/` defers heavy historical fields (`stage_results`, `step_history`) on lists for lightweight transfers, serving full diagnostic telemetry on detail view (`/api/pipeline-runs/{id}/`).
 
 ---
 
@@ -136,12 +140,16 @@ The Systematic Literature Review (SLR) pipeline can be dispatched through **5 di
 ## 🧪 5. Testing & Verification
 
 ```bash
-# Run the complete test suite (400+ tests in parallel, 0 tokens / in-memory SQLite)
+# Run the complete test suite (949+ tests in parallel, 0 tokens / in-memory SQLite)
+uv run pytest
+
+# Or via shell wrapper
 ./run_tests.sh
 
 # Run specific test modules
-./run_tests.sh research_intelligence.tests.test_api_security_fixes
-./run_tests.sh research_intelligence.tests.test_jwt_auth
-./run_tests.sh research_intelligence.tests.test_mcp_security_and_multitenancy
-./run_tests.sh mcp_server
+uv run pytest research_intelligence/tests/test_paper_scorecard_metrics_classification.py
+uv run pytest research_intelligence/tests/test_api_endpoint_optimizations.py
+uv run pytest research_intelligence/tests/test_query_optimization_and_dataset_invariance.py
+uv run pytest backend/chat/tests/
+uv run pytest backend/mcp_server/tests/
 ```

@@ -3,7 +3,8 @@ import { Card, ScreeningPill, TrlBadge } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import type { T } from '@/lib/i18n'
 import { trlDimension } from '@/lib/papers/select'
-import type { Dimension, ScoredPaper } from '@/lib/papers/types'
+import type { Dimension, ScoredPaper, SignalScoreDetails } from '@/lib/papers/types'
+import { ChevronDownIcon, CodeBracketIcon } from '@heroicons/react/16/solid'
 import type { ReactNode } from 'react'
 import { definitionAnchor } from './assessment'
 import { ScoreBarFrame, ScoreBars, type RailBar } from './score-bars'
@@ -23,12 +24,52 @@ const RADAR_H = Math.round(RADAR * 0.76)
 const SCORE_CLASS =
   'font-mono text-[44px] leading-none font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white'
 
+export function ScoreFormula({ details, t }: { details: SignalScoreDetails; t: T }) {
+  if (!details.code_snippet) return null
+  const vars = details.variables || {}
+  const hasVars = Object.keys(vars).length > 0
+
+  return (
+    <details data-row="formula" className="group mt-3 border-t border-line-soft pt-2.5 text-xs">
+      <summary className="flex cursor-pointer items-center justify-between gap-1 text-[11px] font-medium text-zinc-500 transition-colors select-none hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+        <span className="inline-flex items-center gap-1">
+          <CodeBracketIcon
+            aria-hidden="true"
+            className="size-3 text-zinc-400 group-hover:text-accent"
+          />
+          <span>{t('Scoring formula')}</span>
+        </span>
+        <ChevronDownIcon
+          aria-hidden="true"
+          className="size-3 text-zinc-400 transition-transform duration-150 ease-out group-open:rotate-180"
+        />
+      </summary>
+      <div className="mt-2 rounded-sm border border-line-soft bg-zinc-50/75 p-2 font-mono text-[11px] text-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-300">
+        <div className="font-medium break-all text-zinc-900 dark:text-white">
+          {details.code_snippet}
+        </div>
+        {hasVars && (
+          <div className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-0.5 border-t border-line-soft/60 pt-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+            {Object.entries(vars).map(([k, v]) => (
+              <div key={k} className="truncate">
+                <span className="font-semibold text-zinc-700 dark:text-zinc-300">{k}:</span>{' '}
+                <span>{String(v)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </details>
+  )
+}
+
 export function ScoreRailFrame({
   state = 'loaded',
   label,
   score,
   chips,
   bars,
+  formula,
   radar,
 }: {
   state?: 'loaded' | 'skeleton'
@@ -36,6 +77,7 @@ export function ScoreRailFrame({
   score: ReactNode
   chips: ReactNode
   bars: ReactNode
+  formula?: ReactNode
   /** Omitted when the paper has fewer than three numeric dimensions. */
   radar?: ReactNode
 }) {
@@ -50,6 +92,7 @@ export function ScoreRailFrame({
       <div data-row="chips" className="mt-3 flex flex-wrap gap-1.5">
         {chips}
       </div>
+      {formula}
       <ul className="mt-4 space-y-0.5">{bars}</ul>
       {radar && (
         <div data-row="radar" className="mt-4 flex justify-center border-t border-line-soft pt-4">
@@ -104,8 +147,14 @@ function railBar(d: Dimension): RailBar {
 }
 
 export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
+  const visibleDimensions = (paper.dimensions ?? []).filter(
+    (d) =>
+      !d.is_risk_and_affiliation &&
+      !d.key.includes('risk_and_affiliation') &&
+      !d.name.toLowerCase().includes('affiliation'),
+  )
   const trl = trlDimension(paper)
-  const axes = radarAxes(paper.dimensions)
+  const axes = radarAxes(visibleDimensions)
   const score =
     paper.signal_score === null
       ? '—'
@@ -122,7 +171,12 @@ export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
           {trl?.value !== null && trl?.value !== undefined && <TrlBadge trl={trl.value} t={t} />}
         </>
       }
-      bars={<ScoreBars bars={paper.dimensions.map(railBar)} />}
+      bars={<ScoreBars bars={visibleDimensions.map(railBar)} />}
+      formula={
+        paper.signal_score_details ? (
+          <ScoreFormula details={paper.signal_score_details} t={t} />
+        ) : undefined
+      }
       radar={
         axes.length >= 3 && (
           <RadarChart axes={axes} color="var(--accent)" size={RADAR} valueLabels />

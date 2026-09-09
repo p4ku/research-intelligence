@@ -83,7 +83,7 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
                 ws_uuid = uuid.UUID(str(workspace_id))
                 if ws_uuid not in user_ws_ids:
                     return qs.none()
-                qs = base_qs.filter(workspace_id=ws_uuid)
+                qs = qs.filter(workspace_id=ws_uuid)
             except (ValueError, TypeError):
                 return qs.none()
 
@@ -94,6 +94,9 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
         status_param = self.request.query_params.get('status')
         if status_param:
             qs = qs.filter(status=status_param)
+
+        if getattr(self, 'action', None) == 'list':
+            qs = qs.defer('step_history', 'stage_results')
 
         return qs
 

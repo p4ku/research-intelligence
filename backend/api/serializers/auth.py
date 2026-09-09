@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from drf_spectacular.utils import extend_schema_field
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 
@@ -10,7 +11,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
         model = User
         fields = ['id', 'username', 'email', 'first_name', 'last_name', 'full_name', 'is_superuser', 'is_staff']
 
-    def get_full_name(self, obj):
+    @extend_schema_field(serializers.CharField)
+    def get_full_name(self, obj) -> str:
         name = f"{obj.first_name} {obj.last_name}".strip()
         return name if name else obj.username
 

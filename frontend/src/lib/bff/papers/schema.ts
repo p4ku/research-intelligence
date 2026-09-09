@@ -41,17 +41,38 @@ export const dimensionFacet = z
   .object({
     key: z.string(),
     name: z.string(),
-    value: z.number(),
+    value: z.number().nullable(),
     /** The definition's scale; null → show the figure only (a TRL definition's sub-scores declare no range). */
-    max: z.number().nullable(),
-    text: z.string().nullable(),
+    max: z.number().nullable().optional(),
+    text: z.string().nullable().optional(),
+    band: z.string().nullable().optional(),
+    evidence: z.array(z.string()).nullable().optional(),
   })
+  .passthrough()
   .meta({ id: 'DimensionFacet' })
 export type DimensionFacet = z.infer<typeof dimensionFacet>
 
 /** A labelled string field of a definition's payload (a longer prose field, or a short fact). */
 export const dimensionField = z
-  .object({ key: z.string(), name: z.string(), value: z.union([z.string(), z.boolean()]) })
+  .object({
+    key: z.string(),
+    name: z.string(),
+    value: z.union([
+      z.string(),
+      z.boolean(),
+      z.number(),
+      z.record(z.string(), z.unknown()),
+      z.null(),
+    ]),
+    type: z.string().optional(),
+    is_dict: z.boolean().optional(),
+    dict_value: z.record(z.string(), z.unknown()).nullable().optional(),
+    band: z.string().nullable().optional(),
+    insight: z.string().nullable().optional(),
+    evidence: z.array(z.string()).nullable().optional(),
+    score: z.number().nullable().optional(),
+  })
+  .passthrough()
   .meta({ id: 'DimensionField' })
 export type DimensionField = z.infer<typeof dimensionField>
 
@@ -61,6 +82,37 @@ export const dimensionList = z
   .meta({ id: 'DimensionList' })
 export type DimensionList = z.infer<typeof dimensionList>
 
+export const riskFlag = z
+  .object({
+    key: z.string(),
+    label: z.string(),
+    value: z.union([z.string(), z.record(z.string(), z.unknown())]),
+    status: z.string(),
+    type: z.string().optional(),
+    is_dict: z.boolean().optional(),
+    dict_value: z.record(z.string(), z.unknown()).nullable().optional(),
+  })
+  .passthrough()
+  .meta({ id: 'RiskFlag' })
+export type RiskFlag = z.infer<typeof riskFlag>
+
+export const riskAndAffiliation = z
+  .object({
+    raw: z.record(z.string(), z.any()).optional(),
+    affiliations: z.array(z.string()).default([]),
+    author_contacts: z.array(z.string()).default([]),
+    funding_entities: z.array(z.string()).default([]),
+    codebase_artifact_link: z.string().nullable().optional(),
+    schwarz_ecosystem_affiliation: z.string().nullable().optional(),
+    gdpr_concerns: z.string().nullable().optional(),
+    competitor_involvement: z.string().nullable().optional(),
+    risk_score: z.number().nullable().optional(),
+    risk_score_assessment: z.string().nullable().optional(),
+    flags: z.array(riskFlag).default([]),
+  })
+  .meta({ id: 'RiskAndAffiliation' })
+export type RiskAndAffiliation = z.infer<typeof riskAndAffiliation>
+
 export const dimension = z
   .object({
     /** Sanitized definition name; also the key in signal-score variables. */
@@ -69,6 +121,7 @@ export const dimension = z
     definition_id: z.uuid().nullable(),
     /** Rendered verbatim — never translated. */
     name: z.string(),
+    label: z.string().optional(),
     /** Parsed numeric value; null when there is no extraction or it isn't numeric. */
     value: z.number().nullable(),
     /** Display string as the backend would show it ('—' when no extraction). */
@@ -76,12 +129,24 @@ export const dimension = z
     /** Scale for bars/radar; null → show the number only. */
     max: z.number().nullable(),
     is_trl: z.boolean(),
-    rationale: z.string().optional(),
-    evidence: z.array(z.string()).optional(),
+    is_risk_and_affiliation: z.boolean().optional(),
+    has_postprocessing: z.boolean().optional(),
+    primary_metric: z.record(z.string(), z.any()).nullable().optional(),
+    secondary_metrics: z.array(z.record(z.string(), z.any())).nullable().optional(),
+    main_metric: z.record(z.string(), z.any()).nullable().optional(),
+    auxiliary_metrics: z.array(z.record(z.string(), z.any())).nullable().optional(),
+    is_hitl: z.boolean().optional(),
+    fields_data: z.record(z.string(), z.any()).nullable().optional(),
+    response_schema: z.record(z.string(), z.any()).nullable().optional(),
+    exit_metrics: z.array(z.string()).optional(),
+    primary_frontend_metric: z.string().nullable().optional(),
+    secondary_frontend_metrics: z.array(z.string()).optional(),
+    rationale: z.string().nullable().optional(),
+    evidence: z.array(z.string()).nullable().optional(),
     confidence: z.number().nullable().optional(),
-    validation_status: z.string().optional(),
+    validation_status: z.string().nullable().optional(),
     review_required: z.boolean().optional(),
-    extraction_id: z.uuid().optional(),
+    extraction_id: z.string().nullable().optional(),
     /**
      * What else the definition emitted, shaped by the payload alone so a new
      * definition renders without a frontend change: its band label when it
@@ -90,13 +155,14 @@ export const dimension = z
      * wrote them. All in payload order; `*_computed` / `*_postprocessed`
      * duplicates are dropped.
      */
-    band: z.string().optional(),
-    facets: z.array(dimensionFacet).optional(),
-    texts: z.array(dimensionField).optional(),
-    lists: z.array(dimensionList).optional(),
-    facts: z.array(dimensionField).optional(),
+    band: z.string().nullable().optional(),
+    facets: z.array(dimensionFacet).nullable().optional(),
+    texts: z.array(dimensionField).nullable().optional(),
+    lists: z.array(dimensionList).nullable().optional(),
+    facts: z.array(dimensionField).nullable().optional(),
     model: z.string().nullable().optional(),
   })
+  .passthrough()
   .meta({ id: 'Dimension' })
 export type Dimension = z.infer<typeof dimension>
 
@@ -124,13 +190,13 @@ export type SignalScoreDetails = z.infer<typeof signalScoreDetails>
 
 export const scoredPaper = z
   .object({
-    id: z.uuid(),
-    workspace_id: z.uuid(),
-    pipeline_run_id: z.uuid(),
+    id: z.string(),
+    workspace_id: z.string(),
+    pipeline_run_id: z.string(),
     title: z.string(),
-    authors: z.array(z.string()),
-    authors_raw: z.string(),
-    abstract: z.string(),
+    authors: z.array(z.string()).default([]),
+    authors_raw: z.string().default(''),
+    abstract: z.string().default(''),
     doi: z.string().nullable(),
     arxiv_id: z.string().nullable(),
     /** 'arxiv' | 'openalex' | 'lens' | … */
@@ -143,7 +209,7 @@ export const scoredPaper = z
     signal_score: z.number().nullable(),
     signal_score_details: signalScoreDetails.nullable(),
     /** Workspace definition order; definition-less extractions appended. */
-    dimensions: z.array(dimension),
+    dimensions: z.array(dimension).default([]),
     /** Storage keys — there is no file endpoint yet. */
     pdf_key: z.string().nullable(),
     markdown_key: z.string().nullable(),
@@ -153,17 +219,67 @@ export const scoredPaper = z
      * from `arxiv_id` / `doi` here — the backend owns that rule.
      */
     source_url: z.string().nullable(),
-    is_benchmark: z.boolean(),
-    evaluation_label: z.enum(['passed', 'rejected']).nullable(),
+    is_benchmark: z.boolean().default(false),
+    evaluation_label: z.string().nullable().optional().default(null),
     /** The source's publication date (ISO 8601 date), when the backend has it. */
     published_date: z.string().nullable(),
     /** Ingest time (ISO 8601). */
-    created_at: z.iso.datetime({ offset: true }),
+    created_at: z.string(),
     /** The scoring run's display name, beside its id. */
     pipeline_run_name: z.string().nullable(),
+    risk_and_affiliation: riskAndAffiliation.nullable().optional(),
   })
   .meta({ id: 'ScoredPaper' })
 export type ScoredPaper = z.infer<typeof scoredPaper>
+
+/**
+ * Resilient paper schema used within briefing editions.
+ * Primary fields are id, title, authors, source, screening_status, and signal_score.
+ * Secondary fields are optional so lightweight summaries and full detail payloads both parse cleanly.
+ */
+export const editionPaper = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    authors: z.array(z.string()).default([]),
+    source: z.string().default('arXiv'),
+    screening_status: screeningStatus.optional(),
+    signal_score: z.number().nullable().default(null),
+    workspace_id: z.string().optional(),
+    pipeline_run_id: z.string().optional(),
+    authors_raw: z.string().optional(),
+    abstract: z.string().optional(),
+    doi: z.string().nullable().optional(),
+    arxiv_id: z.string().nullable().optional(),
+    screening_reasoning: z.string().nullable().optional(),
+    abstract_screening_reasoning: z.string().nullable().optional(),
+    full_text_screening_reasoning: z.string().nullable().optional(),
+    signal_score_details: signalScoreDetails.nullable().optional(),
+    dimensions: z.array(dimension).optional(),
+    pdf_key: z.string().nullable().optional(),
+    markdown_key: z.string().nullable().optional(),
+    source_url: z.string().nullable().optional(),
+    is_benchmark: z.boolean().optional(),
+    evaluation_label: z.string().nullable().optional(),
+    published_date: z.string().nullable().optional(),
+    created_at: z.string().optional(),
+    pipeline_run_name: z.string().nullable().optional(),
+    risk_and_affiliation: riskAndAffiliation.nullable().optional(),
+  })
+  .passthrough()
+  .meta({ id: 'EditionPaper' })
+export type EditionPaper = z.infer<typeof editionPaper>
+
+export const narrativeReportSummary = z
+  .object({
+    id: z.string(),
+    title: z.string(),
+    content_markdown: z.string(),
+    refinement_depth: z.number().optional(),
+    created_at: z.string().optional(),
+  })
+  .meta({ id: 'NarrativeReportSummary' })
+export type NarrativeReportSummary = z.infer<typeof narrativeReportSummary>
 
 /** What the scorecard endpoint is asked for — the part of the query Django is meant to absorb. */
 export const papersScorecardQuery = listQuery.extend({

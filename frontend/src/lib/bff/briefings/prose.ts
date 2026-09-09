@@ -6,7 +6,6 @@
  * follow the interface language. Pure, unit-tested.
  */
 import type { Lang } from '@/lib/i18n'
-import type { EditionPaper } from './schema'
 
 const short = (title: string) => title.split(':')[0]
 
@@ -16,7 +15,7 @@ export function templateProse(
     fetched: number
     passedScreening: number
     surfaced: number
-    papers: EditionPaper[]
+    papers: Array<{ title: string; signal_score: number | null }>
   },
   lang: Lang = 'en',
 ): { title: string; in_brief: string } {

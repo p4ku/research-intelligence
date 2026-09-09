@@ -74,7 +74,7 @@ export interface RunContext {
 const runContext = cache(
   async (id: string, runId: string, lang: Lang): Promise<RunContext | null> => {
     try {
-      const [result, ledger] = await Promise.all([papers.get(id), runs.listEverywhere()])
+      const [result, ledger] = await Promise.all([papers.get(id, runId), runs.listEverywhere()])
       if (!result) return null
       const run = ledger.find((r) => r.id === runId) ?? null
       if (!run) return null
@@ -120,7 +120,10 @@ export async function RunCrumbs({
   lang: Lang
   features: Features
 }) {
-  const [ctx, result] = await Promise.all([runContext(id, runId, lang), forPage(papers.get(id))])
+  const [ctx, result] = await Promise.all([
+    runContext(id, runId, lang),
+    forPage(papers.get(id, runId)),
+  ])
   const title = result ? result.paper.title : null
   if (!ctx) {
     if (!features.all_papers) return null
@@ -315,7 +318,7 @@ function Provenance({ paper, t, lang }: { paper: ScoredPaper; t: T; lang: Lang }
     <Link key="run" href={`/runs/${paper.pipeline_run_id}`} className="hover:underline">
       {paper.pipeline_run_name ?? (
         <>
-          {t('Run')} <span className="font-mono">{paper.pipeline_run_id.slice(0, 8)}</span>
+          {t('Run')} <span className="font-mono">{(paper.pipeline_run_id ?? '').slice(0, 8)}</span>
         </>
       )}
     </Link>,
