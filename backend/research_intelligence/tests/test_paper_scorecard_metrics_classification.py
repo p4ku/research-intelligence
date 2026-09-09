@@ -1855,3 +1855,207 @@ def postprocess(fields_data):
         self.assertTrue(def_explicit.has_explicit_frontend_metrics())
         self.assertEqual(def_explicit.primary_frontend_metric, "sec_one")
         self.assertEqual(def_explicit.get_explicit_secondary_frontend_metrics_list(), ["sec_two", "sec_three"])
+
+    def test_24_workspace_scorecard_ordering_by_signal_score_no_duplicates(self):
+        """
+        Issue #134: Verify ordering by signal_score without run_id does not duplicate
+        papers in the presence of multiple PaperMetric rows per paper.
+        """
+        ws = Workspace.objects.create(name="Multi Run Workspace")
+        WorkspaceMember.objects.create(workspace=ws, user=self.user, role="admin")
+
+        run1 = PipelineRun.objects.create(workspace=ws, name="Run Alpha")
+        run2 = PipelineRun.objects.create(workspace=ws, name="Run Beta")
+
+        p1 = Paper.objects.create(workspace=ws, title="Paper A", hash_id="hash_test_24_a")
+        p2 = Paper.objects.create(workspace=ws, title="Paper B", hash_id="hash_test_24_b")
+        p3 = Paper.objects.create(workspace=ws, title="Paper C", hash_id="hash_test_24_c")
+
+        # Create multiple metrics per paper across runs
+        PaperMetric.objects.create(paper=p1, pipeline_run=run1, workspace=ws, signal_score=50.0, screening_status="abstract_passed")
+        PaperMetric.objects.create(paper=p1, pipeline_run=run2, workspace=ws, signal_score=90.0, screening_status="abstract_passed")
+
+        PaperMetric.objects.create(paper=p2, pipeline_run=run1, workspace=ws, signal_score=30.0, screening_status="abstract_passed")
+        PaperMetric.objects.create(paper=p2, pipeline_run=run2, workspace=ws, signal_score=70.0, screening_status="abstract_passed")
+
+        PaperMetric.objects.create(paper=p3, pipeline_run=run1, workspace=ws, signal_score=20.0, screening_status="abstract_passed")
+        PaperMetric.objects.create(paper=p3, pipeline_run=run2, workspace=ws, signal_score=40.0, screening_status="abstract_passed")
+
+        resp = self.client.get(f"/api/workspaces/{ws.id}/scorecard/?ordering=-signal_score")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        self.assertEqual(data["count"], 3)
+        self.assertEqual(len(data["papers"]), 3)
+
+        paper_ids = [p["id"] for p in data["papers"]]
+        self.assertEqual(len(paper_ids), len(set(paper_ids)), "Papers should be unique, without duplicate rows")
+        self.assertEqual(paper_ids, [str(p1.id), str(p2.id), str(p3.id)])
+
+    def test_25_workspace_scorecard_pagination_with_ordering(self):
+        """
+        Issue #134: Verify pagination with ordering cleanly partitions distinct papers across pages.
+        """
+        ws = Workspace.objects.create(name="Pagination Workspace")
+        WorkspaceMember.objects.create(workspace=ws, user=self.user, role="admin")
+
+        run1 = PipelineRun.objects.create(workspace=ws, name="Run 1")
+        run2 = PipelineRun.objects.create(workspace=ws, name="Run 2")
+
+        papers = [
+            Paper.objects.create(workspace=ws, title=f"Paper {i}", hash_id=f"hash_test_25_{i}")
+            for i in range(5)
+        ]
+
+        # Each paper has 2 metrics
+        for i, p in enumerate(papers):
+            score = (i + 1) * 10.0
+            PaperMetric.objects.create(paper=p, pipeline_run=run1, workspace=ws, signal_score=score - 5, screening_status="abstract_passed")
+            PaperMetric.objects.create(paper=p, pipeline_run=run2, workspace=ws, signal_score=score, screening_status="abstract_passed")
+
+        # Fetch page 1 with page_size=2 ordered by -signal_score
+        r1 = self.client.get(f"/api/workspaces/{ws.id}/scorecard/?ordering=-signal_score&page=1&page_size=2")
+        self.assertEqual(r1.status_code, 200)
+        d1 = r1.json()
+        self.assertEqual(d1["count"], 5)
+        self.assertEqual(len(d1["papers"]), 2)
+        self.assertIsNotNone(d1["next"])
+        self.assertIn("ordering=-signal_score", d1["next"])
+
+        # Fetch page 2
+        r2 = self.client.get(f"/api/workspaces/{ws.id}/scorecard/?ordering=-signal_score&page=2&page_size=2")
+        self.assertEqual(r2.status_code, 200)
+        d2 = r2.json()
+        self.assertEqual(len(d2["papers"]), 2)
+
+        # Fetch page 3
+        r3 = self.client.get(f"/api/workspaces/{ws.id}/scorecard/?ordering=-signal_score&page=3&page_size=2")
+        self.assertEqual(r3.status_code, 200)
+        d3 = r3.json()
+        self.assertEqual(len(d3["papers"]), 1)
+
+        p_ids = [p["id"] for p in d1["papers"]] + [p["id"] for p in d2["papers"]] + [p["id"] for p in d3["papers"]]
+        self.assertEqual(len(p_ids), 5)
+        self.assertEqual(len(set(p_ids)), 5, "Every paper must appear exactly once across all pages")
+
+    def test_26_in_flight_rerun_does_not_mask_evaluated_paper_scores(self):
+        """
+        Issue #134: An in-flight rerun (with pending screening_status and signal_score=None)
+        must not mask the completed signal_score and screening decision of an earlier run.
+        """
+        ws = Workspace.objects.create(name="In-flight Rerun Workspace")
+        WorkspaceMember.objects.create(workspace=ws, user=self.user, role="admin")
+
+        completed_run = PipelineRun.objects.create(workspace=ws, name="Completed Run 1")
+        in_flight_run = PipelineRun.objects.create(workspace=ws, name="In Flight Run 2")
+
+        paper = Paper.objects.create(workspace=ws, title="Resilient Scored Paper", hash_id="hash_test_26_resilient")
+
+        # Earlier completed evaluation
+        PaperMetric.objects.create(
+            paper=paper,
+            pipeline_run=completed_run,
+            workspace=ws,
+            signal_score=85.0,
+            screening_status="abstract_passed",
+        )
+        # Newer in-flight evaluation
+        PaperMetric.objects.create(
+            paper=paper,
+            pipeline_run=in_flight_run,
+            workspace=ws,
+            signal_score=None,
+            screening_status="pending",
+        )
+
+        # Unscoped workspace scorecard view should show completed evaluation
+        ws_resp = self.client.get(f"/api/workspaces/{ws.id}/scorecard/")
+        self.assertEqual(ws_resp.status_code, 200)
+        ws_data = ws_resp.json()
+        self.assertEqual(len(ws_data["papers"]), 1)
+        scored_paper = ws_data["papers"][0]
+        self.assertEqual(scored_paper["signal_score"], 85.0)
+        self.assertEqual(scored_paper["screening_status"], "abstract_passed")
+        self.assertEqual(scored_paper["pipeline_run_id"], str(completed_run.id))
+
+        # Paper scorecard endpoint unscoped
+        p_resp = self.client.get(f"/api/papers/{paper.id}/scorecard/")
+        self.assertEqual(p_resp.status_code, 200)
+        p_data = p_resp.json()
+        self.assertEqual(p_data["paper"]["signal_score"], 85.0)
+        self.assertEqual(p_data["paper"]["screening_status"], "abstract_passed")
+
+        # Scoped to in-flight run explicitly
+        scoped_resp = self.client.get(f"/api/workspaces/{ws.id}/scorecard/?run_id={in_flight_run.id}")
+        self.assertEqual(scoped_resp.status_code, 200)
+        scoped_data = scoped_resp.json()
+        self.assertEqual(scoped_data["papers"][0]["signal_score"], None)
+        self.assertEqual(scoped_data["papers"][0]["screening_status"], "pending")
+        self.assertEqual(scoped_data["papers"][0]["pipeline_run_id"], str(in_flight_run.id))
+
+    def test_27_nil_uuid_sentinel_replaced_with_empty_string(self):
+        """
+        Issue #134: Papers without an associated pipeline run must emit pipeline_run_id=""
+        instead of the nil-UUID sentinel '00000000-0000-0000-0000-000000000000'.
+        """
+        ws = Workspace.objects.create(name="No Run Workspace")
+        WorkspaceMember.objects.create(workspace=ws, user=self.user, role="admin")
+
+        paper = Paper.objects.create(workspace=ws, title="Unprocessed Paper", hash_id="hash_test_27_unprocessed")
+
+        resp = self.client.get(f"/api/workspaces/{ws.id}/scorecard/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(len(data["papers"]), 1)
+        sp = data["papers"][0]
+        self.assertEqual(sp["pipeline_run_id"], "")
+        self.assertIsNone(sp["pipeline_run_name"])
+
+        # Also verify single paper scorecard
+        p_resp = self.client.get(f"/api/papers/{paper.id}/scorecard/")
+        self.assertEqual(p_resp.status_code, 200)
+        p_data = p_resp.json()
+        self.assertEqual(p_data["paper"]["pipeline_run_id"], "")
+        self.assertIsNone(p_data["paper"]["pipeline_run_name"])
+
+    def test_28_dimension_payload_optimization_and_metadata_max(self):
+        """
+        Issue #134: Verify dimensions[] does not contain duplicate main_metric and auxiliary_metrics,
+        and definition metadata max emits 100 instead of None for standard definitions.
+        """
+        ws = Workspace.objects.create(name="Dim Optimization Workspace")
+        WorkspaceMember.objects.create(workspace=ws, user=self.user, role="admin")
+
+        def1 = ExtractionDefinition.objects.create(
+            workspace=ws,
+            name="General Quality",
+            response_schema={"type": "object"},
+            exit_metrics="score, details",
+            is_active=True,
+        )
+
+        paper = Paper.objects.create(workspace=ws, title="Paper with Extractions", hash_id="hash_test_28_extractions")
+        Extraction.objects.create(
+            paper=paper,
+            extraction_definition=def1,
+            workspace=ws,
+            category="General Quality",
+            fields_data={"score": 88, "details": "High quality"},
+        )
+
+        resp = self.client.get(f"/api/workspaces/{ws.id}/scorecard/")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        # Metadata max
+        def_meta = data["workspace"]["definitions"][0]
+        self.assertEqual(def_meta["max"], 100)
+
+        # Dimensions keys
+        dimensions = data["papers"][0]["dimensions"]
+        self.assertGreaterEqual(len(dimensions), 1)
+        dim = dimensions[0]
+        self.assertIn("primary_metric", dim)
+        self.assertIn("secondary_metrics", dim)
+        self.assertNotIn("main_metric", dim, "Duplicate main_metric should be eliminated from dimensions")
+        self.assertNotIn("auxiliary_metrics", dim, "Duplicate auxiliary_metrics should be eliminated from dimensions")

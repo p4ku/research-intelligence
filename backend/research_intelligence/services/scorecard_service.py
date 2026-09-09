@@ -29,7 +29,7 @@ def format_definitions_metadata(definitions: list) -> list:
         prim_exit = d.get_primary_exit_metric()
         d_slug = d.name.lower().replace(' ', '_').replace('-', '_')
         is_trl = bool(re.search(r'\btrl\b', d.name, re.IGNORECASE))
-        max_val = 9 if is_trl else (10 if '(1-10)' in d.name else None)
+        max_val = 9 if is_trl else (10 if '(1-10)' in d.name else 100)
         has_explicit = bool(d.has_explicit_frontend_metrics())
 
         if has_explicit:
@@ -112,6 +112,40 @@ def format_workspace_summary(workspace, definitions_data: list = None, request=N
     }
 
 
+def resolve_paper_representing_metric(metrics, target_pr_id=None):
+    """
+    Selects the canonical PaperMetric representing a paper.
+    If target_pr_id is provided, selects the metric for that run.
+    If unscoped (target_pr_id is None), prefers evaluated metrics
+    (screening_status != 'pending' or signal_score is not None), sorted newest first,
+    preventing an in-flight rerun from masking completed scores.
+    """
+    if not metrics:
+        return None
+
+    metrics_list = list(metrics)
+    if target_pr_id:
+        norm_target_pr = str(target_pr_id)
+        for m in metrics_list:
+            if str(m.pipeline_run_id) == norm_target_pr:
+                return m
+        return None
+
+    # Unscoped: prefer evaluated metrics over pending reruns
+    evaluated = [
+        m for m in metrics_list
+        if (getattr(m, 'screening_status', None) not in ('pending', None) or getattr(m, 'signal_score', None) is not None)
+    ]
+    pool = evaluated if evaluated else metrics_list
+
+    def _metric_sort_key(m):
+        dt = getattr(m, 'created_at', None)
+        ts = dt.timestamp() if (dt and hasattr(dt, 'timestamp')) else 0.0
+        return (ts, str(getattr(m, 'id', '')))
+
+    return sorted(pool, key=_metric_sort_key, reverse=True)[0]
+
+
 def build_single_scored_paper(
     paper: Paper,
     definitions: list,
@@ -131,15 +165,7 @@ def build_single_scored_paper(
         extractions_list = list(paper.extractions.all())
 
     # 1. Resolve target_metric
-    target_metric = None
-    if target_pr_id:
-        norm_target_pr = str(target_pr_id)
-        for m in metrics_list:
-            if str(m.pipeline_run_id) == norm_target_pr:
-                target_metric = m
-                break
-    if not target_metric and metrics_list:
-        target_metric = metrics_list[0]
+    target_metric = resolve_paper_representing_metric(metrics_list, target_pr_id=target_pr_id)
 
     if not target_pr_id and target_metric and target_metric.pipeline_run_id:
         target_pr_id = target_metric.pipeline_run_id
@@ -231,8 +257,6 @@ def build_single_scored_paper(
             'secondary_metrics': secondary_metrics,
             'primary_frontend_metric': d.primary_frontend_metric or None,
             'secondary_frontend_metrics': d.get_secondary_frontend_metrics_list(),
-            'main_metric': primary_metric,
-            'auxiliary_metrics': secondary_metrics,
             'is_hitl': bool(e.is_hitl_validated) if e else False,
             'fields_data': e.fields_data if e else None,
             'response_schema': d.response_schema,
@@ -294,8 +318,6 @@ def build_single_scored_paper(
                 'secondary_metrics': secondary_metrics,
                 'primary_frontend_metric': None,
                 'secondary_frontend_metrics': [],
-                'main_metric': primary_metric,
-                'auxiliary_metrics': secondary_metrics,
                 'is_hitl': bool(e.is_hitl_validated),
                 'fields_data': e.fields_data,
                 'response_schema': None,
@@ -383,7 +405,7 @@ def build_single_scored_paper(
     return {
         'id': str(paper.id),
         'workspace_id': str(paper.workspace_id),
-        'pipeline_run_id': str(target_pr_id) if target_pr_id else '00000000-0000-0000-0000-000000000000',
+        'pipeline_run_id': str(target_pr_id) if target_pr_id else '',
         'title': paper.title,
         'authors': authors_list,
         'authors_raw': raw_authors,
@@ -459,21 +481,18 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
             except (ValueError, TypeError):
                 target_pr_id = None
 
-    # Fallback to paper's newest run if not specified
+    # Fallback to paper's canonical run if not specified
     if not target_pr_id:
-        latest_m = paper.metrics.order_by('-created_at').first()
-        if latest_m and latest_m.pipeline_run_id:
-            target_pr_id = latest_m.pipeline_run_id
-            target_pr = latest_m.pipeline_run
+        canon_m = resolve_paper_representing_metric(paper.metrics.all())
+        if canon_m and canon_m.pipeline_run_id:
+            target_pr_id = canon_m.pipeline_run_id
+            target_pr = canon_m.pipeline_run
         elif getattr(paper, 'pipeline_run_id', None):
             target_pr_id = paper.pipeline_run_id
             target_pr = getattr(paper, 'pipeline_run', None)
-
-    target_metric = None
-    if target_pr_id:
-        target_metric = paper.metrics.filter(pipeline_run_id=target_pr_id).first()
-    if not target_metric:
-        target_metric = paper.metrics.order_by('-created_at').first()
+        target_metric = canon_m
+    else:
+        target_metric = resolve_paper_representing_metric(paper.metrics.all(), target_pr_id=target_pr_id)
 
     paper_serializer = PaperSerializer(paper, context={'request': request, 'pipeline_run': target_pr_id})
     paper_data = paper_serializer.data
@@ -685,21 +704,44 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
 
     # 2. Query papers for workspace
     papers_qs = Paper.objects.filter(workspace=workspace)
-    run_metric_filters = {}
     if target_pr:
-        run_metric_filters['metrics__pipeline_run'] = target_pr
+        papers_qs = papers_qs.filter(metrics__pipeline_run=target_pr)
     elif target_pr_id:
-        run_metric_filters['metrics__pipeline_run_id'] = target_pr_id
+        papers_qs = papers_qs.filter(metrics__pipeline_run_id=target_pr_id)
+
+    from django.db.models import Case, F, OuterRef, Subquery, Value, When
+    from research_intelligence.models import PaperMetric
+
+    if target_pr_id:
+        metric_score_qs = PaperMetric.objects.filter(paper=OuterRef('pk'), pipeline_run_id=target_pr_id)
+        metric_status_qs = PaperMetric.objects.filter(paper=OuterRef('pk'), pipeline_run_id=target_pr_id)
+    else:
+        metric_score_qs = PaperMetric.objects.filter(paper=OuterRef('pk')).order_by(
+            Case(When(signal_score__isnull=False, then=Value(0)), default=Value(1)),
+            '-created_at',
+            '-id',
+        )
+        metric_status_qs = PaperMetric.objects.filter(paper=OuterRef('pk')).order_by(
+            Case(When(screening_status='pending', then=Value(1)), default=Value(0)),
+            '-created_at',
+            '-id',
+        )
+
+    score_subquery = Subquery(metric_score_qs.values('signal_score')[:1])
+    status_subquery = Subquery(metric_status_qs.values('screening_status')[:1])
 
     # Optional screening status filter
     if request:
         screening_param = request.query_params.get('screening') or request.query_params.get('screening_status')
         if screening_param:
             sc_clean = screening_param.strip().lower()
+            papers_qs = papers_qs.annotate(annotated_screening_status=status_subquery)
             if sc_clean == 'passed':
-                run_metric_filters['metrics__screening_status__in'] = ['abstract_passed', 'full_text_passed', 'accepted']
+                papers_qs = papers_qs.filter(
+                    annotated_screening_status__in=['abstract_passed', 'full_text_passed', 'accepted']
+                )
             elif sc_clean != 'all':
-                run_metric_filters['metrics__screening_status'] = sc_clean
+                papers_qs = papers_qs.filter(annotated_screening_status=sc_clean)
 
         search_query = request.query_params.get('search') or request.query_params.get('q')
         if search_query and str(search_query).strip():
@@ -712,20 +754,18 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
                 Q(arxiv_id__icontains=term)
             )
 
-    if run_metric_filters:
-        papers_qs = papers_qs.filter(**run_metric_filters).distinct()
-
     ordering_param = None
     if request:
         ordering_param = request.query_params.get('ordering') or request.query_params.get('sort')
 
-    from django.db.models import F
+    papers_qs = papers_qs.annotate(annotated_signal_score=score_subquery)
+
     if ordering_param:
         ord_clean = ordering_param.strip().lower()
         if ord_clean in ('signal_score', '+signal_score'):
-            papers_qs = papers_qs.order_by(F('metrics__signal_score').asc(nulls_last=True), 'created_at', 'id')
+            papers_qs = papers_qs.order_by(F('annotated_signal_score').asc(nulls_last=True), 'created_at', 'id')
         elif ord_clean == '-signal_score':
-            papers_qs = papers_qs.order_by(F('metrics__signal_score').desc(nulls_last=True), '-created_at', '-id')
+            papers_qs = papers_qs.order_by(F('annotated_signal_score').desc(nulls_last=True), '-created_at', '-id')
         elif ord_clean in ('title', '+title'):
             papers_qs = papers_qs.order_by('title', 'id')
         elif ord_clean == '-title':
@@ -735,7 +775,7 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
         elif ord_clean == '-created_at':
             papers_qs = papers_qs.order_by('-created_at', '-id')
     elif target_pr_id:
-        papers_qs = papers_qs.order_by(F('metrics__signal_score').desc(nulls_last=True), '-created_at', '-id')
+        papers_qs = papers_qs.order_by(F('annotated_signal_score').desc(nulls_last=True), '-created_at', '-id')
     else:
         papers_qs = papers_qs.order_by('-created_at', '-id')
 
@@ -798,31 +838,6 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
         )
         scored_papers.append(sp)
 
-    if ordering_param:
-        ord_clean = ordering_param.strip().lower()
-        if ord_clean in ('signal_score', '+signal_score'):
-            scored_papers.sort(
-                key=lambda sp: (sp.get('signal_score') is not None, sp.get('signal_score') or 0.0)
-            )
-        elif ord_clean == '-signal_score':
-            scored_papers.sort(
-                key=lambda sp: (sp.get('signal_score') is not None, sp.get('signal_score') or 0.0),
-                reverse=True
-            )
-        elif ord_clean in ('title', '+title'):
-            scored_papers.sort(key=lambda sp: (sp.get('title') or '').lower())
-        elif ord_clean == '-title':
-            scored_papers.sort(key=lambda sp: (sp.get('title') or '').lower(), reverse=True)
-        elif ord_clean in ('created_at', '+created_at'):
-            scored_papers.sort(key=lambda sp: sp.get('created_at') or '')
-        elif ord_clean == '-created_at':
-            scored_papers.sort(key=lambda sp: sp.get('created_at') or '', reverse=True)
-    elif target_pr_id:
-        scored_papers.sort(
-            key=lambda sp: (sp.get('signal_score') is not None, sp.get('signal_score') or 0.0),
-            reverse=True
-        )
-
     next_url = None
     prev_url = None
     if page_size:
@@ -831,6 +846,14 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
         if target_pr_id:
             params.append(f"run_id={target_pr_id}")
         params.append(f"page_size={page_size}")
+        if ordering_param:
+            params.append(f"ordering={ordering_param}")
+        if request and (request.query_params.get('screening') or request.query_params.get('screening_status')):
+            sc_val = request.query_params.get('screening') or request.query_params.get('screening_status')
+            params.append(f"screening={sc_val}")
+        if request and (request.query_params.get('search') or request.query_params.get('q')):
+            q_val = request.query_params.get('search') or request.query_params.get('q')
+            params.append(f"search={q_val}")
         p_str = "&".join(params)
 
         if page_obj.has_next():
