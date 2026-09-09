@@ -58,8 +58,6 @@ class PipelineRunSerializer(serializers.ModelSerializer):
             'current_stage',
             'stopped_at_stage',
             'configuration_override',
-            'stage_results',
-            'step_history',
             'period',
             'total_papers_fetched',
             'total_papers_screened',
@@ -107,6 +105,8 @@ class PipelineRunDetailSerializer(PipelineRunSerializer):
 
     class Meta(PipelineRunSerializer.Meta):
         fields = PipelineRunSerializer.Meta.fields + [
+            'stage_results',
+            'step_history',
             'component_runs',
             'storage_stats',
             'papers_count',

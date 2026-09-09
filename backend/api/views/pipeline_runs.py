@@ -95,6 +95,9 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
         if status_param:
             qs = qs.filter(status=status_param)
 
+        if getattr(self, 'action', None) == 'list':
+            qs = qs.defer('step_history', 'stage_results')
+
         return qs
 
     @extend_schema(

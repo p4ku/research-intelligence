@@ -742,6 +742,54 @@ class ApiEndpointOptimizationsTestCase(TestCase):
         for p in data["papers"]:
             self.assertEqual(len(p["dimensions"]), 2)
 
+    def test_pipeline_runs_list_defers_heavy_json_fields_and_retrieve_includes_them(self):
+        """
+        Verify GET /api/pipeline-runs/:
+        1. List endpoint defers and omits heavy JSON blobs ('step_history', 'stage_results')
+           to prevent multi-megabyte payload bloat and high DB serialization cost on /runs and /dashboard.
+        2. Detail endpoint GET /api/pipeline-runs/{id}/ continues to deliver full telemetry
+           including 'step_history' and 'stage_results'.
+        """
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Heavy Telemetry Run",
+            status="completed",
+            completed_at=timezone.now(),
+            total_papers_fetched=100,
+            total_papers_passed_screening=25,
+            step_history=[{"step": "search", "trace": "x" * 500}] * 20,
+            stage_results={"screening": {"detail": "y" * 1000}},
+        )
+
+        # 1. Test GET /api/pipeline-runs/ (list)
+        resp_list = self.client.get("/api/pipeline-runs/")
+        self.assertEqual(resp_list.status_code, 200)
+        items = resp_list.json()
+        target_item = next(item for item in items if item["id"] == str(run.id))
+
+        # Heavy JSON fields must NOT be serialized in list view
+        self.assertNotIn("step_history", target_item)
+        self.assertNotIn("stage_results", target_item)
+
+        # Required fields for /runs and /dashboard tables must be present
+        self.assertEqual(target_item["id"], str(run.id))
+        self.assertEqual(target_item["workspace_name"], self.workspace.name)
+        self.assertEqual(target_item["status"], "completed")
+        self.assertEqual(target_item["total_papers_fetched"], 100)
+        self.assertEqual(target_item["total_papers_passed_screening"], 25)
+
+        # 2. Test GET /api/pipeline-runs/{id}/ (detail)
+        resp_detail = self.client.get(f"/api/pipeline-runs/{run.id}/")
+        self.assertEqual(resp_detail.status_code, 200)
+        detail_data = resp_detail.json()
+
+        # Detail endpoint MUST include the full telemetry
+        self.assertIn("step_history", detail_data)
+        self.assertIn("stage_results", detail_data)
+        self.assertEqual(len(detail_data["step_history"]), 20)
+        self.assertIn("screening", detail_data["stage_results"])
+
+
 
 
 
