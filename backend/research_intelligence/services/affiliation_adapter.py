@@ -137,7 +137,7 @@ def normalize_affiliations(raw_val: Any) -> List[str]:
             parts = [p.strip() for p in unwrapped.split(",") if p.strip()]
         affiliations.extend(parts)
 
-    return affiliations
+    return [a for a in affiliations if a and a.lower() not in ("none", "null", "n/a", "")]
 
 
 def normalize_author_contacts(raw_val: Any) -> List[str]:
@@ -156,18 +156,18 @@ def normalize_author_contacts(raw_val: Any) -> List[str]:
             if isinstance(c, dict):
                 email_str = str(c.get("email") or "").strip()
                 name_str = str(c.get("author_name") or c.get("name") or "").strip()
-                if email_str and email_str.lower() not in ("none", "null", ""):
+                if email_str and email_str.lower() not in ("none", "null", "n/a", ""):
                     contacts.append(email_str)
-                elif name_str and name_str.lower() not in ("none", "null", ""):
+                elif name_str and name_str.lower() not in ("none", "null", "n/a", ""):
                     contacts.append(name_str)
             elif c is not None and str(c).strip():
                 c_str = str(c).strip()
-                if c_str.lower() not in ("none", "null", ""):
+                if c_str.lower() not in ("none", "null", "n/a", ""):
                     contacts.append(c_str)
     elif isinstance(unwrapped, str) and unwrapped.strip():
         contacts = [c.strip() for c in re.split(r'[,;]\s*', unwrapped) if c.strip()]
 
-    return contacts
+    return [c for c in contacts if c and c.lower() not in ("none", "null", "n/a", "")]
 
 
 def normalize_codebase_link(raw_val: Any) -> Optional[str]:
@@ -184,15 +184,16 @@ def normalize_codebase_link(raw_val: Any) -> Optional[str]:
     unwrapped = _unwrap_val(raw_val)
     if isinstance(unwrapped, (list, tuple)):
         for item in unwrapped:
-            if item and isinstance(item, str) and item.strip():
+            if item and isinstance(item, str) and item.strip() and item.strip().lower() not in ("none", "null", "n/a", ""):
                 return item.strip()
             elif item and isinstance(item, dict):
                 url = item.get("url") or item.get("link")
-                if url and str(url).strip():
+                if url and str(url).strip() and str(url).strip().lower() not in ("none", "null", "n/a", ""):
                     return str(url).strip()
         return None
     elif isinstance(unwrapped, str) and unwrapped.strip():
-        return unwrapped.strip()
+        u = unwrapped.strip()
+        return u if u.lower() not in ("none", "null", "n/a", "") else None
 
     return None
 
@@ -226,9 +227,9 @@ def normalize_funding_entities(raw_val: Any) -> List[str]:
                     funding.append(str(name).strip())
             elif f is not None and str(f).strip():
                 funding.append(str(f).strip())
-        return funding
+        return [item for item in funding if item and item.lower() not in ("none", "null", "n/a", "")]
     elif isinstance(unwrapped, str) and unwrapped.strip():
-        return [f.strip() for f in re.split(r'[,;]\s*', unwrapped) if f.strip()]
+        return [f.strip() for f in re.split(r'[,;]\s*', unwrapped) if f.strip() and f.strip().lower() not in ("none", "null", "n/a", "")]
 
     return []
 

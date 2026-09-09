@@ -199,7 +199,9 @@ describe('PaperHeader Component Rendering', () => {
     expect(out).toContain('Lukas Berent, Robert Wille')
 
     // Affiliations under authors
-    expect(out).toContain('Technical University of Munich, Germany · Munich Quantum Valley, Germany · Software Competence Center Hagenberg GmbH, Austria')
+    expect(out).toContain(
+      'Technical University of Munich, Germany · Munich Quantum Valley, Germany · Software Competence Center Hagenberg GmbH, Austria',
+    )
 
     // Mailto contacts
     expect(out).toContain('href="mailto:lukas.berent@tum.de"')
@@ -211,11 +213,42 @@ describe('PaperHeader Component Rendering', () => {
 
     // Funding entities
     expect(out).toContain('Funding:')
-    expect(out).toContain('European Research Council (ERC); Bavarian State Ministry of Science and Arts; Federal Ministry of Education and Research (BMBF)')
+    expect(out).toContain(
+      'European Research Council (ERC); Bavarian State Ministry of Science and Arts; Federal Ministry of Education and Research (BMBF)',
+    )
 
     // Flags
     expect(out).toContain('GDPR Sovereignty')
     expect(out).toContain('Schwarz Ecosystem')
     expect(out).toContain('YES (TUM)')
+  })
+
+  test('does not render risk and affiliation container when risk_and_affiliation is null', () => {
+    const paper = samplePaper({ risk_and_affiliation: null })
+    const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
+    expect(out).toContain('data-row="authors"')
+    expect(out).not.toContain('data-row="risk-and-affiliation"')
+  })
+
+  test('does not render risk and affiliation container when risk_and_affiliation is undefined', () => {
+    const paper = samplePaper({ risk_and_affiliation: undefined })
+    const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
+    expect(out).toContain('data-row="authors"')
+    expect(out).not.toContain('data-row="risk-and-affiliation"')
+  })
+
+  test('does not render risk and affiliation container when risk_and_affiliation has all empty fields', () => {
+    const paper = samplePaper({
+      risk_and_affiliation: {
+        affiliations: [],
+        author_contacts: [],
+        funding_entities: [],
+        codebase_artifact_link: null,
+        flags: [],
+      },
+    })
+    const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
+    expect(out).toContain('data-row="authors"')
+    expect(out).not.toContain('data-row="risk-and-affiliation"')
   })
 })

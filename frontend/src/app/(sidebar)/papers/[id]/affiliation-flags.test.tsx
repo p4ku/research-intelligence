@@ -269,4 +269,71 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     expect(out).toContain('None')
     expect(out).toContain('text-emerald-700')
   })
+
+  test('renders cleanly when only affiliations exist (no contacts, funding, links, flags)', () => {
+    const onlyAffiliations: RiskAndAffiliation = {
+      affiliations: ['University of Oxford'],
+      author_contacts: [],
+      funding_entities: [],
+      flags: [],
+      codebase_artifact_link: null,
+    }
+    const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={onlyAffiliations} />)
+    expect(out).toContain('University of Oxford')
+    expect(out).not.toContain('Funding:')
+    expect(out).not.toContain('href="mailto:')
+    expect(out).not.toContain('Artifact Repository')
+  })
+
+  test('renders cleanly when only funding entities exist', () => {
+    const onlyFunding: RiskAndAffiliation = {
+      affiliations: [],
+      author_contacts: [],
+      funding_entities: ['BMBF Quantum Grant #42'],
+      flags: [],
+      codebase_artifact_link: null,
+    }
+    const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={onlyFunding} />)
+    expect(out).toContain('Funding:')
+    expect(out).toContain('BMBF Quantum Grant #42')
+    expect(out).not.toContain('BuildingLibraryIcon')
+    expect(out).not.toContain('href="mailto:')
+  })
+
+  test('renders contact names as plain text without mailto when no @ is present', () => {
+    const noEmailContact: RiskAndAffiliation = {
+      affiliations: [],
+      author_contacts: ['Dr. John Doe (Lead Author)', 'jane.doe@univ.edu'],
+      funding_entities: [],
+      flags: [],
+      codebase_artifact_link: null,
+    }
+    const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={noEmailContact} />)
+    // Jane has @ -> mailto
+    expect(out).toContain('href="mailto:jane.doe@univ.edu"')
+    // John has no @ -> plain text, no mailto link
+    expect(out).toContain('Dr. John Doe (Lead Author)')
+    expect(out).not.toContain('href="mailto:Dr. John Doe')
+  })
+
+  test('handles null/empty flag dictionary values without throwing or crashing', () => {
+    const brokenFlagRisk: RiskAndAffiliation = {
+      affiliations: [],
+      author_contacts: [],
+      funding_entities: [],
+      codebase_artifact_link: null,
+      flags: [
+        {
+          key: 'gdpr',
+          label: 'GDPR Sovereignty',
+          value: '',
+          status: 'safe',
+          dict_value: { status: null, concerns: null },
+        },
+      ],
+    }
+    const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={brokenFlagRisk} />)
+    expect(out).toContain('GDPR Sovereignty:')
+    expect(out).toContain('text-emerald-700')
+  })
 })

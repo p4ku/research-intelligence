@@ -1607,6 +1607,92 @@ return {
         self.assertEqual(paper_risk["gdpr_concerns"], "NO")
         self.assertEqual(paper_risk["competitor_involvement"], "None")
 
+    def test_20_missing_and_malformed_risk_and_affiliation_handling(self):
+        """
+        Tests edge cases where risk and affiliation data is completely absent,
+        partially missing, contains nulls/None, or cannot be extracted:
+        1. None or non-dict input -> returns None (no crash)
+        2. Empty dict input -> returns clean structure with empty lists and nulls
+        3. Inputs containing placeholders like 'None', 'null', 'n/a', '' -> safely filtered out
+        4. Paper with NO risk extraction at all -> API returns paper.risk_and_affiliation: null
+        5. Paper with empty risk extraction -> API returns empty arrays and empty flags
+        """
+        from research_intelligence.services.affiliation_adapter import adapt_affiliation_data
+
+        # 1. Non-dict or null inputs
+        self.assertIsNone(adapt_affiliation_data(None))
+        self.assertIsNone(adapt_affiliation_data("malformed non-json string"))
+        self.assertIsNone(adapt_affiliation_data([1, 2, 3]))
+        self.assertEqual(adapt_affiliation_data({"fields": None})["affiliations"], [])
+
+        # 2. Empty dict input
+        empty_res = adapt_affiliation_data({})
+        self.assertIsNotNone(empty_res)
+        self.assertEqual(empty_res["affiliations"], [])
+        self.assertEqual(empty_res["author_contacts"], [])
+        self.assertEqual(empty_res["funding_entities"], [])
+        self.assertIsNone(empty_res["codebase_artifact_link"])
+        self.assertIsNone(empty_res["schwarz_ecosystem_affiliation"])
+        self.assertIsNone(empty_res["gdpr_concerns"])
+        self.assertIsNone(empty_res["competitor_involvement"])
+        self.assertEqual(empty_res["flags"], [])
+
+        # 3. Inputs containing placeholder strings ('None', 'null', 'n/a', '')
+        placeholders_data = {
+            "metadata": {
+                "institutional_affiliations": ["None", "null", "N/A", "", "  ", None],
+                "author_contacts": [
+                    {"email": "None", "author_name": "null"},
+                    {"email": "  ", "author_name": ""},
+                    None,
+                ],
+                "funding_entities": ["None", "", "n/a", None],
+                "codebase_links": ["none", "", "null"],
+            },
+            "gdpr_concern": None,
+            "competitor_involvement": None,
+            "schwarz_ecosystem_affiliation": None,
+        }
+        res_placeholders = adapt_affiliation_data(placeholders_data)
+        self.assertEqual(res_placeholders["affiliations"], [])
+        self.assertEqual(res_placeholders["author_contacts"], [])
+        self.assertEqual(res_placeholders["funding_entities"], [])
+        self.assertIsNone(res_placeholders["codebase_artifact_link"])
+        self.assertEqual(res_placeholders["flags"], [])
+
+        # 4. End-to-end API: Paper with NO risk extraction at all
+        Extraction.objects.filter(paper=self.paper).delete()
+        api_url = f"/api/papers/{self.paper.id}/scorecard/?pipeline_run={self.run_beta.id}"
+        resp_no_ext = self.client.get(api_url)
+        self.assertEqual(resp_no_ext.status_code, 200)
+        data_no_ext = resp_no_ext.json()
+        self.assertIsNone(data_no_ext["paper"]["risk_and_affiliation"])
+
+        # 5. End-to-end API: Paper with completely empty fields_data={}
+        ext_empty = Extraction.objects.create(
+            workspace=self.workspace,
+            paper=self.paper,
+            category="Risk and Affiliation Flagging",
+            fields_data={},
+        )
+        resp_empty_ext = self.client.get(api_url)
+        self.assertEqual(resp_empty_ext.status_code, 200)
+        # Truthiness of empty dict in scorecard_service means risk_and_affiliation is cleanly None
+        self.assertIsNone(resp_empty_ext.json()["paper"]["risk_and_affiliation"])
+
+        # 6. End-to-end API: Paper with non-risk fields_data (no affiliations found in paper)
+        ext_empty.fields_data = {"notes": "No affiliations disclosed"}
+        ext_empty.save()
+        resp_notes = self.client.get(api_url)
+        self.assertEqual(resp_notes.status_code, 200)
+        risk_notes = resp_notes.json()["paper"]["risk_and_affiliation"]
+        self.assertIsNotNone(risk_notes)
+        self.assertEqual(risk_notes["affiliations"], [])
+        self.assertEqual(risk_notes["author_contacts"], [])
+        self.assertEqual(risk_notes["funding_entities"], [])
+        self.assertIsNone(risk_notes["codebase_artifact_link"])
+        self.assertEqual(risk_notes["flags"], [])
+
 
 
 
