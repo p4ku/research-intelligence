@@ -248,21 +248,24 @@ function unpackField(field: DimensionField): UnpackedField {
   let isDict = Boolean(field.is_dict || field.type === 'dict')
 
   // 1. Structured dictionary sent directly from backend
-  if (field.dict_value || (typeof value === 'object' && value !== null)) {
+  if (field.dict_value && typeof field.dict_value === 'object') {
     isDict = true
-    const parsed = (field.dict_value ?? value) as Record<string, unknown>
+    const parsed = field.dict_value as Record<string, unknown>
     if (!band && parsed.band) band = String(parsed.band).trim()
     if (score == null && parsed.score != null) {
       const s = Number(parsed.score)
       if (Number.isFinite(s)) score = s
     }
-    if (parsed.insight) value = String(parsed.insight).trim()
-    else if (parsed.rationale) value = String(parsed.rationale).trim()
-    else if (parsed.reasoning) value = String(parsed.reasoning).trim()
-    else if (parsed.explanation) value = String(parsed.explanation).trim()
-    else if (parsed.text) value = String(parsed.text).trim()
-    else if (parsed.summary) value = String(parsed.summary).trim()
-    else if (typeof value === 'object') value = ''
+    if (value === '' || value == null) {
+      const ins =
+        parsed.insight ??
+        parsed.rationale ??
+        parsed.reasoning ??
+        parsed.explanation ??
+        parsed.text ??
+        parsed.summary
+      if (ins != null) value = String(ins).trim()
+    }
 
     if (!evidence && Array.isArray(parsed.evidence)) {
       evidence = (parsed.evidence as unknown[])
@@ -279,49 +282,39 @@ function unpackField(field: DimensionField): UnpackedField {
     value.trim().startsWith('{') &&
     value.trim().endsWith('}')
   ) {
-    // 2. Safe JSON parse for stringified dictionary (legacy fallback)
-    isDict = true
-    let parsed: Record<string, unknown> | null = null
+    // 2. Safe JSON parse for stringified dictionary (without corrupting regex swaps)
     try {
-      parsed = JSON.parse(value.trim())
+      const parsed = JSON.parse(value.trim())
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        isDict = true
+        if (!band && parsed.band) band = String(parsed.band).trim()
+        if (score == null && parsed.score != null) {
+          const s = Number(parsed.score)
+          if (Number.isFinite(s)) score = s
+        }
+        const ins =
+          parsed.insight ??
+          parsed.rationale ??
+          parsed.reasoning ??
+          parsed.explanation ??
+          parsed.text ??
+          parsed.summary
+        if (ins != null) value = String(ins).trim()
+        else value = ''
+
+        if (!evidence && Array.isArray(parsed.evidence)) {
+          evidence = (parsed.evidence as unknown[])
+            .map((e) =>
+              typeof e === 'object' && e !== null && 'quote' in e
+                ? String((e as { quote: unknown }).quote)
+                : String(e),
+            )
+            .map((s) => s.trim())
+            .filter(Boolean)
+        }
+      }
     } catch {
-      try {
-        const jsonLike = value
-          .trim()
-          .replace(/'/g, '"')
-          .replace(/\bNone\b/g, 'null')
-          .replace(/\bTrue\b/g, 'true')
-          .replace(/\bFalse\b/g, 'false')
-        parsed = JSON.parse(jsonLike)
-      } catch {
-        // Leave unparsed
-      }
-    }
-
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      if (!band && parsed.band) band = String(parsed.band).trim()
-      if (score == null && parsed.score != null) {
-        const s = Number(parsed.score)
-        if (Number.isFinite(s)) score = s
-      }
-      if (parsed.insight) value = String(parsed.insight).trim()
-      else if (parsed.rationale) value = String(parsed.rationale).trim()
-      else if (parsed.reasoning) value = String(parsed.reasoning).trim()
-      else if (parsed.explanation) value = String(parsed.explanation).trim()
-      else if (parsed.text) value = String(parsed.text).trim()
-      else if (parsed.summary) value = String(parsed.summary).trim()
-      else value = ''
-
-      if (!evidence && Array.isArray(parsed.evidence)) {
-        evidence = (parsed.evidence as unknown[])
-          .map((e) =>
-            typeof e === 'object' && e !== null && 'quote' in e
-              ? String((e as { quote: unknown }).quote)
-              : String(e),
-          )
-          .map((s) => s.trim())
-          .filter(Boolean)
-      }
+      // Leave unparsed if not valid JSON
     }
   }
 

@@ -119,6 +119,53 @@ def unpack_flag_value(raw_val, flag_name=""):
     return val_str, is_pos, [], False, None
 
 
+def _unpack_nested_metric_object(parsed_dict: dict, fallback_numeric: Optional[Union[int, float]] = None) -> Tuple[
+    Optional[Union[int, float]], Optional[str], Optional[str], list
+]:
+    """
+    Unpacks a structured nested metric object ({score, band, insight, evidence})
+    into (item_score, item_band, item_insight, item_evidence).
+    """
+    if not isinstance(parsed_dict, dict) or not parsed_dict:
+        return fallback_numeric, None, None, []
+
+    item_score = None
+    s_raw = parsed_dict.get("score") if "score" in parsed_dict else parsed_dict.get("value")
+    if s_raw is not None:
+        try:
+            f_s = float(s_raw)
+            if math.isfinite(f_s):
+                item_score = int(f_s) if f_s.is_integer() else round(f_s, 2)
+        except (ValueError, TypeError):
+            pass
+    if item_score is None and fallback_numeric is not None:
+        item_score = fallback_numeric
+
+    b_raw = parsed_dict.get("band") or parsed_dict.get("label") or parsed_dict.get("level")
+    item_band = str(b_raw).strip() if b_raw is not None and str(b_raw).strip() not in ("None", "") else None
+
+    i_raw = (
+        parsed_dict.get("insight")
+        or parsed_dict.get("rationale")
+        or parsed_dict.get("reasoning")
+        or parsed_dict.get("explanation")
+        or parsed_dict.get("description")
+        or parsed_dict.get("text")
+        or parsed_dict.get("summary")
+    )
+    item_insight = str(i_raw).strip() if i_raw is not None and str(i_raw).strip() not in ("None", "") else None
+
+    e_raw = parsed_dict.get("evidence") or parsed_dict.get("quotes") or parsed_dict.get("snippets")
+    item_evidence = []
+    if isinstance(e_raw, list):
+        item_evidence = [str(q.get("quote") if isinstance(q, dict) else q).strip() for q in e_raw if q and str(q).strip() not in ("None", "")]
+    elif isinstance(e_raw, str) and e_raw.strip() not in ("None", ""):
+        item_evidence = [e_raw.strip()]
+
+    return item_score, item_band, item_insight, item_evidence
+
+
+
 def humanise_field_label(key: str, title_case: bool = False) -> str:
     """
     Formats a field or metric key into a human-readable label.
@@ -203,7 +250,36 @@ def resolve_field_val(fields_data: dict, key: str):
                     is_num = True
             except (ValueError, TypeError):
                 pass
-        return actual_val, str(actual_val), num_val, is_num, True
+
+        # Derive clean raw_str for dictionary - NEVER return str(actual_val) which leaks Python repr!
+        if is_num:
+            raw_str = str(num_val)
+        else:
+            if "status" in parsed_sub or any(k in parsed_sub for k in ("matched_institutions", "matched_competitors", "matches")):
+                flag_disp = unpack_flag_value(parsed_sub)[0]
+                raw_str = flag_disp or "—"
+            elif parsed_sub.get("band"):
+                raw_str = str(parsed_sub["band"]).strip()
+            elif parsed_sub.get("label"):
+                raw_str = str(parsed_sub["label"]).strip()
+            elif parsed_sub.get("level"):
+                raw_str = str(parsed_sub["level"]).strip()
+            elif parsed_sub.get("insight"):
+                raw_str = str(parsed_sub["insight"]).strip()
+            elif parsed_sub.get("rationale"):
+                raw_str = str(parsed_sub["rationale"]).strip()
+            elif parsed_sub.get("reasoning"):
+                raw_str = str(parsed_sub["reasoning"]).strip()
+            elif parsed_sub.get("explanation"):
+                raw_str = str(parsed_sub["explanation"]).strip()
+            elif parsed_sub.get("text"):
+                raw_str = str(parsed_sub["text"]).strip()
+            elif parsed_sub.get("summary"):
+                raw_str = str(parsed_sub["summary"]).strip()
+            else:
+                raw_str = "—"
+
+        return actual_val, raw_str, num_val, is_num, True
 
     raw_str = str(actual_val)
     num_val = None
@@ -229,15 +305,26 @@ def build_metric_entry(key: str, fields_data: dict, source: str = "exit_metric",
     """Builds a structured metric dictionary with type inspection and numeric parsing."""
     actual_val, raw_str, num_val, is_num, found = resolve_field_val(fields_data, key)
     label = label_override or format_metric_label(key)
+
+    if is_num:
+        val_entry = num_val
+    elif found and raw_str != "—":
+        val_entry = raw_str
+    elif not isinstance(actual_val, dict) and actual_val is not None:
+        val_entry = actual_val
+    else:
+        val_entry = None
+
     return {
         "key": key,
         "name": label,
         "label": label,
-        "value": num_val if is_num else (actual_val if found else None),
+        "value": val_entry,
         "numeric_value": num_val,
         "raw": raw_str if found else "—",
         "is_numeric": is_num,
         "source": source,
+        "dict_value": actual_val if isinstance(actual_val, dict) else None,
     }
 
 
@@ -606,13 +693,32 @@ def extract_rich_dimension_details(
     if primary_k:
         used.add(primary_k)
 
-    # 1. Rationale & Evidence
+    # 1. Rationale, Evidence & Band from primary metric / fields
     rationale = None
     evidence = []
+    band = None
+
     matched_obj = data.get(primary_k)
+    if not isinstance(matched_obj, dict):
+        for k, v in data.items():
+            if k.strip().lower().replace(" ", "_").replace("-", "_") == primary_k.replace(" ", "_").replace("-", "_"):
+                if isinstance(v, dict):
+                    matched_obj = v
+                    break
+
     if isinstance(matched_obj, dict):
+        if "band" in matched_obj and matched_obj["band"]:
+            band = str(matched_obj["band"]).strip()
+        elif "label" in matched_obj and matched_obj["label"]:
+            band = str(matched_obj["label"]).strip()
+        elif "level" in matched_obj and matched_obj["level"]:
+            band = str(matched_obj["level"]).strip()
+
         if "rationale" in matched_obj and isinstance(matched_obj["rationale"], str):
             rationale = matched_obj["rationale"].strip()
+        elif "insight" in matched_obj and isinstance(matched_obj["insight"], str):
+            rationale = matched_obj["insight"].strip()
+
         if "evidence" in matched_obj:
             ev_val = matched_obj["evidence"]
             if isinstance(ev_val, list):
@@ -639,19 +745,19 @@ def extract_rich_dimension_details(
                 evidence.append(val.strip())
                 used.add(k_norm)
 
-    # 2. Band label (e.g. 'TRL 4 — Technology validated in lab')
-    band = None
-    for k, v in data.items():
-        k_norm = k.strip().lower()
-        if k_norm in used:
-            continue
-        val = _unwrap_val(v)
-        if isinstance(val, str) and (BAND_RE.search(k_norm) or k_norm in ("band", "label", "trl_band", "trl_label")):
-            s = val.strip()
-            if s:
-                band = s
-                used.add(k_norm)
-                break
+    # 2. Band label (e.g. 'TRL 4 — Technology validated in lab') if not yet found
+    if not band:
+        for k, v in data.items():
+            k_norm = k.strip().lower()
+            if k_norm in used:
+                continue
+            val = _unwrap_val(v)
+            if isinstance(val, str) and (BAND_RE.search(k_norm) or k_norm in ("band", "label", "trl_band", "trl_label")):
+                s = val.strip()
+                if s:
+                    band = s
+                    used.add(k_norm)
+                    break
 
     # 3. Facets, Texts, Lists, Facts
     facets = []
@@ -682,38 +788,8 @@ def extract_rich_dimension_details(
 
         parsed_dict = _parse_dict_or_json(raw_entry)
         if isinstance(parsed_dict, dict) and parsed_dict:
-            s_raw = parsed_dict.get("score") if "score" in parsed_dict else parsed_dict.get("value")
-            item_score = None
-            if s_raw is not None:
-                try:
-                    f_s = float(s_raw)
-                    if math.isfinite(f_s):
-                        item_score = int(f_s) if f_s.is_integer() else round(f_s, 2)
-                except (ValueError, TypeError):
-                    pass
-            if item_score is None and m.get("is_numeric"):
-                item_score = m.get("numeric_value")
-
-            b_raw = parsed_dict.get("band") or parsed_dict.get("label") or parsed_dict.get("level")
-            item_band = str(b_raw).strip() if b_raw is not None and str(b_raw).strip() not in ("None", "") else None
-
-            i_raw = (
-                parsed_dict.get("insight")
-                or parsed_dict.get("rationale")
-                or parsed_dict.get("reasoning")
-                or parsed_dict.get("explanation")
-                or parsed_dict.get("description")
-                or parsed_dict.get("text")
-                or parsed_dict.get("summary")
-            )
-            item_insight = str(i_raw).strip() if i_raw is not None and str(i_raw).strip() not in ("None", "") else None
-
-            e_raw = parsed_dict.get("evidence") or parsed_dict.get("quotes") or parsed_dict.get("snippets")
-            item_evidence = []
-            if isinstance(e_raw, list):
-                item_evidence = [str(q.get("quote") if isinstance(q, dict) else q).strip() for q in e_raw if q and str(q).strip() not in ("None", "")]
-            elif isinstance(e_raw, str) and e_raw.strip() not in ("None", ""):
-                item_evidence = [e_raw.strip()]
+            fb_num = m.get("numeric_value") if m.get("is_numeric") else None
+            item_score, item_band, item_insight, item_evidence = _unpack_nested_metric_object(parsed_dict, fallback_numeric=fb_num)
 
             f_max = max_val
             if item_score is not None and 0.0 <= float(item_score) <= 1.0 and any(kw in mk_norm for kw in ("confidence", "probability", "prob", "ratio", "rate")):
@@ -784,12 +860,14 @@ def extract_rich_dimension_details(
         elif mk_norm and not m.get("is_numeric"):
             raw_v = m.get("raw") or m.get("value")
             if raw_v and str(raw_v) != "—":
-                facts.append({
-                    "key": mk,
-                    "name": humanise_field_label(mk),
-                    "value": str(raw_v),
-                })
-                used.add(mk_norm)
+                s_raw = str(raw_v).strip()
+                if not (s_raw.startswith("{") or s_raw.startswith("[")):
+                    facts.append({
+                        "key": mk,
+                        "name": humanise_field_label(mk),
+                        "value": s_raw,
+                    })
+                    used.add(mk_norm)
 
     # Scan data for any other _score fields ONLY if secondary_metrics were not provided (legacy fallback)
     if not secondary_metrics:
@@ -863,36 +941,7 @@ def extract_rich_dimension_details(
         # Remaining dictionary fields (e.g. structured notes or extra sub-metrics not declared in secondary_metrics)
         parsed_dict = _parse_dict_or_json(val)
         if isinstance(parsed_dict, dict) and parsed_dict:
-            item_score = None
-            s_raw = parsed_dict.get("score") if "score" in parsed_dict else parsed_dict.get("value")
-            if s_raw is not None:
-                try:
-                    f_s = float(s_raw)
-                    if math.isfinite(f_s):
-                        item_score = int(f_s) if f_s.is_integer() else round(f_s, 2)
-                except (ValueError, TypeError):
-                    pass
-
-            b_raw = parsed_dict.get("band") or parsed_dict.get("label") or parsed_dict.get("level")
-            item_band = str(b_raw).strip() if b_raw is not None and str(b_raw).strip() not in ("None", "") else None
-
-            i_raw = (
-                parsed_dict.get("insight")
-                or parsed_dict.get("rationale")
-                or parsed_dict.get("reasoning")
-                or parsed_dict.get("explanation")
-                or parsed_dict.get("description")
-                or parsed_dict.get("text")
-                or parsed_dict.get("summary")
-            )
-            item_insight = str(i_raw).strip() if i_raw is not None and str(i_raw).strip() not in ("None", "") else None
-
-            e_raw = parsed_dict.get("evidence") or parsed_dict.get("quotes") or parsed_dict.get("snippets")
-            item_evidence = []
-            if isinstance(e_raw, list):
-                item_evidence = [str(q.get("quote") if isinstance(q, dict) else q).strip() for q in e_raw if q and str(q).strip() not in ("None", "")]
-            elif isinstance(e_raw, str) and e_raw.strip() not in ("None", ""):
-                item_evidence = [e_raw.strip()]
+            item_score, item_band, item_insight, item_evidence = _unpack_nested_metric_object(parsed_dict)
 
             texts.append({
                 "key": k,
@@ -928,7 +977,7 @@ def extract_rich_dimension_details(
         # Strings
         if isinstance(val, str):
             s = val.strip()
-            if not s:
+            if not s or s.startswith("{") or s.startswith("["):
                 continue
             if SENTENCE_RE.search(s) or len(s) > 80:
                 texts.append({"key": k, "name": label, "value": s, "type": "text", "is_dict": False})

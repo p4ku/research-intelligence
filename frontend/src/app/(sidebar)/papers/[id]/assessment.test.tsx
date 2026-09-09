@@ -253,8 +253,16 @@ describe('Assessment Component Rendering', () => {
         {
           key: 'novelty',
           name: 'Novelty',
-          value:
-            "{'band': 'Substantial', 'score': 68, 'insight': 'The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.', 'evidence': ['quantum-assisted framework for PDE-based Bayesian inverse problems', 'hybrid quantum-classical algorithm using quantum linear system algorithms (QLSAs)']}",
+          value: JSON.stringify({
+            band: 'Substantial',
+            score: 68,
+            insight:
+              'The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.',
+            evidence: [
+              'quantum-assisted framework for PDE-based Bayesian inverse problems',
+              'hybrid quantum-classical algorithm using quantum linear system algorithms (QLSAs)',
+            ],
+          }),
         },
       ],
       evidence: [],
@@ -272,8 +280,34 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain(
       '“hybrid quantum-classical algorithm using quantum linear system algorithms (QLSAs)”',
     )
-    expect(out).not.toContain("{'band'")
-    expect(out).not.toContain("'score': 68")
+    expect(out).not.toContain('{"band"')
+  })
+
+  test('preserves prose containing "None of the above" and apostrophes without regex corruption', () => {
+    const proseDim: Dimension = {
+      key: 'novelty_notes',
+      definition_id: null,
+      name: 'Novelty Notes',
+      value: null,
+      raw: '—',
+      max: null,
+      is_trl: false,
+      texts: [
+        {
+          key: 'notes',
+          name: 'Notes',
+          value: "The author's evaluation showed: None of the above baseline methods matched the target efficiency.",
+        },
+      ],
+      facets: [],
+      evidence: [],
+      facts: [],
+      lists: [],
+    }
+    const out = renderToStaticMarkup(<Assessment dimensions={[proseDim]} t={t} />)
+    expect(out).toContain("The author&#x27;s evaluation showed: None of the above baseline methods matched the target efficiency.")
+    expect(out).not.toContain('null of the above')
+    expect(out).not.toContain('author"s')
   })
 
   test('renders structured dictionary submetric when backend marks type as dict', () => {

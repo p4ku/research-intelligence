@@ -110,6 +110,7 @@ INSTALLED_APPS = [
     'django.contrib.humanize',
     
     # Third-party Applications
+    'adminsortable2',
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'drf_spectacular',

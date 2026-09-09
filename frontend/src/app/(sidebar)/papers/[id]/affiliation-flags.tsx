@@ -38,16 +38,7 @@ export function unpackFlag(
       try {
         parsed = JSON.parse(trimmed)
       } catch {
-        try {
-          const jsonLike = trimmed
-            .replace(/'/g, '"')
-            .replace(/\bNone\b/g, 'null')
-            .replace(/\bTrue\b/g, 'true')
-            .replace(/\bFalse\b/g, 'false')
-          parsed = JSON.parse(jsonLike)
-        } catch {
-          // fallback regex
-        }
+        // drop silent
       }
     }
   }

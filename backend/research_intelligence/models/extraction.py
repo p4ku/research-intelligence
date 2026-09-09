@@ -43,9 +43,22 @@ class ExtractionDefinition(models.Model):
     version = models.IntegerField(default=1, help_text="Tracks prompt/schema evolution")
     requires_consensus = models.BooleanField(default=False, help_text="Requires multi-sample self-consistency for difficult fields")
     is_active = models.BooleanField(default=True)
+    order = models.PositiveIntegerField(
+        default=0,
+        db_index=True,
+        help_text="Order in which this definition appears in scorecard, assessment, and scoring."
+    )
     created_at = models.DateTimeField(auto_now_add=True)
+
     class Meta:
         app_label = 'research_intelligence'
+        ordering = ['order', 'created_at']
+
+    def save(self, *args, **kwargs):
+        if not self.order and self.workspace_id:
+            max_order = ExtractionDefinition.objects.filter(workspace_id=self.workspace_id).aggregate(models.Max('order'))['order__max']
+            self.order = (max_order or 0) + 1
+        super().save(*args, **kwargs)
 
     def __init__(self, *args, **kwargs):
         if 'exit_metrics' in kwargs:
@@ -558,6 +571,45 @@ class Extraction(models.Model):
             if "fields" in data and isinstance(data["fields"], dict):
                 data = data["fields"]
 
+            def _extract_scalar(val):
+                if val is None:
+                    return None
+                if isinstance(val, (int, float, bool)):
+                    return str(val)
+                if isinstance(val, str):
+                    s = val.strip()
+                    if (s.startswith("{") and s.endswith("}")) or (s.startswith("[") and s.endswith("]")):
+                        try:
+                            import json
+                            p = json.loads(s)
+                            return _extract_scalar(p)
+                        except Exception:
+                            try:
+                                import ast
+                                p = ast.literal_eval(s)
+                                return _extract_scalar(p)
+                            except Exception:
+                                return None
+                    return s
+                if isinstance(val, dict):
+                    for k in ("value", "score", "numeric_value"):
+                        cand = val.get(k)
+                        if cand is not None and not isinstance(cand, (dict, list)):
+                            return str(cand)
+                    for k in ("status", "band", "label", "level"):
+                        cand = val.get(k)
+                        if cand is not None and not isinstance(cand, (dict, list)):
+                            return str(cand)
+                    for k in ("insight", "rationale", "reasoning", "explanation", "description", "text", "summary"):
+                        cand = val.get(k)
+                        if cand is not None and not isinstance(cand, (dict, list)):
+                            return str(cand)
+                    if len(val) == 1:
+                        inner_v = next(iter(val.values()))
+                        return _extract_scalar(inner_v)
+                    return None
+                return None
+
             # 0. If postprocessing_code is configured on definition, the postprocessed metric is primary
             if self.extraction_definition and self.extraction_definition.postprocessing_code and self.extraction_definition.postprocessing_code.strip():
                 cand_name = self.extraction_definition.name.lower().replace(" ", "_")
@@ -566,32 +618,18 @@ class Extraction(models.Model):
                 if primary_exit:
                     post_cands.insert(0, f"{primary_exit}_postprocessed")
                     post_cands.insert(1, f"{primary_exit}_computed")
-                def _unwrap_cand(val):
-                    if val is None:
-                        return None
-                    if isinstance(val, dict):
-                        if "value" in val and len(val) <= 2:
-                            return str(val["value"])
-                        if len(val) == 1:
-                            inner_v = next(iter(val.values()))
-                            if isinstance(inner_v, dict) and "value" in inner_v:
-                                return str(inner_v["value"])
-                            if inner_v is not None:
-                                return str(inner_v)
-                        return None
-                    return str(val)
 
                 for pk in post_cands:
                     for k, v in data.items():
                         if k.lower().replace(" ", "_") == pk:
-                            unwrapped = _unwrap_cand(v)
+                            unwrapped = _extract_scalar(v)
                             if unwrapped is not None:
                                 return unwrapped
                 # Fallback: any key ending with _postprocessed or _computed
                 for k, v in data.items():
                     k_norm = k.lower().replace(" ", "_")
                     if k_norm.endswith("_postprocessed") or k_norm.endswith("_computed"):
-                        unwrapped = _unwrap_cand(v)
+                        unwrapped = _extract_scalar(v)
                         if unwrapped is not None:
                             return unwrapped
 
@@ -599,33 +637,29 @@ class Extraction(models.Model):
             if self.extraction_definition and self.extraction_definition.primary_frontend_metric and self.extraction_definition.primary_frontend_metric.strip():
                 prim_k = self.extraction_definition.primary_frontend_metric.strip()
                 val = data.get(prim_k)
-                if isinstance(val, dict) and "value" in val:
-                    return str(val["value"])
-                if val is not None:
-                    return str(val)
+                unwrapped = _extract_scalar(val)
+                if unwrapped is not None:
+                    return unwrapped
                 for k, v in data.items():
                     if k.lower().replace(" ", "_") == prim_k.lower().replace(" ", "_"):
-                        if isinstance(v, dict) and "value" in v:
-                            return str(v["value"])
-                        elif v is not None:
-                            return str(v)
+                        unwrapped = _extract_scalar(v)
+                        if unwrapped is not None:
+                            return unwrapped
 
             # 1. Match on configured extraction_definition.exit_metrics (supports comma-separated list)
             if self.extraction_definition and self.extraction_definition.exit_metrics:
                 exit_keys = self.extraction_definition.get_exit_metrics_list()
                 for exit_key in exit_keys:
                     val = data.get(exit_key)
-                    if isinstance(val, dict) and "value" in val:
-                        return str(val["value"])
-                    if val is not None:
-                        return str(val)
+                    unwrapped = _extract_scalar(val)
+                    if unwrapped is not None:
+                        return unwrapped
                     # Case-insensitive / snake_case lookup for the configured exit_key
                     for k, v in data.items():
                         if k.lower().replace(" ", "_") == exit_key.lower().replace(" ", "_"):
-                            if isinstance(v, dict) and "value" in v:
-                                return str(v["value"])
-                            elif v is not None:
-                                return str(v)
+                            unwrapped = _extract_scalar(v)
+                            if unwrapped is not None:
+                                return unwrapped
                 return "-"
 
             # 2. Case-insensitive / snake_case candidate keys when exit_metrics not set
@@ -651,19 +685,16 @@ class Extraction(models.Model):
             for ck in candidates:
                 for k, v in data.items():
                     if k.lower().replace(" ", "_") == ck:
-                        if isinstance(v, dict) and "value" in v:
-                            return str(v["value"])
-                        elif v is not None:
-                            return str(v)
+                        unwrapped = _extract_scalar(v)
+                        if unwrapped is not None:
+                            return unwrapped
 
             # 3. First non-empty scalar value in fields_data (excluding long text / urls)
             for k, v in data.items():
-                if isinstance(v, dict) and "value" in v:
-                    return str(v["value"])
-                elif isinstance(v, (int, float, bool)):
-                    return str(v)
-                elif isinstance(v, str) and len(v) < 80 and not v.startswith("http"):
-                    return v
+                unwrapped = _extract_scalar(v)
+                if unwrapped is not None:
+                    if len(unwrapped) < 80 and not unwrapped.startswith("http"):
+                        return unwrapped
 
         return "-"
 

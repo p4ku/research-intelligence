@@ -37,7 +37,7 @@ class ExtractionDefinitionSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExtractionDefinition
         fields = [
-            'id', 'workspace', 'name', 'system_prompt', 'user_prompt_template',
+            'id', 'workspace', 'name', 'order', 'system_prompt', 'user_prompt_template',
             'response_schema', 'exit_metrics', 'primary_frontend_metric', 'secondary_frontend_metrics',
             'postprocessing_code', 'has_postprocessing_code', 'llm_model', 'version',
             'requires_consensus', 'is_active', 'created_at'
@@ -212,6 +212,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
                     ExtractionDefinition.objects.create(
                         workspace=workspace,
                         name=ed.get('name'),
+                        order=ed.get('order', 0),
                         system_prompt=ed.get('system_prompt', ''),
                         user_prompt_template=ed.get('user_prompt_template', ''),
                         response_schema=ed.get('response_schema', {}),

@@ -117,7 +117,7 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     expect(out).toBe('')
   })
 
-  test('unpacks stringified dictionary flags cleanly (Schwarz Ecosystem YES (TUM), Competitor None)', () => {
+  test('unpacks stringified JSON flags cleanly (Schwarz Ecosystem YES (TUM), Competitor None)', () => {
     const dictFlagsRisk: RiskAndAffiliation = {
       affiliations: [],
       author_contacts: [],
@@ -126,13 +126,13 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
         {
           key: 'schwarz_ecosystem',
           label: 'Schwarz Ecosystem',
-          value: "{'status': 'YES', 'matched_institutions': ['TUM']}",
+          value: JSON.stringify({ status: 'YES', matched_institutions: ['TUM'] }),
           status: 'neutral',
         },
         {
           key: 'competitor',
           label: 'Competitor Involvement',
-          value: "{'status': 'NO', 'matches': None}",
+          value: JSON.stringify({ status: 'NO', matches: null }),
           status: 'safe',
         },
       ],
@@ -145,7 +145,28 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     expect(out).toContain('Competitor Involvement:')
     expect(out).toContain('None')
     expect(out).toContain('text-emerald-700')
-    expect(out).not.toContain("{'status'")
+    expect(out).not.toContain('"status"')
+  })
+
+  test('preserves flag prose containing "None of the above" and apostrophes without regex corruption', () => {
+    const customFlagRisk: RiskAndAffiliation = {
+      affiliations: [],
+      author_contacts: [],
+      funding_entities: [],
+      flags: [
+        {
+          key: 'compliance',
+          label: 'Compliance Review',
+          value: "The author's review concluded: None of the identified institutions are restricted.",
+          status: 'safe',
+        },
+      ],
+      codebase_artifact_link: null,
+    }
+    const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={customFlagRisk} />)
+    expect(out).toContain("The author&#x27;s review concluded: None of the identified institutions are restricted.")
+    expect(out).not.toContain('null of the identified')
+    expect(out).not.toContain('author"s')
   })
 
   test('unpacks direct dict_value flags with type: dict', () => {

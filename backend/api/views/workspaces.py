@@ -657,13 +657,13 @@ class ExtractionDefinitionViewSet(viewsets.ModelViewSet):
     queryset = ExtractionDefinition.objects.none()
     serializer_class = ExtractionDefinitionSerializer
     permission_classes = [permissions.IsAuthenticated]
-    ordering_fields = ['created_at', 'name', 'version', 'is_active']
-    ordering = ['-created_at']
+    ordering_fields = ['order', 'created_at', 'name', 'version', 'is_active']
+    ordering = ['order', 'created_at']
 
     def get_queryset(self):
         user = self.request.user
         user_ws_ids = WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True)
-        qs = ExtractionDefinition.objects.filter(workspace_id__in=user_ws_ids).order_by('-created_at')
+        qs = ExtractionDefinition.objects.filter(workspace_id__in=user_ws_ids).order_by('order', 'created_at')
         ws_id = self.request.query_params.get('workspace') or self.request.query_params.get('workspace_id')
         if ws_id:
             qs = qs.filter(workspace_id=ws_id)

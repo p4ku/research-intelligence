@@ -181,6 +181,7 @@ def serialize_workspace_configuration(workspace: Workspace) -> dict:
         "extraction_definitions": [
             {
                 "name": ed.name,
+                "order": ed.order,
                 "system_prompt": ed.system_prompt,
                 "user_prompt_template": ed.user_prompt_template,
                 "response_schema": ed.response_schema,
@@ -193,7 +194,7 @@ def serialize_workspace_configuration(workspace: Workspace) -> dict:
                 "requires_consensus": ed.requires_consensus,
                 "is_active": ed.is_active,
             }
-            for ed in workspace.extraction_definitions.all().order_by("name")
+            for ed in workspace.extraction_definitions.all().order_by("order", "created_at")
         ],
         "scrapers": [
             {
@@ -363,6 +364,11 @@ def import_workspace_configuration_bundle(
                 "requires_consensus": bool(ed_data.get("requires_consensus", False)),
                 "is_active": bool(ed_data.get("is_active", True)),
             }
+            if "order" in ed_data and ed_data.get("order") is not None:
+                try:
+                    ed_fields["order"] = int(ed_data["order"])
+                except (ValueError, TypeError):
+                    pass
             existing_ed = ws.extraction_definitions.filter(name=ed_name).first()
             if existing_ed:
                 if update_existing:

@@ -32,10 +32,9 @@ def _parse_numeric_value(val: Any) -> Union[float, int, str]:
     if isinstance(val, (int, float)):
         return val
     if isinstance(val, dict):
-        if "value" in val and val["value"] is not None:
-            return _parse_numeric_value(val["value"])
-        if "normalized_value" in val and val["normalized_value"] is not None:
-            return _parse_numeric_value(val["normalized_value"])
+        for k in ("score", "numeric_value", "value", "normalized_value"):
+            if k in val and val[k] is not None:
+                return _parse_numeric_value(val[k])
         return 0.0
 
     str_val = str(val).strip()

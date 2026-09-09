@@ -226,12 +226,17 @@ def build_single_scored_paper(
         dim_key = d.name.lower().replace(' ', '_').replace('-', '_')
 
         numeric_val = primary_metric.get('numeric_value') if primary_metric else None
-        if primary_metric and primary_metric.get('value') is not None:
+        if primary_metric and primary_metric.get('raw') and primary_metric.get('raw') != '—':
+            raw_val = primary_metric.get('raw')
+        elif primary_metric and primary_metric.get('value') is not None:
             raw_val = str(primary_metric.get('value'))
         elif d and d.has_explicit_frontend_metrics():
             raw_val = None
         else:
-            raw_val = str(e.exit_metric) if (e and e.exit_metric is not None) else None
+            raw_val = str(e.exit_metric) if (e and e.exit_metric is not None and str(e.exit_metric) != '—') else None
+
+        if raw_val and (raw_val.startswith('{') or raw_val.startswith('OrderedDict(')):
+            raw_val = None if (d and d.has_explicit_frontend_metrics()) else '—'
 
         rich_details = extract_rich_dimension_details(
             fields_data=e.fields_data if (e and e.fields_data) else {},
@@ -297,11 +302,15 @@ def build_single_scored_paper(
             )
 
             numeric_val = primary_metric.get('numeric_value') if primary_metric else None
-            raw_val = (
-                str(primary_metric.get('value'))
-                if (primary_metric and primary_metric.get('value') is not None)
-                else (str(e.exit_metric) if e.exit_metric is not None else '—')
-            )
+            if primary_metric and primary_metric.get('raw') and primary_metric.get('raw') != '—':
+                raw_val = primary_metric.get('raw')
+            elif primary_metric and primary_metric.get('value') is not None:
+                raw_val = str(primary_metric.get('value'))
+            else:
+                raw_val = str(e.exit_metric) if e.exit_metric is not None else '—'
+
+            if raw_val and (raw_val.startswith('{') or raw_val.startswith('OrderedDict(')):
+                raw_val = '—'
 
             dimensions.append({
                 'key': dim_key,
@@ -504,7 +513,7 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
     )
     definitions = list(
         ExtractionDefinition.objects.filter(workspace=paper.workspace, is_active=True)
-        .order_by('created_at')
+        .order_by('order', 'created_at')
     )
 
     # Format signal_score_details
@@ -672,7 +681,7 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
     """
     definitions = list(
         ExtractionDefinition.objects.filter(workspace=workspace, is_active=True)
-        .order_by('created_at')
+        .order_by('order', 'created_at')
     )
     definitions_data = format_definitions_metadata(definitions)
 

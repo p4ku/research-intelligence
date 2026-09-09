@@ -178,7 +178,16 @@ class PaperContextBuilder:
             for ext in extractions:
                 def_name = ext.extraction_definition.name if ext.extraction_definition else (ext.category or "Custom Parameter")
                 val = ext.fields_data
-                ext_lines.append(f"- **{def_name}**: {val}")
+                if isinstance(val, dict):
+                    f_dict = val.get("fields") if isinstance(val.get("fields"), dict) else val
+                    try:
+                        import json
+                        val_str = json.dumps(f_dict, ensure_ascii=False)
+                    except Exception:
+                        val_str = str(f_dict)
+                else:
+                    val_str = str(val)
+                ext_lines.append(f"- **{def_name}**: {val_str}")
                 if ext.confidence_score is not None:
                     ext_lines.append(f"  Confidence: {ext.confidence_score:.2f}")
             context_parts.append("### Extracted Research Parameters\n" + "\n".join(ext_lines))

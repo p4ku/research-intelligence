@@ -3,10 +3,13 @@ from decimal import Decimal
 from django import forms
 from django.db import models
 from django.db.models import Q
-from django.contrib import admin
+from django.contrib import admin, messages
+from django.shortcuts import get_object_or_404
+from django.http import HttpResponseRedirect
 from django.utils.html import format_html, escape
 from django.utils.safestring import mark_safe
 from django.urls import reverse
+from adminsortable2.admin import SortableAdminMixin
 from research_intelligence.models import (
     Workspace,
     WorkspaceMember,
@@ -3765,18 +3768,32 @@ class PaperAdmin(admin.ModelAdmin):
 
 
 @admin.register(ExtractionDefinition)
-class ExtractionDefinitionAdmin(admin.ModelAdmin):
+class ExtractionDefinitionAdmin(SortableAdminMixin, admin.ModelAdmin):
     formfield_overrides = {
         models.JSONField: {'widget': PrettyJSONWidget},
     }
-    list_display = ('name', 'frontend_metrics_status', 'exit_metrics_status', 'workspace', 'version', 'llm_model', 'has_postprocessing_code', 'requires_consensus', 'is_active', 'created_at')
-    ordering = ('-created_at', '-id')
+    list_display = (
+        'order_display',
+        'name',
+        'frontend_metrics_status',
+        'exit_metrics_status',
+        'workspace',
+        'version',
+        'llm_model',
+        'has_postprocessing_code',
+        'requires_consensus',
+        'is_active',
+        'created_at',
+    )
+    ordering = ('order', 'created_at')
     list_filter = ('is_active', 'requires_consensus', 'workspace')
     search_fields = ('name', 'exit_metrics', 'primary_frontend_metric', 'secondary_frontend_metrics', 'system_prompt', 'user_prompt_template', 'postprocessing_code')
     readonly_fields = ('postprocessed_variable_preview',)
+    actions = ['move_selected_up', 'move_selected_down']
     fields = (
         'workspace',
         'name',
+        'order',
         'primary_frontend_metric',
         'secondary_frontend_metrics',
         'exit_metrics',
@@ -3792,8 +3809,135 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
     )
 
     def changelist_view(self, request, extra_context=None):
+        self._current_request = request
         self._ws_exit_metrics_cache = {}
         return super().changelist_view(request, extra_context=extra_context)
+
+    def get_urls(self):
+        from django.urls import path
+        urls = super().get_urls()
+        custom_urls = [
+            path(
+                '<uuid:pk>/move-up/',
+                self.admin_site.admin_view(self.move_up_view),
+                name='research_intelligence_extractiondefinition_move_up',
+            ),
+            path(
+                '<uuid:pk>/move-down/',
+                self.admin_site.admin_view(self.move_down_view),
+                name='research_intelligence_extractiondefinition_move_down',
+            ),
+        ]
+        return custom_urls + urls
+
+    def move_up_view(self, request, pk):
+        return self._move_item(request, pk, direction='up')
+
+    def move_down_view(self, request, pk):
+        return self._move_item(request, pk, direction='down')
+
+    def _move_item(self, request, pk, direction='up'):
+        obj = get_object_or_404(ExtractionDefinition, pk=pk)
+        ws_defs = list(
+            ExtractionDefinition.objects.filter(workspace_id=obj.workspace_id)
+            .order_by('order', 'created_at', 'id')
+        )
+        for idx, d in enumerate(ws_defs, start=1):
+            if d.order != idx:
+                d.order = idx
+                d.save(update_fields=['order'])
+
+        idx_map = {d.pk: idx for idx, d in enumerate(ws_defs)}
+        curr_idx = idx_map.get(obj.pk)
+
+        if direction == 'up' and curr_idx is not None and curr_idx > 0:
+            target = ws_defs[curr_idx - 1]
+            target.order, obj.order = obj.order, target.order
+            target.save(update_fields=['order'])
+            obj.save(update_fields=['order'])
+            messages.success(request, f"Przesunięto '{obj.name}' wyżej (pozycja #{obj.order}).")
+        elif direction == 'down' and curr_idx is not None and curr_idx < len(ws_defs) - 1:
+            target = ws_defs[curr_idx + 1]
+            target.order, obj.order = obj.order, target.order
+            target.save(update_fields=['order'])
+            obj.save(update_fields=['order'])
+            messages.success(request, f"Przesunięto '{obj.name}' niżej (pozycja #{obj.order}).")
+        else:
+            messages.info(request, f"Definicja '{obj.name}' jest już na skrajnej pozycji.")
+
+        changelist_url = reverse('admin:research_intelligence_extractiondefinition_changelist')
+        query = request.GET.urlencode()
+        if query:
+            changelist_url = f"{changelist_url}?{query}"
+        return HttpResponseRedirect(changelist_url)
+
+    @admin.action(description="⬆️ Przesuń wybrane definicje wyżej")
+    def move_selected_up(self, request, queryset):
+        moved = 0
+        for obj in queryset.order_by('order'):
+            ws_defs = list(
+                ExtractionDefinition.objects.filter(workspace_id=obj.workspace_id)
+                .order_by('order', 'created_at', 'id')
+            )
+            for idx, d in enumerate(ws_defs, start=1):
+                if d.order != idx:
+                    d.order = idx
+                    d.save(update_fields=['order'])
+            curr_idx = next((i for i, d in enumerate(ws_defs) if d.pk == obj.pk), -1)
+            if curr_idx > 0:
+                target = ws_defs[curr_idx - 1]
+                target.order, obj.order = obj.order, target.order
+                target.save(update_fields=['order'])
+                obj.save(update_fields=['order'])
+                moved += 1
+        messages.success(request, f"Przesunięto wyżej {moved} definicji.")
+
+    @admin.action(description="⬇️ Przesuń wybrane definicje niżej")
+    def move_selected_down(self, request, queryset):
+        moved = 0
+        for obj in queryset.order_by('-order'):
+            ws_defs = list(
+                ExtractionDefinition.objects.filter(workspace_id=obj.workspace_id)
+                .order_by('order', 'created_at', 'id')
+            )
+            for idx, d in enumerate(ws_defs, start=1):
+                if d.order != idx:
+                    d.order = idx
+                    d.save(update_fields=['order'])
+            curr_idx = next((i for i, d in enumerate(ws_defs) if d.pk == obj.pk), -1)
+            if curr_idx != -1 and curr_idx < len(ws_defs) - 1:
+                target = ws_defs[curr_idx + 1]
+                target.order, obj.order = obj.order, target.order
+                target.save(update_fields=['order'])
+                obj.save(update_fields=['order'])
+                moved += 1
+        messages.success(request, f"Przesunięto niżej {moved} definicji.")
+
+    @admin.display(description="Order", ordering="order")
+    def order_display(self, obj):
+        try:
+            up_url = reverse('admin:research_intelligence_extractiondefinition_move_up', args=[obj.pk])
+            down_url = reverse('admin:research_intelligence_extractiondefinition_move_down', args=[obj.pk])
+        except Exception:
+            up_url = f"/admin/research_intelligence/extractiondefinition/{obj.pk}/move-up/"
+            down_url = f"/admin/research_intelligence/extractiondefinition/{obj.pk}/move-down/"
+
+        req = getattr(self, '_current_request', None)
+        query = req.GET.urlencode() if req else ""
+        if query:
+            up_url = f"{up_url}?{query}"
+            down_url = f"{down_url}?{query}"
+
+        return format_html(
+            '<div style="display: flex; align-items: center; gap: 4px; white-space: nowrap;">'
+            '  <span style="background: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; font-weight: 700; font-family: monospace; font-size: 12px; padding: 2px 6px; border-radius: 4px; min-width: 28px; text-align: center;">#{}</span>'
+            '  <a href="{}" title="Move Up (Wyżej)" class="button" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 6px; font-size: 11px; text-decoration: none; cursor: pointer; line-height: 1; vertical-align: middle;">⬆️</a>'
+            '  <a href="{}" title="Move Down (Niżej)" class="button" style="background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 6px; font-size: 11px; text-decoration: none; cursor: pointer; line-height: 1; vertical-align: middle;">⬇️</a>'
+            '</div>',
+            obj.order,
+            up_url,
+            down_url
+        )
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('workspace')
@@ -4243,11 +4387,8 @@ class ExtractionAdmin(admin.ModelAdmin):
         return format_html('<a href="{}" title="Component Run: {}"><code>{}</code></a>', url, str(cr.id), str(cr.id)[:8] + '...')
     component_run_link.short_description = "Component Run"
 
-    def exit_metrics_badge(self, obj):
+    def _parse_exit_metric_or_fields(self, obj):
         metric_str = obj.exit_metric
-        if not metric_str or metric_str == "-":
-            return mark_safe('<span style="color: #6c757d; font-size: 0.85em;">-</span>')
-
         parsed = None
         if isinstance(metric_str, (dict, list)):
             parsed = metric_str
@@ -4265,6 +4406,52 @@ class ExtractionAdmin(admin.ModelAdmin):
                         parsed = ast.literal_eval(s)
                     except Exception:
                         pass
+
+        # Check if the exit metric corresponds to a structured dict in fields_data
+        if parsed is None and obj.fields_data and isinstance(obj.fields_data, dict):
+            f_dict = obj.fields_data.get("fields", obj.fields_data) if isinstance(obj.fields_data.get("fields"), dict) else obj.fields_data
+            if isinstance(f_dict, dict):
+                candidates = []
+                if obj.extraction_definition and obj.extraction_definition.exit_metrics:
+                    prim_k = obj.extraction_definition.get_primary_exit_metric()
+                    if prim_k:
+                        candidates.append(f_dict.get(prim_k))
+                        for k, v in f_dict.items():
+                            if k.lower().replace(" ", "_") == prim_k.lower().replace(" ", "_"):
+                                candidates.append(v)
+                if len(f_dict) == 1:
+                    candidates.append(next(iter(f_dict.values())))
+
+                for cand in candidates:
+                    if isinstance(cand, (dict, list)):
+                        parsed = cand
+                        break
+                    elif isinstance(cand, str):
+                        cs = cand.strip()
+                        if (cs.startswith('{') and cs.endswith('}')) or (cs.startswith('[') and cs.endswith(']')):
+                            import json
+                            try:
+                                parsed = json.loads(cs)
+                            except Exception:
+                                pass
+                            if parsed is None:
+                                try:
+                                    import ast
+                                    parsed = ast.literal_eval(cs)
+                                except Exception:
+                                    pass
+                            if isinstance(parsed, (dict, list)):
+                                break
+                            else:
+                                parsed = None
+
+        return parsed
+
+    def exit_metrics_badge(self, obj):
+        parsed = self._parse_exit_metric_or_fields(obj)
+        metric_str = obj.exit_metric
+        if parsed is None and (not metric_str or metric_str == "-"):
+            return mark_safe('<span style="color: #6c757d; font-size: 0.85em;">-</span>')
 
         # 1. Unpack structured Dictionary output (e.g. Risk and Affiliation, composite metrics)
         if isinstance(parsed, dict):
@@ -4379,27 +4566,10 @@ class ExtractionAdmin(admin.ModelAdmin):
     exit_metrics_badge.short_description = "Exit Metrics / Output"
 
     def exit_metrics_preview(self, obj):
+        parsed = self._parse_exit_metric_or_fields(obj)
         metric_str = obj.exit_metric
-        if not metric_str or metric_str == "-":
+        if parsed is None and (not metric_str or metric_str == "-"):
             return mark_safe('<span style="color: #6c757d; font-size: 0.95em;">-</span>')
-
-        parsed = None
-        if isinstance(metric_str, (dict, list)):
-            parsed = metric_str
-        elif isinstance(metric_str, str):
-            s = metric_str.strip()
-            if (s.startswith('{') and s.endswith('}')) or (s.startswith('[') and s.endswith(']')):
-                import json
-                try:
-                    parsed = json.loads(s)
-                except Exception:
-                    pass
-                if parsed is None:
-                    try:
-                        import ast
-                        parsed = ast.literal_eval(s)
-                    except Exception:
-                        pass
 
         if isinstance(parsed, (dict, list)):
             import json

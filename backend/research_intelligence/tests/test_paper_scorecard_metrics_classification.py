@@ -2120,3 +2120,146 @@ def postprocess(fields_data):
         self.assertEqual(r_large.status_code, 200)
         d_large = r_large.json()
         self.assertEqual(d_large.get("page_size"), 200)
+
+    def test_32_scoreless_object_under_exit_key_never_yields_raw_starting_with_brace(self):
+        """
+        Issue #132: A score-less object under the exit key (e.g. {'status': 'NO', 'matched_institutions': None})
+        must never yield a dimension.raw or primary_metric.raw starting with '{' (Python repr leak).
+        """
+        from research_intelligence.services.scorecard_service import build_single_scored_paper
+
+        p = Paper.objects.create(workspace=self.workspace, title="Scoreless Metric Paper")
+        d = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Ecosystem Affiliation Check",
+            exit_metrics="affiliation_status",
+            response_schema={"type": "object"},
+        )
+        Extraction.objects.create(
+            paper=p,
+            workspace=self.workspace,
+            extraction_definition=d,
+            fields_data={
+                "fields": {
+                    "affiliation_status": {"status": "NO", "matched_institutions": None},
+                }
+            },
+        )
+
+        scorecard = build_single_scored_paper(paper=p, definitions=[d])
+        dim = next((dm for dm in scorecard["dimensions"] if dm["definition_id"] == str(d.id)), None)
+        self.assertIsNotNone(dim)
+
+        # Value must be numeric or null for strict BFF Zod schema
+        self.assertIsNone(dim["value"])
+
+        # Raw must NEVER start with '{' or contain Python dict repr
+        self.assertIsNotNone(dim["raw"])
+        self.assertFalse(dim["raw"].startswith("{"), f"dimension.raw leaked dict repr: {dim['raw']}")
+        self.assertNotIn("matched_institutions", dim["raw"])
+        self.assertEqual(dim["raw"], "NO")
+
+        # Primary metric raw must also be clean
+        pm = dim["primary_metric"]
+        self.assertIsNotNone(pm)
+        self.assertFalse(pm["raw"].startswith("{"), f"primary_metric.raw leaked dict repr: {pm['raw']}")
+        self.assertEqual(pm["raw"], "NO")
+        self.assertEqual(pm["value"], "NO")
+        self.assertIsNone(pm["numeric_value"])
+
+    def test_33_compound_object_as_headline_and_lone_nested_object(self):
+        """
+        Issue #132: A compound nested object ({score: 78, band: 'Substantial', insight: '...', evidence: [...]})
+        under an exit key cleanly unpacks as the headline dimension.
+        """
+        from research_intelligence.services.scorecard_service import build_single_scored_paper
+
+        p = Paper.objects.create(workspace=self.workspace, title="Compound Headline Paper")
+        d = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Novelty Framing",
+            exit_metrics="novelty",
+            response_schema={"type": "object"},
+        )
+        Extraction.objects.create(
+            paper=p,
+            workspace=self.workspace,
+            extraction_definition=d,
+            fields_data={
+                "fields": {
+                    "novelty": {
+                        "score": 78,
+                        "band": "Substantial",
+                        "insight": "The paper introduces a hybrid quantum-classical PDE framework.",
+                        "evidence": ["achieves 4.2x speedup over classical baseline"],
+                    }
+                }
+            },
+        )
+
+        scorecard = build_single_scored_paper(paper=p, definitions=[d])
+        dim = next((dm for dm in scorecard["dimensions"] if dm["definition_id"] == str(d.id)), None)
+        self.assertIsNotNone(dim)
+
+        # Headline numeric value is extracted
+        self.assertEqual(dim["value"], 78)
+        self.assertEqual(dim["band"], "Substantial")
+        self.assertEqual(dim["raw"], "78")
+        self.assertFalse(dim["raw"].startswith("{"))
+
+        # Evidence and rationale are unpacked
+        self.assertIn("achieves 4.2x speedup over classical baseline", dim["evidence"])
+        self.assertEqual(dim["rationale"], "The paper introduces a hybrid quantum-classical PDE framework.")
+
+    def test_34_scorer_parses_nested_dict_score_and_numeric_value(self):
+        """
+        Issue #132: _parse_numeric_value in scorer.py must recognize 'score' and 'numeric_value'
+        keys in nested dictionaries, not returning 0.0 fallback.
+        """
+        from research_intelligence.tasks.step_6_signal_score.scorer import _parse_numeric_value
+
+        # Test dictionary with score key
+        val1 = {"score": 68, "insight": "High novelty in algorithms", "band": "Substantial"}
+        self.assertEqual(_parse_numeric_value(val1), 68)
+
+        # Test dictionary with numeric_value key
+        val2 = {"numeric_value": 74.5, "label": "Rigour"}
+        self.assertEqual(_parse_numeric_value(val2), 74.5)
+
+        # Test dictionary with value key
+        val3 = {"value": 85}
+        self.assertEqual(_parse_numeric_value(val3), 85)
+
+        # Test dictionary with string score
+        val4 = {"score": "92.0"}
+        self.assertEqual(_parse_numeric_value(val4), 92.0)
+
+        # Test dictionary without numeric score returns 0.0
+        val5 = {"status": "NO", "matched_institutions": None}
+        self.assertEqual(_parse_numeric_value(val5), 0.0)
+
+    def test_35_extraction_exit_metric_never_returns_dict_repr(self):
+        """
+        Issue #132: Extraction.exit_metric must unpack scalar/status/band and never return str(dict).
+        """
+        d = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Risk Assessment",
+            exit_metrics="risk_status",
+            response_schema={"type": "object"},
+        )
+        p = Paper.objects.create(workspace=self.workspace, title="Exit Metric Test Paper")
+        e = Extraction.objects.create(
+            paper=p,
+            workspace=self.workspace,
+            extraction_definition=d,
+            fields_data={
+                "fields": {
+                    "risk_status": {"status": "NO", "details": None},
+                }
+            },
+        )
+        # exit_metric must return "NO", not "{'status': 'NO', 'details': None}"
+        self.assertEqual(e.exit_metric, "NO")
+        self.assertFalse(e.exit_metric.startswith("{"))
+
