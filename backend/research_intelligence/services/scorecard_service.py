@@ -20,6 +20,19 @@ from .scorecard_extractors import (
 )
 
 
+def resolve_dimension_scale(name: str = "") -> tuple[int, bool]:
+    """
+    Shared helper to determine maximum numeric scale and TRL classification (~2 lines, no schema change).
+    Ensures WorkspaceSummary.definitions and Paper.dimensions are always 100% in agreement.
+    """
+    is_trl = bool(re.search(r'\btrl\b', name or '', re.IGNORECASE))
+    if is_trl:
+        return 9, True
+    if re.search(r'\(1-10\)', name or ''):
+        return 10, False
+    return 100, False
+
+
 def format_definitions_metadata(definitions: list) -> list:
     """Formats extraction definitions into metadata dictionaries for the scorecard payload."""
     definitions_data = []
@@ -28,8 +41,7 @@ def format_definitions_metadata(definitions: list) -> list:
         exit_list = d.get_exit_metrics_list()
         prim_exit = d.get_primary_exit_metric()
         d_slug = d.name.lower().replace(' ', '_').replace('-', '_')
-        is_trl = bool(re.search(r'\btrl\b', d.name, re.IGNORECASE))
-        max_val = 9 if is_trl else (10 if '(1-10)' in d.name else 100)
+        max_val, is_trl = resolve_dimension_scale(d.name)
         has_explicit = bool(d.has_explicit_frontend_metrics())
 
         if has_explicit:
@@ -66,7 +78,9 @@ def format_definitions_metadata(definitions: list) -> list:
             'llm_model': d.llm_model,
             'is_active': bool(d.is_active),
             'is_trl': is_trl,
+            'is_risk_and_affiliation': is_risk_dimension(d.name, d_slug),
             'max': max_val,
+            'scale_max': max_val,
             'created_at': created_str,
         })
     return definitions_data
@@ -214,13 +228,7 @@ def build_single_scored_paper(
         if not d.is_active and not e:
             continue
 
-        is_trl = bool(re.search(r'\btrl\b', d.name, re.IGNORECASE))
-        if is_trl:
-            max_val = 9
-        elif re.search(r'\(1-10\)', d.name):
-            max_val = 10
-        else:
-            max_val = 100
+        max_val, is_trl = resolve_dimension_scale(d.name)
 
         primary_metric, secondary_metrics, has_post = extract_metrics_for_extraction(e, d)
         dim_key = d.name.lower().replace(' ', '_').replace('-', '_')
@@ -290,8 +298,7 @@ def build_single_scored_paper(
         if not e.extraction_definition_id or e.extraction_definition_id not in def_ids:
             primary_metric, secondary_metrics, has_post = extract_metrics_for_extraction(e, None)
             dim_key = (e.category or 'custom').lower().replace(' ', '_').replace('-', '_')
-            is_trl = bool(re.search(r'\btrl\b', e.category or '', re.IGNORECASE))
-            max_val = 9 if is_trl else 100
+            max_val, is_trl = resolve_dimension_scale(e.category or '')
 
             rich_details = extract_rich_dimension_details(
                 fields_data=e.fields_data or {},

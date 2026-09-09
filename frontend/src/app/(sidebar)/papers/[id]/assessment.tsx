@@ -761,11 +761,7 @@ export function Assessment({
   lang?: Lang
 }) {
   const visibleDimensions = (dimensions ?? []).filter(
-    (d) =>
-      !d.is_risk_and_affiliation &&
-      !d.key.includes('risk_and_affiliation') &&
-      !d.key.includes('affiliation') &&
-      !d.name.toLowerCase().includes('affiliation'),
+    (d) => !d.is_risk_and_affiliation && !d.key.includes('risk_and_affiliation'),
   )
 
   if (visibleDimensions.length === 0) {

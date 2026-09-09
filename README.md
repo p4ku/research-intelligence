@@ -130,7 +130,7 @@ graph TD
 
 ### 4. Dynamic Parameter Extraction & Multi-Metric Postprocessing
 - **Schema-Validated Extraction**: Evaluates papers against `ExtractionDefinition` prompts and JSON schemas using Gemini 3.8 Flash (`google/gemini-3.8-flash`).
-- **Explicit Primary & Secondary Frontend Metrics**: Supports explicit `primary_frontend_metric` (e.g. `'fit_score'` or `'trl_level'`) and `secondary_frontend_metrics` (e.g. `['novelty', 'significance']`) configured on `ExtractionDefinition`, completely eliminating fragile fuzzy heuristic affix matching.
+- **Explicit Primary & Secondary Frontend Metrics**: Supports explicit `primary_frontend_metric` (e.g. `'fit_score'` or `'trl_level'`) and `secondary_frontend_metrics` (e.g. `['novelty', 'significance']`) configured on `ExtractionDefinition`, providing a deterministic path for scorecard headlines and facet display.
 - **Exit Metrics List**: Directly accepts an explicit list of parameters (`exit_metrics: ["rigour_score", "sample_size", "p_value"]`) to unpack multiple distinct variables from a single extraction definition into Signal Scoring.
 - **Python AST-Sandboxed Postprocessing Snippet**: Optional Python code (`postprocessing_code`) executed in a secure sandbox with full access to the raw LLM JSON response (`data`, `response`, `json_response`) and extracted variables. Automatically injects a derived variable `<first_metric>_postprocessed` into the scoring environment.
 - **Evidence & Confidence Scores**: Stores results in `Extraction` objects containing exact evidence quotes, normalized values, confidence scores, and validation statuses (`pass`, `warn`, `fail`).
