@@ -3356,7 +3356,7 @@ class ComponentRunAdmin(admin.ModelAdmin):
     )
     ordering = ('-started_at', '-id')
     list_select_related = ('pipeline_run', 'pipeline_run__workspace', 'pipeline_run__triggered_by')
-    list_filter = (RecentPipelineRunFilter, ComponentRunWorkspaceFilter, 'pipeline_run__triggered_by', 'step_type', 'status', 'started_at')
+    list_filter = (ComponentRunWorkspaceFilter, 'pipeline_run__triggered_by', 'step_type', 'status', 'started_at')
     search_fields = ('id', 'component_name', 'celery_task_id', 'pipeline_run__id', 'pipeline_run__workspace__name', 'pipeline_run__triggered_by__username', 'pipeline_run__triggered_by__email')
     readonly_fields = ('started_at', 'completed_at', 'execution_time')
 
