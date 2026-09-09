@@ -2,7 +2,6 @@ import { Bone } from '@/components/skeleton'
 import { StarToggle } from '@/components/star'
 import { ALL_ON, type Features } from '@/lib/features'
 import { formatDate, type Lang, type T } from '@/lib/i18n'
-import { arxivId } from '@/lib/papers/map'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { ArrowUpRightIcon, BookmarkIcon } from '@heroicons/react/16/solid'
 import type { ReactNode } from 'react'
@@ -76,7 +75,6 @@ export function PaperHeader({
   lang: Lang
   features?: Features
 }) {
-  const arxiv = arxivId(paper.arxiv_id)
   return (
     <PaperHeaderFrame
       meta={
@@ -104,12 +102,6 @@ export function PaperHeader({
               ? `${t('Published')} ${formatDate(paper.published_date, lang)}`
               : formatDate(paper.created_at, lang)}
           </span>
-          {arxiv && (
-            <>
-              <Dot />
-              <span className="font-mono text-xs text-zinc-400">arXiv:{arxiv}</span>
-            </>
-          )}
           {paper.source_url && (
             <>
               <Dot />

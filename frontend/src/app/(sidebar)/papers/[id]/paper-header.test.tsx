@@ -68,11 +68,12 @@ describe('PaperHeader Component Rendering', () => {
     expect(out).not.toContain('Full text passed')
   })
 
-  test('renders formatted arXiv ID and external link to original paper', () => {
+  test('omits arXiv identifier at the top and renders external link to original paper', () => {
     const paper = samplePaper()
     const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
 
-    expect(out).toContain('arXiv:2609.01037')
+    // arXiv identifier badge is removed to prevent design mismatch with sources like OpenAlex
+    expect(out).not.toContain('arXiv:2609.01037')
     expect(out).toContain('href="https://arxiv.org/abs/2609.01037"')
     expect(out).toContain('View original paper')
   })
