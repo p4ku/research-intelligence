@@ -1,4 +1,3 @@
-import { ScreeningPill } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import { StarToggle } from '@/components/star'
 import { ALL_ON, type Features } from '@/lib/features'
@@ -10,10 +9,10 @@ import type { ReactNode } from 'react'
 import { RiskAffiliationFlagging } from './affiliation-flags'
 
 /**
- * The record's masthead: screening pill and provenance on one line (the
- * source, the publication date when the backend has it and the ingest date
- * otherwise, the link out to the original paper), the title, the authors,
- * the risk & affiliation flagging card, and the star at the right.
+ * The record's masthead: provenance on one line (the source, the
+ * publication date when the backend has it and the ingest date otherwise,
+ * the link out to the original paper), the title, the authors, the risk &
+ * affiliation flagging card, and the star at the right.
  * PaperHeaderFrame owns the layout so PaperHeader and PaperHeaderSkeleton
  * cannot drift.
  */
@@ -82,10 +81,8 @@ export function PaperHeader({
     <PaperHeaderFrame
       meta={
         <>
-          <ScreeningPill status={paper.screening_status} t={t} />
           {paper.is_benchmark && (
             <>
-              <Dot />
               <span
                 data-row="benchmark-control"
                 className="inline-flex items-center gap-1 rounded-sm bg-violet-50 px-1.5 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-violet-700/20 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-400/30"
@@ -97,9 +94,9 @@ export function PaperHeader({
                     : t('Benchmark Control')}
                 </span>
               </span>
+              <Dot />
             </>
           )}
-          <Dot />
           <span className={META}>{paper.source}</span>
           <Dot />
           <span className={META}>
@@ -151,8 +148,6 @@ export function PaperHeaderSkeleton({ features = ALL_ON }: { features?: Features
       state="skeleton"
       meta={
         <>
-          <Bone.Chip width={104} />
-          <Dot />
           <Bone.Text widths={['5ch']} className={META} />
           <Dot />
           <Bone.Text widths={['11ch']} className={META} />

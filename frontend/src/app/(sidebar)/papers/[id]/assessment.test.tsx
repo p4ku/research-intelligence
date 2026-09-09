@@ -93,6 +93,12 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('Comprehensive benchmark evaluation across multiple simulator backends.')
   })
 
+  test('omits rationale placeholder when rationale is absent or null', () => {
+    const dimWithoutRationale = { ...fullDimension, rationale: null }
+    const out = renderToStaticMarkup(<Assessment dimensions={[dimWithoutRationale]} t={t} />)
+    expect(out).not.toContain('No rationale recorded.')
+  })
+
   test('renders facets with progress fill and twin assessment notes', () => {
     const out = renderToStaticMarkup(<Assessment dimensions={[fullDimension]} t={t} />)
     expect(out).toContain('Confidence score')
@@ -134,37 +140,47 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('Qiskit &amp; Cirq')
   })
 
-  test('renders metadata: formatted confidence percentage and humanised model name', () => {
-    const out = renderToStaticMarkup(<Assessment dimensions={[fullDimension]} t={t} />)
-    expect(out).toContain('Confidence 92%')
-    expect(out).toContain('Gemini 3.8 Flash')
-  })
-
-  test('renders Rule verified badge when dimension has_postprocessing is true', () => {
-    const out = renderToStaticMarkup(<Assessment dimensions={[fullDimension]} t={t} />)
-    expect(out).toContain('data-row="rule-verified"')
-    expect(out).toContain('Rule verified')
-  })
-
-  test('renders Human verified badge when dimension is_hitl is true', () => {
+  test('does not render bottom metadata (confidence, model, badges) under definitions', () => {
     const hitlDim: Dimension = {
       ...fullDimension,
       is_hitl: true,
+      has_postprocessing: true,
+      validation_status: 'warn',
+      confidence: 0.92,
+      model: 'google/gemini-3.8-flash',
     }
     const out = renderToStaticMarkup(<Assessment dimensions={[hitlDim]} t={t} />)
-    expect(out).toContain('data-row="hitl-verified"')
-    expect(out).toContain('Human verified')
+    expect(out).not.toContain('Confidence 92%')
+    expect(out).not.toContain('Gemini 3.8 Flash')
+    expect(out).not.toContain('Rule verified')
+    expect(out).not.toContain('Human verified')
+    expect(out).not.toContain('Needs review')
   })
 
-  test('shows review warning in metadata when review_required or validation_status is warn/fail', () => {
-    const warnDim: Dimension = {
+  test('omits Confidence feature (e.g. Confidence: HIGH) under TRL section', () => {
+    const trlDim: Dimension = {
       ...fullDimension,
-      key: 'novelty_check',
-      name: 'Novelty Check',
-      validation_status: 'warn',
+      key: 'trl_level',
+      name: 'Technology Readiness Level (TRL)',
+      is_trl: true,
+      facets: [],
+      texts: [
+        {
+          key: 'core_technology',
+          name: 'Core technology',
+          value: 'Hardware accelerator architecture for Zero-Knowledge Proofs.',
+        },
+      ],
+      facts: [
+        { key: 'confidence', name: 'Confidence', value: 'HIGH' },
+        { key: 'hardware_target', name: 'Hardware target', value: 'FPGA' },
+      ],
     }
-    const out = renderToStaticMarkup(<Assessment dimensions={[warnDim]} t={t} />)
-    expect(out).toContain('Needs review')
+    const out = renderToStaticMarkup(<Assessment dimensions={[trlDim]} t={t} />)
+    expect(out).toContain('Core technology')
+    expect(out).toContain('Hardware target')
+    expect(out).not.toContain('Confidence')
+    expect(out).not.toContain('HIGH')
   })
 
   test('filters out risk and affiliation dimensions from the Assessment article list', () => {

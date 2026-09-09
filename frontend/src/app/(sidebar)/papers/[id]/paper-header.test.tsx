@@ -65,6 +65,7 @@ describe('PaperHeader Component Rendering', () => {
     expect(out).toContain('Alex Rice, Chris Heunen, Tobias Grosser')
     expect(out).toContain('arxiv')
     expect(out).toContain('Published')
+    expect(out).not.toContain('Full text passed')
   })
 
   test('renders formatted arXiv ID and external link to original paper', () => {
