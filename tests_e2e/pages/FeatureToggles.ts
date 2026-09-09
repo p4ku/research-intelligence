@@ -6,9 +6,13 @@ import { BasePage } from './BasePage.js';
  *
  * Three per-browser switches in the account menu hide a feature live and put
  * it back. They are stored in one readable cookie, `rs-features`, whose value
- * is the `.`-separated list of the flags that are OFF: an absent, empty or
- * malformed cookie means the whole product is on, which is the state every
- * other spec in this suite assumes.
+ * is the `.`-separated list of the flags that are OFF.
+ *
+ * Since 9 Sep 2026 every flag is FIXED in the registry
+ * (frontend/src/lib/features.ts): `all_papers` and `ask` off, `stars` on. A
+ * fixed flag ignores the cookie and has no menu row, so `row()`, `switchOf()`
+ * and `setFlag()` below find nothing until a flag's `fixed` property is
+ * deleted; journey 07 uses them to assert that absence.
  */
 export type FeatureFlag = 'all_papers' | 'stars' | 'ask';
 
@@ -43,9 +47,10 @@ export async function addFeatureCookie(
 }
 
 /**
- * The "Demo features" section of the account menu: three menuitems, each
- * carrying a switch. The rows are never hidden themselves — they are how a
- * feature comes back.
+ * The "Demo features" section of the account menu: one menuitem per
+ * non-fixed flag, each carrying a switch. A toggle row is never hidden by its
+ * own flag — it is how a feature comes back — and the section does not render
+ * while every flag is fixed.
  */
 export class FeatureToggles extends BasePage {
   readonly accountMenuButton: Locator;

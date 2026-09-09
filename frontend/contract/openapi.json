@@ -3023,7 +3023,14 @@
             ]
           },
           "raw": {
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "max": {
             "anyOf": [
@@ -3293,7 +3300,6 @@
           "definition_id",
           "name",
           "value",
-          "raw",
           "max",
           "is_trl"
         ],

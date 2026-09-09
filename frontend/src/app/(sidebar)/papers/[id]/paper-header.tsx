@@ -1,19 +1,17 @@
-import { ScreeningPill } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import { StarToggle } from '@/components/star'
 import { ALL_ON, type Features } from '@/lib/features'
 import { formatDate, type Lang, type T } from '@/lib/i18n'
-import { arxivId } from '@/lib/papers/map'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { ArrowUpRightIcon, BookmarkIcon } from '@heroicons/react/16/solid'
 import type { ReactNode } from 'react'
 import { RiskAffiliationFlagging } from './affiliation-flags'
 
 /**
- * The record's masthead: screening pill and provenance on one line (the
- * source, the publication date when the backend has it and the ingest date
- * otherwise, the link out to the original paper), the title, the authors,
- * the risk & affiliation flagging card, and the star at the right.
+ * The record's masthead: provenance on one line (the source, the
+ * publication date when the backend has it and the ingest date otherwise,
+ * the link out to the original paper), the title, the authors, the risk &
+ * affiliation flagging card, and the star at the right.
  * PaperHeaderFrame owns the layout so PaperHeader and PaperHeaderSkeleton
  * cannot drift.
  */
@@ -52,7 +50,7 @@ export function PaperHeaderFrame({
         </div>
         <h1
           data-row="title"
-          className="mt-2 max-w-[30ch] text-[28px] leading-[1.15] font-semibold tracking-tight text-balance text-zinc-950 dark:text-white"
+          className="mt-2 text-2xl font-semibold tracking-tight text-pretty break-words text-zinc-950 sm:text-[28px] sm:leading-[1.2] dark:text-white"
         >
           {title}
         </h1>
@@ -77,15 +75,12 @@ export function PaperHeader({
   lang: Lang
   features?: Features
 }) {
-  const arxiv = arxivId(paper.arxiv_id)
   return (
     <PaperHeaderFrame
       meta={
         <>
-          <ScreeningPill status={paper.screening_status} t={t} />
           {paper.is_benchmark && (
             <>
-              <Dot />
               <span
                 data-row="benchmark-control"
                 className="inline-flex items-center gap-1 rounded-sm bg-violet-50 px-1.5 py-0.5 text-[11px] font-medium text-violet-700 ring-1 ring-violet-700/20 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-400/30"
@@ -97,9 +92,9 @@ export function PaperHeader({
                     : t('Benchmark Control')}
                 </span>
               </span>
+              <Dot />
             </>
           )}
-          <Dot />
           <span className={META}>{paper.source}</span>
           <Dot />
           <span className={META}>
@@ -107,12 +102,6 @@ export function PaperHeader({
               ? `${t('Published')} ${formatDate(paper.published_date, lang)}`
               : formatDate(paper.created_at, lang)}
           </span>
-          {arxiv && (
-            <>
-              <Dot />
-              <span className="font-mono text-xs text-zinc-400">arXiv:{arxiv}</span>
-            </>
-          )}
           {paper.source_url && (
             <>
               <Dot />
@@ -151,8 +140,6 @@ export function PaperHeaderSkeleton({ features = ALL_ON }: { features?: Features
       state="skeleton"
       meta={
         <>
-          <Bone.Chip width={104} />
-          <Dot />
           <Bone.Text widths={['5ch']} className={META} />
           <Dot />
           <Bone.Text widths={['11ch']} className={META} />

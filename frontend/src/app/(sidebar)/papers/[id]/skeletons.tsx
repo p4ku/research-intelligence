@@ -13,9 +13,9 @@ import { ScoreRailSkeleton } from './score-rail'
  * crumbs, the loading.tsx shell, so both are pixel-identical. One record,
  * one Region, one sweep.
  *
- * It reserves the live domain's shape: two screening paragraphs, the
- * abstract, seven definitions (ASSESSMENT_SHAPE) and seven bars with a radar
- * in the rail. A domain with fewer definitions sees both shorten on load.
+ * It reserves the live domain's shape: the abstract, seven definitions
+ * (ASSESSMENT_SHAPE) and seven bars with a radar in the rail. A domain with
+ * fewer definitions sees both shorten on load.
  *
  * Both take the flags as a required prop — nothing outside this route renders
  * them, so a required prop catches a missed call site — and must mirror the
@@ -25,8 +25,6 @@ import { ScoreRailSkeleton } from './score-rail'
  * label so the nav row does not reflow on load; loading.tsx sees no URL and
  * keeps the default.
  */
-
-const STAGE_CLASS = 'mt-3 max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300'
 
 export function PaperRecordSkeleton({
   t,
@@ -46,16 +44,6 @@ export function PaperRecordSkeleton({
         <div className="mt-6 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
           <div className="min-w-0 space-y-9">
             <PaperHeaderSkeleton features={features} />
-
-            <section>
-              <SectionLabel>{t('Screening')}</SectionLabel>
-              <p className={STAGE_CLASS}>
-                <Bone.Text lines={2} widths={['100%', '58%']} />
-              </p>
-              <p className={STAGE_CLASS}>
-                <Bone.Text lines={4} widths={['100%', '100%', '96%', '40%']} />
-              </p>
-            </section>
 
             <section>
               <SectionLabel>{t('Abstract')}</SectionLabel>

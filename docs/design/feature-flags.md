@@ -1,6 +1,7 @@
 # Feature flags: all_papers, stars, ask
 
 Status: shipped (PRs #71, #78, #79, #80 merged 7 Sep 2026; e2e guard follows). Written 2026-09-07.
+Update 9 Sep 2026: every flag is **fixed** via a new `fixed?: boolean` on `FeatureDef` — `all_papers: false`, `ask: false`, `stars: true`. A fixed flag ignores the cookie, is never written to it, and has no row; `TOGGLE_KEYS` (the non-fixed flags) drives the menu, and the "Demo features" section does not render while it is empty. Everything below describes the mechanism as built; delete a flag's `fixed` property to put its switch back.
 Drift log: re-audited against origin/main 872c1e2 on 2026-09-07 (Home corpus search #61, Briefings ledger #52, Ask composer #66, root 404 #50, settings a11y #64); decisions D1–D4 below folded in.
 Scope: `frontend/` only, plus the doc and e2e notes called out in section 5.
 This file lives at the repo root (`docs/`), outside `frontend/scripts/scope-check.ts`'s provenance root, so it is committed on its own, not inside the flag PRs.

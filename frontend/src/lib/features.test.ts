@@ -8,34 +8,83 @@ import {
   featureOwning,
   FEATURES,
   isVisible,
+  TOGGLE_KEYS,
   type FeatureKey,
+  type FeatureRegistry,
+  type Features,
 } from './features'
+
+/**
+ * The registry with every switch handed back to the menu. The codec is tested
+ * against this so its cookie behaviour stays proven while the real registry
+ * fixes every flag.
+ */
+const LIVE: FeatureRegistry = Object.fromEntries(
+  FEATURE_KEYS.map((k) => [k, { ...FEATURES[k], fixed: undefined }]),
+) as FeatureRegistry
 
 describe('features cookie codec', () => {
   test('a missing, empty or malformed cookie is everything on', () => {
-    expect(decodeFeaturesCookie(undefined)).toEqual(ALL_ON)
-    expect(decodeFeaturesCookie('')).toEqual(ALL_ON)
-    expect(decodeFeaturesCookie('not.a.flag')).toEqual(ALL_ON)
+    expect(decodeFeaturesCookie(undefined, LIVE)).toEqual(ALL_ON)
+    expect(decodeFeaturesCookie('', LIVE)).toEqual(ALL_ON)
+    expect(decodeFeaturesCookie('not.a.flag', LIVE)).toEqual(ALL_ON)
   })
 
   test('lists what is off, in registry order, and round-trips', () => {
     const value = { all_papers: false, stars: true, ask: false }
-    expect(encodeFeaturesCookie(value)).toBe('all_papers.ask')
-    expect(decodeFeaturesCookie('all_papers.ask')).toEqual(value)
+    expect(encodeFeaturesCookie(value, LIVE)).toBe('all_papers.ask')
+    expect(decodeFeaturesCookie('all_papers.ask', LIVE)).toEqual(value)
     // Order and case in the cookie do not matter on the way in.
-    expect(decodeFeaturesCookie('ASK. all_papers')).toEqual(value)
+    expect(decodeFeaturesCookie('ASK. all_papers', LIVE)).toEqual(value)
     for (const key of FEATURE_KEYS) {
       const one = { ...ALL_ON, [key]: false }
-      expect(decodeFeaturesCookie(encodeFeaturesCookie(one))).toEqual(one)
+      expect(decodeFeaturesCookie(encodeFeaturesCookie(one, LIVE), LIVE)).toEqual(one)
     }
   })
 
   test('all-on encodes to the empty string, so the write and the absence agree', () => {
-    expect(encodeFeaturesCookie(ALL_ON)).toBe('')
+    expect(encodeFeaturesCookie(ALL_ON, LIVE)).toBe('')
   })
 
   test('unknown tokens are ignored, so an old cookie keeps a new flag on', () => {
-    expect(decodeFeaturesCookie('all_papers.future_flag')).toEqual({ ...ALL_ON, all_papers: false })
+    expect(decodeFeaturesCookie('all_papers.future_flag', LIVE)).toEqual({
+      ...ALL_ON,
+      all_papers: false,
+    })
+  })
+})
+
+describe('fixed flags', () => {
+  /** What the product is today: the list and Ask hidden, stars on, no toggles. */
+  const TODAY: Features = { all_papers: false, stars: true, ask: false }
+
+  test('the real registry fixes every flag, so the menu has nothing to show', () => {
+    expect(FEATURE_KEYS.map((k) => [k, FEATURES[k].fixed])).toEqual([
+      ['all_papers', false],
+      ['stars', true],
+      ['ask', false],
+    ])
+    expect(TOGGLE_KEYS).toEqual([])
+  })
+
+  test('the cookie cannot move a fixed flag, in either direction', () => {
+    expect(decodeFeaturesCookie(undefined)).toEqual(TODAY)
+    expect(decodeFeaturesCookie('')).toEqual(TODAY)
+    // A browser that switched stars off last week gets them back.
+    expect(decodeFeaturesCookie('stars')).toEqual(TODAY)
+    // A cookie naming only the hidden flags changes nothing either.
+    expect(decodeFeaturesCookie('all_papers.ask')).toEqual(TODAY)
+  })
+
+  test('a fixed flag is never written, so no stale value waits for the switch to return', () => {
+    expect(encodeFeaturesCookie(TODAY)).toBe('')
+    expect(encodeFeaturesCookie({ all_papers: false, stars: false, ask: false })).toBe('')
+  })
+
+  test('a registry that frees one flag lists exactly that toggle', () => {
+    const partly: FeatureRegistry = { ...FEATURES, stars: { ...FEATURES.stars, fixed: undefined } }
+    expect(decodeFeaturesCookie('stars', partly)).toEqual({ ...TODAY, stars: false })
+    expect(encodeFeaturesCookie({ ...TODAY, stars: false }, partly)).toBe('stars')
   })
 })
 

@@ -4,8 +4,6 @@ import {
   SidebarNav,
   DashboardPage,
   BriefingPage,
-  PapersPage,
-  AskPage,
   SettingsPage,
   WorkspaceSwitcher,
 } from '../pages/index.js';
@@ -14,13 +12,11 @@ const USERNAME = process.env.E2E_USERNAME || process.env.TEST_USERNAME || 'test_
 const PASSWORD = process.env.E2E_PASSWORD || process.env.TEST_PASSWORD || 't4st_pa55w0rD!#';
 
 test.describe('Journey 6: Full End-to-End Researcher Journey (Comprehensive)', () => {
-  test('Complete Researcher Flow: Auth -> Dashboard -> Briefings -> Papers -> Ask Chat -> Settings -> Logout', async ({ page }) => {
+  test('Complete Researcher Flow: Auth -> Dashboard -> Briefings -> Settings -> Logout', async ({ page }) => {
     const loginPage = new LoginPage(page);
     const sidebar = new SidebarNav(page);
     const dashboard = new DashboardPage(page);
     const briefing = new BriefingPage(page);
-    const papers = new PapersPage(page);
-    const ask = new AskPage(page);
     const settings = new SettingsPage(page);
     const switcher = new WorkspaceSwitcher(page);
 
@@ -36,13 +32,9 @@ test.describe('Journey 6: Full End-to-End Researcher Journey (Comprehensive)', (
     await sidebar.navigateTo('briefing');
     expect(await briefing.isLoaded()).toBe(true);
 
-    console.log('🚀 Phase 4: Systematic Papers Exploration');
-    await sidebar.navigateTo('papers');
-    expect(await papers.isLoaded()).toBe(true);
-
-    console.log('🚀 Phase 5: Ask / Paper Chat');
-    await sidebar.navigateTo('ask');
-    expect(await ask.isLoaded()).toBe(true);
+    // Phases 4 (/papers) and 5 (/ask) are gone: both routes are fixed off
+    // since 9 Sep 2026 (frontend/src/lib/features.ts) and journey 07 asserts
+    // their absence. navigateTo() would have landed on the not-found card.
 
     console.log('🚀 Phase 6: Workspace Switching');
     const workspaces = await switcher.listAvailableWorkspaces();

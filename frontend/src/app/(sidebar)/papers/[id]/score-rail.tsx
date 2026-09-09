@@ -1,21 +1,20 @@
 import { RadarChart } from '@/components/charts'
-import { Card, ScreeningPill, TrlBadge } from '@/components/scanner-ui'
+import { Card, TrlBadge } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import type { T } from '@/lib/i18n'
 import { trlDimension } from '@/lib/papers/select'
-import type { Dimension, ScoredPaper, SignalScoreDetails } from '@/lib/papers/types'
-import { ChevronDownIcon, CodeBracketIcon } from '@heroicons/react/16/solid'
+import type { Dimension, ScoredPaper } from '@/lib/papers/types'
 import type { ReactNode } from 'react'
 import { definitionAnchor } from './assessment'
 import { ScoreBarFrame, ScoreBars, type RailBar } from './score-bars'
 
 /**
- * The glance card beside the record: the Schwarz Score, the screening and
- * TRL chips, one bar per definition — each a link to its article in the
- * column, the one being read marked — and the profile (the radar, values
- * under its labels) under a hairline. Sticky on wide screens so the score
- * mix stays in view while the assessment is read. Server-safe; the frame
- * keeps the skeleton in step.
+ * The glance card beside the record: the Schwarz Score, the TRL chip,
+ * one bar per definition — each a link to its article in the column, the
+ * one being read marked — and the profile (the radar, values under its
+ * labels) under a hairline. Sticky on wide screens so the score mix stays
+ * in view while the assessment is read. Server-safe; the frame keeps the
+ * skeleton in step.
  */
 
 // The rail's full inner width: the radar needs every pixel for its labels.
@@ -24,52 +23,12 @@ const RADAR_H = Math.round(RADAR * 0.76)
 const SCORE_CLASS =
   'font-mono text-[44px] leading-none font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white'
 
-export function ScoreFormula({ details, t }: { details: SignalScoreDetails; t: T }) {
-  if (!details.code_snippet) return null
-  const vars = details.variables || {}
-  const hasVars = Object.keys(vars).length > 0
-
-  return (
-    <details data-row="formula" className="group mt-3 border-t border-line-soft pt-2.5 text-xs">
-      <summary className="flex cursor-pointer items-center justify-between gap-1 text-[11px] font-medium text-zinc-500 transition-colors select-none hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
-        <span className="inline-flex items-center gap-1">
-          <CodeBracketIcon
-            aria-hidden="true"
-            className="size-3 text-zinc-400 group-hover:text-accent"
-          />
-          <span>{t('Scoring formula')}</span>
-        </span>
-        <ChevronDownIcon
-          aria-hidden="true"
-          className="size-3 text-zinc-400 transition-transform duration-150 ease-out group-open:rotate-180"
-        />
-      </summary>
-      <div className="mt-2 rounded-sm border border-line-soft bg-zinc-50/75 p-2 font-mono text-[11px] text-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-300">
-        <div className="font-medium break-all text-zinc-900 dark:text-white">
-          {details.code_snippet}
-        </div>
-        {hasVars && (
-          <div className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-0.5 border-t border-line-soft/60 pt-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
-            {Object.entries(vars).map(([k, v]) => (
-              <div key={k} className="truncate">
-                <span className="font-semibold text-zinc-700 dark:text-zinc-300">{k}:</span>{' '}
-                <span>{String(v)}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </details>
-  )
-}
-
 export function ScoreRailFrame({
   state = 'loaded',
   label,
   score,
   chips,
   bars,
-  formula,
   radar,
 }: {
   state?: 'loaded' | 'skeleton'
@@ -77,7 +36,6 @@ export function ScoreRailFrame({
   score: ReactNode
   chips: ReactNode
   bars: ReactNode
-  formula?: ReactNode
   /** Omitted when the paper has fewer than three numeric dimensions. */
   radar?: ReactNode
 }) {
@@ -92,7 +50,6 @@ export function ScoreRailFrame({
       <div data-row="chips" className="mt-3 flex flex-wrap gap-1.5">
         {chips}
       </div>
-      {formula}
       <ul className="mt-4 space-y-0.5">{bars}</ul>
       {radar && (
         <div data-row="radar" className="mt-4 flex justify-center border-t border-line-soft pt-4">
@@ -129,7 +86,7 @@ function radarAxes(dimensions: Dimension[]) {
 
 function railBar(d: Dimension): RailBar {
   const hasBar = d.value !== null && d.max !== null && d.max > 0
-  const shown = shownNumber(d.value)
+  const shown = d.value !== null ? shownNumber(d.value) : d.raw && d.raw !== '—' ? d.raw : null
   return {
     key: d.key + (d.extraction_id ?? ''),
     label: shortName(d),
@@ -147,10 +104,11 @@ function railBar(d: Dimension): RailBar {
 }
 
 export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
+  // Exclude Risk & Affiliation dimensions from the score rail bars
   const visibleDimensions = (paper.dimensions ?? []).filter(
     (d) =>
-      !d.is_risk_and_affiliation &&
-      !d.key.includes('risk_and_affiliation') &&
+      d.key !== 'risk_and_affiliation' &&
+      !d.name.toLowerCase().includes('risk') &&
       !d.name.toLowerCase().includes('affiliation'),
   )
   const trl = trlDimension(paper)
@@ -166,17 +124,11 @@ export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
       label={t('Schwarz Score')}
       score={score}
       chips={
-        <>
-          <ScreeningPill status={paper.screening_status} t={t} />
-          {trl?.value !== null && trl?.value !== undefined && <TrlBadge trl={trl.value} t={t} />}
-        </>
-      }
-      bars={<ScoreBars bars={visibleDimensions.map(railBar)} />}
-      formula={
-        paper.signal_score_details ? (
-          <ScoreFormula details={paper.signal_score_details} t={t} />
+        trl?.value !== null && trl?.value !== undefined ? (
+          <TrlBadge trl={trl.value} t={t} />
         ) : undefined
       }
+      bars={<ScoreBars bars={visibleDimensions.map(railBar)} />}
       radar={
         axes.length >= 3 && (
           <RadarChart axes={axes} color="var(--accent)" size={RADAR} valueLabels />
@@ -196,12 +148,7 @@ export function ScoreRailSkeleton({ t, bars = 7 }: { t: T; bars?: number }) {
       state="skeleton"
       label={t('Schwarz Score')}
       score={<Bone.Number digits={4} />}
-      chips={
-        <>
-          <Bone.Chip width={104} />
-          <Bone.Chip width={128} />
-        </>
-      }
+      chips={<Bone.Chip width={128} />}
       bars={Array.from({ length: bars }, (_, i) => (
         <ScoreBarFrame
           key={i}

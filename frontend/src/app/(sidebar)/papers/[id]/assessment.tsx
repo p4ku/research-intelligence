@@ -1,6 +1,6 @@
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { Bone } from '@/components/skeleton'
-import { fmt, type T } from '@/lib/i18n'
+import type { T } from '@/lib/i18n'
 import type { Dimension, DimensionFacet, DimensionField } from '@/lib/papers/types'
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
@@ -28,7 +28,6 @@ const PROSE = 'max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-
 const SMALL_PROSE = 'max-w-[76ch] text-sm leading-relaxed text-zinc-600 dark:text-zinc-400'
 const H4 = 'text-sm font-semibold text-zinc-950 dark:text-white'
 const FIGURE = 'font-mono font-medium text-zinc-950 tabular-nums dark:text-white'
-const META = 'text-xs text-zinc-400 dark:text-zinc-500'
 
 export function AssessmentFrame({
   state = 'loaded',
@@ -58,13 +57,19 @@ export function DefinitionFrame({
   children: ReactNode
 }) {
   return (
-    <article id={id} data-row="definition" className="scroll-mt-6 border-b border-line-soft py-6">
+    <article
+      id={id}
+      data-row="definition"
+      className="scroll-mt-6 border-b border-line-soft py-6 last:border-b-0"
+    >
       <header className="flex items-baseline gap-2.5">
         <h3 className="text-[17px] font-semibold tracking-[-0.005em] text-zinc-950 dark:text-white">
           {name}
         </h3>
         {band}
-        <span className={clsx(FIGURE, 'ml-auto shrink-0 text-[22px] leading-none')}>{value}</span>
+        {value != null && value !== '' ? (
+          <span className={clsx(FIGURE, 'ml-auto shrink-0 text-[22px] leading-none')}>{value}</span>
+        ) : null}
       </header>
       <div className="mt-3.5 space-y-4">{children}</div>
     </article>
@@ -87,7 +92,10 @@ function shownNumber(n: number | null | undefined): string {
 
 /** The headline as the row shows it: the number, or the raw string when there is none. */
 function shownValue(d: Dimension): ReactNode {
-  if (d.value === null) return <span className="text-zinc-500 dark:text-zinc-400">{d.raw}</span>
+  if (d.value === null) {
+    if (!d.raw || d.raw === '—' || d.raw.trim() === '') return null
+    return <span className="text-zinc-500 dark:text-zinc-400">{d.raw}</span>
+  }
   return (
     <>
       {shownNumber(d.value)}
@@ -104,11 +112,6 @@ function unquote(quote: string): string {
     .trim()
     .replace(/^[“"„']+/, '')
     .replace(/[”"“']+$/, '')
-}
-
-/** "google/gemini-3.8-flash" → "Gemini 3.8 Flash". */
-function modelName(id: string): string {
-  return (id.split('/').pop() ?? id).replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 function FacetRowFrame({
@@ -359,9 +362,22 @@ function resolveSubMeasures(
   // 1. Process facets first
   for (const f of facets ?? []) {
     const schemaProp = getSchemaProperty(responseSchema, f.key)
-    const displayName = schemaProp?.title || f.name
-    const description = schemaProp?.description || null
+    let displayName = schemaProp?.title || f.name
+    let description = schemaProp?.description || null
     const maxVal = schemaProp?.maximum ?? f.max ?? fallbackMax
+
+    const fKeyNorm = (f.key || '').toLowerCase().replace(/[-_ ]/g, '')
+    const fNameNorm = displayName.toLowerCase().replace(/[-_ ]/g, '')
+    if (fKeyNorm === 'coretechnology' || fNameNorm === 'coretechnology') {
+      displayName = 'Technology being Assessed'
+      description = null
+    } else if (
+      description &&
+      (description.toLowerCase() === 'the technology being assessed.' ||
+        description.toLowerCase() === 'the technology being assessed')
+    ) {
+      description = null
+    }
 
     const norm = subMeasureKey(f.key, f.name)
     if (seenBases.has(norm)) {
@@ -398,8 +414,21 @@ function resolveSubMeasures(
     if (!field.value && !field.band && (!field.evidence || field.evidence.length === 0)) continue
 
     const schemaProp = getSchemaProperty(responseSchema, rawField.key)
-    const displayName = schemaProp?.title || field.name
-    const description = schemaProp?.description || null
+    let displayName = schemaProp?.title || field.name
+    let description = schemaProp?.description || null
+
+    const kNorm = (rawField.key || '').toLowerCase().replace(/[-_ ]/g, '')
+    const dNorm = displayName.toLowerCase().replace(/[-_ ]/g, '')
+    if (kNorm === 'coretechnology' || dNorm === 'coretechnology') {
+      displayName = 'Technology being Assessed'
+      description = null
+    } else if (
+      description &&
+      (description.toLowerCase() === 'the technology being assessed.' ||
+        description.toLowerCase() === 'the technology being assessed')
+    ) {
+      description = null
+    }
 
     const norm = subMeasureKey(rawField.key, field.name)
     if (seenBases.has(norm)) {
@@ -473,16 +502,10 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
             : 'grid-cols-[minmax(0,1fr)_44px]',
         )}
       >
-        <div className="flex min-w-0 flex-col">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-              {sub.name}
-            </span>
-            {sub.band && <Band>{sub.band}</Band>}
-          </div>
-          {sub.description && (
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">{sub.description}</span>
-          )}
+        <div className="flex min-w-0 items-center">
+          <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            {sub.name}
+          </span>
         </div>
 
         {hasBar && (
@@ -509,8 +532,13 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
         />
       )}
 
+      {/* Evidence quotes: preserved in backend JSON for LLM faithfulness, hidden on frontend UI */}
       {hasEvidence && (
-        <div className="mt-2.5 space-y-1.5 border-l-2 border-line-soft pl-3.5">
+        <div
+          className="mt-2.5 hidden space-y-1.5 border-l-2 border-line-soft pl-3.5"
+          data-slot="evidence"
+          aria-hidden="true"
+        >
           <span className="text-[10px] font-semibold tracking-wider text-zinc-400 uppercase dark:text-zinc-500">
             Evidence
           </span>
@@ -529,41 +557,8 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
 }
 
 function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
-  const conf =
-    typeof d.confidence === 'number'
-      ? d.confidence <= 1
-        ? `${Math.round(d.confidence * 100)}%`
-        : String(d.confidence)
-      : null
-  const review =
-    d.review_required || d.validation_status === 'warn' || d.validation_status === 'fail'
-  const meta: ReactNode[] = []
-  if (conf) meta.push(fmt(t('Confidence {n}'), { n: conf }))
-  if (d.model) meta.push(modelName(d.model))
-  if (d.has_postprocessing)
-    meta.push(
-      <span
-        key="postprocessing"
-        data-row="rule-verified"
-        className="rounded bg-accent/8 px-1.5 py-px text-[11px] font-medium text-accent"
-      >
-        {t('Rule verified')}
-      </span>,
-    )
-  if (d.is_hitl)
-    meta.push(
-      <span
-        key="hitl"
-        data-row="hitl-verified"
-        className="rounded bg-emerald-500/10 px-1.5 py-px text-[11px] font-medium text-emerald-600 dark:text-emerald-400"
-      >
-        {t('Human verified')}
-      </span>,
-    )
-  if (review)
-    meta.push(
-      <span className="font-medium text-zinc-500 dark:text-zinc-400">{t('Needs review')}</span>,
-    )
+  const isTrl =
+    d.is_trl || d.key.toLowerCase().includes('trl') || d.name.toLowerCase().includes('trl')
 
   const { subMeasures, generalTexts } = resolveSubMeasures(
     d.facets,
@@ -572,6 +567,99 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
     d.response_schema,
   )
 
+  const visibleSubMeasures = subMeasures.filter((sub) => {
+    const k = sub.key.toLowerCase()
+    const n = sub.name.toLowerCase()
+    if (
+      isTrl &&
+      (k === 'confidence' ||
+        n === 'confidence' ||
+        k === 'confidence_level' ||
+        n === 'confidence level')
+    ) {
+      return false
+    }
+    return true
+  })
+
+  const visibleTexts = generalTexts.filter((field) => {
+    const k = (field.key ?? '').toLowerCase()
+    const n = field.name.toLowerCase()
+    if (isTrl && (k.includes('confidence') || n.includes('confidence'))) return false
+    if (k === 'confidence' || n === 'confidence') return false
+    return true
+  })
+
+  const isInsight = (field: { key?: string | null; name: string }) => {
+    const k = (field.key ?? '').toLowerCase().replace(/[-_ ]/g, '')
+    const n = field.name.toLowerCase().replace(/[-_ ]/g, '')
+    return k.includes('insight') || n.includes('insight')
+  }
+
+  const isSubMeasureDuplicate = (field: { key?: string | null; name: string }) => {
+    const fk = (field.key ?? '')
+      .toLowerCase()
+      .replace(/[-_ ]/g, '')
+      .replace(/_?score$/, '')
+    const fn = field.name
+      .toLowerCase()
+      .replace(/[-_ ]/g, '')
+      .replace(/_?score$/, '')
+    return visibleSubMeasures.some((sub) => {
+      const sk = sub.key
+        .toLowerCase()
+        .replace(/[-_ ]/g, '')
+        .replace(/_?score$/, '')
+      const sn = sub.name
+        .toLowerCase()
+        .replace(/[-_ ]/g, '')
+        .replace(/_?score$/, '')
+      return fk === sk || fn === sn || fk === sn || fn === sk
+    })
+  }
+
+  const textInsights = visibleTexts
+    .filter((field) => isInsight(field) && field.value != null && String(field.value).trim() !== '')
+    .map((field) => ({
+      key: field.key ?? field.name,
+      value: String(field.value).trim(),
+    }))
+
+  const factInsights = (d.facts ?? [])
+    .filter((fact) => isInsight(fact) && fact.value != null && String(fact.value).trim() !== '')
+    .map((fact) => ({
+      key: fact.key,
+      value: String(fact.value).trim(),
+    }))
+
+  const allInsights = [...textInsights, ...factInsights]
+  const topInsights = allInsights.filter(
+    (field, idx) =>
+      (!d.rationale || d.rationale.trim() !== field.value) &&
+      allInsights.findIndex((other) => other.value === field.value) === idx,
+  )
+
+  const remainingTexts = visibleTexts.filter((field) => !isInsight(field))
+
+  const visibleFacts = (d.facts ?? [])
+    .filter((fact) => {
+      const k = fact.key.toLowerCase()
+      const n = fact.name.toLowerCase()
+      if (isTrl && (k.includes('confidence') || n.includes('confidence'))) return false
+      if (k === 'confidence' || n === 'confidence') return false
+      if (isInsight(fact)) return false
+      if (isSubMeasureDuplicate(fact)) return false
+      return true
+    })
+    .map((fact) => {
+      const kNorm = (fact.key || '').toLowerCase().replace(/[-_ ]/g, '')
+      const nNorm = fact.name.toLowerCase().replace(/[-_ ]/g, '')
+      if (kNorm === 'coretechnology' || nNorm === 'coretechnology') {
+        return { ...fact, name: 'Technology being Assessed' }
+      }
+      return fact
+    })
+
   return (
     <DefinitionFrame
       id={definitionAnchor(d)}
@@ -579,23 +667,24 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       band={d.band && <Band>{d.band}</Band>}
       value={shownValue(d)}
     >
-      {d.rationale ? (
-        <AnswerMarkdown text={d.rationale} className={PROSE} />
-      ) : (
-        <p className="text-sm text-zinc-400">{t('No rationale recorded.')}</p>
-      )}
+      {d.rationale ? <AnswerMarkdown text={d.rationale} className={PROSE} /> : null}
 
-      {/* Sub-metrics / Secondary metrics with progress bar, band, score, prose & evidence */}
-      {subMeasures.length > 0 && (
+      {/* Top insight prose boxes (e.g. "Research Quality Insight", "Schwarz Fit Insight") without subtitle */}
+      {topInsights.map((field) => (
+        <AnswerMarkdown key={field.key} text={field.value} className={PROSE} />
+      ))}
+
+      {/* Sub-metrics / Secondary metrics with progress bar, score, prose & evidence */}
+      {visibleSubMeasures.length > 0 && (
         <div className="space-y-3">
-          {subMeasures.map((sub) => (
+          {visibleSubMeasures.map((sub) => (
             <SubMeasureRow key={sub.key} sub={sub} />
           ))}
         </div>
       )}
 
-      {/* General dimension-level prose texts (e.g. "Research quality insight", "Core technology") */}
-      {generalTexts.map((field) => (
+      {/* Remaining dimension-level prose texts (e.g. "Hardware Architecture Notes", "Core technology") */}
+      {remainingTexts.map((field) => (
         <div key={field.name} className="space-y-1.5">
           <h4 className={H4}>{field.name}</h4>
           {field.description && (
@@ -622,25 +711,29 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
         </div>
       ))}
 
-      {/* Top-level evidence (deduplicated against sub-measure evidence quotes) */}
+      {/* Top-level evidence (deduplicated against sub-measure evidence quotes; hidden on frontend) */}
       {d.evidence
         ?.filter((quote) => {
           const unq = unquote(quote).trim()
-          return !subMeasures.some((sub) => sub.evidence?.some((ev) => unquote(ev).trim() === unq))
+          return !visibleSubMeasures.some((sub) =>
+            sub.evidence?.some((ev) => unquote(ev).trim() === unq),
+          )
         })
         .map((quote, i) => (
           <blockquote
             key={i}
-            className="max-w-[72ch] border-l-2 border-line pl-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
+            className="hidden max-w-[72ch] border-l-2 border-line pl-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
+            data-slot="top-level-evidence"
+            aria-hidden="true"
           >
             “{unquote(quote)}”
           </blockquote>
         ))}
 
       {/* Facts */}
-      {d.facts && d.facts.length > 0 && (
+      {visibleFacts.length > 0 && (
         <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-sm">
-          {d.facts.map((fact) => (
+          {visibleFacts.map((fact) => (
             <div key={fact.key} className="contents">
               <dt className="font-medium text-zinc-950 dark:text-white">{fact.name}</dt>
               <dd className="text-zinc-600 dark:text-zinc-400">
@@ -655,16 +748,6 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
             </div>
           ))}
         </dl>
-      )}
-      {meta.length > 0 && (
-        <p className={META}>
-          {meta.map((part, i) => (
-            <span key={i}>
-              {i > 0 && <span aria-hidden="true"> · </span>}
-              {part}
-            </span>
-          ))}
-        </p>
       )}
     </DefinitionFrame>
   )
@@ -722,7 +805,6 @@ export const ASSESSMENT_SHAPE: DefinitionShape[] = Array.from({ length: 7 }, () 
   facets: [0, 0, 0],
   texts: [3],
   list: 3,
-  meta: true,
 }))
 
 export function DefinitionSkeleton({ shape }: { shape: DefinitionShape }) {
@@ -734,11 +816,7 @@ export function DefinitionSkeleton({ shape }: { shape: DefinitionShape }) {
     >
       {shape.lead > 0 ? (
         <AnswerMarkdownSkeleton className={PROSE} paragraphs={[shape.lead]} />
-      ) : (
-        <p className="text-sm">
-          <Bone.Text widths={['20ch']} />
-        </p>
-      )}
+      ) : null}
       {shape.facets?.length ? (
         <ul className="space-y-2.5">
           {shape.facets.map((lines, i) => (
@@ -802,11 +880,6 @@ export function DefinitionSkeleton({ shape }: { shape: DefinitionShape }) {
           ))}
         </dl>
       ) : null}
-      {shape.meta && (
-        <p className={META}>
-          <Bone.Text widths={['28ch']} />
-        </p>
-      )}
     </DefinitionFrame>
   )
 }

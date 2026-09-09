@@ -12,44 +12,47 @@ The E2E test suite covers both **Backend REST/MCP Pipelines** and **Next.js Fron
 Located in `tests_e2e/pages/` and `tests_e2e/specs/`:
 * **`pages/`**: Clean Page Object Model abstraction in TypeScript:
   * `LoginPage.ts`: Authentication forms, input handling, and session state.
-  * `SidebarNav.ts`: Menu traversing (`/dashboard`, `/briefing`, `/papers`, `/ask`), User Menu, and Sign Out.
+  * `SidebarNav.ts`: Menu traversing (`/dashboard`, `/briefing`; `/papers` and `/ask` are fixed off, see below), User Menu, and Sign Out.
   * `WorkspaceSwitcher.ts`: Workspace dropdown, listing accessible workspaces, and cookie validation (`rs-workspace`).
   * `SettingsPage.ts`: `/settings` profile form, password form, workspace configuration summary, and notification toggle.
   * `DashboardPage.ts`, `BriefingPage.ts`, `PapersPage.ts`, `AskPage.ts`: Core application surface abstractions.
-  * `FeatureToggles.ts`: The account menu's "Demo features" switches, plus `addFeatureCookie()` for seeding `rs-features` before a session starts.
+  * `FeatureToggles.ts`: The account menu's "Demo features" switches (none render while every flag is fixed), plus `addFeatureCookie()` for seeding `rs-features` before a session starts.
 * **`specs/`**: Modular, full end-to-end user journey test suites:
   1. `01_auth_session_lifecycle.journey.spec.ts`: Rejection of bad credentials, login, session cookies, deep-link protection, and sign out.
-  2. `02_analyst_daily_review.journey.spec.ts`: Today Dashboard funnel metrics, reading executive Briefing, systematic Papers exploration and scorecard inspections.
+  2. `02_analyst_daily_review.journey.spec.ts`: Today Dashboard funnel metrics, reading executive Briefing, and opening a paper from it (the `/papers` steps left with the flag).
   3. `03_manager_workspace_and_settings.journey.spec.ts`: Multi-tenant workspace switching, `/settings` inspection (Profile, Role, Password, Workspace Metadata), and bilingual EN <-> DE locale toggle.
-  4. `05_interactive_paper_chat.journey.spec.ts`: Deep-dive literature question answering in `/ask`, reasoning engine, and citation stream validation.
+  4. `05_interactive_paper_chat.journey.spec.ts`: Deep-dive literature question answering in `/ask`, reasoning engine, and citation stream validation. **Skipped** while `ask` is fixed off.
   5. `06_end_to_end_researcher_flow.journey.spec.ts`: Comprehensive full researcher flow executing the entire application lifecycle end-to-end in a single session.
-  6. `07_feature_flags.journey.spec.ts`: The three demo feature flags — `all_papers`, `stars`, `ask` — hidden and put back (see **Demo feature flags** below).
+  6. `07_feature_flags.journey.spec.ts`: The fixed state of the three demo feature flags — `all_papers` and `ask` off, `stars` on, no toggles — and that a cookie cannot move it (see **Demo feature flags** below).
 
-### Demo feature flags: the suite assumes everything is ON
+### Demo feature flags: `all_papers` and `ask` are fixed off, `stars` fixed on
 
-The account menu carries three per-browser switches that hide a feature live and put it back (`docs/design/feature-flags.md`). They are stored in one readable cookie, `rs-features`, whose value is the `.`-separated list of the flags that are **OFF**; an absent, empty or malformed cookie means the whole product.
+The account menu was built to carry three per-browser switches that hide a feature live and put it back (`docs/design/feature-flags.md`), stored in one readable cookie, `rs-features`, whose value is the `.`-separated list of the flags that are **OFF**.
 
-Every other spec here runs in a fresh, cookieless context and therefore sees the full product: five nav rows, `/papers`, `/ask`, and every star affordance. **Do not sign in with a flag cookie left over from a manual session** — two page-object helpers turn a hidden feature into a false green:
+Since 9 Sep 2026 every flag is **fixed** in the registry (`frontend/src/lib/features.ts`, the `fixed` property): `all_papers` and `ask` are off, `stars` is on. A fixed flag ignores the cookie, is never written to it, and has no menu row, so the "Demo features" section does not render. The product every spec here sees is therefore: three nav rows (`/dashboard`, `/briefing`, `/runs`), `/papers` and `/ask` rendering the shared not-found card (HTTP 200, card streamed inside the shell), no corpus search on Home, `/papers/<id>` still reachable from a briefing, and every star affordance present.
 
-* `SidebarNav.navigateTo()` falls back to `goto(path)` when the nav link is missing, so journeys 02 and 06 would pass with every papers step silently landing on a not-found card.
+Two page-object helpers turn a hidden route into a false green, which is why journeys 02 and 06 no longer visit `/papers` or `/ask` and journey 05 is skipped:
+
+* `SidebarNav.navigateTo()` falls back to `goto(path)` when the nav link is missing, so a hidden route would still be "navigated to" — into the not-found card.
 * `PapersPage.isLoaded()` returns `true` on that card, because it renders inside the shell's `<main>`.
 
-`07_feature_flags.journey.spec.ts` is the guard, and it asserts **absence with raw locators only**. It seeds the cookie itself, per test, before the first navigation:
+`07_feature_flags.journey.spec.ts` is the guard, and it asserts **absence with raw locators only**: the fixed state in a cookieless browser, then again with the old all-three-off cookie seeded before sign-in, which must change nothing:
 
 ```ts
 import { addFeatureCookie, FeatureToggles } from '../pages/index.js';
 
-// Start the session with the corpus list hidden ('' would be all-on):
-await addFeatureCookie(page.context(), ['all_papers'], baseURL!);
-// ...then sign in as usual; the very first server render already sees it.
+// Seed the OFF list before sign-in; the first server render already sees it.
+// With every flag fixed this is a no-op the spec proves, not a way to hide anything.
+await addFeatureCookie(page.context(), ['all_papers', 'stars', 'ask'], baseURL!);
 
-// Or flip one from the account menu the way the product owner does mid-demo:
 const toggles = new FeatureToggles(page);
-await toggles.turnOff('ask');
-await toggles.turnOn('ask');
+await toggles.openMenu();
+await expect(toggles.sectionHeading).toHaveCount(0); // no "Demo features" section
 ```
 
-`addFeatureCookie` is a thin wrapper over `context.addCookies()`; `BasePage.addCookies()` is the general form for any preference cookie (`rs-lang`, `rs-features`). The first test in the spec states the cookieless default out loud, so a regression in the defaults fails there rather than somewhere in journey 02.
+To hand a switch back to the menu, delete that flag's `fixed` property in the registry; the version of this spec before 9 Sep 2026 covered the toggles, the vanish guard and each flag off on its own.
+
+`addFeatureCookie` is a thin wrapper over `context.addCookies()`; `BasePage.addCookies()` is the general form for any preference cookie (`rs-lang`, `rs-features`).
 
 The suite targets the local frontend (`http://localhost:3000`) by default; a dev server on another port takes `E2E_BASE_URL`:
 

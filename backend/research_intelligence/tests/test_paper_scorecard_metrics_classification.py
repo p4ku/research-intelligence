@@ -19,6 +19,7 @@ from research_intelligence.services.scorecard_extractors import (
     _unwrap_val,
     extract_risk_and_affiliation,
     extract_rich_dimension_details,
+    extract_metrics_for_extraction,
     resolve_field_val,
 )
 
@@ -951,4 +952,156 @@ return {
         self.assertIn("gate_speed", facet_keys)
         self.assertIn("coherence_time", facet_keys)
         self.assertNotIn("random_extra_score", facet_keys)
+
+    def test_14_explicit_metrics_all_four_permutation_cases(self):
+        """
+        Verify all 4 permutation cases for primary and secondary frontend metrics:
+        1. Explicit primary + several secondary:
+           - Headline gets primary; submetrics get all secondaries (no duplicate promotion).
+        2. Explicit primary + NO secondary:
+           - Headline gets primary; NO secondary submetrics.
+        3. NO primary + several secondary (user's exact bug case: novelty, significance, rigour):
+           - Headline has NO number (value=None, raw=None); all 3 secondary metrics rendered in submetrics.
+        4. NO primary + NO secondary:
+           - Defaults to legacy algorithm (exit metrics fallback: first is primary, rest are secondary).
+        """
+        # Case 1: Explicit primary + multiple secondary
+        def_case1 = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Case 1 Primary And Secondaries",
+            response_schema={"type": "object", "properties": {"main_score": {"type": "number"}, "sub_a": {"type": "number"}, "sub_b": {"type": "number"}}},
+            exit_metrics="fallback_exit, sub_a, sub_b",
+            primary_frontend_metric="main_score",
+            secondary_frontend_metrics="sub_a, sub_b",
+            is_active=True,
+        )
+        ext_case1 = Extraction.objects.create(
+            paper=self.paper,
+            workspace=self.workspace,
+            extraction_definition=def_case1,
+            category="Case 1 Primary And Secondaries",
+            fields_data={"main_score": 85, "sub_a": 70, "sub_b": 80, "fallback_exit": 99},
+        )
+        self.assertTrue(def_case1.has_explicit_frontend_metrics())
+        self.assertEqual(def_case1.get_primary_frontend_metric(), "main_score")
+        self.assertEqual(def_case1.get_secondary_frontend_metrics_list(), ["sub_a", "sub_b"])
+        prim1, sec1, _ = extract_metrics_for_extraction(ext_case1, def_case1)
+        self.assertEqual(prim1["key"], "main_score")
+        self.assertEqual(prim1["numeric_value"], 85)
+        self.assertEqual([s["key"] for s in sec1], ["sub_a", "sub_b"])
+
+        # Case 2: Explicit primary + NO secondary
+        def_case2 = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Case 2 Primary And No Secondaries",
+            response_schema={"type": "object", "properties": {"solo_score": {"type": "number"}, "fallback_1": {"type": "number"}, "fallback_2": {"type": "number"}}},
+            exit_metrics="fallback_1, fallback_2",
+            primary_frontend_metric="solo_score",
+            secondary_frontend_metrics="",
+            is_active=True,
+        )
+        ext_case2 = Extraction.objects.create(
+            paper=self.paper,
+            workspace=self.workspace,
+            extraction_definition=def_case2,
+            category="Case 2 Primary And No Secondaries",
+            fields_data={"solo_score": 92, "fallback_1": 60, "fallback_2": 70},
+        )
+        self.assertTrue(def_case2.has_explicit_frontend_metrics())
+        self.assertEqual(def_case2.get_primary_frontend_metric(), "solo_score")
+        self.assertEqual(def_case2.get_secondary_frontend_metrics_list(), [])
+        prim2, sec2, _ = extract_metrics_for_extraction(ext_case2, def_case2)
+        self.assertEqual(prim2["key"], "solo_score")
+        self.assertEqual(prim2["numeric_value"], 92)
+        self.assertEqual(sec2, [])
+
+        # Case 3: NO primary + multiple secondary (User's case: novelty, significance, rigour)
+        def_case3 = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Research Metrics Test Case",
+            response_schema={"type": "object", "properties": {"novelty": {"type": "number"}, "significance": {"type": "number"}, "rigour": {"type": "number"}}},
+            exit_metrics="novelty, significance, rigour",
+            primary_frontend_metric="",
+            secondary_frontend_metrics="novelty, significance, rigour",
+            is_active=True,
+        )
+        ext_case3 = Extraction.objects.create(
+            paper=self.paper,
+            workspace=self.workspace,
+            extraction_definition=def_case3,
+            category="Research Metrics Test Case",
+            fields_data={"novelty": 68, "significance": 65, "rigour": 72},
+        )
+        self.assertTrue(def_case3.has_explicit_frontend_metrics())
+        self.assertIsNone(def_case3.get_primary_frontend_metric())
+        self.assertEqual(def_case3.get_secondary_frontend_metrics_list(), ["novelty", "significance", "rigour"])
+        prim3, sec3, _ = extract_metrics_for_extraction(ext_case3, def_case3)
+        self.assertIsNone(prim3)
+        self.assertEqual([s["key"] for s in sec3], ["novelty", "significance", "rigour"])
+
+        # Case 4: NO primary + NO secondary (legacy algorithm fallback)
+        def_case4 = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Case 4 Legacy Fallback",
+            response_schema={"type": "object", "properties": {"first_exit": {"type": "number"}, "second_exit": {"type": "number"}, "third_exit": {"type": "number"}}},
+            exit_metrics="first_exit, second_exit, third_exit",
+            primary_frontend_metric="",
+            secondary_frontend_metrics="",
+            is_active=True,
+        )
+        ext_case4 = Extraction.objects.create(
+            paper=self.paper,
+            workspace=self.workspace,
+            extraction_definition=def_case4,
+            category="Case 4 Legacy Fallback",
+            fields_data={"first_exit": 50, "second_exit": 60, "third_exit": 70},
+        )
+        self.assertFalse(def_case4.has_explicit_frontend_metrics())
+        self.assertEqual(def_case4.get_primary_frontend_metric(), "first_exit")
+        self.assertEqual(def_case4.get_secondary_frontend_metrics_list(), ["second_exit", "third_exit"])
+        prim4, sec4, _ = extract_metrics_for_extraction(ext_case4, def_case4)
+        self.assertEqual(prim4["key"], "first_exit")
+        self.assertEqual(prim4["numeric_value"], 50)
+        self.assertEqual([s["key"] for s in sec4], ["second_exit", "third_exit"])
+
+        # Verify all 4 dimensions in scorecard API endpoint
+        url = f"/api/papers/{self.paper.id}/scorecard/?pipeline_run={self.run_beta.id}"
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        dims = {d["definition_id"]: d for d in data["paper"]["dimensions"]}
+
+        # Check Case 1 API payload:
+        dim1 = dims[str(def_case1.id)]
+        self.assertEqual(dim1["value"], 85)
+        self.assertEqual(dim1["primary_metric"]["key"], "main_score")
+        self.assertEqual(len(dim1["secondary_metrics"]), 2)
+        self.assertEqual([f["key"] for f in dim1["facets"]], ["sub_a", "sub_b"])
+
+        # Check Case 2 API payload:
+        dim2 = dims[str(def_case2.id)]
+        self.assertEqual(dim2["value"], 92)
+        self.assertEqual(dim2["primary_metric"]["key"], "solo_score")
+        self.assertEqual(dim2["secondary_metrics"], [])
+        self.assertEqual(dim2["facets"], [])
+
+        # Check Case 3 API payload (no primary, 3 secondaries):
+        dim3 = dims[str(def_case3.id)]
+        self.assertIsNone(dim3["value"])
+        self.assertIsNone(dim3["raw"])
+        self.assertIsNone(dim3["primary_metric"])
+        self.assertEqual(len(dim3["secondary_metrics"]), 3)
+        self.assertEqual([s["key"] for s in dim3["secondary_metrics"]], ["novelty", "significance", "rigour"])
+        self.assertEqual([f["key"] for f in dim3["facets"]], ["novelty", "significance", "rigour"])
+        self.assertEqual(dim3["facets"][0]["value"], 68)
+        self.assertEqual(dim3["facets"][1]["value"], 65)
+        self.assertEqual(dim3["facets"][2]["value"], 72)
+
+        # Check Case 4 API payload (legacy defaults):
+        dim4 = dims[str(def_case4.id)]
+        self.assertEqual(dim4["value"], 50)
+        self.assertEqual(dim4["primary_metric"]["key"], "first_exit")
+        self.assertEqual(len(dim4["secondary_metrics"]), 2)
+        self.assertEqual([f["key"] for f in dim4["facets"]], ["second_exit", "third_exit"])
+
 

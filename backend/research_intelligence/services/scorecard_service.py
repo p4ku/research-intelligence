@@ -30,7 +30,7 @@ def format_definitions_metadata(definitions: list) -> list:
         d_slug = d.name.lower().replace(' ', '_').replace('-', '_')
         is_trl = bool(re.search(r'\btrl\b', d.name, re.IGNORECASE))
         max_val = 9 if is_trl else (10 if '(1-10)' in d.name else None)
-        has_explicit = bool(d.primary_frontend_metric or d.secondary_frontend_metrics)
+        has_explicit = bool(d.has_explicit_frontend_metrics())
 
         if has_explicit:
             main_key = d.get_primary_frontend_metric()
@@ -198,11 +198,12 @@ def build_single_scored_paper(
         dim_key = d.name.lower().replace(' ', '_').replace('-', '_')
 
         numeric_val = primary_metric.get('numeric_value') if primary_metric else None
-        raw_val = (
-            str(primary_metric.get('value'))
-            if (primary_metric and primary_metric.get('value') is not None)
-            else (str(e.exit_metric) if (e and e.exit_metric is not None) else '—')
-        )
+        if primary_metric and primary_metric.get('value') is not None:
+            raw_val = str(primary_metric.get('value'))
+        elif d and d.has_explicit_frontend_metrics():
+            raw_val = None
+        else:
+            raw_val = str(e.exit_metric) if (e and e.exit_metric is not None) else None
 
         rich_details = extract_rich_dimension_details(
             fields_data=e.fields_data if (e and e.fields_data) else {},
@@ -210,7 +211,7 @@ def build_single_scored_paper(
             secondary_metrics=secondary_metrics or [],
             max_val=max_val,
             is_trl=is_trl,
-            order=d.get_secondary_frontend_metrics_list() if (d and d.secondary_frontend_metrics) else (d.get_exit_metrics_list() if d else None),
+            order=d.get_secondary_frontend_metrics_list() if (d and d.has_explicit_frontend_metrics()) else (d.get_exit_metrics_list() if d else None),
         )
 
         dimensions.append({
@@ -520,7 +521,11 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
             exit_list = d_obj.get_exit_metrics_list()
             prim_exit = d_obj.get_primary_exit_metric()
             d_slug = d_obj.name.lower().replace(' ', '_').replace('-', '_')
-            if has_post:
+            has_explicit = bool(d_obj.has_explicit_frontend_metrics())
+            if has_explicit:
+                main_key = d_obj.get_primary_frontend_metric()
+                aux_keys = d_obj.get_secondary_frontend_metrics_list()
+            elif has_post:
                 main_key = f"{d_slug}_postprocessed"
                 aux_keys = exit_list
             else:
@@ -534,6 +539,8 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
                 'response_schema': d_obj.response_schema,
                 'exit_metrics': exit_list,
                 'primary_exit_metric': prim_exit,
+                'primary_frontend_metric': d_obj.primary_frontend_metric or None,
+                'secondary_frontend_metrics': d_obj.get_secondary_frontend_metrics_list(),
                 'has_postprocessing': has_post,
                 'postprocessing_code': d_obj.postprocessing_code or None,
                 'primary_metric_key': main_key,
