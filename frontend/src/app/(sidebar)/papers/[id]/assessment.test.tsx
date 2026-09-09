@@ -733,4 +733,108 @@ describe('Assessment Component Rendering', () => {
       '<h4 class="text-sm font-semibold text-zinc-950 dark:text-white">Hardware Architecture Notes</h4>',
     )
   })
+
+  test('omits duplicate sub-measure scores from facts at the bottom of scoring dimensions', () => {
+    // User case: backend emits rigour_score, novelty_score, significance_score in facts
+    const dimWithDuplicateFacts: Dimension = {
+      key: 'research_metrics',
+      definition_id: '00000000-0000-4000-8000-000000000003',
+      name: 'Research Metrics',
+      value: 68,
+      raw: '68',
+      max: 100,
+      is_trl: false,
+      facets: [
+        { key: 'novelty', name: 'Novelty', value: 68, max: 100, text: 'Novelty text' },
+        {
+          key: 'significance',
+          name: 'Significance',
+          value: 73,
+          max: 100,
+          text: 'Significance text',
+        },
+        { key: 'rigour', name: 'Rigour', value: 74, max: 100, text: 'Rigour text' },
+      ],
+      texts: [],
+      evidence: [],
+      facts: [
+        { key: 'rigour_score', name: 'Rigour', value: '74' },
+        { key: 'novelty_score', name: 'Novelty', value: '68' },
+        { key: 'significance_score', name: 'Significance', value: '73' },
+        { key: 'independent_fact', name: 'Compute Architecture', value: 'GPU + FPGA' },
+      ],
+      lists: [],
+    }
+
+    const out = renderToStaticMarkup(<Assessment dimensions={[dimWithDuplicateFacts]} t={t} />)
+
+    // Independent fact is kept
+    expect(out).toContain('Compute Architecture')
+    expect(out).toContain('GPU + FPGA')
+
+    // Facts DL does NOT contain duplicate submeasure items
+    const dlMatch = out.match(/<dl[^>]*>([\s\S]*?)<\/dl>/)
+    expect(dlMatch).not.toBeNull()
+    const dlContent = dlMatch![1]
+    expect(dlContent).not.toContain('Rigour')
+    expect(dlContent).not.toContain('Novelty')
+    expect(dlContent).not.toContain('Significance')
+  })
+
+  test('moves Schwarz Fit Insight from facts to the top under section header without subtitle', () => {
+    // User img 2 case: Schwarz fit insight delivered in facts
+    const schwarzFitDim: Dimension = {
+      key: 'schwarz_fit',
+      definition_id: '00000000-0000-4000-8000-000000000004',
+      name: 'Schwarz Fit',
+      value: 64,
+      raw: '64',
+      max: 100,
+      is_trl: false,
+      facets: [
+        {
+          key: 'strategic_operational_need',
+          name: 'Strategic operational need',
+          value: 78,
+          max: 100,
+        },
+        {
+          key: 'cross_industry_scalability',
+          name: 'Cross industry scalability',
+          value: 82,
+          max: 100,
+        },
+      ],
+      texts: [],
+      evidence: [],
+      facts: [
+        {
+          key: 'schwarz_fit_insight',
+          name: 'Schwarz fit insight',
+          value:
+            'WHET aligns strongly with Schwarz Digits sovereign cloud strategy and external market offerings for privacy-preserving AI.',
+        },
+      ],
+      lists: [],
+    }
+
+    const out = renderToStaticMarkup(<Assessment dimensions={[schwarzFitDim]} t={t} />)
+
+    // 1. Rendered at the top
+    expect(out).toContain(
+      'WHET aligns strongly with Schwarz Digits sovereign cloud strategy and external market offerings for privacy-preserving AI.',
+    )
+
+    // 2. Subtitle / heading "Schwarz fit insight" is omitted
+    expect(out).not.toContain('Schwarz fit insight')
+
+    // 3. No <dl> left for facts since the only fact was an insight
+    expect(out).not.toContain('<dl')
+
+    // 4. Insight is placed BEFORE submeasure rows
+    const insightIdx = out.indexOf('WHET aligns strongly with Schwarz Digits')
+    const submeasureIdx = out.indexOf('data-submetric="strategic_operational_need"')
+    expect(insightIdx).toBeGreaterThan(0)
+    expect(submeasureIdx).toBeGreaterThan(insightIdx)
+  })
 })

@@ -560,19 +560,55 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
     return true
   })
 
-  const isInsight = (field: UnpackedField) => {
+  const isInsight = (field: { key?: string | null; name: string }) => {
     const k = (field.key ?? '').toLowerCase().replace(/[-_ ]/g, '')
     const n = field.name.toLowerCase().replace(/[-_ ]/g, '')
     return k.includes('insight') || n.includes('insight')
   }
 
-  const topInsights = visibleTexts.filter(
-    (field) =>
-      isInsight(field) &&
-      field.value != null &&
-      String(field.value).trim() !== '' &&
-      (!d.rationale || d.rationale.trim() !== String(field.value).trim()),
+  const isSubMeasureDuplicate = (field: { key?: string | null; name: string }) => {
+    const fk = (field.key ?? '')
+      .toLowerCase()
+      .replace(/[-_ ]/g, '')
+      .replace(/_?score$/, '')
+    const fn = field.name
+      .toLowerCase()
+      .replace(/[-_ ]/g, '')
+      .replace(/_?score$/, '')
+    return visibleSubMeasures.some((sub) => {
+      const sk = sub.key
+        .toLowerCase()
+        .replace(/[-_ ]/g, '')
+        .replace(/_?score$/, '')
+      const sn = sub.name
+        .toLowerCase()
+        .replace(/[-_ ]/g, '')
+        .replace(/_?score$/, '')
+      return fk === sk || fn === sn || fk === sn || fn === sk
+    })
+  }
+
+  const textInsights = visibleTexts
+    .filter((field) => isInsight(field) && field.value != null && String(field.value).trim() !== '')
+    .map((field) => ({
+      key: field.key ?? field.name,
+      value: String(field.value).trim(),
+    }))
+
+  const factInsights = (d.facts ?? [])
+    .filter((fact) => isInsight(fact) && fact.value != null && String(fact.value).trim() !== '')
+    .map((fact) => ({
+      key: fact.key,
+      value: String(fact.value).trim(),
+    }))
+
+  const allInsights = [...textInsights, ...factInsights]
+  const topInsights = allInsights.filter(
+    (field, idx) =>
+      (!d.rationale || d.rationale.trim() !== field.value) &&
+      allInsights.findIndex((other) => other.value === field.value) === idx,
   )
+
   const remainingTexts = visibleTexts.filter((field) => !isInsight(field))
 
   const visibleFacts = (d.facts ?? []).filter((fact) => {
@@ -580,6 +616,8 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
     const n = fact.name.toLowerCase()
     if (isTrl && (k.includes('confidence') || n.includes('confidence'))) return false
     if (k === 'confidence' || n === 'confidence') return false
+    if (isInsight(fact)) return false
+    if (isSubMeasureDuplicate(fact)) return false
     return true
   })
 
@@ -594,11 +632,7 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
 
       {/* Top insight prose boxes (e.g. "Research Quality Insight", "Schwarz Fit Insight") without subtitle */}
       {topInsights.map((field) => (
-        <AnswerMarkdown
-          key={field.key ?? field.name}
-          text={String(field.value)}
-          className={PROSE}
-        />
+        <AnswerMarkdown key={field.key} text={field.value} className={PROSE} />
       ))}
 
       {/* Sub-metrics / Secondary metrics with progress bar, score, prose & evidence */}
