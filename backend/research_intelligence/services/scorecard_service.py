@@ -676,22 +676,11 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
 
     # 2. Query papers for workspace
     papers_qs = Paper.objects.filter(workspace=workspace)
+    run_metric_filters = {}
     if target_pr:
-        papers_qs = papers_qs.filter(metrics__pipeline_run=target_pr).distinct()
+        run_metric_filters['metrics__pipeline_run'] = target_pr
     elif target_pr_id:
-        papers_qs = papers_qs.filter(metrics__pipeline_run_id=target_pr_id).distinct()
-
-    papers_qs = (
-        papers_qs
-        .select_related('workspace')
-        .prefetch_related(
-            'metrics',
-            'metrics__pipeline_run',
-            'extractions',
-            'extractions__extraction_definition',
-        )
-        .order_by('-created_at')
-    )
+        run_metric_filters['metrics__pipeline_run_id'] = target_pr_id
 
     # Optional screening status filter
     if request:
@@ -699,9 +688,9 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
         if screening_param:
             sc_clean = screening_param.strip().lower()
             if sc_clean == 'passed':
-                papers_qs = papers_qs.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'accepted'])
+                run_metric_filters['metrics__screening_status__in'] = ['abstract_passed', 'full_text_passed', 'accepted']
             elif sc_clean != 'all':
-                papers_qs = papers_qs.filter(screening_status=sc_clean)
+                run_metric_filters['metrics__screening_status'] = sc_clean
 
         search_query = request.query_params.get('search') or request.query_params.get('q')
         if search_query and str(search_query).strip():
@@ -713,6 +702,44 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
                 Q(doi__icontains=term) |
                 Q(arxiv_id__icontains=term)
             )
+
+    if run_metric_filters:
+        papers_qs = papers_qs.filter(**run_metric_filters).distinct()
+
+    ordering_param = None
+    if request:
+        ordering_param = request.query_params.get('ordering') or request.query_params.get('sort')
+
+    from django.db.models import F
+    if ordering_param:
+        ord_clean = ordering_param.strip().lower()
+        if ord_clean in ('signal_score', '+signal_score'):
+            papers_qs = papers_qs.order_by(F('metrics__signal_score').asc(nulls_last=True), 'created_at', 'id')
+        elif ord_clean == '-signal_score':
+            papers_qs = papers_qs.order_by(F('metrics__signal_score').desc(nulls_last=True), '-created_at', '-id')
+        elif ord_clean in ('title', '+title'):
+            papers_qs = papers_qs.order_by('title', 'id')
+        elif ord_clean == '-title':
+            papers_qs = papers_qs.order_by('-title', '-id')
+        elif ord_clean in ('created_at', '+created_at'):
+            papers_qs = papers_qs.order_by('created_at', 'id')
+        elif ord_clean == '-created_at':
+            papers_qs = papers_qs.order_by('-created_at', '-id')
+    elif target_pr_id:
+        papers_qs = papers_qs.order_by(F('metrics__signal_score').desc(nulls_last=True), '-created_at', '-id')
+    else:
+        papers_qs = papers_qs.order_by('-created_at', '-id')
+
+    papers_qs = (
+        papers_qs
+        .select_related('workspace')
+        .prefetch_related(
+            'metrics',
+            'metrics__pipeline_run',
+            'extractions',
+            'extractions__extraction_definition',
+        )
+    )
 
     # Optional pagination
     page_number = 1
@@ -756,10 +783,6 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
             request=request,
         )
         scored_papers.append(sp)
-
-    ordering_param = None
-    if request:
-        ordering_param = request.query_params.get('ordering') or request.query_params.get('sort')
 
     if ordering_param:
         ord_clean = ordering_param.strip().lower()

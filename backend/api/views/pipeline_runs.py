@@ -83,7 +83,7 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
                 ws_uuid = uuid.UUID(str(workspace_id))
                 if ws_uuid not in user_ws_ids:
                     return qs.none()
-                qs = base_qs.filter(workspace_id=ws_uuid)
+                qs = qs.filter(workspace_id=ws_uuid)
             except (ValueError, TypeError):
                 return qs.none()
 

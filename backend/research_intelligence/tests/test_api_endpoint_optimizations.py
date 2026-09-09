@@ -789,6 +789,115 @@ class ApiEndpointOptimizationsTestCase(TestCase):
         self.assertEqual(len(detail_data["step_history"]), 20)
         self.assertIn("screening", detail_data["stage_results"])
 
+    def test_edition_detail_handles_undefined_and_invalid_run_id_gracefully(self):
+        """
+        Verify GET /api/workspaces/{id}/editions/{date}/ safely handles:
+        - ?run_id=undefined
+        - ?run_id=null
+        - ?run_id=invalid-uuid-string
+        without raising an unhandled 500 ValidationError, safely falling back to date-based lookup.
+        """
+        target_date = datetime(2026, 9, 8, 14, 0, 0, tzinfo=dt_timezone.utc)
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Edition Test Run",
+            status="completed",
+            completed_at=target_date,
+            total_papers_fetched=5,
+            total_papers_passed_screening=2,
+        )
+
+        for invalid_param in ["undefined", "null", "not-a-valid-uuid", ""]:
+            resp = self.client.get(
+                f"/api/workspaces/{self.workspace.id}/editions/2026-09-08/?run_id={invalid_param}"
+            )
+            self.assertEqual(
+                resp.status_code,
+                200,
+                f"Expected 200 OK fallback for ?run_id={invalid_param}, got {resp.status_code}: {resp.content}"
+            )
+            data = resp.json()
+            self.assertEqual(data["run_id"], str(run.id))
+            self.assertEqual(data["date"], "2026-09-08")
+
+    def test_workspace_scorecard_pagination_preserves_global_ordering(self):
+        """
+        Verify that requesting pagination (page_size=2) with ordering by score (-signal_score)
+        properly orders results in the database before slicing, so Page 1 gets the global highest scores.
+        """
+        # Create 4 papers with varying creation times and scores
+        # p1 created first (oldest), but has the HIGHEST score (95)
+        p1 = Paper.objects.create(workspace=self.workspace, title="Oldest Highest Score Paper", arxiv_id="2609.0001", hash_id="hash_0001")
+        p2 = Paper.objects.create(workspace=self.workspace, title="Mid High Score Paper", arxiv_id="2609.0002", hash_id="hash_0002")
+        p3 = Paper.objects.create(workspace=self.workspace, title="Mid Low Score Paper", arxiv_id="2609.0003", hash_id="hash_0003")
+        p4 = Paper.objects.create(workspace=self.workspace, title="Newest Lowest Score Paper", arxiv_id="2609.0004", hash_id="hash_0004")
+
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Scorecard Ordering Run",
+            status="completed",
+            completed_at=timezone.now(),
+        )
+
+        PaperMetric.objects.create(workspace=self.workspace, paper=p1, pipeline_run=run, signal_score=95.0, screening_status="accepted")
+        PaperMetric.objects.create(workspace=self.workspace, paper=p2, pipeline_run=run, signal_score=80.0, screening_status="accepted")
+        PaperMetric.objects.create(workspace=self.workspace, paper=p3, pipeline_run=run, signal_score=50.0, screening_status="accepted")
+        PaperMetric.objects.create(workspace=self.workspace, paper=p4, pipeline_run=run, signal_score=20.0, screening_status="accepted")
+
+        # Request Page 1 with page_size=2 and ordering=-signal_score
+        resp = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run.id}&page=1&page_size=2&ordering=-signal_score"
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["count"], 4)
+        self.assertEqual(len(data["papers"]), 2)
+
+        # Page 1 must contain p1 (95) and p2 (80)
+        scores_page_1 = [p["signal_score"] for p in data["papers"]]
+        self.assertEqual(scores_page_1, [95.0, 80.0])
+
+        # Request Page 2
+        resp2 = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run.id}&page=2&page_size=2&ordering=-signal_score"
+        )
+        self.assertEqual(resp2.status_code, 200)
+        data2 = resp2.json()
+        scores_page_2 = [p["signal_score"] for p in data2["papers"]]
+        self.assertEqual(scores_page_2, [50.0, 20.0])
+
+    def test_workspace_scorecard_screening_status_scoped_to_same_metric_join(self):
+        """
+        Verify that when filtering by run_id AND screening_status=passed, a paper that was
+        accepted in Run A but rejected in Run B does NOT show up as passed when querying Run B.
+        """
+        paper = Paper.objects.create(workspace=self.workspace, title="Multi-Run Paper", arxiv_id="2609.9999", hash_id="hash_multirun")
+        run_a = PipelineRun.objects.create(workspace=self.workspace, name="Run A", status="completed")
+        run_b = PipelineRun.objects.create(workspace=self.workspace, name="Run B", status="completed")
+
+        # In Run A, paper was accepted with score 90
+        PaperMetric.objects.create(workspace=self.workspace, paper=paper, pipeline_run=run_a, signal_score=90.0, screening_status="accepted")
+        # In Run B, paper was rejected with score 10
+        PaperMetric.objects.create(workspace=self.workspace, paper=paper, pipeline_run=run_b, signal_score=10.0, screening_status="rejected")
+
+        # Query Run B with screening=passed -> should return 0 papers!
+        resp_b = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run_b.id}&screening=passed"
+        )
+        self.assertEqual(resp_b.status_code, 200)
+        data_b = resp_b.json()
+        self.assertEqual(len(data_b["papers"]), 0, "Paper was rejected in Run B, must not match screening=passed for Run B")
+
+        # Query Run A with screening=passed -> should return 1 paper!
+        resp_a = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run_a.id}&screening=passed"
+        )
+        self.assertEqual(resp_a.status_code, 200)
+        data_a = resp_a.json()
+        self.assertEqual(len(data_a["papers"]), 1)
+        self.assertEqual(data_a["papers"][0]["id"], str(paper.id))
+        self.assertEqual(data_a["papers"][0]["screening_status"], "accepted")
+
 
 
 

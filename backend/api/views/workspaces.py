@@ -424,10 +424,18 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             end_dt = start_dt + timedelta(days=1)
 
         requested_run_id = request.query_params.get('run_id')
+        target_run_uuid = None
+        if requested_run_id and str(requested_run_id).lower() not in ('undefined', 'null', ''):
+            import uuid
+            try:
+                target_run_uuid = uuid.UUID(str(requested_run_id))
+            except (ValueError, TypeError):
+                target_run_uuid = None
+
         from django.db.models import Q
         run_q = Q(workspace=workspace) & Q(status='completed')
-        if requested_run_id:
-            run_q &= Q(id=requested_run_id)
+        if target_run_uuid:
+            run_q &= Q(id=target_run_uuid)
         else:
             run_q &= (
                 (Q(completed_at__gte=start_dt) & Q(completed_at__lt=end_dt)) |
