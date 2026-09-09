@@ -1104,4 +1104,72 @@ return {
         self.assertEqual(len(dim4["secondary_metrics"]), 2)
         self.assertEqual([f["key"] for f in dim4["facets"]], ["second_exit", "third_exit"])
 
+    def test_15_postprocessing_dict_returned_as_primary_and_secondary_frontend_metrics(self):
+        """
+        Validates postprocessing returning a dictionary of metrics where one of the returned
+        keys (e.g. 'research_metric_avg') is selected as primary_frontend_metric, and others
+        as secondary_frontend_metrics. Even if fields_data in the database initially only
+        contained raw submetrics ('novelty', 'significance', 'rigour') without the computed key,
+        the scorecard engine evaluates the postprocessing dynamically and surfaces the value on frontend.
+        """
+        post_code = """
+novelty_score = float(novelty.get("score", 0) or 0)
+significance_score = float(significance.get("score", 0) or 0)
+rigour_score = float(rigour.get("score", 0) or 0)
+research_metric = (novelty_score + significance_score + rigour_score) / 3
+return {
+    "novelty_score": novelty_score,
+    "significance_score": significance_score,
+    "rigour_score": rigour_score,
+    "research_metric_avg": research_metric
+}
+"""
+        def_res = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Research Rigour & Quality",
+            response_schema={"type": "object"},
+            primary_frontend_metric="research_metric_avg",
+            secondary_frontend_metrics="novelty_score, significance_score, rigour_score",
+            postprocessing_code=post_code,
+            is_active=True,
+        )
+
+        ext = Extraction.objects.create(
+            paper=self.paper,
+            workspace=self.workspace,
+            extraction_definition=def_res,
+            category="Research Quality",
+            fields_data={
+                "novelty": {"score": 8, "reasoning": "High novelty"},
+                "significance": {"score": 7, "reasoning": "Good significance"},
+                "rigour": {"score": 9, "reasoning": "Rigorous proofs"},
+            },
+        )
+
+        url = f"/api/papers/{self.paper.id}/scorecard/?pipeline_run={self.run_beta.id}"
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        dim = next(d for d in data["paper"]["dimensions"] if d["definition_id"] == str(def_res.id))
+        self.assertIsNotNone(dim["primary_metric"])
+        self.assertEqual(dim["primary_metric"]["key"], "research_metric_avg")
+        self.assertEqual(dim["primary_metric"]["numeric_value"], 8.0)
+        self.assertEqual(dim["value"], 8.0)
+
+        # Check secondary metrics
+        sec_keys = [s["key"] for s in dim["secondary_metrics"]]
+        self.assertIn("novelty_score", sec_keys)
+        self.assertIn("significance_score", sec_keys)
+        self.assertIn("rigour_score", sec_keys)
+
+        # Check facets
+        facet_keys = [f["key"] for f in dim["facets"]]
+        self.assertIn("novelty_score", facet_keys)
+        self.assertIn("significance_score", facet_keys)
+        self.assertIn("rigour_score", facet_keys)
+        nov_f = next(f for f in dim["facets"] if f["key"] == "novelty_score")
+        self.assertEqual(nov_f["value"], 8.0)
+
+
 

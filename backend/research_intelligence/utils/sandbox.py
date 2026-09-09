@@ -512,6 +512,35 @@ def _wrap_postprocessing_snippet_to_callable(code_snippet: str) -> str:
     return wrapper
 
 
+class SafeSandboxNumber(float):
+    """Float subclass supporting .get() lookups (for score/value) to avoid AttributeError in postprocessing snippets."""
+    def get(self, key, default=None):
+        if str(key).lower() in ("score", "value", "numeric_value", "val"):
+            return float(self)
+        return default
+
+
+class SafeSandboxNone:
+    """Safe fallback for missing loaded names so .get() returns default rather than raising AttributeError."""
+    def get(self, key, default=None):
+        return default
+
+    def __float__(self):
+        return 0.0
+
+    def __int__(self):
+        return 0
+
+    def __bool__(self):
+        return False
+
+    def __repr__(self):
+        return "None"
+
+    def __eq__(self, other):
+        return other is None or isinstance(other, SafeSandboxNone)
+
+
 def execute_sandboxed_postprocessing(
     code_snippet: str,
     fields_data: Dict[str, Any],
@@ -539,8 +568,17 @@ def execute_sandboxed_postprocessing(
 
     for k, v in raw_fields.items():
         if isinstance(k, str) and k.isidentifier() and not k.startswith("_") and k not in FORBIDDEN_NAMES:
-            if isinstance(v, dict) and "value" in v:
-                valid_vars[k] = v["value"]
+            if isinstance(v, dict):
+                if "value" in v and len(v) == 1:
+                    v_val = v["value"]
+                    if isinstance(v_val, (int, float)) and not isinstance(v_val, bool):
+                        valid_vars[k] = SafeSandboxNumber(v_val)
+                    else:
+                        valid_vars[k] = v_val
+                else:
+                    valid_vars[k] = v
+            elif isinstance(v, (int, float)) and not isinstance(v, bool):
+                valid_vars[k] = SafeSandboxNumber(v)
             else:
                 valid_vars[k] = v
 
@@ -595,7 +633,7 @@ def execute_sandboxed_postprocessing(
                 and not var_name.startswith("__")
                 and var_name.isidentifier()
             ):
-                valid_vars[var_name] = None
+                valid_vars[var_name] = SafeSandboxNone()
 
     exec_scope: Dict[str, Any] = {
         "__builtins__": SAFE_BUILTINS,

@@ -410,6 +410,67 @@ def extract_metrics_for_extraction(e: Extraction, d: ExtractionDefinition = None
         and definition.postprocessing_code.strip()
     )
 
+    # Dynamic on-the-fly postprocessing evaluation if configured on definition and missing from fields_data
+    if has_postprocessing and isinstance(data_fields, dict):
+        needs_eval = False
+        if definition and definition.has_explicit_frontend_metrics():
+            prim_k = definition.get_primary_frontend_metric()
+            sec_keys = definition.get_secondary_frontend_metrics_list()
+            needed_keys = ([prim_k] if prim_k else []) + sec_keys
+            norm_keys = {k.strip().lower().replace(" ", "_").replace("-", "_") for k in data_fields.keys()}
+            if any(nk and nk.strip().lower().replace(" ", "_").replace("-", "_") not in norm_keys for nk in needed_keys):
+                needs_eval = True
+        else:
+            def_slug = (
+                definition.name.lower().replace(" ", "_").replace("-", "_")
+                if definition
+                else ((e.category or "extraction").lower().replace(" ", "_").replace("-", "_") if e else "extraction")
+            )
+            norm_keys = {k.strip().lower().replace(" ", "_").replace("-", "_") for k in data_fields.keys()}
+            if f"{def_slug}_postprocessed" not in norm_keys and not any(k.endswith("_postprocessed") for k in norm_keys):
+                needs_eval = True
+
+        if needs_eval:
+            try:
+                from ..utils.sandbox import execute_sandboxed_postprocessing
+                post_res = execute_sandboxed_postprocessing(
+                    code_snippet=definition.postprocessing_code,
+                    fields_data=data_fields,
+                    timeout_seconds=2.0,
+                )
+                if isinstance(post_res, dict):
+                    if isinstance(fields_data, dict) and "fields" in fields_data and isinstance(fields_data["fields"], dict):
+                        fields_data = dict(fields_data)
+                        fields_data["fields"] = dict(fields_data["fields"])
+                        fields_data["fields"].update(post_res)
+                        data_fields = fields_data["fields"]
+                    else:
+                        fields_data = dict(fields_data) if isinstance(fields_data, dict) else {}
+                        fields_data.update(post_res)
+                        data_fields = fields_data
+                    if e:
+                        e.fields_data = fields_data
+                elif post_res is not None:
+                    def_slug = (
+                        definition.name.lower().replace(" ", "_").replace("-", "_")
+                        if definition
+                        else "extraction"
+                    )
+                    cand_k = f"{def_slug}_postprocessed"
+                    if isinstance(fields_data, dict) and "fields" in fields_data and isinstance(fields_data["fields"], dict):
+                        fields_data = dict(fields_data)
+                        fields_data["fields"] = dict(fields_data["fields"])
+                        fields_data["fields"][cand_k] = post_res
+                        data_fields = fields_data["fields"]
+                    else:
+                        fields_data = dict(fields_data) if isinstance(fields_data, dict) else {}
+                        fields_data[cand_k] = post_res
+                        data_fields = fields_data
+                    if e:
+                        e.fields_data = fields_data
+            except Exception:
+                pass
+
     # 1. New Explicit Architecture: Single source of truth if configured
     if definition and definition.has_explicit_frontend_metrics():
         explicit_prim_key = definition.get_primary_frontend_metric()
