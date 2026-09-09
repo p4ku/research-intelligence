@@ -4,6 +4,8 @@ from django.test import TestCase
 from django.contrib.auth import get_user_model
 from rest_framework.test import APIClient
 
+from unittest.mock import patch, MagicMock
+
 from research_intelligence.models import (
     Workspace,
     WorkspaceMember,
@@ -12,8 +14,11 @@ from research_intelligence.models import (
     PaperMetric,
     ExtractionDefinition,
     Extraction,
+    ComponentRun,
     NarrativeReport,
 )
+
+from research_intelligence.tasks.step_5_extraction.extract import execute_extraction_job
 
 from research_intelligence.services.scorecard_extractors import (
     _unwrap_val,
@@ -1170,6 +1175,127 @@ return {
         self.assertIn("rigour_score", facet_keys)
         nov_f = next(f for f in dim["facets"] if f["key"] == "novelty_score")
         self.assertEqual(nov_f["value"], 8.0)
+
+    def test_16_extraction_pipeline_job_executes_postprocessing_dict_and_serves_via_api(self):
+        """
+        End-to-End test for extraction pipeline job execution with postprocessing returning a dict:
+        1. Configures ExtractionDefinition with postprocessing snippet returning a dictionary of multiple metrics,
+           and sets primary_frontend_metric="research_metric_avg", secondary_frontend_metrics="novelty_score, significance_score, rigour_score".
+        2. Executes the real Step 5 Celery task (execute_extraction_job) with mocked LLM output.
+        3. Verifies that the Extraction record in PostgreSQL has fields_data populated with the postprocessed dictionary.
+        4. Calls Paper Scorecard API (GET /api/papers/{id}/scorecard/?pipeline_run={id}), verifying:
+           - primary_metric: key="research_metric_avg", numeric_value=9.0, dimension value=9.0
+           - secondary_metrics: contains novelty_score (9.0), significance_score (8.0), rigour_score (10.0)
+           - facets: contains the parsed secondary metrics.
+        5. Calls Workspace Scorecard API (GET /api/workspaces/{id}/scorecard/?pipeline_run={id}), verifying
+           the paper's dimensions are rendered with the postprocessed metrics.
+        6. Updates definition primary_frontend_metric dynamically to another key in the postprocessed dict,
+           and confirms API reflects the updated selection immediately.
+        """
+        post_code = """
+novelty_score = float(novelty.get("score", 0) or 0)
+significance_score = float(significance.get("score", 0) or 0)
+rigour_score = float(rigour.get("score", 0) or 0)
+research_metric = (novelty_score + significance_score + rigour_score) / 3
+return {
+    "novelty_score": novelty_score,
+    "significance_score": significance_score,
+    "rigour_score": rigour_score,
+    "research_metric_avg": research_metric
+}
+"""
+        def_pipeline = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="E2E Pipeline Rigour & Quality",
+            response_schema={"type": "object"},
+            primary_frontend_metric="research_metric_avg",
+            secondary_frontend_metrics="novelty_score, significance_score, rigour_score",
+            postprocessing_code=post_code,
+            is_active=True,
+        )
+
+        comp_run = ComponentRun.objects.create(
+            pipeline_run=self.run_beta,
+            step_type="extraction",
+            component_name="parameter_extraction",
+            status="pending",
+        )
+
+        # Mock LLM provider to return the raw model outputs for the paper
+        with patch("research_intelligence.tasks.step_5_extraction.extract.get_llm_provider") as mock_get_llm:
+            mock_provider = MagicMock()
+            mock_provider.generate.return_value = (
+                {
+                    "novelty": {"score": 9.0, "reasoning": "Highly novel approach"},
+                    "significance": {"score": 8.0, "reasoning": "Clear industrial impact"},
+                    "rigour": {"score": 10.0, "reasoning": "Rigorous proofs and benchmarks"},
+                },
+                {"prompt_tokens": 15, "candidates_tokens": 10},
+            )
+            mock_get_llm.return_value = mock_provider
+
+            # Execute the extraction job
+            job_success = execute_extraction_job(str(comp_run.id))
+            self.assertTrue(job_success)
+
+        comp_run.refresh_from_db()
+        self.assertEqual(comp_run.status, "completed")
+
+        # 1. Verify Extraction record in database was generated and populated with postprocessed dict
+        ext = Extraction.objects.get(paper=self.paper, extraction_definition=def_pipeline)
+        self.assertIsNotNone(ext)
+        self.assertIn("research_metric_avg", ext.fields_data)
+        self.assertEqual(ext.fields_data["research_metric_avg"], 9.0)
+        self.assertEqual(ext.fields_data["novelty_score"], 9.0)
+        self.assertEqual(ext.fields_data["significance_score"], 8.0)
+        self.assertEqual(ext.fields_data["rigour_score"], 10.0)
+
+        # 2. Call Paper Scorecard API
+        url = f"/api/papers/{self.paper.id}/scorecard/?pipeline_run={self.run_beta.id}"
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        dim = next(d for d in data["paper"]["dimensions"] if d["definition_id"] == str(def_pipeline.id))
+        self.assertIsNotNone(dim["primary_metric"])
+        self.assertEqual(dim["primary_metric"]["key"], "research_metric_avg")
+        self.assertEqual(dim["primary_metric"]["numeric_value"], 9.0)
+        self.assertEqual(dim["value"], 9.0)
+
+        sec_keys = [s["key"] for s in dim["secondary_metrics"]]
+        self.assertEqual(sec_keys, ["novelty_score", "significance_score", "rigour_score"])
+        sec_map = {s["key"]: s["numeric_value"] for s in dim["secondary_metrics"]}
+        self.assertEqual(sec_map["novelty_score"], 9.0)
+        self.assertEqual(sec_map["significance_score"], 8.0)
+        self.assertEqual(sec_map["rigour_score"], 10.0)
+
+        facet_keys = [f["key"] for f in dim["facets"]]
+        self.assertIn("novelty_score", facet_keys)
+        self.assertIn("significance_score", facet_keys)
+        self.assertIn("rigour_score", facet_keys)
+
+        # 3. Call Workspace Scorecard API
+        ws_url = f"/api/workspaces/{self.workspace.id}/scorecard/?pipeline_run={self.run_beta.id}"
+        ws_resp = self.client.get(ws_url)
+        self.assertEqual(ws_resp.status_code, 200)
+        ws_data = ws_resp.json()
+        paper_item = next(p for p in ws_data["papers"] if p["id"] == str(self.paper.id))
+        ws_dim = next(d for d in paper_item["dimensions"] if d["definition_id"] == str(def_pipeline.id))
+        self.assertEqual(ws_dim["primary_metric"]["key"], "research_metric_avg")
+        self.assertEqual(ws_dim["primary_metric"]["numeric_value"], 9.0)
+        self.assertEqual(ws_dim["value"], 9.0)
+
+        # 4. Dynamic reconfiguration test: change primary_frontend_metric to 'significance_score'
+        def_pipeline.primary_frontend_metric = "significance_score"
+        def_pipeline.save()
+
+        resp_dyn = self.client.get(url)
+        self.assertEqual(resp_dyn.status_code, 200)
+        dim_dyn = next(d for d in resp_dyn.json()["paper"]["dimensions"] if d["definition_id"] == str(def_pipeline.id))
+        self.assertEqual(dim_dyn["primary_metric"]["key"], "significance_score")
+        self.assertEqual(dim_dyn["primary_metric"]["numeric_value"], 8.0)
+        self.assertEqual(dim_dyn["value"], 8.0)
+
 
 
 
