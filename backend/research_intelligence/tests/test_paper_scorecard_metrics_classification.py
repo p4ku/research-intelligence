@@ -1341,6 +1341,119 @@ return {
         resp_zero = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?page_size=0")
         self.assertEqual(resp_zero.status_code, 200)
 
+    def test_18_production_spec_nested_risk_and_affiliation_adapter(self):
+        """
+        Validates Option A Tolerant Adapter (issue #142 / backlog item 9):
+        On production, Risk & Affiliation LLM extraction results are nested under `metadata`:
+          - metadata.institutional_affiliations: list[str]
+          - metadata.author_contacts: list[dict with author_name and email]
+          - metadata.funding_entities: list[str]
+          - metadata.codebase_links: list[str]
+          - gdpr_concern: dict with status and concerns[]
+          - competitor_involvement: dict with status and competitors[]
+          - schwarz_ecosystem_affiliation: dict with status and matched_institutions[]
+        Confirms the adapter recovers all data and produces the exact canonical OpenAPI contract:
+          - affiliations: unpacked from metadata.institutional_affiliations
+          - author_contacts: clean emails (alice@ethz.ch) and names when email is None (Bob Syndrome)
+          - codebase_artifact_link: primary string URL (not stringified list)
+          - funding_entities: clean list of grant entities
+          - gdpr_concerns: formatted with Article 9 reason in parens
+          - flags: safe/warn/highlight badges with unpacked reasons
+        """
+        def_risk = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Risk and Affiliation Flagging",
+            response_schema={"type": "object"},
+            is_active=True,
+        )
+
+        prod_spec_data = {
+            "metadata": {
+                "institutional_affiliations": ["ETH Zürich", "Stanford University"],
+                "author_contacts": [
+                    {"author_name": "Dr. Alice Quantum", "email": "alice@ethz.ch"},
+                    {"author_name": "Bob Syndrome", "email": None},
+                ],
+                "funding_entities": ["European Research Council (ERC)", "SNSF Grant 12345"],
+                "codebase_links": [
+                    "https://github.com/schwarz-research/quantum-error-correction",
+                    "https://zenodo.org/record/99999",
+                ],
+                "dataset_links": ["https://huggingface.co/datasets/quantum-benchmarks"],
+            },
+            "gdpr_concern": {
+                "status": "YES",
+                "concerns": ["Article 9 biometric and health-related genetic data processing"],
+            },
+            "competitor_involvement": {
+                "status": "NO",
+                "competitors": [],
+            },
+            "schwarz_ecosystem_affiliation": {
+                "status": "YES",
+                "matched_institutions": ["ETH Zürich"],
+            },
+            "risk_score": 25.0,
+            "risk_score_assessment": "Moderate compliance review required for Article 9 processing.",
+        }
+
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=self.paper,
+            extraction_definition=def_risk,
+            category="risk_and_affiliation",
+            fields_data=prod_spec_data,
+        )
+
+        url = f"/api/papers/{self.paper.id}/scorecard/?pipeline_run={self.run_beta.id}"
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        risk = data["paper"]["risk_and_affiliation"]
+        self.assertIsNotNone(risk)
+
+        # 1. Affiliations recovered from metadata.institutional_affiliations
+        self.assertIn("ETH Zürich", risk["affiliations"])
+        self.assertIn("Stanford University", risk["affiliations"])
+
+        # 2. Author contacts: email extracted for Alice, clean name for Bob (no 'None' email)
+        self.assertIn("alice@ethz.ch", risk["author_contacts"])
+        self.assertIn("Bob Syndrome", risk["author_contacts"])
+        self.assertNotIn("Bob Syndrome <None>", risk["author_contacts"])
+
+        # 3. Funding entities recovered from metadata.funding_entities
+        self.assertIn("European Research Council (ERC)", risk["funding_entities"])
+        self.assertIn("SNSF Grant 12345", risk["funding_entities"])
+
+        # 4. Codebase link: first item as string (not "['https://...']")
+        self.assertEqual(
+            risk["codebase_artifact_link"],
+            "https://github.com/schwarz-research/quantum-error-correction"
+        )
+
+        # 5. GDPR concerns recovered from singular gdpr_concern with Article 9 reason
+        self.assertEqual(
+            risk["gdpr_concerns"],
+            "YES (Article 9 biometric and health-related genetic data processing)"
+        )
+
+        # 6. Flags verification
+        flag_map = {f["key"]: f for f in risk["flags"]}
+        self.assertEqual(flag_map["gdpr"]["status"], "warn")
+        self.assertIn("Article 9", flag_map["gdpr"]["value"])
+
+        self.assertEqual(flag_map["schwarz_ecosystem"]["status"], "highlight")
+        self.assertEqual(flag_map["schwarz_ecosystem"]["value"], "YES (ETH Zürich)")
+
+        self.assertEqual(flag_map["competitor"]["status"], "safe")
+        self.assertEqual(flag_map["competitor"]["value"], "None")
+
+        # 7. Risk score & assessment
+        self.assertEqual(risk["risk_score"], 25.0)
+        self.assertEqual(risk["risk_score_assessment"], "Moderate compliance review required for Article 9 processing.")
+
+
 
 
 

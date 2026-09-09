@@ -86,6 +86,8 @@ def unpack_flag_value(raw_val, flag_name=""):
             or parsed.get("institutions")
             or parsed.get("competitors")
             or parsed.get("details")
+            or parsed.get("concerns")
+            or parsed.get("reasons")
         )
         items = []
         if isinstance(matches, list):
@@ -558,139 +560,12 @@ def is_risk_dimension(name: str = "", key: str = "") -> bool:
 
 def extract_risk_and_affiliation(fields_data: dict) -> dict:
     """
-    Extracts structured Risk & Affiliation data to display directly under authors:
-      - Affiliations (institutions/labs)
-      - Author contacts (emails, names)
-      - Funding entities
-      - Codebase artifact link (Zenodo, GitHub, etc.)
-      - Key risk flags (GDPR Sovereignty, Schwarz Ecosystem, Competitor Involvement)
+    Extracts structured Risk & Affiliation data to display directly under authors.
+    Delegates to `adapt_risk_and_affiliation` (Option A Tolerant Adapter).
+    See `risk_affiliation_adapter.py` for comprehensive architecture notes and Option B roadmap.
     """
-    if not isinstance(fields_data, dict):
-        return None
-    data = fields_data.get("fields") if isinstance(fields_data.get("fields"), dict) else fields_data
-    if not isinstance(data, dict):
-        return None
-
-    # Affiliations (unwrapping nested value dicts)
-    affiliations = []
-    raw_affil = _unwrap_val(
-        data.get("author_affiliation")
-        or data.get("affiliations")
-        or data.get("affiliation")
-        or data.get("institutions")
-        or data.get("institution")
-    )
-    if isinstance(raw_affil, list):
-        affiliations = [str(a).strip() for a in raw_affil if str(a).strip()]
-    elif isinstance(raw_affil, str) and raw_affil.strip():
-        affiliations = [a.strip() for a in re.split(r'[,;]\s*', raw_affil) if a.strip()]
-
-    # Author contacts / emails
-    contacts = []
-    raw_contacts = _unwrap_val(
-        data.get("author_contacts")
-        or data.get("contacts")
-        or data.get("emails")
-        or data.get("email")
-        or data.get("author_emails")
-        or data.get("correspondence")
-    )
-    if isinstance(raw_contacts, list):
-        contacts = [str(c).strip() for c in raw_contacts if str(c).strip()]
-    elif isinstance(raw_contacts, str) and raw_contacts.strip():
-        contacts = [c.strip() for c in re.split(r'[,;]\s*', raw_contacts) if c.strip()]
-
-    # Funding entities
-    funding = []
-    raw_funding = _unwrap_val(
-        data.get("funding_entities")
-        or data.get("funding")
-        or data.get("grants")
-        or data.get("sponsors")
-        or data.get("grant_agencies")
-    )
-    if isinstance(raw_funding, list):
-        funding = [str(f).strip() for f in raw_funding if str(f).strip()]
-    elif isinstance(raw_funding, str) and raw_funding.strip():
-        funding = [f.strip() for f in re.split(r'[,;]\s*', raw_funding) if f.strip()]
-
-    # Codebase artifact link with extended aliases
-    code_link = _unwrap_val(
-        data.get("codebase_artifact_link")
-        or data.get("artifact_link")
-        or data.get("code_repository")
-        or data.get("repository")
-        or data.get("code_url")
-        or data.get("github_url")
-        or data.get("zenodo_link")
-        or data.get("dataset_url")
-        or data.get("repository_url")
-    )
-    if code_link and not isinstance(code_link, str):
-        code_link = str(code_link)
-
-    # Specific boolean/string risk flags
-    schwarz_ecosystem = _unwrap_val(data.get("schwarz_ecosystem_affiliation") or data.get("schwarz_fit") or data.get("schwarz_affiliation"))
-    gdpr_concerns = _unwrap_val(data.get("gdpr_concerns") or data.get("gdpr_sovereignty") or data.get("gdpr") or data.get("data_privacy_concerns"))
-    competitor_involvement = _unwrap_val(data.get("competitor_involvement") or data.get("competitor_risk") or data.get("competitor"))
-    risk_score = _unwrap_val(data.get("risk_score"))
-    risk_assessment = _unwrap_val(data.get("risk_score_assessment") or data.get("risk_assessment"))
-
-    # Format badges/flags
-    flags = []
-    if gdpr_concerns is not None:
-        val_str, is_pos, _, is_d, p_dict = unpack_flag_value(gdpr_concerns, "gdpr")
-        flags.append({
-            "key": "gdpr",
-            "label": "GDPR Sovereignty",
-            "value": val_str,
-            "status": "warn" if is_pos else "safe",
-            "type": "dict" if is_d else "string",
-            "is_dict": is_d,
-            "dict_value": p_dict if is_d else None,
-        })
-    if schwarz_ecosystem is not None:
-        val_str, is_pos, items, is_d, p_dict = unpack_flag_value(schwarz_ecosystem, "schwarz")
-        flags.append({
-            "key": "schwarz_ecosystem",
-            "label": "Schwarz Ecosystem",
-            "value": val_str,
-            "status": "highlight" if is_pos else "neutral",
-            "type": "dict" if is_d else "string",
-            "is_dict": is_d,
-            "dict_value": p_dict if is_d else None,
-        })
-        if not affiliations and items:
-            affiliations.extend(items)
-    if competitor_involvement is not None:
-        val_str, is_pos, _, is_d, p_dict = unpack_flag_value(competitor_involvement, "competitor")
-        flags.append({
-            "key": "competitor",
-            "label": "Competitor Involvement",
-            "value": val_str,
-            "status": "warn" if is_pos else "safe",
-            "type": "dict" if is_d else "string",
-            "is_dict": is_d,
-            "dict_value": p_dict if is_d else None,
-        })
-
-    schwarz_clean = unpack_flag_value(schwarz_ecosystem, "schwarz")[0] if schwarz_ecosystem is not None else None
-    gdpr_clean = unpack_flag_value(gdpr_concerns, "gdpr")[0] if gdpr_concerns is not None else None
-    competitor_clean = unpack_flag_value(competitor_involvement, "competitor")[0] if competitor_involvement is not None else None
-
-    return {
-        "raw": data,
-        "affiliations": affiliations,
-        "author_contacts": contacts,
-        "funding_entities": funding,
-        "codebase_artifact_link": code_link,
-        "schwarz_ecosystem_affiliation": schwarz_clean,
-        "gdpr_concerns": gdpr_clean,
-        "competitor_involvement": competitor_clean,
-        "risk_score": float(risk_score) if isinstance(risk_score, (int, float)) else None,
-        "risk_score_assessment": str(risk_assessment) if risk_assessment else None,
-        "flags": flags,
-    }
+    from .risk_affiliation_adapter import adapt_risk_and_affiliation
+    return adapt_risk_and_affiliation(fields_data)
 
 
 def extract_rich_dimension_details(
