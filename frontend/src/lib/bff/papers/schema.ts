@@ -132,6 +132,8 @@ export const dimension = z
     fields_data: z.record(z.string(), z.any()).nullable().optional(),
     response_schema: z.record(z.string(), z.any()).nullable().optional(),
     exit_metrics: z.array(z.string()).optional(),
+    primary_frontend_metric: z.string().nullable().optional(),
+    secondary_frontend_metrics: z.array(z.string()).optional(),
     rationale: z.string().nullable().optional(),
     evidence: z.array(z.string()).nullable().optional(),
     confidence: z.number().nullable().optional(),

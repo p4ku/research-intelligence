@@ -996,6 +996,8 @@ def create_extraction_definition(
     user_prompt_template: str,
     response_schema: dict,
     exit_metrics: list[str] = None,
+    primary_frontend_metric: str = None,
+    secondary_frontend_metrics: list[str] = None,
     postprocessing_code: str = None,
     llm_model: str = "google/gemini-3.8-flash",
     version: int = 1,
@@ -1016,6 +1018,8 @@ def create_extraction_definition(
     - user_prompt_template: Template with variables `{{paper_title}}`, `{{abstract}}`, `{{full_text}}`.
     - response_schema: JSON Schema dictionary defining the expected structure, field types, and constraints.
     - exit_metrics: List of field keys (e.g. ['rigour_score', 'param1', 'param2']) to unpack from extracted JSON for Signal Score.
+    - primary_frontend_metric: Optional explicit headline field key displayed on the frontend dimension badge (e.g. 'fit_score' or 'trl_level').
+    - secondary_frontend_metrics: Optional explicit list of sub-metric field keys displayed with progress bars and insight prose on frontend (e.g. ['novelty', 'significance']).
     - postprocessing_code: Optional Python snippet executed in a secure AST sandbox with full access to `data`, `response`, `json_response` and extracted fields. Computes an extra variable `<primary_metric>_postprocessed` for Signal Score.
     - llm_model: Default 'google/gemini-3.8-flash'.
     """
@@ -1032,6 +1036,8 @@ def create_extraction_definition(
         user_prompt_template=user_prompt_template,
         response_schema=response_schema,
         exit_metrics=exit_metrics,
+        primary_frontend_metric=primary_frontend_metric,
+        secondary_frontend_metrics=secondary_frontend_metrics,
         postprocessing_code=postprocessing_code,
         llm_model=llm_model,
         version=version,
@@ -1046,6 +1052,8 @@ def update_extraction_definition(
     definition_id: str,
     name: str | None = None,
     exit_metrics: list[str] | None = None,
+    primary_frontend_metric: str | None = None,
+    secondary_frontend_metrics: list[str] | None = None,
     postprocessing_code: str | None = None,
     system_prompt: str | None = None,
     user_prompt_template: str | None = None,
@@ -1057,11 +1065,13 @@ def update_extraction_definition(
 ) -> str:
     """
     [PARAMETER DEFINITION UPDATE]
-    Update an existing extraction definition's schema, prompts, exit metrics list, postprocessing code, or LLM configuration.
+    Update an existing extraction definition's schema, prompts, exit metrics list, primary/secondary frontend metrics, postprocessing code, or LLM configuration.
     
     PARAMETERS:
     - definition_id: UUID of the extraction definition.
     - exit_metrics: List of exit parameter keys (e.g. ['rigour_score', 'param1']) to expose for Signal Score.
+    - primary_frontend_metric: Optional explicit headline field key displayed on the frontend dimension badge (e.g. 'fit_score').
+    - secondary_frontend_metrics: Optional explicit list of sub-metric field keys displayed on frontend (e.g. ['novelty', 'significance']).
     - postprocessing_code: Python snippet executed in secure AST sandbox. Set empty string to clear.
     """
     try:
@@ -1074,6 +1084,8 @@ def update_extraction_definition(
         definition_id=definition_id,
         name=name,
         exit_metrics=exit_metrics,
+        primary_frontend_metric=primary_frontend_metric,
+        secondary_frontend_metrics=secondary_frontend_metrics,
         postprocessing_code=postprocessing_code,
         system_prompt=system_prompt,
         user_prompt_template=user_prompt_template,

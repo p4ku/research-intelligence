@@ -21,6 +21,8 @@ def list_extraction_definitions_logic(user, workspace_id: str) -> str:
             "definition_id": str(d.id),
             "name": d.name,
             "exit_metrics": d.get_exit_metrics_list(),
+            "primary_frontend_metric": d.primary_frontend_metric or None,
+            "secondary_frontend_metrics": d.get_secondary_frontend_metrics_list(),
             "llm_model": d.llm_model,
             "version": d.version,
             "requires_consensus": d.requires_consensus,
@@ -60,6 +62,8 @@ def get_extraction_definition_logic(user, definition_id: str) -> str:
         "workspace_name": definition.workspace.name,
         "name": definition.name,
         "exit_metrics": definition.get_exit_metrics_list(),
+        "primary_frontend_metric": definition.primary_frontend_metric or None,
+        "secondary_frontend_metrics": definition.get_secondary_frontend_metrics_list(),
         "system_prompt": definition.system_prompt,
         "user_prompt_template": definition.user_prompt_template,
         "response_schema": definition.response_schema,
@@ -82,6 +86,8 @@ def create_extraction_definition_logic(
     user_prompt_template: str,
     response_schema: dict,
     exit_metrics: list = None,
+    primary_frontend_metric: str = None,
+    secondary_frontend_metrics: list = None,
     postprocessing_code: str = None,
     llm_model: str = "google/gemini-3.8-flash",
     version: int = 1,
@@ -104,6 +110,25 @@ def create_extraction_definition_logic(
             target_exit_metrics = None
     else:
         target_exit_metrics = None
+
+    # Resolve primary_frontend_metric
+    target_prim_metric = None
+    if primary_frontend_metric is not None:
+        if isinstance(primary_frontend_metric, (list, tuple)):
+            target_prim_metric = str(primary_frontend_metric[0]).strip() if primary_frontend_metric else None
+        elif isinstance(primary_frontend_metric, str):
+            target_prim_metric = primary_frontend_metric.strip() or None
+        else:
+            target_prim_metric = str(primary_frontend_metric).strip() or None
+
+    # Resolve secondary_frontend_metrics
+    target_sec_metrics = None
+    if secondary_frontend_metrics is not None:
+        if isinstance(secondary_frontend_metrics, (list, tuple)):
+            target_sec_metrics = ", ".join(str(m).strip() for m in secondary_frontend_metrics if str(m).strip())
+        elif isinstance(secondary_frontend_metrics, str):
+            parts = [part.strip() for part in secondary_frontend_metrics.split(',') if part.strip()]
+            target_sec_metrics = ", ".join(parts) if parts else None
 
     if postprocessing_code is not None:
         code_str = postprocessing_code.strip() if isinstance(postprocessing_code, str) else ""
@@ -131,6 +156,8 @@ def create_extraction_definition_logic(
         workspace=workspace,
         name=name,
         exit_metrics=target_exit_metrics,
+        primary_frontend_metric=target_prim_metric,
+        secondary_frontend_metrics=target_sec_metrics,
         postprocessing_code=postprocessing_code,
         system_prompt=system_prompt,
         user_prompt_template=user_prompt_template,
@@ -155,6 +182,8 @@ def create_extraction_definition_logic(
         "workspace_id": str(workspace.id),
         "name": definition.name,
         "exit_metrics": definition.get_exit_metrics_list(),
+        "primary_frontend_metric": definition.primary_frontend_metric or None,
+        "secondary_frontend_metrics": definition.get_secondary_frontend_metrics_list(),
         "postprocessing_code": definition.postprocessing_code or "",
         "has_postprocessing_code": bool(definition.postprocessing_code),
         "llm_model": definition.llm_model
@@ -167,6 +196,8 @@ def update_extraction_definition_logic(
     definition_id: str,
     name: str = None,
     exit_metrics: list = None,
+    primary_frontend_metric: str = None,
+    secondary_frontend_metrics: list = None,
     system_prompt: str = None,
     user_prompt_template: str = None,
     response_schema: dict = None,
@@ -206,6 +237,23 @@ def update_extraction_definition_logic(
             target_exit_metrics = ""
         definition.exit_metrics = target_exit_metrics or None
         updated_fields.append('exit_metrics')
+    if primary_frontend_metric is not None:
+        if isinstance(primary_frontend_metric, (list, tuple)):
+            definition.primary_frontend_metric = str(primary_frontend_metric[0]).strip() if primary_frontend_metric else None
+        elif isinstance(primary_frontend_metric, str):
+            definition.primary_frontend_metric = primary_frontend_metric.strip() or None
+        else:
+            definition.primary_frontend_metric = str(primary_frontend_metric).strip() or None
+        updated_fields.append('primary_frontend_metric')
+    if secondary_frontend_metrics is not None:
+        if isinstance(secondary_frontend_metrics, (list, tuple)):
+            definition.secondary_frontend_metrics = ", ".join(str(m).strip() for m in secondary_frontend_metrics if str(m).strip())
+        elif isinstance(secondary_frontend_metrics, str):
+            parts = [part.strip() for part in secondary_frontend_metrics.split(',') if part.strip()]
+            definition.secondary_frontend_metrics = ", ".join(parts) if parts else ""
+        else:
+            definition.secondary_frontend_metrics = ""
+        updated_fields.append('secondary_frontend_metrics')
     if postprocessing_code is not None:
         code_str = postprocessing_code.strip() if isinstance(postprocessing_code, str) else ""
         if code_str:
@@ -263,6 +311,8 @@ def update_extraction_definition_logic(
         "definition_id": str(definition.id),
         "updated_fields": updated_fields,
         "exit_metrics": definition.get_exit_metrics_list(),
+        "primary_frontend_metric": definition.primary_frontend_metric or None,
+        "secondary_frontend_metrics": definition.get_secondary_frontend_metrics_list(),
         "postprocessing_code": definition.postprocessing_code or "",
         "has_postprocessing_code": bool(definition.postprocessing_code)
     }

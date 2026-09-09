@@ -869,3 +869,86 @@ return {
         self.assertTrue(flag_comp["competitor"]["is_dict"])
         self.assertIsInstance(flag_comp["competitor"]["dict_value"], dict)
 
+    def test_13_explicit_frontend_metrics_classification(self):
+        """
+        Verifies explicit primary_frontend_metric and secondary_frontend_metrics:
+        - Primary and secondary metrics are taken directly from explicit definition fields.
+        - Magic heuristic / suffix scanning is bypassed.
+        - Serializer correctly represents primary_frontend_metric and secondary_frontend_metrics.
+        - Scorecard API endpoint delivers explicit frontend metrics in metadata and dimensions.
+        """
+        from research_intelligence.services.scorecard_extractors import extract_metrics_for_extraction
+        from api.serializers.workspaces import ExtractionDefinitionSerializer
+
+        # 1. Create definition with explicit frontend metrics
+        def_explicit = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Quantum Computing Practicality",
+            system_prompt="Extract practicality parameters.",
+            user_prompt_template="Extract for {paper_text}",
+            response_schema={"type": "object", "properties": {"practicality_score": {"type": "number"}}},
+            primary_frontend_metric="practicality_score",
+            secondary_frontend_metrics=["qubit_fidelity", "gate_speed", "coherence_time"],
+            exit_metrics="practicality_score, signal_var1",
+        )
+
+        extraction_data = {
+            "practicality_score": 88,
+            "qubit_fidelity": 99.9,
+            "gate_speed": {"score": 95, "band": "High Speed", "insight": "Sub-nanosecond gate execution."},
+            "coherence_time": 120,
+            "random_extra_score": 50,  # Should NOT be scanned as a secondary metric because secondary_frontend_metrics is explicit!
+            "irrelevant_computed": 42,
+        }
+
+        ext = Extraction.objects.create(
+            paper=self.paper,
+            workspace=self.workspace,
+            extraction_definition=def_explicit,
+            category="Quantum Computing Practicality",
+            fields_data=extraction_data,
+        )
+
+        # 2. Verify extractor resolution
+        prim, sec, has_post = extract_metrics_for_extraction(ext, def_explicit)
+        self.assertEqual(prim["key"], "practicality_score")
+        self.assertEqual(prim["numeric_value"], 88)
+        self.assertEqual(prim["source"], "frontend_metric")
+
+        sec_keys = [s["key"] for s in sec]
+        self.assertEqual(sec_keys, ["qubit_fidelity", "gate_speed", "coherence_time"])
+        self.assertNotIn("random_extra_score", sec_keys)
+        self.assertNotIn("irrelevant_computed", sec_keys)
+
+        # 3. Verify serializer output
+        ser = ExtractionDefinitionSerializer(def_explicit)
+        self.assertEqual(ser.data["primary_frontend_metric"], "practicality_score")
+        self.assertEqual(ser.data["secondary_frontend_metrics"], ["qubit_fidelity", "gate_speed", "coherence_time"])
+
+        # 4. Verify scorecard API response payload
+        url = f"/api/papers/{self.paper.id}/scorecard/?pipeline_run={self.run_beta.id}"
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        # Check definition metadata
+        def_meta = next((d for d in data["definitions"] if d["id"] == str(def_explicit.id)), None)
+        self.assertIsNotNone(def_meta)
+        self.assertEqual(def_meta["primary_frontend_metric"], "practicality_score")
+        self.assertEqual(def_meta["secondary_frontend_metrics"], ["qubit_fidelity", "gate_speed", "coherence_time"])
+        self.assertEqual(def_meta["primary_metric_key"], "practicality_score")
+        self.assertEqual(def_meta["secondary_metric_keys"], ["qubit_fidelity", "gate_speed", "coherence_time"])
+
+        # Check dimension
+        dim = next((d for d in data["paper"]["dimensions"] if d["definition_id"] == str(def_explicit.id)), None)
+        self.assertIsNotNone(dim)
+        self.assertEqual(dim["value"], 88)
+        self.assertEqual(dim["primary_frontend_metric"], "practicality_score")
+        self.assertEqual(dim["secondary_frontend_metrics"], ["qubit_fidelity", "gate_speed", "coherence_time"])
+
+        facet_keys = [f["key"] for f in dim["facets"]]
+        self.assertIn("qubit_fidelity", facet_keys)
+        self.assertIn("gate_speed", facet_keys)
+        self.assertIn("coherence_time", facet_keys)
+        self.assertNotIn("random_extra_score", facet_keys)
+

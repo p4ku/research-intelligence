@@ -273,6 +273,30 @@ def extract_metrics_for_extraction(e: Extraction, d: ExtractionDefinition = None
         and definition.postprocessing_code.strip()
     )
 
+    # Check for explicit frontend metrics first (simplifying and removing magic guessing)
+    has_explicit_frontend = bool(
+        definition and (definition.primary_frontend_metric or definition.secondary_frontend_metrics)
+    )
+
+    if has_explicit_frontend:
+        explicit_prim_key = definition.get_primary_frontend_metric()
+        primary_metric = build_metric_entry(
+            key=explicit_prim_key,
+            fields_data=fields_data,
+            source="frontend_metric",
+            label_override=format_metric_label(explicit_prim_key),
+        )
+
+        explicit_sec_keys = definition.get_secondary_frontend_metrics_list()
+        secondary_metrics = []
+        for sk in explicit_sec_keys:
+            if sk.strip().lower() == (explicit_prim_key or "").strip().lower():
+                continue
+            secondary_metrics.append(
+                build_metric_entry(key=sk, fields_data=fields_data, source="frontend_metric")
+            )
+        return primary_metric, secondary_metrics, has_postprocessing
+
     exit_keys = definition.get_exit_metrics_list() if definition else []
     primary_exit = definition.get_primary_exit_metric() if definition else None
     def_slug = (
@@ -732,13 +756,77 @@ def extract_rich_dimension_details(
         seen_facet_bases.add(primary_base)
     facet_order = [k.strip().lower() for k in (order or [])]
 
-    # Include numeric secondary metrics first
+    # Include secondary metrics
     for m in secondary_metrics:
         mk = m.get("key")
         mk_norm = mk.strip().lower() if mk else ""
         mk_base = _base_metric_key(mk_norm)
         if mk_base and mk_base in seen_facet_bases:
             continue
+
+        raw_entry = data.get(mk) if mk in data else None
+        if raw_entry is None:
+            for dk, dv in data.items():
+                if dk.strip().lower().replace(" ", "_").replace("-", "_") == mk_norm.replace(" ", "_").replace("-", "_"):
+                    raw_entry = dv
+                    break
+
+        parsed_dict = _parse_dict_or_json(raw_entry)
+        if isinstance(parsed_dict, dict) and parsed_dict:
+            s_raw = parsed_dict.get("score") if "score" in parsed_dict else parsed_dict.get("value")
+            item_score = None
+            if s_raw is not None:
+                try:
+                    f_s = float(s_raw)
+                    if math.isfinite(f_s):
+                        item_score = int(f_s) if f_s.is_integer() else round(f_s, 2)
+                except (ValueError, TypeError):
+                    pass
+            if item_score is None and m.get("is_numeric"):
+                item_score = m.get("numeric_value")
+
+            b_raw = parsed_dict.get("band") or parsed_dict.get("label") or parsed_dict.get("level")
+            item_band = str(b_raw).strip() if b_raw is not None and str(b_raw).strip() not in ("None", "") else None
+
+            i_raw = (
+                parsed_dict.get("insight")
+                or parsed_dict.get("rationale")
+                or parsed_dict.get("reasoning")
+                or parsed_dict.get("explanation")
+                or parsed_dict.get("description")
+                or parsed_dict.get("text")
+                or parsed_dict.get("summary")
+            )
+            item_insight = str(i_raw).strip() if i_raw is not None and str(i_raw).strip() not in ("None", "") else None
+
+            e_raw = parsed_dict.get("evidence") or parsed_dict.get("quotes") or parsed_dict.get("snippets")
+            item_evidence = []
+            if isinstance(e_raw, list):
+                item_evidence = [str(q.get("quote") if isinstance(q, dict) else q).strip() for q in e_raw if q and str(q).strip() not in ("None", "")]
+            elif isinstance(e_raw, str) and e_raw.strip() not in ("None", ""):
+                item_evidence = [e_raw.strip()]
+
+            f_max = max_val
+            if item_score is not None and 0.0 <= float(item_score) <= 1.0 and any(kw in mk_norm for kw in ("confidence", "probability", "prob", "ratio", "rate")):
+                f_max = 1
+
+            facets.append({
+                "key": mk,
+                "name": humanise_field_label(mk),
+                "value": item_score,
+                "max": f_max,
+                "text": item_insight,
+                "band": item_band,
+                "evidence": item_evidence,
+            })
+            seen_facet_keys.add(mk_norm)
+            if mk_base:
+                seen_facet_bases.add(mk_base)
+            used.add(mk_norm)
+            if item_evidence:
+                evidence.extend(item_evidence)
+            continue
+
         if mk_norm and m.get("is_numeric") and m.get("numeric_value") is not None:
             num_v = m["numeric_value"]
             f_max = max_val
@@ -781,46 +869,47 @@ def extract_rich_dimension_details(
                 })
                 used.add(mk_norm)
 
-    # Scan data for any other _score fields that weren't in secondary_metrics
-    for k, v in data.items():
-        k_norm = k.strip().lower()
-        k_base = _base_metric_key(k_norm)
-        if k_norm in used or k_norm in seen_facet_keys or (k_base and k_base in seen_facet_bases):
-            continue
-        val = _unwrap_val(v)
-        if FACET_KEY_RE.search(k_norm):
-            num_v = None
-            try:
-                f_v = float(val)
-                if math.isfinite(f_v):
-                    num_v = int(f_v) if f_v.is_integer() else round(f_v, 2)
-            except (ValueError, TypeError):
-                pass
+    # Scan data for any other _score fields ONLY if secondary_metrics were not provided (legacy fallback)
+    if not secondary_metrics:
+        for k, v in data.items():
+            k_norm = k.strip().lower()
+            k_base = _base_metric_key(k_norm)
+            if k_norm in used or k_norm in seen_facet_keys or (k_base and k_base in seen_facet_bases):
+                continue
+            val = _unwrap_val(v)
+            if FACET_KEY_RE.search(k_norm):
+                num_v = None
+                try:
+                    f_v = float(val)
+                    if math.isfinite(f_v):
+                        num_v = int(f_v) if f_v.is_integer() else round(f_v, 2)
+                except (ValueError, TypeError):
+                    pass
 
-            if num_v is not None:
-                twin_text = None
-                twin_k = re.sub(r'_score$', '_assessment', k_norm)
-                if twin_k in data:
-                    t_val = _unwrap_val(data[twin_k])
-                    if isinstance(t_val, str) and t_val.strip():
-                        twin_text = t_val.strip()
-                        used.add(twin_k)
+                if num_v is not None:
+                    twin_text = None
+                    twin_k = re.sub(r'_score$', '_assessment', k_norm)
+                    if twin_k in data:
+                        t_val = _unwrap_val(data[twin_k])
+                        if isinstance(t_val, str) and t_val.strip():
+                            twin_text = t_val.strip()
+                            used.add(twin_k)
 
-                f_max = max_val
-                if 0.0 <= float(num_v) <= 1.0 and any(kw in k_norm for kw in ("confidence", "probability", "prob", "ratio", "rate")):
-                    f_max = 1
+                    f_max = max_val
+                    if 0.0 <= float(num_v) <= 1.0 and any(kw in k_norm for kw in ("confidence", "probability", "prob", "ratio", "rate")):
+                        f_max = 1
 
-                facets.append({
-                    "key": k,
-                    "name": humanise_field_label(k),
-                    "value": num_v,
-                    "max": f_max,
-                    "text": twin_text,
-                })
-                seen_facet_keys.add(k_norm)
-                if k_base:
-                    seen_facet_bases.add(k_base)
-                used.add(k_norm)
+                    facets.append({
+                        "key": k,
+                        "name": humanise_field_label(k),
+                        "value": num_v,
+                        "max": f_max,
+                        "text": twin_text,
+                    })
+                    seen_facet_keys.add(k_norm)
+                    if k_base:
+                        seen_facet_bases.add(k_base)
+                    used.add(k_norm)
 
     # Sort facets by definition order if given
     if facet_order:
@@ -935,10 +1024,7 @@ def extract_rich_dimension_details(
                         "evidence": item_evidence,
                     })
 
-                if item_evidence:
-                    evidence.extend(item_evidence)
-
-                # Add to texts: main value is the insight (NEVER duplicate score in text!)
+                # Add to texts: main value is the insight (NEVER duplicate score in text string!)
                 if item_insight or item_band or item_evidence or parsed_dict:
                     texts.append({
                         "key": k,
@@ -952,6 +1038,10 @@ def extract_rich_dimension_details(
                         "evidence": item_evidence,
                         "score": item_score,
                     })
+
+                if item_evidence:
+                    evidence.extend(item_evidence)
+
                 used.add(k_norm)
                 continue
 

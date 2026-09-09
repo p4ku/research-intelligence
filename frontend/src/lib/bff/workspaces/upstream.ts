@@ -13,6 +13,8 @@ export const extractionDefinitionDTO = z.looseObject({
   user_prompt_template: z.string(),
   response_schema: z.record(z.string(), z.unknown()),
   exit_metrics: z.array(z.string()).optional(),
+  primary_frontend_metric: z.string().nullable().optional(),
+  secondary_frontend_metrics: z.array(z.string()).optional(),
   has_postprocessing_code: z.boolean().optional(),
   postprocessing_code: z.string().optional(),
   llm_model: z.string(),

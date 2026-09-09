@@ -19,20 +19,35 @@ class ExtractionDefinitionSerializer(serializers.ModelSerializer):
         allow_empty=True,
         help_text="Ordered list of exit parameter keys to expose for Signal Score."
     )
+    primary_frontend_metric = serializers.CharField(
+        max_length=255,
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        help_text="Explicit field key for the primary metric shown on the frontend (e.g. 'fit_score' or 'trl_level')."
+    )
+    secondary_frontend_metrics = serializers.ListField(
+        child=serializers.CharField(max_length=100),
+        required=False,
+        allow_empty=True,
+        help_text="Explicit list of field keys for secondary metrics/facets displayed on the frontend (e.g. ['novelty', 'significance'])."
+    )
     has_postprocessing_code = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = ExtractionDefinition
         fields = [
             'id', 'workspace', 'name', 'system_prompt', 'user_prompt_template',
-            'response_schema', 'exit_metrics', 'postprocessing_code',
-            'has_postprocessing_code', 'llm_model', 'version',
+            'response_schema', 'exit_metrics', 'primary_frontend_metric', 'secondary_frontend_metrics',
+            'postprocessing_code', 'has_postprocessing_code', 'llm_model', 'version',
             'requires_consensus', 'is_active', 'created_at'
         ]
 
     def to_representation(self, instance):
         ret = super().to_representation(instance)
         ret['exit_metrics'] = instance.get_exit_metrics_list()
+        ret['primary_frontend_metric'] = instance.primary_frontend_metric or None
+        ret['secondary_frontend_metrics'] = instance.get_secondary_frontend_metrics_list()
         ret['has_postprocessing_code'] = bool(instance.postprocessing_code)
         if ret.get('postprocessing_code') is None:
             ret['postprocessing_code'] = ""
@@ -54,6 +69,31 @@ class ExtractionDefinitionSerializer(serializers.ModelSerializer):
             elif isinstance(raw_exit_metrics, str):
                 parts = [part.strip() for part in raw_exit_metrics.split(',') if part.strip()]
                 attrs['exit_metrics'] = ", ".join(parts) if parts else ""
+
+        # Handle primary_frontend_metric and plural alias primary_frontend_metrics
+        raw_prim = attrs.get('primary_frontend_metric')
+        if raw_prim is None and 'primary_frontend_metric' in self.initial_data:
+            raw_prim = self.initial_data.get('primary_frontend_metric')
+        if raw_prim is None and 'primary_frontend_metrics' in self.initial_data:
+            raw_prim = self.initial_data.get('primary_frontend_metrics')
+        if raw_prim is not None:
+            if isinstance(raw_prim, (list, tuple)):
+                attrs['primary_frontend_metric'] = str(raw_prim[0]).strip() if raw_prim else None
+            elif isinstance(raw_prim, str):
+                attrs['primary_frontend_metric'] = raw_prim.strip() or None
+            else:
+                attrs['primary_frontend_metric'] = str(raw_prim).strip() or None
+
+        # Handle secondary_frontend_metrics
+        raw_sec = attrs.get('secondary_frontend_metrics')
+        if raw_sec is None and 'secondary_frontend_metrics' in self.initial_data:
+            raw_sec = self.initial_data.get('secondary_frontend_metrics')
+        if raw_sec is not None:
+            if isinstance(raw_sec, (list, tuple)):
+                attrs['secondary_frontend_metrics'] = ", ".join(str(m).strip() for m in raw_sec if str(m).strip())
+            elif isinstance(raw_sec, str):
+                parts = [part.strip() for part in raw_sec.split(',') if part.strip()]
+                attrs['secondary_frontend_metrics'] = ", ".join(parts) if parts else ""
 
         # Validate postprocessing_code syntax
         code = attrs.get('postprocessing_code')

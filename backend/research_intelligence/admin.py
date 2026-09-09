@@ -3772,11 +3772,13 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
     list_display = ('name', 'exit_metrics_status', 'workspace', 'version', 'llm_model', 'has_postprocessing_code', 'requires_consensus', 'is_active', 'created_at')
     ordering = ('-created_at', '-id')
     list_filter = ('is_active', 'requires_consensus', 'workspace')
-    search_fields = ('name', 'exit_metrics', 'system_prompt', 'user_prompt_template', 'postprocessing_code')
+    search_fields = ('name', 'exit_metrics', 'primary_frontend_metric', 'secondary_frontend_metrics', 'system_prompt', 'user_prompt_template', 'postprocessing_code')
     readonly_fields = ('postprocessed_variable_preview',)
     fields = (
         'workspace',
         'name',
+        'primary_frontend_metric',
+        'secondary_frontend_metrics',
         'exit_metrics',
         'system_prompt',
         'user_prompt_template',

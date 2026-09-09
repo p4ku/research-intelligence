@@ -407,20 +407,20 @@ function dimensionDetail(
           text: ins,
           band: b,
         })
+      } else {
+        texts.push({
+          key,
+          name,
+          value: ins || (b ? b : '—'),
+          type: 'dict',
+          is_dict: true,
+          dict_value: dictValue,
+          band: b,
+          insight: ins,
+          evidence: ev,
+          score: sc,
+        })
       }
-
-      texts.push({
-        key,
-        name,
-        value: ins || (b ? b : '—'),
-        type: 'dict',
-        is_dict: true,
-        dict_value: dictValue,
-        band: b,
-        insight: ins,
-        evidence: ev,
-        score: sc,
-      })
       continue
     }
 
@@ -645,8 +645,12 @@ function dimensionFor(
 
   const data = fieldsOf(extraction.fields_data)
   const named = resolveExitMetric(extraction.fields_data, ctx.def.name, extraction.category)
+  const explicitPrim = ctx.def.primary_frontend_metric ?? undefined
+  const explicitSec = ctx.def.secondary_frontend_metrics
   const exitKeys = ctx.def.exit_metrics ?? []
-  const { raw, matchedKey } = exitFromRow(extraction, data, exitKeys[0], named.matchedKey) ?? named
+  const targetPrim = explicitPrim || exitKeys[0]
+  const targetSec = explicitSec !== undefined ? explicitSec : exitKeys.slice(1)
+  const { raw, matchedKey } = exitFromRow(extraction, data, targetPrim, named.matchedKey) ?? named
   // metrics_data is pre-filled with 0.0 for every definition, so a bare 0
   // there is indistinguishable from "never scored" — only a non-zero metric
   // outranks the parsed extraction value ("null not 0", like parseNumeric).
@@ -669,8 +673,10 @@ function dimensionFor(
     // A TRL definition's sub-scores declare no range; the others share the
     // definition's own scale.
     ...(detail && {
-      ...dimensionDetail(data, used, value, ctx.is_trl ? null : ctx.max, exitKeys.slice(1)),
+      ...dimensionDetail(data, used, value, ctx.is_trl ? null : ctx.max, targetSec),
       model: modelOf(extraction),
+      primary_frontend_metric: explicitPrim ?? null,
+      secondary_frontend_metrics: targetSec,
     }),
   }
 }

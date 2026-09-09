@@ -29,8 +29,12 @@ def format_definitions_metadata(definitions: list) -> list:
         d_slug = d.name.lower().replace(' ', '_').replace('-', '_')
         is_trl = bool(re.search(r'\btrl\b', d.name, re.IGNORECASE))
         max_val = 9 if is_trl else (10 if '(1-10)' in d.name else None)
+        has_explicit = bool(d.primary_frontend_metric or d.secondary_frontend_metrics)
 
-        if has_post:
+        if has_explicit:
+            main_key = d.get_primary_frontend_metric()
+            aux_keys = d.get_secondary_frontend_metrics_list()
+        elif has_post:
             main_key = f"{d_slug}_postprocessed"
             aux_keys = exit_list
         else:
@@ -50,6 +54,8 @@ def format_definitions_metadata(definitions: list) -> list:
             'response_schema': d.response_schema,
             'exit_metrics': exit_list,
             'primary_exit_metric': prim_exit,
+            'primary_frontend_metric': d.primary_frontend_metric or None,
+            'secondary_frontend_metrics': d.get_secondary_frontend_metrics_list(),
             'has_postprocessing': has_post,
             'postprocessing_code': d.postprocessing_code or None,
             'primary_metric_key': main_key,
@@ -203,7 +209,7 @@ def build_single_scored_paper(
             secondary_metrics=secondary_metrics or [],
             max_val=max_val,
             is_trl=is_trl,
-            order=d.get_exit_metrics_list() if d else None,
+            order=d.get_secondary_frontend_metrics_list() if (d and d.secondary_frontend_metrics) else (d.get_exit_metrics_list() if d else None),
         )
 
         dimensions.append({
@@ -219,6 +225,8 @@ def build_single_scored_paper(
             'has_postprocessing': has_post,
             'primary_metric': primary_metric,
             'secondary_metrics': secondary_metrics,
+            'primary_frontend_metric': d.primary_frontend_metric or None,
+            'secondary_frontend_metrics': d.get_secondary_frontend_metrics_list(),
             'main_metric': primary_metric,
             'auxiliary_metrics': secondary_metrics,
             'is_hitl': bool(e.is_hitl_validated) if e else False,
