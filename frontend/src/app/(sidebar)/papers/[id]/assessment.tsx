@@ -528,12 +528,46 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
 }
 
 function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
+  const isTrl =
+    d.is_trl || d.key.toLowerCase().includes('trl') || d.name.toLowerCase().includes('trl')
+
   const { subMeasures, generalTexts } = resolveSubMeasures(
     d.facets,
     d.texts,
     d.max,
     d.response_schema,
   )
+
+  const visibleSubMeasures = subMeasures.filter((sub) => {
+    const k = sub.key.toLowerCase()
+    const n = sub.name.toLowerCase()
+    if (
+      isTrl &&
+      (k === 'confidence' ||
+        n === 'confidence' ||
+        k === 'confidence_level' ||
+        n === 'confidence level')
+    ) {
+      return false
+    }
+    return true
+  })
+
+  const visibleTexts = generalTexts.filter((field) => {
+    const k = (field.key ?? '').toLowerCase()
+    const n = field.name.toLowerCase()
+    if (isTrl && (k.includes('confidence') || n.includes('confidence'))) return false
+    if (k === 'confidence' || n === 'confidence') return false
+    return true
+  })
+
+  const visibleFacts = (d.facts ?? []).filter((fact) => {
+    const k = fact.key.toLowerCase()
+    const n = fact.name.toLowerCase()
+    if (isTrl && (k.includes('confidence') || n.includes('confidence'))) return false
+    if (k === 'confidence' || n === 'confidence') return false
+    return true
+  })
 
   return (
     <DefinitionFrame
@@ -545,16 +579,16 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       {d.rationale ? <AnswerMarkdown text={d.rationale} className={PROSE} /> : null}
 
       {/* Sub-metrics / Secondary metrics with progress bar, band, score, prose & evidence */}
-      {subMeasures.length > 0 && (
+      {visibleSubMeasures.length > 0 && (
         <div className="space-y-3">
-          {subMeasures.map((sub) => (
+          {visibleSubMeasures.map((sub) => (
             <SubMeasureRow key={sub.key} sub={sub} />
           ))}
         </div>
       )}
 
       {/* General dimension-level prose texts (e.g. "Research quality insight", "Core technology") */}
-      {generalTexts.map((field) => (
+      {visibleTexts.map((field) => (
         <div key={field.name} className="space-y-1.5">
           <h4 className={H4}>{field.name}</h4>
           {field.description && (
@@ -585,7 +619,9 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       {d.evidence
         ?.filter((quote) => {
           const unq = unquote(quote).trim()
-          return !subMeasures.some((sub) => sub.evidence?.some((ev) => unquote(ev).trim() === unq))
+          return !visibleSubMeasures.some((sub) =>
+            sub.evidence?.some((ev) => unquote(ev).trim() === unq),
+          )
         })
         .map((quote, i) => (
           <blockquote
@@ -599,9 +635,9 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
         ))}
 
       {/* Facts */}
-      {d.facts && d.facts.length > 0 && (
+      {visibleFacts.length > 0 && (
         <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-sm">
-          {d.facts.map((fact) => (
+          {visibleFacts.map((fact) => (
             <div key={fact.key} className="contents">
               <dt className="font-medium text-zinc-950 dark:text-white">{fact.name}</dt>
               <dd className="text-zinc-600 dark:text-zinc-400">

@@ -157,6 +157,32 @@ describe('Assessment Component Rendering', () => {
     expect(out).not.toContain('Needs review')
   })
 
+  test('omits Confidence feature (e.g. Confidence: HIGH) under TRL section', () => {
+    const trlDim: Dimension = {
+      ...fullDimension,
+      key: 'trl_level',
+      name: 'Technology Readiness Level (TRL)',
+      is_trl: true,
+      facets: [],
+      texts: [
+        {
+          key: 'core_technology',
+          name: 'Core technology',
+          value: 'Hardware accelerator architecture for Zero-Knowledge Proofs.',
+        },
+      ],
+      facts: [
+        { key: 'confidence', name: 'Confidence', value: 'HIGH' },
+        { key: 'hardware_target', name: 'Hardware target', value: 'FPGA' },
+      ],
+    }
+    const out = renderToStaticMarkup(<Assessment dimensions={[trlDim]} t={t} />)
+    expect(out).toContain('Core technology')
+    expect(out).toContain('Hardware target')
+    expect(out).not.toContain('Confidence')
+    expect(out).not.toContain('HIGH')
+  })
+
   test('filters out risk and affiliation dimensions from the Assessment article list', () => {
     const out = renderToStaticMarkup(
       <Assessment dimensions={[fullDimension, riskDimension]} t={t} />,
