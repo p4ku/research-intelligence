@@ -386,4 +386,91 @@ class ApiEndpointOptimizationsTestCase(TestCase):
         scores = [p["signal_score"] for p in data["papers"]]
         self.assertEqual(scores, [92.5, 65.0])
 
+        # Test search query parameter on scorecard
+        resp_search = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run_b.id}&search=High")
+        self.assertEqual(resp_search.status_code, 200)
+        search_papers = resp_search.json()["papers"]
+        self.assertEqual(len(search_papers), 1)
+        self.assertEqual(search_papers[0]["id"], str(p_b2.id))
+
+        # Test ordering query parameter on scorecard
+        # 1. Ascending signal_score
+        resp_asc = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run_b.id}&ordering=signal_score")
+        self.assertEqual(resp_asc.status_code, 200)
+        self.assertEqual([p["signal_score"] for p in resp_asc.json()["papers"]], [65.0, 92.5])
+
+        # 2. Descending title
+        resp_title = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?run_id={run_b.id}&ordering=-title")
+        self.assertEqual(resp_title.status_code, 200)
+        titles = [p["title"] for p in resp_title.json()["papers"]]
+        self.assertEqual(titles, [p_b2.title, p_b1.title])
+
+    def test_edition_detail_delivers_complete_scored_paper_payload(self):
+        """
+        Verify GET /api/workspaces/{id}/editions/{date}/:
+        Delivers complete ScoredPaper representation (dimensions, abstract, source_url)
+        so frontend can render PaperCard without making a second request to scorecard.
+        """
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Single Stream Run",
+            status="completed",
+            completed_at=timezone.now(),
+            total_papers_fetched=1,
+            total_papers_passed_screening=1,
+        )
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            title="Single Stream Paper",
+            abstract="Detailed methodology for quantum neural network optimization.",
+            authors="John Doe, Jane Smith",
+            source_database="arXiv",
+            arxiv_id="2609.12345",
+            hash_id="single_stream_hash",
+        )
+        PaperMetric.objects.create(
+            paper=paper,
+            workspace=self.workspace,
+            pipeline_run=run,
+            screening_status="accepted",
+            signal_score=88.5,
+        )
+        def_trl = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="TRL Assessment",
+            system_prompt="Extract TRL",
+            user_prompt_template="{paper_text}",
+            response_schema={},
+            exit_metrics="trl_level",
+            is_active=True,
+        )
+        Extraction.objects.create(
+            paper=paper,
+            workspace=self.workspace,
+            extraction_definition=def_trl,
+            category="TRL",
+            confidence_score=0.92,
+            fields_data={"trl_level": 5, "rationale": "Validated in laboratory environment"},
+        )
+
+        target_date_str = run.completed_at.strftime('%Y-%m-%d')
+        resp = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}")
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+
+        self.assertEqual(len(data["papers"]), 1)
+        card = data["papers"][0]
+        self.assertEqual(card["id"], str(paper.id))
+        self.assertEqual(card["title"], "Single Stream Paper")
+        self.assertEqual(card["abstract"], "Detailed methodology for quantum neural network optimization.")
+        self.assertEqual(card["source_url"], "https://arxiv.org/abs/2609.12345")
+        self.assertEqual(card["signal_score"], 88.5)
+        self.assertEqual(card["screening_status"], "accepted")
+        self.assertIn("dimensions", card)
+        self.assertGreaterEqual(len(card["dimensions"]), 1)
+        self.assertEqual(card["dimensions"][0]["name"], "TRL Assessment")
+        self.assertEqual(card["dimensions"][0]["value"], 5)
+
+
+
 

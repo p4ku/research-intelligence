@@ -8,13 +8,24 @@
  */
 import * as z from 'zod'
 import { listQuery, pageSchema } from '../core/pagination'
-import { screeningStatus } from '../papers/schema'
+import {
+  dimension,
+  riskAndAffiliation,
+  screeningStatus,
+  signalScoreDetails,
+} from '../papers/schema'
 
 export const editionPaper = z
   .object({
-    id: z.uuid(),
+    id: z.string(),
+    workspace_id: z.string().optional(),
+    pipeline_run_id: z.string().optional(),
     title: z.string(),
-    authors: z.array(z.string()),
+    authors: z.array(z.string()).default([]),
+    authors_raw: z.string().optional(),
+    abstract: z.string().optional(),
+    doi: z.string().nullable().optional(),
+    arxiv_id: z.string().nullable().optional(),
     source: z.string(),
     /**
      * The run's decision and score for the paper — frozen with the edition,
@@ -22,8 +33,23 @@ export const editionPaper = z
      * editions endpoint serves it; the UI shows the paper's current one then.
      */
     screening_status: screeningStatus.optional(),
+    screening_reasoning: z.string().nullable().optional(),
+    abstract_screening_reasoning: z.string().nullable().optional(),
+    full_text_screening_reasoning: z.string().nullable().optional(),
     signal_score: z.number().nullable(),
+    signal_score_details: signalScoreDetails.nullable().optional(),
+    dimensions: z.array(dimension).optional(),
+    pdf_key: z.string().nullable().optional(),
+    markdown_key: z.string().nullable().optional(),
+    source_url: z.string().nullable().optional(),
+    is_benchmark: z.boolean().optional(),
+    evaluation_label: z.string().nullable().optional(),
+    published_date: z.string().nullable().optional(),
+    created_at: z.string().optional(),
+    pipeline_run_name: z.string().nullable().optional(),
+    risk_and_affiliation: riskAndAffiliation.nullable().optional(),
   })
+  .passthrough()
   .meta({ id: 'EditionPaper' })
 export type EditionPaper = z.infer<typeof editionPaper>
 

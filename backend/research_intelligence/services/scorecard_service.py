@@ -2,6 +2,7 @@ import re
 import uuid
 
 from django.core.paginator import Paginator
+from django.db.models import Q
 
 from api.serializers.papers import PaperSerializer
 from research_intelligence.models import (
@@ -702,6 +703,17 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
             elif sc_clean != 'all':
                 papers_qs = papers_qs.filter(screening_status=sc_clean)
 
+        search_query = request.query_params.get('search') or request.query_params.get('q')
+        if search_query and str(search_query).strip():
+            term = str(search_query).strip()
+            papers_qs = papers_qs.filter(
+                Q(title__icontains=term) |
+                Q(authors__icontains=term) |
+                Q(abstract__icontains=term) |
+                Q(doi__icontains=term) |
+                Q(arxiv_id__icontains=term)
+            )
+
     # Optional pagination
     page_number = 1
     page_size = None
@@ -745,7 +757,30 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
         )
         scored_papers.append(sp)
 
-    if target_pr_id:
+    ordering_param = None
+    if request:
+        ordering_param = request.query_params.get('ordering') or request.query_params.get('sort')
+
+    if ordering_param:
+        ord_clean = ordering_param.strip().lower()
+        if ord_clean in ('signal_score', '+signal_score'):
+            scored_papers.sort(
+                key=lambda sp: (sp.get('signal_score') is not None, sp.get('signal_score') or 0.0)
+            )
+        elif ord_clean == '-signal_score':
+            scored_papers.sort(
+                key=lambda sp: (sp.get('signal_score') is not None, sp.get('signal_score') or 0.0),
+                reverse=True
+            )
+        elif ord_clean in ('title', '+title'):
+            scored_papers.sort(key=lambda sp: (sp.get('title') or '').lower())
+        elif ord_clean == '-title':
+            scored_papers.sort(key=lambda sp: (sp.get('title') or '').lower(), reverse=True)
+        elif ord_clean in ('created_at', '+created_at'):
+            scored_papers.sort(key=lambda sp: sp.get('created_at') or '')
+        elif ord_clean == '-created_at':
+            scored_papers.sort(key=lambda sp: sp.get('created_at') or '', reverse=True)
+    elif target_pr_id:
         scored_papers.sort(
             key=lambda sp: (sp.get('signal_score') is not None, sp.get('signal_score') or 0.0),
             reverse=True

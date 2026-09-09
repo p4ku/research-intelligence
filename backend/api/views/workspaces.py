@@ -452,11 +452,6 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 screening_status__in=['accepted', 'full_text_passed', 'abstract_passed', 'rejected', 'withdrawn']
             )
             .select_related('paper')
-            .only(
-                'id', 'pipeline_run_id', 'signal_score', 'screening_status', 'created_at',
-                'abstract_screening_reasoning', 'full_text_screening_reasoning',
-                'paper__id', 'paper__title', 'paper__authors', 'paper__source_database'
-            )
             .order_by('-created_at')
         )
 
@@ -483,17 +478,36 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             reverse=True
         )
 
+        definitions = list(workspace.extraction_definitions.filter(is_active=True).order_by('created_at'))
+        surfaced_paper_ids = [pm.paper_id for pm in surfaced_metrics if pm.paper_id]
+
+        extractions_map = {}
+        if surfaced_paper_ids:
+            from research_intelligence.models import Extraction
+            exts = list(
+                Extraction.objects.filter(paper_id__in=surfaced_paper_ids)
+                .select_related('extraction_definition')
+                .order_by('-created_at')
+            )
+            for ext in exts:
+                extractions_map.setdefault(ext.paper_id, []).append(ext)
+
+        from research_intelligence.services.scorecard_service import build_single_scored_paper
+
         surfaced = []
         for pm in surfaced_metrics:
-            authors_list = [a.strip() for a in (pm.paper.authors or '').split(',') if a.strip()]
-            surfaced.append({
-                "id": str(pm.paper.id),
-                "title": pm.paper.title,
-                "authors": authors_list,
-                "source": pm.paper.source_database or 'arXiv',
-                "screening_status": pm.screening_status,
-                "signal_score": pm.signal_score,
-            })
+            sp = build_single_scored_paper(
+                paper=pm.paper,
+                definitions=definitions,
+                target_pr_id=run.id,
+                target_pr=run,
+                metrics_list=[pm],
+                extractions_list=extractions_map.get(pm.paper.id, []),
+                request=request,
+            )
+            sp['screening_status'] = pm.screening_status
+            sp['signal_score'] = pm.signal_score
+            surfaced.append(sp)
 
         d_str = target_date.strftime('%Y-%m-%d')
         in_brief_text = (
