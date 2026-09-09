@@ -183,4 +183,90 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     expect(out).toContain('None')
     expect(out).toContain('text-emerald-700')
   })
+
+  test('renders production extraction 0ee3ad96-c128-4aa0-a4f8-0a6ee644659d payload into affiliations, contacts, funding, links, and flags', () => {
+    // Live production extraction: https://sri.soinventive.co.uk/admin/research_intelligence/extraction/0ee3ad96-c128-4aa0-a4f8-0a6ee644659d/change/
+    const liveRiskData: RiskAndAffiliation = {
+      affiliations: [
+        'Technical University of Munich, Germany',
+        'Munich Quantum Valley, Germany',
+        'Software Competence Center Hagenberg GmbH, Austria',
+      ],
+      author_contacts: ['lukas.berent@tum.de', 'robert.wille@tum.de'],
+      funding_entities: [
+        'European Research Council (ERC)',
+        'Bavarian State Ministry of Science and Arts',
+        'Federal Ministry of Education and Research (BMBF)',
+      ],
+      codebase_artifact_link: 'https://github.com/cda-tum/mqt-core',
+      schwarz_ecosystem_affiliation: 'YES (TUM)',
+      gdpr_concerns: 'NO',
+      competitor_involvement: 'None',
+      flags: [
+        {
+          key: 'gdpr',
+          label: 'GDPR Sovereignty',
+          value: 'NO',
+          status: 'safe',
+          type: 'dict',
+          is_dict: true,
+          dict_value: { status: 'NO', concerns: null },
+        },
+        {
+          key: 'schwarz_ecosystem',
+          label: 'Schwarz Ecosystem',
+          value: 'YES (TUM)',
+          status: 'highlight',
+          type: 'dict',
+          is_dict: true,
+          dict_value: { status: 'YES', matched_institutions: ['TUM'] },
+        },
+        {
+          key: 'competitor',
+          label: 'Competitor Involvement',
+          value: 'None',
+          status: 'safe',
+          type: 'dict',
+          is_dict: true,
+          dict_value: { status: 'NO', matches: null },
+        },
+      ],
+    }
+
+    const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={liveRiskData} />)
+
+    // 1. Affiliations
+    expect(out).toContain(
+      'Technical University of Munich, Germany · Munich Quantum Valley, Germany · Software Competence Center Hagenberg GmbH, Austria',
+    )
+
+    // 2. Author contacts mailto links
+    expect(out).toContain('href="mailto:lukas.berent@tum.de"')
+    expect(out).toContain('href="mailto:robert.wille@tum.de"')
+    expect(out).toContain('title="Email lukas.berent@tum.de"')
+
+    // 3. Codebase artifact repository link
+    expect(out).toContain('href="https://github.com/cda-tum/mqt-core"')
+    expect(out).toContain('Artifact Repository')
+    expect(out).toContain('target="_blank"')
+
+    // 4. Funding entities
+    expect(out).toContain('Funding:')
+    expect(out).toContain(
+      'European Research Council (ERC); Bavarian State Ministry of Science and Arts; Federal Ministry of Education and Research (BMBF)',
+    )
+
+    // 5. Sovereignty & Risk flags
+    expect(out).toContain('GDPR Sovereignty:')
+    expect(out).toContain('NO')
+    expect(out).toContain('text-emerald-700')
+
+    expect(out).toContain('Schwarz Ecosystem:')
+    expect(out).toContain('YES (TUM)')
+    expect(out).toContain('text-sky-700')
+
+    expect(out).toContain('Competitor Involvement:')
+    expect(out).toContain('None')
+    expect(out).toContain('text-emerald-700')
+  })
 })

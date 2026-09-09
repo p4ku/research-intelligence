@@ -1560,6 +1560,53 @@ return {
         self.assertEqual(flags_by_key["schwarz_ecosystem"]["status"], "highlight")
         self.assertEqual(flags_by_key["schwarz_ecosystem"]["value"], "YES (TUM)")
 
+        # 6. End-to-end API test with actual Extraction ID 0ee3ad96-c128-4aa0-a4f8-0a6ee644659d
+        import uuid
+        def_risk, _ = ExtractionDefinition.objects.get_or_create(
+            workspace=self.workspace,
+            name="Risk and Affiliation Flagging",
+            defaults={"response_schema": {"type": "object"}, "is_active": True},
+        )
+        # Clear any existing extractions for this paper to test in isolation
+        Extraction.objects.filter(paper=self.paper).delete()
+        Extraction.objects.create(
+            id=uuid.UUID("0ee3ad96-c128-4aa0-a4f8-0a6ee644659d"),
+            workspace=self.workspace,
+            paper=self.paper,
+            extraction_definition=def_risk,
+            category="Risk and Affiliation Flagging",
+            fields_data=raw_extraction,
+        )
+
+        api_url = f"/api/papers/{self.paper.id}/scorecard/?pipeline_run={self.run_beta.id}"
+        api_resp = self.client.get(api_url)
+        self.assertEqual(api_resp.status_code, 200)
+        api_data = api_resp.json()
+
+        paper_risk = api_data["paper"]["risk_and_affiliation"]
+        self.assertIsNotNone(paper_risk)
+        self.assertEqual(
+            paper_risk["affiliations"],
+            [
+                "Technical University of Munich, Germany",
+                "Munich Quantum Valley, Germany",
+                "Software Competence Center Hagenberg GmbH, Austria",
+            ]
+        )
+        self.assertEqual(paper_risk["author_contacts"], ["lukas.berent@tum.de", "robert.wille@tum.de"])
+        self.assertEqual(
+            paper_risk["funding_entities"],
+            [
+                "European Research Council (ERC)",
+                "Bavarian State Ministry of Science and Arts",
+                "Federal Ministry of Education and Research (BMBF)",
+            ]
+        )
+        self.assertEqual(paper_risk["codebase_artifact_link"], "https://github.com/cda-tum/mqt-core")
+        self.assertEqual(paper_risk["schwarz_ecosystem_affiliation"], "YES (TUM)")
+        self.assertEqual(paper_risk["gdpr_concerns"], "NO")
+        self.assertEqual(paper_risk["competitor_involvement"], "None")
+
 
 
 

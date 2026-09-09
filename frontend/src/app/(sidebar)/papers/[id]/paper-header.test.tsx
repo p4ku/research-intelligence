@@ -146,4 +146,76 @@ describe('PaperHeader Component Rendering', () => {
     expect(out).toContain('text-pretty')
     expect(out).toContain('break-words')
   })
+
+  test('renders PaperHeader with production extraction 0ee3ad96-c128-4aa0-a4f8-0a6ee644659d', () => {
+    // Exact paper payload corresponding to extraction 0ee3ad96-c128-4aa0-a4f8-0a6ee644659d
+    const paper = samplePaper({
+      title: 'MQT Core: A Physical and Logical Quantum Circuit Design Automation Framework',
+      authors: ['Lukas Berent', 'Robert Wille'],
+      authors_raw: 'Lukas Berent, Robert Wille',
+      risk_and_affiliation: {
+        affiliations: [
+          'Technical University of Munich, Germany',
+          'Munich Quantum Valley, Germany',
+          'Software Competence Center Hagenberg GmbH, Austria',
+        ],
+        author_contacts: ['lukas.berent@tum.de', 'robert.wille@tum.de'],
+        funding_entities: [
+          'European Research Council (ERC)',
+          'Bavarian State Ministry of Science and Arts',
+          'Federal Ministry of Education and Research (BMBF)',
+        ],
+        codebase_artifact_link: 'https://github.com/cda-tum/mqt-core',
+        schwarz_ecosystem_affiliation: 'YES (TUM)',
+        gdpr_concerns: 'NO',
+        competitor_involvement: 'None',
+        flags: [
+          {
+            key: 'gdpr',
+            label: 'GDPR Sovereignty',
+            value: 'NO',
+            status: 'safe',
+          },
+          {
+            key: 'schwarz_ecosystem',
+            label: 'Schwarz Ecosystem',
+            value: 'YES (TUM)',
+            status: 'highlight',
+          },
+          {
+            key: 'competitor',
+            label: 'Competitor Involvement',
+            value: 'None',
+            status: 'safe',
+          },
+        ],
+      },
+    })
+
+    const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
+
+    // Authors line
+    expect(out).toContain('data-row="authors"')
+    expect(out).toContain('Lukas Berent, Robert Wille')
+
+    // Affiliations under authors
+    expect(out).toContain('Technical University of Munich, Germany · Munich Quantum Valley, Germany · Software Competence Center Hagenberg GmbH, Austria')
+
+    // Mailto contacts
+    expect(out).toContain('href="mailto:lukas.berent@tum.de"')
+    expect(out).toContain('href="mailto:robert.wille@tum.de"')
+
+    // Artifact Repository
+    expect(out).toContain('href="https://github.com/cda-tum/mqt-core"')
+    expect(out).toContain('Artifact Repository')
+
+    // Funding entities
+    expect(out).toContain('Funding:')
+    expect(out).toContain('European Research Council (ERC); Bavarian State Ministry of Science and Arts; Federal Ministry of Education and Research (BMBF)')
+
+    // Flags
+    expect(out).toContain('GDPR Sovereignty')
+    expect(out).toContain('Schwarz Ecosystem')
+    expect(out).toContain('YES (TUM)')
+  })
 })
