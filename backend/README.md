@@ -138,18 +138,18 @@ The Systematic Literature Review (SLR) pipeline can be dispatched through **5 di
 ---
 
 ## 🧪 5. Testing & Verification
-
+ 
 ```bash
 # Run the complete test suite (949+ tests in parallel, 0 tokens / in-memory SQLite)
-uv run pytest
-
-# Or via shell wrapper
 ./run_tests.sh
 
+# Or directly via virtualenv pytest
+./.venv/bin/pytest
+
 # Run specific test modules
-uv run pytest research_intelligence/tests/test_paper_scorecard_metrics_classification.py
-uv run pytest research_intelligence/tests/test_api_endpoint_optimizations.py
-uv run pytest research_intelligence/tests/test_query_optimization_and_dataset_invariance.py
-uv run pytest backend/chat/tests/
-uv run pytest backend/mcp_server/tests/
+./.venv/bin/pytest research_intelligence/tests/test_paper_scorecard_metrics_classification.py
+./.venv/bin/pytest research_intelligence/tests/test_api_endpoint_optimizations.py
+./.venv/bin/pytest research_intelligence/tests/test_query_optimization_and_dataset_invariance.py
+./.venv/bin/pytest chat/tests/
+./.venv/bin/pytest mcp_server/tests/
 ```

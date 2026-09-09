@@ -72,8 +72,10 @@ def format_definitions_metadata(definitions: list) -> list:
     return definitions_data
 
 
-def format_workspace_summary(workspace, definitions_data: list, request=None) -> dict:
+def format_workspace_summary(workspace, definitions_data: list = None, request=None) -> dict:
     """Formats full WorkspaceSummary matching frontend contract (WorkspaceSummary)."""
+    if definitions_data is None:
+        definitions_data = []
     scrapers = []
     if hasattr(workspace, 'scrapers'):
         for s in workspace.scrapers.all():
@@ -91,7 +93,7 @@ def format_workspace_summary(workspace, definitions_data: list, request=None) ->
         if member:
             user_role = member.role
 
-    created_at_str = "2026-01-01T00:00:00Z"
+    created_at_str = ""
     if hasattr(workspace, 'created_at') and workspace.created_at:
         dt = workspace.created_at
         created_at_str = dt.isoformat() if (hasattr(dt, 'tzinfo') and dt.tzinfo) else (dt.isoformat() + "Z")
@@ -756,12 +758,17 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
         size_param = request.query_params.get('page_size')
         if page_param:
             try:
-                page_number = int(page_param)
+                raw_page = int(page_param)
+                page_number = max(1, raw_page)
             except (ValueError, TypeError):
                 page_number = 1
         if size_param:
             try:
-                page_size = min(int(size_param), 200)
+                raw_size = int(size_param)
+                if raw_size > 0:
+                    page_size = min(raw_size, 200)
+                else:
+                    page_size = None
             except (ValueError, TypeError):
                 page_size = None
 
@@ -827,9 +834,9 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
         p_str = "&".join(params)
 
         if page_obj.has_next():
-            next_url = f"{base_url}?page={page_number + 1}&{p_str}"
+            next_url = f"{base_url}?page={page_obj.next_page_number()}&{p_str}"
         if page_obj.has_previous():
-            prev_url = f"{base_url}?page={page_number - 1}&{p_str}"
+            prev_url = f"{base_url}?page={page_obj.previous_page_number()}&{p_str}"
 
     res = {
         'workspace': ws_summary,

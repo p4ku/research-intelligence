@@ -27,6 +27,7 @@ from research_intelligence.services.scorecard_extractors import (
     extract_metrics_for_extraction,
     resolve_field_val,
 )
+from research_intelligence.services.scorecard_service import format_workspace_summary
 
 User = get_user_model()
 
@@ -1295,6 +1296,51 @@ return {
         self.assertEqual(dim_dyn["primary_metric"]["key"], "significance_score")
         self.assertEqual(dim_dyn["primary_metric"]["numeric_value"], 8.0)
         self.assertEqual(dim_dyn["value"], 8.0)
+
+    def test_17_extraction_definition_init_and_sanitization_and_page_size_safety(self):
+        """
+        Validates issue #142 hygiene fixes:
+        1. ExtractionDefinition.__init__ correctly handles both singular and plural alias without TypeError.
+        2. get_primary_frontend_metric sanitizes identifiers on read.
+        3. format_workspace_summary outputs real workspace created_at instead of hardcoded '2026-01-01T00:00:00Z'.
+        4. GET /api/workspaces/{id}/scorecard/ clamps page_size <= 0 without raising HTTP 500.
+        """
+        # 1. Alias handling without TypeError
+        ed1 = ExtractionDefinition(
+            workspace=self.workspace,
+            name="Alias Test 1",
+            primary_frontend_metric="main_metric",
+            primary_frontend_metrics="alias_metric",
+        )
+        self.assertEqual(ed1.primary_frontend_metric, "main_metric")
+
+        ed2 = ExtractionDefinition(
+            workspace=self.workspace,
+            name="Alias Test 2",
+            primary_frontend_metrics="alias_only",
+        )
+        self.assertEqual(ed2.primary_frontend_metric, "alias_only")
+
+        # 2. Sanitization on read
+        ed3 = ExtractionDefinition(
+            workspace=self.workspace,
+            name="Sanitize Test",
+            primary_frontend_metric="  Novelty Score & Rigour!  ",
+        )
+        self.assertEqual(ed3.get_primary_frontend_metric(), "novelty_score_rigour")
+
+        # 3. format_workspace_summary created_at real ISO string
+        summary = format_workspace_summary(self.workspace)
+        self.assertNotEqual(summary["created_at"], "2026-01-01T00:00:00Z")
+        self.assertTrue(summary["created_at"].startswith(str(self.workspace.created_at.year)))
+
+        # 4. page_size safety (negative and zero values do not cause HTTP 500)
+        resp_neg = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?page_size=-3")
+        self.assertEqual(resp_neg.status_code, 200)
+
+        resp_zero = self.client.get(f"/api/workspaces/{self.workspace.id}/scorecard/?page_size=0")
+        self.assertEqual(resp_zero.status_code, 200)
+
 
 
 

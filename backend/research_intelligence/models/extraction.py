@@ -56,14 +56,15 @@ class ExtractionDefinition(models.Model):
                 kwargs['exit_metrics'] = ""
 
         # Handle primary_frontend_metric and plural alias primary_frontend_metrics
+        if 'primary_frontend_metrics' in kwargs:
+            alias_val = kwargs.pop('primary_frontend_metrics')
+            if 'primary_frontend_metric' not in kwargs:
+                kwargs['primary_frontend_metric'] = alias_val
+
         prim_val = kwargs.get('primary_frontend_metric')
-        if prim_val is None and 'primary_frontend_metrics' in kwargs:
-            prim_val = kwargs.pop('primary_frontend_metrics')
         if prim_val is not None:
             if isinstance(prim_val, (list, tuple)):
                 kwargs['primary_frontend_metric'] = str(prim_val[0]).strip() if prim_val else ""
-            elif prim_val is None:
-                kwargs['primary_frontend_metric'] = ""
             else:
                 kwargs['primary_frontend_metric'] = str(prim_val).strip()
 
@@ -72,8 +73,6 @@ class ExtractionDefinition(models.Model):
         if sec_val is not None:
             if isinstance(sec_val, (list, tuple)):
                 kwargs['secondary_frontend_metrics'] = ", ".join(str(m).strip() for m in sec_val if m and str(m).strip())
-            elif sec_val is None:
-                kwargs['secondary_frontend_metrics'] = ""
             else:
                 kwargs['secondary_frontend_metrics'] = str(sec_val).strip()
 
@@ -123,7 +122,9 @@ class ExtractionDefinition(models.Model):
         If no explicit frontend metrics are configured, falls back to primary exit metric.
         """
         if self.primary_frontend_metric and self.primary_frontend_metric.strip():
-            return self.primary_frontend_metric.strip()
+            from ..tasks.step_6_signal_score.scorer import _sanitize_identifier
+            clean_prim = _sanitize_identifier(self.primary_frontend_metric.strip())
+            return clean_prim if clean_prim else None
         if self.has_explicit_frontend_metrics():
             return None
         prim = self.get_primary_exit_metric()
