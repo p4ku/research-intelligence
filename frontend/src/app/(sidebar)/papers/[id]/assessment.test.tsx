@@ -276,4 +276,81 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.')
     expect(out).toContain('“quantum-assisted framework for PDE-based Bayesian inverse problems”')
   })
+
+  test('unifies duplicate submetrics across facets and texts into a single sequential block with progress bar, insight, and quotes', () => {
+    const stagingLikeDim: Dimension = {
+      key: 'research_metrics',
+      definition_id: '11111111-1111-1111-1111-111111111111',
+      name: 'Research Metrics',
+      value: 68,
+      raw: '68',
+      max: 100,
+      is_trl: false,
+      facets: [
+        { key: 'novelty', name: 'Novelty', value: 68, max: 100, text: 'The paper introduces a substantial new framing...', band: 'Substantial' },
+        { key: 'significance', name: 'Significance', value: 62, max: 100, text: 'This work addresses a prominent bottleneck...', band: 'Important' },
+        { key: 'rigour', name: 'Rigour', value: 65, max: 100, text: 'The authors provide a mathematically sound formulation...', band: 'Sound' },
+        { key: 'rigour_score', name: 'Rigour', value: 65, max: 100, text: null },
+        { key: 'novelty_score', name: 'Novelty', value: 68, max: 100, text: null },
+        { key: 'significance_score', name: 'Significance', value: 62, max: 100, text: null },
+      ],
+      texts: [
+        {
+          key: 'rigour',
+          name: 'Rigour',
+          type: 'dict',
+          is_dict: true,
+          band: 'Sound',
+          score: 65,
+          insight: 'The authors provide a mathematically sound formulation...',
+          evidence: ['rigorous complexity analysis establishing conditions for end-to-end quantum speedup'],
+          value: 'The authors provide a mathematically sound formulation...',
+        },
+        {
+          key: 'novelty',
+          name: 'Novelty',
+          type: 'dict',
+          is_dict: true,
+          band: 'Substantial',
+          score: 68,
+          insight: 'The paper introduces a substantial new framing...',
+          evidence: ['quantum-assisted framework for PDE-based Bayesian inverse problems'],
+          value: 'The paper introduces a substantial new framing...',
+        },
+        {
+          key: 'significance',
+          name: 'Significance',
+          type: 'dict',
+          is_dict: true,
+          band: 'Important',
+          score: 62,
+          insight: 'This work addresses a prominent bottleneck...',
+          evidence: ['mitigates the cubic complexity barrier in large-scale inverse problems'],
+          value: 'This work addresses a prominent bottleneck...',
+        },
+      ],
+      evidence: [],
+      facts: [],
+      lists: [],
+    }
+
+    const out = renderToStaticMarkup(<Assessment dimensions={[stagingLikeDim]} t={t} />)
+    // Exactly 3 sub-metric blocks rendered (not 6, not 9!)
+    const noveltyMatches = out.match(/data-submetric="novelty"/g) ?? []
+    expect(noveltyMatches.length).toBe(1)
+    const rigourMatches = out.match(/data-submetric="rigour"/g) ?? []
+    expect(rigourMatches.length).toBe(1)
+    const significanceMatches = out.match(/data-submetric="significance"/g) ?? []
+    expect(significanceMatches.length).toBe(1)
+
+    // Progress bar fill scaleX is present for each
+    expect(out).toContain('scaleX(0.68)')
+    expect(out).toContain('scaleX(0.62)')
+    expect(out).toContain('scaleX(0.65)')
+
+    // Evidence quotes are present within the sub-metric
+    expect(out).toContain('“rigorous complexity analysis establishing conditions for end-to-end quantum speedup”')
+    expect(out).toContain('“quantum-assisted framework for PDE-based Bayesian inverse problems”')
+    expect(out).toContain('“mitigates the cubic complexity barrier in large-scale inverse problems”')
+  })
 })

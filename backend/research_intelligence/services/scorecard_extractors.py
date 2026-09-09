@@ -50,6 +50,14 @@ def _parse_dict_or_json(val):
     return None
 
 
+def _base_metric_key(key: str) -> str:
+    """Normalizes a metric key by stripping suffix variations to detect duplicate metrics."""
+    if not key:
+        return ""
+    clean = key.strip().lower().replace(" ", "_").replace("-", "_")
+    return re.sub(r'(_postprocessed|_computed|_score|_assessment|_metric|_level|_band)$', '', clean)
+
+
 def unpack_flag_value(raw_val, flag_name=""):
     """
     Unpacks a flag value that might be:
@@ -420,10 +428,25 @@ def extract_metrics_for_extraction(e: Extraction, d: ExtractionDefinition = None
                     post_extra_metrics.append(build_metric_entry(key=k, fields_data=fields_data, source="postprocessing"))
 
         # Secondary metrics: all additional postprocessing metrics + all exit metrics
-        exit_secondary = [
-            build_metric_entry(key=ek, fields_data=fields_data, source="exit_metric")
-            for ek in exit_keys
-        ]
+        # Deduplicate so the same metric is not added twice (e.g. novelty and novelty_score)
+        seen_sec_bases = {
+            _base_metric_key(primary_metric.get("key") or ""),
+        }
+        for pm_entry in post_extra_metrics:
+            base_k = _base_metric_key(pm_entry.get("key") or "")
+            if base_k:
+                seen_sec_bases.add(base_k)
+
+        exit_secondary = []
+        for ek in exit_keys:
+            base_ek = _base_metric_key(ek)
+            if base_ek in seen_sec_bases:
+                continue
+            seen_sec_bases.add(base_ek)
+            exit_secondary.append(
+                build_metric_entry(key=ek, fields_data=fields_data, source="exit_metric")
+            )
+
         secondary_metrics = post_extra_metrics + exit_secondary
 
     elif exit_keys:
@@ -435,10 +458,16 @@ def extract_metrics_for_extraction(e: Extraction, d: ExtractionDefinition = None
             source="exit_metric",
             label_override=format_metric_label(primary_key),
         )
-        secondary_metrics = [
-            build_metric_entry(key=ek, fields_data=fields_data, source="exit_metric")
-            for ek in exit_keys[1:]
-        ]
+        seen_sec_bases = {_base_metric_key(primary_key)}
+        secondary_metrics = []
+        for ek in exit_keys[1:]:
+            base_ek = _base_metric_key(ek)
+            if base_ek in seen_sec_bases:
+                continue
+            seen_sec_bases.add(base_ek)
+            secondary_metrics.append(
+                build_metric_entry(key=ek, fields_data=fields_data, source="exit_metric")
+            )
 
     else:
         # Fallback: No exit metrics configured and no postprocessing
@@ -697,12 +726,19 @@ def extract_rich_dimension_details(
     lists = []
     facts = []
     seen_facet_keys = set()
+    seen_facet_bases = set()
+    primary_base = _base_metric_key(primary_metric.get("key") or "")
+    if primary_base:
+        seen_facet_bases.add(primary_base)
     facet_order = [k.strip().lower() for k in (order or [])]
 
     # Include numeric secondary metrics first
     for m in secondary_metrics:
         mk = m.get("key")
         mk_norm = mk.strip().lower() if mk else ""
+        mk_base = _base_metric_key(mk_norm)
+        if mk_base and mk_base in seen_facet_bases:
+            continue
         if mk_norm and m.get("is_numeric") and m.get("numeric_value") is not None:
             num_v = m["numeric_value"]
             f_max = max_val
@@ -732,6 +768,8 @@ def extract_rich_dimension_details(
                 "text": twin_text,
             })
             seen_facet_keys.add(mk_norm)
+            if mk_base:
+                seen_facet_bases.add(mk_base)
             used.add(mk_norm)
         elif mk_norm and not m.get("is_numeric"):
             raw_v = m.get("raw") or m.get("value")
@@ -746,7 +784,8 @@ def extract_rich_dimension_details(
     # Scan data for any other _score fields that weren't in secondary_metrics
     for k, v in data.items():
         k_norm = k.strip().lower()
-        if k_norm in used or k_norm in seen_facet_keys:
+        k_base = _base_metric_key(k_norm)
+        if k_norm in used or k_norm in seen_facet_keys or (k_base and k_base in seen_facet_bases):
             continue
         val = _unwrap_val(v)
         if FACET_KEY_RE.search(k_norm):
@@ -779,6 +818,8 @@ def extract_rich_dimension_details(
                     "text": twin_text,
                 })
                 seen_facet_keys.add(k_norm)
+                if k_base:
+                    seen_facet_bases.add(k_base)
                 used.add(k_norm)
 
     # Sort facets by definition order if given
@@ -860,11 +901,15 @@ def extract_rich_dimension_details(
                     fk = (f.get("key") or "").strip().lower()
                     fn = (f.get("name") or "").strip().lower()
                     exact_match = (fk == k_norm or fn == label.lower())
+                    base_match = (
+                        k_norm not in generic_sub_keys
+                        and _base_metric_key(fk) == _base_metric_key(k_norm)
+                    )
                     affix_match = (
                         k_norm not in generic_sub_keys
                         and (fk.startswith(f"{k_norm}_") or fk.endswith(f"_{k_norm}"))
                     )
-                    if exact_match or affix_match:
+                    if exact_match or base_match or affix_match:
                         matched_facet = f
                         break
 
@@ -875,7 +920,11 @@ def extract_rich_dimension_details(
                         matched_facet["text"] = item_insight
                     if item_score is not None and (matched_facet.get("value") is None or matched_facet.get("value") == "—"):
                         matched_facet["value"] = item_score
-                elif item_score is not None:
+                    if item_evidence:
+                        matched_facet["evidence"] = item_evidence
+                elif item_score is not None and _base_metric_key(k_norm) not in seen_facet_bases:
+                    if _base_metric_key(k_norm):
+                        seen_facet_bases.add(_base_metric_key(k_norm))
                     facets.append({
                         "key": k,
                         "name": label,
@@ -883,6 +932,7 @@ def extract_rich_dimension_details(
                         "max": max_val,
                         "text": item_insight,
                         "band": item_band,
+                        "evidence": item_evidence,
                     })
 
                 if item_evidence:

@@ -277,6 +277,174 @@ function unpackField(field: DimensionField): UnpackedField {
   return { name: field.name, value, band, evidence, score, is_dict: isDict }
 }
 
+interface SubMeasure {
+  key: string
+  name: string
+  band?: string | null
+  value?: number | null
+  max?: number | null
+  text?: string | null
+  evidence?: string[] | null
+  is_dict: boolean
+}
+
+function normalizeSubKey(k: string): string {
+  return k
+    .toLowerCase()
+    .replace(/[-_ ]/g, '')
+    .replace(/(score|assessment|postprocessed|computed|metric|level|band)$/, '')
+}
+
+function resolveSubMeasures(
+  facets?: DimensionFacet[] | null,
+  texts?: DimensionField[] | null,
+  fallbackMax: number | null = 100,
+): { subMeasures: SubMeasure[]; generalTexts: UnpackedField[] } {
+  const subMeasures: SubMeasure[] = []
+  const seenBases = new Map<string, SubMeasure>()
+  const generalTexts: UnpackedField[] = []
+
+  // 1. Process facets first
+  for (const f of facets ?? []) {
+    const norm = normalizeSubKey(f.key) || normalizeSubKey(f.name)
+    if (seenBases.has(norm)) {
+      const existing = seenBases.get(norm)!
+      if (!existing.band && f.band) existing.band = f.band
+      if (existing.value == null && f.value != null) existing.value = f.value
+      if (!existing.text && f.text) existing.text = f.text
+      const fEv = (f as { evidence?: string[] }).evidence
+      if ((!existing.evidence || existing.evidence.length === 0) && fEv?.length) {
+        existing.evidence = fEv
+      }
+      continue
+    }
+
+    const sub: SubMeasure = {
+      key: f.key,
+      name: f.name,
+      band: f.band ?? null,
+      value: f.value,
+      max: f.max ?? fallbackMax,
+      text: f.text ?? null,
+      evidence: (f as { evidence?: string[] }).evidence ?? null,
+      is_dict: Boolean(f.band || (f as { evidence?: string[] }).evidence),
+    }
+    seenBases.set(norm, sub)
+    subMeasures.push(sub)
+  }
+
+  // 2. Process texts
+  for (const rawField of texts ?? []) {
+    const field = unpackField(rawField)
+    if (!field.value && !field.band && (!field.evidence || field.evidence.length === 0)) continue
+
+    const norm = normalizeSubKey(rawField.key) || normalizeSubKey(field.name)
+    if (seenBases.has(norm)) {
+      const existing = seenBases.get(norm)!
+      if (!existing.band && field.band) existing.band = field.band
+      if (existing.value == null && field.score != null) existing.value = field.score
+      if (!existing.text && typeof field.value === 'string' && field.value) {
+        existing.text = field.value
+      }
+      if ((!existing.evidence || existing.evidence.length === 0) && field.evidence?.length) {
+        existing.evidence = field.evidence
+      }
+      if (field.is_dict) existing.is_dict = true
+    } else if (field.is_dict) {
+      const sub: SubMeasure = {
+        key: rawField.key,
+        name: field.name,
+        band: field.band ?? null,
+        value: field.score ?? null,
+        max: fallbackMax ?? 100,
+        text: typeof field.value === 'string' && field.value ? field.value : null,
+        evidence: field.evidence ?? null,
+        is_dict: true,
+      }
+      seenBases.set(norm, sub)
+      subMeasures.push(sub)
+    } else {
+      generalTexts.push(field)
+    }
+  }
+
+  return { subMeasures, generalTexts }
+}
+
+function SubMeasureRow({ sub }: { sub: SubMeasure }) {
+  const hasBar = typeof sub.max === 'number' && sub.max > 0 && typeof sub.value === 'number' && Number.isFinite(sub.value)
+  const pct = hasBar && typeof sub.value === 'number' && typeof sub.max === 'number' ? Math.max(0, Math.min(1, sub.value / sub.max)) : 0
+  const hasProse = Boolean(sub.text)
+  const hasEvidence = Boolean(sub.evidence && sub.evidence.length > 0)
+  const isRich = hasProse || hasEvidence || sub.is_dict
+
+  return (
+    <div
+      data-type={sub.is_dict ? 'submetric-dict' : undefined}
+      data-submetric={sub.key}
+      className={clsx(
+        'space-y-2',
+        isRich &&
+          'rounded-lg border border-line-soft/80 bg-zinc-50/50 p-3.5 dark:border-zinc-800 dark:bg-zinc-900/30',
+      )}
+    >
+      <div
+        className={clsx(
+          'grid items-center gap-x-3 gap-y-1',
+          hasBar
+            ? 'grid-cols-[minmax(0,1fr)_44px] sm:grid-cols-[200px_minmax(0,1fr)_44px]'
+            : 'grid-cols-[minmax(0,1fr)_44px]',
+        )}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+            {sub.name}
+          </span>
+          {sub.band && <Band>{sub.band}</Band>}
+        </div>
+
+        {hasBar && (
+          <span className="col-span-full block h-[4px] w-full overflow-hidden rounded-full bg-line-soft sm:col-span-1">
+            <span
+              className="block h-full w-full origin-left rounded-full bg-accent"
+              style={{ transform: `scaleX(${pct})` }}
+            />
+          </span>
+        )}
+
+        <div className="col-start-2 row-start-1 text-right sm:col-start-3">
+          <span className={clsx(FIGURE, 'text-sm')}>
+            {shownNumber(sub.value)}
+          </span>
+          {sub.is_dict && sub.value != null && (
+            <span className="sr-only">Sub-score: {sub.value}</span>
+          )}
+        </div>
+      </div>
+
+      {sub.text && (
+        <AnswerMarkdown text={sub.text} className={clsx(SMALL_PROSE, 'mt-1 text-zinc-700 dark:text-zinc-300')} />
+      )}
+
+      {hasEvidence && (
+        <div className="mt-2 space-y-1.5 border-l-2 border-line pl-3">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+            Evidence
+          </span>
+          {sub.evidence!.map((quote, i) => (
+            <blockquote
+              key={i}
+              className="max-w-[72ch] text-sm leading-relaxed italic text-zinc-600 dark:text-zinc-400"
+            >
+              “{unquote(quote)}”
+            </blockquote>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
   const conf =
     typeof d.confidence === 'number'
@@ -314,6 +482,8 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       <span className="font-medium text-zinc-500 dark:text-zinc-400">{t('Needs review')}</span>,
     )
 
+  const { subMeasures, generalTexts } = resolveSubMeasures(d.facets, d.texts, d.max)
+
   return (
     <DefinitionFrame
       id={definitionAnchor(d)}
@@ -326,66 +496,25 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       ) : (
         <p className="text-sm text-zinc-400">{t('No rationale recorded.')}</p>
       )}
-      {d.facets && d.facets.length > 0 && (
-        <ul className="space-y-2.5">
-          {d.facets.map((f) => (
-            <FacetRow key={f.key} facet={f} />
+
+      {/* Sub-metrics / Secondary metrics with progress bar, band, score, prose & evidence */}
+      {subMeasures.length > 0 && (
+        <div className="space-y-3">
+          {subMeasures.map((sub) => (
+            <SubMeasureRow key={sub.key} sub={sub} />
           ))}
-        </ul>
+        </div>
       )}
-      {d.texts?.map((rawField) => {
-        const field = unpackField(rawField)
-        if (!field.value && !field.band && (!field.evidence || field.evidence.length === 0)) return null
 
-        // Distinct reaction for structured dict submetrics vs regular text!
-        if (field.is_dict) {
-          return (
-            <div
-              key={rawField.key}
-              data-type="submetric-dict"
-              className="rounded-lg border border-zinc-200/80 bg-zinc-50/50 p-3.5 space-y-2 dark:border-zinc-800 dark:bg-zinc-900/30"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <h4 className={H4}>{field.name}</h4>
-                  {field.band && <Band>{field.band}</Band>}
-                </div>
-                {field.score != null && (
-                  <span className="font-mono text-xs font-medium text-zinc-500 tabular-nums dark:text-zinc-400">
-                    Sub-score: {field.score}
-                  </span>
-                )}
-              </div>
-              {field.value && (
-                <AnswerMarkdown text={String(field.value)} className={clsx(PROSE, 'mt-1')} />
-              )}
-              {field.evidence && field.evidence.length > 0 && (
-                <div className="mt-2 space-y-1.5 border-l-2 border-line pl-3">
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                    Evidence
-                  </span>
-                  {field.evidence.map((quote, i) => (
-                    <blockquote
-                      key={i}
-                      className="max-w-[72ch] text-sm leading-relaxed italic text-zinc-600 dark:text-zinc-400"
-                    >
-                      “{unquote(quote)}”
-                    </blockquote>
-                  ))}
-                </div>
-              )}
-            </div>
-          )
-        }
+      {/* General dimension-level prose texts (e.g. "Research quality insight", "Core technology") */}
+      {generalTexts.map((field) => (
+        <div key={field.name} className="space-y-1.5">
+          <h4 className={H4}>{field.name}</h4>
+          <AnswerMarkdown text={String(field.value)} className={clsx(PROSE, 'mt-1.5')} />
+        </div>
+      ))}
 
-        // Regular prose text field reaction
-        return (
-          <div key={rawField.key} className="space-y-1.5">
-            <h4 className={H4}>{field.name}</h4>
-            <AnswerMarkdown text={String(field.value)} className={clsx(PROSE, 'mt-1.5')} />
-          </div>
-        )
-      })}
+      {/* Lists */}
       {d.lists?.map((list) => (
         <div key={list.key}>
           <h4 className={H4}>{list.name}</h4>
@@ -401,13 +530,14 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
           </ul>
         </div>
       ))}
+
+      {/* Top-level evidence (deduplicated against sub-measure evidence quotes) */}
       {d.evidence
         ?.filter((quote) => {
           const unq = unquote(quote).trim()
-          return !d.texts?.some((rawField) => {
-            const field = unpackField(rawField)
-            return field.evidence?.some((ev) => unquote(ev).trim() === unq)
-          })
+          return !subMeasures.some((sub) =>
+            sub.evidence?.some((ev) => unquote(ev).trim() === unq),
+          )
         })
         .map((quote, i) => (
           <blockquote
@@ -417,6 +547,8 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
             “{unquote(quote)}”
           </blockquote>
         ))}
+
+      {/* Facts */}
       {d.facts && d.facts.length > 0 && (
         <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-sm">
           {d.facts.map((fact) => (
