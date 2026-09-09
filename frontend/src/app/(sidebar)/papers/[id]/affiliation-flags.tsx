@@ -134,31 +134,31 @@ export function RiskAffiliationFlagging({
     >
       {/* 1. Affiliations, Contacts, and Artifact Links */}
       {(hasAffiliations || hasContacts || hasLink) && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-zinc-600 dark:text-zinc-300">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-x-3 gap-y-1.5 text-zinc-600 dark:text-zinc-300">
           {hasAffiliations && (
-            <div className="inline-flex items-center gap-1.5 font-medium">
+            <div className="inline-flex min-w-0 max-w-full items-start gap-1.5 font-medium">
               <BuildingLibraryIcon
                 aria-hidden="true"
-                className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-500"
+                className="mt-0.5 size-3.5 shrink-0 text-zinc-400 dark:text-zinc-500"
               />
-              <span>{risk.affiliations.join(' · ')}</span>
+              <span className="break-words [overflow-wrap:anywhere]">{risk.affiliations.join(' · ')}</span>
             </div>
           )}
 
           {hasContacts && (
-            <div className="inline-flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400">
+            <div className="flex min-w-0 max-w-full items-start gap-1.5 text-zinc-500 dark:text-zinc-400">
               <EnvelopeIcon
                 aria-hidden="true"
-                className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-500"
+                className="mt-0.5 size-3.5 shrink-0 text-zinc-400 dark:text-zinc-500"
               />
-              <span className="font-mono text-[11px]">
+              <span className="min-w-0 flex-1 break-words font-mono text-[11px] leading-relaxed [overflow-wrap:anywhere]">
                 {risk.author_contacts.map((contact, i) => (
-                  <span key={contact}>
-                    {i > 0 && <span className="mx-1">,</span>}
+                  <span key={contact} className="inline">
+                    {i > 0 && <span className="mr-1 text-zinc-400">, </span>}
                     {contact.includes('@') ? (
                       <a
                         href={`mailto:${contact}`}
-                        className="hover:text-accent hover:underline"
+                        className="break-all hover:text-accent hover:underline"
                         title={fmt(t('Email {contact}'), { contact })}
                       >
                         {contact}

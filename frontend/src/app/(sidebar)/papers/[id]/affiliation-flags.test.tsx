@@ -336,4 +336,38 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     expect(out).toContain('GDPR Sovereignty:')
     expect(out).toContain('text-emerald-700')
   })
+
+  test('renders long author contacts list with responsive wrapping and line break classes', () => {
+    const multiContactRisk: RiskAndAffiliation = {
+      affiliations: ['University of California, Irvine'],
+      author_contacts: [
+        'haochx5@uci.edu',
+        'bhardwb@uci.edu',
+        'chouy10@uci.edu',
+        'zhihenc5@uci.edu',
+        'leyaoh5@uci.edu',
+        'yifanz58@uci.edu',
+        'yeq6@uci.edu',
+        'saptarshi@uci.edu',
+      ],
+      funding_entities: [],
+      codebase_artifact_link: null,
+      flags: [],
+    }
+    const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={multiContactRisk} />)
+
+    // Verify wrapping and responsive containment classes
+    expect(out).toContain('min-w-0')
+    expect(out).toContain('max-w-full')
+    expect(out).toContain('break-words')
+    expect(out).toContain('[overflow-wrap:anywhere]')
+    expect(out).toContain('break-all')
+
+    // Verify all emails are rendered as mailto links
+    expect(out).toContain('href="mailto:haochx5@uci.edu"')
+    expect(out).toContain('href="mailto:saptarshi@uci.edu"')
+
+    // Verify comma separation with space allowing browser line wrapping
+    expect(out).toContain(', ')
+  })
 })
