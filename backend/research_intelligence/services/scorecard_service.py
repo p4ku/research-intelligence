@@ -169,10 +169,18 @@ def build_single_scored_paper(
     extractions_list: list = None,
     paper_data: dict = None,
     request=None,
+    is_detail: bool = True,
 ) -> dict:
     """
     Builds the dictionary representation of a single ScoredPaper matching frontend schema.
+    When is_detail is False (default for workspace lists), omits bloated response_schema,
+    fields_data, duplicate metric aliases, and risk.raw to drastically reduce payload size.
     """
+    if request and hasattr(request, 'query_params'):
+        detail_param = request.query_params.get('detail')
+        if detail_param is not None:
+            is_detail = detail_param.strip().lower() in ('true', '1')
+
     if metrics_list is None:
         metrics_list = list(paper.metrics.all())
     if extractions_list is None:
@@ -216,6 +224,9 @@ def build_single_scored_paper(
         if is_risk and e.fields_data and not risk_and_affiliation_info:
             risk_and_affiliation_info = extract_risk_and_affiliation(e.fields_data)
 
+    if not is_detail and risk_and_affiliation_info and 'raw' in risk_and_affiliation_info:
+        risk_and_affiliation_info = {k: v for k, v in risk_and_affiliation_info.items() if k != 'raw'}
+
     # 3. Dynamic dimensions with rich layout details (facets, texts, facts, lists, rationale, evidence)
     ext_by_def = {}
     for e in extractions_list:
@@ -255,7 +266,7 @@ def build_single_scored_paper(
             order=d.get_secondary_frontend_metrics_list() if (d and d.has_explicit_frontend_metrics()) else (d.get_exit_metrics_list() if d else None),
         )
 
-        dimensions.append({
+        dim_dict = {
             'key': dim_key,
             'definition_id': str(d.id),
             'name': d.name,
@@ -271,8 +282,6 @@ def build_single_scored_paper(
             'primary_frontend_metric': d.primary_frontend_metric or None,
             'secondary_frontend_metrics': d.get_secondary_frontend_metrics_list(),
             'is_hitl': bool(e.is_hitl_validated) if e else False,
-            'fields_data': e.fields_data if e else None,
-            'response_schema': d.response_schema,
             'exit_metrics': d.get_exit_metrics_list(),
             'rationale': rich_details.get('rationale'),
             'evidence': rich_details.get('evidence') or [],
@@ -290,7 +299,13 @@ def build_single_scored_paper(
                 if (e and isinstance(e.version_info, dict) and e.version_info.get('llm_model'))
                 else d.llm_model
             ) if e else d.llm_model,
-        })
+        }
+        if is_detail:
+            dim_dict['fields_data'] = e.fields_data if e else None
+            dim_dict['response_schema'] = d.response_schema
+            dim_dict['main_metric'] = primary_metric
+            dim_dict['auxiliary_metrics'] = secondary_metrics
+        dimensions.append(dim_dict)
 
     # Trailing definition-less extractions
     def_ids = {d.id for d in definitions}
@@ -319,7 +334,7 @@ def build_single_scored_paper(
             if raw_val and (raw_val.startswith('{') or raw_val.startswith('OrderedDict(')):
                 raw_val = '—'
 
-            dimensions.append({
+            dim_dict = {
                 'key': dim_key,
                 'definition_id': None,
                 'name': e.category or 'Extraction',
@@ -335,8 +350,6 @@ def build_single_scored_paper(
                 'primary_frontend_metric': None,
                 'secondary_frontend_metrics': [],
                 'is_hitl': bool(e.is_hitl_validated),
-                'fields_data': e.fields_data,
-                'response_schema': None,
                 'exit_metrics': [primary_metric['key']] if primary_metric else [],
                 'rationale': rich_details.get('rationale'),
                 'evidence': rich_details.get('evidence') or [],
@@ -350,7 +363,13 @@ def build_single_scored_paper(
                 'lists': rich_details.get('lists') or [],
                 'facts': rich_details.get('facts') or [],
                 'model': e.version_info.get('llm_model') if isinstance(e.version_info, dict) else None,
-            })
+            }
+            if is_detail:
+                dim_dict['fields_data'] = e.fields_data
+                dim_dict['response_schema'] = None
+                dim_dict['main_metric'] = primary_metric
+                dim_dict['auxiliary_metrics'] = secondary_metrics
+            dimensions.append(dim_dict)
 
     # 4. Resolve source_url
     final_source_url = None
@@ -667,6 +686,8 @@ def build_paper_scorecard_data(paper: Paper, pipeline_run_id=None, request=None)
         metrics_list=list(paper.metrics.all()),
         extractions_list=extractions,
         paper_data=paper_data,
+        request=request,
+        is_detail=True,
     )
 
     return {
@@ -838,6 +859,16 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
     else:
         paper_items = list(papers_qs)
 
+    is_detail = False
+    results_only = False
+    if request and hasattr(request, 'query_params'):
+        detail_param = request.query_params.get('detail')
+        if detail_param is not None:
+            is_detail = detail_param.strip().lower() in ('true', '1')
+        ro_param = request.query_params.get('results_only')
+        if ro_param is not None:
+            results_only = ro_param.strip().lower() in ('true', '1')
+
     scored_papers = []
     for p in paper_items:
         sp = build_single_scored_paper(
@@ -848,6 +879,7 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
             metrics_list=list(p.metrics.all()),
             extractions_list=list(p.extractions.all()),
             request=request,
+            is_detail=is_detail,
         )
         scored_papers.append(sp)
 
@@ -876,12 +908,13 @@ def build_workspace_scorecard_data(workspace, pipeline_run_id=None, request=None
 
     res = {
         'workspace': ws_summary,
-        'papers': scored_papers,
         'results': scored_papers,
         'count': total_count,
         'next': next_url,
         'previous': prev_url,
     }
+    if not results_only:
+        res['papers'] = scored_papers
     if page_size:
         res['page'] = page_number
         res['page_size'] = page_size
