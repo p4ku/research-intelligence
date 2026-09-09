@@ -23,6 +23,92 @@ def _unwrap_val(v):
     return v
 
 
+def _parse_dict_or_json(val):
+    """
+    Parses val if it is a dictionary, or a string representing a dict (JSON or Python repr).
+    Returns dict if parsed, or None.
+    """
+    if isinstance(val, dict):
+        return val
+    if isinstance(val, str):
+        s = val.strip()
+        if (s.startswith('{') and s.endswith('}')) or (s.startswith('[') and s.endswith(']')):
+            try:
+                import json
+                parsed = json.loads(s)
+                if isinstance(parsed, (dict, list)):
+                    return parsed
+            except Exception:
+                pass
+            try:
+                import ast
+                parsed = ast.literal_eval(s)
+                if isinstance(parsed, (dict, list)):
+                    return parsed
+            except Exception:
+                pass
+    return None
+
+
+def unpack_flag_value(raw_val, flag_name=""):
+    """
+    Unpacks a flag value that might be:
+      - dict or stringified dict like:
+        {'status': 'YES', 'matched_institutions': ['TUM']}
+        {'status': 'NO', 'matches': None}
+        {'status': 'YES', 'matches': ['OpenAI', 'Anthropic']}
+      - boolean (True/False)
+      - plain string ('YES', 'NO', 'None', etc.)
+    Returns:
+      (display_str, is_positive_match, items_list, is_dict, parsed_dict)
+    """
+    if raw_val is None:
+        return None, False, [], False, None
+
+    parsed = _parse_dict_or_json(raw_val)
+    if isinstance(parsed, dict):
+        status = parsed.get("status")
+        if status is None:
+            status = parsed.get("value") or parsed.get("risk") or parsed.get("level") or parsed.get("flag")
+
+        matches = (
+            parsed.get("matched_institutions")
+            or parsed.get("matched_competitors")
+            or parsed.get("matches")
+            or parsed.get("institutions")
+            or parsed.get("competitors")
+            or parsed.get("details")
+        )
+        items = []
+        if isinstance(matches, list):
+            items = [str(x).strip() for x in matches if x is not None and str(x).strip() not in ("None", "null", "", "none")]
+        elif isinstance(matches, str) and matches.strip() not in ("None", "null", "", "none"):
+            items = [matches.strip()]
+
+        stat_str = str(status).strip() if status is not None else ""
+        is_pos = bool(re.search(r'^(yes|true|affiliated|high|present)\b', stat_str, re.I)) or (bool(items) and not re.search(r'^(no|false|none|low|safe)\b', stat_str, re.I))
+        is_neg = bool(re.search(r'^(no|none|false|low|safe)\b', stat_str, re.I))
+
+        if is_pos:
+            display_val = f"YES ({', '.join(items)})" if items else "YES"
+            return display_val, True, items, True, parsed
+        elif is_neg:
+            display_val = "None" if flag_name == "competitor" else "NO"
+            return display_val, False, items, True, parsed
+        else:
+            if items:
+                display_val = f"{stat_str} ({', '.join(items)})" if stat_str else ", ".join(items)
+                return display_val, bool(items), items, True, parsed
+            return stat_str or "—", False, items, True, parsed
+
+    # String / scalar handling
+    val_str = str(raw_val).strip()
+    is_pos = bool(re.search(r'^(yes|true|affiliated|high|present)\b', val_str, re.I))
+    if val_str.lower() in ("no", "none", "false") and flag_name == "competitor":
+        val_str = "None"
+    return val_str, is_pos, [], False, None
+
+
 def humanise_field_label(key: str) -> str:
     """
     Capitalizes first word, preserves common acronyms, e.g.
@@ -95,9 +181,23 @@ def resolve_field_val(fields_data: dict, key: str):
     if actual_val is None:
         return None, "—", None, False, True
 
-    # If it is still a dictionary (meaning >1 key-values)
-    if isinstance(actual_val, dict):
-        return actual_val, str(actual_val), None, False, True
+    # If it is a dictionary (or stringified dict with submetrics like {'score': 68, ...})
+    parsed_sub = _parse_dict_or_json(actual_val)
+    if isinstance(parsed_sub, dict):
+        num_val = None
+        is_num = False
+        s_cand = parsed_sub.get("score") if "score" in parsed_sub else parsed_sub.get("numeric_value")
+        if s_cand is None and "value" in parsed_sub:
+            s_cand = parsed_sub.get("value")
+        if s_cand is not None:
+            try:
+                f_cand = float(s_cand)
+                if math.isfinite(f_cand):
+                    num_val = int(f_cand) if f_cand.is_integer() else round(f_cand, 2)
+                    is_num = True
+            except (ValueError, TypeError):
+                pass
+        return actual_val, str(actual_val), num_val, is_num, True
 
     raw_str = str(actual_val)
     num_val = None
@@ -452,32 +552,44 @@ def extract_risk_and_affiliation(fields_data: dict) -> dict:
     # Format badges/flags
     flags = []
     if gdpr_concerns is not None:
-        val_str = str(gdpr_concerns).strip()
-        is_safe = bool(re.search(r'^(no|none|false|low)\b', val_str, re.I))
+        val_str, is_pos, _, is_d, p_dict = unpack_flag_value(gdpr_concerns, "gdpr")
         flags.append({
             "key": "gdpr",
             "label": "GDPR Sovereignty",
             "value": val_str,
-            "status": "safe" if is_safe else "warn",
+            "status": "warn" if is_pos else "safe",
+            "type": "dict" if is_d else "string",
+            "is_dict": is_d,
+            "dict_value": p_dict if is_d else None,
         })
     if schwarz_ecosystem is not None:
-        val_str = str(schwarz_ecosystem).strip()
-        has_affil = bool(re.search(r'^(yes|true|affiliated)\b', val_str, re.I))
+        val_str, is_pos, items, is_d, p_dict = unpack_flag_value(schwarz_ecosystem, "schwarz")
         flags.append({
             "key": "schwarz_ecosystem",
             "label": "Schwarz Ecosystem",
             "value": val_str,
-            "status": "highlight" if has_affil else "neutral",
+            "status": "highlight" if is_pos else "neutral",
+            "type": "dict" if is_d else "string",
+            "is_dict": is_d,
+            "dict_value": p_dict if is_d else None,
         })
+        if not affiliations and items:
+            affiliations.extend(items)
     if competitor_involvement is not None:
-        val_str = str(competitor_involvement).strip()
-        has_comp = bool(re.search(r'^(yes|true|high|present)\b', val_str, re.I))
+        val_str, is_pos, _, is_d, p_dict = unpack_flag_value(competitor_involvement, "competitor")
         flags.append({
             "key": "competitor",
             "label": "Competitor Involvement",
             "value": val_str,
-            "status": "warn" if has_comp else "safe",
+            "status": "warn" if is_pos else "safe",
+            "type": "dict" if is_d else "string",
+            "is_dict": is_d,
+            "dict_value": p_dict if is_d else None,
         })
+
+    schwarz_clean = unpack_flag_value(schwarz_ecosystem, "schwarz")[0] if schwarz_ecosystem is not None else None
+    gdpr_clean = unpack_flag_value(gdpr_concerns, "gdpr")[0] if gdpr_concerns is not None else None
+    competitor_clean = unpack_flag_value(competitor_involvement, "competitor")[0] if competitor_involvement is not None else None
 
     return {
         "raw": data,
@@ -485,9 +597,9 @@ def extract_risk_and_affiliation(fields_data: dict) -> dict:
         "author_contacts": contacts,
         "funding_entities": funding,
         "codebase_artifact_link": code_link,
-        "schwarz_ecosystem_affiliation": str(schwarz_ecosystem) if schwarz_ecosystem is not None else None,
-        "gdpr_concerns": str(gdpr_concerns) if gdpr_concerns is not None else None,
-        "competitor_involvement": str(competitor_involvement) if competitor_involvement is not None else None,
+        "schwarz_ecosystem_affiliation": schwarz_clean,
+        "gdpr_concerns": gdpr_clean,
+        "competitor_involvement": competitor_clean,
         "risk_score": float(risk_score) if isinstance(risk_score, (int, float)) else None,
         "risk_score_assessment": str(risk_assessment) if risk_assessment else None,
         "flags": flags,
@@ -686,12 +798,109 @@ def extract_rich_dimension_details(
         "fields",
     }
 
+    DUPLICATE_KEY_RE = re.compile(r'_(computed|postprocessed)$', re.I)
+    rich_unpacked_keys = set()
+
     for k, v in data.items():
         k_norm = k.strip().lower()
-        if k_norm in used or k_norm in ignored_keys:
+        if k_norm in ignored_keys or DUPLICATE_KEY_RE.search(k_norm) or k_norm in rich_unpacked_keys:
             continue
         val = _unwrap_val(v)
         label = humanise_field_label(k)
+
+        # Dictionary / JSON sub-metrics (e.g. {'band': 'Substantial', 'score': 68, 'insight': '...', 'evidence': [...]})
+        parsed_dict = _parse_dict_or_json(val)
+        if isinstance(parsed_dict, dict) and parsed_dict:
+            has_score_key = any(sk in parsed_dict for sk in ("score", "numeric_value", "value"))
+            has_insight_key = any(ik in parsed_dict for ik in ("insight", "rationale", "reasoning", "explanation", "description", "text", "summary"))
+            has_band_key = any(bk in parsed_dict for bk in ("band", "label", "level"))
+            has_evidence_key = any(ek in parsed_dict for ek in ("evidence", "quotes", "snippets"))
+
+            if has_insight_key or has_band_key or has_evidence_key or (has_score_key and len(parsed_dict) > 1):
+                rich_unpacked_keys.add(k_norm)
+                # Unpack score
+                s_raw = parsed_dict.get("score") if "score" in parsed_dict else parsed_dict.get("value")
+                item_score = None
+                if s_raw is not None:
+                    try:
+                        f_s = float(s_raw)
+                        if math.isfinite(f_s):
+                            item_score = int(f_s) if f_s.is_integer() else round(f_s, 2)
+                    except (ValueError, TypeError):
+                        pass
+
+                # Unpack band
+                b_raw = parsed_dict.get("band") or parsed_dict.get("label") or parsed_dict.get("level")
+                item_band = str(b_raw).strip() if b_raw is not None and str(b_raw).strip() not in ("None", "") else None
+
+                # Unpack insight / rationale
+                i_raw = (
+                    parsed_dict.get("insight")
+                    or parsed_dict.get("rationale")
+                    or parsed_dict.get("reasoning")
+                    or parsed_dict.get("explanation")
+                    or parsed_dict.get("description")
+                    or parsed_dict.get("text")
+                    or parsed_dict.get("summary")
+                )
+                item_insight = str(i_raw).strip() if i_raw is not None and str(i_raw).strip() not in ("None", "") else None
+
+                # Unpack evidence
+                e_raw = parsed_dict.get("evidence") or parsed_dict.get("quotes") or parsed_dict.get("snippets")
+                item_evidence = []
+                if isinstance(e_raw, list):
+                    item_evidence = [str(q.get("quote") if isinstance(q, dict) else q).strip() for q in e_raw if q and str(q).strip() not in ("None", "")]
+                elif isinstance(e_raw, str) and e_raw.strip() not in ("None", ""):
+                    item_evidence = [e_raw.strip()]
+
+                # Update matching facet if one exists in facets
+                matched_facet = None
+                for f in facets:
+                    fk = (f.get("key") or "").strip().lower()
+                    fn = (f.get("name") or "").strip().lower()
+                    if fk == k_norm or fn == label.lower() or fk.startswith(f"{k_norm}_") or fk.endswith(f"_{k_norm}"):
+                        matched_facet = f
+                        break
+
+                if matched_facet:
+                    if item_band and not matched_facet.get("band"):
+                        matched_facet["band"] = item_band
+                    if item_insight and not matched_facet.get("text"):
+                        matched_facet["text"] = item_insight
+                    if item_score is not None and (matched_facet.get("value") is None or matched_facet.get("value") == "—"):
+                        matched_facet["value"] = item_score
+                elif item_score is not None:
+                    facets.append({
+                        "key": k,
+                        "name": label,
+                        "value": item_score,
+                        "max": max_val,
+                        "text": item_insight,
+                        "band": item_band,
+                    })
+
+                if item_evidence:
+                    evidence.extend(item_evidence)
+
+                # Add to texts: main value is the insight (NEVER duplicate score in text!)
+                if item_insight or item_band or item_evidence or parsed_dict:
+                    texts.append({
+                        "key": k,
+                        "name": label,
+                        "type": "dict",
+                        "is_dict": True,
+                        "value": item_insight or (f"{item_band}" if item_band else "—"),
+                        "dict_value": parsed_dict,
+                        "band": item_band,
+                        "insight": item_insight,
+                        "evidence": item_evidence,
+                        "score": item_score,
+                    })
+                used.add(k_norm)
+                continue
+
+        if k_norm in used:
+            continue
 
         # Lists
         if isinstance(val, list):
@@ -703,7 +912,7 @@ def extract_rich_dimension_details(
 
         # Booleans -> Facts
         if isinstance(val, bool):
-            facts.append({"key": k, "name": label, "value": val})
+            facts.append({"key": k, "name": label, "value": val, "type": "boolean", "is_dict": False})
             used.add(k_norm)
             continue
 
@@ -713,9 +922,9 @@ def extract_rich_dimension_details(
             if not s:
                 continue
             if SENTENCE_RE.search(s) or len(s) > 80:
-                texts.append({"key": k, "name": label, "value": s})
+                texts.append({"key": k, "name": label, "value": s, "type": "text", "is_dict": False})
             else:
-                facts.append({"key": k, "name": label, "value": s})
+                facts.append({"key": k, "name": label, "value": s, "type": "fact", "is_dict": False})
             used.add(k_norm)
             continue
 
@@ -724,7 +933,7 @@ def extract_rich_dimension_details(
             if LEVEL_KEY_RE.search(k_norm) and primary_metric.get("numeric_value") == val:
                 continue
             num_display = int(val) if float(val).is_integer() else round(float(val), 2)
-            facts.append({"key": k, "name": label, "value": str(num_display)})
+            facts.append({"key": k, "name": label, "value": str(num_display), "type": "number", "is_dict": False})
             used.add(k_norm)
 
     return {

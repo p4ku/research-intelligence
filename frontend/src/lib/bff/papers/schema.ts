@@ -45,13 +45,27 @@ export const dimensionFacet = z
     /** The definition's scale; null → show the figure only (a TRL definition's sub-scores declare no range). */
     max: z.number().nullable(),
     text: z.string().nullable(),
+    band: z.string().nullable().optional(),
   })
+  .passthrough()
   .meta({ id: 'DimensionFacet' })
 export type DimensionFacet = z.infer<typeof dimensionFacet>
 
 /** A labelled string field of a definition's payload (a longer prose field, or a short fact). */
 export const dimensionField = z
-  .object({ key: z.string(), name: z.string(), value: z.union([z.string(), z.boolean()]) })
+  .object({
+    key: z.string(),
+    name: z.string(),
+    value: z.union([z.string(), z.boolean(), z.record(z.string(), z.unknown())]),
+    type: z.string().optional(),
+    is_dict: z.boolean().optional(),
+    dict_value: z.record(z.string(), z.unknown()).nullable().optional(),
+    band: z.string().nullable().optional(),
+    insight: z.string().nullable().optional(),
+    evidence: z.array(z.string()).nullable().optional(),
+    score: z.number().nullable().optional(),
+  })
+  .passthrough()
   .meta({ id: 'DimensionField' })
 export type DimensionField = z.infer<typeof dimensionField>
 
@@ -65,9 +79,13 @@ export const riskFlag = z
   .object({
     key: z.string(),
     label: z.string(),
-    value: z.string(),
+    value: z.union([z.string(), z.record(z.string(), z.unknown())]),
     status: z.string(),
+    type: z.string().optional(),
+    is_dict: z.boolean().optional(),
+    dict_value: z.record(z.string(), z.unknown()).nullable().optional(),
   })
+  .passthrough()
   .meta({ id: 'RiskFlag' })
 export type RiskFlag = z.infer<typeof riskFlag>
 

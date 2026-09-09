@@ -116,4 +116,71 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={emptyRisk} />)
     expect(out).toBe('')
   })
+
+  test('unpacks stringified dictionary flags cleanly (Schwarz Ecosystem YES (TUM), Competitor None)', () => {
+    const dictFlagsRisk: RiskAndAffiliation = {
+      affiliations: [],
+      author_contacts: [],
+      funding_entities: [],
+      flags: [
+        {
+          key: 'schwarz_ecosystem',
+          label: 'Schwarz Ecosystem',
+          value: "{'status': 'YES', 'matched_institutions': ['TUM']}",
+          status: 'neutral',
+        },
+        {
+          key: 'competitor',
+          label: 'Competitor Involvement',
+          value: "{'status': 'NO', 'matches': None}",
+          status: 'safe',
+        },
+      ],
+      codebase_artifact_link: null,
+    }
+    const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={dictFlagsRisk} />)
+    expect(out).toContain('Schwarz Ecosystem:')
+    expect(out).toContain('YES (TUM)')
+    expect(out).toContain('text-sky-700')
+    expect(out).toContain('Competitor Involvement:')
+    expect(out).toContain('None')
+    expect(out).toContain('text-emerald-700')
+    expect(out).not.toContain("{'status'")
+  })
+
+  test('unpacks direct dict_value flags with type: dict', () => {
+    const directDictRisk: RiskAndAffiliation = {
+      affiliations: [],
+      author_contacts: [],
+      funding_entities: [],
+      flags: [
+        {
+          key: 'schwarz_ecosystem',
+          label: 'Schwarz Ecosystem',
+          value: 'YES (TUM)',
+          status: 'highlight',
+          type: 'dict',
+          is_dict: true,
+          dict_value: { status: 'YES', matched_institutions: ['TUM'] },
+        },
+        {
+          key: 'competitor',
+          label: 'Competitor Involvement',
+          value: 'None',
+          status: 'safe',
+          type: 'dict',
+          is_dict: true,
+          dict_value: { status: 'NO', matches: null },
+        },
+      ],
+      codebase_artifact_link: null,
+    }
+    const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={directDictRisk} />)
+    expect(out).toContain('Schwarz Ecosystem:')
+    expect(out).toContain('YES (TUM)')
+    expect(out).toContain('text-sky-700')
+    expect(out).toContain('Competitor Involvement:')
+    expect(out).toContain('None')
+    expect(out).toContain('text-emerald-700')
+  })
 })

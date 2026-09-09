@@ -175,4 +175,105 @@ describe('Assessment Component Rendering', () => {
     const out = renderToStaticMarkup(<Assessment dimensions={[]} t={t} />)
     expect(out).toContain('Not scored yet')
   })
+
+  test('unpacks stringified dictionary submetrics (Novelty band, insight, quotes) without duplicating score', () => {
+    const dictDimension: Dimension = {
+      key: 'research_metrics',
+      definition_id: '11111111-1111-1111-1111-111111111111',
+      name: 'Research Metrics',
+      value: 68,
+      raw: '68',
+      max: 100,
+      is_trl: false,
+      facets: [
+        {
+          key: 'novelty',
+          name: 'Novelty',
+          value: 68,
+          max: 100,
+          text: null,
+          band: 'Substantial',
+        },
+      ],
+      texts: [
+        {
+          key: 'novelty',
+          name: 'Novelty',
+          value:
+            "{'band': 'Substantial', 'score': 68, 'insight': 'The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.', 'evidence': ['quantum-assisted framework for PDE-based Bayesian inverse problems', 'hybrid quantum-classical algorithm using quantum linear system algorithms (QLSAs)']}",
+        },
+      ],
+      evidence: [],
+      facts: [],
+      lists: [],
+    }
+    const out = renderToStaticMarkup(<Assessment dimensions={[dictDimension]} t={t} />)
+    expect(out).toContain('Research Metrics')
+    expect(out).toContain('Substantial')
+    expect(out).toContain('The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.')
+    expect(out).toContain('“quantum-assisted framework for PDE-based Bayesian inverse problems”')
+    expect(out).toContain('“hybrid quantum-classical algorithm using quantum linear system algorithms (QLSAs)”')
+    expect(out).not.toContain("{'band'")
+    expect(out).not.toContain("'score': 68")
+  })
+
+  test('renders structured dictionary submetric when backend marks type as dict', () => {
+    const structuredDimension: Dimension = {
+      key: 'research_metrics',
+      definition_id: '11111111-1111-1111-1111-111111111111',
+      name: 'Research Metrics',
+      value: 68,
+      raw: '68',
+      max: 100,
+      is_trl: false,
+      facets: [
+        {
+          key: 'novelty',
+          name: 'Novelty',
+          value: 68,
+          max: 100,
+          text: null,
+          band: 'Substantial',
+        },
+      ],
+      texts: [
+        {
+          key: 'novelty',
+          name: 'Novelty',
+          type: 'dict',
+          is_dict: true,
+          band: 'Substantial',
+          score: 68,
+          insight:
+            'The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.',
+          evidence: [
+            'quantum-assisted framework for PDE-based Bayesian inverse problems',
+            'hybrid quantum-classical algorithm using quantum linear system algorithms (QLSAs)',
+          ],
+          dict_value: {
+            band: 'Substantial',
+            score: 68,
+            insight:
+              'The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.',
+            evidence: [
+              'quantum-assisted framework for PDE-based Bayesian inverse problems',
+              'hybrid quantum-classical algorithm using quantum linear system algorithms (QLSAs)',
+            ],
+          },
+          value:
+            'The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.',
+        },
+      ],
+      evidence: [],
+      facts: [],
+      lists: [],
+    }
+    const out = renderToStaticMarkup(<Assessment dimensions={[structuredDimension]} t={t} />)
+    expect(out).toContain('data-type="submetric-dict"')
+    expect(out).toContain('Substantial')
+    expect(out).toContain('Sub-score: 68')
+    expect(out).toContain('Evidence')
+    expect(out).toContain('The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.')
+    expect(out).toContain('“quantum-assisted framework for PDE-based Bayesian inverse problems”')
+  })
 })

@@ -743,3 +743,129 @@ return {
         self.assertEqual(res_stat.status_code, 200)
         self.assertEqual(len(res_stat.json()["papers"]), 1)
 
+    def test_12_structured_dict_submetrics_and_flags_unpacking(self):
+        """
+        Verifies unpacking of structured dictionaries for sub-metrics (e.g. Novelty, Significance, Rigour)
+        and risk flags (Schwarz Ecosystem, Competitor Involvement).
+        - band, insight, evidence are cleanly unpacked
+        - score is not duplicated in prose texts
+        - status and matched institutions/competitors formatted cleanly
+        """
+        from research_intelligence.services.scorecard_extractors import (
+            extract_rich_dimension_details,
+            extract_risk_and_affiliation,
+        )
+
+        # 1. Test rich dimension details with dictionary sub-metric
+        fields_with_dict = {
+            "research_quality_insight": "Overall solid paper.",
+            "novelty": {
+                "band": "Substantial",
+                "score": 68,
+                "insight": "The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.",
+                "evidence": [
+                    "quantum-assisted framework for PDE-based Bayesian inverse problems",
+                    "hybrid quantum-classical algorithm using quantum linear system algorithms (QLSAs)",
+                ],
+            },
+            "significance": str({
+                "band": "Important",
+                "score": 62,
+                "insight": "This work addresses a prominent bottleneck in computational science.",
+                "evidence": ["mitigates the cubic complexity barrier in large-scale inverse problems"],
+            }),
+            "novelty_computed": 68,
+            "novelty_postprocessed": 68,
+        }
+
+        rich = extract_rich_dimension_details(
+            fields_data=fields_with_dict,
+            primary_metric={"key": "research_quality_score", "numeric_value": 75, "value": 75},
+            secondary_metrics=[
+                {"key": "novelty", "name": "Novelty", "numeric_value": 68, "is_numeric": True},
+            ],
+            max_val=100,
+        )
+
+        # Check texts
+        text_by_key = {t["key"]: t for t in rich["texts"]}
+        self.assertIn("novelty", text_by_key)
+        self.assertEqual(text_by_key["novelty"]["band"], "Substantial")
+        self.assertEqual(
+            text_by_key["novelty"]["value"],
+            "The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.",
+        )
+        self.assertNotIn("68", text_by_key["novelty"]["value"])
+        self.assertEqual(len(text_by_key["novelty"]["evidence"]), 2)
+
+        self.assertIn("significance", text_by_key)
+        self.assertEqual(text_by_key["significance"]["band"], "Important")
+        self.assertEqual(
+            text_by_key["significance"]["value"],
+            "This work addresses a prominent bottleneck in computational science.",
+        )
+        self.assertEqual(text_by_key["significance"]["type"], "dict")
+        self.assertTrue(text_by_key["significance"]["is_dict"])
+        self.assertIsInstance(text_by_key["significance"]["dict_value"], dict)
+
+        self.assertEqual(text_by_key["novelty"]["type"], "dict")
+        self.assertTrue(text_by_key["novelty"]["is_dict"])
+        self.assertIsInstance(text_by_key["novelty"]["dict_value"], dict)
+        self.assertEqual(text_by_key["novelty"]["score"], 68)
+
+        # Ensure pipeline internal duplicates are excluded
+        self.assertNotIn("novelty_computed", text_by_key)
+        self.assertNotIn("novelty_postprocessed", text_by_key)
+
+        # Check facets: Novelty facet has band and text
+        facet_by_key = {f["key"]: f for f in rich["facets"]}
+        self.assertIn("novelty", facet_by_key)
+        self.assertEqual(facet_by_key["novelty"]["band"], "Substantial")
+        self.assertEqual(
+            facet_by_key["novelty"]["text"],
+            "The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.",
+        )
+
+        # Check evidence list
+        self.assertIn("quantum-assisted framework for PDE-based Bayesian inverse problems", rich["evidence"])
+        self.assertIn("mitigates the cubic complexity barrier in large-scale inverse problems", rich["evidence"])
+
+        # 2. Test risk and affiliation unpacking with dictionaries
+        risk_fields = {
+            "schwarz_ecosystem_affiliation": "{'status': 'YES', 'matched_institutions': ['TUM']}",
+            "competitor_involvement": "{'status': 'NO', 'matches': None}",
+            "gdpr_concerns": "{'status': 'NO', 'details': None}",
+        }
+        risk_res = extract_risk_and_affiliation(risk_fields)
+        self.assertEqual(risk_res["schwarz_ecosystem_affiliation"], "YES (TUM)")
+        self.assertEqual(risk_res["competitor_involvement"], "None")
+        self.assertEqual(risk_res["gdpr_concerns"], "NO")
+        self.assertIn("TUM", risk_res["affiliations"])
+
+        flag_by_key = {f["key"]: f for f in risk_res["flags"]}
+        self.assertEqual(flag_by_key["schwarz_ecosystem"]["value"], "YES (TUM)")
+        self.assertEqual(flag_by_key["schwarz_ecosystem"]["status"], "highlight")
+        self.assertEqual(flag_by_key["schwarz_ecosystem"]["type"], "dict")
+        self.assertTrue(flag_by_key["schwarz_ecosystem"]["is_dict"])
+        self.assertIsInstance(flag_by_key["schwarz_ecosystem"]["dict_value"], dict)
+
+        self.assertEqual(flag_by_key["competitor"]["value"], "None")
+        self.assertEqual(flag_by_key["competitor"]["status"], "safe")
+        self.assertEqual(flag_by_key["competitor"]["type"], "dict")
+        self.assertTrue(flag_by_key["competitor"]["is_dict"])
+
+        self.assertEqual(flag_by_key["gdpr"]["value"], "NO")
+        self.assertEqual(flag_by_key["gdpr"]["status"], "safe")
+
+        # Test competitor with positive match
+        risk_comp = extract_risk_and_affiliation({
+            "competitor_involvement": {"status": "YES", "matches": ["Google", "Amazon"]},
+        })
+        self.assertEqual(risk_comp["competitor_involvement"], "YES (Google, Amazon)")
+        flag_comp = {f["key"]: f for f in risk_comp["flags"]}
+        self.assertEqual(flag_comp["competitor"]["value"], "YES (Google, Amazon)")
+        self.assertEqual(flag_comp["competitor"]["status"], "warn")
+        self.assertEqual(flag_comp["competitor"]["type"], "dict")
+        self.assertTrue(flag_comp["competitor"]["is_dict"])
+        self.assertIsInstance(flag_comp["competitor"]["dict_value"], dict)
+

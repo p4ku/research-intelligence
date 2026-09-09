@@ -1,7 +1,7 @@
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { Bone } from '@/components/skeleton'
 import { fmt, type T } from '@/lib/i18n'
-import type { Dimension, DimensionFacet } from '@/lib/papers/types'
+import type { Dimension, DimensionFacet, DimensionField } from '@/lib/papers/types'
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
 
@@ -150,7 +150,12 @@ function FacetRow({ facet: f }: { facet: DimensionFacet }) {
   const pct = hasBar ? Math.max(0, Math.min(1, f.value / f.max!)) : 0
   return (
     <FacetRowFrame
-      name={f.name}
+      name={
+        <span className="inline-flex items-center gap-2">
+          <span>{f.name}</span>
+          {f.band && <Band>{f.band}</Band>}
+        </span>
+      }
       fill={
         hasBar && (
           <span
@@ -163,6 +168,112 @@ function FacetRow({ facet: f }: { facet: DimensionFacet }) {
       text={f.text && <p className={SMALL_PROSE}>{f.text}</p>}
     />
   )
+}
+
+interface UnpackedField {
+  name: string
+  value: string | boolean
+  band?: string | null
+  evidence?: string[] | null
+  score?: number | null
+  is_dict: boolean
+}
+
+function unpackField(field: DimensionField): UnpackedField {
+  let band = field.band ?? null
+  let value = field.value
+  let evidence = field.evidence ?? null
+  let score = field.score ?? null
+  let isDict = Boolean(field.is_dict || field.type === 'dict')
+
+  // 1. Structured dictionary sent directly from backend
+  if (field.dict_value || (typeof value === 'object' && value !== null)) {
+    isDict = true
+    const parsed = (field.dict_value ?? value) as Record<string, unknown>
+    if (!band && parsed.band) band = String(parsed.band).trim()
+    if (score == null && parsed.score != null) {
+      const s = Number(parsed.score)
+      if (Number.isFinite(s)) score = s
+    }
+    if (parsed.insight) value = String(parsed.insight).trim()
+    else if (parsed.rationale) value = String(parsed.rationale).trim()
+    else if (parsed.reasoning) value = String(parsed.reasoning).trim()
+    else if (parsed.explanation) value = String(parsed.explanation).trim()
+    else if (parsed.text) value = String(parsed.text).trim()
+    else if (parsed.summary) value = String(parsed.summary).trim()
+    else if (typeof value === 'object') value = ''
+
+    if (!evidence && Array.isArray(parsed.evidence)) {
+      evidence = (parsed.evidence as unknown[])
+        .map((e) =>
+          typeof e === 'object' && e !== null && 'quote' in e
+            ? String((e as { quote: unknown }).quote)
+            : String(e),
+        )
+        .map((s) => s.trim())
+        .filter(Boolean)
+    }
+  } else if (typeof value === 'string') {
+    // 2. Stringified dict fallback (legacy / cache)
+    const trimmed = value.trim()
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      isDict = true
+      let parsed: Record<string, unknown> | null = null
+      try {
+        parsed = JSON.parse(trimmed)
+      } catch {
+        try {
+          const jsonLike = trimmed
+            .replace(/'/g, '"')
+            .replace(/\bNone\b/g, 'null')
+            .replace(/\bTrue\b/g, 'true')
+            .replace(/\bFalse\b/g, 'false')
+          parsed = JSON.parse(jsonLike)
+        } catch {
+          const bandMatch = /'band':\s*'([^']+)'|"band":\s*"([^"]+)"/.exec(trimmed)
+          if (!band && bandMatch) band = bandMatch[1] ?? bandMatch[2]
+          const insightMatch =
+            /'(?:insight|rationale|reasoning|explanation)':\s*'((?:\\'|[^'])*)'|"(?:insight|rationale|reasoning|explanation)":\s*"((?:\\"|[^"])*)"/.exec(
+              trimmed,
+            )
+          if (insightMatch) {
+            value = (insightMatch[1] ?? insightMatch[2]).replace(/\\'/g, "'").replace(/\\"/g, '"')
+          }
+        }
+      }
+
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        if (!band && parsed.band) band = String(parsed.band).trim()
+        if (score == null && parsed.score != null) {
+          const s = Number(parsed.score)
+          if (Number.isFinite(s)) score = s
+        }
+        if (parsed.insight) value = String(parsed.insight).trim()
+        else if (parsed.rationale) value = String(parsed.rationale).trim()
+        else if (parsed.reasoning) value = String(parsed.reasoning).trim()
+        else if (parsed.explanation) value = String(parsed.explanation).trim()
+        else if (parsed.text) value = String(parsed.text).trim()
+        else if (parsed.summary) value = String(parsed.summary).trim()
+        else value = ''
+
+        if (!evidence && Array.isArray(parsed.evidence)) {
+          evidence = (parsed.evidence as unknown[])
+            .map((e) =>
+              typeof e === 'object' && e !== null && 'quote' in e
+                ? String((e as { quote: unknown }).quote)
+                : String(e),
+            )
+            .map((s) => s.trim())
+            .filter(Boolean)
+        }
+      }
+    }
+  }
+
+  if (isDict && !band && field.band) band = field.band
+  if (isDict && !evidence && field.evidence) evidence = field.evidence
+
+  return { name: field.name, value, band, evidence, score, is_dict: isDict }
 }
 
 function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
@@ -221,12 +332,59 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
           ))}
         </ul>
       )}
-      {d.texts?.map((field) => (
-        <div key={field.key}>
-          <h4 className={H4}>{field.name}</h4>
-          <AnswerMarkdown text={String(field.value)} className={clsx(PROSE, 'mt-1.5')} />
-        </div>
-      ))}
+      {d.texts?.map((rawField) => {
+        const field = unpackField(rawField)
+        if (!field.value && !field.band && (!field.evidence || field.evidence.length === 0)) return null
+
+        // Distinct reaction for structured dict submetrics vs regular text!
+        if (field.is_dict) {
+          return (
+            <div
+              key={rawField.key}
+              data-type="submetric-dict"
+              className="rounded-lg border border-zinc-200/80 bg-zinc-50/50 p-3.5 space-y-2 dark:border-zinc-800 dark:bg-zinc-900/30"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <h4 className={H4}>{field.name}</h4>
+                  {field.band && <Band>{field.band}</Band>}
+                </div>
+                {field.score != null && (
+                  <span className="font-mono text-xs font-medium text-zinc-500 tabular-nums dark:text-zinc-400">
+                    Sub-score: {field.score}
+                  </span>
+                )}
+              </div>
+              {field.value && (
+                <AnswerMarkdown text={String(field.value)} className={clsx(PROSE, 'mt-1')} />
+              )}
+              {field.evidence && field.evidence.length > 0 && (
+                <div className="mt-2 space-y-1.5 border-l-2 border-line pl-3">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+                    Evidence
+                  </span>
+                  {field.evidence.map((quote, i) => (
+                    <blockquote
+                      key={i}
+                      className="max-w-[72ch] text-sm leading-relaxed italic text-zinc-600 dark:text-zinc-400"
+                    >
+                      “{unquote(quote)}”
+                    </blockquote>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        }
+
+        // Regular prose text field reaction
+        return (
+          <div key={rawField.key} className="space-y-1.5">
+            <h4 className={H4}>{field.name}</h4>
+            <AnswerMarkdown text={String(field.value)} className={clsx(PROSE, 'mt-1.5')} />
+          </div>
+        )
+      })}
       {d.lists?.map((list) => (
         <div key={list.key}>
           <h4 className={H4}>{list.name}</h4>
@@ -256,7 +414,13 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
             <div key={fact.key} className="contents">
               <dt className="font-medium text-zinc-950 dark:text-white">{fact.name}</dt>
               <dd className="text-zinc-600 dark:text-zinc-400">
-                {typeof fact.value === 'boolean' ? (fact.value ? t('Yes') : t('No')) : fact.value}
+                {typeof fact.value === 'boolean'
+                  ? fact.value
+                    ? t('Yes')
+                    : t('No')
+                  : typeof fact.value === 'object' && fact.value !== null
+                    ? JSON.stringify(fact.value)
+                    : String(fact.value)}
               </dd>
             </div>
           ))}

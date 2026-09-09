@@ -358,6 +358,72 @@ function dimensionDetail(
       // Paired with its facet above; on its own it is prose like any other.
       if (key.replace(ASSESSMENT_KEY, '_score') in data) continue
     }
+    // Dictionary / structured sub-metric (e.g. { band: 'Substantial', score: 68, insight: '...', evidence: [...] })
+    let dictValue: Record<string, unknown> | null = null
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      dictValue = value as Record<string, unknown>
+    } else if (typeof value === 'string' && value.trim().startsWith('{') && value.trim().endsWith('}')) {
+      try {
+        const parsed = JSON.parse(value.trim())
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          dictValue = parsed
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    if (dictValue) {
+      const b = dictValue.band ? String(dictValue.band).trim() : null
+      const insRaw =
+        dictValue.insight ??
+        dictValue.rationale ??
+        dictValue.reasoning ??
+        dictValue.explanation ??
+        dictValue.text ??
+        dictValue.summary
+      const ins = insRaw !== undefined && insRaw !== null ? String(insRaw).trim() : null
+      const evRaw = dictValue.evidence ?? dictValue.quotes ?? dictValue.snippets
+      let ev: string[] | null = null
+      if (Array.isArray(evRaw)) {
+        ev = evRaw
+          .map((e) =>
+            typeof e === 'object' && e !== null && 'quote' in e
+              ? String((e as { quote: unknown }).quote)
+              : String(e),
+          )
+          .map((s) => s.trim())
+          .filter(Boolean)
+      }
+      const sRaw = dictValue.score ?? dictValue.value
+      const sc = typeof sRaw === 'number' && Number.isFinite(sRaw) ? sRaw : null
+
+      if (sc !== null && !facets.some((f) => f.key === key)) {
+        facets.push({
+          key,
+          name,
+          value: sc,
+          max: facetMax,
+          text: ins,
+          band: b,
+        })
+      }
+
+      texts.push({
+        key,
+        name,
+        value: ins || (b ? b : '—'),
+        type: 'dict',
+        is_dict: true,
+        dict_value: dictValue,
+        band: b,
+        insight: ins,
+        evidence: ev,
+        score: sc,
+      })
+      continue
+    }
+
     if (Array.isArray(value)) {
       const items = value.filter((i): i is string => typeof i === 'string' && i.trim() !== '')
       if (items.length) lists.push({ key, name, items })

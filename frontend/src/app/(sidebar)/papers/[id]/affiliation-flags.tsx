@@ -1,4 +1,4 @@
-import type { RiskAndAffiliation } from '@/lib/papers/types'
+import type { RiskAndAffiliation, RiskFlag } from '@/lib/papers/types'
 import {
   ArrowUpRightIcon,
   BuildingLibraryIcon,
@@ -10,6 +10,76 @@ import {
   ShieldCheckIcon,
 } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
+
+export function unpackFlag(flag: RiskFlag): { label: string; value: string; status: string } {
+  let val = flag.value
+  let status = flag.status
+
+  let parsed: Record<string, unknown> | null = null
+  if (flag.dict_value && typeof flag.dict_value === 'object') {
+    parsed = flag.dict_value as Record<string, unknown>
+  } else if (typeof val === 'object' && val !== null) {
+    parsed = val as Record<string, unknown>
+  } else if (typeof val === 'string') {
+    const trimmed = val.trim()
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        parsed = JSON.parse(trimmed)
+      } catch {
+        try {
+          const jsonLike = trimmed
+            .replace(/'/g, '"')
+            .replace(/\bNone\b/g, 'null')
+            .replace(/\bTrue\b/g, 'true')
+            .replace(/\bFalse\b/g, 'false')
+          parsed = JSON.parse(jsonLike)
+        } catch {
+          // fallback regex
+        }
+      }
+    }
+  }
+
+  if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const rawStatus = parsed.status ?? parsed.value ?? parsed.risk ?? parsed.level
+    const matches =
+      parsed.matched_institutions ??
+      parsed.matched_competitors ??
+      parsed.matches ??
+      parsed.institutions ??
+      parsed.competitors ??
+      parsed.details
+    const items: string[] = []
+    if (Array.isArray(matches)) {
+      for (const m of matches) {
+        if (m && String(m).trim() !== '' && String(m).trim() !== 'None' && String(m).trim() !== 'null') {
+          items.push(String(m).trim())
+        }
+      }
+    } else if (matches && String(matches).trim() !== '' && String(matches).trim() !== 'None' && String(matches).trim() !== 'null') {
+      items.push(String(matches).trim())
+    }
+
+    const statStr = rawStatus !== undefined && rawStatus !== null ? String(rawStatus).trim() : ''
+    const isPos =
+      /^(yes|true|affiliated|high|present)$/i.test(statStr) ||
+      (items.length > 0 && !/^(no|false|none|low|safe)$/i.test(statStr))
+    const isNeg = /^(no|false|none|safe|low)$/i.test(statStr)
+
+    if (isPos) {
+      val = items.length > 0 ? `YES (${items.join(', ')})` : 'YES'
+      if (flag.key.includes('schwarz') || flag.key.includes('ecosystem')) status = 'highlight'
+      else status = 'warn'
+    } else if (isNeg) {
+      val = flag.key.includes('competitor') ? 'None' : 'NO'
+      status = 'safe'
+    } else {
+      val = items.length > 0 ? `${statStr} (${items.join(', ')})` : statStr || '—'
+    }
+  }
+
+  return { label: flag.label, value: typeof val === 'string' ? val : String(val ?? '—'), status }
+}
 
 export function RiskAffiliationFlagging({
   risk,
@@ -99,14 +169,15 @@ export function RiskAffiliationFlagging({
       {/* 3. Risk and Ecosystem Badges / Flags */}
       {hasFlags && (
         <div className="flex flex-wrap items-center gap-2 pt-0.5">
-          {risk.flags.map((flag) => {
+          {risk.flags.map((rawFlag) => {
+            const flag = unpackFlag(rawFlag)
             const isSafe = flag.status === 'safe'
             const isWarn = flag.status === 'warn'
             const isHighlight = flag.status === 'highlight'
 
             return (
               <span
-                key={flag.key}
+                key={rawFlag.key}
                 className={clsx(
                   'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium tracking-tight',
                   isSafe && 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-500/30',
