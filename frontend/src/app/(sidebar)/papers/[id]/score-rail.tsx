@@ -1,5 +1,5 @@
 import { RadarChart } from '@/components/charts'
-import { Card, ScreeningPill, TrlBadge } from '@/components/scanner-ui'
+import { Card, TrlBadge } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import type { T } from '@/lib/i18n'
 import { trlDimension } from '@/lib/papers/select'
@@ -10,12 +10,12 @@ import { definitionAnchor } from './assessment'
 import { ScoreBarFrame, ScoreBars, type RailBar } from './score-bars'
 
 /**
- * The glance card beside the record: the Schwarz Score, the screening and
- * TRL chips, one bar per definition — each a link to its article in the
- * column, the one being read marked — and the profile (the radar, values
- * under its labels) under a hairline. Sticky on wide screens so the score
- * mix stays in view while the assessment is read. Server-safe; the frame
- * keeps the skeleton in step.
+ * The glance card beside the record: the Schwarz Score, the TRL chip,
+ * one bar per definition — each a link to its article in the column, the
+ * one being read marked — and the profile (the radar, values under its
+ * labels) under a hairline. Sticky on wide screens so the score mix stays
+ * in view while the assessment is read. Server-safe; the frame keeps the
+ * skeleton in step.
  */
 
 // The rail's full inner width: the radar needs every pixel for its labels.
@@ -147,10 +147,11 @@ function railBar(d: Dimension): RailBar {
 }
 
 export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
+  // Exclude Risk & Affiliation dimensions from the score rail bars
   const visibleDimensions = (paper.dimensions ?? []).filter(
     (d) =>
-      !d.is_risk_and_affiliation &&
-      !d.key.includes('risk_and_affiliation') &&
+      d.key !== 'risk_and_affiliation' &&
+      !d.name.toLowerCase().includes('risk') &&
       !d.name.toLowerCase().includes('affiliation'),
   )
   const trl = trlDimension(paper)
@@ -166,10 +167,9 @@ export function ScoreRail({ paper, t }: { paper: ScoredPaper; t: T }) {
       label={t('Schwarz Score')}
       score={score}
       chips={
-        <>
-          <ScreeningPill status={paper.screening_status} t={t} />
-          {trl?.value !== null && trl?.value !== undefined && <TrlBadge trl={trl.value} t={t} />}
-        </>
+        trl?.value !== null && trl?.value !== undefined ? (
+          <TrlBadge trl={trl.value} t={t} />
+        ) : undefined
       }
       bars={<ScoreBars bars={visibleDimensions.map(railBar)} />}
       formula={
@@ -196,12 +196,7 @@ export function ScoreRailSkeleton({ t, bars = 7 }: { t: T; bars?: number }) {
       state="skeleton"
       label={t('Schwarz Score')}
       score={<Bone.Number digits={4} />}
-      chips={
-        <>
-          <Bone.Chip width={104} />
-          <Bone.Chip width={128} />
-        </>
-      }
+      chips={<Bone.Chip width={128} />}
       bars={Array.from({ length: bars }, (_, i) => (
         <ScoreBarFrame
           key={i}

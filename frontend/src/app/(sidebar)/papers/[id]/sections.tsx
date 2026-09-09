@@ -1,4 +1,3 @@
-import { AnswerMarkdown } from '@/components/answer-markdown'
 import { Breadcrumbs, SectionLabel } from '@/components/scanner-ui'
 import { editionHref } from '@/lib/bff/briefings/href'
 import type { Edition } from '@/lib/bff/briefings/schema'
@@ -32,7 +31,7 @@ import { ScoreRail } from './score-rail'
  * which is why the record is a single boundary rather than one per card.
  *
  * The layout is the "sidecar": the record reads top to bottom in one column
- * (masthead, screening, abstract, then the assessment definition by
+ * (masthead, abstract, then the assessment definition by
  * definition, provenance) with the score card sticky beside it — its bars
  * link into the assessment and mark the definition being read — and the
  * paper's chat behind a pill that opens a sheet, so the scores stay in view
@@ -225,11 +224,6 @@ export async function PaperRecord({
           <PaperHeader paper={paper} t={t} lang={lang} features={features} />
 
           <section>
-            <SectionLabel>{t('Screening')}</SectionLabel>
-            <Screening paper={paper} t={t} />
-          </section>
-
-          <section>
             <SectionLabel>{t('Abstract')}</SectionLabel>
             <p className="mt-3 max-w-[76ch] text-[15px] leading-relaxed text-pretty text-zinc-700 dark:text-zinc-300">
               {paper.abstract}
@@ -251,36 +245,6 @@ export async function PaperRecord({
       <PaperChat paper={paper} />
     </div>
   )
-}
-
-const STAGE_CLASS =
-  'mt-3 max-w-[76ch] text-[15px] leading-relaxed text-pretty text-zinc-700 dark:text-zinc-300'
-
-/**
- * The screener's reasons, one paragraph per stage when the run kept them
- * apart, with the stage as a run-in lead; the single combined note when it
- * did not.
- */
-function Screening({ paper, t }: { paper: ScoredPaper; t: T }) {
-  const stages = [
-    [t('Abstract stage'), paper.abstract_screening_reasoning],
-    [t('Full text'), paper.full_text_screening_reasoning],
-  ].filter((s): s is [string, string] => Boolean(s[1]))
-  if (stages.length > 0) {
-    return (
-      <>
-        {stages.map(([stage, text]) => (
-          <p key={stage} className={STAGE_CLASS}>
-            <span className="font-medium text-zinc-950 dark:text-white">{stage}.</span> {text}
-          </p>
-        ))}
-      </>
-    )
-  }
-  if (paper.screening_reasoning) {
-    return <AnswerMarkdown text={paper.screening_reasoning} className={STAGE_CLASS} />
-  }
-  return <p className="mt-3 text-sm text-zinc-400">{t('No screening notes.')}</p>
 }
 
 /** The link names itself: arXiv only for a shape-checked id, so a backfilled W-id link reads "Source". */

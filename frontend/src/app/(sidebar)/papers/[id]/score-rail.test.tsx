@@ -83,12 +83,11 @@ describe('ScoreRail Component Rendering', () => {
     expect(outNull).toContain('—')
   })
 
-  test('renders screening status pill and TRL badge chip', () => {
+  test('renders TRL badge chip without screening status pill', () => {
     const paper = mockPaper()
     const out = renderToStaticMarkup(<ScoreRail paper={paper} t={t} />)
     expect(out).toContain('TRL 4')
-    // Screening status chip text
-    expect(out).toContain('Full text passed')
+    expect(out).not.toContain('Full text passed')
   })
 
   test('renders dimension bars linking to definition anchors', () => {
