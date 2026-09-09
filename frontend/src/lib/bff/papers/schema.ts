@@ -124,8 +124,8 @@ export const dimension = z
     label: z.string().optional(),
     /** Parsed numeric value; null when there is no extraction or it isn't numeric. */
     value: z.number().nullable(),
-    /** Display string as the backend would show it ('—' when no extraction). */
-    raw: z.string(),
+    /** Display string as the backend would show it ('—' when no extraction; null when explicitly unassigned). */
+    raw: z.string().nullable().optional(),
     /** Scale for bars/radar; null → show the number only. */
     max: z.number().nullable(),
     is_trl: z.boolean(),

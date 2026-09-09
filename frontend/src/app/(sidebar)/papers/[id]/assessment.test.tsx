@@ -489,4 +489,95 @@ describe('Assessment Component Rendering', () => {
     // Maximum from schema (10, not 100) used for fidelity progress bar (8.5 / 10 = 0.85)
     expect(out).toContain('scaleX(0.85)')
   })
+
+  test('renders no number or dash next to definition name when primary metric is null, and keeps all 3 submetrics', () => {
+    // User's exact bug case: "Research Metrics" without primary metric, but with novelty (68), significance (65), rigour (72)
+    const researchMetricsDim: Dimension = {
+      key: 'research_metrics',
+      definition_id: '00000000-0000-4000-8000-000000000099',
+      name: 'Research Metrics',
+      value: null,
+      raw: null as unknown as string,
+      max: 100,
+      is_trl: false,
+      facets: [
+        {
+          key: 'novelty',
+          name: 'Novelty',
+          value: 68,
+          max: 100,
+          text: 'Novel framing and architecture.',
+        },
+        {
+          key: 'significance',
+          name: 'Significance',
+          value: 65,
+          max: 100,
+          text: 'Addresses hybrid quantum optimization.',
+        },
+        {
+          key: 'rigour',
+          name: 'Rigour',
+          value: 72,
+          max: 100,
+          text: 'Extensive empirical benchmarks.',
+        },
+      ],
+      texts: [],
+      evidence: [],
+      facts: [],
+      lists: [],
+    }
+
+    const out = renderToStaticMarkup(<Assessment dimensions={[researchMetricsDim]} t={t} />)
+
+    // Definition title is rendered
+    expect(out).toContain('Research Metrics')
+
+    // Header MUST NOT contain any headline number or dash next to the title
+    const headerMatch = out.match(/<header[^>]*>([\s\S]*?)<\/header>/)
+    expect(headerMatch).not.toBeNull()
+    const headerContent = headerMatch![1]
+    expect(headerContent).toContain('Research Metrics')
+    expect(headerContent).not.toContain('68')
+    expect(headerContent).not.toContain('—')
+
+    // All 3 submetrics MUST be rendered with their respective scores
+    expect(out).toContain('Novelty')
+    expect(out).toContain('68')
+    expect(out).toContain('Significance')
+    expect(out).toContain('65')
+    expect(out).toContain('Rigour')
+    expect(out).toContain('72')
+  })
+
+  test('renders headline score and no submeasures when definition has primary metric but no secondaries', () => {
+    // Case 2: Solo primary metric (e.g. Fit Score = 88) with no secondaries
+    const soloPrimaryDim: Dimension = {
+      key: 'fit_score',
+      definition_id: '00000000-0000-4000-8000-000000000098',
+      name: 'Fit Score',
+      value: 88,
+      raw: '88',
+      max: 100,
+      is_trl: false,
+      facets: [],
+      texts: [],
+      evidence: [],
+      facts: [],
+      lists: [],
+    }
+
+    const out = renderToStaticMarkup(<Assessment dimensions={[soloPrimaryDim]} t={t} />)
+
+    // Header has the score 88
+    const headerMatch = out.match(/<header[^>]*>([\s\S]*?)<\/header>/)
+    expect(headerMatch).not.toBeNull()
+    expect(headerMatch![1]).toContain('Fit Score')
+    expect(headerMatch![1]).toContain('88')
+
+    // No submetric rows rendered
+    expect(out).not.toContain('data-submetric')
+  })
 })
+

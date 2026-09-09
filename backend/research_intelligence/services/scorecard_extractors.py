@@ -411,19 +411,23 @@ def extract_metrics_for_extraction(e: Extraction, d: ExtractionDefinition = None
     )
 
     # 1. New Explicit Architecture: Single source of truth if configured
-    if definition and (definition.primary_frontend_metric or definition.secondary_frontend_metrics):
+    if definition and definition.has_explicit_frontend_metrics():
         explicit_prim_key = definition.get_primary_frontend_metric()
-        primary_metric = build_metric_entry(
-            key=explicit_prim_key,
-            fields_data=fields_data,
-            source="frontend_metric",
-            label_override=format_metric_label(explicit_prim_key),
+        primary_metric = (
+            build_metric_entry(
+                key=explicit_prim_key,
+                fields_data=fields_data,
+                source="frontend_metric",
+                label_override=format_metric_label(explicit_prim_key),
+            )
+            if explicit_prim_key
+            else None
         )
 
         explicit_sec_keys = definition.get_secondary_frontend_metrics_list()
         secondary_metrics = []
         for sk in explicit_sec_keys:
-            if sk.strip().lower() == (explicit_prim_key or "").strip().lower():
+            if explicit_prim_key and sk.strip().lower() == explicit_prim_key.strip().lower():
                 continue
             secondary_metrics.append(
                 build_metric_entry(key=sk, fields_data=fields_data, source="frontend_metric")

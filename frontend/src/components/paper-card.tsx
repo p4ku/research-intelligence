@@ -150,7 +150,7 @@ export function PaperCard({
         <>
           {trl?.value !== null && trl?.value !== undefined && <TrlBadge trl={trl.value} t={t} />}
           {stats.map((d) => (
-            <ScoreStat key={d.key} label={d.name} value={d.raw} />
+            <ScoreStat key={d.key} label={d.name} value={d.raw ?? String(d.value)} />
           ))}
           {paper.signal_score === null && <span className="text-zinc-400">{t('Unscored')}</span>}
           {lead && (

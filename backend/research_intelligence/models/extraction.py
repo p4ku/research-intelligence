@@ -97,19 +97,44 @@ class ExtractionDefinition(models.Model):
                 res.append(clean_item)
         return res
 
+    def has_explicit_frontend_metrics(self) -> bool:
+        """
+        Returns True if either primary_frontend_metric or secondary_frontend_metrics
+        is explicitly configured on this extraction definition.
+        """
+        has_prim = bool(self.primary_frontend_metric and self.primary_frontend_metric.strip())
+        has_sec = False
+        if self.secondary_frontend_metrics:
+            if isinstance(self.secondary_frontend_metrics, (list, tuple)):
+                has_sec = any(str(x).strip() for x in self.secondary_frontend_metrics)
+            else:
+                has_sec = any(x.strip() for x in str(self.secondary_frontend_metrics).split(','))
+        return has_prim or has_sec
+
     def get_primary_exit_metric(self) -> str:
         """Returns the first exit metric from the list, used for primary exit metric lookups and _postprocessed suffix."""
         metrics = self.get_exit_metrics_list()
         return metrics[0] if metrics else ""
 
-    def get_primary_frontend_metric(self) -> str:
-        """Returns explicit primary frontend metric key, or falls back to primary exit metric."""
+    def get_primary_frontend_metric(self) -> str | None:
+        """
+        Returns explicit primary frontend metric key if configured.
+        If explicit frontend metrics are configured but primary is blank, returns None.
+        If no explicit frontend metrics are configured, falls back to primary exit metric.
+        """
         if self.primary_frontend_metric and self.primary_frontend_metric.strip():
             return self.primary_frontend_metric.strip()
-        return self.get_primary_exit_metric()
+        if self.has_explicit_frontend_metrics():
+            return None
+        prim = self.get_primary_exit_metric()
+        return prim if prim else None
 
     def get_secondary_frontend_metrics_list(self) -> list[str]:
-        """Returns ordered list of explicit secondary frontend metric keys, or falls back to exit metrics after primary."""
+        """
+        Returns ordered list of explicit secondary frontend metric keys if configured.
+        If explicit frontend metrics are configured but secondary is blank, returns [].
+        If no explicit frontend metrics are configured, falls back to exit metrics after primary.
+        """
         if self.secondary_frontend_metrics:
             from ..tasks.step_6_signal_score.scorer import _sanitize_identifier
             if isinstance(self.secondary_frontend_metrics, (list, tuple)):
@@ -124,6 +149,8 @@ class ExtractionDefinition(models.Model):
                     seen.add(clean_item)
                     res.append(clean_item)
             return res
+        if self.has_explicit_frontend_metrics():
+            return []
         # Fallback for definitions without explicit secondary frontend metrics:
         exit_list = self.get_exit_metrics_list()
         prim = self.get_primary_frontend_metric()

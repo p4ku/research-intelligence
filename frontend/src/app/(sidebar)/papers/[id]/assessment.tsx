@@ -63,7 +63,9 @@ export function DefinitionFrame({
           {name}
         </h3>
         {band}
-        <span className={clsx(FIGURE, 'ml-auto shrink-0 text-[22px] leading-none')}>{value}</span>
+        {value != null && value !== '' ? (
+          <span className={clsx(FIGURE, 'ml-auto shrink-0 text-[22px] leading-none')}>{value}</span>
+        ) : null}
       </header>
       <div className="mt-3.5 space-y-4">{children}</div>
     </article>
@@ -86,7 +88,10 @@ function shownNumber(n: number | null | undefined): string {
 
 /** The headline as the row shows it: the number, or the raw string when there is none. */
 function shownValue(d: Dimension): ReactNode {
-  if (d.value === null) return <span className="text-zinc-500 dark:text-zinc-400">{d.raw}</span>
+  if (d.value === null) {
+    if (!d.raw || d.raw === '—' || d.raw.trim() === '') return null
+    return <span className="text-zinc-500 dark:text-zinc-400">{d.raw}</span>
+  }
   return (
     <>
       {shownNumber(d.value)}

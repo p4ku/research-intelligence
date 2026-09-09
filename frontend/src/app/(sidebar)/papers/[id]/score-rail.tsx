@@ -86,7 +86,7 @@ function radarAxes(dimensions: Dimension[]) {
 
 function railBar(d: Dimension): RailBar {
   const hasBar = d.value !== null && d.max !== null && d.max > 0
-  const shown = shownNumber(d.value)
+  const shown = d.value !== null ? shownNumber(d.value) : (d.raw && d.raw !== '—' ? d.raw : null)
   return {
     key: d.key + (d.extraction_id ?? ''),
     label: shortName(d),
