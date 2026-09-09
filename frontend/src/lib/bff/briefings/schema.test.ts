@@ -109,6 +109,41 @@ describe('Briefings BFF Schema Contracts', () => {
     expect(parsed.papers[0].title).toBe('Attention Is All You Need')
   })
 
+  test('editionSummary validates backend editions list payload with lightweight paper objects', () => {
+    const lightweightPayload = {
+      run_id: '00000000-0000-4000-8000-000000000020',
+      workspace_id: '00000000-0000-4000-8000-000000000010',
+      date: '2026-09-09',
+      title: 'AI Breakthroughs Scan — 2026-09-09',
+      in_brief: 'Briefing text.',
+      in_brief_source: 'template' as const,
+      funnel: {
+        fetched: 15,
+        passed_screening: 3,
+        surfaced: 1,
+      },
+      papers: [
+        {
+          id: '00000000-0000-4000-8000-000000000001',
+          title: 'Lightweight Paper',
+          authors: ['A. Researcher', 'B. Scientist'],
+          source: 'arXiv',
+          screening_status: 'accepted',
+          signal_score: 87.5,
+        },
+      ],
+      generated_at: '2026-09-09T09:30:00+00:00',
+    }
+
+    const parsed = editionSummary.parse(lightweightPayload)
+    expect(parsed.papers[0].id).toBe('00000000-0000-4000-8000-000000000001')
+    expect(parsed.papers[0].title).toBe('Lightweight Paper')
+    expect(parsed.papers[0].dimensions).toEqual([])
+    expect(parsed.papers[0].doi).toBeNull()
+    expect(parsed.papers[0].arxiv_id).toBeNull()
+    expect(parsed.papers[0].signal_score).toBe(87.5)
+  })
+
   test('edition extends editionSummary with exclusions array', () => {
     const fullEdition = {
       run_id: '00000000-0000-4000-8000-000000000020',

@@ -341,23 +341,52 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                     pipeline_run__in=target_runs,
                     screening_status__in=['accepted', 'full_text_passed', 'abstract_passed']
                 )
-                .select_related('paper')
+                .select_related('paper', 'pipeline_run')
                 .only(
                     'id', 'pipeline_run_id', 'signal_score', 'screening_status', 'created_at',
-                    'paper__id', 'paper__title', 'paper__authors', 'paper__source_database'
+                    'pipeline_run__id', 'pipeline_run__name',
+                    'paper__id', 'paper__workspace_id', 'paper__title', 'paper__authors',
+                    'paper__abstract', 'paper__doi', 'paper__arxiv_id', 'paper__source_database',
+                    'paper__source_url', 'paper__original_pdf_path', 'paper__created_at'
                 )
                 .order_by('-signal_score', '-created_at')
             )
             for pm in passed_pms:
                 if pm.paper:
                     authors_list = [a.strip() for a in (pm.paper.authors or '').split(',') if a.strip()]
+                    source_url = pm.paper.source_url
+                    if not source_url:
+                        if pm.paper.arxiv_id:
+                            source_url = f"https://arxiv.org/abs/{pm.paper.arxiv_id}"
+                        elif pm.paper.doi:
+                            source_url = f"https://doi.org/{pm.paper.doi}"
+
                     papers_by_run[pm.pipeline_run_id].append({
                         "id": str(pm.paper.id),
+                        "workspace_id": str(pm.paper.workspace_id or workspace.id),
+                        "pipeline_run_id": str(pm.pipeline_run_id),
                         "title": pm.paper.title,
                         "authors": authors_list,
+                        "authors_raw": pm.paper.authors or '',
+                        "abstract": pm.paper.abstract or '',
+                        "doi": pm.paper.doi or None,
+                        "arxiv_id": pm.paper.arxiv_id or None,
                         "source": pm.paper.source_database or 'arXiv',
                         "screening_status": pm.screening_status,
+                        "screening_reasoning": None,
+                        "abstract_screening_reasoning": None,
+                        "full_text_screening_reasoning": None,
                         "signal_score": pm.signal_score,
+                        "signal_score_details": None,
+                        "dimensions": [],
+                        "pdf_key": pm.paper.original_pdf_path or None,
+                        "markdown_key": None,
+                        "source_url": source_url,
+                        "is_benchmark": False,
+                        "evaluation_label": None,
+                        "published_date": None,
+                        "created_at": pm.paper.created_at.isoformat() if pm.paper.created_at else "",
+                        "pipeline_run_name": pm.pipeline_run.name if (pm.pipeline_run and hasattr(pm.pipeline_run, 'name')) else None,
                     })
 
         results = []
