@@ -472,16 +472,10 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
             : 'grid-cols-[minmax(0,1fr)_44px]',
         )}
       >
-        <div className="flex min-w-0 flex-col">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-              {sub.name}
-            </span>
-            {sub.band && <Band>{sub.band}</Band>}
-          </div>
-          {sub.description && (
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">{sub.description}</span>
-          )}
+        <div className="flex min-w-0 items-center">
+          <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+            {sub.name}
+          </span>
         </div>
 
         {hasBar && (

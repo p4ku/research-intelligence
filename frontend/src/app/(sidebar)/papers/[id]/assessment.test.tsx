@@ -229,7 +229,8 @@ describe('Assessment Component Rendering', () => {
     }
     const out = renderToStaticMarkup(<Assessment dimensions={[dictDimension]} t={t} />)
     expect(out).toContain('Research Metrics')
-    expect(out).toContain('Substantial')
+    // Assessment pill (band) removed from sub-measures per design update
+    expect(out).not.toContain('<span class="rounded-sm')
     expect(out).toContain(
       'The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.',
     )
@@ -294,7 +295,8 @@ describe('Assessment Component Rendering', () => {
     }
     const out = renderToStaticMarkup(<Assessment dimensions={[structuredDimension]} t={t} />)
     expect(out).toContain('data-type="submetric-dict"')
-    expect(out).toContain('Substantial')
+    // Assessment pill (band) removed from sub-measures per design update
+    expect(out).not.toContain('<span class="rounded-sm')
     expect(out).toContain('Sub-score: 68')
     expect(out).toContain('Evidence')
     expect(out).toContain(
@@ -481,9 +483,10 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('Novelty Assessment')
     expect(out).toContain('Hardware Architecture Notes')
 
-    // Description from schema rendered as subtitle/caption
-    expect(out).toContain('Two-qubit gate benchmark fidelity across simulator backends')
-    expect(out).toContain('Algorithmic novelty and theoretical speedup over classical baselines')
+    // Sub-measure descriptions removed to prevent duplicate grey text under score dimensions
+    expect(out).not.toContain('Two-qubit gate benchmark fidelity across simulator backends')
+    expect(out).not.toContain('Algorithmic novelty and theoretical speedup over classical baselines')
+    // Prose text description is preserved
     expect(out).toContain('Specific superconducting processor requirements')
 
     // Maximum from schema (10, not 100) used for fidelity progress bar (8.5 / 10 = 0.85)
@@ -579,5 +582,86 @@ describe('Assessment Component Rendering', () => {
     // No submetric rows rendered
     expect(out).not.toContain('data-submetric')
   })
+
+  test('does not render assessment pill (band) or duplicate grey description under score dimensions, keeping responsive grid', () => {
+    const dim: Dimension = {
+      key: 'research_metrics',
+      definition_id: '00000000-0000-4000-8000-000000000001',
+      name: 'Research Metrics',
+      value: 68,
+      raw: '68',
+      max: 100,
+      is_trl: false,
+      facets: [
+        {
+          key: 'rigour',
+          name: 'Rigour',
+          value: 74,
+          max: 100,
+          text: 'The research provides formal mathematical proofs...',
+          band: 'Sound',
+        },
+        {
+          key: 'novelty',
+          name: 'Novelty',
+          value: 68,
+          max: 100,
+          text: 'The work innovatively challenges prevailing cryptographic conventions...',
+          band: 'Substantial',
+        },
+        {
+          key: 'significance',
+          name: 'Significance',
+          value: 73,
+          max: 100,
+          text: 'Breaking the sub-millisecond bootstrapping threshold...',
+          band: 'Important',
+        },
+      ],
+      texts: [],
+      evidence: [],
+      facts: [],
+      lists: [],
+      response_schema: {
+        properties: {
+          rigour: {
+            title: 'Rigour',
+            description: 'Rigour assessment',
+          },
+          novelty: {
+            title: 'Novelty',
+            description: 'Novelty assessment',
+          },
+          significance: {
+            title: 'Significance',
+            description: 'Significance assessment',
+          },
+        },
+      },
+    }
+
+    const out = renderToStaticMarkup(<Assessment dimensions={[dim]} t={t} />)
+    // Submetric titles and scores are present
+    expect(out).toContain('Rigour')
+    expect(out).toContain('74')
+    expect(out).toContain('Novelty')
+    expect(out).toContain('68')
+    expect(out).toContain('Significance')
+    expect(out).toContain('73')
+
+    // Duplicate grey descriptions under submetrics are removed
+    expect(out).not.toContain('Rigour assessment')
+    expect(out).not.toContain('Novelty assessment')
+    expect(out).not.toContain('Significance assessment')
+
+    // Assessment pills (Sound, Substantial, Important badges) are removed
+    expect(out).not.toContain('Sound')
+    expect(out).not.toContain('Substantial')
+    expect(out).not.toContain('Important')
+
+    // Responsive grid classes are present
+    expect(out).toContain('grid-cols-[minmax(0,1fr)_44px] sm:grid-cols-[200px_minmax(0,1fr)_44px]')
+  })
 })
+
 
