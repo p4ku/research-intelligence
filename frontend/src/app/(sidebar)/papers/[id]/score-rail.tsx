@@ -31,17 +31,25 @@ export function ScoreFormula({ details, t }: { details: SignalScoreDetails; t: T
 
   return (
     <details data-row="formula" className="group mt-3 border-t border-line-soft pt-2.5 text-xs">
-      <summary className="flex cursor-pointer select-none items-center justify-between gap-1 text-[11px] font-medium text-zinc-500 transition-colors hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
+      <summary className="flex cursor-pointer items-center justify-between gap-1 text-[11px] font-medium text-zinc-500 transition-colors select-none hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white">
         <span className="inline-flex items-center gap-1">
-          <CodeBracketIcon aria-hidden="true" className="size-3 text-zinc-400 group-hover:text-accent" />
+          <CodeBracketIcon
+            aria-hidden="true"
+            className="size-3 text-zinc-400 group-hover:text-accent"
+          />
           <span>{t('Scoring formula')}</span>
         </span>
-        <ChevronDownIcon aria-hidden="true" className="size-3 transition-transform duration-150 ease-out group-open:rotate-180 text-zinc-400" />
+        <ChevronDownIcon
+          aria-hidden="true"
+          className="size-3 text-zinc-400 transition-transform duration-150 ease-out group-open:rotate-180"
+        />
       </summary>
       <div className="mt-2 rounded-sm border border-line-soft bg-zinc-50/75 p-2 font-mono text-[11px] text-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-300">
-        <div className="font-medium text-zinc-900 dark:text-white break-all">{details.code_snippet}</div>
+        <div className="font-medium break-all text-zinc-900 dark:text-white">
+          {details.code_snippet}
+        </div>
         {hasVars && (
-          <div className="mt-1.5 border-t border-line-soft/60 pt-1.5 grid grid-cols-2 gap-x-2 gap-y-0.5 text-[10px] text-zinc-500 dark:text-zinc-400">
+          <div className="mt-1.5 grid grid-cols-2 gap-x-2 gap-y-0.5 border-t border-line-soft/60 pt-1.5 text-[10px] text-zinc-500 dark:text-zinc-400">
             {Object.entries(vars).map(([k, v]) => (
               <div key={k} className="truncate">
                 <span className="font-semibold text-zinc-700 dark:text-zinc-300">{k}:</span>{' '}

@@ -21,7 +21,8 @@ function samplePaper(overrides: Partial<ScoredPaper> = {}): ScoredPaper {
     arxiv_id: '2609.01037',
     source: 'arxiv',
     screening_status: 'full_text_passed',
-    screening_reasoning: 'Proposes an intermediate representation directly addressing hybrid quantum workflows.',
+    screening_reasoning:
+      'Proposes an intermediate representation directly addressing hybrid quantum workflows.',
     abstract_screening_reasoning: null,
     full_text_screening_reasoning: null,
     signal_score: 84.6,
@@ -58,7 +59,9 @@ describe('PaperHeader Component Rendering', () => {
     const paper = samplePaper()
     const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
 
-    expect(out).toContain('Dynamic Intermediate Representation for Hybrid Quantum-Classical Programs')
+    expect(out).toContain(
+      'Dynamic Intermediate Representation for Hybrid Quantum-Classical Programs',
+    )
     expect(out).toContain('Alex Rice, Chris Heunen, Tobias Grosser')
     expect(out).toContain('arxiv')
     expect(out).toContain('Published')

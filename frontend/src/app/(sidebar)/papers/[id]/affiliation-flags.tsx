@@ -57,11 +57,21 @@ export function unpackFlag(flag: RiskFlag): { label: string; value: string; stat
     const items: string[] = []
     if (Array.isArray(matches)) {
       for (const m of matches) {
-        if (m && String(m).trim() !== '' && String(m).trim() !== 'None' && String(m).trim() !== 'null') {
+        if (
+          m &&
+          String(m).trim() !== '' &&
+          String(m).trim() !== 'None' &&
+          String(m).trim() !== 'null'
+        ) {
           items.push(String(m).trim())
         }
       }
-    } else if (matches && String(matches).trim() !== '' && String(matches).trim() !== 'None' && String(matches).trim() !== 'null') {
+    } else if (
+      matches &&
+      String(matches).trim() !== '' &&
+      String(matches).trim() !== 'None' &&
+      String(matches).trim() !== 'null'
+    ) {
       items.push(String(matches).trim())
     }
 
@@ -118,14 +128,20 @@ export function RiskAffiliationFlagging({
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-zinc-600 dark:text-zinc-300">
           {hasAffiliations && (
             <div className="inline-flex items-center gap-1.5 font-medium">
-              <BuildingLibraryIcon aria-hidden="true" className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-500" />
+              <BuildingLibraryIcon
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-500"
+              />
               <span>{risk.affiliations.join(' · ')}</span>
             </div>
           )}
 
           {hasContacts && (
             <div className="inline-flex items-center gap-1.5 text-zinc-500 dark:text-zinc-400">
-              <EnvelopeIcon aria-hidden="true" className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-500" />
+              <EnvelopeIcon
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-zinc-400 dark:text-zinc-500"
+              />
               <span className="font-mono text-[11px]">
                 {risk.author_contacts.map((contact, i) => (
                   <span key={contact}>
@@ -185,16 +201,39 @@ export function RiskAffiliationFlagging({
                 key={rawFlag.key}
                 className={clsx(
                   'inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium tracking-tight',
-                  isSafe && 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-500/30',
-                  isWarn && 'bg-amber-50 text-amber-800 ring-1 ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-500/30',
-                  isHighlight && 'bg-sky-50 text-sky-700 ring-1 ring-sky-600/20 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-500/30',
-                  !isSafe && !isWarn && !isHighlight && 'bg-zinc-100 text-zinc-600 ring-1 ring-zinc-500/15 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700',
+                  isSafe &&
+                    'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-500/30',
+                  isWarn &&
+                    'bg-amber-50 text-amber-800 ring-1 ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-500/30',
+                  isHighlight &&
+                    'bg-sky-50 text-sky-700 ring-1 ring-sky-600/20 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-500/30',
+                  !isSafe &&
+                    !isWarn &&
+                    !isHighlight &&
+                    'bg-zinc-100 text-zinc-600 ring-1 ring-zinc-500/15 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700',
                 )}
               >
-                {isSafe && <CheckCircleIcon aria-hidden="true" className="size-3 shrink-0 text-emerald-500" />}
-                {isWarn && <ExclamationTriangleIcon aria-hidden="true" className="size-3 shrink-0 text-amber-500" />}
-                {isHighlight && <ShieldCheckIcon aria-hidden="true" className="size-3 shrink-0 text-sky-500" />}
-                {!isSafe && !isWarn && !isHighlight && <InformationCircleIcon aria-hidden="true" className="size-3 shrink-0 text-zinc-400" />}
+                {isSafe && (
+                  <CheckCircleIcon
+                    aria-hidden="true"
+                    className="size-3 shrink-0 text-emerald-500"
+                  />
+                )}
+                {isWarn && (
+                  <ExclamationTriangleIcon
+                    aria-hidden="true"
+                    className="size-3 shrink-0 text-amber-500"
+                  />
+                )}
+                {isHighlight && (
+                  <ShieldCheckIcon aria-hidden="true" className="size-3 shrink-0 text-sky-500" />
+                )}
+                {!isSafe && !isWarn && !isHighlight && (
+                  <InformationCircleIcon
+                    aria-hidden="true"
+                    className="size-3 shrink-0 text-zinc-400"
+                  />
+                )}
                 <span>
                   <span className="font-semibold">{flag.label}:</span> {flag.value}
                 </span>
@@ -206,7 +245,9 @@ export function RiskAffiliationFlagging({
             <span className="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2 py-0.5 text-[11px] font-medium text-zinc-700 ring-1 ring-zinc-500/15 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700">
               <span className="font-semibold">Risk Score:</span> {risk.risk_score}/100
               {risk.risk_score_assessment && (
-                <span className="text-zinc-500 dark:text-zinc-400">({risk.risk_score_assessment})</span>
+                <span className="text-zinc-500 dark:text-zinc-400">
+                  ({risk.risk_score_assessment})
+                </span>
               )}
             </span>
           )}

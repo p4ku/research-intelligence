@@ -338,7 +338,12 @@ function dimensionDetail(
   if (order.length > 0) {
     for (const secKey of order) {
       if (used.has(secKey)) continue
-      const raw = data[secKey] ?? Object.entries(data).find(([k]) => k.toLowerCase().replace(/[-_ ]/g, '') === secKey.toLowerCase().replace(/[-_ ]/g, ''))?.[1]
+      const raw =
+        data[secKey] ??
+        Object.entries(data).find(
+          ([k]) =>
+            k.toLowerCase().replace(/[-_ ]/g, '') === secKey.toLowerCase().replace(/[-_ ]/g, ''),
+        )?.[1]
       if (raw === undefined) continue
       const value = isFieldExtraction(raw) ? raw.value : raw
       const name = humaniseKey(secKey)
@@ -346,7 +351,11 @@ function dimensionDetail(
       let dictValue: Record<string, unknown> | null = null
       if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
         dictValue = value as Record<string, unknown>
-      } else if (typeof value === 'string' && value.trim().startsWith('{') && value.trim().endsWith('}')) {
+      } else if (
+        typeof value === 'string' &&
+        value.trim().startsWith('{') &&
+        value.trim().endsWith('}')
+      ) {
         try {
           const parsed = JSON.parse(value.trim())
           if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
@@ -439,7 +448,12 @@ function dimensionDetail(
       continue
     }
     // Only scan for _score facets if no secondary metrics order was specified (legacy fallback)
-    if (order.length === 0 && typeof value === 'number' && Number.isFinite(value) && FACET_KEY.test(key)) {
+    if (
+      order.length === 0 &&
+      typeof value === 'number' &&
+      Number.isFinite(value) &&
+      FACET_KEY.test(key)
+    ) {
       const twin = data[key.replace(FACET_KEY, '_assessment')]
       const text = isFieldExtraction(twin) ? twin.value : twin
       facets.push({
@@ -459,7 +473,11 @@ function dimensionDetail(
     let dictValue: Record<string, unknown> | null = null
     if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
       dictValue = value as Record<string, unknown>
-    } else if (typeof value === 'string' && value.trim().startsWith('{') && value.trim().endsWith('}')) {
+    } else if (
+      typeof value === 'string' &&
+      value.trim().startsWith('{') &&
+      value.trim().endsWith('}')
+    ) {
       try {
         const parsed = JSON.parse(value.trim())
         if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {

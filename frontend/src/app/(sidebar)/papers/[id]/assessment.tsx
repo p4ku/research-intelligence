@@ -146,7 +146,6 @@ function FacetRowFrame({
   )
 }
 
-
 interface SchemaProperty {
   title?: string
   description?: string
@@ -179,10 +178,16 @@ export function getSchemaProperty(
 
   // 3. Match without _score or _assessment suffix
   if (!prop) {
-    const cleanBase = key.toLowerCase().replace(/[-_ ]/g, '').replace(/(score|assessment)$/, '')
+    const cleanBase = key
+      .toLowerCase()
+      .replace(/[-_ ]/g, '')
+      .replace(/(score|assessment)$/, '')
     if (cleanBase) {
       for (const [k, v] of Object.entries(properties)) {
-        const kBase = k.toLowerCase().replace(/[-_ ]/g, '').replace(/(score|assessment)$/, '')
+        const kBase = k
+          .toLowerCase()
+          .replace(/[-_ ]/g, '')
+          .replace(/(score|assessment)$/, '')
         if (kBase === cleanBase) {
           prop = v as Record<string, unknown>
           break
@@ -195,15 +200,23 @@ export function getSchemaProperty(
 
   const title = typeof prop.title === 'string' && prop.title.trim() ? prop.title.trim() : undefined
   const description =
-    typeof prop.description === 'string' && prop.description.trim() ? prop.description.trim() : undefined
+    typeof prop.description === 'string' && prop.description.trim()
+      ? prop.description.trim()
+      : undefined
   const type = typeof prop.type === 'string' ? prop.type : undefined
 
   let maximum: number | undefined
   if (typeof prop.maximum === 'number' && Number.isFinite(prop.maximum)) {
     maximum = prop.maximum
   } else if (prop.properties && typeof prop.properties === 'object') {
-    const nestedScore = (prop.properties as Record<string, unknown>).score as Record<string, unknown> | undefined
-    if (nestedScore && typeof nestedScore.maximum === 'number' && Number.isFinite(nestedScore.maximum)) {
+    const nestedScore = (prop.properties as Record<string, unknown>).score as
+      | Record<string, unknown>
+      | undefined
+    if (
+      nestedScore &&
+      typeof nestedScore.maximum === 'number' &&
+      Number.isFinite(nestedScore.maximum)
+    ) {
       maximum = nestedScore.maximum
     }
   }
@@ -257,7 +270,11 @@ function unpackField(field: DimensionField): UnpackedField {
         .map((s) => s.trim())
         .filter(Boolean)
     }
-  } else if (typeof value === 'string' && value.trim().startsWith('{') && value.trim().endsWith('}')) {
+  } else if (
+    typeof value === 'string' &&
+    value.trim().startsWith('{') &&
+    value.trim().endsWith('}')
+  ) {
     // 2. Safe JSON parse for stringified dictionary (legacy fallback)
     isDict = true
     let parsed: Record<string, unknown> | null = null
@@ -323,7 +340,10 @@ interface SubMeasure {
 }
 
 function subMeasureKey(key: string, name?: string): string {
-  return (name || key).toLowerCase().replace(/[-_ ]/g, '').replace(/_?score$/, '')
+  return (name || key)
+    .toLowerCase()
+    .replace(/[-_ ]/g, '')
+    .replace(/_?score$/, '')
 }
 
 function resolveSubMeasures(
@@ -422,8 +442,15 @@ function resolveSubMeasures(
 }
 
 function SubMeasureRow({ sub }: { sub: SubMeasure }) {
-  const hasBar = typeof sub.max === 'number' && sub.max > 0 && typeof sub.value === 'number' && Number.isFinite(sub.value)
-  const pct = hasBar && typeof sub.value === 'number' && typeof sub.max === 'number' ? Math.max(0, Math.min(1, sub.value / sub.max)) : 0
+  const hasBar =
+    typeof sub.max === 'number' &&
+    sub.max > 0 &&
+    typeof sub.value === 'number' &&
+    Number.isFinite(sub.value)
+  const pct =
+    hasBar && typeof sub.value === 'number' && typeof sub.max === 'number'
+      ? Math.max(0, Math.min(1, sub.value / sub.max))
+      : 0
   const hasProse = Boolean(sub.text)
   const hasEvidence = Boolean(sub.evidence && sub.evidence.length > 0)
   const isRich = hasProse || hasEvidence || sub.is_dict
@@ -435,7 +462,7 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
       className={clsx(
         'space-y-3',
         isRich &&
-          'rounded-lg border border-line-soft/70 bg-transparent p-4 sm:p-4.5 transition-colors hover:border-line',
+          'rounded-lg border border-line-soft/70 bg-transparent p-4 transition-colors hover:border-line sm:p-4.5',
       )}
     >
       <div
@@ -446,17 +473,15 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
             : 'grid-cols-[minmax(0,1fr)_44px]',
         )}
       >
-        <div className="flex flex-col min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100 truncate">
+        <div className="flex min-w-0 flex-col">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
               {sub.name}
             </span>
             {sub.band && <Band>{sub.band}</Band>}
           </div>
           {sub.description && (
-            <span className="text-xs text-zinc-500 dark:text-zinc-400">
-              {sub.description}
-            </span>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">{sub.description}</span>
           )}
         </div>
 
@@ -470,9 +495,7 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
         )}
 
         <div className="col-start-2 row-start-1 text-right sm:col-start-3">
-          <span className={clsx(FIGURE, 'text-sm')}>
-            {shownNumber(sub.value)}
-          </span>
+          <span className={clsx(FIGURE, 'text-sm')}>{shownNumber(sub.value)}</span>
           {sub.is_dict && sub.value != null && (
             <span className="sr-only">Sub-score: {sub.value}</span>
           )}
@@ -480,18 +503,21 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
       </div>
 
       {sub.text && (
-        <AnswerMarkdown text={sub.text} className={clsx(SMALL_PROSE, 'mt-1 text-zinc-700 dark:text-zinc-300')} />
+        <AnswerMarkdown
+          text={sub.text}
+          className={clsx(SMALL_PROSE, 'mt-1 text-zinc-700 dark:text-zinc-300')}
+        />
       )}
 
       {hasEvidence && (
         <div className="mt-2.5 space-y-1.5 border-l-2 border-line-soft pl-3.5">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
+          <span className="text-[10px] font-semibold tracking-wider text-zinc-400 uppercase dark:text-zinc-500">
             Evidence
           </span>
           {sub.evidence!.map((quote, i) => (
             <blockquote
               key={i}
-              className="max-w-[72ch] text-[13px] leading-relaxed italic text-zinc-600 dark:text-zinc-400"
+              className="max-w-[72ch] text-[13px] leading-relaxed text-zinc-600 italic dark:text-zinc-400"
             >
               “{unquote(quote)}”
             </blockquote>
@@ -539,7 +565,12 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       <span className="font-medium text-zinc-500 dark:text-zinc-400">{t('Needs review')}</span>,
     )
 
-  const { subMeasures, generalTexts } = resolveSubMeasures(d.facets, d.texts, d.max, d.response_schema)
+  const { subMeasures, generalTexts } = resolveSubMeasures(
+    d.facets,
+    d.texts,
+    d.max,
+    d.response_schema,
+  )
 
   return (
     <DefinitionFrame
@@ -595,9 +626,7 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       {d.evidence
         ?.filter((quote) => {
           const unq = unquote(quote).trim()
-          return !subMeasures.some((sub) =>
-            sub.evidence?.some((ev) => unquote(ev).trim() === unq),
-          )
+          return !subMeasures.some((sub) => sub.evidence?.some((ev) => unquote(ev).trim() === unq))
         })
         .map((quote, i) => (
           <blockquote

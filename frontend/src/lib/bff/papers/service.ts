@@ -74,12 +74,17 @@ const scorecardWorkspace = z
     digest_schedule: z.string().nullable().optional().default(null),
     screening_llm_model: z.string().nullable().optional().default(null),
     llm_provider: z.string().nullable().optional().default(null),
-    created_at: z.string().optional().default(() => new Date().toISOString()),
+    created_at: z
+      .string()
+      .optional()
+      .default(() => new Date().toISOString()),
   })
   .passthrough()
 
 const detailResponse = z.object({ workspace: scorecardWorkspace, paper: scoredPaper }).passthrough()
-const workspaceScorecardResponse = z.object({ workspace: scorecardWorkspace, papers: z.array(scoredPaper) }).passthrough()
+const workspaceScorecardResponse = z
+  .object({ workspace: scorecardWorkspace, papers: z.array(scoredPaper) })
+  .passthrough()
 
 /** The requested endpoint: retrieves the workspace scorecard directly. */
 async function djangoPapersOf(workspaceId: string, runId?: string): Promise<ScoredPaper[]> {

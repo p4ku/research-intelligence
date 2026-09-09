@@ -8,6 +8,7 @@ import { forPage } from '@/lib/bff/core/page'
 import { papers as papersService } from '@/lib/bff/papers/service'
 import type { Features } from '@/lib/features'
 import { fmt, type Lang, type T } from '@/lib/i18n'
+import type { ScoredPaper } from '@/lib/papers/types'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
@@ -258,9 +259,29 @@ export async function EditionPapers({
   const edition = await forPage(briefings.findByDate(date, lang, wsId, runId))
   if (!edition) notFound()
 
+  // If edition.papers already carries full scorecard records (from backend single-stream detail),
+  // use them directly; otherwise resolve run rows via papersService as fallback.
+  let cards: ScoredPaper[]
+  if (edition.papers.length > 0 && edition.papers[0]?.workspace_id) {
+    cards = edition.papers as unknown as ScoredPaper[]
+  } else {
+    const scored = await forPage(papersService.listRun(edition.workspace_id, edition.run_id))
+    const byId = new Map(scored.map((p) => [p.id, p]))
+    cards = []
+    for (const entry of edition.papers) {
+      const paper = byId.get(entry.id)
+      if (!paper) continue
+      cards.push({
+        ...paper,
+        screening_status: entry.screening_status ?? paper.screening_status,
+        signal_score: entry.signal_score,
+      })
+    }
+  }
+
   return (
     <EditionPaperList
-      papers={edition.papers}
+      papers={cards}
       runId={edition.run_id}
       logHref={editionHref(edition.date, edition.workspace_id, {
         runId: edition.run_id,

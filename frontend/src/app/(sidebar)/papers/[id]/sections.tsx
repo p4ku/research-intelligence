@@ -120,7 +120,10 @@ export async function RunCrumbs({
   lang: Lang
   features: Features
 }) {
-  const [ctx, result] = await Promise.all([runContext(id, runId, lang), forPage(papers.get(id, runId))])
+  const [ctx, result] = await Promise.all([
+    runContext(id, runId, lang),
+    forPage(papers.get(id, runId)),
+  ])
   const title = result ? result.paper.title : null
   if (!ctx) {
     if (!features.all_papers) return null

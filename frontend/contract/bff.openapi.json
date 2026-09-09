@@ -4212,14 +4212,6 @@
           "id": {
             "type": "string"
           },
-          "workspace_id": {
-            "default": "",
-            "type": "string"
-          },
-          "pipeline_run_id": {
-            "default": "",
-            "type": "string"
-          },
           "title": {
             "type": "string"
           },
@@ -4230,76 +4222,12 @@
               "type": "string"
             }
           },
-          "authors_raw": {
-            "default": "",
-            "type": "string"
-          },
-          "abstract": {
-            "default": "",
-            "type": "string"
-          },
-          "doi": {
-            "default": null,
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "arxiv_id": {
-            "default": null,
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "source": {
             "default": "arXiv",
             "type": "string"
           },
           "screening_status": {
-            "default": "accepted",
             "$ref": "#/components/schemas/ScreeningStatus"
-          },
-          "screening_reasoning": {
-            "default": null,
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "abstract_screening_reasoning": {
-            "default": null,
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "full_text_screening_reasoning": {
-            "default": null,
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "signal_score": {
             "default": null,
@@ -4312,8 +4240,69 @@
               }
             ]
           },
+          "workspace_id": {
+            "type": "string"
+          },
+          "pipeline_run_id": {
+            "type": "string"
+          },
+          "authors_raw": {
+            "type": "string"
+          },
+          "abstract": {
+            "type": "string"
+          },
+          "doi": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "arxiv_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "screening_reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "abstract_screening_reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "full_text_screening_reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "signal_score_details": {
-            "default": null,
             "anyOf": [
               {
                 "$ref": "#/components/schemas/SignalScoreDetails"
@@ -4324,14 +4313,12 @@
             ]
           },
           "dimensions": {
-            "default": [],
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Dimension"
             }
           },
           "pdf_key": {
-            "default": null,
             "anyOf": [
               {
                 "type": "string"
@@ -4342,7 +4329,6 @@
             ]
           },
           "markdown_key": {
-            "default": null,
             "anyOf": [
               {
                 "type": "string"
@@ -4353,7 +4339,6 @@
             ]
           },
           "source_url": {
-            "default": null,
             "anyOf": [
               {
                 "type": "string"
@@ -4364,11 +4349,9 @@
             ]
           },
           "is_benchmark": {
-            "default": false,
             "type": "boolean"
           },
           "evaluation_label": {
-            "default": null,
             "anyOf": [
               {
                 "type": "string"
@@ -4379,7 +4362,6 @@
             ]
           },
           "published_date": {
-            "default": null,
             "anyOf": [
               {
                 "type": "string"
@@ -4390,11 +4372,9 @@
             ]
           },
           "created_at": {
-            "default": "",
             "type": "string"
           },
           "pipeline_run_name": {
-            "default": null,
             "anyOf": [
               {
                 "type": "string"
@@ -4417,30 +4397,10 @@
         },
         "required": [
           "id",
-          "workspace_id",
-          "pipeline_run_id",
           "title",
           "authors",
-          "authors_raw",
-          "abstract",
-          "doi",
-          "arxiv_id",
           "source",
-          "screening_status",
-          "screening_reasoning",
-          "abstract_screening_reasoning",
-          "full_text_screening_reasoning",
-          "signal_score",
-          "signal_score_details",
-          "dimensions",
-          "pdf_key",
-          "markdown_key",
-          "source_url",
-          "is_benchmark",
-          "evaluation_label",
-          "published_date",
-          "created_at",
-          "pipeline_run_name"
+          "signal_score"
         ],
         "additionalProperties": {}
       },

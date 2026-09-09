@@ -16,7 +16,8 @@ const sampleScoredPaper = {
   title: 'Attention Is All You Need',
   authors: ['Ashish Vaswani', 'Noam Shazeer', 'Niki Parmar'],
   authors_raw: 'Ashish Vaswani, Noam Shazeer, Niki Parmar',
-  abstract: 'The dominant sequence transduction models are based on complex recurrent or convolutional neural networks.',
+  abstract:
+    'The dominant sequence transduction models are based on complex recurrent or convolutional neural networks.',
   doi: '10.5555/3295222.3295349',
   arxiv_id: '1706.03762',
   source: 'arxiv',
@@ -65,7 +66,7 @@ describe('Briefings BFF Schema Contracts', () => {
     expect(parsed.id).toBe(sampleScoredPaper.id)
     expect(parsed.signal_score).toBe(95.5)
     expect(parsed.dimensions).toHaveLength(1)
-    expect(parsed.dimensions[0].name).toBe('Novelty & Ingenuity')
+    expect(parsed.dimensions?.[0]?.name).toBe('Novelty & Ingenuity')
     expect(parsed.source_url).toBe('https://arxiv.org/abs/1706.03762')
     expect(parsed.risk_and_affiliation?.affiliations).toContain('Google Brain')
   })
@@ -138,9 +139,9 @@ describe('Briefings BFF Schema Contracts', () => {
     const parsed = editionSummary.parse(lightweightPayload)
     expect(parsed.papers[0].id).toBe('00000000-0000-4000-8000-000000000001')
     expect(parsed.papers[0].title).toBe('Lightweight Paper')
-    expect(parsed.papers[0].dimensions).toEqual([])
-    expect(parsed.papers[0].doi).toBeNull()
-    expect(parsed.papers[0].arxiv_id).toBeNull()
+    expect(parsed.papers[0].dimensions ?? []).toEqual([])
+    expect(parsed.papers[0].doi ?? null).toBeNull()
+    expect(parsed.papers[0].arxiv_id ?? null).toBeNull()
     expect(parsed.papers[0].signal_score).toBe(87.5)
   })
 

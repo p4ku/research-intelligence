@@ -120,7 +120,9 @@ describe('Assessment Component Rendering', () => {
   test('renders evidence quotes unquoted within blockquote tags', () => {
     const out = renderToStaticMarkup(<Assessment dimensions={[fullDimension]} t={t} />)
     expect(out).toContain('<blockquote')
-    expect(out).toContain('Our intermediate representation reduces circuit compilation latency by 58%.')
+    expect(out).toContain(
+      'Our intermediate representation reduces circuit compilation latency by 58%.',
+    )
     expect(out).toContain('Validated on 14 hybrid benchmark programs.')
   })
 
@@ -166,7 +168,9 @@ describe('Assessment Component Rendering', () => {
   })
 
   test('filters out risk and affiliation dimensions from the Assessment article list', () => {
-    const out = renderToStaticMarkup(<Assessment dimensions={[fullDimension, riskDimension]} t={t} />)
+    const out = renderToStaticMarkup(
+      <Assessment dimensions={[fullDimension, riskDimension]} t={t} />,
+    )
     expect(out).toContain('TRL Level')
     expect(out).not.toContain('Should not appear in Assessment list')
   })
@@ -210,9 +214,13 @@ describe('Assessment Component Rendering', () => {
     const out = renderToStaticMarkup(<Assessment dimensions={[dictDimension]} t={t} />)
     expect(out).toContain('Research Metrics')
     expect(out).toContain('Substantial')
-    expect(out).toContain('The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.')
+    expect(out).toContain(
+      'The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.',
+    )
     expect(out).toContain('“quantum-assisted framework for PDE-based Bayesian inverse problems”')
-    expect(out).toContain('“hybrid quantum-classical algorithm using quantum linear system algorithms (QLSAs)”')
+    expect(out).toContain(
+      '“hybrid quantum-classical algorithm using quantum linear system algorithms (QLSAs)”',
+    )
     expect(out).not.toContain("{'band'")
     expect(out).not.toContain("'score': 68")
   })
@@ -273,7 +281,9 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('Substantial')
     expect(out).toContain('Sub-score: 68')
     expect(out).toContain('Evidence')
-    expect(out).toContain('The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.')
+    expect(out).toContain(
+      'The paper introduces a substantial new framing by formulating an end-to-end hybrid quantum-classical architecture.',
+    )
     expect(out).toContain('“quantum-assisted framework for PDE-based Bayesian inverse problems”')
   })
 
@@ -287,9 +297,30 @@ describe('Assessment Component Rendering', () => {
       max: 100,
       is_trl: false,
       facets: [
-        { key: 'novelty', name: 'Novelty', value: 68, max: 100, text: 'The paper introduces a substantial new framing...', band: 'Substantial' },
-        { key: 'significance', name: 'Significance', value: 62, max: 100, text: 'This work addresses a prominent bottleneck...', band: 'Important' },
-        { key: 'rigour', name: 'Rigour', value: 65, max: 100, text: 'The authors provide a mathematically sound formulation...', band: 'Sound' },
+        {
+          key: 'novelty',
+          name: 'Novelty',
+          value: 68,
+          max: 100,
+          text: 'The paper introduces a substantial new framing...',
+          band: 'Substantial',
+        },
+        {
+          key: 'significance',
+          name: 'Significance',
+          value: 62,
+          max: 100,
+          text: 'This work addresses a prominent bottleneck...',
+          band: 'Important',
+        },
+        {
+          key: 'rigour',
+          name: 'Rigour',
+          value: 65,
+          max: 100,
+          text: 'The authors provide a mathematically sound formulation...',
+          band: 'Sound',
+        },
         { key: 'rigour_score', name: 'Rigour', value: 65, max: 100, text: null },
         { key: 'novelty_score', name: 'Novelty', value: 68, max: 100, text: null },
         { key: 'significance_score', name: 'Significance', value: 62, max: 100, text: null },
@@ -303,7 +334,9 @@ describe('Assessment Component Rendering', () => {
           band: 'Sound',
           score: 65,
           insight: 'The authors provide a mathematically sound formulation...',
-          evidence: ['rigorous complexity analysis establishing conditions for end-to-end quantum speedup'],
+          evidence: [
+            'rigorous complexity analysis establishing conditions for end-to-end quantum speedup',
+          ],
           value: 'The authors provide a mathematically sound formulation...',
         },
         {
@@ -349,9 +382,13 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('scaleX(0.65)')
 
     // Evidence quotes are present within the sub-metric
-    expect(out).toContain('“rigorous complexity analysis establishing conditions for end-to-end quantum speedup”')
+    expect(out).toContain(
+      '“rigorous complexity analysis establishing conditions for end-to-end quantum speedup”',
+    )
     expect(out).toContain('“quantum-assisted framework for PDE-based Bayesian inverse problems”')
-    expect(out).toContain('“mitigates the cubic complexity barrier in large-scale inverse problems”')
+    expect(out).toContain(
+      '“mitigates the cubic complexity barrier in large-scale inverse problems”',
+    )
   })
 
   test('applies dynamic schema titles, descriptions, and maximums to sub-measures and prose texts', () => {
@@ -437,4 +474,3 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('scaleX(0.85)')
   })
 })
-

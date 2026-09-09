@@ -57,7 +57,13 @@ export const dimensionField = z
   .object({
     key: z.string(),
     name: z.string(),
-    value: z.union([z.string(), z.boolean(), z.number(), z.record(z.string(), z.unknown()), z.null()]),
+    value: z.union([
+      z.string(),
+      z.boolean(),
+      z.number(),
+      z.record(z.string(), z.unknown()),
+      z.null(),
+    ]),
     type: z.string().optional(),
     is_dict: z.boolean().optional(),
     dict_value: z.record(z.string(), z.unknown()).nullable().optional(),
@@ -228,35 +234,36 @@ export type ScoredPaper = z.infer<typeof scoredPaper>
 
 /**
  * Resilient paper schema used within briefing editions.
- * Supplies default values for secondary fields so both summary and detail payloads parse cleanly.
+ * Primary fields are id, title, authors, source, screening_status, and signal_score.
+ * Secondary fields are optional so lightweight summaries and full detail payloads both parse cleanly.
  */
 export const editionPaper = z
   .object({
     id: z.string(),
-    workspace_id: z.string().default(''),
-    pipeline_run_id: z.string().default(''),
     title: z.string(),
     authors: z.array(z.string()).default([]),
-    authors_raw: z.string().default(''),
-    abstract: z.string().default(''),
-    doi: z.string().nullable().default(null),
-    arxiv_id: z.string().nullable().default(null),
     source: z.string().default('arXiv'),
-    screening_status: screeningStatus.default('accepted'),
-    screening_reasoning: z.string().nullable().default(null),
-    abstract_screening_reasoning: z.string().nullable().default(null),
-    full_text_screening_reasoning: z.string().nullable().default(null),
+    screening_status: screeningStatus.optional(),
     signal_score: z.number().nullable().default(null),
-    signal_score_details: signalScoreDetails.nullable().default(null),
-    dimensions: z.array(dimension).default([]),
-    pdf_key: z.string().nullable().default(null),
-    markdown_key: z.string().nullable().default(null),
-    source_url: z.string().nullable().default(null),
-    is_benchmark: z.boolean().default(false),
-    evaluation_label: z.string().nullable().optional().default(null),
-    published_date: z.string().nullable().default(null),
-    created_at: z.string().default(''),
-    pipeline_run_name: z.string().nullable().default(null),
+    workspace_id: z.string().optional(),
+    pipeline_run_id: z.string().optional(),
+    authors_raw: z.string().optional(),
+    abstract: z.string().optional(),
+    doi: z.string().nullable().optional(),
+    arxiv_id: z.string().nullable().optional(),
+    screening_reasoning: z.string().nullable().optional(),
+    abstract_screening_reasoning: z.string().nullable().optional(),
+    full_text_screening_reasoning: z.string().nullable().optional(),
+    signal_score_details: signalScoreDetails.nullable().optional(),
+    dimensions: z.array(dimension).optional(),
+    pdf_key: z.string().nullable().optional(),
+    markdown_key: z.string().nullable().optional(),
+    source_url: z.string().nullable().optional(),
+    is_benchmark: z.boolean().optional(),
+    evaluation_label: z.string().nullable().optional(),
+    published_date: z.string().nullable().optional(),
+    created_at: z.string().optional(),
+    pipeline_run_name: z.string().nullable().optional(),
     risk_and_affiliation: riskAndAffiliation.nullable().optional(),
   })
   .passthrough()

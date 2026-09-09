@@ -17,4 +17,3 @@ import { corpusSnapshot } from '../corpus/snapshot'
 // Retained purely for snapshot-backed raw list compatibility.
 export const listPapersRaw = cache(async () => (await corpusSnapshot()).papers)
 export const listExtractionsRaw = cache(async () => (await corpusSnapshot()).extractions)
-

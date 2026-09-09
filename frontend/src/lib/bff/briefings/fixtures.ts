@@ -21,6 +21,7 @@ export const fixtureEditions: Edition[] = [
     title: 'Coordinated Tool Use in Multi-Agent Language Model Systems',
     in_brief:
       'The Agentic AI scan fetched 4 papers, passed 1 through screening, and surfaced 1 for this briefing. Leading the list: “Coordinated Tool Use in Multi-Agent Language Model Systems” at signal 84.',
+    in_brief_source: 'template',
     funnel: { fetched: 4, passed_screening: 1, surfaced: 1 },
     papers: [
       {

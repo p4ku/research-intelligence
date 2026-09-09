@@ -49,7 +49,11 @@ function mockPaper(id: string, title: string, signalScore: number | null): Score
 
 describe('EditionPaperList Component Rendering', () => {
   const paper1 = mockPaper('00000000-0000-4000-8000-000000000001', 'Quantum Neural Networks', 91.2)
-  const paper2 = mockPaper('00000000-0000-4000-8000-000000000002', 'High-Throughput Inference', 82.0)
+  const paper2 = mockPaper(
+    '00000000-0000-4000-8000-000000000002',
+    'High-Throughput Inference',
+    82.0,
+  )
   const runId = '00000000-0000-4000-8000-000000000020'
   const logHref = '/briefing/2026-09-09/run'
 

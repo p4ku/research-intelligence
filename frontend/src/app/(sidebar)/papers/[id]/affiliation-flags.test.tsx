@@ -69,7 +69,7 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
 
   test('renders risk flags with matching status styling: safe (emerald), warn (amber), highlight (sky), neutral (zinc)', () => {
     const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={fullRiskData} />)
-    
+
     // Safe flag (emerald)
     expect(out).toContain('GDPR Sovereignty:')
     expect(out).toContain('Compliant (EU only)')

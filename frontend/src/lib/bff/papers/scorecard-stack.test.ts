@@ -31,9 +31,11 @@ const mockRawPaperPayload = {
   arxiv_id: '2609.01037',
   source: 'arxiv',
   screening_status: 'full_text_passed',
-  screening_reasoning: 'Proposes an intermediate representation directly addressing hybrid quantum workflows.',
+  screening_reasoning:
+    'Proposes an intermediate representation directly addressing hybrid quantum workflows.',
   abstract_screening_reasoning: 'Passed abstract evaluation: novel quantum IR.',
-  full_text_screening_reasoning: 'Passed full text review: solid empirical benchmarks on Qiskit and LLVM.',
+  full_text_screening_reasoning:
+    'Passed full text review: solid empirical benchmarks on Qiskit and LLVM.',
   signal_score: 84.6,
   signal_score_details: {
     variables: {
@@ -109,7 +111,8 @@ const mockRawPaperPayload = {
         {
           key: 'experimental_methodology',
           name: 'Experimental methodology',
-          value: 'Tested against standard Qiskit runtime using simulated noisy intermediate-scale quantum devices.',
+          value:
+            'Tested against standard Qiskit runtime using simulated noisy intermediate-scale quantum devices.',
         },
       ],
       lists: [
@@ -124,7 +127,11 @@ const mockRawPaperPayload = {
       ],
       facts: [
         { key: 'reproducible_code', name: 'Reproducible code', value: true },
-        { key: 'target_hardware', name: 'Target hardware', value: 'Trapped ion & superconducting qubits' },
+        {
+          key: 'target_hardware',
+          name: 'Target hardware',
+          value: 'Trapped ion & superconducting qubits',
+        },
       ],
     },
     {
@@ -139,8 +146,11 @@ const mockRawPaperPayload = {
       is_risk_and_affiliation: false,
       has_postprocessing: false,
       band: 'High Novelty',
-      rationale: 'First unified IR treating quantum gates as first-class citizens in classical SSA representation.',
-      evidence: ['“To our knowledge, this is the first SSA-form IR with dynamic gate composition.”'],
+      rationale:
+        'First unified IR treating quantum gates as first-class citizens in classical SSA representation.',
+      evidence: [
+        '“To our knowledge, this is the first SSA-form IR with dynamic gate composition.”',
+      ],
       confidence: 0.9,
       model: 'google/gemini-3.8-flash',
       facets: [],
