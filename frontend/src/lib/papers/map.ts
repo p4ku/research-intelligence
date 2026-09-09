@@ -334,6 +334,102 @@ function dimensionDetail(
   const lists: NonNullable<Dimension['lists']> = []
   const facts: NonNullable<Dimension['facts']> = []
   let band: string | undefined
+  // 1. If explicit secondary metrics are specified in `order`, build facets directly
+  if (order.length > 0) {
+    for (const secKey of order) {
+      if (used.has(secKey)) continue
+      const raw = data[secKey] ?? Object.entries(data).find(([k]) => k.toLowerCase().replace(/[-_ ]/g, '') === secKey.toLowerCase().replace(/[-_ ]/g, ''))?.[1]
+      if (raw === undefined) continue
+      const value = isFieldExtraction(raw) ? raw.value : raw
+      const name = humaniseKey(secKey)
+
+      let dictValue: Record<string, unknown> | null = null
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        dictValue = value as Record<string, unknown>
+      } else if (typeof value === 'string' && value.trim().startsWith('{') && value.trim().endsWith('}')) {
+        try {
+          const parsed = JSON.parse(value.trim())
+          if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+            dictValue = parsed
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (dictValue) {
+        const b = dictValue.band ? String(dictValue.band).trim() : null
+        const insRaw =
+          dictValue.insight ??
+          dictValue.rationale ??
+          dictValue.reasoning ??
+          dictValue.explanation ??
+          dictValue.text ??
+          dictValue.summary
+        const ins = insRaw !== undefined && insRaw !== null ? String(insRaw).trim() : null
+        const evRaw = dictValue.evidence ?? dictValue.quotes ?? dictValue.snippets
+        let ev: string[] | null = null
+        if (Array.isArray(evRaw)) {
+          ev = evRaw
+            .map((e) =>
+              typeof e === 'object' && e !== null && 'quote' in e
+                ? String((e as { quote: unknown }).quote)
+                : String(e),
+            )
+            .map((s) => s.trim())
+            .filter(Boolean)
+        }
+        const sRaw = dictValue.score ?? dictValue.value
+        const sc = typeof sRaw === 'number' && Number.isFinite(sRaw) ? sRaw : null
+
+        if (sc !== null) {
+          facets.push({
+            key: secKey,
+            name,
+            value: sc,
+            max: facetMax,
+            text: ins,
+            band: b,
+          })
+        } else {
+          texts.push({
+            key: secKey,
+            name,
+            value: ins || (b ? b : '—'),
+            type: 'dict',
+            is_dict: true,
+            dict_value: dictValue,
+            band: b,
+            insight: ins,
+            evidence: ev,
+            score: sc,
+          })
+        }
+        used.add(secKey)
+        continue
+      }
+
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        const twin = data[secKey.replace(FACET_KEY, '_assessment')] ?? data[`${secKey}_assessment`]
+        const text = isFieldExtraction(twin) ? twin.value : twin
+        facets.push({
+          key: secKey,
+          name,
+          value,
+          max: facetMax,
+          text: typeof text === 'string' && text.trim() ? text : null,
+        })
+        used.add(secKey)
+        continue
+      }
+
+      if (typeof value === 'string') {
+        facts.push({ key: secKey, name, value })
+        used.add(secKey)
+      }
+    }
+  }
+
   for (const [key, raw] of Object.entries(data)) {
     if (used.has(key) || DUPLICATE_KEY.test(key)) continue
     const value = isFieldExtraction(raw) ? raw.value : raw
@@ -342,7 +438,8 @@ function dimensionDetail(
       if (band === undefined && value.trim()) band = bandLabel(value)
       continue
     }
-    if (typeof value === 'number' && Number.isFinite(value) && FACET_KEY.test(key)) {
+    // Only scan for _score facets if no secondary metrics order was specified (legacy fallback)
+    if (order.length === 0 && typeof value === 'number' && Number.isFinite(value) && FACET_KEY.test(key)) {
       const twin = data[key.replace(FACET_KEY, '_assessment')]
       const text = isFieldExtraction(twin) ? twin.value : twin
       facets.push({
@@ -398,7 +495,7 @@ function dimensionDetail(
       const sRaw = dictValue.score ?? dictValue.value
       const sc = typeof sRaw === 'number' && Number.isFinite(sRaw) ? sRaw : null
 
-      if (sc !== null && !facets.some((f) => f.key === key)) {
+      if (order.length === 0 && sc !== null && !facets.some((f) => f.key === key)) {
         facets.push({
           key,
           name,

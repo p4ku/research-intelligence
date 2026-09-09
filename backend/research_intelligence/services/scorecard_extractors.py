@@ -117,17 +117,17 @@ def unpack_flag_value(raw_val, flag_name=""):
     return val_str, is_pos, [], False, None
 
 
-def humanise_field_label(key: str) -> str:
+def humanise_field_label(key: str, title_case: bool = False) -> str:
     """
-    Capitalizes first word, preserves common acronyms, e.g.
-    'research_quality_insight' -> 'Research quality insight'
-    'core_technology' -> 'Core technology'
-    'confidence' -> 'Confidence'
+    Formats a field or metric key into a human-readable label.
+    Preserves common acronyms (TRL, GDPR, LLM, API, NLP, AI, RTL).
+    If title_case=True: capitalizes all words (e.g. 'Research Quality Insight').
+    If title_case=False: capitalizes first word (e.g. 'Research quality insight').
     """
     if not key:
         return ""
     acronyms = {"trl": "TRL", "gdpr": "GDPR", "llm": "LLM", "api": "API", "nlp": "NLP", "ai": "AI", "rtl": "RTL"}
-    clean_key = re.sub(r'(_score|_assessment)$', '', key, flags=re.IGNORECASE)
+    clean_key = re.sub(r'(_postprocessed|_score|_assessment|_metric)$', '', key, flags=re.IGNORECASE)
     words = [w for w in clean_key.replace("-", "_").split("_") if w]
     if not words:
         return ""
@@ -136,7 +136,7 @@ def humanise_field_label(key: str) -> str:
         wl = w.lower()
         if wl in acronyms:
             res.append(acronyms[wl])
-        elif i == 0:
+        elif title_case or i == 0:
             res.append(w.capitalize())
         else:
             res.append(w.lower())
@@ -171,9 +171,6 @@ def resolve_field_val(fields_data: dict, key: str):
         return None, "—", None, False, False
 
     actual_val = val
-    # If actual_val is a dictionary:
-    # 1. Standard {"value": ...} pattern
-    # 2. 1 key-value dict -> unpack!
     if isinstance(actual_val, dict):
         if "value" in actual_val and len(actual_val) <= 2:
             actual_val = actual_val["value"]
@@ -189,7 +186,6 @@ def resolve_field_val(fields_data: dict, key: str):
     if actual_val is None:
         return None, "—", None, False, True
 
-    # If it is a dictionary (or stringified dict with submetrics like {'score': 68, ...})
     parsed_sub = _parse_dict_or_json(actual_val)
     if isinstance(parsed_sub, dict):
         num_val = None
@@ -224,19 +220,7 @@ def resolve_field_val(fields_data: dict, key: str):
 
 def format_metric_label(key: str) -> str:
     """Formats a metric key into a human-readable title label."""
-    if not key:
-        return ""
-    clean = re.sub(r'(_postprocessed|_score|_metric)$', '', key, flags=re.IGNORECASE)
-    words = clean.replace("-", "_").split("_")
-    acronyms = {"trl": "TRL", "gdpr": "GDPR", "llm": "LLM", "api": "API", "nlp": "NLP", "ai": "AI"}
-    formatted = []
-    for w in words:
-        wl = w.lower()
-        if wl in acronyms:
-            formatted.append(acronyms[wl])
-        else:
-            formatted.append(w.capitalize())
-    return " ".join(formatted)
+    return humanise_field_label(key, title_case=True)
 
 
 def build_metric_entry(key: str, fields_data: dict, source: str = "exit_metric", label_override: str = None) -> dict:
@@ -255,13 +239,166 @@ def build_metric_entry(key: str, fields_data: dict, source: str = "exit_metric",
     }
 
 
+def _extract_legacy_postprocessing(
+    definition: ExtractionDefinition, fields_data: dict, data_fields: dict, def_slug: str, exit_keys: list
+) -> Tuple[dict, list]:
+    """
+    Helper for legacy definitions with postprocessing code and no explicit frontend metrics.
+    Rule 2: Handles 1 key unpacked as primary vs >1 keys as secondary metrics.
+    """
+    exit_keys_norm = {ek.strip().lower().replace(" ", "_").replace("-", "_") for ek in exit_keys}
+    ignored_keys = {
+        "confidence_score", "reasoning", "explanation", "validation_status", "error",
+        "validation_errors", "postprocessing_error", "fields",
+    }
+    alias_suffixes = ("_computed",)
+    primary_exit = definition.get_primary_exit_metric() if definition else None
+    primary_cand = f"{def_slug}_postprocessed"
+
+    # Find candidate postprocessed key in data_fields
+    found_post_key = None
+    if isinstance(data_fields, dict):
+        for k in data_fields.keys():
+            k_norm = k.strip().lower().replace(" ", "_").replace("-", "_")
+            if k_norm == primary_cand:
+                found_post_key = k
+                break
+        if not found_post_key and primary_exit:
+            pe_norm = primary_exit.strip().lower().replace(" ", "_").replace("-", "_")
+            for k in data_fields.keys():
+                k_norm = k.strip().lower().replace(" ", "_").replace("-", "_")
+                if k_norm == f"{pe_norm}_postprocessed":
+                    found_post_key = k
+                    break
+        if not found_post_key:
+            for k in data_fields.keys():
+                k_norm = k.strip().lower().replace(" ", "_").replace("-", "_")
+                if k_norm.endswith("_postprocessed"):
+                    found_post_key = k
+                    break
+
+    raw_post_val = data_fields.get(found_post_key) if (found_post_key and isinstance(data_fields, dict)) else None
+    post_extra_metrics = []
+
+    if isinstance(raw_post_val, dict):
+        if len(raw_post_val) == 1:
+            inner_k, inner_v = next(iter(raw_post_val.items()))
+            target_k = inner_k if (inner_k.endswith("_postprocessed") or not found_post_key) else found_post_key
+            primary_metric = build_metric_entry(
+                key=target_k,
+                fields_data={target_k: inner_v},
+                source="postprocessing",
+                label_override=format_metric_label(target_k),
+            )
+        else:
+            has_main = any(sub_k.strip().lower().replace(" ", "_").replace("-", "_") == primary_cand for sub_k in raw_post_val.keys())
+            if has_main:
+                primary_metric = build_metric_entry(
+                    key=primary_cand,
+                    fields_data=raw_post_val,
+                    source="postprocessing",
+                    label_override=format_metric_label(primary_cand),
+                )
+                for sub_k in raw_post_val.keys():
+                    if sub_k.strip().lower().replace(" ", "_").replace("-", "_") != primary_cand:
+                        post_extra_metrics.append(build_metric_entry(key=sub_k, fields_data=raw_post_val, source="postprocessing"))
+            else:
+                primary_metric = {
+                    "key": primary_cand,
+                    "name": f"{definition.name} (Postprocessed)" if definition else format_metric_label(primary_cand),
+                    "label": f"{definition.name} (Postprocessed)" if definition else format_metric_label(primary_cand),
+                    "value": None,
+                    "numeric_value": None,
+                    "raw": "—",
+                    "is_numeric": False,
+                    "source": "postprocessing",
+                }
+                for sub_k in raw_post_val.keys():
+                    post_extra_metrics.append(build_metric_entry(key=sub_k, fields_data=raw_post_val, source="postprocessing"))
+    elif found_post_key:
+        primary_metric = build_metric_entry(
+            key=found_post_key,
+            fields_data=fields_data,
+            source="postprocessing",
+            label_override=f"{definition.name} (Postprocessed)" if definition else None,
+        )
+    else:
+        post_non_exit = [
+            k for k in (data_fields.keys() if isinstance(data_fields, dict) else [])
+            if k.strip().lower().replace(" ", "_").replace("-", "_") not in exit_keys_norm
+            and k.strip().lower().replace(" ", "_").replace("-", "_") not in ignored_keys
+            and not any(k.strip().lower().endswith(sfx) for sfx in alias_suffixes)
+        ]
+        if len(post_non_exit) == 1:
+            single_k = post_non_exit[0]
+            primary_metric = build_metric_entry(
+                key=single_k,
+                fields_data=fields_data,
+                source="postprocessing",
+                label_override=format_metric_label(single_k),
+            )
+        elif len(post_non_exit) > 1:
+            primary_metric = {
+                "key": primary_cand,
+                "name": f"{definition.name} (Postprocessed)" if definition else format_metric_label(primary_cand),
+                "label": f"{definition.name} (Postprocessed)" if definition else format_metric_label(primary_cand),
+                "value": None,
+                "numeric_value": None,
+                "raw": "—",
+                "is_numeric": False,
+                "source": "postprocessing",
+            }
+            for k in post_non_exit:
+                post_extra_metrics.append(build_metric_entry(key=k, fields_data=fields_data, source="postprocessing"))
+        else:
+            primary_metric = build_metric_entry(
+                key=primary_cand,
+                fields_data=fields_data,
+                source="postprocessing",
+                label_override=f"{definition.name} (Postprocessed)" if definition else None,
+            )
+
+    # Collect extra keys from postprocessing and combine with exit metrics
+    if isinstance(data_fields, dict):
+        already_included = {
+            (primary_metric["key"] or "").strip().lower().replace(" ", "_").replace("-", "_"),
+            *(m["key"].strip().lower().replace(" ", "_").replace("-", "_") for m in post_extra_metrics),
+            *exit_keys_norm,
+            *ignored_keys,
+        }
+        alias_keys = {
+            f"{def_slug}_computed",
+            f"{primary_exit.strip().lower().replace(' ', '_').replace('-', '_')}_computed" if primary_exit else "",
+            f"{primary_exit.strip().lower().replace(' ', '_').replace('-', '_')}_postprocessed" if primary_exit else "",
+        }
+        for k in data_fields.keys():
+            k_norm = k.strip().lower().replace(" ", "_").replace("-", "_")
+            if k_norm not in already_included and k_norm not in alias_keys:
+                post_extra_metrics.append(build_metric_entry(key=k, fields_data=fields_data, source="postprocessing"))
+
+    seen_sec_bases = {_base_metric_key(primary_metric.get("key") or "")}
+    for pm_entry in post_extra_metrics:
+        b = _base_metric_key(pm_entry.get("key") or "")
+        if b:
+            seen_sec_bases.add(b)
+
+    exit_secondary = []
+    for ek in exit_keys:
+        base_ek = _base_metric_key(ek)
+        if base_ek not in seen_sec_bases:
+            seen_sec_bases.add(base_ek)
+            exit_secondary.append(build_metric_entry(key=ek, fields_data=fields_data, source="exit_metric"))
+
+    return primary_metric, post_extra_metrics + exit_secondary
+
+
 def extract_metrics_for_extraction(e: Extraction, d: ExtractionDefinition = None) -> Tuple[dict, list, bool]:
     """
-    Extracts primary_metric (main_metric) and secondary_metrics (auxiliary_metrics).
-    Handles:
-      - Rule 1: No postprocessing -> first exit metric is primary, rest are secondary
-      - Rule 2: Postprocessing code present -> handles 1 key unpacked vs >1 keys as secondary metrics
-    Returns: (primary_metric_dict, secondary_metrics_list, has_postprocessing)
+    Extracts primary_metric (headline) and secondary_metrics (facets/submeasures).
+    1. Explicit Frontend Metrics: Single source of truth if configured on definition.
+    2. Legacy Postprocessing (Rule 2): Isolated fallback helper.
+    3. Legacy Exit Metrics (Rule 1): First exit metric is primary, rest are secondary.
+    4. Ad-hoc fallback: For ad-hoc extractions without definition.
     """
     definition = d or (e.extraction_definition if e else None)
     fields_data = e.fields_data if (e and isinstance(e.fields_data, dict)) else {}
@@ -273,12 +410,8 @@ def extract_metrics_for_extraction(e: Extraction, d: ExtractionDefinition = None
         and definition.postprocessing_code.strip()
     )
 
-    # Check for explicit frontend metrics first (simplifying and removing magic guessing)
-    has_explicit_frontend = bool(
-        definition and (definition.primary_frontend_metric or definition.secondary_frontend_metrics)
-    )
-
-    if has_explicit_frontend:
+    # 1. New Explicit Architecture: Single source of truth if configured
+    if definition and (definition.primary_frontend_metric or definition.secondary_frontend_metrics):
         explicit_prim_key = definition.get_primary_frontend_metric()
         primary_metric = build_metric_entry(
             key=explicit_prim_key,
@@ -298,183 +431,21 @@ def extract_metrics_for_extraction(e: Extraction, d: ExtractionDefinition = None
         return primary_metric, secondary_metrics, has_postprocessing
 
     exit_keys = definition.get_exit_metrics_list() if definition else []
-    primary_exit = definition.get_primary_exit_metric() if definition else None
     def_slug = (
         definition.name.lower().replace(" ", "_").replace("-", "_")
         if definition
         else ((e.category or "extraction").lower().replace(" ", "_").replace("-", "_") if e else "extraction")
     )
 
+    # 2. Legacy Postprocessing (Rule 2)
     if has_postprocessing:
-        # Rule 2: Postprocessing code is present
-        exit_keys_norm = {ek.strip().lower().replace(" ", "_").replace("-", "_") for ek in exit_keys}
-        ignored_keys = {
-            "confidence_score", "reasoning", "explanation", "validation_status", "error",
-            "validation_errors", "postprocessing_error", "fields",
-        }
-        alias_suffixes = ("_computed",)
+        primary_metric, secondary_metrics = _extract_legacy_postprocessing(
+            definition, fields_data, data_fields, def_slug, exit_keys
+        )
+        return primary_metric, secondary_metrics, True
 
-        primary_cand = f"{def_slug}_postprocessed"
-        found_post_key = None
-
-        if isinstance(data_fields, dict):
-            for k in data_fields.keys():
-                k_norm = k.strip().lower().replace(" ", "_").replace("-", "_")
-                if k_norm == primary_cand:
-                    found_post_key = k
-                    break
-            if not found_post_key and primary_exit:
-                pe_norm = primary_exit.strip().lower().replace(" ", "_").replace("-", "_")
-                for k in data_fields.keys():
-                    k_norm = k.strip().lower().replace(" ", "_").replace("-", "_")
-                    if k_norm == f"{pe_norm}_postprocessed":
-                        found_post_key = k
-                        break
-            if not found_post_key:
-                for k in data_fields.keys():
-                    k_norm = k.strip().lower().replace(" ", "_").replace("-", "_")
-                    if k_norm.endswith("_postprocessed"):
-                        found_post_key = k
-                        break
-
-        raw_post_val = data_fields.get(found_post_key) if (found_post_key and isinstance(data_fields, dict)) else None
-        post_extra_metrics = []
-
-        if isinstance(raw_post_val, dict):
-            if len(raw_post_val) == 1:
-                # 1 key-value dict: "poprostu rozpakuj"
-                inner_k, inner_v = next(iter(raw_post_val.items()))
-                target_k = inner_k if (inner_k.endswith("_postprocessed") or not found_post_key) else found_post_key
-                primary_metric = build_metric_entry(
-                    key=target_k,
-                    fields_data={target_k: inner_v},
-                    source="postprocessing",
-                    label_override=format_metric_label(target_k),
-                )
-            else:
-                # >1 key-values: "jak jest wiecej to wszystkie są secondary metrics"
-                has_main_in_dict = False
-                for sub_k in raw_post_val.keys():
-                    if sub_k.strip().lower().replace(" ", "_").replace("-", "_") == primary_cand:
-                        has_main_in_dict = True
-                        break
-                if has_main_in_dict:
-                    primary_metric = build_metric_entry(
-                        key=primary_cand,
-                        fields_data=raw_post_val,
-                        source="postprocessing",
-                        label_override=format_metric_label(primary_cand),
-                    )
-                    for sub_k in raw_post_val.keys():
-                        if sub_k.strip().lower().replace(" ", "_").replace("-", "_") != primary_cand:
-                            post_extra_metrics.append(build_metric_entry(key=sub_k, fields_data=raw_post_val, source="postprocessing"))
-                else:
-                    # All keys in this dict are secondary metrics!
-                    primary_metric = {
-                        "key": primary_cand,
-                        "name": f"{definition.name} (Postprocessed)" if definition else format_metric_label(primary_cand),
-                        "label": f"{definition.name} (Postprocessed)" if definition else format_metric_label(primary_cand),
-                        "value": None,
-                        "numeric_value": None,
-                        "raw": "—",
-                        "is_numeric": False,
-                        "source": "postprocessing",
-                    }
-                    for sub_k in raw_post_val.keys():
-                        post_extra_metrics.append(build_metric_entry(key=sub_k, fields_data=raw_post_val, source="postprocessing"))
-        elif found_post_key:
-            primary_metric = build_metric_entry(
-                key=found_post_key,
-                fields_data=fields_data,
-                source="postprocessing",
-                label_override=f"{definition.name} (Postprocessed)" if definition else None,
-            )
-        else:
-            # No _postprocessed key found in data_fields. Check for other non-exit keys from postprocessing
-            post_non_exit = []
-            if isinstance(data_fields, dict):
-                for k in data_fields.keys():
-                    k_norm = k.strip().lower().replace(" ", "_").replace("-", "_")
-                    if (
-                        k_norm not in exit_keys_norm
-                        and k_norm not in ignored_keys
-                        and not any(k_norm.endswith(sfx) for sfx in alias_suffixes)
-                    ):
-                        post_non_exit.append(k)
-
-            if len(post_non_exit) == 1:
-                # 1 key-value: "poprostu rozpakuj" -> that single key is the primary metric!
-                single_k = post_non_exit[0]
-                primary_metric = build_metric_entry(
-                    key=single_k,
-                    fields_data=fields_data,
-                    source="postprocessing",
-                    label_override=format_metric_label(single_k),
-                )
-            elif len(post_non_exit) > 1:
-                # >1 key-values: "jak jest wiecej to wszystkie są secondary metrics"!
-                primary_metric = {
-                    "key": primary_cand,
-                    "name": f"{definition.name} (Postprocessed)" if definition else format_metric_label(primary_cand),
-                    "label": f"{definition.name} (Postprocessed)" if definition else format_metric_label(primary_cand),
-                    "value": None,
-                    "numeric_value": None,
-                    "raw": "—",
-                    "is_numeric": False,
-                    "source": "postprocessing",
-                }
-                for k in post_non_exit:
-                    post_extra_metrics.append(build_metric_entry(key=k, fields_data=fields_data, source="postprocessing"))
-            else:
-                primary_metric = build_metric_entry(
-                    key=primary_cand,
-                    fields_data=fields_data,
-                    source="postprocessing",
-                    label_override=f"{definition.name} (Postprocessed)" if definition else None,
-                )
-
-        # Collect any other top-level keys in data_fields that came from postprocessing (>1 keys returned)
-        if isinstance(data_fields, dict):
-            already_included_keys = {
-                (primary_metric["key"] or "").strip().lower().replace(" ", "_").replace("-", "_"),
-                *(m["key"].strip().lower().replace(" ", "_").replace("-", "_") for m in post_extra_metrics),
-                *exit_keys_norm,
-                *ignored_keys,
-            }
-            alias_keys = {
-                f"{def_slug}_computed",
-                f"{primary_exit.strip().lower().replace(' ', '_').replace('-', '_')}_computed" if primary_exit else "",
-                f"{primary_exit.strip().lower().replace(' ', '_').replace('-', '_')}_postprocessed" if primary_exit else "",
-            }
-            for k in data_fields.keys():
-                k_norm = k.strip().lower().replace(" ", "_").replace("-", "_")
-                if k_norm not in already_included_keys and k_norm not in alias_keys:
-                    post_extra_metrics.append(build_metric_entry(key=k, fields_data=fields_data, source="postprocessing"))
-
-        # Secondary metrics: all additional postprocessing metrics + all exit metrics
-        # Deduplicate so the same metric is not added twice (e.g. novelty and novelty_score)
-        seen_sec_bases = {
-            _base_metric_key(primary_metric.get("key") or ""),
-        }
-        for pm_entry in post_extra_metrics:
-            base_k = _base_metric_key(pm_entry.get("key") or "")
-            if base_k:
-                seen_sec_bases.add(base_k)
-
-        exit_secondary = []
-        for ek in exit_keys:
-            base_ek = _base_metric_key(ek)
-            if base_ek in seen_sec_bases:
-                continue
-            seen_sec_bases.add(base_ek)
-            exit_secondary.append(
-                build_metric_entry(key=ek, fields_data=fields_data, source="exit_metric")
-            )
-
-        secondary_metrics = post_extra_metrics + exit_secondary
-
-    elif exit_keys:
-        # Rule 1: Only exit metrics list -> first is primary, rest are secondary
+    # 3. Legacy Exit Metrics (Rule 1)
+    if exit_keys:
         primary_key = exit_keys[0]
         primary_metric = build_metric_entry(
             key=primary_key,
@@ -492,24 +463,22 @@ def extract_metrics_for_extraction(e: Extraction, d: ExtractionDefinition = None
             secondary_metrics.append(
                 build_metric_entry(key=ek, fields_data=fields_data, source="exit_metric")
             )
+        return primary_metric, secondary_metrics, False
 
-    else:
-        # Fallback: No exit metrics configured and no postprocessing
-        cand_key = def_slug
-        if isinstance(data_fields, dict) and data_fields:
-            for k in data_fields.keys():
-                if k not in ("confidence_score", "reasoning", "explanation"):
-                    cand_key = k
-                    break
-        primary_metric = build_metric_entry(
-            key=cand_key,
-            fields_data=fields_data,
-            source="custom",
-            label_override=definition.name if definition else format_metric_label(cand_key),
-        )
-        secondary_metrics = []
-
-    return primary_metric, secondary_metrics, has_postprocessing
+    # 4. Ad-hoc fallback: No exit metrics configured and no postprocessing
+    cand_key = def_slug
+    if isinstance(data_fields, dict) and data_fields:
+        for k in data_fields.keys():
+            if k not in ("confidence_score", "reasoning", "explanation"):
+                cand_key = k
+                break
+    primary_metric = build_metric_entry(
+        key=cand_key,
+        fields_data=fields_data,
+        source="custom",
+        label_override=definition.name if definition else format_metric_label(cand_key),
+    )
+    return primary_metric, [], False
 
 
 def is_risk_dimension(name: str = "", key: str = "") -> bool:
@@ -819,6 +788,19 @@ def extract_rich_dimension_details(
                 "band": item_band,
                 "evidence": item_evidence,
             })
+            if item_insight or item_band or item_evidence or parsed_dict:
+                texts.append({
+                    "key": mk,
+                    "name": humanise_field_label(mk),
+                    "type": "dict",
+                    "is_dict": True,
+                    "value": item_insight or (f"{item_band}" if item_band else "—"),
+                    "dict_value": parsed_dict,
+                    "band": item_band,
+                    "insight": item_insight,
+                    "evidence": item_evidence,
+                    "score": item_score,
+                })
             seen_facet_keys.add(mk_norm)
             if mk_base:
                 seen_facet_bases.add(mk_base)
@@ -933,119 +915,60 @@ def extract_rich_dimension_details(
 
     for k, v in data.items():
         k_norm = k.strip().lower()
-        if k_norm in ignored_keys or DUPLICATE_KEY_RE.search(k_norm) or k_norm in rich_unpacked_keys:
+        if k_norm in ignored_keys or DUPLICATE_KEY_RE.search(k_norm) or k_norm in used:
             continue
         val = _unwrap_val(v)
         label = humanise_field_label(k)
 
-        # Dictionary / JSON sub-metrics (e.g. {'band': 'Substantial', 'score': 68, 'insight': '...', 'evidence': [...]})
+        # Remaining dictionary fields (e.g. structured notes or extra sub-metrics not declared in secondary_metrics)
         parsed_dict = _parse_dict_or_json(val)
         if isinstance(parsed_dict, dict) and parsed_dict:
-            has_score_key = any(sk in parsed_dict for sk in ("score", "numeric_value", "value"))
-            has_insight_key = any(ik in parsed_dict for ik in ("insight", "rationale", "reasoning", "explanation", "description", "text", "summary"))
-            has_band_key = any(bk in parsed_dict for bk in ("band", "label", "level"))
-            has_evidence_key = any(ek in parsed_dict for ek in ("evidence", "quotes", "snippets"))
+            item_score = None
+            s_raw = parsed_dict.get("score") if "score" in parsed_dict else parsed_dict.get("value")
+            if s_raw is not None:
+                try:
+                    f_s = float(s_raw)
+                    if math.isfinite(f_s):
+                        item_score = int(f_s) if f_s.is_integer() else round(f_s, 2)
+                except (ValueError, TypeError):
+                    pass
 
-            if has_insight_key or has_band_key or has_evidence_key or (has_score_key and len(parsed_dict) > 1):
-                rich_unpacked_keys.add(k_norm)
-                # Unpack score
-                s_raw = parsed_dict.get("score") if "score" in parsed_dict else parsed_dict.get("value")
-                item_score = None
-                if s_raw is not None:
-                    try:
-                        f_s = float(s_raw)
-                        if math.isfinite(f_s):
-                            item_score = int(f_s) if f_s.is_integer() else round(f_s, 2)
-                    except (ValueError, TypeError):
-                        pass
+            b_raw = parsed_dict.get("band") or parsed_dict.get("label") or parsed_dict.get("level")
+            item_band = str(b_raw).strip() if b_raw is not None and str(b_raw).strip() not in ("None", "") else None
 
-                # Unpack band
-                b_raw = parsed_dict.get("band") or parsed_dict.get("label") or parsed_dict.get("level")
-                item_band = str(b_raw).strip() if b_raw is not None and str(b_raw).strip() not in ("None", "") else None
+            i_raw = (
+                parsed_dict.get("insight")
+                or parsed_dict.get("rationale")
+                or parsed_dict.get("reasoning")
+                or parsed_dict.get("explanation")
+                or parsed_dict.get("description")
+                or parsed_dict.get("text")
+                or parsed_dict.get("summary")
+            )
+            item_insight = str(i_raw).strip() if i_raw is not None and str(i_raw).strip() not in ("None", "") else None
 
-                # Unpack insight / rationale
-                i_raw = (
-                    parsed_dict.get("insight")
-                    or parsed_dict.get("rationale")
-                    or parsed_dict.get("reasoning")
-                    or parsed_dict.get("explanation")
-                    or parsed_dict.get("description")
-                    or parsed_dict.get("text")
-                    or parsed_dict.get("summary")
-                )
-                item_insight = str(i_raw).strip() if i_raw is not None and str(i_raw).strip() not in ("None", "") else None
+            e_raw = parsed_dict.get("evidence") or parsed_dict.get("quotes") or parsed_dict.get("snippets")
+            item_evidence = []
+            if isinstance(e_raw, list):
+                item_evidence = [str(q.get("quote") if isinstance(q, dict) else q).strip() for q in e_raw if q and str(q).strip() not in ("None", "")]
+            elif isinstance(e_raw, str) and e_raw.strip() not in ("None", ""):
+                item_evidence = [e_raw.strip()]
 
-                # Unpack evidence
-                e_raw = parsed_dict.get("evidence") or parsed_dict.get("quotes") or parsed_dict.get("snippets")
-                item_evidence = []
-                if isinstance(e_raw, list):
-                    item_evidence = [str(q.get("quote") if isinstance(q, dict) else q).strip() for q in e_raw if q and str(q).strip() not in ("None", "")]
-                elif isinstance(e_raw, str) and e_raw.strip() not in ("None", ""):
-                    item_evidence = [e_raw.strip()]
-
-                # Update matching facet if one exists in facets
-                matched_facet = None
-                generic_sub_keys = {"score", "value", "val", "level", "metric", "submetric"}
-                for f in facets:
-                    fk = (f.get("key") or "").strip().lower()
-                    fn = (f.get("name") or "").strip().lower()
-                    exact_match = (fk == k_norm or fn == label.lower())
-                    base_match = (
-                        k_norm not in generic_sub_keys
-                        and _base_metric_key(fk) == _base_metric_key(k_norm)
-                    )
-                    affix_match = (
-                        k_norm not in generic_sub_keys
-                        and (fk.startswith(f"{k_norm}_") or fk.endswith(f"_{k_norm}"))
-                    )
-                    if exact_match or base_match or affix_match:
-                        matched_facet = f
-                        break
-
-                if matched_facet:
-                    if item_band and not matched_facet.get("band"):
-                        matched_facet["band"] = item_band
-                    if item_insight and not matched_facet.get("text"):
-                        matched_facet["text"] = item_insight
-                    if item_score is not None and (matched_facet.get("value") is None or matched_facet.get("value") == "—"):
-                        matched_facet["value"] = item_score
-                    if item_evidence:
-                        matched_facet["evidence"] = item_evidence
-                elif item_score is not None and _base_metric_key(k_norm) not in seen_facet_bases:
-                    if _base_metric_key(k_norm):
-                        seen_facet_bases.add(_base_metric_key(k_norm))
-                    facets.append({
-                        "key": k,
-                        "name": label,
-                        "value": item_score,
-                        "max": max_val,
-                        "text": item_insight,
-                        "band": item_band,
-                        "evidence": item_evidence,
-                    })
-
-                # Add to texts: main value is the insight (NEVER duplicate score in text string!)
-                if item_insight or item_band or item_evidence or parsed_dict:
-                    texts.append({
-                        "key": k,
-                        "name": label,
-                        "type": "dict",
-                        "is_dict": True,
-                        "value": item_insight or (f"{item_band}" if item_band else "—"),
-                        "dict_value": parsed_dict,
-                        "band": item_band,
-                        "insight": item_insight,
-                        "evidence": item_evidence,
-                        "score": item_score,
-                    })
-
-                if item_evidence:
-                    evidence.extend(item_evidence)
-
-                used.add(k_norm)
-                continue
-
-        if k_norm in used:
+            texts.append({
+                "key": k,
+                "name": label,
+                "type": "dict",
+                "is_dict": True,
+                "value": item_insight or (f"{item_band}" if item_band else "—"),
+                "dict_value": parsed_dict,
+                "band": item_band,
+                "insight": item_insight,
+                "evidence": item_evidence,
+                "score": item_score,
+            })
+            if item_evidence:
+                evidence.extend(item_evidence)
+            used.add(k_norm)
             continue
 
         # Lists
