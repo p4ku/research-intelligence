@@ -940,6 +940,8 @@ export function toWorkspaceSummary(
         is_active: d.is_active,
         is_trl: isTrlName(d.name),
         max: inferScale(d, maxima.get(d.id) ?? null),
+        primary_frontend_metric: d.primary_frontend_metric ?? null,
+        secondary_frontend_metrics: d.secondary_frontend_metrics ?? [],
       }),
     ),
   }

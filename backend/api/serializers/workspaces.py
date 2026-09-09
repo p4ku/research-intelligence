@@ -194,6 +194,21 @@ class WorkspaceSerializer(serializers.ModelSerializer):
                         exit_m = ", ".join(str(m).strip() for m in exit_m if str(m).strip())
                     elif exit_m:
                         exit_m = str(exit_m)
+
+                    prim_f = ed.get('primary_frontend_metric')
+                    if prim_f is None and 'primary_frontend_metrics' in ed:
+                        prim_f = ed.get('primary_frontend_metrics')
+                    if isinstance(prim_f, (list, tuple)):
+                        prim_f = str(prim_f[0]).strip() if prim_f else None
+                    elif prim_f:
+                        prim_f = str(prim_f).strip() or None
+
+                    sec_f = ed.get('secondary_frontend_metrics')
+                    if isinstance(sec_f, (list, tuple)):
+                        sec_f = ", ".join(str(m).strip() for m in sec_f if str(m).strip())
+                    elif sec_f:
+                        sec_f = str(sec_f).strip() or ""
+
                     ExtractionDefinition.objects.create(
                         workspace=workspace,
                         name=ed.get('name'),
@@ -201,6 +216,8 @@ class WorkspaceSerializer(serializers.ModelSerializer):
                         user_prompt_template=ed.get('user_prompt_template', ''),
                         response_schema=ed.get('response_schema', {}),
                         exit_metrics=exit_m,
+                        primary_frontend_metric=prim_f,
+                        secondary_frontend_metrics=sec_f,
                         postprocessing_code=ed.get('postprocessing_code'),
                         llm_model=ed.get('llm_model', workspace.screening_llm_model),
                         version=ed.get('version', 1),

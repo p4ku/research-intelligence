@@ -146,30 +146,6 @@ function FacetRowFrame({
   )
 }
 
-function FacetRow({ facet: f }: { facet: DimensionFacet }) {
-  const hasBar = typeof f.max === 'number' && f.max > 0 && typeof f.value === 'number' && Number.isFinite(f.value)
-  const pct = hasBar && typeof f.value === 'number' && typeof f.max === 'number' ? Math.max(0, Math.min(1, f.value / f.max)) : 0
-  return (
-    <FacetRowFrame
-      name={
-        <span className="inline-flex items-center gap-2">
-          <span>{f.name}</span>
-          {f.band && <Band>{f.band}</Band>}
-        </span>
-      }
-      fill={
-        hasBar && (
-          <span
-            className="block h-full w-full origin-left bg-accent"
-            style={{ transform: `scaleX(${pct})` }}
-          />
-        )
-      }
-      value={shownNumber(f.value)}
-      text={f.text && <p className={SMALL_PROSE}>{f.text}</p>}
-    />
-  )
-}
 
 interface SchemaProperty {
   title?: string

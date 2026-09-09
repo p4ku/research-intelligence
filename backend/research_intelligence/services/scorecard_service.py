@@ -288,6 +288,8 @@ def build_single_scored_paper(
                 'has_postprocessing': has_post,
                 'primary_metric': primary_metric,
                 'secondary_metrics': secondary_metrics,
+                'primary_frontend_metric': None,
+                'secondary_frontend_metrics': [],
                 'main_metric': primary_metric,
                 'auxiliary_metrics': secondary_metrics,
                 'is_hitl': bool(e.is_hitl_validated),

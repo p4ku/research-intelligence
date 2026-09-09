@@ -3769,7 +3769,7 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
     formfield_overrides = {
         models.JSONField: {'widget': PrettyJSONWidget},
     }
-    list_display = ('name', 'exit_metrics_status', 'workspace', 'version', 'llm_model', 'has_postprocessing_code', 'requires_consensus', 'is_active', 'created_at')
+    list_display = ('name', 'frontend_metrics_status', 'exit_metrics_status', 'workspace', 'version', 'llm_model', 'has_postprocessing_code', 'requires_consensus', 'is_active', 'created_at')
     ordering = ('-created_at', '-id')
     list_filter = ('is_active', 'requires_consensus', 'workspace')
     search_fields = ('name', 'exit_metrics', 'primary_frontend_metric', 'secondary_frontend_metrics', 'system_prompt', 'user_prompt_template', 'postprocessing_code')
@@ -3797,6 +3797,25 @@ class ExtractionDefinitionAdmin(admin.ModelAdmin):
 
     def get_queryset(self, request):
         return super().get_queryset(request).select_related('workspace')
+
+    @admin.display(description="Frontend Metrics")
+    def frontend_metrics_status(self, obj):
+        prim = obj.primary_frontend_metric
+        sec = obj.get_secondary_frontend_metrics_list()
+        if not prim and not sec:
+            return mark_safe("<span style='color: #94a3b8; font-style: italic;'>auto</span>")
+        badges = []
+        if prim:
+            badges.append(
+                f"<span style='background: #dbeafe; color: #1d4ed8; border: 1px solid #93c5fd; padding: 2px 7px; border-radius: 4px; font-family: monospace; font-size: 11px; font-weight: 600; display: inline-block; margin: 1px 2px;' "
+                f"title='Primary Frontend Metric (Headline): {prim}'>⭐ {prim}</span>"
+            )
+        for s in sec:
+            badges.append(
+                f"<span style='background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; padding: 2px 7px; border-radius: 4px; font-family: monospace; font-size: 11px; font-weight: 500; display: inline-block; margin: 1px 2px;' "
+                f"title='Secondary Frontend Metric (Facet): {s}'>{s}</span>"
+            )
+        return mark_safe("".join(badges))
 
     @admin.display(description="Exit Metrics", ordering="exit_metrics")
     def exit_metrics_status(self, obj):

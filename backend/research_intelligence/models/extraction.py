@@ -555,6 +555,21 @@ class Extraction(models.Model):
                         if unwrapped is not None:
                             return unwrapped
 
+            # 0.5 Explicit primary_frontend_metric prioritized if set
+            if self.extraction_definition and self.extraction_definition.primary_frontend_metric and self.extraction_definition.primary_frontend_metric.strip():
+                prim_k = self.extraction_definition.primary_frontend_metric.strip()
+                val = data.get(prim_k)
+                if isinstance(val, dict) and "value" in val:
+                    return str(val["value"])
+                if val is not None:
+                    return str(val)
+                for k, v in data.items():
+                    if k.lower().replace(" ", "_") == prim_k.lower().replace(" ", "_"):
+                        if isinstance(v, dict) and "value" in v:
+                            return str(v["value"])
+                        elif v is not None:
+                            return str(v)
+
             # 1. Match on configured extraction_definition.exit_metrics (supports comma-separated list)
             if self.extraction_definition and self.extraction_definition.exit_metrics:
                 exit_keys = self.extraction_definition.get_exit_metrics_list()
