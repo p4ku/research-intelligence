@@ -14,6 +14,7 @@ import type { Problem } from '../core/problem'
 import { problemResult } from '../core/result'
 import { workspacesSnapshot } from '../corpus/snapshot'
 import type { WorkspaceSummary } from './schema'
+import { isHiddenWorkspace } from './visible'
 
 /**
  * Raw DTOs for other BFF services (papers composition needs the full
@@ -29,12 +30,18 @@ export type WorkspacesResult =
 
 export const workspaces = {
   /**
-   * Every workspace the user belongs to, in the contract shape — this is the
-   * list the UI renders across every surface.
+   * Every workspace the user belongs to, in the contract shape, minus the
+   * calibration domains (./visible.ts) — this is the list the UI renders and
+   * the list the papers and briefings readers walk, so dropping them here
+   * hides them from every surface at once and keeps their papers out of the
+   * corpus. `listWorkspacesRaw` stays unfiltered for readers that need a
+   * hidden domain's definitions. Throws problems.
    */
   listAll: cache(async (): Promise<WorkspaceSummary[]> => {
     const rows = await listWorkspacesRaw()
-    return rows.map((ws: WorkspaceDTO) => toWorkspaceSummary(ws, new Map()))
+    return rows
+      .map((ws: WorkspaceDTO) => toWorkspaceSummary(ws, new Map()))
+      .filter((ws) => !isHiddenWorkspace(ws.name))
   }),
 
   /**
