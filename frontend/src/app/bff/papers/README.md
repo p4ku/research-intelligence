@@ -91,9 +91,13 @@ One paper in the canonical shape plus its workspace summary:
 
 ## Current implementation
 
-`django` (default): Native single-stream server-side compilation via Django `ScorecardService`.
-Client-side paper composition (`compose.ts`) has been removed; memory and CPU consumption are $O(1)$ per page request.
-`stub` serves `fixtures.ts` for offline testing.
+`django` (default): the lists are Django's workspace scorecard, drained 200 a
+page per domain into the user's scored corpus (`src/lib/bff/corpus/snapshot.ts`
+`scoredCorpus`, policy in `corpus/scored.ts`) and held across requests under
+the run-ledger version, the 10-minute TTL, the paper cap and the byte budget,
+like the raw corpus before it — a page view on a warm corpus makes no
+upstream call. One paper and one run's papers are live reads. Client-side
+composition (`compose.ts`) is gone. `stub` serves `fixtures.ts`.
 
 ## curl
 
