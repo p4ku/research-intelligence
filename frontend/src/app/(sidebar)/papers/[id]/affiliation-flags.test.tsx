@@ -157,14 +157,17 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
         {
           key: 'compliance',
           label: 'Compliance Review',
-          value: "The author's review concluded: None of the identified institutions are restricted.",
+          value:
+            "The author's review concluded: None of the identified institutions are restricted.",
           status: 'safe',
         },
       ],
       codebase_artifact_link: null,
     }
     const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={customFlagRisk} />)
-    expect(out).toContain("The author&#x27;s review concluded: None of the identified institutions are restricted.")
+    expect(out).toContain(
+      'The author&#x27;s review concluded: None of the identified institutions are restricted.',
+    )
     expect(out).not.toContain('null of the identified')
     expect(out).not.toContain('author"s')
   })

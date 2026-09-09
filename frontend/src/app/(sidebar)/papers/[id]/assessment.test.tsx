@@ -296,7 +296,8 @@ describe('Assessment Component Rendering', () => {
         {
           key: 'notes',
           name: 'Notes',
-          value: "The author's evaluation showed: None of the above baseline methods matched the target efficiency.",
+          value:
+            "The author's evaluation showed: None of the above baseline methods matched the target efficiency.",
         },
       ],
       facets: [],
@@ -305,7 +306,9 @@ describe('Assessment Component Rendering', () => {
       lists: [],
     }
     const out = renderToStaticMarkup(<Assessment dimensions={[proseDim]} t={t} />)
-    expect(out).toContain("The author&#x27;s evaluation showed: None of the above baseline methods matched the target efficiency.")
+    expect(out).toContain(
+      'The author&#x27;s evaluation showed: None of the above baseline methods matched the target efficiency.',
+    )
     expect(out).not.toContain('null of the above')
     expect(out).not.toContain('author"s')
   })
