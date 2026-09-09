@@ -23,7 +23,7 @@ import { paginate } from '../core/pagination'
 import { problem, ProblemError } from '../core/problem'
 import { sourceOf } from '../core/source'
 import { assertUuid } from '../core/validate'
-import { CORPUS_MAX_PAPERS, SCORECARD_PAGE_SIZE, scoredCorpus } from '../corpus/snapshot'
+import { SCORECARD_PAGE_SIZE, scoredCorpus } from '../corpus/snapshot'
 import { stars } from '../stars/service'
 import type { WorkspaceSummary } from '../workspaces/schema'
 import { workspaces } from '../workspaces/service'
@@ -98,6 +98,9 @@ const starredPapers = cache(() => stars.get())
 /** The run index is a pure function of the raw list, which lives across requests — so does the index. */
 const runIndexOf = new WeakMap<PaperDTO[], RunIndex>()
 
+/** Pages of one run's scorecard read at most (10,000 papers at 200 a page) — a bound, not a cap. */
+const RUN_PAGES_CEILING = 50
+
 export const papers = {
   /**
    * The whole workspace corpus + its workspace summary; null when the user is
@@ -105,7 +108,7 @@ export const papers = {
    * the summary the memberships list's, so a warm corpus answers with no
    * upstream call. React-cached per request so sibling streamed sections
    * share one read. An outage throws: a fetched corpus must never read as
-   * "no membership" (#2).
+   * "no membership".
    */
   listAll: cache(async (workspaceId: string): Promise<WorkspacePapers | null> => {
     if (sourceOf('papers') === 'stub') return stubListAll(workspaceId)
@@ -190,8 +193,20 @@ export const papers = {
             page,
             size,
           ),
-        { pageSize: SCORECARD_PAGE_SIZE, maxItems: CORPUS_MAX_PAPERS, id: (p) => p.id },
+        {
+          pageSize: SCORECARD_PAGE_SIZE,
+          maxItems: Number.POSITIVE_INFINITY,
+          maxPages: RUN_PAGES_CEILING,
+          id: (p) => p.id,
+        },
       )
+      if (rows.cutShort) {
+        console.warn(
+          '[bff] run %s: stopped after %d pages of its scorecard; some papers are missing',
+          runId,
+          rows.pages,
+        )
+      }
       return rows.items
     } catch (error) {
       if (error instanceof ProblemError && error.problem.status === 404) return []
