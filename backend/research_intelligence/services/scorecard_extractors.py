@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import math
 import re
-from typing import Tuple
+from typing import Any, Optional, Tuple, Union
 
 from research_intelligence.models import Extraction, ExtractionDefinition
 
