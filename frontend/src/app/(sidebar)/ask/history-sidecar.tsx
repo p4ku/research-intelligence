@@ -4,7 +4,7 @@ import { SectionLabel } from '@/components/scanner-ui'
 import { Bone, Skeleton } from '@/components/skeleton'
 import { Spinner } from '@/components/ui/spinner'
 import type { ChatSession } from '@/lib/bff/chat/schema'
-import { fmt } from '@/lib/i18n'
+import { fmt, formatNumber } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
 import { TrashIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
@@ -303,6 +303,7 @@ export function HistorySidecar({
   onDelete: (session: ChatSession) => void
 }) {
   const t = useT()
+  const { lang } = useLanguage()
   if (loading) {
     return (
       <SidecarFrame open={open} label={t('Recent')} count={<Bone.Text widths={['11ch']} />}>
@@ -321,7 +322,9 @@ export function HistorySidecar({
       open={open}
       label={t('Recent')}
       count={
-        threads.length === 1 ? t('1 question') : fmt(t('{n} questions'), { n: threads.length })
+        threads.length === 1
+          ? t('1 question')
+          : fmt(t('{n} questions'), { n: formatNumber(threads.length, lang) })
       }
     >
       {stale && (

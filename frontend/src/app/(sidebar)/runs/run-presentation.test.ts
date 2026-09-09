@@ -1,5 +1,10 @@
+import { COMPONENT_LABELS, STEP_LABELS } from '@/lib/bff/component-runs/normalise'
+import { STAGE_LABELS } from '@/lib/bff/pipeline-runs/schema'
+import { makeT } from '@/lib/i18n'
+import { de } from '@/locales/de'
 import { describe, expect, test } from 'bun:test'
-import { formatDuration, formatTokens, formatUsd } from './run-presentation'
+import { formatDuration, formatTokens, formatUsd, runStatusLabel } from './run-presentation'
+import { COLUMNS } from './runs-table'
 
 describe('formatDuration', () => {
   test('sub-second, seconds, minutes and hours', () => {
@@ -67,5 +72,62 @@ describe('formatTokens', () => {
     expect(formatTokens(1492568)).toBe('1,492,568')
     expect(formatTokens(0)).toBe('0')
     expect(formatTokens(null)).toBe('—')
+  })
+})
+
+/* --------------------------------- German --------------------------------- */
+
+// U+202F, the narrow no-break space the terminology sheet puts before a unit,
+// a percent sign and the currency symbol. Escaped so a plain space cannot
+// creep in unnoticed.
+const NNBSP = '\u202f'
+
+describe('German readings', () => {
+  test('durations take the decimal comma and the DIN abbreviations', () => {
+    expect(formatDuration(0.84, 'de')).toBe(`0,84${NNBSP}s`)
+    expect(formatDuration(43.0, 'de')).toBe(`43,0${NNBSP}s`)
+    expect(formatDuration(68, 'de')).toBe(`1${NNBSP}Min. 08${NNBSP}s`)
+    expect(formatDuration(7440, 'de')).toBe(`2${NNBSP}Std. 04${NNBSP}Min.`)
+    expect(formatDuration(null, 'de')).toBe('—')
+  })
+
+  test('spend puts the symbol after the amount, English before it', () => {
+    expect(formatUsd(12.34, 'de')).toBe(`12,34${NNBSP}$`)
+    expect(formatUsd(0, 'de')).toBe(`0${NNBSP}$`)
+    // formatNumber groups, so the English form carries its thousands comma.
+    expect(formatUsd(1234.5, 'en')).toBe('$1,234.50')
+    expect(formatUsd(1234.5, 'de')).toBe(`1.234,50${NNBSP}$`)
+  })
+
+  test('the status word is translated, not the wire value capitalised', () => {
+    const t = makeT('de')
+    expect(runStatusLabel('aborted', t)).toBe('Abgebrochen')
+    expect(runStatusLabel('completed', t)).toBe('Abgeschlossen')
+    expect(runStatusLabel('running', t)).toBe('Läuft')
+  })
+})
+
+/* ---------------------------- Dynamic-label guard --------------------------- */
+
+/**
+ * Three tables of English copy reach `t()` through a variable — step titles
+ * (component-runs/normalise.ts), the runs table's column headers, and the
+ * pipeline stage names (pipeline-runs/schema.ts). The static audit in
+ * lib/i18n.test.ts only sees literal `t('…')` calls, so it cannot catch a
+ * label added here without its German. These do. Same shape as the registry
+ * guard in lib/features.test.ts.
+ */
+describe('dynamically translated labels', () => {
+  test('every step title has a German translation', () => {
+    const labels = [...Object.values(STEP_LABELS), ...Object.values(COMPONENT_LABELS)]
+    expect(labels.filter((label) => !(label in de))).toEqual([])
+  })
+
+  test('every runs-table column header has a German translation', () => {
+    expect(COLUMNS.map((c) => c.label).filter((label) => !(label in de))).toEqual([])
+  })
+
+  test('every known pipeline stage has a German translation', () => {
+    expect(Object.values(STAGE_LABELS).filter((label) => !(label in de))).toEqual([])
   })
 })

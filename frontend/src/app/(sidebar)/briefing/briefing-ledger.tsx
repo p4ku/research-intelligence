@@ -6,7 +6,8 @@ import { StarButton, StarredChip } from '@/components/star'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { ALL_ON, type Features } from '@/lib/features'
 import { useFeatures } from '@/lib/features-client'
-import { useT } from '@/lib/i18n-client'
+import { formatNumber } from '@/lib/i18n'
+import { useLanguage, useT } from '@/lib/i18n-client'
 import { useStars } from '@/lib/stars-client'
 import clsx from 'clsx'
 import { useSearchParams } from 'next/navigation'
@@ -113,7 +114,7 @@ function LedgerFrame({
   const columns = columnsFor(stars)
   const labels: Record<(typeof COLUMNS)[number], ReactNode> = {
     expand: <LeadHeading>{t('Show brief')}</LeadHeading>,
-    star: <LeadHeading>{t('Star')}</LeadHeading>,
+    star: <LeadHeading>{t('Star', 'column')}</LeadHeading>,
     domain: t('Domain'),
     period: t('Period'),
     generated: t('Generated'),
@@ -159,6 +160,7 @@ function Row({
   stars: boolean
 }) {
   const t = useT()
+  const { lang } = useLanguage()
   const panelId = `briefing-${row.id}`
   return (
     <>
@@ -196,8 +198,8 @@ function Row({
         <TableCell className={COL.generated.cell}>
           <Generated day={row.generated} stamp={row.stamp} />
         </TableCell>
-        <TableCell className={COL.screened.cell}>{row.screened}</TableCell>
-        <TableCell className={COL.included.cell}>{row.included}</TableCell>
+        <TableCell className={COL.screened.cell}>{formatNumber(row.screened, lang)}</TableCell>
+        <TableCell className={COL.included.cell}>{formatNumber(row.included, lang)}</TableCell>
         <TableCell className={COL.status.cell}>
           <StatusLabel status={row.current ? 'current' : 'done'} />
         </TableCell>
@@ -269,7 +271,9 @@ export function BriefingLedger({
   }
 
   const emptyCopy = !state.starred
-    ? t('No briefings for this domain yet.')
+    ? state.domain === null
+      ? t('No briefings yet.')
+      : t('No briefings for this domain yet.')
     : starredIds.size === 0
       ? t('Nothing starred yet.')
       : t('Nothing starred in this domain.')

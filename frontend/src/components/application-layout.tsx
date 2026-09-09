@@ -120,23 +120,28 @@ function AccountDropdownMenu({
         <DropdownLabel>{t('Settings')}</DropdownLabel>
       </DropdownItem>
       <DropdownDivider />
-      <DropdownItem
-        onClick={(e: React.MouseEvent) => {
-          // preventDefault keeps the Headless UI menu open on toggle
-          e.preventDefault()
-          toggleLanguage()
-        }}
-      >
-        <LanguageIcon />
-        {/* Language self-name, so it stays findable from either language */}
-        <DropdownLabel>Deutsch</DropdownLabel>
-        <Switch
-          as="span"
-          checked={lang === 'de'}
-          color="dark/zinc"
-          className="pointer-events-none ml-auto"
-        />
-      </DropdownItem>
+      {/* Headed like the demo-flag section below it, so the switch reads as a
+          setting rather than an unexplained toggle. */}
+      <DropdownSection>
+        <DropdownHeading>{t('Language')}</DropdownHeading>
+        <DropdownItem
+          onClick={(e: React.MouseEvent) => {
+            // preventDefault keeps the Headless UI menu open on toggle
+            e.preventDefault()
+            toggleLanguage()
+          }}
+        >
+          <LanguageIcon />
+          {/* Language self-name, so it stays findable from either language */}
+          <DropdownLabel>Deutsch</DropdownLabel>
+          <Switch
+            as="span"
+            checked={lang === 'de'}
+            color="dark/zinc"
+            className="pointer-events-none ml-auto"
+          />
+        </DropdownItem>
+      </DropdownSection>
       <DropdownDivider />
       {/* Demo flags: hide a feature live and put it back. A toggle row is never
           hidden by its own flag — it is how a feature comes back — and the rows

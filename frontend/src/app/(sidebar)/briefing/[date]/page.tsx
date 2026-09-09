@@ -5,7 +5,7 @@ import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Suspense, ViewTransition } from 'react'
-import { isEditionDate } from '../format'
+import { formatEditionDate, isEditionDate } from '../format'
 import { domainNames, domainScope, runScope } from '../scope'
 import { EditionHead, EditionPapers } from './sections'
 import { EditionHeadSkeleton, EditionPapersSkeleton } from './skeletons'
@@ -18,8 +18,11 @@ export async function generateMetadata({
   params: Promise<{ date: string }>
 }): Promise<Metadata> {
   const { date } = await params
-  const t = await getT()
-  return { title: `${t('Briefing')} · ${date}` }
+  const [t, lang] = await Promise.all([getT(), getLang()])
+  // The reader's date, not the URL's: "Freitag, 3. Juli 2026", never "2026-07-03".
+  return {
+    title: `${t('Briefing')} · ${isEditionDate(date) ? formatEditionDate(date, lang) : date}`,
+  }
 }
 
 // One edition, frozen: the same shape as the dashboard's daily brief — the

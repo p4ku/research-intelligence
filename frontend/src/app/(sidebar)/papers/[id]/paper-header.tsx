@@ -1,7 +1,7 @@
 import { Bone } from '@/components/skeleton'
 import { StarToggle } from '@/components/star'
 import { ALL_ON, type Features } from '@/lib/features'
-import { formatDate, type Lang, type T } from '@/lib/i18n'
+import { fmt, formatDate, type Lang, type T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { ArrowUpRightIcon, BookmarkIcon } from '@heroicons/react/16/solid'
 import type { ReactNode } from 'react'
@@ -99,7 +99,7 @@ export function PaperHeader({
           <Dot />
           <span className={META}>
             {paper.published_date
-              ? `${t('Published')} ${formatDate(paper.published_date, lang)}`
+              ? fmt(t('Published {date}'), { date: formatDate(paper.published_date, lang) })
               : formatDate(paper.created_at, lang)}
           </span>
           {paper.source_url && (
@@ -129,7 +129,7 @@ export function PaperHeader({
       // beside the masthead on a narrow viewport.
       action={features.stars ? <StarToggle kind="paper" id={paper.id} /> : undefined}
     >
-      <RiskAffiliationFlagging risk={paper.risk_and_affiliation} />
+      <RiskAffiliationFlagging risk={paper.risk_and_affiliation} t={t} />
     </PaperHeaderFrame>
   )
 }

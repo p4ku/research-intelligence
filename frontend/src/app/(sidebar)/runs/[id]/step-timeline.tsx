@@ -1,5 +1,6 @@
 import { Bone } from '@/components/skeleton'
 import type { ComponentRun } from '@/lib/bff/component-runs/schema'
+import { fmt, formatNumber, type Lang, type T } from '@/lib/i18n'
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
 import {
@@ -112,8 +113,22 @@ function toneFor(status: ComponentRun['status']): string {
  * The run's steps in execution order, each with a duration bar drawn to the
  * same scale. The bar is the point: it answers "where did the time go" at a
  * glance, which a column of numbers does not.
+ *
+ * `step.label` is frontend copy: the BFF names each `step_type` /
+ * `component_name` from a fixed English table (component-runs/normalise.ts),
+ * so it goes through `t()` like any other chrome string. `component_name`
+ * itself is the wire value and stays as sent — it is the identifier an
+ * operator greps the logs for, not a word to translate.
  */
-export function StepTimeline({ steps }: { steps: ComponentRun[] }) {
+export function StepTimeline({
+  steps,
+  t = (s) => s,
+  lang = 'en',
+}: {
+  steps: ComponentRun[]
+  t?: T
+  lang?: Lang
+}) {
   const longest = steps.reduce((max, step) => Math.max(max, step.duration_seconds ?? 0), 0)
 
   // A rerun re-executes one step after the run has otherwise moved on, so the
@@ -138,16 +153,16 @@ export function StepTimeline({ steps }: { steps: ComponentRun[] }) {
     return {
       key: step.id,
       tone: toneFor(step.status),
-      label: step.label,
-      status: <StepStatus status={step.status} />,
+      label: t(step.label),
+      status: <StepStatus status={step.status} t={t} />,
       extras: (
         <>
           {repeated && (
             <span
               className="rounded-sm bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"
-              title="This step ran more than once in this pipeline run"
+              title={t('This step ran more than once in this pipeline run')}
             >
-              Attempt {attempt}
+              {fmt(t('Attempt {n}'), { n: formatNumber(attempt, lang) })}
             </span>
           )}
           {/* Only worth showing when it isn't already the label. */}
@@ -156,7 +171,7 @@ export function StepTimeline({ steps }: { steps: ComponentRun[] }) {
           )}
         </>
       ),
-      summary: <StepSummary summary={step.summary} />,
+      summary: <StepSummary summary={step.summary} t={t} lang={lang} />,
       below: (
         <>
           {step.error_message && (
@@ -179,14 +194,14 @@ export function StepTimeline({ steps }: { steps: ComponentRun[] }) {
           <div className="h-full rounded-full bg-accent" style={{ width: `${width}%` }} />
         </div>
       ),
-      duration: formatDuration(step.duration_seconds),
+      duration: formatDuration(step.duration_seconds, lang),
       cost: (
         <>
-          {formatUsd(step.cost.usd)}
+          {formatUsd(step.cost.usd, lang)}
           {step.cost.total_tokens !== null && (
             <span className="text-zinc-400 dark:text-zinc-500">
               {' · '}
-              {formatTokens(step.cost.total_tokens)} tok
+              {fmt(t('{n} tok'), { n: formatTokens(step.cost.total_tokens, lang) })}
             </span>
           )}
         </>

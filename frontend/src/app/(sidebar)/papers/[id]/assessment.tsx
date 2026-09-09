@@ -1,6 +1,7 @@
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { Bone } from '@/components/skeleton'
-import type { T } from '@/lib/i18n'
+import { fmt, formatNumber, type Lang, type T } from '@/lib/i18n'
+import { dimensionLabel } from '@/lib/papers/dimension-label'
 import type { Dimension, DimensionFacet, DimensionField } from '@/lib/papers/types'
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
@@ -85,20 +86,20 @@ function Band({ children }: { children: ReactNode }) {
 }
 
 /** Integers plain, otherwise at most two decimals — the same reading as the rail. */
-function shownNumber(n: number | null | undefined): string {
+function shownNumber(n: number | null | undefined, lang: Lang): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return '—'
-  return Number.isInteger(n) ? String(n) : (Math.round(n * 100) / 100).toString()
+  return formatNumber(n, lang, undefined, 2)
 }
 
 /** The headline as the row shows it: the number, or the raw string when there is none. */
-function shownValue(d: Dimension): ReactNode {
+function shownValue(d: Dimension, lang: Lang): ReactNode {
   if (d.value === null) {
     if (!d.raw || d.raw === '—' || d.raw.trim() === '') return null
     return <span className="text-zinc-500 dark:text-zinc-400">{d.raw}</span>
   }
   return (
     <>
-      {shownNumber(d.value)}
+      {shownNumber(d.value, lang)}
       {d.max !== null && d.max !== 100 && (
         <span className="text-[11px] font-normal text-zinc-400">/{d.max}</span>
       )}
@@ -470,7 +471,7 @@ function resolveSubMeasures(
   return { subMeasures, generalTexts }
 }
 
-function SubMeasureRow({ sub }: { sub: SubMeasure }) {
+function SubMeasureRow({ sub, t, lang }: { sub: SubMeasure; t: T; lang: Lang }) {
   const hasBar =
     typeof sub.max === 'number' &&
     sub.max > 0 &&
@@ -504,7 +505,7 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
       >
         <div className="flex min-w-0 items-center">
           <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
-            {sub.name}
+            {dimensionLabel(sub.name, t)}
           </span>
         </div>
 
@@ -518,9 +519,11 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
         )}
 
         <div className="col-start-2 row-start-1 text-right sm:col-start-3">
-          <span className={clsx(FIGURE, 'text-sm')}>{shownNumber(sub.value)}</span>
+          <span className={clsx(FIGURE, 'text-sm')}>{shownNumber(sub.value, lang)}</span>
           {sub.is_dict && sub.value != null && (
-            <span className="sr-only">Sub-score: {sub.value}</span>
+            <span className="sr-only">
+              {fmt(t('Sub-score: {n}'), { n: shownNumber(sub.value, lang) })}
+            </span>
           )}
         </div>
       </div>
@@ -540,7 +543,7 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
           aria-hidden="true"
         >
           <span className="text-[10px] font-semibold tracking-wider text-zinc-400 uppercase dark:text-zinc-500">
-            Evidence
+            {t('Evidence')}
           </span>
           {sub.evidence!.map((quote, i) => (
             <blockquote
@@ -556,7 +559,7 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
   )
 }
 
-function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
+function Definition({ dimension: d, t, lang }: { dimension: Dimension; t: T; lang: Lang }) {
   const isTrl =
     d.is_trl || d.key.toLowerCase().includes('trl') || d.name.toLowerCase().includes('trl')
 
@@ -663,9 +666,9 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
   return (
     <DefinitionFrame
       id={definitionAnchor(d)}
-      name={d.name}
+      name={dimensionLabel(d.name, t)}
       band={d.band && <Band>{d.band}</Band>}
-      value={shownValue(d)}
+      value={shownValue(d, lang)}
     >
       {d.rationale ? <AnswerMarkdown text={d.rationale} className={PROSE} /> : null}
 
@@ -678,7 +681,7 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       {visibleSubMeasures.length > 0 && (
         <div className="space-y-3">
           {visibleSubMeasures.map((sub) => (
-            <SubMeasureRow key={sub.key} sub={sub} />
+            <SubMeasureRow key={sub.key} sub={sub} t={t} lang={lang} />
           ))}
         </div>
       )}
@@ -686,7 +689,7 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
       {/* Remaining dimension-level prose texts (e.g. "Hardware Architecture Notes", "Core technology") */}
       {remainingTexts.map((field) => (
         <div key={field.name} className="space-y-1.5">
-          <h4 className={H4}>{field.name}</h4>
+          <h4 className={H4}>{dimensionLabel(field.name, t)}</h4>
           {field.description && (
             <p className="text-xs text-zinc-500 dark:text-zinc-400">{field.description}</p>
           )}
@@ -735,7 +738,9 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
         <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-sm">
           {visibleFacts.map((fact) => (
             <div key={fact.key} className="contents">
-              <dt className="font-medium text-zinc-950 dark:text-white">{fact.name}</dt>
+              <dt className="font-medium text-zinc-950 dark:text-white">
+                {dimensionLabel(fact.name, t)}
+              </dt>
               <dd className="text-zinc-600 dark:text-zinc-400">
                 {typeof fact.value === 'boolean'
                   ? fact.value
@@ -753,7 +758,15 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
   )
 }
 
-export function Assessment({ dimensions, t }: { dimensions: Dimension[]; t: T }) {
+export function Assessment({
+  dimensions,
+  t,
+  lang = 'en',
+}: {
+  dimensions: Dimension[]
+  t: T
+  lang?: Lang
+}) {
   const visibleDimensions = (dimensions ?? []).filter(
     (d) =>
       !d.is_risk_and_affiliation &&
@@ -772,7 +785,7 @@ export function Assessment({ dimensions, t }: { dimensions: Dimension[]; t: T })
   return (
     <AssessmentFrame>
       {visibleDimensions.map((d) => (
-        <Definition key={d.key + (d.extraction_id ?? '')} dimension={d} t={t} />
+        <Definition key={d.key + (d.extraction_id ?? '')} dimension={d} t={t} lang={lang} />
       ))}
     </AssessmentFrame>
   )

@@ -7,7 +7,7 @@ import { Bone } from '@/components/skeleton'
 import { StarButton, StarredChip, StarToggle } from '@/components/star'
 import { ALL_ON, type Features } from '@/lib/features'
 import { useFeatures } from '@/lib/features-client'
-import { fmt, type Lang } from '@/lib/i18n'
+import { fmt, formatNumber, type Lang } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { paperHref } from '@/lib/papers/href'
 import { useStars } from '@/lib/stars-client'
@@ -281,7 +281,7 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
           {query !== '' && (
             <>
               <span className="shrink-0 font-mono text-xs text-zinc-400 tabular-nums">
-                {fmt(t('{n} hits'), { n: filtered.length })}
+                {fmt(t('{n} hits'), { n: formatNumber(filtered.length, lang) })}
               </span>
               <button
                 type="button"
@@ -339,12 +339,12 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
             count={
               active.papers.length === 1
                 ? t('1 paper')
-                : fmt(t('{n} papers'), { n: active.papers.length })
+                : fmt(t('{n} papers'), { n: formatNumber(active.papers.length, lang) })
             }
             papers={active.papers.map((p) => (
               <PaperRow
                 key={p.id}
-                score={<SignalScore score={p.signal} size="sm" />}
+                score={<SignalScore score={p.signal} size="sm" lang={lang} />}
                 title={
                   <Link href={paperHref(p.id, { runId: active.runId })} className={PAPER_LINK}>
                     {p.title}
@@ -363,7 +363,10 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
         <>
           <div className={RAIL_HEAD}>
             <p className={RAIL_COUNT}>
-              {fmt(t('{n} of {total} briefings'), { n: filtered.length, total: editions.length })}
+              {fmt(t('{n} of {total} briefings'), {
+                n: formatNumber(filtered.length, lang),
+                total: formatNumber(editions.length, lang),
+              })}
             </p>
             {stars && (
               <StarredChip
@@ -398,7 +401,7 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
                         <>
                           <span className="shrink-0">{formatEditionDate(e.date, lang)}</span>
                           <span className="min-w-0 truncate">· {e.domain}</span>
-                          {isToday && <span className="shrink-0 text-accent">{t('Today')}</span>}
+                          {isToday && <span className="shrink-0 text-accent">{t('Latest')}</span>}
                         </>
                       }
                       title={<span className="line-clamp-2 block">{e.title}</span>}

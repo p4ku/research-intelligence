@@ -236,7 +236,7 @@ export function SameDayNotice({
         <span key={e.run_id}>
           {i > 0 && <span aria-hidden="true"> · </span>}
           <Link href={to(e)} className={NOTICE_LINK}>
-            {e.generated_at ? clockStamp(e.generated_at) : formatDay(e.date, lang)}
+            {e.generated_at ? clockStamp(e.generated_at, lang) : formatDay(e.date, lang)}
           </Link>
         </span>
       ))}

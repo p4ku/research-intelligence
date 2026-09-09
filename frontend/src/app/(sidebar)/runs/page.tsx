@@ -1,5 +1,6 @@
 import { PageHeader } from '@/components/scanner-ui'
 import { WorkspaceNotice } from '@/components/workspace-notice'
+import { getLang, getT } from '@/lib/i18n-server'
 import { getWorkspacesState } from '@/lib/workspace-server'
 import type { Metadata } from 'next'
 import { Suspense, ViewTransition } from 'react'
@@ -7,8 +8,15 @@ import { tabFrom } from './run-tabs'
 import { RunsSection } from './sections'
 import { RunsSectionSkeleton, runsPageCopy } from './skeletons'
 
-export const metadata: Metadata = { title: 'Runs' }
 export const dynamic = 'force-dynamic'
+
+export async function generateMetadata(): Promise<Metadata> {
+  // generateMetadata runs independently of the page body, so it reads the
+  // language cookie itself; otherwise the tab and the history entry would stay
+  // English while the page is German.
+  const t = await getT()
+  return { title: t('Runs') }
+}
 
 /**
  * The header renders with the shell; the band, filter strip and table stream
@@ -23,29 +31,31 @@ export default async function RunsPage({
 }: {
   searchParams: Promise<{ status?: string }>
 }) {
-  const [{ status }, state] = await Promise.all([searchParams, getWorkspacesState()])
+  const [{ status }, state, t, lang] = await Promise.all([
+    searchParams,
+    getWorkspacesState(),
+    getT(),
+    getLang(),
+  ])
   const tab = tabFrom(status)
+  const copy = runsPageCopy(t)
 
   return (
     <div className="space-y-8">
-      <PageHeader
-        eyebrow="Pipeline"
-        title={runsPageCopy.title}
-        description={runsPageCopy.description}
-      />
+      <PageHeader eyebrow={t('Pipeline')} title={copy.title} description={copy.description} />
 
       {state.kind !== 'ok' ? (
-        <WorkspaceNotice kind={state.kind} english />
+        <WorkspaceNotice kind={state.kind} />
       ) : (
         <Suspense
           fallback={
             <ViewTransition exit="bone-exit" default="none">
-              <RunsSectionSkeleton />
+              <RunsSectionSkeleton t={t} />
             </ViewTransition>
           }
         >
           <ViewTransition enter="bone-enter" default="none">
-            <RunsSection tab={tab} />
+            <RunsSection tab={tab} t={t} lang={lang} />
           </ViewTransition>
         </Suspense>
       )}

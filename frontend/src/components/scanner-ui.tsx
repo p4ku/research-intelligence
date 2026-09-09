@@ -1,7 +1,7 @@
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { Sparkline } from '@/components/charts'
 import { Bone } from '@/components/skeleton'
-import type { T } from '@/lib/i18n'
+import { formatNumber, type Lang, type T } from '@/lib/i18n'
 import type { Dimension, ScreeningStatus } from '@/lib/papers/types'
 import { ArrowDownIcon, ArrowRightIcon, ExclamationTriangleIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
@@ -505,9 +505,12 @@ export function TrlBadge({ trl, t = (s) => s }: { trl: number; t?: T }) {
 export function SignalScore({
   score,
   size = 'md',
+  lang = 'en',
 }: {
   score: number | null
   size?: 'sm' | 'md' | 'lg'
+  /** Like `t` above: the language arrives as a prop, since both runtimes render this. */
+  lang?: Lang
 }) {
   const dims = { sm: 40, md: 52, lg: 68 }[size]
   const stroke = size === 'lg' ? 5 : 4
@@ -524,12 +527,20 @@ export function SignalScore({
         ? 'var(--warn)'
         : '#9a9a90'
   const fontSize = size === 'lg' ? 20 : size === 'md' ? 15 : 12
-  const label = score === null ? '—' : Number.isInteger(score) ? String(score) : score.toFixed(1)
+  const label =
+    score === null
+      ? '—'
+      : Number.isInteger(score)
+        ? formatNumber(score, lang)
+        : formatNumber(score, lang, 1)
   return (
     <div
       className="relative inline-flex items-center justify-center"
       style={{ width: dims, height: dims }}
-      title={score === null ? undefined : String(score)}
+      // The ring rounds to one decimal; the tooltip is where the unrounded
+      // figure lives, so it must not round in turn (formatNumber's default
+      // ceiling is three digits).
+      title={score === null ? undefined : formatNumber(score, lang, undefined, 6)}
     >
       <svg width={dims} height={dims} className="-rotate-90">
         <circle

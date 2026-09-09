@@ -22,11 +22,12 @@ export const FEATURE_FLAGS: FeatureFlag[] = ['all_papers', 'stars', 'ask'];
 
 /**
  * The account-menu row for each flag, in both languages: the German menu
- * reads "Alle Papers", "Markierungen", "Fragen".
+ * reads "Alle Papers", "Merkliste", "Fragen" (the star family became
+ * Merkliste / merken / gemerkt on 9 Sep 2026).
  */
 const ROW_LABELS: Record<FeatureFlag, RegExp> = {
   all_papers: /^(All papers|Alle Papers)$/,
-  stars: /^(Stars|Markierungen)$/,
+  stars: /^(Stars|Merkliste)$/,
   ask: /^(Ask|Fragen)$/,
 };
 

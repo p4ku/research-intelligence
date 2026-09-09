@@ -34,9 +34,10 @@ const PASSWORD = process.env.E2E_PASSWORD || process.env.TEST_PASSWORD || 't4st_
 /** The shared not-found card, in both languages. */
 const NOT_FOUND_COPY = /We couldn't find that\.|Das konnten wir nicht finden\./;
 
-/** Star affordances: the card/masthead buttons and the list "Starred" chip. */
+/** Star affordances: the card/masthead buttons and the list "Starred" chip.
+ *  German reads merken / gemerkt / Merkliste since 9 Sep 2026. */
 const STAR_CONTROL =
-  /Star this paper|Unstar this paper|Star this briefing|Unstar this briefing|Starred|Markiert/;
+  /Star this paper|Unstar this paper|Star this briefing|Unstar this briefing|Starred|merken|Merkliste|Gemerkt/;
 
 /** The rows the rail shows today; /papers and /ask are the hidden ones. */
 const NAV_HREFS = ['/dashboard', '/briefing', '/runs'];
@@ -117,7 +118,7 @@ test.describe('Journey 7: Demo feature flags (all_papers, ask fixed off; stars f
     await page.setViewportSize({ width: 390, height: 844 });
     await page.getByRole('button', { name: /Open navigation|Navigation öffnen/ }).click();
     const drawer = page.getByRole('dialog');
-    await expect(drawer.getByRole('link', { name: /^(Home|Heute)$/ })).toBeVisible();
+    await expect(drawer.getByRole('link', { name: /^(Home|Start)$/ })).toBeVisible();
     for (const href of HIDDEN_HREFS) {
       await expect(drawer.locator(`a[href='${href}']`)).toHaveCount(0);
     }

@@ -11,6 +11,7 @@ import { dict as dashboard } from './dashboard'
 import { dict as errors } from './errors'
 import { dict as login } from './login'
 import { dict as papers } from './papers'
+import { dict as runs } from './runs'
 import { dict as settings } from './settings'
 import { dict as tuning } from './tuning'
 
@@ -23,6 +24,7 @@ export const de: Record<string, string> = {
   ...errors,
   ...login,
   ...papers,
+  ...runs,
   ...settings,
   ...tuning,
 }

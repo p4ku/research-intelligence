@@ -2,7 +2,8 @@
 
 import type { StarKind } from '@/lib/bff/stars/schema'
 import { useFeatures } from '@/lib/features-client'
-import { useT } from '@/lib/i18n-client'
+import { formatNumber } from '@/lib/i18n'
+import { useLanguage, useT } from '@/lib/i18n-client'
 import { useStars } from '@/lib/stars-client'
 import clsx from 'clsx'
 import { StarIcon } from 'lucide-react'
@@ -162,6 +163,7 @@ export function StarredChip({
   className?: string
 }) {
   const t = useT()
+  const { lang } = useLanguage()
   const { stars } = useFeatures()
   if (!stars) return null
   return (
@@ -183,7 +185,9 @@ export function StarredChip({
         className={clsx('size-3', active ? 'fill-current text-warn' : 'text-zinc-400')}
       />
       {t('Starred')}
-      <span className={clsx('font-mono tabular-nums', !active && 'text-zinc-400')}>{count}</span>
+      <span className={clsx('font-mono tabular-nums', !active && 'text-zinc-400')}>
+        {formatNumber(count, lang)}
+      </span>
     </button>
   )
 }

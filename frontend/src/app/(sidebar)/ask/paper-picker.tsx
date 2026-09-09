@@ -2,7 +2,7 @@
 
 import { MINI_SCORE, MiniScore } from '@/components/scanner-ui'
 import { Bone, Skeleton } from '@/components/skeleton'
-import { fmt, formatDate } from '@/lib/i18n'
+import { fmt, formatDate, formatNumber } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
 import clsx from 'clsx'
 import { useEffect, type ComponentPropsWithoutRef, type ReactNode } from 'react'
@@ -154,9 +154,15 @@ export function PaperPicker({
             loading ? (
               <Bone.Text widths={['11ch']} />
             ) : status === 'error' ? null : hasQuery ? (
-              fmt(t('{n} of {total}'), { n: matched, total })
+              fmt(t('{n} of {total}'), {
+                n: formatNumber(matched, lang),
+                total: formatNumber(total, lang),
+              })
             ) : (
-              fmt(t('Top {n} of {total}'), { n: shown.length, total })
+              fmt(t('Top {n} of {total}'), {
+                n: formatNumber(shown.length, lang),
+                total: formatNumber(total, lang),
+              })
             )
           }
         />
@@ -206,7 +212,7 @@ export function PaperPicker({
         <p className="px-3 py-6 text-center text-sm text-muted-foreground">
           {fmt(t('No papers match “{q}” — {n} papers to choose from.'), {
             q: query.trim(),
-            n: entries.length,
+            n: formatNumber(entries.length, lang),
           })}
         </p>
       )}

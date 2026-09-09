@@ -43,7 +43,13 @@ function has(source: Record<string, unknown>, ...keys: string[]): boolean {
 
 /* ------------------------------ Normalisation ----------------------------- */
 
-const STEP_LABELS: Record<StepType, string> = {
+/**
+ * Step titles are frontend copy, not backend content: the engine sends a
+ * `step_type`/`component_name` enum and this table names it in English. The
+ * UI renders `t(step.label)`, so every value here needs a dictionary key —
+ * guarded by `runs/run-presentation.test.ts` because the call is dynamic.
+ */
+export const STEP_LABELS: Record<StepType, string> = {
   search: 'Search',
   download: 'Download',
   ocr: 'OCR',
@@ -57,7 +63,7 @@ const STEP_LABELS: Record<StepType, string> = {
 }
 
 /** `component_name` is more specific than `step_type` where the engine splits a step. */
-const COMPONENT_LABELS: Record<string, string> = {
+export const COMPONENT_LABELS: Record<string, string> = {
   abstract_screening: 'Abstract screening',
   full_text_screening: 'Full-text screening',
   arxiv_scraper: 'arXiv search',

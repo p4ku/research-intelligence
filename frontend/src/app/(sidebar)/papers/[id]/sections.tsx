@@ -8,7 +8,7 @@ import { papers } from '@/lib/bff/papers/service'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import { runs } from '@/lib/bff/pipeline-runs/service'
 import type { Features } from '@/lib/features'
-import { formatDate, type Lang, type T } from '@/lib/i18n'
+import { fmt, formatDate, type Lang, type T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
 import { arxivIdOf, doiOf } from '@/lib/papers/map'
 import { paperAsRun } from '@/lib/papers/runs'
@@ -216,6 +216,7 @@ export async function PaperRecord({
       <PaperNav
         neighbours={neighbours}
         t={t}
+        lang={lang}
         features={features}
         back={ctx ? exitTo(ctx, t) : undefined}
       />
@@ -233,7 +234,7 @@ export async function PaperRecord({
 
           <section>
             <SectionLabel className="mb-3">{t('Assessment')}</SectionLabel>
-            <Assessment dimensions={paper.dimensions} t={t} />
+            <Assessment dimensions={paper.dimensions} t={t} lang={lang} />
           </section>
 
           <Provenance paper={paper} t={t} lang={lang} />
@@ -245,7 +246,7 @@ export async function PaperRecord({
           as one unit so both stay in view while the assessment is read.
         */}
         <div className="lg:sticky lg:top-8">
-          <ScoreRail paper={paper} t={t} />
+          <ScoreRail paper={paper} t={t} lang={lang} />
           <PaperChat paper={paper} />
         </div>
       </div>
@@ -281,7 +282,7 @@ function Provenance({ paper, t, lang }: { paper: ScoredPaper; t: T; lang: Lang }
   }
   parts.push(
     <span key="added">
-      {t('Ingested')} {formatDate(paper.created_at, lang)}
+      {fmt(t('Ingested {date}'), { date: formatDate(paper.created_at, lang) })}
     </span>,
   )
   parts.push(
