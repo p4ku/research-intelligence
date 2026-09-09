@@ -5,6 +5,11 @@ const USERNAME = process.env.E2E_USERNAME || process.env.TEST_USERNAME || 'test_
 const PASSWORD = process.env.E2E_PASSWORD || process.env.TEST_PASSWORD || 't4st_pa55w0rD!#';
 
 test.describe('Journey 5: Interactive Paper Chat & Scientific Reasoning', () => {
+  // /ask is fixed off since 9 Sep 2026 (frontend/src/lib/features.ts): the
+  // route is the not-found card and the nav row is gone; journey 07 asserts
+  // both. Skipped rather than deleted so the journey returns with the flag.
+  test.skip(true, '/ask is fixed off in frontend/src/lib/features.ts');
+
   test.beforeEach(async ({ page }) => {
     const loginPage = new LoginPage(page);
     await loginPage.login(USERNAME, PASSWORD, true);

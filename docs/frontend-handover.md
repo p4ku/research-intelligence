@@ -155,7 +155,9 @@ curl -si https://<host>/health/        # Django, via the router
 # and a question in Ask streams (watch for `: ping` heartbeat comments).
 ```
 
-These checks assume the default browser state: no `rs-features` cookie, so
-every demo flag is on (`docs/design/feature-flags.md`). With `all_papers` off
-`/papers` is a 404 by design, and with `ask` off `/ask` renders the not-found
-card; `/bff/status` reports the caller's flags under `features`.
+Since 9 Sep 2026 the demo flags are fixed in `frontend/src/lib/features.ts`
+(`docs/design/feature-flags.md`): `all_papers` and `ask` off, `stars` on, and
+no toggles in the account menu. So `/papers` is a 404 by design and `/ask`
+renders the not-found card, whatever the `rs-features` cookie says; `/bff/status`
+reports the flags under `features`. Delete a flag's `fixed` property to hand
+its switch back to the menu.
