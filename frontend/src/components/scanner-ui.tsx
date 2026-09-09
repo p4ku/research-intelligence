@@ -163,9 +163,17 @@ export function SectionLabel({
 const raisedSurface =
   'border-line-strong bg-surface rounded-sm border shadow-[0_1px_2px_rgba(19,19,17,0.05),0_5px_14px_-4px_rgba(19,19,17,0.10)] dark:border-line dark:shadow-none'
 
-export function Card({ className, children, ...props }: React.ComponentPropsWithoutRef<'div'>) {
+export function Card({
+  className,
+  children,
+  flush = false,
+  ...props
+}: React.ComponentPropsWithoutRef<'div'> & {
+  /** No inner padding: the card's rows draw their own (a composer with a hairline between rows). */
+  flush?: boolean
+}) {
   return (
-    <div {...props} className={clsx(raisedSurface, 'p-5', className)}>
+    <div {...props} className={clsx(raisedSurface, !flush && 'p-5', className)}>
       {children}
     </div>
   )
