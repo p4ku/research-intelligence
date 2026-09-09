@@ -8,9 +8,9 @@
  */
 import * as z from 'zod'
 import { listQuery, pageSchema } from '../core/pagination'
-import { editionPaper } from './paper-schema'
+import { editionPaper } from '../papers/schema'
 
-export { editionPaper, type EditionPaper } from './paper-schema'
+export { editionPaper, type EditionPaper } from '../papers/schema'
 
 export const editionExclusion = z
   .object({
