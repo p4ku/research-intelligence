@@ -343,3 +343,69 @@ def delete_extraction_definition_logic(user, definition_id: str) -> str:
         "status": "success",
         "message": f"Extraction definition '{def_name}' (ID: {definition_id}) was successfully deleted."
     }, indent=2)
+
+
+def set_extraction_frontend_metrics_logic(
+    user,
+    definition_id: str,
+    primary_frontend_metric: str | None = None,
+    secondary_frontend_metrics: list | str | None = None,
+) -> str:
+    """Explicitly set the primary and secondary frontend display metrics for an extraction definition."""
+    try:
+        d_uuid = uuid.UUID(definition_id)
+    except ValueError:
+        return f"Error: '{definition_id}' is not a valid UUID format."
+
+    try:
+        definition = ExtractionDefinition.objects.select_related('workspace').get(id=d_uuid)
+    except ExtractionDefinition.DoesNotExist:
+        return f"Error: Extraction definition with ID '{definition_id}' does not exist."
+
+    # Verify workspace edit permissions
+    workspace, membership, error = check_workspace_access(user, str(definition.workspace.id), required_roles=['admin', 'manager'])
+    if error:
+        return error
+
+    updated_fields = []
+    if primary_frontend_metric is not None:
+        if isinstance(primary_frontend_metric, (list, tuple)):
+            definition.primary_frontend_metric = str(primary_frontend_metric[0]).strip() if primary_frontend_metric else None
+        elif isinstance(primary_frontend_metric, str):
+            definition.primary_frontend_metric = primary_frontend_metric.strip() or None
+        else:
+            definition.primary_frontend_metric = str(primary_frontend_metric).strip() or None
+        updated_fields.append('primary_frontend_metric')
+
+    if secondary_frontend_metrics is not None:
+        if isinstance(secondary_frontend_metrics, (list, tuple)):
+            definition.secondary_frontend_metrics = ", ".join(str(m).strip() for m in secondary_frontend_metrics if str(m).strip())
+        elif isinstance(secondary_frontend_metrics, str):
+            parts = [part.strip() for part in secondary_frontend_metrics.split(',') if part.strip()]
+            definition.secondary_frontend_metrics = ", ".join(parts) if parts else ""
+        else:
+            definition.secondary_frontend_metrics = ""
+        updated_fields.append('secondary_frontend_metrics')
+
+    if not updated_fields:
+        return json.dumps({
+            "status": "noop",
+            "message": "Neither primary_frontend_metric nor secondary_frontend_metrics was provided.",
+            "definition_id": str(definition.id),
+            "name": definition.name,
+            "primary_frontend_metric": definition.primary_frontend_metric or None,
+            "secondary_frontend_metrics": definition.get_secondary_frontend_metrics_list(),
+        }, indent=2)
+
+    definition.save(update_fields=updated_fields)
+
+    return json.dumps({
+        "status": "success",
+        "message": f"Successfully updated frontend metrics for extraction definition '{definition.name}'.",
+        "definition_id": str(definition.id),
+        "name": definition.name,
+        "updated_fields": updated_fields,
+        "primary_frontend_metric": definition.primary_frontend_metric or None,
+        "secondary_frontend_metrics": definition.get_secondary_frontend_metrics_list(),
+    }, indent=2, cls=DjangoJSONEncoder)
+

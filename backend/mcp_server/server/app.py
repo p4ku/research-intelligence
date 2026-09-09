@@ -72,6 +72,7 @@ from mcp_server.tools import (
     create_extraction_definition_logic,
     update_extraction_definition_logic,
     delete_extraction_definition_logic,
+    set_extraction_frontend_metrics_logic,
     list_extractions_logic,
     get_paper_extractions_matrix_logic,
     get_extraction_logic,
@@ -479,8 +480,11 @@ Workspace: {workspace_id}
           }},
           "required": ["trl_level", "fit_score", "novelty_score"]
       }},
-      exit_metrics=["fit_score"]
+      exit_metrics=["fit_score"],
+      primary_frontend_metric="fit_score",
+      secondary_frontend_metrics=["novelty_score", "trl_level"]
   )`
+- Or call `set_extraction_frontend_metrics(definition_id="...", primary_frontend_metric="fit_score", secondary_frontend_metrics=["novelty_score"])` to reconfigure metrics anytime.
 
 ### 2. Define Custom Signal Score Formula (AST Sandboxed Python)
 - Call `update_workspace(
@@ -1094,6 +1098,40 @@ def update_extraction_definition(
         version=version,
         requires_consensus=requires_consensus,
         is_active=is_active
+    )
+
+
+@mcp.tool()
+@with_db_connection
+def set_extraction_frontend_metrics(
+    definition_id: str,
+    primary_frontend_metric: str | None = None,
+    secondary_frontend_metrics: list[str] | None = None,
+) -> str:
+    """
+    [FRONTEND DISPLAY METRICS]
+    Explicitly configure which extracted parameters are displayed as the primary headline badge and secondary sub-metrics on the frontend scorecard.
+    
+    WHEN TO USE:
+    - Use when you want to define or reconfigure which field key appears on the frontend dimension headline badge
+      and which field keys appear as secondary sub-measures (with progress bars, band badges, insights, and quotes)
+      without needing to re-send the full schema, prompts, or postprocessing code.
+      
+    PARAMETERS:
+    - definition_id: UUID of the target extraction definition.
+    - primary_frontend_metric: Optional field key for the headline dimension badge (e.g. 'fit_score', 'trl_level').
+    - secondary_frontend_metrics: Optional list of field keys for sub-metrics (e.g. ['novelty', 'significance']).
+    """
+    try:
+        user, workspace, api_key = get_auth_context()
+        check_scope(api_key, "prompts:write")
+    except Exception as e:
+        return str(e)
+    return set_extraction_frontend_metrics_logic(
+        user=user,
+        definition_id=definition_id,
+        primary_frontend_metric=primary_frontend_metric,
+        secondary_frontend_metrics=secondary_frontend_metrics,
     )
 
 
