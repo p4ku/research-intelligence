@@ -509,8 +509,13 @@ function SubMeasureRow({ sub }: { sub: SubMeasure }) {
         />
       )}
 
+      {/* Evidence quotes: preserved in backend JSON for LLM faithfulness, hidden on frontend UI */}
       {hasEvidence && (
-        <div className="mt-2.5 space-y-1.5 border-l-2 border-line-soft pl-3.5">
+        <div
+          className="mt-2.5 hidden space-y-1.5 border-l-2 border-line-soft pl-3.5"
+          data-slot="evidence"
+          aria-hidden="true"
+        >
           <span className="text-[10px] font-semibold tracking-wider text-zinc-400 uppercase dark:text-zinc-500">
             Evidence
           </span>
@@ -622,7 +627,7 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
         </div>
       ))}
 
-      {/* Top-level evidence (deduplicated against sub-measure evidence quotes) */}
+      {/* Top-level evidence (deduplicated against sub-measure evidence quotes; hidden on frontend) */}
       {d.evidence
         ?.filter((quote) => {
           const unq = unquote(quote).trim()
@@ -631,7 +636,9 @@ function Definition({ dimension: d, t }: { dimension: Dimension; t: T }) {
         .map((quote, i) => (
           <blockquote
             key={i}
-            className="max-w-[72ch] border-l-2 border-line pl-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
+            className="hidden max-w-[72ch] border-l-2 border-line pl-3 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400"
+            data-slot="top-level-evidence"
+            aria-hidden="true"
           >
             “{unquote(quote)}”
           </blockquote>
