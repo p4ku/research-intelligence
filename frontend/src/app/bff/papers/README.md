@@ -32,12 +32,12 @@ dashboard's run list, and the Ask paper palette.
 Schemas: `src/lib/bff/papers/schema.ts` (`ScoredPaper`, `Dimension`,
 `SignalScoreDetails`). Errors are problem+json.
 
-## Django endpoints we want
+## Django endpoints (Implemented & Active)
 
-### `GET /api/workspaces/{workspace_id}/papers/`
+### `GET /api/workspaces/{workspace_id}/scorecard/`
 
-Paginated scorecard, same params as the BFF route above (minus
-`workspace_id`). Response: `{count, next, previous, results: ScoredPaper[]}`.
+Paginated canonical scorecard: `GET /api/workspaces/{workspace_id}/scorecard/?page=&page_size=&screening=&ordering=&search=&starred=1&min_score=&min_trl=&max_trl=&within_days=`.
+Response: `{count, next, previous, results: ScoredPaper[]}`.
 
 `ScoredPaper` (see `schema.ts` / `contract/openapi.json` for the authoritative
 JSON Schema; `src/lib/bff/papers/fixtures.ts` for full examples):
@@ -71,42 +71,29 @@ JSON Schema; `src/lib/bff/papers/fixtures.ts` for full examples):
 }
 ```
 
-**Derivation rules to port** (currently implemented frontend-side —
-`src/lib/papers/map.ts`, acceptance cases in `src/lib/papers/map.test.ts`):
+**Derivation rules** (compiled on backend by `research_intelligence/services/scorecard_service.py`):
 
-- `dimensions[].value`: prefer the numeric `metrics_data[key]`; else parse the
+- `dimensions[].value`: prefers the numeric `metrics_data[key]`; else parses the
   extraction's exit metric (`Extraction.exit_metric` tiers, `_parse_numeric_value`
-  semantics: `"85%"` → `0.85`, `"TRL 4"` → `4`, `"High"` → `null`). **A paper
-  with no Extraction row for a definition has `value: null`** even though
-  `metrics_data` pre-fills `0.0`.
+  semantics: `"85%"` → `0.85`, `"TRL 4"` → `4`, `"High"` → `null`). A paper
+  with no Extraction row for a definition has `value: null`.
 - `key` = `_sanitize_identifier(definition.name)`.
 - TRL detection: `\btrl\b` in the name; clamp 1–9; `max` 9. Other scales: a
-  "(0-100)"-style hint in the definition, else corpus max (≤10 → 10, ≤100 → 100).
-- `rationale`/`evidence`: from the nested `fields_data.evidence[]`
-  (`{quote, rationale}`) or sibling `*reason*`/`*evidence*` keys.
+  "(0-100)"-style hint in the definition, else corpus max.
+- `rationale`/`evidence`: from `fields_data.evidence[]` (`{quote, rationale}`) or sibling `*reason*`/`*evidence*` keys.
 - `signal_score`: the `PaperMetric` matching the paper's run, else the newest.
-- `source_url`: `Paper.source_url` as the backend stores it, `null` when it has
-  none or the value is not an `http(s)` URL. Never rebuilt from `arxiv_id` /
-  `doi` — the backend owns the link rule. (The scorecard still also sends the
-  old `pdf_url` key with the same value; the BFF ignores it.)
+- `source_url`: `Paper.source_url` as stored by the backend.
 
 ### `GET /api/papers/{paper_id}/scorecard/`
 
-One paper in the same shape plus its workspace summary:
-`{"workspace": Workspace, "paper": ScoredPaper}`. (Non-breaking — the existing
-`/api/papers/{id}/` stays as-is.)
+One paper in the canonical shape plus its workspace summary:
+`{"workspace": Workspace, "paper": ScoredPaper}`.
 
 ## Current implementation
 
-`composed` (default): `src/lib/bff/papers/compose.ts` fetches the bare-array
-`/api/papers/` + `/api/extractions/` + `/api/workspaces/` and derives
-everything in memory — O(corpus) per page view, which is why this endpoint is
-**P1**. `stub` serves `fixtures.ts`. `django` drains the desired list endpoint.
-
-## Flip the flag
-
-`BFF_SOURCE_PAPERS=django` → `/bff/status` shows `papers: django`, desired
-endpoints `present`.
+`django` (default): Native single-stream server-side compilation via Django `ScorecardService`.
+Client-side paper composition (`compose.ts`) has been removed; memory and CPU consumption are $O(1)$ per page request.
+`stub` serves `fixtures.ts` for offline testing.
 
 ## curl
 
@@ -114,16 +101,13 @@ endpoints `present`.
 TOKEN=$(curl -s localhost:8000/api/auth/login/ -H 'content-type: application/json' \
   -d '{"username_or_email":"admin","password":"schwarz123!"}' | jq -r .access)
 WS=$(curl -s localhost:8000/api/workspaces/ -H "authorization: Bearer $TOKEN" | jq -r '.[0].id')
-# Desired:
-curl -s "localhost:8000/api/workspaces/$WS/papers/?page_size=2&screening=passed" -H "authorization: Bearer $TOKEN"
+# Backend canonical scorecard:
+curl -s "localhost:8000/api/workspaces/$WS/scorecard/?page_size=2&screening=passed" -H "authorization: Bearer $TOKEN"
 # BFF (browser session cookie):
 curl -s "localhost:3000/bff/papers?workspace_id=$WS&page_size=2" -b "sri_access=…"
 ```
 
-## Done criteria
+## Status
 
-1. `bun run contract:check` → PASS for `papers.list.desired` and
-   `papers.detail.desired` against a seeded backend.
-2. `src/lib/papers/map.test.ts` cases reproduced in the backend's tests.
-3. Fixtures refreshed from a real response; default source flipped to
-   `django`; `docs/deploy-handoff.md` env table updated.
+1. Fully implemented and active in backend (`ScorecardService`) and frontend.
+2. Verified with comprehensive backend (`test_paper_scorecard_metrics_classification.py`) and frontend Bun test suites.

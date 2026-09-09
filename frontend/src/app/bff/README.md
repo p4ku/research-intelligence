@@ -55,11 +55,11 @@ a UI preference that never changes which source answers or gates a BFF route.
 
 ```bash
 # Backend (SQLite; migrate auto-creates admin / schwarz123!):
-cd ../schwarz-research-intelligence/backend && venv/bin/python manage.py runserver 8000
-# Seed once: venv/bin/python manage.py shell < ../../research-scanner/scripts/seed-django.py
+cd backend && uv run python manage.py runserver 8000
+# Seed demo: uv run python manage.py seed
 
 # Frontend:
-BACKEND_INTERNAL_URL=http://localhost:8000 bun run dev
+cd frontend && BACKEND_INTERNAL_URL=http://localhost:8000 bun run dev
 
 # Checks:
 bun run typecheck && bun run lint && bun test && bun run build
