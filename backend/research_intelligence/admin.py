@@ -3817,15 +3817,20 @@ class ExtractionDefinitionAdmin(SortableAdminMixin, admin.ModelAdmin):
         drag-and-drop and arrow buttons work deterministically without duplicate zeros.
         """
         from django.db.models import Count, F
-        has_zeros = ExtractionDefinition.objects.filter(order=0).exists()
+        workspaces_with_zeros = set(
+            ExtractionDefinition.objects.filter(order=0).values_list('workspace_id', flat=True).distinct()
+        )
         workspaces_with_dups = (
             ExtractionDefinition.objects.values('workspace_id')
             .annotate(total=Count('id'), distinct_orders=Count('order', distinct=True))
             .filter(total__gt=F('distinct_orders'))
         )
-        if has_zeros or workspaces_with_dups.exists():
-            ws_ids = set(ExtractionDefinition.objects.values_list('workspace_id', flat=True).distinct())
-            for ws_id in ws_ids:
+        workspaces_to_heal = set(workspaces_with_zeros)
+        for row in workspaces_with_dups:
+            workspaces_to_heal.add(row['workspace_id'])
+
+        if workspaces_to_heal:
+            for ws_id in workspaces_to_heal:
                 if ws_id is None:
                     defs = list(
                         ExtractionDefinition.objects.filter(workspace_id__isnull=True)
@@ -3935,23 +3940,27 @@ class ExtractionDefinitionAdmin(SortableAdminMixin, admin.ModelAdmin):
                 d.order = idx
                 d.save(update_fields=['order'])
 
-        idx_map = {d.pk: idx for idx, d in enumerate(ws_defs)}
-        curr_idx = idx_map.get(obj.pk)
+        idx_map = {str(d.pk): idx for idx, d in enumerate(ws_defs)}
+        curr_idx = idx_map.get(str(obj.pk))
 
-        if direction == 'up' and curr_idx is not None and curr_idx > 0:
-            target = ws_defs[curr_idx - 1]
-            target.order, obj.order = obj.order, target.order
-            target.save(update_fields=['order'])
-            obj.save(update_fields=['order'])
-            messages.success(request, f"Przesunięto '{obj.name}' wyżej (pozycja #{obj.order}).")
-        elif direction == 'down' and curr_idx is not None and curr_idx < len(ws_defs) - 1:
-            target = ws_defs[curr_idx + 1]
-            target.order, obj.order = obj.order, target.order
-            target.save(update_fields=['order'])
-            obj.save(update_fields=['order'])
-            messages.success(request, f"Przesunięto '{obj.name}' niżej (pozycja #{obj.order}).")
+        if curr_idx is not None:
+            curr_obj = ws_defs[curr_idx]
+            if direction == 'up' and curr_idx > 0:
+                target = ws_defs[curr_idx - 1]
+                target.order, curr_obj.order = curr_obj.order, target.order
+                target.save(update_fields=['order'])
+                curr_obj.save(update_fields=['order'])
+                messages.success(request, f"Przesunięto '{curr_obj.name}' wyżej (pozycja #{curr_obj.order}).")
+            elif direction == 'down' and curr_idx < len(ws_defs) - 1:
+                target = ws_defs[curr_idx + 1]
+                target.order, curr_obj.order = curr_obj.order, target.order
+                target.save(update_fields=['order'])
+                curr_obj.save(update_fields=['order'])
+                messages.success(request, f"Przesunięto '{curr_obj.name}' niżej (pozycja #{curr_obj.order}).")
+            else:
+                messages.info(request, f"Definicja '{curr_obj.name}' jest już na skrajnej pozycji.")
         else:
-            messages.info(request, f"Definicja '{obj.name}' jest już na skrajnej pozycji.")
+            messages.warning(request, f"Nie znaleziono definicji '{obj.name}' w workspace.")
 
         changelist_url = reverse('admin:research_intelligence_extractiondefinition_changelist')
         query = request.GET.urlencode()
@@ -4001,7 +4010,7 @@ class ExtractionDefinitionAdmin(SortableAdminMixin, admin.ModelAdmin):
                 moved += 1
         messages.success(request, f"Przesunięto niżej {moved} definicji.")
 
-    @admin.display(description="Order", ordering="order")
+    @admin.display(description="Order & Actions", ordering="order")
     def order_display(self, obj):
         try:
             up_url = reverse('admin:research_intelligence_extractiondefinition_move_up', args=[obj.pk])

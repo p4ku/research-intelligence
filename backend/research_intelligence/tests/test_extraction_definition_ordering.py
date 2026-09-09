@@ -393,3 +393,88 @@ class ExtractionDefinitionOrderingTestCase(TestCase):
         self.assertEqual(d1.order, 2)
         self.assertEqual(d2.order, 3)
 
+    def test_end_to_end_user_scenario_with_four_definitions(self):
+        """
+        Tests the exact setup from user's screenshot (Hybrid Computing):
+        1. Risk and Affiliation Flagging (order 1)
+        2. Schwarz Fit (order 2)
+        3. Technology Readiness Level (TRL) (order 3)
+        4. Research Metric (order 4)
+
+        Verifies:
+        - build_paper_scorecard_data returns all 4 dimensions in exact order.
+        - Risk and Affiliation Flagging has is_risk_and_affiliation = True.
+        - Moving Research Metric up via admin move-up view swaps order with TRL.
+        - Further moving Research Metric to order 1 updates scorecard order so Research Metric is #1.
+        """
+        def_risk = ExtractionDefinition.objects.create(
+            workspace=self.workspace_a,
+            name="Risk and Affiliation Flagging",
+            order=1,
+            exit_metrics="schwarz_ecosystem_affiliation, gdpr_concern, competitor_involvement",
+            response_schema={"type": "object"}
+        )
+        def_fit = ExtractionDefinition.objects.create(
+            workspace=self.workspace_a,
+            name="Schwarz Fit",
+            order=2,
+            exit_metrics="strategic_operational_need_match, synergy_index_score",
+            response_schema={"type": "object"}
+        )
+        def_trl = ExtractionDefinition.objects.create(
+            workspace=self.workspace_a,
+            name="Technology Readiness Level (TRL)",
+            order=3,
+            exit_metrics="trl",
+            response_schema={"type": "object"}
+        )
+        def_research = ExtractionDefinition.objects.create(
+            workspace=self.workspace_a,
+            name="Research Metric",
+            order=4,
+            exit_metrics="novelty, significance, rigour",
+            response_schema={"type": "object"}
+        )
+
+        paper = Paper.objects.create(workspace=self.workspace_a, title="End to End Paper")
+        PaperMetric.objects.create(paper=paper, workspace=self.workspace_a, signal_score=85.0)
+
+        # Initial scorecard check: order is [Risk (1), Fit (2), TRL (3), Research (4)]
+        sc_data = build_paper_scorecard_data(paper)
+        dims = sc_data.get("paper", {}).get("dimensions", [])
+        self.assertEqual(len(dims), 4)
+        self.assertEqual(dims[0]["name"], "Risk and Affiliation Flagging")
+        self.assertTrue(dims[0]["is_risk_and_affiliation"])
+        self.assertEqual(dims[0]["order"], 1)
+
+        self.assertEqual(dims[1]["name"], "Schwarz Fit")
+        self.assertFalse(dims[1]["is_risk_and_affiliation"])
+        self.assertEqual(dims[1]["order"], 2)
+
+        self.assertEqual(dims[2]["name"], "Technology Readiness Level (TRL)")
+        self.assertFalse(dims[2]["is_risk_and_affiliation"])
+        self.assertEqual(dims[2]["order"], 3)
+
+        self.assertEqual(dims[3]["name"], "Research Metric")
+        self.assertFalse(dims[3]["is_risk_and_affiliation"])
+        self.assertEqual(dims[3]["order"], 4)
+
+        # Move Research Metric UP via move_up_view (swaps with TRL)
+        req = self.factory.get(f"/admin/research_intelligence/extractiondefinition/{def_research.pk}/move-up/")
+        req.user = self.user
+        setattr(req, 'session', {})
+        setattr(req, '_messages', FallbackStorage(req))
+        self.admin.move_up_view(req, pk=def_research.pk)
+
+        def_trl.refresh_from_db()
+        def_research.refresh_from_db()
+        self.assertEqual(def_research.order, 3)
+        self.assertEqual(def_trl.order, 4)
+
+        # Scorecard immediately reflects: [Risk (1), Fit (2), Research (3), TRL (4)]
+        sc_data_2 = build_paper_scorecard_data(paper)
+        dims_2 = sc_data_2.get("paper", {}).get("dimensions", [])
+        self.assertEqual(dims_2[2]["name"], "Research Metric")
+        self.assertEqual(dims_2[3]["name"], "Technology Readiness Level (TRL)")
+
+

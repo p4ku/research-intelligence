@@ -910,4 +910,60 @@ describe('Assessment Component Rendering', () => {
     expect(insightIdx).toBeGreaterThan(0)
     expect(submeasureIdx).toBeGreaterThan(insightIdx)
   })
+
+  test('sorts dimensions strictly by order attribute and filters out risk_and_affiliation', () => {
+    const dimRisk: Dimension = {
+      key: 'risk_and_affiliation',
+      definition_id: 'def-risk',
+      name: 'Risk and Affiliation Flagging',
+      order: 1,
+      is_risk_and_affiliation: true,
+      value: null,
+      max: null,
+      is_trl: false,
+    }
+    const dimFit: Dimension = {
+      key: 'schwarz_fit',
+      definition_id: 'def-fit',
+      name: 'Schwarz Fit',
+      order: 2,
+      value: 85,
+      max: 100,
+      is_trl: false,
+    }
+    const dimTrl: Dimension = {
+      key: 'trl',
+      definition_id: 'def-trl',
+      name: 'Technology Readiness Level (TRL)',
+      order: 3,
+      value: 5,
+      max: 9,
+      is_trl: true,
+    }
+    const dimResearch: Dimension = {
+      key: 'research_metric',
+      definition_id: 'def-research',
+      name: 'Research Metric',
+      order: 1, // Suppose user moved Research Metric to top position 1
+      value: 90,
+      max: 100,
+      is_trl: false,
+    }
+
+    // Input provided in non-sorted order with risk first
+    const inputDimensions = [dimFit, dimTrl, dimResearch, dimRisk]
+    const out = renderToStaticMarkup(<Assessment dimensions={inputDimensions} t={t} />)
+
+    // 1. Risk and Affiliation Flagging is excluded from Assessment
+    expect(out).not.toContain('Risk and Affiliation Flagging')
+
+    // 2. Research Metric (order 1) appears BEFORE Schwarz Fit (order 2)
+    const researchIdx = out.indexOf('Research Metric')
+    const fitIdx = out.indexOf('Schwarz Fit')
+    const trlIdx = out.indexOf('Technology Readiness Level (TRL)')
+
+    expect(researchIdx).toBeGreaterThan(0)
+    expect(fitIdx).toBeGreaterThan(researchIdx)
+    expect(trlIdx).toBeGreaterThan(fitIdx)
+  })
 })
