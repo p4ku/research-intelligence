@@ -82,25 +82,26 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
   test('renders risk flags with matching status styling and sorted in canonical order: Schwarz Ecosystem, Competitor Involvement, Compliance Risks', () => {
     const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={fullRiskData} />)
 
-    // Highlight flag (sky) - 1st
+    // No readable verdict, so the backend's "highlight" falls through to neutral white - 1st
     expect(out).toContain('Schwarz Ecosystem:')
     expect(out).toContain('Aligned with STACKIT')
-    expect(out).toContain('text-sky-700')
+    expect(chip(out, 'Schwarz Ecosystem')).toContain('bg-white text-zinc-700')
 
     // Warn flag (amber) - 2nd
     expect(out).toContain('Competitor Involvement:')
     expect(out).toContain('High proprietary overlap')
-    expect(out).toContain('text-amber-800')
+    expect(chip(out, 'Competitor Involvement')).toContain('text-amber-800')
 
     // Safe flag (emerald) - 3rd (GDPR Sovereignty normalized to Compliance Risks)
     expect(out).toContain('Compliance Risks:')
     expect(out).toContain('Compliant (EU only)')
-    expect(out).toContain('text-emerald-700')
+    expect(chip(out, 'Compliance Risks')).toContain('text-emerald-700')
 
-    // Neutral flag (zinc) - 4th
+    // Neutral flag (white) - 4th
     expect(out).toContain('Export Control:')
     expect(out).toContain('Dual-use check pending')
-    expect(out).toContain('text-zinc-600')
+    expect(chip(out, 'Export Control')).toContain('bg-white text-zinc-700')
+    expect(out).not.toContain('text-sky-700')
 
     // Verify exact display order
     const ecoIdx = out.indexOf('Schwarz Ecosystem:')
@@ -431,7 +432,7 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     })
     expect(flagSingle.label).toBe('Competitor Involvement')
     expect(flagSingle.value).toBe('YES (Google (Funder))')
-    expect(flagSingle.status).toBe('highlight')
+    expect(flagSingle.status).toBe('warn')
 
     // 2. Multiple competitors with mixed roles
     const flagMulti = unpackFlag({
@@ -464,10 +465,10 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
       },
     })
     expect(flagFromDict.value).toBe('YES (Google (Funder))')
-    expect(flagFromDict.status).toBe('highlight')
+    expect(flagFromDict.status).toBe('warn')
   })
 
-  test('chip colour follows the product rule, not the backend status: ecosystem YES and competitor NO are green, the opposite verdicts neutral blue', () => {
+  test('chip colour follows the product rule, not the backend status: green positive, yellow negative, white neutral', () => {
     const eco = (value: string, status: string, dict_value?: Record<string, unknown>) =>
       unpackFlag({
         key: 'schwarz_ecosystem',
@@ -479,34 +480,36 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     const comp = (value: string, status: string, dict_value?: Record<string, unknown>) =>
       unpackFlag({ key: 'competitor', label: 'Competitor Involvement', value, status, dict_value })
 
-    // Backend prose, with the status the adapter sends today
+    const gdpr = (value: string, status: string) =>
+      unpackFlag({ key: 'gdpr', label: 'Compliance Risks', value, status })
+
+    // Backend prose, with the status the adapter sends today (ecosystem YES
+    // used to be sky "highlight"; the frontend now decides)
     expect(eco('YES (TUM)', 'highlight').status).toBe('safe')
-    expect(eco('NO', 'neutral').status).toBe('highlight')
-    expect(comp('YES (Google (Funder))', 'warn').status).toBe('highlight')
+    expect(eco('NO', 'neutral').status).toBe('neutral')
+    expect(comp('YES (Google (Funder))', 'warn').status).toBe('warn')
     expect(comp('None', 'safe').status).toBe('safe')
+    expect(gdpr('YES (consent)', 'warn').status).toBe('warn')
+    expect(gdpr('NO', 'safe').status).toBe('safe')
 
     // Dict-shaped values, where the unpacker used to pick the tone itself
     expect(eco('YES', 'neutral', { status: 'YES', matched_institutions: ['TUM'] }).status).toBe(
       'safe',
     )
-    expect(eco('NO', 'neutral', { status: 'NO', matches: null }).status).toBe('highlight')
+    expect(eco('NO', 'neutral', { status: 'NO', matches: null }).status).toBe('neutral')
     expect(
       comp('YES', 'neutral', { status: 'YES', matches: [{ competitor: 'Google' }] }).status,
-    ).toBe('highlight')
+    ).toBe('warn')
     expect(comp('None', 'safe', { status: 'NO', matches: null }).status).toBe('safe')
+
+    // The rule ignores whatever the backend said
+    expect(eco('NO', 'safe').status).toBe('neutral')
+    expect(comp('YES (Amazon)', 'safe').status).toBe('warn')
+    expect(gdpr('YES (consent)', 'safe').status).toBe('warn')
 
     // No readable verdict: the backend status stands
     expect(eco('Aligned with STACKIT', 'highlight').status).toBe('highlight')
     expect(comp('High proprietary overlap', 'warn').status).toBe('warn')
-
-    // Compliance keeps its warn/safe tone either way
-    expect(
-      unpackFlag({ key: 'gdpr', label: 'Compliance Risks', value: 'YES (consent)', status: 'warn' })
-        .status,
-    ).toBe('warn')
-    expect(
-      unpackFlag({ key: 'gdpr', label: 'Compliance Risks', value: 'NO', status: 'safe' }).status,
-    ).toBe('safe')
   })
 
   test('formatInvolvementType formats various role naming conventions correctly', () => {
@@ -531,7 +534,7 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     expect(formatFlagItem('Amazon')).toBe('Amazon')
   })
 
-  test('renders user screenshot scenario with clean unpacked competitor badge in the neutral tone', () => {
+  test('renders user screenshot scenario with clean unpacked competitor badge in the warning tone', () => {
     const screenshotRiskData: RiskAndAffiliation = {
       affiliations: ['New York University'],
       author_contacts: ['atk331@nyu.edu', 'rovinski@nyu.edu'],
@@ -575,11 +578,10 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     expect(out).not.toContain("'involvement_type'")
     expect(out).not.toContain('FUNDER') // should be formatted as Funder
 
-    // A competitor is present: neutral blue, not a warning; not in the
-    // ecosystem: neutral blue too; no compliance risk: green.
-    expect(chip(out, 'Competitor Involvement')).toContain('bg-sky-50 text-sky-700')
-    expect(chip(out, 'Schwarz Ecosystem')).toContain('bg-sky-50 text-sky-700')
+    // A competitor is present: yellow; not in the ecosystem: neutral white;
+    // no compliance risk: green.
+    expect(chip(out, 'Competitor Involvement')).toContain('bg-amber-50 text-amber-800')
+    expect(chip(out, 'Schwarz Ecosystem')).toContain('bg-white text-zinc-700')
     expect(chip(out, 'Compliance Risks')).toContain('bg-emerald-50 text-emerald-700')
-    expect(out).not.toContain('text-amber-800')
   })
 })

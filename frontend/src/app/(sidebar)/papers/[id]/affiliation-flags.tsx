@@ -179,16 +179,16 @@ type Verdict = 'yes' | 'no' | null
 
 /**
  * Chip colour is a product rule, not backend data (stakeholder edit,
- * 10 Sep 2026): green is the outcome Schwarz wants — inside its ecosystem,
- * no competitor — and the opposite verdict is a neutral blue. Only the two
- * yes/no flags follow the rule; Compliance Risks keeps the warn/safe tone
- * the backend sent, and a flag with no readable verdict keeps its status.
+ * 10 Sep 2026): green is positive, yellow negative, white neutral. Inside
+ * the ecosystem is positive and outside it merely neutral; a competitor or
+ * a compliance risk is negative, their absence positive. A flag with no
+ * readable verdict keeps the status the backend sent.
  */
 export function flagTone(flag: RiskFlag, verdict: Verdict, status: string): string {
   if (!verdict) return status
   const order = getFlagSortOrder(flag)
-  if (order === 1) return verdict === 'yes' ? 'safe' : 'highlight'
-  if (order === 2) return verdict === 'no' ? 'safe' : 'highlight'
+  if (order === 1) return verdict === 'yes' ? 'safe' : 'neutral'
+  if (order === 2 || order === 3) return verdict === 'no' ? 'safe' : 'warn'
   return status
 }
 
@@ -399,7 +399,6 @@ export function RiskAffiliationFlagging({
             const flag = unpackFlag(rawFlag, t)
             const isSafe = flag.status === 'safe'
             const isWarn = flag.status === 'warn'
-            const isHighlight = flag.status === 'highlight'
 
             return (
               <span
@@ -410,12 +409,10 @@ export function RiskAffiliationFlagging({
                     'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-500/30',
                   isWarn &&
                     'bg-amber-50 text-amber-800 ring-1 ring-amber-600/20 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-500/30',
-                  isHighlight &&
-                    'bg-sky-50 text-sky-700 ring-1 ring-sky-600/20 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-500/30',
+                  // Anything else is neutral: white, the card's own ground showing through the ring.
                   !isSafe &&
                     !isWarn &&
-                    !isHighlight &&
-                    'bg-zinc-100 text-zinc-600 ring-1 ring-zinc-500/15 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-700',
+                    'bg-white text-zinc-700 ring-1 ring-zinc-500/20 dark:bg-zinc-900 dark:text-zinc-300 dark:ring-zinc-600',
                 )}
               >
                 {isSafe && (
@@ -430,13 +427,7 @@ export function RiskAffiliationFlagging({
                     className="size-3 shrink-0 text-amber-500"
                   />
                 )}
-                {isHighlight && (
-                  <InformationCircleIcon
-                    aria-hidden="true"
-                    className="size-3 shrink-0 text-sky-500"
-                  />
-                )}
-                {!isSafe && !isWarn && !isHighlight && (
+                {!isSafe && !isWarn && (
                   <InformationCircleIcon
                     aria-hidden="true"
                     className="size-3 shrink-0 text-zinc-400"
