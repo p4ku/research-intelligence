@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { byValueAsc, byValueDesc, unionDefinitions } from './select'
+import { byValueAsc, byValueDesc, trimTitle, unionDefinitions } from './select'
 import type { DefinitionSummary } from './types'
 
 describe('byValueDesc / byValueAsc', () => {
@@ -31,5 +31,28 @@ describe('unionDefinitions', () => {
   })
   test('is empty for no domains', () => {
     expect(unionDefinitions([])).toEqual([])
+  })
+})
+
+describe('trimTitle', () => {
+  test('preserves titles with 50 or fewer characters', () => {
+    expect(trimTitle('Quantum Computing')).toBe('Quantum Computing')
+    expect(trimTitle('a'.repeat(50))).toBe('a'.repeat(50))
+  })
+
+  test('trims titles longer than 50 characters to 50 chars with ellipsis', () => {
+    const title = 'Ambient Diffusion Policy: Imitation Learning from Suboptimal Data in Robotics'
+    expect(trimTitle(title)).toBe('Ambient Diffusion Policy: Imitation Learning from...')
+  })
+
+  test('trims trailing whitespace before appending ellipsis', () => {
+    const title = 'Short word before cut   and more text that exceeds fifty chars'
+    const trimmed = trimTitle(title, 23)
+    expect(trimmed).toBe('Short word before cut...')
+  })
+
+  test('handles empty or blank string safely', () => {
+    expect(trimTitle('')).toBe('')
+    expect(trimTitle('   ')).toBe('')
   })
 })

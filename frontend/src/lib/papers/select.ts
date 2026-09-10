@@ -5,6 +5,14 @@ import type { DefinitionSummary, Dimension, ScoredPaper, WorkspaceSummary } from
 /** A title up to its first colon — the part people say out loud. */
 export const shortTitle = (title: string) => title.split(':')[0]!
 
+/** A title trimmed to at most `max` characters (default 50) for headers and breadcrumbs. */
+export function trimTitle(title: string, max = 50): string {
+  if (!title) return ''
+  const trimmed = title.trim()
+  if (trimmed.length <= max) return trimmed
+  return `${trimmed.slice(0, max).trimEnd()}...`
+}
+
 export function trlDimension(paper: ScoredPaper): Dimension | undefined {
   return (paper.dimensions ?? []).find((d) => d.is_trl)
 }

@@ -16,7 +16,7 @@ export function Breadcrumbs({
   t = (s) => s,
 }: {
   /** `label` is a node so a loading shell can bone the crumb it does not know yet. */
-  items: { label: React.ReactNode; href?: string }[]
+  items: { label: React.ReactNode; href?: string; title?: string }[]
   t?: T
 }) {
   return (
@@ -26,17 +26,20 @@ export function Breadcrumbs({
     >
       {items.map((item, i) => {
         const isLast = i === items.length - 1
+        const tooltip = item.title ?? (typeof item.label === 'string' ? item.label : undefined)
         return (
           <span key={i} className="flex min-w-0 items-center gap-2">
             {item.href && !isLast ? (
               <Link
                 href={item.href}
+                title={tooltip}
                 className="shrink-0 text-zinc-400 transition-colors hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200"
               >
                 {item.label}
               </Link>
             ) : (
               <span
+                title={tooltip}
                 className={clsx(
                   'truncate',
                   isLast

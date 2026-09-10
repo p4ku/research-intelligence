@@ -12,7 +12,7 @@ import { fmt, formatDate, type Lang, type T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
 import { arxivIdOf, doiOf } from '@/lib/papers/map'
 import { paperAsRun } from '@/lib/papers/runs'
-import { byValueDesc } from '@/lib/papers/select'
+import { byValueDesc, trimTitle } from '@/lib/papers/select'
 import { PASSED_STATUSES, type ScoredPaper } from '@/lib/papers/types'
 import { ArrowUpRightIcon } from '@heroicons/react/16/solid'
 import Link from 'next/link'
@@ -64,7 +64,9 @@ export const RECORD_COLUMN =
 /** The title crumb — the only thing above the record that needs the fetch. */
 export async function PaperCrumb({ id }: { id: string }) {
   const result = await forPage(papers.get(id))
-  return result ? result.paper.title : null
+  if (!result) return null
+  const title = result.paper.title
+  return <span title={title}>{trimTitle(title)}</span>
 }
 
 /** The briefing a `?run=` opens the paper in. */
@@ -138,10 +140,19 @@ export async function RunCrumbs({
     runContext(id, runId, lang),
     forPage(papers.get(id, runId)),
   ])
-  const title = result ? result.paper.title : null
+  const rawTitle = result ? result.paper.title : null
+  const title = rawTitle ? trimTitle(rawTitle) : null
   if (!ctx) {
     if (!features.all_papers) return null
-    return <Breadcrumbs items={[{ label: t('Papers'), href: '/papers' }, { label: title }]} t={t} />
+    return (
+      <Breadcrumbs
+        items={[
+          { label: t('Papers'), href: '/papers' },
+          { label: title, title: rawTitle ?? undefined },
+        ]}
+        t={t}
+      />
+    )
   }
   const day = editionDate(ctx.run)
   return (
@@ -152,7 +163,7 @@ export async function RunCrumbs({
           label: `${ctx.run.workspace_name} · ${formatEditionDate(day, lang)}`,
           href: editionHref(day, ctx.run.workspace_id, { runId: ctx.run.id }),
         },
-        { label: title },
+        { label: title, title: rawTitle ?? undefined },
       ]}
       t={t}
     />
