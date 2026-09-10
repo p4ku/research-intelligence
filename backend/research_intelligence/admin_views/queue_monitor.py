@@ -260,6 +260,21 @@ class QueueMonitorView(View):
                 ws_name = cr.pipeline_run.workspace.name if cr.pipeline_run and cr.pipeline_run.workspace else "-"
                 pr_name = cr.pipeline_run.name if cr.pipeline_run else "-"
 
+                # Check recent progress from metrics (e.g. screening papers progress)
+                last_prog = (cr.metrics or {}).get("last_progress_at") if isinstance(cr.metrics, dict) else None
+                has_recent_prog = False
+                time_since_prog = None
+                if last_prog:
+                    try:
+                        pdt = datetime.fromisoformat(last_prog)
+                        if timezone.is_naive(pdt):
+                            pdt = timezone.make_aware(pdt, timezone.utc)
+                        time_since_prog = (now - pdt).total_seconds()
+                        if time_since_prog < 180:
+                            has_recent_prog = True
+                    except Exception:
+                        pass
+
                 running_components.append({
                     "id": str(cr.id),
                     "component_name": cr.component_name,
@@ -271,7 +286,9 @@ class QueueMonitorView(View):
                     "started_at_str": started.strftime("%H:%M:%S (%Y-%m-%d)") if started else "-",
                     "elapsed_seconds": elapsed_sec,
                     "elapsed_display": format_elapsed_time(elapsed_sec),
-                    "is_stalled": elapsed_sec > 1800,  # 30 minutes threshold
+                    "is_stalled": elapsed_sec > 1800 and not has_recent_prog,  # 30m threshold, but not if progressing
+                    "has_recent_progress": has_recent_prog,
+                    "time_since_progress": time_since_prog,
                     "details": cr.input_params or {},
                 })
         except Exception as e:
@@ -368,12 +385,13 @@ class QueueMonitorView(View):
             if tid and tid in worker_by_task_id:
                 c["worker"] = worker_by_task_id[tid]
                 c["worker_status"] = "Active on worker"
+            elif c.get("has_recent_progress"):
+                sec_ago = int(c["time_since_progress"]) if c.get("time_since_progress") is not None else 0
+                c["worker"] = ""
+                c["worker_status"] = f"Active (Progressing {sec_ago}s ago)"
             elif c.get("elapsed_seconds", 0) < 120:
                 c["worker"] = ""
                 c["worker_status"] = "Starting / Queued"
-            elif c.get("has_recent_progress"):
-                c["worker"] = ""
-                c["worker_status"] = "Active (Progressing)"
             else:
                 c["worker"] = ""
                 c["worker_status"] = "Stalled / Ghost"
@@ -389,14 +407,21 @@ class QueueMonitorView(View):
         if total_active_tasks == 0:
             active_tasks_subtext = "All workers idle"
         elif total_active_tasks == 1:
-            if active_in_workers >= 1 and len(running_components) == 1 and running_components[0].get("worker"):
-                active_tasks_subtext = "1 in DB & active on worker"
-            elif len(running_components) == 1:
-                active_tasks_subtext = "1 in DB (starting/queued)"
+            if len(running_components) == 1:
+                comp_0 = running_components[0]
+                if comp_0.get("worker"):
+                    active_tasks_subtext = "1 in DB & active on worker"
+                elif comp_0.get("has_recent_progress"):
+                    active_tasks_subtext = "1 in DB & actively progressing"
+                elif comp_0.get("elapsed_seconds", 0) < 120:
+                    active_tasks_subtext = "1 in DB (starting/queued)"
+                else:
+                    active_tasks_subtext = "1 in DB (stalled / no worker)"
             else:
                 active_tasks_subtext = "1 background task in worker"
         else:
-            if len(running_components) == active_in_workers and not unmatched_celery_tasks:
+            active_executing_count = sum(1 for c in running_components if c.get("worker") or c.get("has_recent_progress")) + len(unmatched_celery_tasks)
+            if active_executing_count == total_active_tasks:
                 active_tasks_subtext = f"{total_active_tasks} executing on worker(s)"
             else:
                 active_tasks_subtext = f"{len(running_components)} in DB · {active_in_workers} active in worker(s)"
