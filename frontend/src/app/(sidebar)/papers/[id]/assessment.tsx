@@ -640,9 +640,26 @@ function Definition({ dimension: d, t, lang }: { dimension: Dimension; t: T; lan
       value: String(fact.value).trim(),
     }))
 
+  // A fact named after its own definition (`tldr` inside "TLDR") is the
+  // definition's summary, not a row: it reads as the lead under the heading,
+  // the way Research Metrics and Schwarz Fit open with their prose.
+  const norm = (s: string) => s.toLowerCase().replace(/[-_ ]/g, '')
+  const isSelfFact = (fact: { key: string; name: string }) => {
+    const dk = norm(d.key)
+    const dn = norm(d.name)
+    const fk = norm(fact.key)
+    const fn = norm(fact.name)
+    return fk === dk || fn === dn || fk === dn || fn === dk
+  }
+  const selfProse =
+    (d.facts ?? []).find(
+      (fact) => isSelfFact(fact) && typeof fact.value === 'string' && fact.value.trim() !== '',
+    )?.value ?? null
+  const selfLead = typeof selfProse === 'string' ? selfProse.trim() : null
+
   const rawProse =
     d.value === null && d.raw && d.raw !== '—' && isProse(d.raw) ? d.raw.trim() : null
-  const leadProse = d.rationale?.trim() || rawProse
+  const leadProse = d.rationale?.trim() || rawProse || selfLead
   const secondaryProse =
     d.rationale?.trim() && rawProse && rawProse !== d.rationale.trim() ? rawProse : null
 
@@ -671,6 +688,7 @@ function Definition({ dimension: d, t, lang }: { dimension: Dimension; t: T; lan
       if (k === 'confidence' || n === 'confidence') return false
       if (isInsight(fact)) return false
       if (isSubMeasureDuplicate(fact)) return false
+      if (isSelfFact(fact)) return false
       const v = String(fact.value ?? '').trim()
       if (leadProse && v === leadProse) return false
       if (secondaryProse && v === secondaryProse) return false
@@ -694,6 +712,9 @@ function Definition({ dimension: d, t, lang }: { dimension: Dimension; t: T; lan
     >
       {leadProse ? <AnswerMarkdown text={leadProse} className={PROSE} /> : null}
       {secondaryProse ? <AnswerMarkdown text={secondaryProse} className={PROSE} /> : null}
+      {selfLead && selfLead !== leadProse && selfLead !== secondaryProse ? (
+        <AnswerMarkdown text={selfLead} className={PROSE} />
+      ) : null}
 
       {/* Top insight prose boxes (e.g. "Research Quality Insight", "Schwarz Fit Insight") without subtitle */}
       {topInsights.map((field) => (

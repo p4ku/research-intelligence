@@ -140,6 +140,34 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('Qiskit &amp; Cirq')
   })
 
+  test('lifts a fact named after its definition (TLDR › tldr) to the lead prose, off the list', () => {
+    const tldr: Dimension = {
+      ...fullDimension,
+      key: 'tldr',
+      name: 'TLDR',
+      value: null,
+      raw: null,
+      max: null,
+      is_trl: false,
+      band: undefined,
+      rationale: undefined,
+      facets: [],
+      texts: [],
+      lists: [],
+      facts: [
+        { key: 'tldr', name: 'Tldr', value: 'Researchers built a Python quantum framework.' },
+        { key: 'what_it_does', name: 'What it does', value: 'It compiles Python to hardware.' },
+      ],
+    }
+    const out = renderToStaticMarkup(<Assessment dimensions={[tldr]} t={t} />)
+    const dl = out.match(/<dl[^>]*>([\s\S]*?)<\/dl>/)?.[1] ?? ''
+    expect(dl).toContain('What it does')
+    expect(dl).not.toContain('Tldr')
+    expect(dl).not.toContain('Researchers built')
+    expect(out.indexOf('Researchers built')).toBeGreaterThan(-1)
+    expect(out.indexOf('Researchers built')).toBeLessThan(out.indexOf('<dl'))
+  })
+
   test('does not render bottom metadata (confidence, model, badges) under definitions', () => {
     const hitlDim: Dimension = {
       ...fullDimension,
