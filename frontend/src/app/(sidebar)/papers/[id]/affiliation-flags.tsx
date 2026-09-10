@@ -111,11 +111,7 @@ export function parsePythonOrJsonDict(raw: string): Record<string, unknown> | nu
       found = true
       const key = match[1]
       const valStr =
-        match[2] !== undefined
-          ? match[2]
-          : match[3] !== undefined
-            ? Number(match[3])
-            : match[4]
+        match[2] !== undefined ? match[2] : match[3] !== undefined ? Number(match[3]) : match[4]
       result[key] = valStr === 'None' || valStr === 'null' ? null : valStr
     }
     if (found) return result
@@ -137,12 +133,7 @@ export function formatFlagItem(item: unknown): string {
       obj.matched_competitor ??
       obj.institution ??
       obj.concern
-    const role =
-      obj.involvement_type ??
-      obj.involvement ??
-      obj.type ??
-      obj.role ??
-      obj.relationship
+    const role = obj.involvement_type ?? obj.involvement ?? obj.type ?? obj.role ?? obj.relationship
 
     const formattedRole = formatInvolvementType(role)
     const nameStr = name !== undefined && name !== null ? String(name).trim() : ''
@@ -222,23 +213,13 @@ export function unpackFlag(
     if (Array.isArray(matches)) {
       for (const m of matches) {
         const itemStr = formatFlagItem(m)
-        if (
-          itemStr &&
-          itemStr !== 'None' &&
-          itemStr !== 'null' &&
-          itemStr !== '[object Object]'
-        ) {
+        if (itemStr && itemStr !== 'None' && itemStr !== 'null' && itemStr !== '[object Object]') {
           items.push(itemStr)
         }
       }
     } else if (matches) {
       const itemStr = formatFlagItem(matches)
-      if (
-        itemStr &&
-        itemStr !== 'None' &&
-        itemStr !== 'null' &&
-        itemStr !== '[object Object]'
-      ) {
+      if (itemStr && itemStr !== 'None' && itemStr !== 'null' && itemStr !== '[object Object]') {
         items.push(itemStr)
       }
     } else if (parsed.competitor || parsed.company || parsed.entity) {

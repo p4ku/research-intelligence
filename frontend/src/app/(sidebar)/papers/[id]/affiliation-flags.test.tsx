@@ -2,11 +2,10 @@ import type { RiskAndAffiliation } from '@/lib/papers/types'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
 import {
+  formatFlagItem,
+  formatInvolvementType,
   RiskAffiliationFlagging,
   unpackFlag,
-  formatInvolvementType,
-  formatFlagItem,
-  unpackEmbeddedDictsInString,
 } from './affiliation-flags'
 
 describe('RiskAffiliationFlagging Component Rendering', () => {
@@ -415,7 +414,7 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     expect(out).toContain(', ')
   })
 
-  test('unpacks competitor dictionary from raw stringified dicts e.g. YES ({\'competitor\': \'Google\', \'involvement_type\': \'FUNDER\'})', () => {
+  test("unpacks competitor dictionary from raw stringified dicts e.g. YES ({'competitor': 'Google', 'involvement_type': 'FUNDER'})", () => {
     // 1. Single competitor with role
     const flagSingle = unpackFlag({
       key: 'competitor',
