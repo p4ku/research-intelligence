@@ -13,7 +13,7 @@ This document walks through the complete interface sequentially from top to bott
 Due to the depth of the LLM extraction framework and technical assessment facets, the document is captured in overlapping vertical steps from the masthead down to the ingestion provenance footer:
 
 ```
-[ Step 1: Masthead & Scorecard ] ➔ [ Step 2: Research Metric Facets ] ➔ [ Step 3: Schwarz Fit Synergies ] ➔ [ Step 4: TRL Classification ] ➔ [ Step 5: Provenance Footer ]
+[ Step 1: Masthead & Scorecard ] ➔ [ Step 2: Research Metric Facets ] ➔ [ Step 3: Schwarz Fit Synergies ] ➔ [ Step 4: TRL Classification & Provenance Footer ]
 ```
 
 ---
@@ -80,11 +80,11 @@ Continuing the scroll brings the **Schwarz Fit** evaluation into focus, analyzin
 
 ---
 
-### Step 4: Strategic Need, Technology Readiness Level (TRL) & Assessed Technology
+### Step 4: Strategic Need, TRL Classification & Provenance Footer
 
-Scrolling further down details the operational need alignment and explicit Technology Readiness Level classification:
+Scrolling to the base of the page details the operational need alignment, explicit Technology Readiness Level classification, and the audit provenance footer:
 
-![Selected Document — Step 4: TRL Classification](./screenshots/04_selected_document_part4.png)
+![Selected Document — Step 4: TRL Classification & Provenance Footer](./screenshots/04_selected_document_part4.png)
 
 #### Key UI Elements:
 - **`Strategic operational need match` (`18 / 100`)**: Low-level compiler architecture does not solve near-term retail or cloud supply chain bottlenecks.
@@ -92,23 +92,12 @@ Scrolling further down details the operational need alignment and explicit Techn
   - **Score**: `3 / 9`.
   - **Maturity Band**: `TRL 3 — Experimental proof of concept`.
   - **Evaluation Evidence**:
-    > *"The authors propose an instruction set architecture (ISA), runtime lattice management unit (LMU), and compiler (implemented in ~9,300 lines of Rust) for dynamically reconfigurable lattice surgery. The validation is conducted purely via simulation, algorithmic modeling, and benchmarking against established cost models and competitor software on 35 representative quantum circuits. Because it provides analytical and software-simulated proof of concept without validation on physical quantum hardware or integrated lab testbeds, it is at TRL 3."*
-- **Technology being Assessed**: Explicit categorization as *"Dynamic lattice-surgery architecture and compiler for surface-code fault-tolerant quantum computing"*.
-
----
-
-### Step 5: Summarisation & Audit Provenance Footer
-
-Reaching the bottom of the page displays the high-level summarisation and the complete ingestion provenance audit line:
-
-![Selected Document — Step 5: Provenance & Footer](./screenshots/04_selected_document_part5.png)
-
-#### Key UI Elements:
-- **`Summarisation` Section**: High-density executive takeaway for decision-makers.
-- **Provenance Audit Strip**:
-  - **Preprint Source Link**: `arXiv 2608.18985 ↗` linking to original scholarly repository.
-  - **Ingestion Timestamp**: `Ingested Sep 9, 2026`.
-  - **Originating Pipeline Run**: Hyperlink to the exact autonomous run (`Autonomous Pipeline Run - 2026-09-09 21:26`) that parsed, screened, and evaluated this paper.
+    > *"The authors present the concept of dynamic lattice surgery along with an ISA, a Lattice Management Unit (LMU), and an optimizing compiler (~9,300 lines of Rust)... Because the work demonstrates feasibility through analytical and software simulation without testing on physical quantum hardware or full lab-integrated control systems, it is validated at TRL 3."*
+- **Technology being Assessed**: *"Dynamically reconfigurable lattice surgery architecture and compiler for surface code quantum computing (RushHour)"*.
+- **Provenance Audit Strip (Footer)**:
+  - **Preprint Source Link**: `DOI 10.48550/arxiv.2608.18985 ↗` linking to original scholarly repository.
+  - **Ingestion Timestamp**: `Ingested Sep 10, 2026`.
+  - **Originating Pipeline Run**: Hyperlink to the exact autonomous run (`Autonomous Pipeline Run - 2026-09-10 21:43`) that parsed, screened, and evaluated this paper.
 
 ---
 

@@ -26,8 +26,24 @@ async function main() {
     await page.click('button[type="submit"]');
     await page.waitForTimeout(4000);
 
-    console.log('📄 Navigating to Paper Detail page...');
-    await page.goto(`${BASE_URL}/papers/${PAPER_ID}`, { waitUntil: 'networkidle' });
+    console.log('🔍 Discovering active paper route...');
+    await page.goto(`${BASE_URL}/briefing`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(2000);
+    let paperPath = '/papers';
+    const briefingLinks = await page.locator('a[href*="briefing/"]').all();
+    if (briefingLinks.length > 0) {
+      const bHref = await briefingLinks[0].getAttribute('href');
+      await page.goto(`${BASE_URL}${bHref}`, { waitUntil: 'networkidle' });
+      await page.waitForTimeout(2000);
+      const paperLinks = await page.locator('a[href^="/papers/"]').all();
+      if (paperLinks.length > 0) {
+        paperPath = await paperLinks[0].getAttribute('href');
+        console.log(`🎯 Discovered active paper route: ${paperPath}`);
+      }
+    }
+
+    console.log(`📄 Navigating to Paper Detail page (${paperPath})...`);
+    await page.goto(`${BASE_URL}${paperPath}`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(3000);
 
     // Get total scrollable height

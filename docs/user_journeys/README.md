@@ -31,11 +31,12 @@ All screenshots were captured against the live production environment using auto
    - Step 1 (Masthead, Badges, Abstract, Scorecard & Radar): [`./screenshots/04_selected_document_part1.png`](./screenshots/04_selected_document_part1.png)
    - Step 2 (Assessment Kickoff & Research Metric Facets): [`./screenshots/04_selected_document_part2.png`](./screenshots/04_selected_document_part2.png)
    - Step 3 (Schwarz Strategic Fit & Synergies): [`./screenshots/04_selected_document_part3.png`](./screenshots/04_selected_document_part3.png)
-   - Step 4 (Strategic Need Match & TRL Classification): [`./screenshots/04_selected_document_part4.png`](./screenshots/04_selected_document_part4.png)
-   - Step 5 (Summarisation & Ingestion Provenance Footer): [`./screenshots/04_selected_document_part5.png`](./screenshots/04_selected_document_part5.png)
-   - Complete Full-Page Overview (2908px): [`./screenshots/04_selected_document_fullpage.png`](./screenshots/04_selected_document_fullpage.png)
+   - Step 4 (Strategic Need Match, TRL Classification & Provenance Footer): [`./screenshots/04_selected_document_part4.png`](./screenshots/04_selected_document_part4.png)
+   - Complete Full-Page Overview: [`./screenshots/04_selected_document_fullpage.png`](./screenshots/04_selected_document_fullpage.png)
 5. **Pipeline Runs Overview**: [`./screenshots/05_pipeline_runs.png`](./screenshots/05_pipeline_runs.png)
-6. **Pipeline Run Details (DAG)**: [`./screenshots/06_run_details.png`](./screenshots/06_run_details.png)
+6. **Pipeline Run Details (DAG)**:
+   - Executive Telemetry & Top Stages: [`./screenshots/06_run_details.png`](./screenshots/06_run_details.png)
+   - Complete 9-Stage DAG Breakdown: [`./screenshots/06_run_details_fullpage.png`](./screenshots/06_run_details_fullpage.png)
 7. **Ask Document Interrogation Drawer**: [`./screenshots/07_ask_document.png`](./screenshots/07_ask_document.png)
 
 ---
