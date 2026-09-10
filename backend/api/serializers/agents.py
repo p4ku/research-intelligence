@@ -7,7 +7,7 @@ class StartResearchAgentSerializer(serializers.Serializer):
     workspace_id = serializers.UUIDField(required=False, help_text="Target Workspace UUID to launch the agent in")
     workspace = serializers.UUIDField(required=False, help_text="Target Workspace UUID alias")
     name = serializers.CharField(required=False, allow_null=True, allow_blank=True, default="Autonomous Literature Review", help_text="Human-readable name for the research process")
-    limit = serializers.IntegerField(required=False, default=50, min_value=1, help_text="Max number of candidate papers to fetch & process")
+    limit = serializers.IntegerField(required=False, default=2000, min_value=1, max_value=10000, help_text="Max number of candidate papers to fetch & process (default: 2000, max: 10000)")
     start_date = serializers.CharField(required=False, allow_null=True, allow_blank=True, default=None, help_text="ISO start date (e.g. '2026-08-01')")
     end_date = serializers.CharField(required=False, allow_null=True, allow_blank=True, default=None, help_text="ISO end date (e.g. '2026-08-31')")
     n_last_days = serializers.IntegerField(required=False, default=None, allow_null=True, min_value=1, max_value=3650, help_text="Lookback window in days (default: 7)")

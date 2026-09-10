@@ -336,7 +336,7 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         step_type = serializer.validated_data['step_type']
-        limit = serializer.validated_data.get('limit', 50)
+        limit = serializer.validated_data.get('limit', 2000)
         skip_abstract = serializer.validated_data.get('skip_abstract_screening', False)
         stage_param = serializer.validated_data.get('stage')
         query_prefix = serializer.validated_data.get('query_prefix')

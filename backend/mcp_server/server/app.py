@@ -799,7 +799,7 @@ def create_scraper(
     workspace_id: str,
     provider: str,
     search_query: str,
-    limit: int = 50,
+    limit: int = 2000,
     sort_by: str = "relevance",
     sort_order: str = "desc",
     n_last_days: int = 7,
@@ -932,7 +932,7 @@ def preview_search_query(
 
 @mcp.tool()
 @with_db_connection
-def list_papers(workspace_id: str, pipeline_run_id: str | None = None, limit: int = 50) -> str:
+def list_papers(workspace_id: str, pipeline_run_id: str | None = None, limit: int = 2000) -> str:
     """
     [PAPERS INSPECTION]
     List fetched papers, metadata, PDF/Markdown paths, and independent screening evaluations for a workspace or pipeline run.

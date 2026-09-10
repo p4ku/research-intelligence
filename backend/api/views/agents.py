@@ -70,7 +70,7 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
         validated = serializer.validated_data
         workspace_id = validated["workspace_id"]
         name = validated.get("name")
-        limit = validated.get("limit", 50)
+        limit = validated.get("limit", 2000)
         start_date = validated.get("start_date")
         end_date = validated.get("end_date")
         n_last_days = validated.get("n_last_days")

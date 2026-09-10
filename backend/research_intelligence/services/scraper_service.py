@@ -35,7 +35,7 @@ def preview_search_query(
     scraper_inst = factory.get_scraper_provider(provider, n_last_days=effective_n)
     results = scraper_inst.search(
         search_query.strip(),
-        max_results=min(limit, 50),
+        max_results=min(limit, 2000),
         start_date=start_date,
         end_date=end_date,
         n_last_days=n_last_days
@@ -57,7 +57,7 @@ def list_workspace_papers(
     user,
     workspace_id: str,
     pipeline_run_id: Optional[str] = None,
-    limit: int = 50
+    limit: int = 2000
 ) -> List[Dict[str, Any]]:
     """
     Retrieves fetched papers for a workspace (optionally filtered by pipeline_run_id).

@@ -187,9 +187,9 @@ class TriggerStepSerializer(serializers.Serializer):
     )
     limit = serializers.IntegerField(
         required=False,
-        default=50,
+        default=2000,
         min_value=1,
-        max_value=500,
+        max_value=10000,
         help_text="Maximum number of papers to process in this step"
     )
     skip_abstract_screening = serializers.BooleanField(
@@ -319,10 +319,10 @@ class StartPipelineRunSerializer(serializers.Serializer):
     limit = serializers.IntegerField(
         required=False,
         min_value=1,
-        max_value=1000,
+        max_value=10000,
         default=None,
         allow_null=True,
-        help_text="Maximum number of papers to fetch/process"
+        help_text="Maximum number of papers to fetch/process (default: 2000, max: 10000)"
     )
     reprocess_existing = serializers.BooleanField(
         required=False,

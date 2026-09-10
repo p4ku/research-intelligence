@@ -8,6 +8,14 @@ class SubscriberSerializer(serializers.ModelSerializer):
         fields = ['id', 'workspace', 'email', 'name', 'subscription_type', 'is_active', 'created_at']
 
 class ScraperSerializer(serializers.ModelSerializer):
+    limit = serializers.IntegerField(
+        required=False,
+        default=2000,
+        min_value=1,
+        max_value=10000,
+        help_text="Max results to fetch for this scraper (default: 2000, max: 10000)"
+    )
+
     class Meta:
         model = Scraper
         fields = ['id', 'workspace', 'provider', 'search_query', 'limit', 'sort_by', 'sort_order', 'n_last_days', 'is_active', 'created_at']
@@ -235,7 +243,7 @@ class WorkspaceSerializer(serializers.ModelSerializer):
                         workspace=workspace,
                         provider=sc.get('provider'),
                         search_query=sc.get('search_query'),
-                        limit=sc.get('limit', 50),
+                        limit=sc.get('limit', 2000),
                         sort_by=sc.get('sort_by', 'relevance'),
                         sort_order=sc.get('sort_order', 'desc'),
                         n_last_days=n_days if n_days is not None else 7,

@@ -86,7 +86,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
             n_last_days = 7
 
         provider = get_scraper_provider(scraper.provider, n_last_days=n_last_days)
-        final_limit = limit if limit is not None else (getattr(scraper, 'limit', 50) or 50)
+        final_limit = limit if limit is not None else (getattr(scraper, 'limit', 2000) or 2000)
         sort_by = getattr(scraper, 'sort_by', 'relevance')
         sort_order = getattr(scraper, 'sort_order', 'desc')
 

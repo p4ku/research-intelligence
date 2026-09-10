@@ -41,7 +41,7 @@ def preview_search_query_logic(
 
 
 
-def list_papers_logic(user, workspace_id: str, pipeline_run_id: str = None, limit: int = 50) -> str:
+def list_papers_logic(user, workspace_id: str, pipeline_run_id: str = None, limit: int = 2000) -> str:
     """
     List fetched paper records for a workspace (optionally filtered by pipeline_run_id).
     Returns title, authors, DOI, abstract, source_url (canonical external link), paths, dual screening reasonings, benchmark flags, and signal score.
