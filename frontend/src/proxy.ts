@@ -1,4 +1,4 @@
-import { backendUrl } from '@/lib/api/backend-url'
+import { backendUrl, isTransientNetworkError } from '@/lib/api/backend-url'
 import {
   ACCESS_COOKIE,
   REFRESH_COOKIE,
@@ -118,31 +118,45 @@ type RefreshResult =
   | { kind: 'unreachable' }
 
 async function refreshAccess(refresh: string): Promise<RefreshResult> {
-  try {
-    const res = await fetch(`${backendUrl()}/api/auth/refresh/`, {
+  const doFetch = () =>
+    fetch(`${backendUrl()}/api/auth/refresh/`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       body: JSON.stringify({ refresh }),
       cache: 'no-store',
     })
-    // 'rejected' signs the user out with "your session expired", so only a
-    // verdict on the token counts. A 5xx is Django ailing, not the session
-    // ending — treat it like a network failure and let the page's own API
-    // call decide (a truly dead token still 401s there and signs out).
-    if (res.status >= 500) return { kind: 'unreachable' }
-    if (!res.ok) return { kind: 'rejected' }
-    const data = (await res.json().catch(() => null)) as {
-      access?: unknown
-      refresh?: unknown
-    } | null
-    if (typeof data?.access !== 'string') return { kind: 'rejected' }
-    // `refresh` is only present when the backend rotates; absent is not an error.
-    return typeof data.refresh === 'string'
-      ? { kind: 'ok', access: data.access, refresh: data.refresh }
-      : { kind: 'ok', access: data.access }
-  } catch {
-    return { kind: 'unreachable' }
+
+  let res: Response
+  try {
+    res = await doFetch()
+  } catch (error) {
+    if (isTransientNetworkError(error)) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 150))
+        res = await doFetch()
+      } catch {
+        return { kind: 'unreachable' }
+      }
+    } else {
+      return { kind: 'unreachable' }
+    }
   }
+
+  // 'rejected' signs the user out with "your session expired", so only a
+  // verdict on the token counts. A 5xx is Django ailing, not the session
+  // ending — treat it like a network failure and let the page's own API
+  // call decide (a truly dead token still 401s there and signs out).
+  if (res.status >= 500) return { kind: 'unreachable' }
+  if (!res.ok) return { kind: 'rejected' }
+  const data = (await res.json().catch(() => null)) as {
+    access?: unknown
+    refresh?: unknown
+  } | null
+  if (typeof data?.access !== 'string') return { kind: 'rejected' }
+  // `refresh` is only present when the backend rotates; absent is not an error.
+  return typeof data.refresh === 'string'
+    ? { kind: 'ok', access: data.access, refresh: data.refresh }
+    : { kind: 'ok', access: data.access }
 }
 
 /** Persist a freshly detected language on the response, if any. */

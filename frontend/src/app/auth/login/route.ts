@@ -1,4 +1,4 @@
-import { backendUrl } from '@/lib/api/backend-url'
+import { backendUrl, isTransientNetworkError } from '@/lib/api/backend-url'
 import {
   ACCESS_COOKIE,
   REFRESH_COOKIE,
@@ -60,17 +60,29 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  let upstream: Response
-  try {
-    upstream = await fetch(`${backendUrl()}/api/auth/login/`, {
+  const doFetch = () =>
+    fetch(`${backendUrl()}/api/auth/login/`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', accept: 'application/json' },
       // Django resolves username first, then email (case-insensitive).
       body: JSON.stringify({ username_or_email: identifier, password }),
       cache: 'no-store',
     })
-  } catch {
-    return NextResponse.json({ code: 'unreachable' satisfies LoginErrorCode }, { status: 502 })
+
+  let upstream: Response
+  try {
+    upstream = await doFetch()
+  } catch (error) {
+    if (isTransientNetworkError(error)) {
+      try {
+        await new Promise((resolve) => setTimeout(resolve, 150))
+        upstream = await doFetch()
+      } catch {
+        return NextResponse.json({ code: 'unreachable' satisfies LoginErrorCode }, { status: 502 })
+      }
+    } else {
+      return NextResponse.json({ code: 'unreachable' satisfies LoginErrorCode }, { status: 502 })
+    }
   }
 
   const data = (await upstream.json().catch(() => null)) as DjangoLoginResponse | null

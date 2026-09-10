@@ -95,8 +95,10 @@ applications:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud
       - route: research-scanner.schwarz
     env:
-      BACKEND_INTERNAL_URL: https://research-scanner.schwarz
+      NODE_ENV: production
+      BACKEND_INTERNAL_URL: https://sri-prod.apps.01.cf.eu01.onstackit.cloud
       SITE_URL: https://research-scanner.schwarz
+      UV_THREADPOOL_SIZE: "64"
 
 
 

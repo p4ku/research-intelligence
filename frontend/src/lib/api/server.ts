@@ -3,7 +3,7 @@ import 'server-only'
 import { ACCESS_COOKIE } from '@/lib/auth/cookies'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { backendUrl } from './backend-url'
+import { backendUrl, isTransientNetworkError } from './backend-url'
 
 // The single place the Next.js server talks to Django.
 //
@@ -39,7 +39,16 @@ export async function apiFetch(path: string, init: ApiInit = {}): Promise<Respon
     const token = (await cookies()).get(ACCESS_COOKIE)?.value
     if (token) h.set('Authorization', `Bearer ${token}`)
   }
-  return fetch(`${backendUrl()}${path}`, { ...rest, headers: h, cache: 'no-store' })
+  const url = `${backendUrl()}${path}`
+  try {
+    return await fetch(url, { ...rest, headers: h, cache: 'no-store' })
+  } catch (error) {
+    if (isTransientNetworkError(error)) {
+      await new Promise((resolve) => setTimeout(resolve, 150))
+      return await fetch(url, { ...rest, headers: h, cache: 'no-store' })
+    }
+    throw error
+  }
 }
 
 export interface ApiJsonInit extends ApiInit {
