@@ -70,7 +70,6 @@ export const dict: Record<string, string> = {
   // Signal-strength filter
   'Signal strength': 'Signalstärke',
   'Minimum score': 'Mindest-Score',
-  Any: 'Beliebig',
   'Any signal': 'Jedes Signal',
   'Only the strongest': 'Nur die stärksten',
   'Signal ≥ {n}': 'Signal ≥ {n}',

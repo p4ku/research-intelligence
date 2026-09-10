@@ -134,7 +134,7 @@ export function EditionPapersSkeleton({
           {/* The view's rail: the two labels are known, the options are not. */}
           <aside className="divide-y divide-line lg:col-span-1">
             <FilterGroupSkeleton label={t('Sort by')} rows={sorts} />
-            <FilterGroupSkeleton label={t('Schwarz Score')}>
+            <FilterGroupSkeleton label={t('Schwarz Score')} value={false}>
               <MinScoreSliderSkeleton
                 labels={{
                   minimum: t('Minimum score'),

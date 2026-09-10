@@ -27,7 +27,7 @@ export interface EditionView {
 export const DEFAULT_VIEW: EditionView = { sort: 'score', minScore: 0 }
 
 /**
- * The slider's range: the score is read on a 0–100 scale, in steps of five.
+ * The slider's range: the score is read on a 0–100 scale, one point a step.
  * One rule for the ceiling and the step, so the rail cannot drift from the
  * cap the parse seam applies — re-exported under the names the list already
  * imports from here.
@@ -52,8 +52,10 @@ export function viewFrom(params: Record<string, string | string[] | undefined>):
   const min = /^\d+$/.test(score) ? Number(score) : 0
   return {
     sort: SORT_RE.test(sort) ? sort : DEFAULT_VIEW.sort,
-    // Only a figure the slider can show: a floor of 57 would read "≥ 57" over
-    // a thumb at 55.
+    // Only a floor the thumb can land on: within the ceiling and on the step,
+    // so the figure over the track never disagrees with the track. The step
+    // test is idle while the step is one point — it is what re-arms the rule
+    // if the step ever grows again.
     minScore: min > 0 && min <= SCORE_CEILING && min % SCORE_STEP === 0 ? min : 0,
   }
 }

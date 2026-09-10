@@ -445,7 +445,7 @@ export function PapersBrowser({
 
           <FilterGroup
             label={t('Signal strength')}
-            value={state.minScore > 0 ? `≥ ${state.minScore}` : t('Any')}
+            value={state.minScore > 0 ? `≥ ${state.minScore}` : undefined}
           >
             <MinScoreSlider
               value={state.minScore}
@@ -454,7 +454,6 @@ export function PapersBrowser({
               onChange={(minScore) => update({ minScore })}
               labels={{
                 minimum: t('Minimum score'),
-                any: t('Any'),
                 low: t('Any signal'),
                 high: t('Only the strongest'),
               }}
@@ -464,7 +463,7 @@ export function PapersBrowser({
           {facets.has_trl && (
             <FilterGroup
               label={t('TRL window')}
-              value={trlNarrowed ? `TRL ${state.minTrl}–${state.maxTrl}` : t('Any')}
+              value={trlNarrowed ? `TRL ${state.minTrl}–${state.maxTrl}` : undefined}
             >
               <div className="mb-1.5 flex items-center justify-between">
                 <SectionLabel>{t('TRL window')}</SectionLabel>
