@@ -60,10 +60,13 @@ export function FilterGroup({
  */
 export function FilterGroupSkeleton({
   label,
+  value = true,
   rows = 0,
   children,
 }: {
   label: string
+  /** False for a group that shows no value until the reader sets one. */
+  value?: boolean
   rows?: number
   children?: ReactNode
 }) {
@@ -72,9 +75,11 @@ export function FilterGroupSkeleton({
       <div className="flex w-full items-center justify-between gap-3">
         <SectionLabel className="shrink-0">{label}</SectionLabel>
         <span className="flex min-w-0 items-center gap-2">
-          <span className="text-xs">
-            <Bone.Text widths={['9ch']} />
-          </span>
+          {value && (
+            <span className="text-xs">
+              <Bone.Text widths={['9ch']} />
+            </span>
+          )}
           <ChevronDownIcon className="size-4 shrink-0 text-zinc-400" />
         </span>
       </div>
@@ -133,6 +138,15 @@ function OptionButtonSkeleton() {
  * The minimum-score slider: the floor's figure at the right of its label
  * (0 at rest — no "Any" doubling the group's header, per the stakeholder),
  * the range in steps, and the two ends named under it.
+ *
+ * The thumb is held here while it is being moved and handed up once, on
+ * release. A range fires an event per step, and both rails answer `onChange`
+ * by rewriting the URL (the Papers browser also refetches): at one point a
+ * step a single sweep of the track would be a hundred `replaceState` calls,
+ * which is WebKit's whole budget for 30 seconds — past it the write throws
+ * and the address bar stops following the thumb. Committing per gesture
+ * costs one write instead. The figure and the track follow the drag; the
+ * list and the group's header settle when the thumb is let go.
  */
 export function MinScoreSlider({
   value,
@@ -147,11 +161,30 @@ export function MinScoreSlider({
   onChange: (value: number) => void
   labels: { minimum: string; low: string; high: string }
 }) {
+  // The floor being dragged, or null when the thumb is where the view says.
+  const [draft, setDraft] = useState<number | null>(null)
+  const [seen, setSeen] = useState(value)
+  // A floor that changed under us (our own commit, or Reset filters) ends the
+  // drag's claim on the thumb.
+  if (value !== seen) {
+    setSeen(value)
+    setDraft(null)
+  }
+  const shown = draft ?? value
+  const commit = () => {
+    if (draft === null) return
+    setDraft(null)
+    if (draft !== value) onChange(draft)
+  }
   return (
     <>
       <div className="mb-1.5 flex items-center justify-between">
         <span className="text-xs text-zinc-500 dark:text-zinc-400">{labels.minimum}</span>
-        <span className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">{value}</span>
+        {/* The range announces its own value; a second reading would only
+            repeat it. */}
+        <span aria-hidden="true" className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
+          {shown}
+        </span>
       </div>
       <input
         type="range"
@@ -159,13 +192,20 @@ export function MinScoreSlider({
         min={0}
         max={ceiling}
         step={step}
-        value={value}
-        onChange={(e) => onChange(Number(e.target.value))}
+        value={shown}
+        onChange={(e) => setDraft(Number(e.target.value))}
+        // Every way a gesture can end: a release over the track, a release
+        // the browser took the pointer for (a drag off the control, a
+        // cancelled touch), a key let go, and the control losing focus.
+        onPointerUp={commit}
+        onLostPointerCapture={commit}
+        onKeyUp={commit}
+        onBlur={commit}
         className="rs-slider"
         // A floor above the ceiling would paint the track past its end.
         style={
           {
-            '--fill': `${Math.min(100, (value / ceiling) * 100)}%`,
+            '--fill': `${Math.min(100, (shown / ceiling) * 100)}%`,
           } as React.CSSProperties
         }
       />
@@ -187,8 +227,8 @@ export function MinScoreSliderSkeleton({
     <>
       <div className="mb-1.5 flex items-center justify-between">
         <span className="text-xs text-zinc-500 dark:text-zinc-400">{labels.minimum}</span>
-        <span className="text-xs">
-          <Bone.Text widths={['4ch']} />
+        <span aria-hidden="true" className="text-xs">
+          <Bone.Text widths={['2ch']} />
         </span>
       </div>
       <div

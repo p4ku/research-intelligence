@@ -1,5 +1,6 @@
 import { ALL_ON } from '@/lib/features'
 import { FeaturesTestProvider } from '@/lib/features-client'
+import { SCORE_STEP } from '@/lib/papers/score'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { StarsProvider } from '@/lib/stars-client'
 import { describe, expect, test } from 'bun:test'
@@ -94,6 +95,22 @@ describe('EditionPaperList Component Rendering', () => {
     expect(out).toContain('0 papers')
     expect(out).toContain('No papers are on file for this briefing.')
     expect(out).toContain(`href="${logHref}"`)
+  })
+
+  // The stakeholder's edit of 10 Sep 2026: the score filter said "Any" twice
+  // (the group's header and the slider's own readout) and moved in fives.
+  test('the score filter reads as a figure, never "Any", and steps by one', () => {
+    const out = renderToStaticMarkup(
+      <EditionPaperList papers={[paper1, paper2]} runId={runId} logHref={logHref} />,
+    )
+    // Not a substring test: "Any score" names the track's low end and stays.
+    expect(out).not.toMatch(/>Any</)
+    expect(out).toContain('Any score')
+    expect(out).toContain('Only the strongest')
+    // The readout is the floor itself, 0 while the whole edition is shown.
+    expect(out).toMatch(/tabular-nums[^"]*"[^>]*>0</)
+    expect(out).toContain(`step="${SCORE_STEP}"`)
+    expect(SCORE_STEP).toBe(1)
   })
 
   test('renders StarredChip when stars feature flag is enabled', () => {

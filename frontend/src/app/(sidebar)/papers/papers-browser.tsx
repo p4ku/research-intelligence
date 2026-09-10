@@ -463,7 +463,7 @@ export function PapersBrowser({
           {facets.has_trl && (
             <FilterGroup
               label={t('TRL window')}
-              value={trlNarrowed ? `TRL ${state.minTrl}–${state.maxTrl}` : t('Any')}
+              value={trlNarrowed ? `TRL ${state.minTrl}–${state.maxTrl}` : undefined}
             >
               <div className="mb-1.5 flex items-center justify-between">
                 <SectionLabel>{t('TRL window')}</SectionLabel>
