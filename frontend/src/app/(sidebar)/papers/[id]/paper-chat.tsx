@@ -50,11 +50,12 @@ import { usePaperThread, type Msg } from './use-paper-thread'
  * card under it: title row, one line on scope, the question line, and —
  * once this paper has a thread — a `Continue "…"` line naming it. Open, the
  * rail widens from 300 to 400px (sections.tsx, via `:has`) and becomes ONE
- * console: the score, the TRL chip and the radar pinned at the top, the
- * bars and the conversation scrolling beneath, the composer at the foot.
- * The radar is never covered and never leaves the screen — the whole point
- * of the direction — and the recent-chats list opens in the space beneath
- * it, never over it.
+ * console: the score card exactly as it was — score, TRL chip, bars, radar —
+ * pinned at the top, the conversation scrolling beneath it, the composer at
+ * the foot. Nothing of the card is pulled into the chat (asked for on 10
+ * Sep 2026): the numbers and the radar keep their seats, are never covered
+ * and never leave the screen — the whole point of the direction — and the
+ * recent-chats list opens in the space beneath them, never over them.
  *
  * The thread outlives the surface: collapsing keeps it, the next open finds
  * it, and only "New chat" clears it. Everything about sessions, resume and
@@ -96,7 +97,6 @@ export function PaperChat({
 
   const consoleRef = useRef<HTMLDivElement>(null)
   const radarRef = useRef<HTMLDivElement>(null)
-  const barsRef = useRef<HTMLUListElement>(null)
   const threadRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -127,10 +127,10 @@ export function PaperChat({
 
   /**
    * The layout switch is never animated — the grid re-wraps the record
-   * once. What moves is the radar: it FLIPs from its seat in the card to its
-   * seat at the console's top (translate only; it keeps its size and its
+   * once. The card keeps its shape; what moves is the radar, by the 50px the
+   * wider column re-centres it (translate only; it keeps its size and its
    * labels must not distort). The console's new material is revealed
-   * leftward so the page's right edge stays still; bars and thread fade in.
+   * leftward so the page's right edge stays still; the thread fades in.
    */
   useLayoutEffect(() => {
     const from = flipFrom.current
@@ -153,10 +153,6 @@ export function PaperChat({
         [{ clipPath: 'inset(0 0 0 100px)' }, { clipPath: 'inset(0 0 0 0)' }],
         { duration: 260, easing: EASE_OUT },
       )
-      barsRef.current?.animate([{ opacity: 0 }, { opacity: 1 }], {
-        duration: 160,
-        easing: 'ease-out',
-      })
       threadRef.current?.animate([{ opacity: 0 }, { opacity: 1 }], {
         duration: 160,
         delay: 120,
@@ -357,7 +353,7 @@ export function PaperChat({
         className="lg:flex lg:flex-col"
       >
         <Card flush className="flex min-h-0 flex-col overflow-hidden lg:h-full lg:overflow-y-auto">
-          {/* The profile: score, chip, radar — pinned, never scrolls, never covered. */}
+          {/* The profile: the score card as it was — score, chip, bars, radar — pinned, never scrolls, never covered. */}
           <div data-row="profile" className="shrink-0 border-b border-line-soft p-5 pb-4">
             <div className="flex items-baseline justify-between gap-4">
               <span className="font-mono text-[44px] leading-none font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white">
@@ -368,8 +364,9 @@ export function PaperChat({
               </span>
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">{rail.chips}</div>
+            <ul className="mt-4 space-y-0.5">{rail.bars}</ul>
             {rail.radar && (
-              <div className="mx-auto mt-3 flex w-full max-w-[260px] justify-center border-t border-line-soft pt-3">
+              <div className="mt-4 flex justify-center border-t border-line-soft pt-4">
                 <div ref={radarRef}>{rail.radar}</div>
               </div>
             )}
@@ -431,20 +428,14 @@ export function PaperChat({
             </div>
           </div>
 
-          {/* The scroller: bars first (they scroll away), then the thread. The list overlays this and only this. */}
-          <div className="relative min-h-0 flex-1 lg:min-h-28">
+          {/* The scroller: the thread alone. The list overlays this and only this. */}
+          <div className="relative min-h-0 flex-1 lg:min-h-40">
             {/* Inert under the list, so Tab cannot land on the bars it covers. */}
             <div
               inert={recentsOpen}
               className="overscroll-contain px-5 pt-3 pb-4 lg:h-full lg:overflow-y-auto"
             >
-              <ul ref={barsRef} className="space-y-0.5">
-                {rail.bars}
-              </ul>
-              <div
-                ref={threadRef}
-                className="mt-4 border-t border-line-soft pt-4 max-lg:min-h-[50dvh]"
-              >
+              <div ref={threadRef} className="max-lg:min-h-[50dvh]">
                 {loadingThread ? (
                   <p className="text-[13px] leading-relaxed text-muted-foreground">
                     <Bone.Text lines={3} widths={['92%', '100%', '48%']} />
