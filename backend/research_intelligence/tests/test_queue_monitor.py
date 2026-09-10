@@ -99,10 +99,10 @@ class QueueMonitorTestCase(TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp["X-Frame-Options"], "SAMEORIGIN")
         self.assertContains(resp, "Live Monitor")
-        self.assertContains(resp, "Wiadomości w Kolejkach Brokera (Redis Queues)")
-        self.assertContains(resp, "Aktywne Zadania Workerów (In-Progress Tasks)")
-        self.assertContains(resp, "Aktywne Badania SLR")
-        self.assertContains(resp, "Węzły Celery Worker")
+        self.assertContains(resp, "Messages in Broker Queues (Redis)")
+        self.assertContains(resp, "Active In-Progress Tasks")
+        self.assertContains(resp, "Active SLR Pipeline Runs")
+        self.assertContains(resp, "Celery Worker Nodes")
 
     def test_auto_refresh_meta(self):
         self.client.force_login(self.staff_user)
