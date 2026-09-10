@@ -6,7 +6,7 @@ import { dimensionLabel } from '@/lib/papers/dimension-label'
 import { trlDimension } from '@/lib/papers/select'
 import type { Dimension, ScoredPaper } from '@/lib/papers/types'
 import type { ReactNode } from 'react'
-import { definitionAnchor, isProse } from './assessment'
+import { definitionAnchor } from './assessment'
 import { ScoreBarFrame, ScoreBars, type RailBar } from './score-bars'
 
 /**
@@ -98,13 +98,7 @@ function radarAxes(dimensions: Dimension[], t: T, lang: Lang) {
 
 function railBar(d: Dimension, t: T, lang: Lang): RailBar {
   const hasBar = d.value !== null && d.max !== null && d.max > 0
-  const isTextProse = isProse(d.raw)
-  const shown =
-    d.value !== null
-      ? shownNumber(d.value, lang)
-      : d.raw && d.raw !== '—' && !isTextProse
-        ? d.raw
-        : null
+  const shown = shownNumber(d.value, lang)
   return {
     key: d.key + (d.extraction_id ?? ''),
     label: shortName(d, t),
@@ -121,6 +115,28 @@ function railBar(d: Dimension, t: T, lang: Lang): RailBar {
   }
 }
 
+/**
+ * Checks whether an extraction dimension has a valid numeric score (int or float)
+ * for the ScoreRail bars and radar chart.
+ *
+ * Excludes extractions where value is null, undefined, string, or non-numeric (e.g.
+ * Summarisation / qualitative prose, failed extractions, or unassigned metrics).
+ * Preserves actual numeric scores including 0.
+ */
+export function isDisplayableRailDimension(d: Dimension): boolean {
+  if (
+    !d ||
+    d.is_risk_and_affiliation ||
+    d.key === 'risk_and_affiliation' ||
+    d.key?.includes('risk_and_affiliation')
+  ) {
+    return false
+  }
+
+  // Must be a valid numeric int or float (including 0). If null, string, NaN, or undefined, do not display.
+  return typeof d.value === 'number' && Number.isFinite(d.value)
+}
+
 /** The score card's parts, so a client surface can lay them out its own way (paper-chat.tsx). */
 export interface RailParts {
   label: string
@@ -132,9 +148,9 @@ export interface RailParts {
 }
 
 export function railParts(paper: ScoredPaper, t: T, lang: Lang = 'en'): RailParts {
-  // Exclude Risk & Affiliation dimensions from the score rail bars
+  // Exclude Risk & Affiliation, Summarisation, and empty/unscored extractions with nothing to display
   const visibleDimensions = (paper.dimensions ?? [])
-    .filter((d) => !d.is_risk_and_affiliation && d.key !== 'risk_and_affiliation')
+    .filter(isDisplayableRailDimension)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   const trl = trlDimension(paper)
   const axes = radarAxes(visibleDimensions, t, lang)

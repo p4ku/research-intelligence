@@ -2,7 +2,7 @@ import { makeT } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { ScoreRail } from './score-rail'
+import { isDisplayableRailDimension, ScoreRail } from './score-rail'
 
 const t = makeT('en')
 
@@ -171,5 +171,202 @@ describe('ScoreRail Component Rendering', () => {
     expect(out).not.toContain('data-row="formula"')
     expect(out).not.toContain('Scoring formula')
     expect(out).not.toContain('0.6 * trl_level + 0.4 * fit_score')
+  })
+
+  test('isDisplayableRailDimension checks data types intelligently (int/float allowed, null/string/undefined/NaN rejected)', () => {
+    // 1. Value is null (e.g. Summarisation, qualitative prose, or unscored/failed extraction) -> false
+    expect(
+      isDisplayableRailDimension({
+        key: 'summarisation',
+        name: 'Summarisation',
+        value: null,
+        raw: 'This paper presents Backline...',
+        max: 100,
+        is_trl: false,
+      }),
+    ).toBe(false)
+
+    expect(
+      isDisplayableRailDimension({
+        key: 'null_metric',
+        name: 'Null Metric',
+        value: null,
+        raw: null,
+        max: null,
+        is_trl: false,
+      }),
+    ).toBe(false)
+
+    expect(
+      isDisplayableRailDimension({
+        key: 'pending_metric',
+        name: 'Pending Metric',
+        value: null,
+        raw: '—',
+        max: 100,
+        is_trl: false,
+      }),
+    ).toBe(false)
+
+    // 2. Value is string or undefined or NaN (non-numeric) -> false
+    expect(
+      isDisplayableRailDimension({
+        key: 'string_metric',
+        name: 'String Metric',
+        value: 'High' as unknown as number,
+        raw: 'High',
+        max: 100,
+        is_trl: false,
+      }),
+    ).toBe(false)
+
+    expect(
+      isDisplayableRailDimension({
+        key: 'nan_metric',
+        name: 'NaN Metric',
+        value: NaN,
+        raw: 'NaN',
+        max: 100,
+        is_trl: false,
+      }),
+    ).toBe(false)
+
+    expect(
+      isDisplayableRailDimension({
+        key: 'undefined_metric',
+        name: 'Undefined Metric',
+        value: undefined as unknown as number,
+        raw: null,
+        max: 100,
+        is_trl: false,
+      }),
+    ).toBe(false)
+
+    // 3. CRITICAL: Score of 0 is a valid integer ("nie 0 ale niczego do wyswietlania") -> true
+    expect(
+      isDisplayableRailDimension({
+        key: 'zero_score',
+        name: 'Zero Score Metric',
+        value: 0,
+        raw: '0',
+        max: 100,
+        is_trl: false,
+      }),
+    ).toBe(true)
+
+    // 4. Positive int or float score -> true
+    expect(
+      isDisplayableRailDimension({
+        key: 'int_metric',
+        name: 'TRL Level',
+        value: 4,
+        raw: 'TRL 4',
+        max: 9,
+        is_trl: true,
+      }),
+    ).toBe(true)
+
+    expect(
+      isDisplayableRailDimension({
+        key: 'float_metric',
+        name: 'Research Metric',
+        value: 58.67,
+        raw: '58.67',
+        max: 100,
+        is_trl: false,
+      }),
+    ).toBe(true)
+  })
+
+  test('omits Summarisation and empty unscored extractions from rail bars and radar chart, while preserving score of 0', () => {
+    const paperWithScreenshotScenario = mockPaper({
+      signal_score: 42.8,
+      dimensions: [
+        {
+          key: 'research_metric',
+          definition_id: '00000000-0000-4000-8000-000000000091',
+          name: 'Research Metric',
+          value: 58.67,
+          raw: '58.67',
+          max: 100,
+          is_trl: false,
+          order: 1,
+        },
+        {
+          key: 'schwarz_fit',
+          definition_id: '00000000-0000-4000-8000-000000000092',
+          name: 'Schwarz Fit',
+          value: 27,
+          raw: '27',
+          max: 100,
+          is_trl: false,
+          order: 2,
+        },
+        {
+          key: 'trl',
+          definition_id: '00000000-0000-4000-8000-000000000093',
+          name: 'TRL',
+          value: 4,
+          raw: 'TRL 4',
+          max: 9,
+          is_trl: true,
+          order: 3,
+        },
+        {
+          key: 'summarisation',
+          definition_id: '00000000-0000-4000-8000-000000000094',
+          name: 'Summarisation',
+          value: null,
+          raw: 'Researchers developed Backline, a high-throughput framework...',
+          max: 100,
+          is_trl: false,
+          order: 4,
+        },
+        {
+          key: 'empty_extraction',
+          definition_id: '00000000-0000-4000-8000-000000000095',
+          name: 'Unscored Extraction',
+          value: null,
+          raw: '—',
+          max: 100,
+          is_trl: false,
+          order: 5,
+        },
+        {
+          key: 'zero_dimension',
+          definition_id: '00000000-0000-4000-8000-000000000096',
+          name: 'Zero Metric',
+          value: 0,
+          raw: '0',
+          max: 100,
+          is_trl: false,
+          order: 6,
+        },
+      ],
+    })
+
+    const out = renderToStaticMarkup(<ScoreRail paper={paperWithScreenshotScenario} t={t} />)
+
+    // 1. Valid metrics ARE rendered on the bars list
+    expect(out).toContain('Research Metric')
+    expect(out).toContain('58.67')
+    expect(out).toContain('Schwarz Fit')
+    expect(out).toContain('27')
+    expect(out).toContain('TRL')
+    expect(out).toContain('4')
+
+    // 2. Score of 0 IS rendered ("nie 0 ale niczego do wyswietlania")
+    expect(out).toContain('Zero Metric')
+    expect(out).toContain('href="#dimension-zero_dimension"')
+
+    // 3. Summarisation and empty unscored extractions MUST NOT be rendered anywhere in ScoreRail
+    expect(out).not.toContain('Summarisation')
+    expect(out).not.toContain('href="#dimension-summarisation"')
+    expect(out).not.toContain('Unscored Extraction')
+    expect(out).not.toContain('href="#dimension-empty_extraction"')
+
+    // 4. Radar chart exists and contains the valid dimensions including 0, but NOT Summarisation
+    expect(out).toContain('data-row="radar"')
+    expect(out).not.toContain('label="Summarisation"')
   })
 })

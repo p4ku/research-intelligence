@@ -604,7 +604,7 @@ class WorkflowDAG:
         downstream_nodes = self.get_downstream_nodes(node_name)
         affected_nodes = {node_name} | downstream_nodes
 
-        from research_intelligence.models import ComponentRun
+        from research_intelligence.models import ComponentRun, PaperMetric, Extraction, NarrativeReport
         from django.db.models import Q
 
         with transaction.atomic():
@@ -624,6 +624,80 @@ class WorkflowDAG:
                         step_type=self.nodes[n].step_type
                     ).delete()
 
+            # Clean data state of downstream affected nodes
+            if 'abstract_screening' in affected_nodes:
+                pms = list(pipeline_run.paper_metrics.all())
+                for pm in pms:
+                    pm.screening_status = 'pending'
+                    pm.abstract_screening_reasoning = ''
+                    pm.full_text_screening_reasoning = ''
+                    if isinstance(pm.metrics_data, dict):
+                        m_data = dict(pm.metrics_data)
+                        m_data.pop('abstract_screening', None)
+                        m_data.pop('full_text_screening', None)
+                        pm.metrics_data = m_data
+                    pm.signal_score = None
+                    pm.signal_score_details = {}
+                if pms:
+                    PaperMetric.objects.bulk_update(
+                        pms,
+                        ['screening_status', 'abstract_screening_reasoning', 'full_text_screening_reasoning', 'metrics_data', 'signal_score', 'signal_score_details'],
+                        batch_size=500
+                    )
+                paper_ids = [pm.paper_id for pm in pms]
+                Extraction.objects.filter(workspace=pipeline_run.workspace, paper_id__in=paper_ids).delete()
+                pipeline_run.reports.all().delete()
+                pipeline_run.total_papers_passed_screening = 0
+
+            elif 'full_text_screening' in affected_nodes:
+                pms = list(pipeline_run.paper_metrics.all())
+                pms_to_update = []
+                for pm in pms:
+                    has_ft = (
+                        (pm.metrics_data and 'full_text_screening' in pm.metrics_data) or
+                        bool(pm.full_text_screening_reasoning) or
+                        pm.screening_status == 'full_text_passed'
+                    )
+                    if has_ft:
+                        has_abstract_pass = (
+                            (pm.metrics_data and pm.metrics_data.get('abstract_screening', {}).get('passed') is True) or
+                            bool(pm.abstract_screening_reasoning)
+                        )
+                        pm.screening_status = 'abstract_passed' if has_abstract_pass else 'pending'
+                        pm.full_text_screening_reasoning = ''
+                        if isinstance(pm.metrics_data, dict):
+                            m_data = dict(pm.metrics_data)
+                            m_data.pop('full_text_screening', None)
+                            pm.metrics_data = m_data
+                        pm.signal_score = None
+                        pm.signal_score_details = {}
+                        pms_to_update.append(pm)
+                if pms_to_update:
+                    PaperMetric.objects.bulk_update(
+                        pms_to_update,
+                        ['screening_status', 'full_text_screening_reasoning', 'metrics_data', 'signal_score', 'signal_score_details'],
+                        batch_size=500
+                    )
+                paper_ids = [pm.paper_id for pm in pms]
+                Extraction.objects.filter(workspace=pipeline_run.workspace, paper_id__in=paper_ids).delete()
+                pipeline_run.reports.all().delete()
+                pipeline_run.total_papers_passed_screening = pipeline_run.get_papers(
+                    screening_status=['abstract_passed', 'accepted']
+                ).count()
+
+            elif 'extraction' in affected_nodes:
+                paper_ids = list(pipeline_run.paper_metrics.values_list('paper_id', flat=True))
+                Extraction.objects.filter(workspace=pipeline_run.workspace, paper_id__in=paper_ids).delete()
+                pipeline_run.paper_metrics.update(signal_score=None, signal_score_details={})
+                pipeline_run.reports.all().delete()
+
+            elif 'signal_score' in affected_nodes:
+                pipeline_run.paper_metrics.update(signal_score=None, signal_score_details={})
+                pipeline_run.reports.all().delete()
+
+            elif 'reporting' in affected_nodes:
+                pipeline_run.reports.all().delete()
+
             pipeline_run.status = 'running'
             pipeline_run.current_stage = self.nodes[node_name].step_type
-            pipeline_run.save(update_fields=['status', 'current_stage'])
+            pipeline_run.save(update_fields=['status', 'current_stage', 'total_papers_passed_screening'])

@@ -397,6 +397,23 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
             logger.info(f"🔍 [FULL-TEXT SCREENING FILTER] No prior Abstract Screening job found. Targeting {papers_qs.count()} downloaded/OCR papers.")
 
         papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
+
+        # Check if any papers were already full-text screened in this run (e.g., resumed from previous batch / retry)
+        from django.db.models import Q
+        current_paper_ids = set(p.id for p in papers)
+        already_screened_pms = pipeline_run.paper_metrics.filter(
+            Q(metrics_data__has_key='full_text_screening') |
+            (Q(screening_status__in=['full_text_passed', 'rejected', 'withdrawn']) & Q(full_text_screening_reasoning__isnull=False))
+        ).exclude(paper_id__in=current_paper_ids)
+
+        already_passed_count = already_screened_pms.filter(screening_status='full_text_passed').count()
+        already_rejected_count = already_screened_pms.filter(screening_status='rejected').count()
+        already_withdrawn_count = already_screened_pms.filter(screening_status='withdrawn').count()
+        already_screened_count = already_passed_count + already_rejected_count + already_withdrawn_count
+
+        if already_screened_count > 0:
+            logger.info(f"🔄 [FULL-TEXT RESUME DETECTED] {already_screened_count} papers already screened in this run ({already_passed_count} passed, {already_rejected_count} rejected, {already_withdrawn_count} withdrawn). Screening remaining {len(papers)} papers...")
+
         passed_count = 0
         rejected_count = 0
         withdrawn_count = 0
@@ -539,14 +556,21 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
 
         cost = calculate_llm_cost(workspace.screening_llm_model, total_prompt_tokens, total_candidates_tokens)
 
+        total_screened = already_screened_count + len(papers)
+        total_passed = already_passed_count + passed_count
+        total_rejected = already_rejected_count + rejected_count
+        total_withdrawn = already_withdrawn_count + withdrawn_count
+
         component_run.metrics = {
             "model_used": workspace.screening_llm_model,
             "parallel_workers": worker_concurrency,
-            "total_screened": len(papers),
-            "passed": passed_count,
-            "rejected": rejected_count,
-            "withdrawn": withdrawn_count,
+            "total_screened": total_screened,
+            "passed": total_passed,
+            "rejected": total_rejected,
+            "withdrawn": total_withdrawn,
             "failed": failed_count,
+            "newly_screened": len(papers),
+            "resumed_from_cache": already_screened_count,
             "tokens_in": total_prompt_tokens,
             "tokens_out": total_candidates_tokens,
             "total_tokens": total_tokens,
@@ -554,8 +578,9 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
             "total_duration_seconds": job_duration_sec,
             "avg_duration_per_paper_seconds": avg_duration_sec
         }
+        resumed_note = f" ({already_screened_count} resumed from previous batch/cache, {len(papers)} newly screened)" if already_screened_count > 0 else ""
         component_run.output_data = {
-            "summary": f"Full-text screened {len(papers)} papers using {workspace.screening_llm_model} in {job_duration_sec}s ({worker_concurrency}x parallel): {passed_count} passed, {rejected_count} rejected, {withdrawn_count} withdrawn, {failed_count} failed.",
+            "summary": f"Full-text screened {total_screened} papers{resumed_note} using {workspace.screening_llm_model} in {job_duration_sec}s ({worker_concurrency}x parallel): {total_passed} passed, {total_rejected} rejected, {total_withdrawn} withdrawn, {failed_count} failed.",
             "model_used": workspace.screening_llm_model,
             "total_tokens_consumed": total_tokens,
             "total_duration_seconds": job_duration_sec,

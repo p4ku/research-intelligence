@@ -258,6 +258,82 @@ class TestWorkflowDAGExecutionAndParallelBranches(TestCase):
         self.assertNotIn("parameter_extraction", remaining_steps)
         self.assertNotIn("signal_score_eval", remaining_steps)
 
+    def test_rerun_from_full_text_resets_paper_metrics_to_abstract_passed(self):
+        from research_intelligence.models import PaperMetric, Extraction, NarrativeReport
+        dag = build_default_slr_dag(self.workspace)
+
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            title="Quantum Machine Learning",
+            abstract="Sample abstract"
+        )
+        pm = PaperMetric.objects.create(
+            workspace=self.workspace,
+            paper=paper,
+            pipeline_run=self.pipeline_run,
+            screening_status='full_text_passed',
+            abstract_screening_reasoning="Abstract relevant",
+            full_text_screening_reasoning="Full text validated",
+            metrics_data={"abstract_screening": {"passed": True}, "full_text_screening": {"passed": True}},
+            signal_score=85.0
+        )
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=paper,
+            category="ml_method",
+            fields_data={"method": "QNN"}
+        )
+        NarrativeReport.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            title="SLR Report",
+            content_markdown="# Report"
+        )
+
+        # Rerun from full_text_screening
+        dag.rerun_from_node(self.pipeline_run, "full_text_screening")
+
+        pm.refresh_from_db()
+        self.assertEqual(pm.screening_status, 'abstract_passed')
+        self.assertEqual(pm.full_text_screening_reasoning, '')
+        self.assertNotIn('full_text_screening', pm.metrics_data)
+        self.assertIn('abstract_screening', pm.metrics_data)
+        self.assertIsNone(pm.signal_score)
+        self.assertEqual(Extraction.objects.filter(paper=paper).count(), 0)
+        self.assertEqual(NarrativeReport.objects.filter(pipeline_run=self.pipeline_run).count(), 0)
+
+    def test_rerun_from_abstract_screening_resets_paper_metrics_to_pending(self):
+        from research_intelligence.models import PaperMetric
+        dag = build_default_slr_dag(self.workspace)
+
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            title="Autonomous Robotics",
+            abstract="Robotics abstract"
+        )
+        pm = PaperMetric.objects.create(
+            workspace=self.workspace,
+            paper=paper,
+            pipeline_run=self.pipeline_run,
+            screening_status='full_text_passed',
+            abstract_screening_reasoning="Abstract relevant",
+            full_text_screening_reasoning="Full text validated",
+            metrics_data={"abstract_screening": {"passed": True}, "full_text_screening": {"passed": True}},
+            signal_score=90.0
+        )
+
+        # Rerun from abstract_screening
+        dag.rerun_from_node(self.pipeline_run, "abstract_screening")
+
+        pm.refresh_from_db()
+        self.assertEqual(pm.screening_status, 'pending')
+        self.assertEqual(pm.abstract_screening_reasoning, '')
+        self.assertEqual(pm.full_text_screening_reasoning, '')
+        self.assertNotIn('abstract_screening', pm.metrics_data)
+        self.assertNotIn('full_text_screening', pm.metrics_data)
+        self.assertIsNone(pm.signal_score)
+        self.assertEqual(self.pipeline_run.total_papers_passed_screening, 0)
+
 
 class TestMultiAgentParallelProgress(TestCase):
     """

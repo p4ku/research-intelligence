@@ -1458,10 +1458,19 @@ def render_component_metrics_summary(obj):
         passed = m.get('passed', 0)
         rejected = m.get('rejected', 0)
         withdrawn = m.get('withdrawn', 0)
+        resumed = m.get('resumed_from_cache', 0)
+        newly = m.get('newly_screened')
         rej_color = '#6c757d' if rejected == 0 else '#dc3545'
         extras = []
         if withdrawn > 0:
             extras.append(f'<span style="color: #6c757d; font-size: 11px;">({withdrawn} withdrawn)</span>')
+        if resumed > 0 or (newly is not None and newly != total):
+            batch_cnt = newly if newly is not None else (total - resumed)
+            extras.append(f'<span style="color: #0d6efd; font-size: 11px;">({batch_cnt} in batch, {resumed} cached)</span>')
+        elif obj.pipeline_run and obj.component_name == 'full_text_screening' and getattr(obj.pipeline_run, 'total_papers_passed_screening', 0) > passed:
+            run_total_passed = obj.pipeline_run.total_papers_passed_screening
+            extras.append(f'<span style="color: #0d6efd; font-size: 11px;">({passed} in last batch, {run_total_passed} total passed)</span>')
+
         extra_html = f"<br>{''.join(extras)}" if extras else ""
         return format_html(
             '<div style="line-height: 1.35; white-space: nowrap;">'

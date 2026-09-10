@@ -239,6 +239,29 @@ def execute_screening_job(self, component_run_id: str, limit: int = None, max_wo
 
     try:
         papers_qs = pipeline_run.get_papers()
+        # Check if any papers were already abstract screened in this run (e.g., resumed from previous batch / retry)
+        force_rescreen = getattr(pipeline_run, 'reprocess_existing', False) or (component_run.input_params or {}).get("force_rescreen", False)
+        already_screened_count = 0
+        already_passed_count = 0
+        already_rejected_count = 0
+        already_withdrawn_count = 0
+
+        if not force_rescreen:
+            from django.db.models import Q
+            already_screened_pms = pipeline_run.paper_metrics.filter(
+                Q(metrics_data__has_key='abstract_screening') |
+                (Q(screening_status__in=['abstract_passed', 'rejected', 'withdrawn']) & Q(abstract_screening_reasoning__isnull=False))
+            )
+            already_passed_count = already_screened_pms.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'accepted']).count()
+            already_rejected_count = already_screened_pms.filter(screening_status='rejected').count()
+            already_withdrawn_count = already_screened_pms.filter(screening_status='withdrawn').count()
+            already_screened_count = already_passed_count + already_rejected_count + already_withdrawn_count
+
+            if already_screened_count > 0:
+                already_screened_paper_ids = set(already_screened_pms.values_list('paper_id', flat=True))
+                papers_qs = papers_qs.exclude(id__in=already_screened_paper_ids)
+                logger.info(f"🔄 [ABSTRACT SCREENING RESUME] Found {already_screened_count} already screened papers in this run. Screening remaining {papers_qs.count()} papers...")
+
         papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
         passed_count = 0
         rejected_count = 0
@@ -372,14 +395,21 @@ def execute_screening_job(self, component_run_id: str, limit: int = None, max_wo
 
         cost = calculate_llm_cost(workspace.screening_llm_model, total_prompt_tokens, total_candidates_tokens)
 
+        total_screened = already_screened_count + len(papers)
+        total_passed = already_passed_count + passed_count
+        total_rejected = already_rejected_count + rejected_count
+        total_withdrawn = already_withdrawn_count + withdrawn_count
+
         component_run.metrics = {
             "model_used": workspace.screening_llm_model,
             "parallel_workers": worker_concurrency,
-            "total_screened": len(papers),
-            "passed": passed_count,
-            "rejected": rejected_count,
-            "withdrawn": withdrawn_count,
+            "total_screened": total_screened,
+            "passed": total_passed,
+            "rejected": total_rejected,
+            "withdrawn": total_withdrawn,
             "failed": failed_count,
+            "newly_screened": len(papers),
+            "resumed_from_cache": already_screened_count,
             "tokens_in": total_prompt_tokens,
             "tokens_out": total_candidates_tokens,
             "total_tokens": total_tokens,
@@ -387,8 +417,9 @@ def execute_screening_job(self, component_run_id: str, limit: int = None, max_wo
             "total_duration_seconds": job_duration_sec,
             "avg_duration_per_paper_seconds": avg_duration_sec
         }
+        resumed_note = f" ({already_screened_count} resumed from previous batch/cache, {len(papers)} newly screened)" if already_screened_count > 0 else ""
         component_run.output_data = {
-            "summary": f"Screened {len(papers)} papers using {workspace.screening_llm_model} in {job_duration_sec}s (8x parallel): {passed_count} passed, {rejected_count} rejected, {withdrawn_count} withdrawn, {failed_count} failed.",
+            "summary": f"Screened {total_screened} papers{resumed_note} using {workspace.screening_llm_model} in {job_duration_sec}s (8x parallel): {total_passed} passed, {total_rejected} rejected, {total_withdrawn} withdrawn, {failed_count} failed.",
             "model_used": workspace.screening_llm_model,
             "total_tokens_consumed": total_tokens,
             "total_duration_seconds": job_duration_sec,
