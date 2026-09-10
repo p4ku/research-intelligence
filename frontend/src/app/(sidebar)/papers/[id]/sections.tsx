@@ -23,7 +23,7 @@ import { Assessment } from './assessment'
 import { PaperChat } from './paper-chat'
 import { PaperHeader } from './paper-header'
 import { PaperNav, type PaperExit, type PaperNeighbours } from './paper-nav'
-import { ScoreRail } from './score-rail'
+import { railParts } from './score-rail'
 
 /**
  * The paper page's streamed sections. Everything comes from one `papers.get`
@@ -34,9 +34,11 @@ import { ScoreRail } from './score-rail'
  * (masthead, abstract, then the assessment definition by
  * definition, provenance) with the score card sticky beside it — its bars
  * link into the assessment and mark the definition being read — and the
- * paper's chat composer directly under the card: the first question is
- * typed there and the conversation opens in a sheet, so the scores stay in
- * view while the reasoning is read.
+ * paper's chat composer directly under the card. A question typed there
+ * opens the conversation in the rail itself: the card and the composer
+ * become one console with the radar pinned at its top (paper-chat.tsx), so
+ * the scores stay in view while the reasoning is read and the spider is
+ * never covered.
  *
  * Opened from a briefing (`?run=`), the record is the paper as that run read
  * it: its decision, score and screening notes are the run's own row (the
@@ -46,6 +48,18 @@ import { ScoreRail } from './score-rail'
  * run. A run the reader cannot see, or one that never recorded the paper,
  * resolves to no context at all, and the page is the paper as it stands.
  */
+
+/**
+ * The record's grid: reading column beside a 300px rail that widens to
+ * 400px while the ask console is open (`:has`, so the client console needs
+ * no hand on its parent). The record column dips once as it re-wraps —
+ * blur masking a single reflow, per the motion rules. The skeleton shares
+ * both, so the shell cannot drift from the page.
+ */
+export const RECORD_GRID =
+  'group/record mt-6 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px] lg:has-[[data-console-open]]:grid-cols-[minmax(0,1fr)_400px]'
+export const RECORD_COLUMN =
+  'min-w-0 space-y-9 lg:group-has-[[data-console-open]]/record:animate-dip'
 
 /** The title crumb — the only thing above the record that needs the fetch. */
 export async function PaperCrumb({ id }: { id: string }) {
@@ -186,6 +200,7 @@ async function neighboursOf(
 export async function PaperRecord({
   id,
   runId,
+  sessionId = null,
   t,
   lang,
   features,
@@ -193,6 +208,8 @@ export async function PaperRecord({
   id: string
   /** The briefing the paper was opened from, when the URL names one. */
   runId?: string
+  /** The conversation the URL names (`?session=`); the console opens on it. */
+  sessionId?: string | null
   t: T
   lang: Lang
   features: Features
@@ -221,8 +238,8 @@ export async function PaperRecord({
         back={ctx ? exitTo(ctx, t) : undefined}
       />
 
-      <div className="mt-6 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
-        <div className="min-w-0 space-y-9">
+      <div className={RECORD_GRID}>
+        <div className={RECORD_COLUMN}>
           <PaperHeader paper={paper} t={t} lang={lang} features={features} />
 
           <section>
@@ -241,13 +258,14 @@ export async function PaperRecord({
         </div>
 
         {/*
-          The rail: the score card and, right under it, the ask composer —
-          the first question is typed here and answered in the sheet. Sticky
-          as one unit so both stay in view while the assessment is read.
+          The rail: the score card and, right under it, the ask composer.
+          Open, the two become one console (paper-chat.tsx) and the rail
+          column widens — the grid reads that off the console's attribute.
+          Sticky as one unit so the scores stay in view while the assessment
+          is read.
         */}
         <div className="lg:sticky lg:top-8">
-          <ScoreRail paper={paper} t={t} lang={lang} />
-          <PaperChat paper={paper} />
+          <PaperChat paper={paper} rail={railParts(paper, t, lang)} initialSessionId={sessionId} />
         </div>
       </div>
     </div>

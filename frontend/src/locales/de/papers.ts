@@ -193,6 +193,15 @@ export const dict: Record<string, string> = {
   'Ask about this paper…': 'Zu diesem Paper fragen…',
   'Answered from this paper alone.': 'Wird allein aus diesem Paper beantwortet.',
   'What would you like to know?': 'Was möchten Sie wissen?',
+  // The console (Column layout, 9 Sep 2026): the thread outlives the surface.
+  'Ask a follow-up…': 'Eine Rückfrage stellen…',
+  'Continue "{title}"': '„{title}“ fortsetzen',
+  'Answering…': 'Antwort läuft…',
+  Collapse: 'Einklappen',
+  Recent: 'Zuletzt',
+  '1 chat': '1 Chat',
+  '{count} chats': '{count} Chats',
+  'Questions about this paper are filed here.': 'Fragen zu diesem Paper werden hier abgelegt.',
   Send: 'Senden',
   'Loading the paper': 'Das Paper wird geladen',
   "I couldn't ground an answer to that in this paper's text — try asking about what it enables, how solid the evidence is, or where it could apply.":

@@ -112,22 +112,35 @@ function HistoryRow({
   session,
   active,
   opening,
+  meta,
   onOpen,
   onDelete,
 }: {
   session: ChatSession
   active: boolean
   opening: boolean
+  meta: HistoryMeta
   onOpen: () => void
   onDelete: () => void
 }) {
   const t = useT()
+  const n = session.turns_count
   return (
     <HistoryRowFrame
       active={active}
       busy={opening}
       // Scope spine: accent for a single paper, neutral for the whole corpus.
-      spine={session.paper_id ? 'bg-accent/70' : 'bg-line-strong'}
+      // Inside one paper every row is scoped to it, so the spine marks the
+      // thread in hand instead.
+      spine={
+        meta === 'count'
+          ? active
+            ? 'bg-accent/70'
+            : 'bg-line-strong'
+          : session.paper_id
+            ? 'bg-accent/70'
+            : 'bg-line-strong'
+      }
       body={
         <button
           type="button"
@@ -146,7 +159,11 @@ function HistoryRow({
                 {active && <span className="size-1.5 shrink-0 rounded-full bg-accent" />}
                 <span className="shrink-0">{timeOf(session.updated_at)}</span>
                 <span aria-hidden="true">·</span>
-                {session.paper_title ? (
+                {meta === 'count' ? (
+                  <span className="truncate">
+                    {n === 1 ? t('1 question') : fmt(t('{n} questions'), { n })}
+                  </span>
+                ) : session.paper_title ? (
                   <span className="truncate">{shortTitle(session.paper_title)}</span>
                 ) : (
                   <span className="truncate">{t('All papers')}</span>
@@ -171,11 +188,16 @@ function HistoryRow({
   )
 }
 
+/** What a row's second slot names: the paper (the whole-workspace list) or the question count (one paper's list). */
+export type HistoryMeta = 'scope' | 'count'
+
 export function HistoryList({
   threads,
   activeId,
   openingId = null,
   rowError = null,
+  meta = 'scope',
+  empty,
   onOpen,
   onDelete,
 }: {
@@ -183,6 +205,9 @@ export function HistoryList({
   activeId: string | null
   openingId?: string | null
   rowError?: { id: string; message: string } | null
+  meta?: HistoryMeta
+  /** The empty state's line; defaults to the whole-workspace wording. */
+  empty?: ReactNode
   onOpen: (session: ChatSession) => void
   onDelete: (session: ChatSession) => void
 }) {
@@ -200,7 +225,7 @@ export function HistoryList({
   if (threads.length === 0) {
     return (
       <p className="px-3 py-6 text-center text-xs text-balance text-muted-foreground">
-        {t('Questions you ask are filed here.')}
+        {empty ?? t('Questions you ask are filed here.')}
       </p>
     )
   }
@@ -217,6 +242,7 @@ export function HistoryList({
                   session={session}
                   active={session.id === activeId}
                   opening={session.id === openingId}
+                  meta={meta}
                   onOpen={() => onOpen(session)}
                   onDelete={() => onDelete(session)}
                 />
