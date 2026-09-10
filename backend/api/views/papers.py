@@ -113,7 +113,10 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
 
             filter_kwargs = {'metrics__pipeline_run_id': pr_uuid}
             if screening_status:
-                filter_kwargs['metrics__screening_status'] = screening_status
+                if str(screening_status).lower() in ('passed', 'all_passed'):
+                    filter_kwargs['metrics__screening_status__in'] = ['abstract_passed', 'full_text_passed', 'accepted']
+                else:
+                    filter_kwargs['metrics__screening_status'] = screening_status
 
             qs = qs.filter(**filter_kwargs).distinct().prefetch_related(
                 Prefetch('metrics', queryset=PaperMetric.objects.filter(pipeline_run_id=pr_uuid).select_related('pipeline_run').order_by('-created_at'))
@@ -138,7 +141,10 @@ class PaperViewSet(viewsets.ReadOnlyModelViewSet):
             latest_status = Subquery(
                 PaperMetric.objects.filter(paper=OuterRef('pk')).order_by('-created_at').values('screening_status')[:1]
             )
-            qs = qs.annotate(_latest_status=latest_status).filter(_latest_status=screening_status)
+            if str(screening_status).lower() in ('passed', 'all_passed'):
+                qs = qs.annotate(_latest_status=latest_status).filter(_latest_status__in=['abstract_passed', 'full_text_passed', 'accepted'])
+            else:
+                qs = qs.annotate(_latest_status=latest_status).filter(_latest_status=screening_status)
 
         if ordering in ('signal_score', '+signal_score', '-signal_score'):
             latest_score = Subquery(
@@ -290,6 +296,9 @@ class PaperMetricViewSet(viewsets.ReadOnlyModelViewSet):
 
         screening_status = self.request.query_params.get('screening_status')
         if screening_status:
-            qs = qs.filter(screening_status=screening_status)
+            if str(screening_status).lower() in ('passed', 'all_passed'):
+                qs = qs.filter(screening_status__in=['abstract_passed', 'full_text_passed', 'accepted'])
+            else:
+                qs = qs.filter(screening_status=screening_status)
 
         return qs

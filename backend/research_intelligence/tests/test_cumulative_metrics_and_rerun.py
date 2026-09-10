@@ -244,3 +244,118 @@ class TestCumulativeMetricsAndRerun(TestCase):
 
         self.pipeline_run.refresh_from_db()
         self.assertEqual(self.pipeline_run.total_papers_passed_screening, 2)
+
+    def test_abstract_screening_node_halt_guard_with_pending_papers(self):
+        from research_intelligence.tasks.step_4_screening.node import AbstractScreeningNode
+        node = AbstractScreeningNode()
+
+        # Create 2 papers: 1 rejected, 1 pending (e.g. partial batch)
+        p1 = Paper.objects.create(workspace=self.workspace, hash_id="p_halt_1", title="Paper 1")
+        p2 = Paper.objects.create(workspace=self.workspace, hash_id="p_halt_2", title="Paper 2")
+        PaperMetric.objects.create(paper=p1, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="rejected")
+        PaperMetric.objects.create(paper=p2, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="pending")
+
+        comp_run = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="screening",
+            component_name="abstract_screening",
+            status="completed"
+        )
+
+        # Because p2 is still pending, pipeline should NOT halt
+        should_halt, reason = node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
+        self.assertFalse(should_halt)
+        self.assertIsNone(reason)
+
+        # Now when p2 is also rejected (no pending left and 0 passed), it halts cleanly
+        PaperMetric.objects.filter(paper=p2, pipeline_run=self.pipeline_run).update(screening_status="rejected")
+        should_halt, reason = node.should_halt_pipeline(self.pipeline_run, self.workspace, {})
+        self.assertTrue(should_halt)
+        self.assertIn("0 papers accepted", reason)
+
+    def test_papers_api_screening_status_passed_normalization(self):
+        from rest_framework.test import APIClient
+        from research_intelligence.models import WorkspaceMember
+        WorkspaceMember.objects.create(workspace=self.workspace, user=self.user, role="admin")
+
+        client = APIClient()
+        client.force_authenticate(user=self.user)
+
+        p1 = Paper.objects.create(workspace=self.workspace, hash_id="p_api_1", title="Full Text Passed Paper")
+        p2 = Paper.objects.create(workspace=self.workspace, hash_id="p_api_2", title="Rejected Paper")
+        p3 = Paper.objects.create(workspace=self.workspace, hash_id="p_api_3", title="Accepted Paper")
+        PaperMetric.objects.create(paper=p1, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="full_text_passed")
+        PaperMetric.objects.create(paper=p2, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="rejected")
+        PaperMetric.objects.create(paper=p3, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="accepted")
+
+        # Query ?screening_status=passed (matches both full_text_passed and accepted)
+        resp_passed = client.get(f"/api/papers/?pipeline_run={self.pipeline_run.id}&screening_status=passed")
+        self.assertEqual(resp_passed.status_code, 200)
+        data = resp_passed.json()
+        items = data if isinstance(data, list) else data.get("results", [])
+        self.assertEqual(len(items), 2)
+        titles = {item["title"] for item in items}
+        self.assertEqual(titles, {"Full Text Passed Paper", "Accepted Paper"})
+
+        # Query ?screening_status=accepted (matches strictly accepted)
+        resp_accepted = client.get(f"/api/papers/?pipeline_run={self.pipeline_run.id}&screening_status=accepted")
+        self.assertEqual(resp_accepted.status_code, 200)
+        data_acc = resp_accepted.json()
+        items_acc = data_acc if isinstance(data_acc, list) else data_acc.get("results", [])
+        self.assertEqual(len(items_acc), 1)
+        self.assertEqual(items_acc[0]["title"], "Accepted Paper")
+
+    def test_extractions_api_run_id_and_latest_resolution(self):
+        from rest_framework.test import APIClient
+        from research_intelligence.models import WorkspaceMember, ExtractionDefinition
+        WorkspaceMember.objects.create(workspace=self.workspace, user=self.user, role="admin")
+
+        client = APIClient()
+        client.force_authenticate(user=self.user)
+
+        p1 = Paper.objects.create(workspace=self.workspace, hash_id="p_ext_1", title="Extraction Paper")
+        PaperMetric.objects.create(paper=p1, pipeline_run=self.pipeline_run, workspace=self.workspace, screening_status="full_text_passed")
+        def1 = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="Def 1",
+            response_schema={"type": "object"}
+        )
+        Extraction.objects.create(
+            workspace=self.workspace,
+            paper=p1,
+            extraction_definition=def1,
+            fields_data={"val": 42}
+        )
+
+        # Test ?run_id={id}
+        resp_run = client.get(f"/api/extractions/?run_id={self.pipeline_run.id}")
+        self.assertEqual(resp_run.status_code, 200)
+        data_run = resp_run.json()
+        items_run = data_run.get("results", data_run) if isinstance(data_run, dict) else data_run
+        self.assertEqual(len(items_run), 1)
+
+        # Test ?pipeline_run=latest
+        resp_latest = client.get(f"/api/extractions/?workspace={self.workspace.id}&pipeline_run=latest")
+        self.assertEqual(resp_latest.status_code, 200)
+        data_latest = resp_latest.json()
+        items_latest = data_latest.get("results", data_latest) if isinstance(data_latest, dict) else data_latest
+        self.assertEqual(len(items_latest), 1)
+
+    def test_admin_component_run_inline_step_type_badge(self):
+        from research_intelligence.admin import ComponentRunInline, PipelineRunAdmin
+        from django.contrib.admin.sites import AdminSite
+        site = AdminSite()
+        inline = ComponentRunInline(PipelineRun, site)
+
+        comp_sig = ComponentRun(step_type="signal_score", component_name="signal_score_evaluation")
+        badge_sig = inline.step_type_badge(comp_sig)
+        self.assertIn("#fd7e14", badge_sig)
+
+        comp_ft = ComponentRun(step_type="screening", component_name="full_text_screening")
+        badge_ft = inline.step_type_badge(comp_ft)
+        self.assertIn("Full-Text Screening", badge_ft)
+
+        comp_abs = ComponentRun(step_type="screening", component_name="abstract_screening")
+        badge_abs = inline.step_type_badge(comp_abs)
+        self.assertIn("Abstract Screening", badge_abs)
+

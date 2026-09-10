@@ -66,7 +66,8 @@ class AbstractScreeningNode(BaseWorkflowNode):
             counts = Counter(statuses)
             passed_count = counts.get('abstract_passed', 0) + counts.get('accepted', 0) + counts.get('full_text_passed', 0)
             borderline_count = counts.get('borderline', 0)
-            if passed_count == 0 and borderline_count == 0:
+            remaining_unscreened = counts.get('pending', 0)
+            if passed_count == 0 and borderline_count == 0 and remaining_unscreened == 0:
                 rejected_count = counts.get('rejected', 0)
                 return True, f"Abstract Screening: 0 papers accepted ({rejected_count}/{total_papers} rejected against criteria for workspace '{workspace.name}'). Pipeline halted cleanly."
 

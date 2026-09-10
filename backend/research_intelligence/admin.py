@@ -1722,17 +1722,26 @@ class ComponentRunInline(admin.TabularInline):
     def step_type_badge(self, obj):
         colors = {
             'search': '#0d6efd',
+            'abstract_screening': '#0dcaf0',
             'download': '#0dcaf0',
             'ocr': '#6f42c1',
             'screening': '#ffc107',
+            'full_text_screening': '#ffc107',
             'extraction': '#198754',
+            'signal_score': '#fd7e14',
             'metrics': '#fd7e14',
             'deep_research': '#d63384',
             'reporting': '#20c997',
         }
+        label = obj.get_step_type_display()
+        if obj.step_type == 'screening' and obj.component_name:
+            if obj.component_name == 'abstract_screening':
+                label = 'Abstract Screening'
+            elif obj.component_name == 'full_text_screening':
+                label = 'Full-Text Screening'
         bg = colors.get(obj.step_type, '#6c757d')
         text_color = '#000000' if bg == '#ffc107' else '#ffffff'
-        return render_badge(obj.get_step_type_display(), bg, text_color)
+        return render_badge(label, bg, text_color)
     step_type_badge.short_description = "Step Type"
 
     def status_badge(self, obj):

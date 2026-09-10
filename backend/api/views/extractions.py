@@ -87,15 +87,41 @@ class ExtractionViewSet(viewsets.ReadOnlyModelViewSet):
         pipeline_run_id = (
             self.request.query_params.get('pipeline_run')
             or self.request.query_params.get('pipeline_run_id')
+            or self.request.query_params.get('run_id')
         )
         if pipeline_run_id and str(pipeline_run_id).lower() not in ('undefined', 'null', ''):
-            import uuid
-            try:
-                pr_uuid = uuid.UUID(str(pipeline_run_id))
-                from research_intelligence.models import PaperMetric
-                paper_ids = PaperMetric.objects.filter(pipeline_run_id=pr_uuid).values('paper_id')
-                qs = qs.filter(paper_id__in=paper_ids)
-            except (ValueError, TypeError):
-                qs = qs.none()
+            if str(pipeline_run_id).lower() == 'latest':
+                from research_intelligence.models import PipelineRun, PaperMetric
+                run_filter = {}
+                if ws_id and str(ws_id).lower() not in ('undefined', 'null', ''):
+                    run_filter['workspace_id'] = ws_id
+                else:
+                    run_filter['workspace_id__in'] = user_ws_ids
+                latest_run = (
+                    PipelineRun.objects.filter(**run_filter)
+                    .exclude(status__in=['failed', 'aborted'])
+                    .order_by('-started_at', '-id')
+                    .first()
+                )
+                if not latest_run:
+                    latest_run = (
+                        PipelineRun.objects.filter(**run_filter)
+                        .order_by('-started_at', '-id')
+                        .first()
+                    )
+                if latest_run:
+                    paper_ids = PaperMetric.objects.filter(pipeline_run_id=latest_run.id).values('paper_id')
+                    qs = qs.filter(paper_id__in=paper_ids)
+                else:
+                    return qs.none()
+            else:
+                import uuid
+                try:
+                    pr_uuid = uuid.UUID(str(pipeline_run_id))
+                    from research_intelligence.models import PaperMetric
+                    paper_ids = PaperMetric.objects.filter(pipeline_run_id=pr_uuid).values('paper_id')
+                    qs = qs.filter(paper_id__in=paper_ids)
+                except (ValueError, TypeError):
+                    qs = qs.none()
 
         return qs.order_by('-created_at')
