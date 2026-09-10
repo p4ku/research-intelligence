@@ -1694,8 +1694,22 @@ def render_component_cost(obj):
 class ComponentRunInline(admin.TabularInline):
     model = ComponentRun
     extra = 0
-    fields = ('step_type_badge', 'status_badge', 'execution_time', 'cost_display', 'metrics_summary', 'celery_task_id', 'raw_storage_path', 'started_at', 'completed_at')
-    readonly_fields = ('step_type_badge', 'status_badge', 'execution_time', 'cost_display', 'metrics_summary', 'started_at', 'completed_at')
+    fields = ('step_type_badge', 'status_badge', 'execution_time', 'cost_display', 'metrics_summary', 'celery_task_id_display', 'raw_storage_path', 'started_at', 'completed_at')
+    readonly_fields = ('step_type_badge', 'status_badge', 'execution_time', 'cost_display', 'metrics_summary', 'celery_task_id_display', 'started_at', 'completed_at')
+
+    def celery_task_id_display(self, obj):
+        from research_intelligence.utils.celery_liveness import check_task_liveness, render_celery_task_id_cell
+        liveness = check_task_liveness(
+            task_id=obj.celery_task_id,
+            component_status=obj.status,
+            active_map=None,
+            reserved_set=None,
+            inspector_ok=False,
+            duration_seconds=obj.duration_seconds or 0.0,
+            metrics=obj.metrics,
+        )
+        return render_celery_task_id_cell(obj.celery_task_id, liveness)
+    celery_task_id_display.short_description = "Celery Task ID"
 
     def execution_time(self, obj):
         sec = obj.duration_seconds
@@ -3367,7 +3381,7 @@ class ComponentRunAdmin(admin.ModelAdmin):
         'execution_time',
         'cost_display',
         'metrics_summary',
-        'celery_task_id',
+        'celery_task_id_display',
         'started_at',
         'completed_at',
         'triggered_by_display'
@@ -3376,7 +3390,55 @@ class ComponentRunAdmin(admin.ModelAdmin):
     list_select_related = ('pipeline_run', 'pipeline_run__workspace', 'pipeline_run__triggered_by')
     list_filter = (ComponentRunWorkspaceFilter, 'pipeline_run__triggered_by', 'step_type', 'status', 'started_at')
     search_fields = ('id', 'component_name', 'celery_task_id', 'pipeline_run__id', 'pipeline_run__workspace__name', 'pipeline_run__triggered_by__username', 'pipeline_run__triggered_by__email')
-    readonly_fields = ('started_at', 'completed_at', 'execution_time')
+    readonly_fields = ('started_at', 'completed_at', 'execution_time', 'celery_task_id_display')
+
+    def changelist_view(self, request, extra_context=None):
+        from research_intelligence.utils.celery_liveness import get_active_celery_tasks_map
+        active_map, reserved_set, inspector_ok = get_active_celery_tasks_map(timeout=0.3)
+        self._celery_active_map = active_map
+        self._celery_reserved_set = reserved_set
+        self._celery_inspector_ok = inspector_ok
+        try:
+            return super().changelist_view(request, extra_context=extra_context)
+        finally:
+            self._celery_active_map = None
+            self._celery_reserved_set = None
+            self._celery_inspector_ok = None
+
+    def change_view(self, request, object_id, form_url='', extra_context=None):
+        from research_intelligence.utils.celery_liveness import get_active_celery_tasks_map
+        active_map, reserved_set, inspector_ok = get_active_celery_tasks_map(timeout=0.4)
+        self._celery_active_map = active_map
+        self._celery_reserved_set = reserved_set
+        self._celery_inspector_ok = inspector_ok
+        try:
+            return super().change_view(request, object_id, form_url=form_url, extra_context=extra_context)
+        finally:
+            self._celery_active_map = None
+            self._celery_reserved_set = None
+            self._celery_inspector_ok = None
+
+    def celery_task_id_display(self, obj):
+        from research_intelligence.utils.celery_liveness import check_task_liveness, render_celery_task_id_cell
+        active_map = getattr(self, '_celery_active_map', None) or {}
+        reserved_set = getattr(self, '_celery_reserved_set', None) or set()
+        inspector_ok = getattr(self, '_celery_inspector_ok', True)
+        if inspector_ok is None:
+            inspector_ok = True
+
+        duration = obj.duration_seconds or 0.0
+        liveness = check_task_liveness(
+            task_id=obj.celery_task_id,
+            component_status=obj.status,
+            active_map=active_map,
+            reserved_set=reserved_set,
+            inspector_ok=inspector_ok,
+            duration_seconds=duration,
+            metrics=obj.metrics,
+        )
+        return render_celery_task_id_cell(obj.celery_task_id, liveness)
+    celery_task_id_display.short_description = "Celery Task ID"
+    celery_task_id_display.admin_order_field = "celery_task_id"
 
     def triggered_by_display(self, obj):
         user = None
@@ -3476,10 +3538,73 @@ class ComponentRunAdmin(admin.ModelAdmin):
             'failed': '#dc3545',
             'aborted': '#495057',
         }
+        if obj.status == 'running':
+            from research_intelligence.utils.celery_liveness import check_task_liveness
+            active_map = getattr(self, '_celery_active_map', None) or {}
+            reserved_set = getattr(self, '_celery_reserved_set', None) or set()
+            inspector_ok = getattr(self, '_celery_inspector_ok', True)
+            if inspector_ok is None:
+                inspector_ok = True
+            liveness = check_task_liveness(
+                task_id=obj.celery_task_id,
+                component_status=obj.status,
+                active_map=active_map,
+                reserved_set=reserved_set,
+                inspector_ok=inspector_ok,
+                duration_seconds=obj.duration_seconds or 0.0,
+                metrics=obj.metrics,
+            )
+            if liveness.get('is_ghost'):
+                return render_badge('RUNNING (💀 GHOST)', '#dc3545', '#ffffff', title='Worker died or task is dropped!')
+
         return render_badge(obj.status.upper(), colors.get(obj.status, '#6c757d'))
     status_badge.short_description = "Status"
+    status_badge.admin_order_field = "status"
 
-    actions = ['rerun_from_this_component_step', 'reexecute_single_component_run', 'abort_selected_component_runs', 'reap_zombie_components_action']
+    actions = [
+        'rerun_from_this_component_step',
+        'reexecute_single_component_run',
+        'abort_selected_component_runs',
+        'reap_zombie_components_action',
+        'check_celery_liveness_action',
+        'mark_ghost_tasks_failed_action',
+    ]
+
+    @admin.action(description="🔍 Check Celery Worker Liveness for Selected Runs")
+    def check_celery_liveness_action(self, request, queryset):
+        from research_intelligence.utils.celery_liveness import get_active_celery_tasks_map, check_task_liveness
+        active_map, reserved_set, inspector_ok = get_active_celery_tasks_map(timeout=0.8)
+
+        messages_list = []
+        for comp in queryset[:15]:
+            liveness = check_task_liveness(
+                task_id=comp.celery_task_id,
+                component_status=comp.status,
+                active_map=active_map,
+                reserved_set=reserved_set,
+                inspector_ok=inspector_ok,
+                duration_seconds=comp.duration_seconds or 0.0,
+                metrics=comp.metrics,
+            )
+            short_id = str(comp.id)[:8]
+            short_task = (comp.celery_task_id[:13] + "...") if comp.celery_task_id else "no-task"
+            messages_list.append(f"[{short_id}] Task {short_task}: {liveness['badge_text']}")
+
+        msg_body = " | ".join(messages_list)
+        self.message_user(request, f"🔍 Celery Liveness Check ({len(messages_list)} runs): {msg_body}")
+
+    @admin.action(description="💀 Terminate Ghost / Dead Tasks (Mark FAILED)")
+    def mark_ghost_tasks_failed_action(self, request, queryset):
+        from django.utils import timezone
+        count = 0
+        now = timezone.now()
+        for comp in queryset.filter(status='running'):
+            comp.status = 'failed'
+            comp.completed_at = now
+            comp.error_message = f"Manually terminated by admin: Celery worker dropped task {comp.celery_task_id or 'unknown'}."
+            comp.save(update_fields=['status', 'completed_at', 'error_message'])
+            count += 1
+        self.message_user(request, f"💀 Marked {count} running task(s) as FAILED and closed execution timers.")
 
     @admin.action(description="🧟 Reap / Terminate Stale Zombie Tasks")
     def reap_zombie_components_action(self, request, queryset):

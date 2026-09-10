@@ -177,3 +177,79 @@ class QueueMonitorTestCase(TestCase):
         self.assertContains(resp, "celery")
         self.assertContains(resp, "redis-task-001")
         self.assertContains(resp, "execute_search_step")
+
+    def test_check_task_liveness_active_worker(self):
+        from research_intelligence.utils.celery_liveness import check_task_liveness
+        active_map = {"task-123": {"worker": "celery@node-1", "time_start": 100}}
+        res = check_task_liveness("task-123", "running", active_map=active_map)
+        self.assertEqual(res["state"], "ACTIVE")
+        self.assertTrue(res["is_alive"])
+        self.assertFalse(res["is_ghost"])
+        self.assertIn("node-1", res["badge_text"])
+
+    def test_check_task_liveness_ghost_task(self):
+        from research_intelligence.utils.celery_liveness import check_task_liveness
+        res = check_task_liveness(
+            "ghost-task-999",
+            "running",
+            active_map={},
+            reserved_set=set(),
+            inspector_ok=True,
+            duration_seconds=300.0,
+        )
+        self.assertEqual(res["state"], "GHOST")
+        self.assertFalse(res["is_alive"])
+        self.assertTrue(res["is_ghost"])
+        self.assertIn("NO WORKER / GHOST", res["badge_text"])
+
+    def test_component_run_changelist_ghost_detection(self):
+        self.client.force_login(self.staff_user)
+        now = timezone.now()
+        pipe = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Ghost Test Pipeline",
+            status="running",
+        )
+        comp = ComponentRun.objects.create(
+            pipeline_run=pipe,
+            component_name="abstract_screening",
+            step_type="screening",
+            status="running",
+            celery_task_id="dead-worker-task-777",
+        )
+        ComponentRun.objects.filter(id=comp.id).update(started_at=now - timedelta(minutes=10))
+
+        with patch("research_intelligence.utils.celery_liveness.get_active_celery_tasks_map") as mock_inspect:
+            mock_inspect.return_value = ({}, set(), True)
+            url = reverse("admin:research_intelligence_componentrun_changelist")
+            resp = self.client.get(url)
+
+            self.assertEqual(resp.status_code, 200)
+            self.assertContains(resp, "NO WORKER / GHOST")
+            self.assertContains(resp, "RUNNING (💀 GHOST)")
+
+    def test_mark_ghost_tasks_failed_action(self):
+        self.client.force_login(self.staff_user)
+        pipe = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Abort Ghost Pipeline",
+            status="running",
+        )
+        comp = ComponentRun.objects.create(
+            pipeline_run=pipe,
+            component_name="abstract_screening",
+            step_type="screening",
+            status="running",
+            celery_task_id="terminate-me-123",
+        )
+        url = reverse("admin:research_intelligence_componentrun_changelist")
+        data = {
+            "action": "mark_ghost_tasks_failed_action",
+            "_selected_action": [str(comp.id)],
+        }
+        resp = self.client.post(url, data, follow=True)
+        self.assertEqual(resp.status_code, 200)
+
+        comp.refresh_from_db()
+        self.assertEqual(comp.status, "failed")
+        self.assertIn("Manually terminated by admin", comp.error_message)
