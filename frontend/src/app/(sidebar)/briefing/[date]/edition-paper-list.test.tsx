@@ -136,3 +136,44 @@ describe('EditionPaperList Component Rendering', () => {
     expect(out).not.toContain('Starred')
   })
 })
+
+describe('EditionPaperList paging', () => {
+  const runId = '00000000-0000-4000-8000-000000000020'
+  const logHref = '/briefing/2026-09-09/run'
+  const many = Array.from({ length: 45 }, (_, i) =>
+    mockPaper(
+      `00000000-0000-4000-8000-0000000${String(i + 1).padStart(5, '0')}`,
+      `Paper ${i + 1}`,
+      100 - i,
+    ),
+  )
+
+  test('a briefing that fits on one page has no pager and the plain count', () => {
+    const out = renderToStaticMarkup(
+      <EditionPaperList papers={many.slice(0, 20)} runId={runId} logHref={logHref} />,
+    )
+    expect(out).toContain('20 papers')
+    expect(out).not.toContain('aria-label="Pagination"')
+  })
+
+  test('a large briefing mounts the first twenty cards, the range and the pager', () => {
+    const out = renderToStaticMarkup(
+      <EditionPaperList papers={many} runId={runId} logHref={logHref} />,
+    )
+    expect(out).toContain('1–20 of 45 papers')
+    expect(out).toContain('Paper 1</h3>')
+    expect(out).toContain('Paper 20</h3>')
+    expect(out).not.toContain('Paper 21</h3>')
+    expect(out).toContain('aria-label="Pagination"')
+    expect(out).toContain('aria-current="page"')
+    expect(out).toContain('Previous')
+    expect(out).toContain('Next')
+  })
+
+  test('the gallery (no router) still pages from its local view', () => {
+    const out = renderToStaticMarkup(
+      <EditionPaperList papers={many} runId={runId} logHref={logHref} syncUrl={false} />,
+    )
+    expect(out).toContain('1–20 of 45 papers')
+  })
+})

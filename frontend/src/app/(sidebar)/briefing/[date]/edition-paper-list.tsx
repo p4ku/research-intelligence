@@ -1,6 +1,7 @@
 'use client'
 
 import { FilterGroup, MinScoreSlider, OptionButton } from '@/components/filter-rail'
+import { PageNav } from '@/components/page-nav'
 import { PaperCard } from '@/components/paper-card'
 import { SectionLabel } from '@/components/scanner-ui'
 import { StarredChip } from '@/components/star'
@@ -12,11 +13,12 @@ import type { ScoredPaper } from '@/lib/papers/types'
 import { useStars } from '@/lib/stars-client'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import {
   applyView,
   DEFAULT_VIEW,
   isDefaultView,
+  pageOf,
   SCORE_CEILING,
   SCORE_STEP,
   searchWith,
@@ -36,11 +38,15 @@ import {
  * (`?run=`), so the page opens on the score and decision the card shows
  * rather than a later run's.
  *
- * The URL is the view: `?sort=` and `?score=` are read afresh every render
- * (never seeded from a prop — the App Router serves a Back from its cache
- * without a server render), and written with `replaceState` beside the
+ * The URL is the view: `?sort=`, `?score=` and `?page=` are read afresh every
+ * render (never seeded from a prop — the App Router serves a Back from its
+ * cache without a server render), and written with `replaceState` beside the
  * briefing's own `domain` and `run`. The gallery keeps local state via
  * `syncUrl={false}`.
+ *
+ * The list is cut into pages of PAGE_SIZE after the sort and the floor, so
+ * a large briefing (566 papers on prod) mounts twenty cards, not hundreds;
+ * a change of sort or floor starts again from the first page.
  */
 export function EditionPaperList({
   papers,
@@ -64,14 +70,17 @@ export function EditionPaperList({
   const asked = syncUrl && params ? viewFrom(Object.fromEntries(params)) : local
   const update = useCallback(
     (patch: Partial<EditionView>) => {
+      // A narrower or reordered list starts again from its first page: page
+      // three of one order is no place in another.
+      const change = 'page' in patch ? patch : { ...patch, page: 1 }
       if (!syncUrl) {
-        setLocal((v) => ({ ...v, ...patch }))
+        setLocal((v) => ({ ...v, ...change }))
         return
       }
       // From the address bar as it is now, so two writes inside one render
       // build on each other and the briefing's own params survive.
       const current = new URLSearchParams(window.location.search)
-      const next = { ...viewFrom(Object.fromEntries(current)), ...patch }
+      const next = { ...viewFrom(Object.fromEntries(current)), ...change }
       // No navigation: the App Router picks the query up from history and
       // `useSearchParams` re-renders.
       window.history.replaceState(
@@ -83,6 +92,18 @@ export function EditionPaperList({
     [syncUrl],
   )
 
+  // The pager sits under the last card, so a turned page would open at its
+  // foot: the section is brought back to the top of the viewport instead.
+  // Instant, not smooth — the cards have already changed under the reader.
+  const top = useRef<HTMLElement>(null)
+  const turnTo = useCallback(
+    (page: number) => {
+      update({ page })
+      top.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
+    },
+    [update],
+  )
+
   const starred = papers.filter((p) => isStarred('paper', p.id))
   // The effective filter, not the state: with the chip gone there would be no
   // way to clear it, so a flip taken mid-filter must show the whole edition.
@@ -92,16 +113,27 @@ export function EditionPaperList({
   // offer is the score's.
   const view = withKnownSort(asked, sorts)
   const shown = applyView(filtering ? starred : papers, view)
+  // The Starred chip is local state, so its flip cannot reset the URL's page
+  // the way the rail's changes do; pageOf folds a page past the end back.
+  const paged = pageOf(shown, view.page)
   const narrowed = view.minScore > 0
   const sortLabel = sorts.find((s) => s.id === view.sort)?.label ?? sorts[0]!.label
 
   return (
-    <section>
+    <section ref={top} className="scroll-mt-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <SectionLabel size="sm">{t('The papers')}</SectionLabel>
         <span className="flex flex-wrap items-baseline justify-end gap-x-4 gap-y-1">
           <span className="font-mono text-[11px] whitespace-nowrap text-zinc-400 tabular-nums dark:text-zinc-500">
-            {shown.length === 1 ? t('1 paper') : fmt(t('{n} papers'), { n: shown.length })}
+            {paged.pageCount > 1
+              ? fmt(t('{from}–{to} of {n} papers'), {
+                  from: paged.from,
+                  to: paged.to,
+                  n: shown.length,
+                })
+              : shown.length === 1
+                ? t('1 paper')
+                : fmt(t('{n} papers'), { n: shown.length })}
           </span>
           {stars && (
             <StarredChip
@@ -131,19 +163,29 @@ export function EditionPaperList({
         </span>
       </div>
       <div className="mt-5 grid gap-6 lg:grid-cols-3">
-        <div className="space-y-3 lg:col-span-2">
-          {shown.map((p) => (
-            <PaperCard key={p.id} paper={p} href={paperHref(p.id, { runId })} />
-          ))}
-          {shown.length === 0 && (
-            <div className="rounded-sm border border-dashed border-line p-10 text-center text-sm text-zinc-400">
-              {filtering && starred.length === 0
-                ? t('Nothing starred yet.')
-                : narrowed
-                  ? t('No papers match these filters.')
-                  : t('No papers are on file for this briefing.')}
-            </div>
-          )}
+        <div className="lg:col-span-2">
+          <div className="space-y-3">
+            {paged.rows.map((p) => (
+              <PaperCard key={p.id} paper={p} href={paperHref(p.id, { runId })} />
+            ))}
+            {shown.length === 0 && (
+              <div className="rounded-sm border border-dashed border-line p-10 text-center text-sm text-zinc-400">
+                {filtering && starred.length === 0
+                  ? t('Nothing starred yet.')
+                  : narrowed
+                    ? t('No papers match these filters.')
+                    : t('No papers are on file for this briefing.')}
+              </div>
+            )}
+          </div>
+          {/* Renders nothing for a single page, so a small briefing is unchanged. */}
+          <PageNav
+            page={paged.page}
+            pageCount={paged.pageCount}
+            onChange={turnTo}
+            className="mt-6"
+            labels={{ prev: t('Previous'), next: t('Next') }}
+          />
         </div>
 
         {/* The view's controls: below the cards on a phone, at their right on a desk. */}

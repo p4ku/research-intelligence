@@ -5,6 +5,8 @@ import {
   applyView,
   DEFAULT_VIEW,
   isDefaultView,
+  PAGE_SIZE,
+  pageOf,
   searchWith,
   sortOptions,
   viewFrom,
@@ -61,6 +63,7 @@ describe('viewFrom', () => {
     expect(viewFrom({ sort: ['published', 'score'], score: '60' })).toEqual({
       sort: 'published',
       minScore: 60,
+      page: 1,
     })
     expect(viewFrom({ sort: 'dim:rigour' }).sort).toBe('dim:rigour')
     expect(viewFrom({ sort: 'dim:technology_readiness_level_(trl)' }).sort).toBe(
@@ -78,7 +81,7 @@ describe('searchWith', () => {
   })
 
   test('writes the view beside them', () => {
-    expect(searchWith('run=r1', { sort: 'dim:rigour', minScore: 55 })).toBe(
+    expect(searchWith('run=r1', { sort: 'dim:rigour', minScore: 55, page: 1 })).toBe(
       '?run=r1&sort=dim%3Arigour&score=55',
     )
   })
@@ -113,7 +116,7 @@ describe('applyView', () => {
   })
 
   test('by publication date, newest first, undated last', () => {
-    expect(ids(applyView([a, b, c, d], { sort: 'published', minScore: 0 }))).toEqual([
+    expect(ids(applyView([a, b, c, d], { sort: 'published', minScore: 0, page: 1 }))).toEqual([
       'c',
       'a',
       'd',
@@ -122,7 +125,7 @@ describe('applyView', () => {
   })
 
   test('by a dimension, nulls and papers without it last', () => {
-    expect(ids(applyView([a, b, c, d], { sort: 'dim:rigour', minScore: 0 }))).toEqual([
+    expect(ids(applyView([a, b, c, d], { sort: 'dim:rigour', minScore: 0, page: 1 }))).toEqual([
       'b',
       'a',
       'c',
@@ -131,8 +134,15 @@ describe('applyView', () => {
   })
 
   test('the floor keeps scores at or above it and drops the unscored', () => {
-    expect(ids(applyView([a, b, c, d], { sort: 'score', minScore: 70 }))).toEqual(['b', 'd', 'a'])
-    expect(ids(applyView([a, b, c, d], { sort: 'score', minScore: 75 }))).toEqual(['b', 'd'])
+    expect(ids(applyView([a, b, c, d], { sort: 'score', minScore: 70, page: 1 }))).toEqual([
+      'b',
+      'd',
+      'a',
+    ])
+    expect(ids(applyView([a, b, c, d], { sort: 'score', minScore: 75, page: 1 }))).toEqual([
+      'b',
+      'd',
+    ])
   })
 
   test('the floor and the order read the exact score, not the whole number the card prints', () => {
@@ -140,8 +150,11 @@ describe('applyView', () => {
     // and the higher of the two leads the list.
     const just = paper('just', 74.6, null, [])
     const over = paper('over', 75.4, null, [])
-    expect(ids(applyView([just, over], { sort: 'score', minScore: 75 }))).toEqual(['over'])
-    expect(ids(applyView([just, over], { sort: 'score', minScore: 0 }))).toEqual(['over', 'just'])
+    expect(ids(applyView([just, over], { sort: 'score', minScore: 75, page: 1 }))).toEqual(['over'])
+    expect(ids(applyView([just, over], { sort: 'score', minScore: 0, page: 1 }))).toEqual([
+      'over',
+      'just',
+    ])
   })
 
   test('does not reorder the input', () => {
@@ -168,17 +181,68 @@ describe('review follow-ups', () => {
 
   test('a sort the papers cannot honour falls back to the score, keeping the floor', () => {
     const options = sortOptions([a, b], t)
-    expect(withKnownSort({ sort: 'dim:nope', minScore: 10 }, options)).toEqual({
+    expect(withKnownSort({ sort: 'dim:nope', minScore: 10, page: 1 }, options)).toEqual({
       sort: 'score',
       minScore: 10,
+      page: 1,
     })
-    expect(withKnownSort({ sort: 'dim:rigour', minScore: 0 }, options).sort).toBe('dim:rigour')
+    expect(withKnownSort({ sort: 'dim:rigour', minScore: 0, page: 1 }, options).sort).toBe(
+      'dim:rigour',
+    )
   })
 
   test('a missing publication date sorts like no date, whatever the input order', () => {
     const u = { ...paper('u', 50, null), published_date: undefined } as unknown as ScoredPaper
-    const view = { sort: 'published', minScore: 0 }
+    const view = { sort: 'published', minScore: 0, page: 1 }
     expect(ids(applyView([u, c, a], view))).toEqual(['c', 'a', 'u'])
     expect(ids(applyView([a, c, u], view))).toEqual(['c', 'a', 'u'])
+  })
+})
+
+describe('page in the view', () => {
+  test('viewFrom reads a positive integer page and defaults anything else to 1', () => {
+    expect(viewFrom({ page: '3' }).page).toBe(3)
+    expect(viewFrom({}).page).toBe(1)
+    expect(viewFrom({ page: '0' }).page).toBe(1)
+    expect(viewFrom({ page: '-2' }).page).toBe(1)
+    expect(viewFrom({ page: '2.5' }).page).toBe(1)
+    expect(viewFrom({ page: 'two' }).page).toBe(1)
+    expect(viewFrom({ page: ['4', '9'] }).page).toBe(4)
+  })
+
+  test('searchWith writes the page past the first and drops it on the first', () => {
+    expect(searchWith('domain=w&run=r', { ...DEFAULT_VIEW, page: 3 })).toBe(
+      '?domain=w&run=r&page=3',
+    )
+    expect(searchWith('domain=w&page=3', { ...DEFAULT_VIEW, page: 1 })).toBe('?domain=w')
+    expect(searchWith('page=2', DEFAULT_VIEW)).toBe('')
+  })
+
+  test('the page is not a filter: page three of the default view is still the default', () => {
+    expect(isDefaultView({ ...DEFAULT_VIEW, page: 3 })).toBe(true)
+  })
+})
+
+describe('pageOf', () => {
+  const rows = Array.from({ length: 45 }, (_, i) => i + 1)
+
+  test('cuts PAGE_SIZE rows per page and reports the range shown', () => {
+    expect(PAGE_SIZE).toBe(20)
+    const first = pageOf(rows, 1)
+    expect(first.rows).toEqual(rows.slice(0, 20))
+    expect(first).toMatchObject({ page: 1, pageCount: 3, from: 1, to: 20 })
+    const last = pageOf(rows, 3)
+    expect(last.rows).toEqual([41, 42, 43, 44, 45])
+    expect(last).toMatchObject({ page: 3, pageCount: 3, from: 41, to: 45 })
+  })
+
+  test('a page past the end folds back onto the last; below one onto the first', () => {
+    expect(pageOf(rows, 9)).toMatchObject({ page: 3, from: 41, to: 45 })
+    expect(pageOf(rows, 0)).toMatchObject({ page: 1, from: 1, to: 20 })
+  })
+
+  test('a list that fits is one page, and an empty list is one empty page', () => {
+    expect(pageOf(rows.slice(0, 20), 2)).toMatchObject({ page: 1, pageCount: 1, from: 1, to: 20 })
+    expect(pageOf([], 4)).toEqual({ rows: [], page: 1, pageCount: 1, from: 0, to: 0 })
   })
 })

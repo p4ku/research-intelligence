@@ -126,10 +126,13 @@ export function EditionPapersSkeleton({
           </span>
         </div>
         <div className="mt-5 grid gap-6 lg:grid-cols-3">
-          <div className="space-y-3 lg:col-span-2">
-            {Array.from({ length: cards }, (_, i) => (
-              <PaperCardSkeleton key={i} />
-            ))}
+          {/* The cards' column; the loaded list adds its pager under the stack. */}
+          <div className="lg:col-span-2">
+            <div className="space-y-3">
+              {Array.from({ length: cards }, (_, i) => (
+                <PaperCardSkeleton key={i} />
+              ))}
+            </div>
           </div>
           {/* The view's rail: the two labels are known, the options are not. */}
           <aside className="divide-y divide-line lg:col-span-1">

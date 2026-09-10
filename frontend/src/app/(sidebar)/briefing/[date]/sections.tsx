@@ -16,6 +16,7 @@ import { cache } from 'react'
 import { formatDay } from '../../dashboard/format'
 import { editionHref, formatEditionDate } from '../format'
 import { hasBriefing } from '../rows'
+import { cardRows } from './card-rows'
 import { EditionPaperList } from './edition-paper-list'
 
 /**
@@ -279,9 +280,11 @@ export async function EditionPapers({
     }
   }
 
+  // Trimmed to what a card shows before crossing to the client: the rows as
+  // read weigh ~21 KB each (card-rows.ts).
   return (
     <EditionPaperList
-      papers={cards}
+      papers={cardRows(cards)}
       runId={edition.run_id}
       logHref={editionHref(edition.date, edition.workspace_id, {
         runId: edition.run_id,
