@@ -376,6 +376,9 @@ def adapt_affiliation_data(fields_data: dict) -> Optional[dict]:
         "schwarz_affiliation",
     ])
     gdpr_concerns = _resolve_candidate_field(data, [
+        "compliance_risks",
+        "compliance_risk",
+        "compliance",
         "gdpr_concerns",
         "gdpr_concern",
         "gdpr_sovereignty",
@@ -392,18 +395,11 @@ def adapt_affiliation_data(fields_data: dict) -> Optional[dict]:
     risk_assessment = _resolve_candidate_field(data, ["risk_score_assessment", "risk_assessment"])
 
     # Format badges/flags for frontend
+    # Ordered per UX requirements:
+    # 1. Schwarz Ecosystem
+    # 2. Competitor Involvement
+    # 3. Compliance Risks
     flags = []
-    if gdpr_concerns is not None:
-        val_str, is_pos, _, is_d, p_dict = unpack_flag_value(gdpr_concerns, "gdpr")
-        flags.append({
-            "key": "gdpr",
-            "label": "GDPR Sovereignty",
-            "value": val_str,
-            "status": "warn" if is_pos else "safe",
-            "type": "dict" if is_d else "string",
-            "is_dict": is_d,
-            "dict_value": p_dict if is_d else None,
-        })
     if schwarz_ecosystem is not None:
         val_str, is_pos, items, is_d, p_dict = unpack_flag_value(schwarz_ecosystem, "schwarz")
         flags.append({
@@ -422,6 +418,17 @@ def adapt_affiliation_data(fields_data: dict) -> Optional[dict]:
         flags.append({
             "key": "competitor",
             "label": "Competitor Involvement",
+            "value": val_str,
+            "status": "warn" if is_pos else "safe",
+            "type": "dict" if is_d else "string",
+            "is_dict": is_d,
+            "dict_value": p_dict if is_d else None,
+        })
+    if gdpr_concerns is not None:
+        val_str, is_pos, _, is_d, p_dict = unpack_flag_value(gdpr_concerns, "gdpr")
+        flags.append({
+            "key": "gdpr",
+            "label": "Compliance Risks",
             "value": val_str,
             "status": "warn" if is_pos else "safe",
             "type": "dict" if is_d else "string",

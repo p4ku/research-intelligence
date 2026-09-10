@@ -67,28 +67,36 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     expect(out).toContain('DFG Grant #12345; Horizon Europe')
   })
 
-  test('renders risk flags with matching status styling: safe (emerald), warn (amber), highlight (sky), neutral (zinc)', () => {
+  test('renders risk flags with matching status styling and sorted in canonical order: Schwarz Ecosystem, Competitor Involvement, Compliance Risks', () => {
     const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={fullRiskData} />)
 
-    // Safe flag (emerald)
-    expect(out).toContain('GDPR Sovereignty:')
-    expect(out).toContain('Compliant (EU only)')
-    expect(out).toContain('text-emerald-700')
-
-    // Warn flag (amber)
-    expect(out).toContain('Competitor Involvement:')
-    expect(out).toContain('High proprietary overlap')
-    expect(out).toContain('text-amber-800')
-
-    // Highlight flag (sky)
+    // Highlight flag (sky) - 1st
     expect(out).toContain('Schwarz Ecosystem:')
     expect(out).toContain('Aligned with STACKIT')
     expect(out).toContain('text-sky-700')
 
-    // Neutral flag (zinc)
+    // Warn flag (amber) - 2nd
+    expect(out).toContain('Competitor Involvement:')
+    expect(out).toContain('High proprietary overlap')
+    expect(out).toContain('text-amber-800')
+
+    // Safe flag (emerald) - 3rd (GDPR Sovereignty normalized to Compliance Risks)
+    expect(out).toContain('Compliance Risks:')
+    expect(out).toContain('Compliant (EU only)')
+    expect(out).toContain('text-emerald-700')
+
+    // Neutral flag (zinc) - 4th
     expect(out).toContain('Export Control:')
     expect(out).toContain('Dual-use check pending')
     expect(out).toContain('text-zinc-600')
+
+    // Verify exact display order
+    const ecoIdx = out.indexOf('Schwarz Ecosystem:')
+    const compIdx = out.indexOf('Competitor Involvement:')
+    const complianceIdx = out.indexOf('Compliance Risks:')
+    expect(ecoIdx).toBeGreaterThan(-1)
+    expect(compIdx).toBeGreaterThan(ecoIdx)
+    expect(complianceIdx).toBeGreaterThan(compIdx)
   })
 
   test('renders risk score and assessment description', () => {
@@ -280,8 +288,8 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
       'European Research Council (ERC); Bavarian State Ministry of Science and Arts; Federal Ministry of Education and Research (BMBF)',
     )
 
-    // 5. Sovereignty & Risk flags
-    expect(out).toContain('GDPR Sovereignty:')
+    // 5. Sovereignty & Risk flags (displayed in order: Schwarz Ecosystem, Competitor Involvement, Compliance Risks)
+    expect(out).toContain('Compliance Risks:')
     expect(out).toContain('NO')
     expect(out).toContain('text-emerald-700')
 
@@ -292,6 +300,12 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     expect(out).toContain('Competitor Involvement:')
     expect(out).toContain('None')
     expect(out).toContain('text-emerald-700')
+
+    const ecoIdx = out.indexOf('Schwarz Ecosystem:')
+    const compIdx = out.indexOf('Competitor Involvement:')
+    const compRisksIdx = out.indexOf('Compliance Risks:')
+    expect(ecoIdx).toBeLessThan(compIdx)
+    expect(compIdx).toBeLessThan(compRisksIdx)
   })
 
   test('renders cleanly when only affiliations exist (no contacts, funding, links, flags)', () => {
@@ -357,7 +371,7 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
       ],
     }
     const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={brokenFlagRisk} />)
-    expect(out).toContain('GDPR Sovereignty:')
+    expect(out).toContain('Compliance Risks:')
     expect(out).toContain('text-emerald-700')
   })
 

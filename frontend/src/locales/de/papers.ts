@@ -167,6 +167,7 @@ export const dict: Record<string, string> = {
   'Email {contact}': 'E-Mail an {contact}',
   'Funding: ': 'Förderung: ',
   'Risk Score:': 'Risiko-Score:',
+  'Compliance Risks': 'Compliance-Risiken',
   YES: 'JA',
   NO: 'NEIN',
   None: 'Keine',

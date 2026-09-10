@@ -178,12 +178,6 @@ const mockRawPaperPayload = {
     risk_score_assessment: 'Low overall risk',
     flags: [
       {
-        key: 'gdpr',
-        label: 'GDPR Sovereignty',
-        value: 'no',
-        status: 'safe',
-      },
-      {
         key: 'schwarz_ecosystem',
         label: 'Schwarz Ecosystem',
         value: 'no',
@@ -193,6 +187,12 @@ const mockRawPaperPayload = {
         key: 'competitor',
         label: 'Competitor Involvement',
         value: 'none',
+        status: 'safe',
+      },
+      {
+        key: 'gdpr',
+        label: 'Compliance Risks',
+        value: 'no',
         status: 'safe',
       },
     ],
@@ -290,9 +290,17 @@ describe('Scorecard data flow through stack contracts', () => {
     expect(risk.risk_score_assessment).toBe('Low overall risk')
 
     expect(risk.flags).toHaveLength(3)
-    const gdprFlag = riskFlag.parse(risk.flags[0])
-    expect(gdprFlag.label).toBe('GDPR Sovereignty')
-    expect(gdprFlag.status).toBe('safe')
+    const ecoFlag = riskFlag.parse(risk.flags[0])
+    expect(ecoFlag.label).toBe('Schwarz Ecosystem')
+    expect(ecoFlag.status).toBe('neutral')
+
+    const compFlag = riskFlag.parse(risk.flags[1])
+    expect(compFlag.label).toBe('Competitor Involvement')
+    expect(compFlag.status).toBe('safe')
+
+    const complianceFlag = riskFlag.parse(risk.flags[2])
+    expect(complianceFlag.label).toBe('Compliance Risks')
+    expect(complianceFlag.status).toBe('safe')
   })
 
   test('workspaceScorecardResponse validates workspace and list of scored papers', () => {

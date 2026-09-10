@@ -85,7 +85,7 @@ describe('PaperHeader Component Rendering', () => {
     expect(out).toContain('University of Edinburgh · TU Munich')
     expect(out).toContain('href="mailto:alex.rice@ed.ac.uk"')
     expect(out).toContain('https://github.com/hybrid-quantum/dynamic-ir')
-    expect(out).toContain('GDPR Sovereignty:')
+    expect(out).toContain('Compliance Risks:')
   })
 
   test('renders star toggle when stars feature flag is enabled', () => {
@@ -218,7 +218,7 @@ describe('PaperHeader Component Rendering', () => {
     )
 
     // Flags
-    expect(out).toContain('GDPR Sovereignty')
+    expect(out).toContain('Compliance Risks')
     expect(out).toContain('Schwarz Ecosystem')
     expect(out).toContain('YES (TUM)')
   })

@@ -12,6 +12,43 @@ import {
 } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 
+export function normalizeFlagLabel(label: string, key?: string, t: T = (s) => s): string {
+  const l = (label || '').trim().toLowerCase()
+  const k = (key || '').trim().toLowerCase()
+  if (
+    l === 'gdpr sovereignty' ||
+    l === 'gdpr soverignity' ||
+    l === 'gdpr' ||
+    k === 'gdpr' ||
+    k === 'compliance_risks' ||
+    k === 'compliance'
+  ) {
+    return t('Compliance Risks')
+  }
+  return label
+}
+
+const FLAG_ORDER: Record<string, number> = {
+  schwarz_ecosystem: 1,
+  schwarz: 1,
+  competitor: 2,
+  competitor_involvement: 2,
+  compliance_risks: 3,
+  compliance: 3,
+  gdpr: 3,
+  gdpr_sovereignty: 3,
+}
+
+export function getFlagSortOrder(flag: RiskFlag): number {
+  const k = (flag.key || '').trim().toLowerCase()
+  if (k in FLAG_ORDER) return FLAG_ORDER[k]
+  const l = (flag.label || '').trim().toLowerCase()
+  if (l.includes('schwarz') || l.includes('ecosystem')) return 1
+  if (l.includes('competitor')) return 2
+  if (l.includes('compliance') || l.includes('gdpr')) return 3
+  return 99
+}
+
 // The verdicts this file writes itself (never backend prose), so they are
 // translated; `t` defaults to identity for the unit tests that call the
 // unpacker directly.
@@ -21,10 +58,11 @@ export function unpackFlag(
 ): { label: string; value: string; status: string } {
   let val = flag.value
   let status = flag.status
+  const label = normalizeFlagLabel(flag.label, flag.key, t)
 
   // If already a clean string that isn't serialized JSON, return immediately
   if (typeof val === 'string' && !val.trim().startsWith('{')) {
-    return { label: flag.label, value: val, status }
+    return { label, value: val, status }
   }
 
   let parsed: Record<string, unknown> | null = null
@@ -91,7 +129,7 @@ export function unpackFlag(
     }
   }
 
-  return { label: flag.label, value: typeof val === 'string' ? val : String(val ?? '—'), status }
+  return { label, value: typeof val === 'string' ? val : String(val ?? '—'), status }
 }
 
 export function RiskAffiliationFlagging({
@@ -114,6 +152,10 @@ export function RiskAffiliationFlagging({
   if (!hasAffiliations && !hasContacts && !hasFunding && !hasLink && !hasFlags) {
     return null
   }
+
+  const sortedFlags = hasFlags
+    ? [...risk.flags].sort((a, b) => getFlagSortOrder(a) - getFlagSortOrder(b))
+    : []
 
   return (
     <div
@@ -190,9 +232,9 @@ export function RiskAffiliationFlagging({
       )}
 
       {/* 3. Risk and Ecosystem Badges / Flags */}
-      {hasFlags && (
+      {sortedFlags.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 pt-0.5">
-          {risk.flags.map((rawFlag) => {
+          {sortedFlags.map((rawFlag) => {
             const flag = unpackFlag(rawFlag, t)
             const isSafe = flag.status === 'safe'
             const isWarn = flag.status === 'warn'
