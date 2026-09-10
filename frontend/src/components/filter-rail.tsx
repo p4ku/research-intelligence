@@ -1,5 +1,6 @@
 'use client'
 
+import { SCORE_STEP } from '@/lib/papers/score'
 import { ChevronDownIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import { useState, type ReactNode } from 'react'
@@ -135,7 +136,7 @@ function OptionButtonSkeleton() {
 export function MinScoreSlider({
   value,
   ceiling,
-  step = 5,
+  step = SCORE_STEP,
   onChange,
   labels,
 }: {
@@ -162,7 +163,12 @@ export function MinScoreSlider({
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}
         className="rs-slider"
-        style={{ '--fill': `${(value / ceiling) * 100}%` } as React.CSSProperties}
+        // A floor above the ceiling would paint the track past its end.
+        style={
+          {
+            '--fill': `${Math.min(100, (value / ceiling) * 100)}%`,
+          } as React.CSSProperties
+        }
       />
       <div className="mt-1.5 flex justify-between text-xs text-zinc-400">
         <span>{labels.low}</span>

@@ -64,6 +64,39 @@ describe('PaperCard', () => {
     expect(order(reranked)).toEqual([...order(reranked)].sort((a, b) => a - b))
   })
 
+  // One rounding rule (10 Sep 2026): the strip and the ring print whole
+  // numbers, and the ring's colour still reads the exact stored value.
+  test('rounds a long float in the strip to a whole number', () => {
+    const messy = {
+      ...paper,
+      dimensions: paper.dimensions!.map((d) =>
+        d.key === 'fit_score' ? { ...d, value: 61.666666666666664, raw: '61.666666666666664' } : d,
+      ),
+    }
+    const html = renderToStaticMarkup(<PaperCard paper={messy} />)
+    expect(html).toContain('>62</span>')
+    expect(html).not.toContain('61.66')
+  })
+
+  test('a score just under the band prints rounded up but keeps the warn colour', () => {
+    const html = renderToStaticMarkup(<PaperCard paper={{ ...paper, signal_score: 74.6 }} />)
+    expect(html).toContain('>75</span>')
+    expect(html).toContain('stroke="var(--warn)"')
+    expect(html).not.toContain('stroke="var(--accent)"')
+  })
+
+  test('an unscored paper reads as a dash, not a number', () => {
+    const html = renderToStaticMarkup(<PaperCard paper={{ ...paper, signal_score: null }} />)
+    expect(html).toContain('>—</span>')
+    expect(html).toContain('Unscored')
+  })
+
+  test('the ceiling prints whole', () => {
+    const html = renderToStaticMarkup(<PaperCard paper={{ ...paper, signal_score: 100 }} />)
+    expect(html).toContain('>100</span>')
+    expect(html).toContain('stroke="var(--accent)"')
+  })
+
   test('names the domain in the meta row only when given one', () => {
     expect(out).not.toContain('Hybrid Computing')
     const withDomain = renderToStaticMarkup(<PaperCard paper={paper} domain="Hybrid Computing" />)

@@ -1,7 +1,8 @@
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { Sparkline } from '@/components/charts'
 import { Bone } from '@/components/skeleton'
-import { formatNumber, type Lang, type T } from '@/lib/i18n'
+import { type Lang, type T } from '@/lib/i18n'
+import { formatMeasure, formatScore } from '@/lib/papers/select'
 import type { Dimension, ScreeningStatus } from '@/lib/papers/types'
 import { ArrowDownIcon, ArrowRightIcon, ExclamationTriangleIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
@@ -508,7 +509,6 @@ export function TrlBadge({ trl, t = (s) => s }: { trl: number; t?: T }) {
 export function SignalScore({
   score,
   size = 'md',
-  lang = 'en',
 }: {
   score: number | null
   size?: 'sm' | 'md' | 'lg'
@@ -519,31 +519,17 @@ export function SignalScore({
   const stroke = size === 'lg' ? 5 : 4
   const r = (dims - stroke) / 2
   const c = 2 * Math.PI * r
-  // The ring assumes 0–100; the workspace formula may return anything, so
-  // clamp the arc and print the number as it is.
+  // The seam caps the score at 100, so the arc only has to keep a negative
+  // formula off the ring; the ring prints the whole number.
   const pct = score === null ? 0 : Math.max(0, Math.min(100, score)) / 100
   // Score color: high = accent (signal strength), mid = Zitrus, low = neutral.
-  const color =
-    score !== null && score >= 75
-      ? 'var(--accent)'
-      : score !== null && score >= 55
-        ? 'var(--warn)'
-        : '#9a9a90'
+  const color = scoreColor(score)
   const fontSize = size === 'lg' ? 20 : size === 'md' ? 15 : 12
-  const label =
-    score === null
-      ? '—'
-      : Number.isInteger(score)
-        ? formatNumber(score, lang)
-        : formatNumber(score, lang, 1)
+  const label = formatScore(score)
   return (
     <div
       className="relative inline-flex items-center justify-center"
       style={{ width: dims, height: dims }}
-      // The ring rounds to one decimal; the tooltip is where the unrounded
-      // figure lives, so it must not round in turn (formatNumber's default
-      // ceiling is three digits).
-      title={score === null ? undefined : formatNumber(score, lang, undefined, 6)}
     >
       <svg width={dims} height={dims} className="-rotate-90">
         <circle
@@ -661,12 +647,9 @@ export function ScoreRow({
 }) {
   const hasBar = value !== null && max !== null && max > 0
   const pct = hasBar ? Math.max(0, Math.min(100, (value / max) * 100)) : 0
-  const shown =
-    value === null
-      ? (raw ?? '—')
-      : Number.isInteger(value)
-        ? String(value)
-        : (Math.round(value * 100) / 100).toString()
+  // No lang prop here, and none of the callers pass one: the figures this row
+  // prints are whole numbers under a thousand, which read the same either way.
+  const shown = value === null ? (raw ?? '—') : formatMeasure(value, max, 'en')
   return (
     <ScoreRowFrame
       label={label}
@@ -804,8 +787,9 @@ export function ScreeningPill({
 /** The threshold colour a score reads in: accent, warn, or neutral. */
 export function scoreColor(score: number | null): string {
   if (score === null) return '#9a9a90'
-  const rounded = Math.round(score)
-  return rounded >= 75 ? 'var(--accent)' : rounded >= 55 ? 'var(--warn)' : '#9a9a90'
+  // The exact stored value decides the band, never the printed one: 74.96
+  // reads "75" and still sits in warn.
+  return score >= 75 ? 'var(--accent)' : score >= 55 ? 'var(--warn)' : '#9a9a90'
 }
 
 export const MINI_SCORE =
@@ -817,7 +801,7 @@ export function MiniScore({ score }: { score: number | null }) {
   return (
     <span className={MINI_SCORE}>
       <span className="size-1.5 rounded-full" style={{ backgroundColor: scoreColor(score) }} />
-      {Math.round(score)}
+      {formatScore(score)}
     </span>
   )
 }
