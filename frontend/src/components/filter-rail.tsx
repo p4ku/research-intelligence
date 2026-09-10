@@ -102,6 +102,7 @@ export function OptionButton({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={clsx(
         'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm',
         active

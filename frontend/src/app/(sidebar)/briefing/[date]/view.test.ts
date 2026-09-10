@@ -1,7 +1,15 @@
 import { fixturePapers } from '@/lib/bff/papers/fixtures'
 import type { Dimension, ScoredPaper } from '@/lib/papers/types'
 import { describe, expect, test } from 'bun:test'
-import { applyView, DEFAULT_VIEW, isDefaultView, searchWith, sortOptions, viewFrom } from './view'
+import {
+  applyView,
+  DEFAULT_VIEW,
+  isDefaultView,
+  searchWith,
+  sortOptions,
+  viewFrom,
+  withKnownSort,
+} from './view'
 
 const t = (s: string) => s
 
@@ -40,7 +48,8 @@ const d = paper('d', 90, '2026-08-20', [
 describe('viewFrom', () => {
   test('defaults on a bare permalink and on junk', () => {
     expect(viewFrom({})).toEqual(DEFAULT_VIEW)
-    expect(viewFrom({ sort: 'dim:Rigour!', score: '-5' })).toEqual(DEFAULT_VIEW)
+    expect(viewFrom({ sort: 'dim:', score: '-5' })).toEqual(DEFAULT_VIEW)
+    expect(viewFrom({ score: '57' })).toEqual(DEFAULT_VIEW)
     expect(viewFrom({ score: '500' })).toEqual(DEFAULT_VIEW)
     expect(isDefaultView(viewFrom({}))).toBe(true)
   })
@@ -82,6 +91,12 @@ describe('sortOptions', () => {
     ])
   })
 
+  test('the date is offered only when some paper carries one', () => {
+    const undated = [b, paper('e', 40, null, [dim('rigour', 10, { order: 1 })])]
+    expect(sortOptions(undated, t).map((s) => s.id)).toEqual(['score', 'dim:rigour'])
+    expect(sortOptions([...undated, c], t).map((s) => s.id)).toContain('published')
+  })
+
   test('a dimension nobody scored, and the affiliation flags, are not offered', () => {
     expect(sortOptions([c, d], t).map((s) => s.id)).toEqual(['score', 'published'])
   })
@@ -121,5 +136,37 @@ describe('applyView', () => {
     const input = [a, b, c]
     applyView(input, DEFAULT_VIEW)
     expect(ids(input)).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('review follow-ups', () => {
+  const ids = (ps: ScoredPaper[]) => ps.map((p) => p.id)
+
+  test('every key the rail offers reads back from the URL', () => {
+    const odd = paper('odd', 60, null, [
+      dim('sovereign_cloud_&_commercial_viability', 70, { order: 0 }),
+      dim('cost/benefit', 50, { order: 1 }),
+      dim('marktreife_für_europa', 40, { order: 2 }),
+      dim("founder's_fit", 30, { order: 3 }),
+    ])
+    const offered = sortOptions([odd], t).map((o) => o.id)
+    expect(offered).toHaveLength(5)
+    for (const id of offered) expect(viewFrom({ sort: id }).sort).toBe(id)
+  })
+
+  test('a sort the papers cannot honour falls back to the score, keeping the floor', () => {
+    const options = sortOptions([a, b], t)
+    expect(withKnownSort({ sort: 'dim:nope', minScore: 10 }, options)).toEqual({
+      sort: 'score',
+      minScore: 10,
+    })
+    expect(withKnownSort({ sort: 'dim:rigour', minScore: 0 }, options).sort).toBe('dim:rigour')
+  })
+
+  test('a missing publication date sorts like no date, whatever the input order', () => {
+    const u = { ...paper('u', 50, null), published_date: undefined } as unknown as ScoredPaper
+    const view = { sort: 'published', minScore: 0 }
+    expect(ids(applyView([u, c, a], view))).toEqual(['c', 'a', 'u'])
+    expect(ids(applyView([a, c, u], view))).toEqual(['c', 'a', 'u'])
   })
 })

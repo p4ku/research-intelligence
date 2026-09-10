@@ -5,6 +5,7 @@ import type { Edition } from '@/lib/bff/briefings/schema'
 import { byNewest } from '@/lib/bff/briefings/select'
 import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
+import { problemResult } from '@/lib/bff/core/result'
 import { papers as papersService } from '@/lib/bff/papers/service'
 import type { Features } from '@/lib/features'
 import { fmt, type Lang, type T } from '@/lib/i18n'
@@ -245,25 +246,32 @@ export function SameDayNotice({
 }
 
 /**
- * The edition's rows with their scored dimensions. The editions endpoint
- * sends each paper with `dimensions: []` (seen on prod, 10 Sep 2026), which
- * leaves the cards without their TRL chip and the view rail without a
- * dimension to sort by. When every row arrives thin, the run's scorecard —
- * the read the fallback path below already makes — fills them in by id; the
- * edition's own score and decision stay. A failed scorecard read is no
- * enrichment, never a failed page.
+ * The edition's rows with what the editions endpoint leaves out. It sends
+ * each paper with `dimensions: []` and `published_date: null` (backend
+ * `workspaces.py`, seen on prod 10 Sep 2026), which leaves the cards without
+ * their TRL chip and the view rail without a dimension or a date to sort by.
+ * When every row lacks either, the run's scorecard — the read the fallback
+ * path below already makes — fills them in by id; a row keeps whatever it
+ * did carry, and the edition's own score and decision stay. A failed scorecard read is no
+ * enrichment, never a failed page: the problem is logged, and a 401 still
+ * signs the reader out (`problemResult` under `forPage`).
  */
-async function withDimensions(rows: ScoredPaper[], edition: Edition): Promise<ScoredPaper[]> {
-  if (rows.some((p) => (p.dimensions ?? []).length > 0)) return rows
-  const scored = await papersService.listRun(edition.workspace_id, edition.run_id).catch(() => [])
-  if (scored.length === 0) return rows
-  const byId = new Map(scored.map((p) => [p.id, p]))
+async function withScorecard(rows: ScoredPaper[], edition: Edition): Promise<ScoredPaper[]> {
+  const thin = rows.every((p) => (p.dimensions ?? []).length === 0)
+  const undated = rows.every((p) => !p.published_date)
+  if (rows.length === 0 || (!thin && !undated)) return rows
+  const read = await forPage(
+    problemResult(papersService.listRun(edition.workspace_id, edition.run_id)),
+  )
+  if (!read.ok || read.value.length === 0) return rows
+  const byId = new Map(read.value.map((p) => [p.id, p]))
   return rows.map((p) => {
     const full = byId.get(p.id)
     if (!full) return p
     return {
       ...p,
-      dimensions: full.dimensions,
+      dimensions: (p.dimensions ?? []).length > 0 ? p.dimensions : full.dimensions,
+      published_date: p.published_date || full.published_date || null,
       risk_and_affiliation: p.risk_and_affiliation ?? full.risk_and_affiliation,
       summary: p.summary ?? full.summary,
     }
@@ -289,7 +297,7 @@ export async function EditionPapers({
   // use them directly; otherwise resolve run rows via papersService as fallback.
   let cards: ScoredPaper[]
   if (edition.papers.length > 0 && edition.papers[0]?.workspace_id) {
-    cards = await withDimensions(edition.papers as unknown as ScoredPaper[], edition)
+    cards = await withScorecard(edition.papers as unknown as ScoredPaper[], edition)
   } else {
     const scored = await forPage(papersService.listRun(edition.workspace_id, edition.run_id))
     const byId = new Map(scored.map((p) => [p.id, p]))

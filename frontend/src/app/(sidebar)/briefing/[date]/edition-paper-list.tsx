@@ -22,6 +22,7 @@ import {
   searchWith,
   sortOptions,
   viewFrom,
+  withKnownSort,
   type EditionView,
 } from './view'
 
@@ -60,7 +61,7 @@ export function EditionPaperList({
   // Null outside the App Router (a static test render, the gallery).
   const params = useSearchParams()
   const [local, setLocal] = useState<EditionView>(DEFAULT_VIEW)
-  const view = syncUrl && params ? viewFrom(Object.fromEntries(params)) : local
+  const asked = syncUrl && params ? viewFrom(Object.fromEntries(params)) : local
   const update = useCallback(
     (patch: Partial<EditionView>) => {
       if (!syncUrl) {
@@ -86,17 +87,20 @@ export function EditionPaperList({
   // The effective filter, not the state: with the chip gone there would be no
   // way to clear it, so a flip taken mid-filter must show the whole edition.
   const filtering = stars && starredOnly
+  const sorts = sortOptions(papers, t)
+  // The effective view, like the effective filter: a sort the rail cannot
+  // offer is the score's.
+  const view = withKnownSort(asked, sorts)
   const shown = applyView(filtering ? starred : papers, view)
   const narrowed = view.minScore > 0
-  const sorts = sortOptions(papers, t)
   const sortLabel = sorts.find((s) => s.id === view.sort)?.label ?? sorts[0]!.label
 
   return (
     <section>
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
         <SectionLabel size="sm">{t('The papers')}</SectionLabel>
-        <span className="flex items-baseline gap-4">
-          <span className="font-mono text-[11px] text-zinc-400 tabular-nums dark:text-zinc-500">
+        <span className="flex flex-wrap items-baseline justify-end gap-x-4 gap-y-1">
+          <span className="font-mono text-[11px] whitespace-nowrap text-zinc-400 tabular-nums dark:text-zinc-500">
             {shown.length === 1 ? t('1 paper') : fmt(t('{n} papers'), { n: shown.length })}
           </span>
           {stars && (
@@ -106,18 +110,21 @@ export function EditionPaperList({
               onToggle={() => setStarredOnly((v) => !v)}
             />
           )}
-          {!isDefaultView(view) && (
+          {(!isDefaultView(view) || filtering) && (
             <button
               type="button"
-              onClick={() => update(DEFAULT_VIEW)}
-              className="text-xs font-medium text-zinc-600 hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white"
+              onClick={() => {
+                update(DEFAULT_VIEW)
+                setStarredOnly(false)
+              }}
+              className="text-xs font-medium whitespace-nowrap text-zinc-600 hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white"
             >
               {t('Reset filters')}
             </button>
           )}
           <Link
             href={logHref}
-            className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+            className="text-xs font-medium whitespace-nowrap text-blue-600 hover:underline dark:text-blue-400"
           >
             {t('Screening log →')}
           </Link>

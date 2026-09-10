@@ -108,8 +108,8 @@ export function EditionPapersSkeleton({
       <section>
         <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <SectionLabel size="sm">{t('The papers')}</SectionLabel>
-          <span className="flex items-baseline gap-4">
-            <span className="font-mono text-[11px] text-zinc-400 tabular-nums dark:text-zinc-500">
+          <span className="flex flex-wrap items-baseline justify-end gap-x-4 gap-y-1">
+            <span className="font-mono text-[11px] whitespace-nowrap text-zinc-400 tabular-nums dark:text-zinc-500">
               <Bone.Text widths={['8ch']} />
             </span>
             {/* The Starred filter chip. */}
@@ -117,7 +117,7 @@ export function EditionPapersSkeleton({
             {date ? (
               <Link
                 href={editionHref(date, wsId, { runId, sub: 'run' })}
-                className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400"
+                className="text-xs font-medium whitespace-nowrap text-blue-600 hover:underline dark:text-blue-400"
               >
                 {t('Screening log →')}
               </Link>
