@@ -50,7 +50,8 @@ class DownloadNode(BaseWorkflowNode):
             down = metrics.get('downloaded', 0)
             from_cache = metrics.get('from_cache', metrics.get('cached', 0))
             failed = metrics.get('failed', 0)
-            return f"Download: {down} downloaded, {from_cache} cached, {failed} failed."
+            from_web = max(0, down - from_cache) if from_cache > 0 else down
+            return f"Download: {from_web} downloaded, {from_cache} cached, {failed} failed."
         return super().generate_stage_summary(comp_run, status=status)
 
     def get_input_params(self, pipeline_run, workspace, config: Dict[str, Any], limit: Optional[int] = None) -> Dict[str, Any]:

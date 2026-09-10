@@ -115,10 +115,28 @@ export function toSummary(step: StepType, metrics: unknown, outputData: unknown)
     }
     case 'download': {
       if (!has(both, 'downloaded', 'cached', 'from_cache', 'failed')) break
+      let cached = int(both, 'cached', 'from_cache', 'cached_hits')
+      if (cached === 0) {
+        if (Array.isArray(o.downloaded_papers)) {
+          const fromPapers = o.downloaded_papers.filter(
+            (p) =>
+              typeof p === 'object' &&
+              p !== null &&
+              Boolean((p as Record<string, unknown>).from_cache || (p as Record<string, unknown>).cache_hit),
+          ).length
+          if (fromPapers > 0) cached = fromPapers
+        } else if (typeof o.summary === 'string') {
+          const match = o.summary.match(/(\d+)\s+cached/i)
+          if (match) {
+            cached = parseInt(match[1], 10)
+          }
+        }
+      }
+      const totalDl = int(both, 'downloaded')
       return {
         kind: 'download',
-        downloaded: int(both, 'downloaded'),
-        cached: int(both, 'cached', 'from_cache', 'cached_hits'),
+        downloaded: cached > 0 && totalDl >= cached ? totalDl - cached : totalDl,
+        cached,
         failed: int(both, 'failed'),
       }
     }

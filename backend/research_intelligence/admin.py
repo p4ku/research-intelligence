@@ -1513,20 +1513,19 @@ def render_component_metrics_summary(obj):
         if cached > 0:
             from_web = max(0, dl - cached)
             sub_parts = []
-            if from_web > 0:
-                sub_parts.append(f"{from_web} from web")
-            sub_parts.append(f"{cached} cached")
             if skipped > 0:
                 sub_parts.append(f"{skipped} skipped")
             if failed > 0:
                 sub_parts.append(f"{failed} failed")
+            sub_text = f"<br><span style='color: #6c757d; font-size: 11px;'>({', '.join(sub_parts)})</span>" if sub_parts else ""
+
             return format_html(
                 '<div style="line-height: 1.35; white-space: nowrap;">'
-                '<strong>{} PDFs</strong> retrieved<br>'
-                '<span style="color: #6c757d; font-size: 11px;">({})</span>'
+                '<strong>{} downloaded</strong> · <strong style="color: #0d6efd;">{} cached</strong>{}'
                 '</div>',
-                dl,
-                ", ".join(sub_parts),
+                from_web,
+                cached,
+                mark_safe(sub_text),
             )
 
         extras = []

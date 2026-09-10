@@ -137,6 +137,24 @@ describe('StepSummary', () => {
     expect(html).not.toContain('avg')
     expect(html).not.toContain('max')
   })
+
+  test('download step clearly displays downloaded, cached (even when 0), and failed counts', () => {
+    const htmlWithZeroCache = markup({ kind: 'download', downloaded: 23, cached: 0, failed: 38 })
+    expect(htmlWithZeroCache).toContain('>23<')
+    expect(htmlWithZeroCache).toContain('downloaded')
+    expect(htmlWithZeroCache).toContain('>0<')
+    expect(htmlWithZeroCache).toContain('cached')
+    expect(htmlWithZeroCache).toContain('>38<')
+    expect(htmlWithZeroCache).toContain('failed')
+
+    const htmlAllCached = markup({ kind: 'download', downloaded: 0, cached: 3, failed: 3 })
+    expect(htmlAllCached).toContain('>0<')
+    expect(htmlAllCached).toContain('downloaded')
+    expect(htmlAllCached).toContain('>3<')
+    expect(htmlAllCached).toContain('cached')
+    expect(htmlAllCached).toContain('>3<')
+    expect(htmlAllCached).toContain('failed')
+  })
 })
 
 /* ---------------------------- Dynamic-label guard --------------------------- */

@@ -226,7 +226,7 @@ export function StepSummary({
       return (
         <div className={wrap}>
           <Count value={summary.downloaded} label={t('downloaded')} lang={lang} />
-          {summary.cached > 0 && <Count value={summary.cached} label={t('cached')} lang={lang} />}
+          <Count value={summary.cached} label={t('cached')} lang={lang} />
           {summary.failed > 0 && (
             <Count value={summary.failed} label={t('failed')} tone="bad" lang={lang} />
           )}

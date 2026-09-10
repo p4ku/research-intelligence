@@ -46,6 +46,59 @@ describe('toSummary', () => {
     ).toEqual({ kind: 'screening', screened: 3, passed: 1, rejected: 2, withdrawn: 0 })
   })
 
+  test('download step cleanly subtracts cached from total to report web downloads', () => {
+    expect(toSummary('download', { downloaded: 3, cached: 3, failed: 3 }, {})).toEqual({
+      kind: 'download',
+      downloaded: 0,
+      cached: 3,
+      failed: 3,
+    })
+    expect(toSummary('download', { downloaded: 23, cached: 10, failed: 38 }, {})).toEqual({
+      kind: 'download',
+      downloaded: 13,
+      cached: 10,
+      failed: 38,
+    })
+    expect(toSummary('download', { downloaded: 23, cached: 0, failed: 38 }, {})).toEqual({
+      kind: 'download',
+      downloaded: 23,
+      cached: 0,
+      failed: 38,
+    })
+    // Fallback: cached extracted from downloaded_papers with cache_hit / from_cache
+    expect(
+      toSummary(
+        'download',
+        { downloaded: 23, failed: 38 },
+        {
+          downloaded_papers: [
+            { cache_hit: true },
+            { from_cache: true },
+            { from_cache: false },
+          ],
+        },
+      ),
+    ).toEqual({
+      kind: 'download',
+      downloaded: 21,
+      cached: 2,
+      failed: 38,
+    })
+    // Fallback: cached extracted from output summary string
+    expect(
+      toSummary(
+        'download',
+        { downloaded: 23, failed: 38 },
+        { summary: 'Downloaded 23 PDFs (5 cached), 38 failed in 12s.' },
+      ),
+    ).toEqual({
+      kind: 'download',
+      downloaded: 18,
+      cached: 5,
+      failed: 38,
+    })
+  })
+
   test('a skipped OCR step reports no metrics rather than a fabricated zero', () => {
     // Every OCR component in the snapshot writes exactly this.
     expect(toSummary('ocr', { status: 'skipped' }, {})).toEqual({ kind: 'none' })

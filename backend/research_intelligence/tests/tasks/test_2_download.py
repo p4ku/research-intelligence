@@ -106,7 +106,9 @@ class DownloadTaskTestCase(TestCase):
 
         self.component_run.metrics = {"downloaded": 5, "cached": 3, "failed": 1}
         summary = node.generate_stage_summary(self.component_run, status="completed")
-        self.assertIn("5 downloaded", summary)
+        self.assertIn("2 downloaded", summary)
+        self.assertIn("3 cached", summary)
+        self.assertIn("1 failed", summary)
 
     def test_valid_pdf_download_success(self):
         mock_pdf_binary = b"%PDF-1.5 %binary pdf stream content..." * 50
@@ -365,14 +367,17 @@ class DownloadTaskTestCase(TestCase):
         # Check DownloadNode stage summary
         node = DownloadNode()
         summary = node.generate_stage_summary(comp_run, status="completed")
-        self.assertIn("2 downloaded", summary)
+        self.assertIn("1 downloaded", summary)
         self.assertIn("1 cached", summary)
         self.assertIn("1 failed", summary)
 
     def test_admin_render_component_metrics_summary_download_display(self):
         """
         Validates that render_component_metrics_summary in admin.py distinguishes
-        between web downloads and cache hits clearly.
+        between web downloads and cache hits clearly:
+        - X downloaded · Y cached (Z failed)
+        - 0 downloaded · Y cached (Z failed)
+        - X PDFs downloaded (Z failed)
         """
         from research_intelligence.admin import render_component_metrics_summary
 
@@ -383,9 +388,7 @@ class DownloadTaskTestCase(TestCase):
             metrics={"downloaded": 23, "cached": 10, "from_cache": 10, "failed": 38}
         )
         html_mixed = str(render_component_metrics_summary(comp_mixed))
-        self.assertIn("23 PDFs", html_mixed)
-        self.assertIn("retrieved", html_mixed)
-        self.assertIn("13 from web", html_mixed)
+        self.assertIn("13 downloaded", html_mixed)
         self.assertIn("10 cached", html_mixed)
         self.assertIn("38 failed", html_mixed)
 
@@ -399,16 +402,15 @@ class DownloadTaskTestCase(TestCase):
         self.assertIn("23 PDFs", html_web)
         self.assertIn("downloaded", html_web)
         self.assertIn("38 failed", html_web)
-        self.assertNotIn("from web", html_web)
 
-        # Case 3: All from cache
+        # Case 3: All from cache (User's case: 0 downloaded, 3 cached, 3 failed)
         comp_all_cached = ComponentRun(
             step_type="download",
             component_name="pdf_download",
-            metrics={"downloaded": 10, "cached": 10, "from_cache": 10, "failed": 0}
+            metrics={"downloaded": 3, "cached": 3, "from_cache": 3, "failed": 3}
         )
         html_all_cached = str(render_component_metrics_summary(comp_all_cached))
-        self.assertIn("10 PDFs", html_all_cached)
-        self.assertIn("retrieved", html_all_cached)
-        self.assertIn("10 cached", html_all_cached)
-        self.assertNotIn("from web", html_all_cached)
+        self.assertIn("0 downloaded", html_all_cached)
+        self.assertIn("3 cached", html_all_cached)
+        self.assertIn("3 failed", html_all_cached)
+        self.assertNotIn("retrieved", html_all_cached)
