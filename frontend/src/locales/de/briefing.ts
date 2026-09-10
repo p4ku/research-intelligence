@@ -23,11 +23,7 @@ export const dict: Record<string, string> = {
   // 'Minimum score', 'Any', 'Only the strongest' and 'Reset filters' are papers.ts keys.
   'Date published': 'Veröffentlichungsdatum',
   'Any score': 'Jeder Score',
-  // The notice when a domain briefed more than once on one day.
-  'This is the latest of {n} briefings for this domain on {day}.':
-    'Dies ist das neueste von {n} Briefings dieses Themenfelds am {day}.',
-  'Earlier:': 'Frühere:',
-  'Other briefings this day:': 'Weitere Briefings an diesem Tag:',
+  // The notice when a link's run is not the briefing shown.
   'The briefing this link named is no longer published.':
     'Das in diesem Link genannte Briefing ist nicht mehr veröffentlicht.',
   "Showing the day's briefing.": 'Angezeigt wird das Briefing dieses Tages.',

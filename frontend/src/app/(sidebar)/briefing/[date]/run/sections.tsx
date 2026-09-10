@@ -3,7 +3,7 @@ import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import type { Lang, T } from '@/lib/i18n'
 import { notFound } from 'next/navigation'
-import { domainEditions, namedElsewhere, SameDayNotice } from '../sections'
+import { domainEditions, namedElsewhere, StaleLinkNotice } from '../sections'
 import { ExclusionsTable } from './exclusions-table'
 
 export function funnelCopy(t: T) {
@@ -50,10 +50,9 @@ export async function ScreeningLog({
   return (
     <>
       {/* The same line as the edition page: which run this log belongs to,
-          when the URL and the day do not say. */}
-      <SameDayNotice
+          when the URL's run is not this one. */}
+      <StaleLinkNotice
         edition={edition}
-        editions={editions}
         elsewhere={elsewhere}
         runId={runId}
         sub="run"

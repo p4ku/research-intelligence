@@ -39,29 +39,26 @@ export function EditionHeadSkeleton({
   return (
     <Skeleton.Region status={t('Loading the briefing')} innerClassName="space-y-10">
       <div className="space-y-4">
-        <Breadcrumbs
-          items={[
-            { label: t('Briefings'), href: '/briefing' },
-            {
-              label: dateLabel ? (
-                domain ? (
-                  `${domain} · ${dateLabel}`
+        {/* The crumb row with the briefing's star toggle at its right; there is no title. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <Breadcrumbs
+            items={[
+              { label: t('Briefings'), href: '/briefing' },
+              {
+                label: dateLabel ? (
+                  domain ? (
+                    `${domain} · ${dateLabel}`
+                  ) : (
+                    dateLabel
+                  )
                 ) : (
-                  dateLabel
-                )
-              ) : (
-                <Bone.Text widths={['20ch']} />
-              ),
-            },
-          ]}
-          t={t}
-        />
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-          <h1 className="min-w-0 flex-1 text-[26px]/8 font-semibold tracking-tight text-zinc-950 dark:text-white">
-            <Bone.Text widths={['60%']} />
-          </h1>
-          {/* The briefing's star toggle. */}
-          {features.stars && <Bone.Block className="mt-px h-[30px] w-28 shrink-0" />}
+                  <Bone.Text widths={['20ch']} />
+                ),
+              },
+            ]}
+            t={t}
+          />
+          {features.stars && <Bone.Block className="h-[30px] w-28 shrink-0" />}
         </div>
       </div>
 
