@@ -1,5 +1,6 @@
 'use client'
 
+import { FilterGroup, MinScoreSlider, OptionButton } from '@/components/filter-rail'
 import { PageNav } from '@/components/page-nav'
 import { PaperCard } from '@/components/paper-card'
 import { SectionLabel } from '@/components/scanner-ui'
@@ -21,8 +22,7 @@ import {
   type Screening,
 } from '@/lib/papers/browse'
 import { useStars } from '@/lib/stars-client'
-import { ChevronDownIcon, XMarkIcon } from '@heroicons/react/16/solid'
-import clsx from 'clsx'
+import { XMarkIcon } from '@heroicons/react/16/solid'
 import { useSearchParams } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
@@ -446,31 +446,17 @@ export function PapersBrowser({
             label={t('Signal strength')}
             value={state.minScore > 0 ? `≥ ${state.minScore}` : t('Any')}
           >
-            <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">{t('Minimum score')}</span>
-              <span className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
-                {state.minScore > 0 ? state.minScore : t('Any')}
-              </span>
-            </div>
-            <input
-              type="range"
-              aria-label={t('Minimum score')}
-              min={0}
-              max={facets.score_ceiling}
-              step={5}
+            <MinScoreSlider
               value={state.minScore}
-              onChange={(e) => update({ minScore: Number(e.target.value) })}
-              className="rs-slider"
-              style={
-                {
-                  '--fill': `${(state.minScore / facets.score_ceiling) * 100}%`,
-                } as React.CSSProperties
-              }
+              ceiling={facets.score_ceiling}
+              onChange={(minScore) => update({ minScore })}
+              labels={{
+                minimum: t('Minimum score'),
+                any: t('Any'),
+                low: t('Any signal'),
+                high: t('Only the strongest'),
+              }}
             />
-            <div className="mt-1.5 flex justify-between text-xs text-zinc-400">
-              <span>{t('Any signal')}</span>
-              <span>{t('Only the strongest')}</span>
-            </div>
           </FilterGroup>
 
           {facets.has_trl && (
@@ -509,35 +495,6 @@ export function PapersBrowser({
         </aside>
       </div>
     </div>
-  )
-}
-
-function OptionButton({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean
-  onClick: () => void
-  label: string
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={clsx(
-        'flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm',
-        active
-          ? 'bg-zinc-950/5 text-zinc-950 dark:bg-white/10 dark:text-white'
-          : 'text-zinc-600 hover:bg-zinc-950/5 dark:text-zinc-300 dark:hover:bg-white/5',
-      )}
-    >
-      <span
-        aria-hidden="true"
-        className={clsx('size-1.5 shrink-0', active ? 'bg-accent' : 'bg-transparent')}
-      />
-      {label}
-    </button>
   )
 }
 
@@ -613,47 +570,6 @@ function SearchField({
         </>
       )}
     </SearchFrame>
-  )
-}
-
-/**
- * A collapsible filter group: label on the left, the group's current selection
- * on the right, and a chevron toggle. Open by default. The right-hand value
- * lets the whole filter state read at a glance — even with a group collapsed.
- */
-function FilterGroup({
-  label,
-  value,
-  children,
-}: {
-  label: string
-  value?: string
-  children: React.ReactNode
-}) {
-  const [open, setOpen] = useState(true)
-  return (
-    <div className="py-5 first:pt-0 last:pb-0">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="group flex w-full items-center justify-between gap-3"
-      >
-        <SectionLabel className="shrink-0">{label}</SectionLabel>
-        <span className="flex min-w-0 items-center gap-2">
-          {value && (
-            <span className="truncate text-xs text-zinc-500 dark:text-zinc-400">{value}</span>
-          )}
-          <ChevronDownIcon
-            className={clsx(
-              'size-4 shrink-0 text-zinc-400 transition-transform group-hover:text-zinc-600 dark:group-hover:text-zinc-300',
-              !open && '-rotate-90',
-            )}
-          />
-        </span>
-      </button>
-      {open && <div className="mt-2">{children}</div>}
-    </div>
   )
 }
 

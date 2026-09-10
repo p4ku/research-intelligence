@@ -19,6 +19,10 @@ export const dict: Record<string, string> = {
   'auto-brief': 'Auto-Briefing',
   'Screening log →': 'Screening-Protokoll →',
   'No papers are on file for this briefing.': 'Für dieses Briefing sind keine Papers hinterlegt.',
+  // The edition's view rail: sort and score floor. 'Sort by', 'Schwarz Score',
+  // 'Minimum score', 'Any', 'Only the strongest' and 'Reset filters' are papers.ts keys.
+  'Date published': 'Veröffentlichungsdatum',
+  'Any score': 'Jeder Score',
   // The notice when a domain briefed more than once on one day.
   'This is the latest of {n} briefings for this domain on {day}.':
     'Dies ist das neueste von {n} Briefings dieses Themenfelds am {day}.',

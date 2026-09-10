@@ -2,7 +2,7 @@ import { RadarChart } from '@/components/charts'
 import { Card } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import { formatNumber, type Lang, type T } from '@/lib/i18n'
-import { dimensionLabel } from '@/lib/papers/dimension-label'
+import { dimensionShortName } from '@/lib/papers/dimension-label'
 import type { Dimension, ScoredPaper } from '@/lib/papers/types'
 import type { ReactNode } from 'react'
 import { definitionAnchor } from './assessment'
@@ -56,24 +56,6 @@ export function ScoreRailFrame({
   )
 }
 
-/**
- * "Sovereign Cloud & Commercial Viability" → "Sovereign Cloud"; a TRL
- * definition is just "TRL".
- *
- * The whole name is offered to the mapper first: a mapped dimension ("Fit
- * score", "Schwarz Fit") is product vocabulary and keeps the reading the
- * heading and the assessment give it, whatever punctuation it contains. Only
- * a name the mapper does not know — a domain's own wording — is shortened,
- * and then the shortened half goes through the mapper too, so a compound like
- * "Novelty (weighted)" still reads as the dimension.
- */
-function shortName(d: Dimension, t: T): string {
-  if (d.is_trl) return 'TRL'
-  const mapped = dimensionLabel(d.name, t)
-  if (mapped !== d.name) return mapped
-  return dimensionLabel(d.name.split(/ \(| & /)[0]!, t)
-}
-
 /** Integers plain, otherwise at most two decimals — the reading the assessment uses too. */
 function shownNumber(value: number | null, lang: Lang): string {
   return value === null ? '—' : formatNumber(value, lang, undefined, 2)
@@ -84,7 +66,7 @@ function radarAxes(dimensions: Dimension[], t: T, lang: Lang) {
   return dimensions
     .filter((d) => d.value !== null && d.max !== null && d.max > 0)
     .map((d) => ({
-      label: shortName(d, t),
+      label: dimensionShortName(d, t),
       value: Math.max(0, Math.min(100, (d.value! / d.max!) * 100)),
       shown: shownNumber(d.value, lang),
     }))
@@ -95,7 +77,7 @@ function railBar(d: Dimension, t: T, lang: Lang): RailBar {
   const shown = shownNumber(d.value, lang)
   return {
     key: d.key + (d.extraction_id ?? ''),
-    label: shortName(d, t),
+    label: dimensionShortName(d, t),
     anchor: definitionAnchor(d),
     pct: hasBar ? Math.max(0, Math.min(1, d.value! / d.max!)) : null,
     value: (

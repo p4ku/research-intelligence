@@ -14,6 +14,7 @@ import { fixtureSessions } from '@/lib/bff/chat/fixtures'
 import { fixtureSteps } from '@/lib/bff/component-runs/fixtures'
 import { fixturePapers, fixtureWorkspace } from '@/lib/bff/papers/fixtures'
 import { fixtureRunDetail, fixtureRuns } from '@/lib/bff/pipeline-runs/fixtures'
+import { ALL_ON } from '@/lib/features'
 import type { T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
 import type { ReactNode } from 'react'
@@ -25,10 +26,13 @@ import {
   EditionBrowserSkeleton,
   type BrowserEdition,
 } from '../../(sidebar)/briefing-archive/edition-browser'
+import { EditionPaperList } from '../../(sidebar)/briefing/[date]/edition-paper-list'
 import {
   ExclusionsTable,
   ExclusionsTableSkeleton,
 } from '../../(sidebar)/briefing/[date]/run/exclusions-table'
+import { EditionPapersSkeleton } from '../../(sidebar)/briefing/[date]/skeletons'
+import { sortOptions } from '../../(sidebar)/briefing/[date]/view'
 import { BriefingLedger, BriefingLedgerSkeleton } from '../../(sidebar)/briefing/briefing-ledger'
 import { composeRows } from '../../(sidebar)/briefing/rows'
 import { Ledger, LedgerSkeleton, type HomeRow } from '../../(sidebar)/dashboard/ledger'
@@ -558,6 +562,30 @@ export default async function SkeletonsPage({
             editions={browserEditions.length}
             papers={browserEditions[0].papers.length}
             briefParagraphs={[2]}
+          />
+        }
+      />
+
+      <Pair
+        shape="edition-papers"
+        title="Briefing papers with the view rail"
+        status="Loading the papers"
+        loaded={
+          <EditionPaperList
+            papers={fixturePapers}
+            runId={edition.run_id}
+            logHref="/briefing/2026-08-31/run"
+            syncUrl={false}
+          />
+        }
+        skeleton={
+          <EditionPapersSkeleton
+            t={t}
+            date="2026-08-31"
+            runId={edition.run_id}
+            cards={fixturePapers.length}
+            sorts={sortOptions(fixturePapers, t).length}
+            features={ALL_ON}
           />
         }
       />
