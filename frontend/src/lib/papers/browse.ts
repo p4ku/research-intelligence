@@ -7,6 +7,7 @@
  * search handing over.
  */
 import type { PapersQuery } from '@/lib/bff/papers/schema'
+import { SCORE_CEILING } from '@/lib/papers/score'
 
 /** The spec's page size — the browser and its skeleton share it. */
 export const PER_PAGE = 8
@@ -90,7 +91,9 @@ export function stateFrom(
     minTrl,
     maxTrl,
     withinDays: int(one('days'), { min: 0, max: 3650 }) ?? 0,
-    minScore: int(one('score'), { min: 0, max: 100_000 }) ?? 0,
+    // A floor above the scale is a hand-edited link, not a filter: it falls
+    // back to "any score", the same way the briefing's rail reads it.
+    minScore: int(one('score'), { min: 0, max: SCORE_CEILING }) ?? 0,
     page: int(one('page'), { min: 1, max: 100_000 }) ?? 1,
   }
 }

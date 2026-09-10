@@ -11,6 +11,7 @@
  */
 import type { T } from '@/lib/i18n'
 import { dimensionShortName } from '@/lib/papers/dimension-label'
+import { SCORE_CEILING, SCORE_STEP } from '@/lib/papers/score'
 import { byValueDesc, dimensionByKey } from '@/lib/papers/select'
 import type { Dimension, ScoredPaper } from '@/lib/papers/types'
 
@@ -25,9 +26,13 @@ export interface EditionView {
 
 export const DEFAULT_VIEW: EditionView = { sort: 'score', minScore: 0 }
 
-/** The slider's range: the score is read on a 0–100 scale, in steps of five. */
-export const SCORE_CEILING = 100
-export const SCORE_STEP = 5
+/**
+ * The slider's range: the score is read on a 0–100 scale, in steps of five.
+ * One rule for the ceiling and the step, so the rail cannot drift from the
+ * cap the parse seam applies — re-exported under the names the list already
+ * imports from here.
+ */
+export { SCORE_CEILING, SCORE_STEP } from '@/lib/papers/score'
 
 // A dimension key is the backend's own: lower-cased, spaces and hyphens turned
 // to underscores, everything else kept ("sovereign_cloud_&_commercial_viability",
