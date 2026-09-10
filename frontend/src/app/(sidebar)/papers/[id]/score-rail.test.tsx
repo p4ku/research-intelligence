@@ -66,10 +66,11 @@ function mockPaper(overrides: Partial<ScoredPaper> = {}): ScoredPaper {
 }
 
 describe('ScoreRail Component Rendering', () => {
-  test('renders formatted Schwarz score and label', () => {
+  test('renders the Schwarz score as a whole number and its label', () => {
     const paper = mockPaper({ signal_score: 84.6 })
     const out = renderToStaticMarkup(<ScoreRail paper={paper} t={t} />)
-    expect(out).toContain('84.6')
+    expect(out).toContain('85')
+    expect(out).not.toContain('84.6')
     expect(out).toContain('Schwarz Score')
   })
 
@@ -356,17 +357,21 @@ describe('ScoreRail Component Rendering', () => {
 
     const out = renderToStaticMarkup(<ScoreRail paper={paperWithScreenshotScenario} t={t} />)
 
-    // 1. Valid metrics ARE rendered on the bars list
+    // 1. Valid metrics ARE rendered on the bars list, each as a whole number
     expect(out).toContain('Research Metric')
-    expect(out).toContain('58.67')
+    expect(out).toContain('59')
+    expect(out).not.toContain('58.67')
     expect(out).toContain('Schwarz Fit')
     expect(out).toContain('27')
     expect(out).toContain('TRL')
     expect(out).toContain('4')
 
-    // 2. Score of 0 IS rendered ("nie 0 ale niczego do wyswietlania")
+    // 2. Score of 0 IS rendered ("nie 0 ale niczego do wyswietlania") — a real
+    // zero is a number, and rounding to whole numbers leaves it a figure, not
+    // the dash a failed formula gets at the seam.
     expect(out).toContain('Zero Metric')
     expect(out).toContain('href="#dimension-zero_dimension"')
+    expect(out).toMatch(/dark:text-white">0<\/span>/)
 
     // 3. Summarisation and empty unscored extractions MUST NOT be rendered anywhere in ScoreRail
     expect(out).not.toContain('Summarisation')
