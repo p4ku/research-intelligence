@@ -102,18 +102,23 @@ const COL = {
   // stay whole (a date, a count, a label) carry their own `nowrap`; what
   // wraps is the space between them, so a long domain name or a long German
   // label now costs the row height instead of the reader the last column.
-  domain: { head: `min-w-32 ${TIGHT}`, cell: `min-w-32 ${TIGHT} font-medium whitespace-normal` },
+  //
+  // Only from `sm`, where wrapping can actually save the table. On a phone
+  // the whole table is narrower than any arrangement of seven columns, so it
+  // scrolls sideways as the archive's does — and there, a row grown tall by a
+  // cell the reader cannot see is just an unexplained tall row.
+  domain: { head: `min-w-32 ${TIGHT}`, cell: `min-w-32 ${TIGHT} font-medium sm:whitespace-normal` },
   period: {
     head: TIGHT,
     cell: `${TIGHT} font-mono text-xs text-zinc-600 tabular-nums dark:text-zinc-300`,
   },
   generated: {
     head: TIGHT,
-    cell: `${TIGHT} font-mono text-xs whitespace-normal text-zinc-500 tabular-nums dark:text-zinc-400`,
+    cell: `${TIGHT} font-mono text-xs text-zinc-500 tabular-nums sm:whitespace-normal dark:text-zinc-400`,
   },
   papers: { head: `${TIGHT} text-right`, cell: `${TIGHT} text-right font-mono tabular-nums` },
   // Last column: only its inner edge tightens — `last:pr-*` keeps the outer one.
-  status: { head: 'pl-2.5! text-right', cell: 'pl-2.5! text-right whitespace-normal' },
+  status: { head: 'pl-2.5! text-right', cell: 'pl-2.5! text-right sm:whitespace-normal' },
 } as const
 
 const COLUMNS = ['expand', 'star', 'domain', 'period', 'generated', 'papers', 'status'] as const

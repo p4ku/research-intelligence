@@ -14,19 +14,25 @@ import type { ReactNode } from 'react'
 /**
  * Home's two-column frame: Recent Briefings beside New Briefing.
  *
- * The ledger takes whatever is left; the run card is a fixed 18rem track, so
- * the table's width no longer follows a third of the page. The two sit side
- * by side only from 1400px, which is where both fit: the ledger's seven
- * columns want about 660px at their tightest, the card 288, the gap 32, and
- * the shell spends the rest on the sidebar and the page's own margins. Under
- * that the card drops beneath the ledger and each gets the full measure —
- * the old two-thirds column left the ledger 443px at 1024 and 616px at 1280,
- * and the table's last cells, status and Retry, fell outside the panel.
+ * No breakpoint. The two are flex items whose widths are stated in `rem` —
+ * the ledger asks for 43rem, about what its seven columns need before they
+ * start wrapping, the card for 18rem — and they sit side by side exactly
+ * while both fit, wrapping onto separate rows when they do not. A viewport
+ * breakpoint could not do this honestly: it is a fixed pixel number, and a
+ * reader on Chrome's larger font setting needs *more* width for the same
+ * table, so a `min-[1400px]` rule hands the ledger less room precisely when
+ * it needs more, and the last column goes back outside the panel. Stated in
+ * rem, the whole arrangement scales with the reader's text.
+ *
+ * Both grow into whatever is left over, so nothing is stranded: side by side
+ * the ledger takes most of the slack, and wrapped, the card fills its row up
+ * to a form's comfortable measure rather than a page's.
  *
  * The loaded section and its skeleton both render through here, so the two
  * cannot drift.
  */
-const SIDE_BY_SIDE = 'min-[1400px]:grid-cols-[minmax(0,1fr)_18rem]'
+const LEDGER = 'min-w-0 grow basis-[43rem]'
+const CARD = 'grow basis-72 max-w-sm'
 
 export function HomeGrid({
   ledger,
@@ -39,10 +45,9 @@ export function HomeGrid({
   children?: ReactNode
 }) {
   return (
-    <div className={`grid gap-8 ${SIDE_BY_SIDE}`}>
-      <div className="min-w-0">{ledger}</div>
-      {/* Stacked, the card keeps a form's width instead of a page's. */}
-      <aside className="max-w-sm min-[1400px]:max-w-none">{card}</aside>
+    <div className="flex flex-wrap items-start gap-8">
+      <div className={LEDGER}>{ledger}</div>
+      <aside className={CARD}>{card}</aside>
       {children}
     </div>
   )
