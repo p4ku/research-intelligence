@@ -50,7 +50,7 @@ import { usePaperThread, type Msg } from './use-paper-thread'
  * card under it: title row, one line on scope, the question line, and —
  * once this paper has a thread — a `Continue "…"` line naming it. Open, the
  * rail widens from 300 to 400px (sections.tsx, via `:has`) and becomes ONE
- * console: the score card exactly as it was — score, TRL chip, bars, radar —
+ * console: the score card exactly as it was — score, bars, radar —
  * pinned at the top, the conversation scrolling beneath it, the composer at
  * the foot. Nothing of the card is pulled into the chat (asked for on 10
  * Sep 2026): the numbers and the radar keep their seats, are never covered
@@ -291,7 +291,6 @@ export function PaperChat({
         <ScoreRailFrame
           label={rail.label}
           score={rail.score}
-          chips={rail.chips}
           bars={rail.bars}
           radar={rail.radar && <div ref={radarRef}>{rail.radar}</div>}
         />
@@ -353,7 +352,7 @@ export function PaperChat({
         className="lg:flex lg:flex-col"
       >
         <Card flush className="flex min-h-0 flex-col overflow-hidden lg:h-full lg:overflow-y-auto">
-          {/* The profile: the score card as it was — score, chip, bars, radar — pinned, never scrolls, never covered. */}
+          {/* The profile: the score card as it was — score, bars, radar — pinned, never scrolls, never covered. */}
           <div data-row="profile" className="shrink-0 border-b border-line-soft p-5 pb-4">
             <div className="flex items-baseline justify-between gap-4">
               <span className="font-mono text-[44px] leading-none font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white">
@@ -363,7 +362,6 @@ export function PaperChat({
                 {rail.label}
               </span>
             </div>
-            <div className="mt-3 flex flex-wrap gap-1.5">{rail.chips}</div>
             <ul className="mt-4 space-y-0.5">{rail.bars}</ul>
             {rail.radar && (
               <div className="mt-4 flex justify-center border-t border-line-soft pt-4">
