@@ -342,3 +342,56 @@ class WorkerCompletionAndTimeoutsTestCase(TestCase):
         self.assertEqual(stats["reaped_components"], 1)
         self.assertEqual(stats["reaped_pipelines"], 1)
         mock_notify.assert_called()
+
+    def test_zombie_watchdog_respects_3h_timeout_and_last_progress_at(self):
+        """
+        Verifies that:
+        1. A task running for 90m (exceeding old 30m) is not reaped under the new 3h (180m) default.
+        2. A task with recent 'last_progress_at' is preserved as actively running.
+        """
+        now = timezone.now()
+        started_90m_ago = now - timedelta(minutes=90)
+        progress_5m_ago = (now - timedelta(minutes=5)).isoformat()
+
+        active_comp = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="extraction",
+            component_name="extraction",
+            status="running",
+            metrics={
+                "total_work_items": 100,
+                "completed_extractions": 30,
+                "failed_extractions": 0,
+                "last_progress_at": progress_5m_ago,
+            }
+        )
+        ComponentRun.objects.filter(id=active_comp.id).update(started_at=started_90m_ago)
+
+        stats = reap_zombie_tasks()  # uses default 180m
+        active_comp.refresh_from_db()
+
+        self.assertEqual(active_comp.status, "running")
+        self.assertEqual(stats["reaped_components"], 0)
+
+    def test_zombie_watchdog_reaps_when_exceeding_3h_timeout(self):
+        """
+        Verifies that a task stalled for more than 180m is cleanly reaped as a zombie.
+        """
+        now = timezone.now()
+        started_200m_ago = now - timedelta(minutes=200)
+
+        dead_comp = ComponentRun.objects.create(
+            pipeline_run=self.pipeline_run,
+            step_type="extraction",
+            component_name="extraction",
+            status="running",
+            metrics={"total_work_items": 100, "completed_extractions": 5, "failed_extractions": 0}
+        )
+        ComponentRun.objects.filter(id=dead_comp.id).update(started_at=started_200m_ago)
+
+        stats = reap_zombie_tasks()  # uses default 180m
+        dead_comp.refresh_from_db()
+
+        self.assertEqual(dead_comp.status, "failed")
+        self.assertIn("exceeded 180m timeout", dead_comp.error_message)
+        self.assertEqual(stats["reaped_components"], 1)

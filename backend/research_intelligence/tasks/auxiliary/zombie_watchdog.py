@@ -17,9 +17,9 @@ from django.db import close_old_connections, transaction
 
 logger = logging.getLogger(__name__)
 
-# Configurable timeout defaults via environment variables
-DEFAULT_MAX_COMPONENT_AGE_MINUTES: int = int(os.environ.get("ZOMBIE_WATCHDOG_COMPONENT_TIMEOUT_MINUTES", "30"))
-DEFAULT_MAX_PIPELINE_AGE_MINUTES: int = int(os.environ.get("ZOMBIE_WATCHDOG_PIPELINE_TIMEOUT_MINUTES", "120"))
+# Configurable timeout defaults via environment variables (180m = 3h component timeout, 360m = 6h pipeline timeout)
+DEFAULT_MAX_COMPONENT_AGE_MINUTES: int = int(os.environ.get("ZOMBIE_WATCHDOG_COMPONENT_TIMEOUT_MINUTES", "180"))
+DEFAULT_MAX_PIPELINE_AGE_MINUTES: int = int(os.environ.get("ZOMBIE_WATCHDOG_PIPELINE_TIMEOUT_MINUTES", "360"))
 
 
 def reap_zombie_tasks(
@@ -82,6 +82,23 @@ def reap_zombie_tasks(
         with transaction.atomic():
             age_min = round((now - comp.started_at).total_seconds() / 60.0, 1) if comp.started_at else 0
             m = comp.metrics or {}
+
+            # If the worker has logged recent progress within the timeout window, it is actively running and not a zombie
+            last_progress_at_str = m.get("last_progress_at")
+            inactive_min = age_min
+            if last_progress_at_str and not force:
+                try:
+                    from datetime import datetime
+                    last_progress_dt = datetime.fromisoformat(last_progress_at_str)
+                    if timezone.is_naive(last_progress_dt):
+                        last_progress_dt = timezone.make_aware(last_progress_dt, timezone.get_current_timezone())
+                    if last_progress_dt > comp_cutoff:
+                        # Worker made progress recently (within timeout cutoff)
+                        continue
+                    inactive_min = round((now - last_progress_dt).total_seconds() / 60.0, 1)
+                except Exception as parse_err:
+                    logger.debug(f"Could not parse last_progress_at for ComponentRun '{comp.id}': {parse_err}")
+
             total_items = m.get("total_work_items") or m.get("total_to_screen") or m.get("total_screened") or m.get("total_processed") or m.get("total_papers") or 0
             done_items = (
                 (m.get("passed", 0) + m.get("rejected", 0) + m.get("withdrawn", 0) + m.get("failed", 0))
@@ -107,7 +124,7 @@ def reap_zombie_tasks(
                 comp.metrics = m_data
                 comp.status = 'pending'
                 comp.started_at = now
-                comp.error_message = f"Transient stall or worker exit detected (inactive for {age_min}m). Auto-retrying ({retries + 1}/{max_retries})."
+                comp.error_message = f"Transient stall or worker exit detected (inactive for {inactive_min}m). Auto-retrying ({retries + 1}/{max_retries})."
                 comp.save(update_fields=['status', 'metrics', 'started_at', 'error_message'])
                 stats["retried_components"] += 1
                 stats["details"].append(f"ComponentRun {comp.id} ({comp.component_name}) -> auto-retried ({retries + 1}/{max_retries})")
@@ -115,8 +132,8 @@ def reap_zombie_tasks(
                 if comp.pipeline_run:
                     pipelines_to_notify.append(comp.pipeline_run)
             else:
-                reason = f"Zombie task reaped: No worker progress for {age_min} minutes (exceeded {max_component_age_minutes}m timeout)."
-                logger.warning(f"🧟 [ZOMBIE COMPONENT REAPED] ComponentRun '{comp.id}' ({comp.component_name}) | Age: {age_min}m | Task ID: {comp.celery_task_id}")
+                reason = f"Zombie task reaped: No worker progress for {inactive_min} minutes (exceeded {max_component_age_minutes}m timeout)."
+                logger.warning(f"🧟 [ZOMBIE COMPONENT REAPED] ComponentRun '{comp.id}' ({comp.component_name}) | Age: {age_min}m | Inactive: {inactive_min}m | Task ID: {comp.celery_task_id}")
                 comp.status = 'failed'
                 comp.error_message = reason
                 comp.completed_at = now
