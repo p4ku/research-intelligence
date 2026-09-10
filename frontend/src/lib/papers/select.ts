@@ -5,12 +5,21 @@ import type { DefinitionSummary, Dimension, ScoredPaper, WorkspaceSummary } from
 /** A title up to its first colon — the part people say out loud. */
 export const shortTitle = (title: string) => title.split(':')[0]!
 
-/** A title trimmed to at most `max` characters (default 50) for headers and breadcrumbs. */
+/**
+ * A title trimmed to at most `max` characters (default 50) for headers and
+ * breadcrumbs. Cuts at the last word boundary inside the budget when one
+ * falls in the second half, so a crumb ends on a word rather than mid-word,
+ * and closes with the ellipsis glyph the rest of the copy uses (U+2026), not
+ * three periods.
+ */
 export function trimTitle(title: string, max = 50): string {
   if (!title) return ''
   const trimmed = title.trim()
   if (trimmed.length <= max) return trimmed
-  return `${trimmed.slice(0, max).trimEnd()}...`
+  const head = trimmed.slice(0, max)
+  const boundary = head.lastIndexOf(' ')
+  const cut = boundary >= max / 2 ? head.slice(0, boundary) : head
+  return `${cut.trimEnd()}…`
 }
 
 export function trlDimension(paper: ScoredPaper): Dimension | undefined {
