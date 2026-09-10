@@ -6,6 +6,7 @@
  * follow the interface language. Pure, unit-tested.
  */
 import type { Lang } from '@/lib/i18n'
+import { formatScore } from '@/lib/papers/select'
 
 const short = (title: string) => title.split(':')[0]
 
@@ -56,13 +57,13 @@ export function templateProse(
     ? [
         `Der Scan ${quote(workspaceName)} hat ${fetched} Papers geladen, ${passedScreening} durch das Screening gebracht und ${surfaced} für dieses Briefing ausgewählt.`,
         top.signal_score !== null
-          ? `An der Spitze: ${quote(short(top.title))} mit Signal ${Math.round(top.signal_score)}.`
+          ? `An der Spitze: ${quote(short(top.title))} mit Signal ${formatScore(top.signal_score)}.`
           : `An der Spitze: ${quote(short(top.title))}.`,
       ]
     : [
         `The ${workspaceName} scan fetched ${fetched} papers, passed ${passedScreening} through screening, and surfaced ${surfaced} for this briefing.`,
         top.signal_score !== null
-          ? `Leading the list: ${quote(short(top.title))} at signal ${Math.round(top.signal_score)}.`
+          ? `Leading the list: ${quote(short(top.title))} at signal ${formatScore(top.signal_score)}.`
           : `Leading the list: ${quote(short(top.title))}.`,
       ]
   if (also) sentences.push(de ? `Ebenfalls bemerkenswert: ${also}.` : `Also notable: ${also}.`)
