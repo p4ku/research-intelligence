@@ -216,8 +216,10 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                                 pipeline_run=pipeline_run,
                                 defaults={'workspace': workspace, 'screening_status': 'pending'}
                             )
-                            created_count += 1
-                            created_paper_ids.append(str(existing_p.id))
+                            p_id_str = str(existing_p.id)
+                            if p_id_str not in created_paper_ids:
+                                created_count += 1
+                                created_paper_ids.append(p_id_str)
                             continue
                 skipped_count += 1
                 continue
@@ -309,19 +311,22 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                     paper.document_registry.meta = paper.meta
                     paper.document_registry.save(update_fields=['meta'])
 
-                PaperMetric.objects.get_or_create(
-                    paper=paper,
-                    pipeline_run=pipeline_run,
-                    defaults={
-                        'workspace': workspace,
-                        'screening_status': screening_status,
-                        'screening_reasoning': screening_reasoning
-                    }
-                )
+                if created or getattr(pipeline_run, 'reprocess_existing', False):
+                    PaperMetric.objects.get_or_create(
+                        paper=paper,
+                        pipeline_run=pipeline_run,
+                        defaults={
+                            'workspace': workspace,
+                            'screening_status': screening_status,
+                            'screening_reasoning': screening_reasoning
+                        }
+                    )
 
-            if created:
-                created_count += 1
-                created_paper_ids.append(str(paper.id))
+            if created or getattr(pipeline_run, 'reprocess_existing', False):
+                p_id_str = str(paper.id)
+                if p_id_str not in created_paper_ids:
+                    created_count += 1
+                    created_paper_ids.append(p_id_str)
                 if norm_doi:
                     existing_normalized_dois.add(norm_doi)
                     doi_to_id[norm_doi] = paper.id
@@ -337,8 +342,17 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
             if (idx + 1) % 25 == 0 or (idx + 1) == total_items:
                 logger.info(f"💾 [INGESTION PROGRESS] Processed {idx + 1}/{total_items} papers ({created_count} new, {skipped_count} duplicates/skipped)...")
 
-        # If reprocess_existing is True, ensure ALL existing workspace papers are linked to this active run
-        if getattr(pipeline_run, 'reprocess_existing', False):
+        # If reprocess_existing is True, only link all workspace papers if this is an explicit offline
+        # re-evaluation run with no scraper results and no date filters.
+        # When scrapers returned candidate results or date filters were specified, ONLY candidate
+        # papers matching the scraper search and date range [start_date, end_date] are reprocessed.
+        has_date_or_scraper_filter = bool(
+            start_date
+            or end_date
+            or (config_override.get('n_last_days') and config_override.get('n_last_days') != 7)
+            or len(results) > 0
+        )
+        if getattr(pipeline_run, 'reprocess_existing', False) and not has_date_or_scraper_filter:
             existing_ws_papers = Paper.objects.filter(workspace=workspace)
             for ws_p in existing_ws_papers:
                 pm, pm_created = PaperMetric.objects.get_or_create(

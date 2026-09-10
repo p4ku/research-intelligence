@@ -864,7 +864,7 @@ return {
         self.assertEqual(flag_by_key["gdpr"]["value"], "NO")
         self.assertEqual(flag_by_key["gdpr"]["status"], "safe")
 
-        # Test competitor with positive match
+        # Test competitor with positive match (plain strings)
         risk_comp = extract_risk_and_affiliation({
             "competitor_involvement": {"status": "YES", "matches": ["Google", "Amazon"]},
         })
@@ -875,6 +875,27 @@ return {
         self.assertEqual(flag_comp["competitor"]["type"], "dict")
         self.assertTrue(flag_comp["competitor"]["is_dict"])
         self.assertIsInstance(flag_comp["competitor"]["dict_value"], dict)
+
+        # Test competitor with rich dictionary matches (Google FUNDER, Microsoft CO_AUTHOR)
+        risk_comp_dict = extract_risk_and_affiliation({
+            "competitor_involvement": {
+                "status": "YES",
+                "matches": [
+                    {"competitor": "Google", "involvement_type": "FUNDER"},
+                    {"competitor": "Microsoft", "involvement_type": "CO_AUTHOR"},
+                ],
+            },
+        })
+        self.assertEqual(risk_comp_dict["competitor_involvement"], "YES (Google (Funder), Microsoft (Co-Author))")
+        flag_comp_dict = {f["key"]: f for f in risk_comp_dict["flags"]}
+        self.assertEqual(flag_comp_dict["competitor"]["value"], "YES (Google (Funder), Microsoft (Co-Author))")
+        self.assertEqual(flag_comp_dict["competitor"]["status"], "warn")
+
+        # Test competitor with raw stringified dict from database/LLM
+        risk_comp_str = extract_risk_and_affiliation({
+            "competitor_involvement": "YES ({'competitor': 'Google', 'involvement_type': 'FUNDER'})",
+        })
+        self.assertEqual(risk_comp_str["competitor_involvement"], "YES (Google (Funder))")
 
     def test_13_explicit_frontend_metrics_classification(self):
         """

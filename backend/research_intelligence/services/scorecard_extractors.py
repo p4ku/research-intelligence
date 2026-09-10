@@ -67,11 +67,14 @@ def unpack_flag_value(raw_val, flag_name=""):
         {'status': 'YES', 'matched_institutions': ['TUM']}
         {'status': 'NO', 'matches': None}
         {'status': 'YES', 'matches': ['OpenAI', 'Anthropic']}
+        {'status': 'YES', 'matches': [{'competitor': 'Google', 'involvement_type': 'FUNDER'}]}
       - boolean (True/False)
       - plain string ('YES', 'NO', 'None', etc.)
     Returns:
       (display_str, is_positive_match, items_list, is_dict, parsed_dict)
     """
+    from .affiliation_adapter import format_flag_item, unpack_embedded_dicts_in_str
+
     if raw_val is None:
         return None, False, [], False, None
 
@@ -93,9 +96,19 @@ def unpack_flag_value(raw_val, flag_name=""):
         )
         items = []
         if isinstance(matches, list):
-            items = [str(x).strip() for x in matches if x is not None and str(x).strip() not in ("None", "null", "", "none")]
-        elif isinstance(matches, str) and matches.strip() not in ("None", "null", "", "none"):
-            items = [matches.strip()]
+            for x in matches:
+                if x is not None:
+                    formatted = format_flag_item(x)
+                    if formatted and formatted.lower() not in ("none", "null", ""):
+                        items.append(formatted)
+        elif matches:
+            formatted = format_flag_item(matches)
+            if formatted and formatted.lower() not in ("none", "null", ""):
+                items.append(formatted)
+        elif not matches and any(k in parsed for k in ("competitor", "company", "organization", "entity")):
+            formatted = format_flag_item(parsed)
+            if formatted and formatted.lower() not in ("none", "null", ""):
+                items.append(formatted)
 
         stat_str = str(status).strip() if status is not None else ""
         is_pos = bool(re.search(r'^(yes|true|affiliated|high|present)\b', stat_str, re.I)) or (bool(items) and not re.search(r'^(no|false|none|low|safe)\b', stat_str, re.I))
@@ -115,6 +128,8 @@ def unpack_flag_value(raw_val, flag_name=""):
 
     # String / scalar handling
     val_str = str(raw_val).strip()
+    if "{" in val_str:
+        val_str = unpack_embedded_dicts_in_str(val_str)
     is_pos = bool(re.search(r'^(yes|true|affiliated|high|present)\b', val_str, re.I))
     if val_str.lower() in ("no", "none", "false") and flag_name == "competitor":
         val_str = "None"

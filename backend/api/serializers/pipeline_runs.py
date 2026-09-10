@@ -245,8 +245,9 @@ class CreatePipelineRunSerializer(serializers.Serializer):
     workspace_id = serializers.UUIDField(required=True, help_text="Target Workspace UUID")
     reprocess_existing = serializers.BooleanField(
         required=False,
-        default=False,
-        help_text="If True, reprocesses existing workspace papers without scraping new ones"
+        default=None,
+        allow_null=True,
+        help_text="If True, reprocesses existing workspace papers without scraping new ones. If omitted/null, falls back to workspace.reprocess_existing."
     )
     name = serializers.CharField(
         required=False,
@@ -326,8 +327,9 @@ class StartPipelineRunSerializer(serializers.Serializer):
     )
     reprocess_existing = serializers.BooleanField(
         required=False,
-        default=False,
-        help_text="If True, reprocess existing workspace papers"
+        default=None,
+        allow_null=True,
+        help_text="If True, reprocess existing workspace papers. If omitted/null, falls back to workspace.reprocess_existing."
     )
     autonomous = serializers.BooleanField(
         required=False,

@@ -114,7 +114,7 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         workspace_id = str(serializer.validated_data['workspace_id'])
-        reprocess_existing = serializer.validated_data.get('reprocess_existing', False)
+        reprocess_existing = serializer.validated_data.get('reprocess_existing')
         run_name = serializer.validated_data.get('name') or "SLR Review Run"
         start_date = serializer.validated_data.get('start_date')
         end_date = serializer.validated_data.get('end_date')
@@ -125,6 +125,9 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
         )
         if error:
             return Response({"error": error}, status=status.HTTP_403_FORBIDDEN)
+
+        if reprocess_existing is None:
+            reprocess_existing = getattr(workspace, 'reprocess_existing', False)
 
         config_override = {}
         if start_date:
@@ -139,7 +142,7 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             name=run_name,
             status='pending',
             current_stage='search',
-            reprocess_existing=reprocess_existing,
+            reprocess_existing=bool(reprocess_existing),
             triggered_by=request.user,
             configuration_override=config_override,
         )

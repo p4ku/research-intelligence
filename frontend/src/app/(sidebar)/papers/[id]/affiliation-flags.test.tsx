@@ -1,7 +1,13 @@
 import type { RiskAndAffiliation } from '@/lib/papers/types'
 import { describe, expect, test } from 'bun:test'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { RiskAffiliationFlagging } from './affiliation-flags'
+import {
+  RiskAffiliationFlagging,
+  unpackFlag,
+  formatInvolvementType,
+  formatFlagItem,
+  unpackEmbeddedDictsInString,
+} from './affiliation-flags'
 
 describe('RiskAffiliationFlagging Component Rendering', () => {
   const fullRiskData: RiskAndAffiliation = {
@@ -407,5 +413,121 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
 
     // Verify comma separation with space allowing browser line wrapping
     expect(out).toContain(', ')
+  })
+
+  test('unpacks competitor dictionary from raw stringified dicts e.g. YES ({\'competitor\': \'Google\', \'involvement_type\': \'FUNDER\'})', () => {
+    // 1. Single competitor with role
+    const flagSingle = unpackFlag({
+      key: 'competitor',
+      label: 'Competitor Involvement',
+      value: "YES ({'competitor': 'Google', 'involvement_type': 'FUNDER'})",
+      status: 'warn',
+    })
+    expect(flagSingle.label).toBe('Competitor Involvement')
+    expect(flagSingle.value).toBe('YES (Google (Funder))')
+    expect(flagSingle.status).toBe('warn')
+
+    // 2. Multiple competitors with mixed roles
+    const flagMulti = unpackFlag({
+      key: 'competitor',
+      label: 'Competitor Involvement',
+      value:
+        "YES ({'competitor': 'Google', 'involvement_type': 'FUNDER'}, {'competitor': 'Microsoft', 'involvement_type': 'CO_AUTHOR'})",
+      status: 'warn',
+    })
+    expect(flagMulti.value).toBe('YES (Google (Funder), Microsoft (Co-Author))')
+
+    // 3. Single competitor without role
+    const flagNoRole = unpackFlag({
+      key: 'competitor',
+      label: 'Competitor Involvement',
+      value: "YES ({'competitor': 'Amazon'})",
+      status: 'warn',
+    })
+    expect(flagNoRole.value).toBe('YES (Amazon)')
+
+    // 4. Object parsed from dict_value with structured matches
+    const flagFromDict = unpackFlag({
+      key: 'competitor',
+      label: 'Competitor Involvement',
+      value: 'YES',
+      status: 'neutral',
+      dict_value: {
+        status: 'YES',
+        matches: [{ competitor: 'Google', involvement_type: 'FUNDER' }],
+      },
+    })
+    expect(flagFromDict.value).toBe('YES (Google (Funder))')
+    expect(flagFromDict.status).toBe('warn')
+  })
+
+  test('formatInvolvementType formats various role naming conventions correctly', () => {
+    expect(formatInvolvementType('FUNDER')).toBe('Funder')
+    expect(formatInvolvementType('CO_AUTHOR')).toBe('Co-Author')
+    expect(formatInvolvementType('co-author')).toBe('Co-Author')
+    expect(formatInvolvementType('DATA_PROVIDER')).toBe('Data Provider')
+    expect(formatInvolvementType('PRIMARY_RESEARCHER')).toBe('Primary Researcher')
+    expect(formatInvolvementType('none')).toBe('')
+    expect(formatInvolvementType('null')).toBe('')
+    expect(formatInvolvementType(undefined)).toBe('')
+  })
+
+  test('formatFlagItem unpacks object and stringified dicts accurately', () => {
+    expect(formatFlagItem({ competitor: 'Google', involvement_type: 'FUNDER' })).toBe(
+      'Google (Funder)',
+    )
+    expect(formatFlagItem("{'competitor': 'Google', 'involvement_type': 'FUNDER'}")).toBe(
+      'Google (Funder)',
+    )
+    expect(formatFlagItem({ name: 'OpenAI', role: 'PARTNER' })).toBe('OpenAI (Partner)')
+    expect(formatFlagItem('Amazon')).toBe('Amazon')
+  })
+
+  test('renders user screenshot scenario with clean unpacked competitor badge and warning styling', () => {
+    const screenshotRiskData: RiskAndAffiliation = {
+      affiliations: ['New York University'],
+      author_contacts: ['atk331@nyu.edu', 'rovinski@nyu.edu'],
+      funding_entities: ['Google'],
+      codebase_artifact_link: 'https://github.com/nyu-processor/artifact',
+      flags: [
+        {
+          key: 'schwarz_ecosystem',
+          label: 'Schwarz Ecosystem',
+          value: 'NO',
+          status: 'neutral',
+        },
+        {
+          key: 'competitor',
+          label: 'Competitor Involvement',
+          value: "YES ({'competitor': 'Google', 'involvement_type': 'FUNDER'})",
+          status: 'warn',
+        },
+        {
+          key: 'compliance_risks',
+          label: 'Compliance Risks',
+          value: 'NO',
+          status: 'safe',
+        },
+      ],
+    }
+    const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={screenshotRiskData} />)
+
+    // Verify affiliations, contacts, artifact link, funding
+    expect(out).toContain('New York University')
+    expect(out).toContain('atk331@nyu.edu')
+    expect(out).toContain('rovinski@nyu.edu')
+    expect(out).toContain('Artifact Repository')
+    expect(out).toContain('Funding: ')
+    expect(out).toContain('Google')
+
+    // Verify competitor badge is cleanly unpacked without raw dict syntax
+    expect(out).toContain('Competitor Involvement:')
+    expect(out).toContain('YES (Google (Funder))')
+    expect(out).not.toContain("{'competitor'")
+    expect(out).not.toContain("'involvement_type'")
+    expect(out).not.toContain('FUNDER') // should be formatted as Funder
+
+    // Verify warning status badge classes
+    expect(out).toContain('bg-amber-50 text-amber-800')
   })
 })

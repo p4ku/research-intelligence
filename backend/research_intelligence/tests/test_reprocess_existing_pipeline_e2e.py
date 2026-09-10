@@ -551,6 +551,162 @@ class WorkspaceReprocessFlagTestCase(TestCase):
         self.assertIn(run_2, paper_1.reprocessed_runs.all())
         self.assertIn(paper_1, run_2.get_papers())
 
+    def test_start_pipeline_run_inherits_workspace_reprocess_existing_when_omitted(self):
+        """
+        Validates that POST /api/pipeline-runs/start/ and POST /api/workspaces/{id}/run-pipeline/
+        inherit workspace.reprocess_existing=True when reprocess_existing is omitted from the payload,
+        and honor explicit False overrides.
+        """
+        ws_true = Workspace.objects.create(name="Inherit Flag WS", reprocess_existing=True)
+        WorkspaceMember.objects.create(workspace=ws_true, user=self.admin, role="admin")
+        Scraper.objects.create(workspace=ws_true, provider="arxiv", search_query="quantum", is_active=True)
+
+        mock_task = MagicMock(id="mock_celery_id_123")
+        with patch("research_intelligence.tasks.step_1_search.search.execute_scraper_run_job.delay", return_value=mock_task), \
+             patch("mcp_server.tools.pipeline_runs.triggers.execute_scraper_run_job.delay", return_value=mock_task):
+            # 1. Start via /api/pipeline-runs/start/ without reprocess_existing -> inherits True
+            res_start = self.client.post("/api/pipeline-runs/start/", {
+                "workspace_id": str(ws_true.id),
+                "name": "Inherited True Run"
+            }, format="json")
+            self.assertEqual(res_start.status_code, status.HTTP_201_CREATED)
+            run_id = res_start.data.get("pipeline_run_id")
+            run = PipelineRun.objects.get(id=run_id)
+            self.assertTrue(run.reprocess_existing)
+
+            # 2. Start via /api/pipeline-runs/start/ with explicit reprocess_existing=False -> overrides to False
+            res_start_false = self.client.post("/api/pipeline-runs/start/", {
+                "workspace_id": str(ws_true.id),
+                "name": "Explicit False Run",
+                "reprocess_existing": False
+            }, format="json")
+            self.assertEqual(res_start_false.status_code, status.HTTP_201_CREATED)
+            run_false = PipelineRun.objects.get(id=res_start_false.data.get("pipeline_run_id"))
+            self.assertFalse(run_false.reprocess_existing)
+
+            # 3. Start via /api/workspaces/{id}/run-pipeline/ without reprocess_existing -> inherits True
+            res_ws_run = self.client.post(f"/api/workspaces/{ws_true.id}/run-pipeline/", {
+                "name": "WS Action Inherited True"
+            }, format="json")
+            self.assertEqual(res_ws_run.status_code, status.HTTP_201_CREATED)
+            run_ws = PipelineRun.objects.get(id=res_ws_run.data.get("pipeline_run_id"))
+            self.assertTrue(run_ws.reprocess_existing)
+
+            # 4. Create via POST /api/pipeline-runs/ without reprocess_existing -> inherits True
+            res_create = self.client.post("/api/pipeline-runs/", {
+                "workspace_id": str(ws_true.id),
+                "name": "Create Endpoint Inherited True"
+            }, format="json")
+            self.assertEqual(res_create.status_code, status.HTTP_201_CREATED)
+            run_created = PipelineRun.objects.get(id=res_create.data.get("id"))
+            self.assertTrue(run_created.reprocess_existing)
+
+    def test_reprocess_existing_only_relinks_scraper_results_and_ignores_out_of_window_papers(self):
+        """
+        Validates that when reprocess_existing=True, duplicate papers returned by the scraper
+        within the search criteria are reprocessed, while other existing workspace papers
+        outside the scraper results are NOT linked.
+        """
+        from research_intelligence.tasks.step_1_search.search import execute_scraper_run_job
+        ws = Workspace.objects.create(name="Scraper Scoped Reprocess WS", reprocess_existing=True)
+        old_run = PipelineRun.objects.create(workspace=ws, status="completed")
+
+        # Paper 1: Out of window historical paper from 2024 (NOT returned by scraper)
+        p_out_of_window = Paper.objects.create(
+            workspace=ws,
+            pipeline_run=old_run,
+            hash_id="hash_old_2024_out_of_window",
+            doi="10.1000/old2024",
+            arxiv_id="2401.99999",
+            title="Ancient Historical Paper Out Of Window",
+            authors="Old Author",
+            abstract="Paper published years ago.",
+            source_database="arxiv"
+        )
+
+        # Paper 2: In-window paper that already exists in DB (matching an item from scraper)
+        p_in_window = Paper.objects.create(
+            workspace=ws,
+            pipeline_run=old_run,
+            hash_id="hash_duplicate_in_window",
+            doi="10.1000/duplicate2026",
+            arxiv_id="2609.00001",
+            title="Recent Paper Matching Scraper Query",
+            authors="Recent Author",
+            abstract="Paper within recent search window.",
+            source_database="arxiv"
+        )
+
+        # Scraper returns: 1 duplicate (matching p_in_window) + 1 brand new paper
+        mock_scraper_results = [
+            {
+                "source_database": "arxiv",
+                "hash_id": "scraped_duplicate_item",
+                "doi": "10.1000/duplicate2026",
+                "arxiv_id": "2609.00001",
+                "title": "Recent Paper Matching Scraper Query",
+                "authors": ["Recent Author"],
+                "abstract": "Paper within recent search window.",
+                "published_date": "2026-09-05"
+            },
+            {
+                "source_database": "arxiv",
+                "hash_id": "scraped_brand_new_item",
+                "doi": "10.1000/new2026",
+                "arxiv_id": "2609.00002",
+                "title": "Brand New Paper Just Published",
+                "authors": ["New Author"],
+                "abstract": "Fresh discoveries in robotics.",
+                "published_date": "2026-09-08"
+            }
+        ]
+
+        scraper = Scraper.objects.create(
+            workspace=ws,
+            provider="arxiv",
+            search_query="robotics",
+            is_active=True
+        )
+
+        new_run = PipelineRun.objects.create(
+            workspace=ws,
+            status="running",
+            reprocess_existing=True,
+            configuration_override={
+                "start_date": "2026-09-01",
+                "end_date": "2026-09-10"
+            }
+        )
+
+        comp_run = ComponentRun.objects.create(
+            pipeline_run=new_run,
+            step_type="search",
+            component_name="arxiv_scraper",
+            scraper=scraper,
+            status="running",
+            input_params={
+                "start_date": "2026-09-01",
+                "end_date": "2026-09-10"
+            }
+        )
+
+        with patch("research_intelligence.tasks.step_1_search.search.get_scraper_provider") as mock_get_provider:
+            provider_inst = MagicMock()
+            provider_inst.search.return_value = mock_scraper_results
+            mock_get_provider.return_value = provider_inst
+
+            execute_scraper_run_job(component_run_id=str(comp_run.id))
+
+        new_run.refresh_from_db()
+        papers_in_new_run = list(new_run.get_papers())
+
+        # Assert exactly 2 papers are linked (the in-window duplicate + the brand new paper)
+        self.assertEqual(len(papers_in_new_run), 2)
+        self.assertIn(p_in_window, papers_in_new_run)
+
+        # Crucial assertion: the out-of-window workspace paper was NOT linked!
+        self.assertNotIn(p_out_of_window, papers_in_new_run)
+
 
 class PipelineDateRangeAndResultsPaginationE2ETestCase(TestCase):
     """

@@ -13,7 +13,12 @@ class StartResearchAgentSerializer(serializers.Serializer):
     n_last_days = serializers.IntegerField(required=False, default=None, allow_null=True, min_value=1, max_value=3650, help_text="Lookback window in days (default: 7)")
     query_prefix = serializers.CharField(required=False, allow_null=True, allow_blank=True, default="", help_text="Search query prefix override")
     skip_abstract_screening = serializers.BooleanField(required=False, default=False, help_text="Skip abstract screening and screen directly on full text")
-    reprocess_existing = serializers.BooleanField(required=False, default=False, help_text="Reprocess existing workspace papers without re-scraping")
+    reprocess_existing = serializers.BooleanField(
+        required=False,
+        default=None,
+        allow_null=True,
+        help_text="Reprocess existing workspace papers without re-scraping. If omitted/null, falls back to workspace.reprocess_existing."
+    )
     notification_email = serializers.EmailField(required=False, allow_null=True, allow_blank=True, default=None, help_text="Optional email to receive notification upon completion")
 
     def validate(self, attrs):

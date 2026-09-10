@@ -234,6 +234,115 @@ def normalize_funding_entities(raw_val: Any) -> List[str]:
     return []
 
 
+def format_involvement_type(role: Any) -> str:
+    """
+    Formats involvement roles into readable title case.
+    e.g. 'FUNDER' -> 'Funder', 'CO_AUTHOR' -> 'Co-Author', 'DATA_PROVIDER' -> 'Data Provider'
+    """
+    if not role:
+        return ""
+    r_str = str(role).strip()
+    if r_str.lower() in ("none", "unknown", "null", "undefined", "n/a"):
+        return ""
+    words = re.split(r"[-_\s]+", r_str)
+    cap_words = []
+    for w in words:
+        w_lower = w.lower()
+        if w_lower == "co":
+            cap_words.append("Co")
+        else:
+            cap_words.append(w.capitalize())
+    if len(cap_words) >= 2 and cap_words[0].lower() == "co":
+        return f"Co-{cap_words[1]}" if len(cap_words) == 2 else f"Co-{' '.join(cap_words[1:])}"
+    return " ".join(cap_words)
+
+
+def format_flag_item(item: Any) -> str:
+    """
+    Unpacks and formats an individual flag/competitor match item which might be:
+      - dict: {'competitor': 'Google', 'involvement_type': 'FUNDER'} -> 'Google (Funder)'
+      - dict: {'name': 'OpenAI', 'role': 'CO_AUTHOR'} -> 'OpenAI (Co-Author)'
+      - stringified dict: "{'competitor': 'Google', 'involvement_type': 'FUNDER'}" -> 'Google (Funder)'
+      - plain string: 'Google' -> 'Google'
+    """
+    if item is None:
+        return ""
+    if isinstance(item, dict):
+        name = (
+            item.get("competitor")
+            or item.get("name")
+            or item.get("company")
+            or item.get("organization")
+            or item.get("entity")
+            or item.get("matched_competitor")
+            or item.get("institution")
+            or item.get("concern")
+        )
+        role = (
+            item.get("involvement_type")
+            or item.get("involvement")
+            or item.get("type")
+            or item.get("role")
+            or item.get("relationship")
+        )
+        if not name and len(item) == 1:
+            k, v = next(iter(item.items()))
+            name, role = k, v
+
+        formatted_role = format_involvement_type(role)
+        name_str = str(name).strip() if name is not None else ""
+        if name_str and formatted_role:
+            return f"{name_str} ({formatted_role})"
+        if name_str:
+            return name_str
+        if formatted_role:
+            return formatted_role
+        return str(item)
+
+    item_str = str(item).strip()
+    if "{" in item_str and "}" in item_str:
+        try:
+            parsed = ast.literal_eval(item_str)
+            if isinstance(parsed, dict):
+                return format_flag_item(parsed)
+        except Exception:
+            try:
+                parsed = json.loads(item_str)
+                if isinstance(parsed, dict):
+                    return format_flag_item(parsed)
+            except Exception:
+                pass
+    return item_str
+
+
+def unpack_embedded_dicts_in_str(s: str) -> str:
+    """
+    Replaces embedded serialized dicts in flag strings such as:
+    "YES ({'competitor': 'Google', 'involvement_type': 'FUNDER'})"
+    into:
+    "YES (Google (Funder))"
+    """
+    if not s or "{" not in s:
+        return s
+
+    def _repl(match):
+        content = match.group(0)
+        try:
+            parsed = ast.literal_eval(content)
+            if isinstance(parsed, dict):
+                return format_flag_item(parsed)
+        except Exception:
+            try:
+                parsed = json.loads(content)
+                if isinstance(parsed, dict):
+                    return format_flag_item(parsed)
+            except Exception:
+                pass
+        return content
+
+    return re.sub(r'\{[^{}]+\}', _repl, s)
+
+
 def unpack_flag_value(raw: Any, flag_type: str = "") -> Tuple[str, bool, List[str], bool, Optional[dict]]:
     """
     Parses flag fields into (display_value, is_positive, matched_items, is_dict, parsed_dict).
@@ -241,6 +350,8 @@ def unpack_flag_value(raw: Any, flag_type: str = "") -> Tuple[str, bool, List[st
       - {"status": "YES", "matched_institutions": ["TUM"]} -> ("YES (TUM)", True, ["TUM"], True, {...})
       - {"status": "NO", "concerns": null} -> ("NO", False, [], True, {...})
       - {"status": "FLAGGED", "concerns": ["Personal data"]} -> ("FLAGGED (Personal data)", True, [...], True, {...})
+      - {"status": "YES", "matches": [{"competitor": "Google", "involvement_type": "FUNDER"}]}
+        -> ("YES (Google (Funder))", True, ["Google (Funder)"], True, {...})
     """
     if raw is None:
         return "None" if "competitor" in flag_type else "NO", False, [], False, None
@@ -267,9 +378,19 @@ def unpack_flag_value(raw: Any, flag_type: str = "") -> Tuple[str, bool, List[st
         )
         items: List[str] = []
         if isinstance(matches, list):
-            items = [str(m).strip() for m in matches if m is not None and str(m).strip() and str(m).strip().lower() not in ("none", "null")]
-        elif matches and str(matches).strip() and str(matches).strip().lower() not in ("none", "null"):
-            items = [str(matches).strip()]
+            for m in matches:
+                if m is not None:
+                    formatted = format_flag_item(m)
+                    if formatted and formatted.lower() not in ("none", "null", ""):
+                        items.append(formatted)
+        elif matches:
+            formatted = format_flag_item(matches)
+            if formatted and formatted.lower() not in ("none", "null", ""):
+                items.append(formatted)
+        elif not matches and any(k in parsed for k in ("competitor", "company", "organization", "entity")):
+            formatted = format_flag_item(parsed)
+            if formatted and formatted.lower() not in ("none", "null", ""):
+                items.append(formatted)
 
         stat_lower = status_str.lower()
         is_pos = (
@@ -289,6 +410,8 @@ def unpack_flag_value(raw: Any, flag_type: str = "") -> Tuple[str, bool, List[st
 
     # String or primitive flag
     val_str = str(parsed).strip()
+    if "{" in val_str:
+        val_str = unpack_embedded_dicts_in_str(val_str)
     stat_lower = val_str.lower()
     is_pos = (
         stat_lower.startswith("yes")
@@ -296,6 +419,8 @@ def unpack_flag_value(raw: Any, flag_type: str = "") -> Tuple[str, bool, List[st
         or stat_lower in ("affiliated", "high", "present", "flagged")
         or bool(re.match(r'^(yes|true|affiliated|high|present|flagged)\b', stat_lower))
     )
+    if stat_lower in ("no", "none", "false") and "competitor" in flag_type:
+        val_str = "None"
     return val_str, is_pos, [], False, None
 
 

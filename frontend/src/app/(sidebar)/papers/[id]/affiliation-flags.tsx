@@ -49,6 +49,141 @@ export function getFlagSortOrder(flag: RiskFlag): number {
   return 99
 }
 
+export function formatInvolvementType(raw?: unknown): string {
+  if (typeof raw !== 'string') return ''
+  const trimmed = raw.trim()
+  if (!trimmed || /^(none|unknown|null|undefined|n\/a)$/i.test(trimmed)) return ''
+  const words = trimmed
+    .replace(/[-_]+/g, ' ')
+    .split(/\s+/)
+    .map((w) => {
+      const l = w.toLowerCase()
+      return l === 'co' ? 'Co' : l.charAt(0).toUpperCase() + l.slice(1)
+    })
+  if (words.length >= 2 && words[0].toLowerCase() === 'co') {
+    return `Co-${words.slice(1).join(' ')}`
+  }
+  return words.join(' ')
+}
+
+export function parsePythonOrJsonDict(raw: string): Record<string, unknown> | null {
+  if (!raw || typeof raw !== 'string') return null
+  const trimmed = raw.trim()
+  const start = trimmed.indexOf('{')
+  const end = trimmed.lastIndexOf('}')
+  if (start === -1 || end === -1 || end <= start) return null
+  const candidate = trimmed.slice(start, end + 1)
+
+  // 1. Try standard JSON.parse
+  try {
+    const parsed = JSON.parse(candidate)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+  } catch {
+    // continue to Python dict parser
+  }
+
+  // 2. Python dict syntax normalization:
+  // None -> null, True -> true, False -> false, single quotes -> double quotes
+  try {
+    const normalized = candidate
+      .replace(/\bNone\b/g, 'null')
+      .replace(/\bTrue\b/g, 'true')
+      .replace(/\bFalse\b/g, 'false')
+      .replace(/'([^'\\]*(?:\\.[^'\\]*)*)'/g, (_match, group) => {
+        const escaped = group.replace(/"/g, '\\"').replace(/\\'/g, "'")
+        return `"${escaped}"`
+      })
+
+    const parsed = JSON.parse(normalized)
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+  } catch {
+    // 3. Fallback regex extraction of key-values
+    const result: Record<string, unknown> = {}
+    const kvRegex =
+      /['"]?([a-zA-Z0-9_]+)['"]?\s*:\s*(?:['"]([^'"]*)['"]|([0-9.]+)|(true|false|null|None))/gi
+    let match: RegExpExecArray | null
+    let found = false
+    while ((match = kvRegex.exec(candidate)) !== null) {
+      found = true
+      const key = match[1]
+      const valStr =
+        match[2] !== undefined
+          ? match[2]
+          : match[3] !== undefined
+            ? Number(match[3])
+            : match[4]
+      result[key] = valStr === 'None' || valStr === 'null' ? null : valStr
+    }
+    if (found) return result
+  }
+
+  return null
+}
+
+export function formatFlagItem(item: unknown): string {
+  if (item === null || item === undefined) return ''
+  if (typeof item === 'object') {
+    const obj = item as Record<string, unknown>
+    const name =
+      obj.competitor ??
+      obj.name ??
+      obj.company ??
+      obj.organization ??
+      obj.entity ??
+      obj.matched_competitor ??
+      obj.institution ??
+      obj.concern
+    const role =
+      obj.involvement_type ??
+      obj.involvement ??
+      obj.type ??
+      obj.role ??
+      obj.relationship
+
+    const formattedRole = formatInvolvementType(role)
+    const nameStr = name !== undefined && name !== null ? String(name).trim() : ''
+
+    if (nameStr && formattedRole) {
+      return `${nameStr} (${formattedRole})`
+    }
+    if (nameStr) return nameStr
+    if (formattedRole) return formattedRole
+
+    const entries = Object.entries(obj)
+    if (entries.length === 1) {
+      const [k, v] = entries[0]
+      const r = formatInvolvementType(v)
+      return r ? `${k} (${r})` : k
+    }
+    return JSON.stringify(item)
+  }
+
+  const str = String(item).trim()
+  if (str.includes('{') && str.includes('}')) {
+    const parsed = parsePythonOrJsonDict(str)
+    if (parsed) {
+      return formatFlagItem(parsed)
+    }
+  }
+  return str
+}
+
+export function unpackEmbeddedDictsInString(str: string): string {
+  if (!str || typeof str !== 'string' || !str.includes('{')) return str
+
+  return str.replace(/\{[^{}]+\}/g, (match) => {
+    const parsed = parsePythonOrJsonDict(match)
+    if (parsed) {
+      return formatFlagItem(parsed)
+    }
+    return match
+  })
+}
+
 // The verdicts this file writes itself (never backend prose), so they are
 // translated; `t` defaults to identity for the unit tests that call the
 // unpacker directly.
@@ -60,11 +195,6 @@ export function unpackFlag(
   let status = flag.status
   const label = normalizeFlagLabel(flag.label, flag.key, t)
 
-  // If already a clean string that isn't serialized JSON, return immediately
-  if (typeof val === 'string' && !val.trim().startsWith('{')) {
-    return { label, value: val, status }
-  }
-
   let parsed: Record<string, unknown> | null = null
   if (flag.dict_value && typeof flag.dict_value === 'object') {
     parsed = flag.dict_value as Record<string, unknown>
@@ -73,11 +203,7 @@ export function unpackFlag(
   } else if (typeof val === 'string') {
     const trimmed = val.trim()
     if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
-      try {
-        parsed = JSON.parse(trimmed)
-      } catch {
-        // drop silent
-      }
+      parsed = parsePythonOrJsonDict(trimmed)
     }
   }
 
@@ -89,26 +215,35 @@ export function unpackFlag(
       parsed.matches ??
       parsed.institutions ??
       parsed.competitors ??
-      parsed.details
+      parsed.details ??
+      parsed.concerns ??
+      parsed.reasons
     const items: string[] = []
     if (Array.isArray(matches)) {
       for (const m of matches) {
+        const itemStr = formatFlagItem(m)
         if (
-          m &&
-          String(m).trim() !== '' &&
-          String(m).trim() !== 'None' &&
-          String(m).trim() !== 'null'
+          itemStr &&
+          itemStr !== 'None' &&
+          itemStr !== 'null' &&
+          itemStr !== '[object Object]'
         ) {
-          items.push(String(m).trim())
+          items.push(itemStr)
         }
       }
-    } else if (
-      matches &&
-      String(matches).trim() !== '' &&
-      String(matches).trim() !== 'None' &&
-      String(matches).trim() !== 'null'
-    ) {
-      items.push(String(matches).trim())
+    } else if (matches) {
+      const itemStr = formatFlagItem(matches)
+      if (
+        itemStr &&
+        itemStr !== 'None' &&
+        itemStr !== 'null' &&
+        itemStr !== '[object Object]'
+      ) {
+        items.push(itemStr)
+      }
+    } else if (parsed.competitor || parsed.company || parsed.entity) {
+      const itemStr = formatFlagItem(parsed)
+      if (itemStr) items.push(itemStr)
     }
 
     const statStr = rawStatus !== undefined && rawStatus !== null ? String(rawStatus).trim() : ''
@@ -126,6 +261,16 @@ export function unpackFlag(
       status = 'safe'
     } else {
       val = items.length > 0 ? `${statStr} (${items.join(', ')})` : statStr || '—'
+    }
+  } else if (typeof val === 'string') {
+    if (val.includes('{')) {
+      val = unpackEmbeddedDictsInString(val)
+      if (
+        /^(yes|true)\b/i.test(val) &&
+        (flag.key.includes('competitor') || label.toLowerCase().includes('competitor'))
+      ) {
+        status = 'warn'
+      }
     }
   }
 

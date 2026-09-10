@@ -77,7 +77,7 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
         query_prefix = validated.get("query_prefix")
         skip_abstract = validated.get("skip_abstract_screening")
         notification_email = validated.get("notification_email")
-        reprocess_existing = validated.get("reprocess_existing", False)
+        reprocess_existing = validated.get("reprocess_existing")
 
         res_json = start_research_agent_logic(
             user=request.user,
