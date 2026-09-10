@@ -354,9 +354,52 @@ class QueueMonitorView(View):
         running_components, running_pipelines, pending_components = self.get_db_active_runs()
 
         total_queued_messages = sum(q["count"] for q in queue_summaries)
-        total_active_tasks = len(active_celery_tasks) + len(running_components)
         total_running_pipelines = len(running_pipelines)
         online_workers_count = len([w for w in worker_nodes if w["status"] == "Online"])
+
+        # 2. Correlate and deduplicate active tasks between Database and Celery workers
+        worker_by_task_id = {t["id"]: t.get("worker", "") for t in active_celery_tasks if t.get("id")}
+        db_task_ids = set()
+
+        for c in running_components:
+            tid = c.get("celery_task_id")
+            if tid and tid != "-":
+                db_task_ids.add(tid)
+            if tid and tid in worker_by_task_id:
+                c["worker"] = worker_by_task_id[tid]
+                c["worker_status"] = "Active on worker"
+            elif c.get("elapsed_seconds", 0) < 120:
+                c["worker"] = ""
+                c["worker_status"] = "Starting / Queued"
+            elif c.get("has_recent_progress"):
+                c["worker"] = ""
+                c["worker_status"] = "Active (Progressing)"
+            else:
+                c["worker"] = ""
+                c["worker_status"] = "Stalled / Ghost"
+
+        # Celery tasks active on workers but without a ComponentRun in DB (e.g. background tasks)
+        unmatched_celery_tasks = [t for t in active_celery_tasks if t.get("id") and t.get("id") not in db_task_ids]
+
+        # Total distinct active tasks (Deduplicated!)
+        total_active_tasks = len(running_components) + len(unmatched_celery_tasks)
+        active_in_workers = len(worker_by_task_id)
+
+        # Build clean, human-friendly subtext for the Stat Card
+        if total_active_tasks == 0:
+            active_tasks_subtext = "All workers idle"
+        elif total_active_tasks == 1:
+            if active_in_workers >= 1 and len(running_components) == 1 and running_components[0].get("worker"):
+                active_tasks_subtext = "1 in DB & active on worker"
+            elif len(running_components) == 1:
+                active_tasks_subtext = "1 in DB (starting/queued)"
+            else:
+                active_tasks_subtext = "1 background task in worker"
+        else:
+            if len(running_components) == active_in_workers and not unmatched_celery_tasks:
+                active_tasks_subtext = f"{total_active_tasks} executing on worker(s)"
+            else:
+                active_tasks_subtext = f"{len(running_components)} in DB · {active_in_workers} active in worker(s)"
 
         # Auto-refresh parameter
         refresh_sec = request.GET.get("refresh", "0")
@@ -376,12 +419,14 @@ class QueueMonitorView(View):
             "celery_error": celery_error,
             "total_queued_messages": total_queued_messages,
             "total_active_tasks": total_active_tasks,
+            "active_tasks_subtext": active_tasks_subtext,
             "total_running_pipelines": total_running_pipelines,
             "online_workers_count": online_workers_count,
             "queue_summaries": queue_summaries,
             "queued_messages": queued_messages,
             "active_celery_tasks": active_celery_tasks,
             "running_components": running_components,
+            "unmatched_celery_tasks": unmatched_celery_tasks,
             "running_pipelines": running_pipelines,
             "pending_components": pending_components,
             "worker_nodes": worker_nodes,

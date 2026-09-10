@@ -285,3 +285,55 @@ class QueueMonitorTestCase(TestCase):
         comp.refresh_from_db()
         self.assertEqual(comp.status, "failed")
         self.assertIn("Manually terminated by admin", comp.error_message)
+
+    @patch("research_intelligence.admin_views.queue_monitor.QueueMonitorView.get_celery_worker_data")
+    def test_active_tasks_deduplication(self, mock_get_worker_data):
+        """
+        Verify that a ComponentRun in DB and the corresponding active Celery task
+        are counted as ONE task (not double-counted as 1+1=2).
+        """
+        self.client.force_login(self.staff_user)
+        now = timezone.now()
+        pipe = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Deduplication Test Pipeline",
+            status="running",
+        )
+        task_uuid = "ab99f176-1958-466a-b75a-551ef579fa03"
+        ComponentRun.objects.create(
+            pipeline_run=pipe,
+            component_name="abstract_screening",
+            step_type="screening",
+            status="running",
+            celery_task_id=task_uuid,
+            started_at=now - timedelta(minutes=5),
+        )
+
+        mock_get_worker_data.return_value = (
+            [
+                {
+                    "worker": "celery@node-01",
+                    "id": task_uuid,
+                    "name": "abstract_screening",
+                    "start_time": "17:42:53 UTC",
+                    "elapsed_seconds": 307.0,
+                    "elapsed_display": "5m 07s",
+                    "args": "()",
+                    "kwargs": "{}",
+                }
+            ],
+            [
+                {"name": "celery@node-01", "status": "Online", "concurrency": 2, "active_count": 1, "processed_count": 10}
+            ],
+            "",
+        )
+
+        resp = self.client.get(reverse("admin:queue-monitor"))
+        self.assertEqual(resp.status_code, 200)
+
+        # Total active count must be 1, NOT 2!
+        self.assertEqual(resp.context["total_active_tasks"], 1)
+        self.assertIn("1 in DB &amp; active on worker", resp.content.decode("utf-8"))
+        self.assertContains(resp, "celery@node-01")
+        self.assertContains(resp, task_uuid)
+

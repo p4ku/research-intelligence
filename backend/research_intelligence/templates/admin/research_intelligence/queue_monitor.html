@@ -167,7 +167,7 @@
                 {{ total_active_tasks }}
             </div>
             <div style="font-size: 12px; color: #6c757d; margin-top: 6px;">
-                {{ running_components|length }} in DB · {{ active_celery_tasks|length }} in workers
+                {{ active_tasks_subtext }}
             </div>
         </div>
 
@@ -215,14 +215,14 @@
     <div class="qm-card">
         <div class="qm-card-header">
             <h2>🏃 Active In-Progress Tasks</h2>
-            <span style="font-size: 12px; color: #6c757d;">Count: {{ running_components|length }} in DB / {{ active_celery_tasks|length }} in Celery</span>
+            <span style="font-size: 12px; color: #6c757d;">Total Active: <strong>{{ total_active_tasks }}</strong></span>
         </div>
         <table class="qm-table">
             <thead>
                 <tr>
                     <th>Task / Component</th>
                     <th>Pipeline Run &amp; Workspace</th>
-                    <th>Celery Task ID</th>
+                    <th>Celery Task ID &amp; Worker Node</th>
                     <th>Start Time</th>
                     <th>Elapsed Duration</th>
                     <th style="text-align: right;">Actions</th>
@@ -248,8 +248,19 @@
                             {% endif %}
                             <div style="font-size: 11px; color: #6c757d;">WS: {{ comp.workspace }}</div>
                         </td>
-                        <td style="font-family: monospace; font-size: 12px; color: #495057; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ comp.celery_task_id }}">
-                            {{ comp.celery_task_id }}
+                        <td style="font-family: monospace; font-size: 12px; color: #495057;">
+                            <div style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ comp.celery_task_id }}">
+                                {{ comp.celery_task_id }}
+                            </div>
+                            {% if comp.worker %}
+                            <div style="font-size: 11px; color: #198754; font-weight: normal; margin-top: 2px;">
+                                ● {{ comp.worker }}
+                            </div>
+                            {% elif comp.worker_status %}
+                            <div style="font-size: 11px; color: #6c757d; font-weight: normal; margin-top: 2px;">
+                                {{ comp.worker_status }}
+                            </div>
+                            {% endif %}
                         </td>
                         <td style="color: #6c757d;">{{ comp.started_at_str }}</td>
                         <td>
@@ -267,7 +278,39 @@
                         </td>
                     </tr>
                     {% endfor %}
-                {% else %}
+                {% endif %}
+
+                {% if unmatched_celery_tasks %}
+                    {% for ut in unmatched_celery_tasks %}
+                    <tr>
+                        <td style="font-weight: 600;">
+                            ⚙️ {{ ut.name }}
+                            <div style="font-size: 11px; color: #6c757d; font-weight: normal;">Type: <strong>Background Task</strong></div>
+                        </td>
+                        <td style="color: #6c757d; font-size: 13px;">
+                            -
+                            <div style="font-size: 11px; color: #6c757d;">WS: System</div>
+                        </td>
+                        <td style="font-family: monospace; font-size: 12px; color: #495057;">
+                            <div style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ ut.id }}">
+                                {{ ut.id }}
+                            </div>
+                            <div style="font-size: 11px; color: #198754; font-weight: normal; margin-top: 2px;">
+                                ● {{ ut.worker }}
+                            </div>
+                        </td>
+                        <td style="color: #6c757d;">{{ ut.start_time }}</td>
+                        <td>
+                            <span class="qm-badge" style="background-color: #0d6efd; color: #fff;">
+                                ⏳ {{ ut.elapsed_display }}
+                            </span>
+                        </td>
+                        <td style="text-align: right; color: #6c757d; font-size: 12px;">-</td>
+                    </tr>
+                    {% endfor %}
+                {% endif %}
+
+                {% if not running_components and not unmatched_celery_tasks %}
                     <tr>
                         <td colspan="6" style="padding: 24px; text-align: center; color: #6c757d; font-size: 14px;">
                             ✨ No active tasks. All workers are idle and waiting for jobs in queues.
