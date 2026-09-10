@@ -40,15 +40,27 @@ describe('trimTitle', () => {
     expect(trimTitle('a'.repeat(50))).toBe('a'.repeat(50))
   })
 
-  test('trims titles longer than 50 characters to 50 chars with ellipsis', () => {
+  test('cuts a long title at the last word inside the budget, with the ellipsis glyph', () => {
     const title = 'Ambient Diffusion Policy: Imitation Learning from Suboptimal Data in Robotics'
-    expect(trimTitle(title)).toBe('Ambient Diffusion Policy: Imitation Learning from...')
+    expect(trimTitle(title)).toBe('Ambient Diffusion Policy: Imitation Learning from…')
+    expect(trimTitle(title)).not.toContain('...')
   })
 
-  test('trims trailing whitespace before appending ellipsis', () => {
-    const title = 'Short word before cut   and more text that exceeds fifty chars'
-    const trimmed = trimTitle(title, 23)
-    expect(trimmed).toBe('Short word before cut...')
+  test('never ends mid-word when a boundary sits in the second half', () => {
+    const title = 'Short word before cut and more text that exceeds fifty chars'
+    // A 23-char budget lands inside "and"; back up to the space before it.
+    expect(trimTitle(title, 23)).toBe('Short word before cut…')
+  })
+
+  test('falls back to a hard cut when the only boundary is in the first half', () => {
+    const title = 'Ab Supercalifragilisticexpialidocious-words-without-spaces'
+    expect(trimTitle(title, 20)).toBe('Ab Supercalifragilis…')
+  })
+
+  test('drops trailing whitespace before the ellipsis', () => {
+    expect(trimTitle('Short word before cut   and more text that exceeds fifty chars', 24)).toBe(
+      'Short word before cut…',
+    )
   })
 
   test('handles empty or blank string safely', () => {
