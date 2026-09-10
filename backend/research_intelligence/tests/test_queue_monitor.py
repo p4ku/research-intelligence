@@ -200,7 +200,39 @@ class QueueMonitorTestCase(TestCase):
         self.assertEqual(res["state"], "GHOST")
         self.assertFalse(res["is_alive"])
         self.assertTrue(res["is_ghost"])
-        self.assertIn("NO WORKER / GHOST", res["badge_text"])
+        self.assertIn("NO WORKER / STALLED", res["badge_text"])
+
+    def test_check_task_liveness_recent_progress(self):
+        from research_intelligence.utils.celery_liveness import check_task_liveness
+        res = check_task_liveness(
+            "progress-task-111",
+            "running",
+            active_map={},
+            reserved_set=set(),
+            inspector_ok=True,
+            duration_seconds=500.0,
+            metrics={"last_progress_at": (timezone.now() - timedelta(seconds=15)).isoformat()},
+        )
+        self.assertEqual(res["state"], "ACTIVE")
+        self.assertTrue(res["is_alive"])
+        self.assertFalse(res["is_ghost"])
+        self.assertIn("ACTIVE (PROGRESSING)", res["badge_text"])
+
+    def test_check_task_liveness_starting_grace_period(self):
+        from research_intelligence.utils.celery_liveness import check_task_liveness
+        # Dispatched 20 seconds ago, not in worker map yet
+        res = check_task_liveness(
+            "starting-task-222",
+            "running",
+            active_map={},
+            reserved_set=set(),
+            inspector_ok=True,
+            duration_seconds=20.7,
+        )
+        self.assertEqual(res["state"], "STARTING")
+        self.assertTrue(res["is_alive"])
+        self.assertFalse(res["is_ghost"])
+        self.assertIn("QUEUED / STARTING", res["badge_text"])
 
     def test_component_run_changelist_ghost_detection(self):
         self.client.force_login(self.staff_user)
@@ -225,7 +257,7 @@ class QueueMonitorTestCase(TestCase):
             resp = self.client.get(url)
 
             self.assertEqual(resp.status_code, 200)
-            self.assertContains(resp, "NO WORKER / GHOST")
+            self.assertContains(resp, "NO WORKER / STALLED")
             self.assertContains(resp, "RUNNING (💀 GHOST)")
 
     def test_mark_ghost_tasks_failed_action(self):

@@ -55,7 +55,14 @@ def get_active_celery_tasks_map(timeout: float = 0.3) -> Tuple[Dict[str, Dict[st
                 if tid:
                     reserved_set.add(tid)
 
-        inspector_online = bool(active_dict or reserved_dict or inspector.ping())
+        inspector_online = bool(active_dict or reserved_dict)
+        if not inspector_online:
+            try:
+                ping_res = inspector.ping()
+                inspector_online = bool(ping_res)
+            except Exception:
+                inspector_online = False
+
         return active_map, reserved_set, inspector_online
     except Exception as e:
         logger.debug(f"Celery worker inspector query failed or timed out: {e}")
@@ -76,7 +83,7 @@ def check_task_liveness(
 
     Returns dict:
       {
-        "state": "ACTIVE" | "RESERVED" | "GHOST" | "CRASHED" | "DESYNC" | "REVOKED" | "PENDING" | "COMPLETED" | "NONE",
+        "state": "ACTIVE" | "RESERVED" | "GHOST" | "CRASHED" | "DESYNC" | "REVOKED" | "STARTING" | "PENDING" | "UNKNOWN" | "NONE",
         "worker": str or None,
         "is_alive": bool,
         "is_ghost": bool,
@@ -115,7 +122,6 @@ def check_task_liveness(
     if active_map and task_id in active_map:
         worker_info = active_map[task_id]
         worker_name = worker_info.get("worker", "unknown")
-        # Strip long prefix if present
         clean_worker = worker_name.replace("celery@", "")
         return {
             "state": "ACTIVE",
@@ -186,23 +192,39 @@ def check_task_liveness(
             "tooltip": "Task was revoked or killed",
         }
 
-    # 4. If component is RUNNING but not found in active/reserved workers
+    # 4. If component is RUNNING
     if component_status == "running":
         # Check recent progress from metrics
         last_progress = (metrics or {}).get("last_progress_at")
         recent_progress = False
+        time_since_progress = None
         if last_progress:
             try:
                 dt = datetime.fromisoformat(last_progress)
                 if timezone.is_naive(dt):
                     dt = timezone.make_aware(dt, timezone.get_current_timezone())
-                if (timezone.now() - dt).total_seconds() < 120:
+                time_since_progress = (timezone.now() - dt).total_seconds()
+                if time_since_progress < 180:  # Progress updated in the last 3 minutes
                     recent_progress = True
             except Exception:
                 pass
 
-        # If it has only just started (< 45s), it might be transitioning from broker queue to worker
-        if duration_seconds < 45 and not recent_progress:
+        # A: If worker has logged progress within the last 3 minutes, it is 100% active!
+        if recent_progress:
+            sec_ago = int(time_since_progress) if time_since_progress is not None else 0
+            return {
+                "state": "ACTIVE",
+                "worker": None,
+                "is_alive": True,
+                "is_ghost": False,
+                "badge_text": "● ACTIVE (PROGRESSING)",
+                "badge_bg": "#198754",  # Green
+                "badge_color": "#ffffff",
+                "tooltip": f"Worker actively updating metrics (last progress {sec_ago}s ago)",
+            }
+
+        # B: If it has started recently (< 120s), give it a grace period to start up
+        if duration_seconds < 120:
             return {
                 "state": "STARTING",
                 "worker": None,
@@ -211,32 +233,31 @@ def check_task_liveness(
                 "badge_text": "⏳ QUEUED / STARTING",
                 "badge_bg": "#0dcaf0",  # Cyan
                 "badge_color": "#000000",
-                "tooltip": "Task sent to broker and initializing in worker",
+                "tooltip": f"Task dispatched ({int(duration_seconds)}s ago) and initializing in Celery worker",
             }
 
-        # If inspector responded (online) and task is NOT on any worker:
-        if inspector_ok:
+        # C: If inspector responded and task is NOT on any worker and NO progress in > 3m
+        if inspector_ok and duration_seconds >= 120:
             return {
                 "state": "GHOST",
                 "worker": None,
                 "is_alive": False,
                 "is_ghost": True,
-                "badge_text": "💀 NO WORKER / GHOST",
+                "badge_text": "💀 NO WORKER / STALLED",
                 "badge_bg": "#dc3545",  # Red
                 "badge_color": "#ffffff",
-                "tooltip": f"Task is marked RUNNING for {int(duration_seconds)}s, but NO active Celery worker is processing this task ID! (Worker died, was killed, or task dropped)",
+                "tooltip": f"Task marked RUNNING for {int(duration_seconds)}s, but NO active Celery worker is processing it and no progress in >3m.",
             }
         else:
-            # Inspector timed out or no workers reachable
             return {
                 "state": "UNKNOWN",
                 "worker": None,
-                "is_alive": False,
+                "is_alive": True,
                 "is_ghost": False,
-                "badge_text": "❓ WORKERS UNREACHABLE",
-                "badge_bg": "#6c757d",
+                "badge_text": "⏳ RUNNING (UNCHECKED)",
+                "badge_bg": "#0d6efd",
                 "badge_color": "#ffffff",
-                "tooltip": "Could not contact Celery worker inspector to verify task status",
+                "tooltip": "Worker inspector timed out or could not verify task state",
             }
 
     # Default pending state

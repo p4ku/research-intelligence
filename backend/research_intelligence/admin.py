@@ -3556,6 +3556,8 @@ class ComponentRunAdmin(admin.ModelAdmin):
             )
             if liveness.get('is_ghost'):
                 return render_badge('RUNNING (💀 GHOST)', '#dc3545', '#ffffff', title='Worker died or task is dropped!')
+            elif liveness.get('state') == 'STARTING':
+                return render_badge('RUNNING (STARTING)', '#0dcaf0', '#000000', title='Task queued or initializing in Celery')
 
         return render_badge(obj.status.upper(), colors.get(obj.status, '#6c757d'))
     status_badge.short_description = "Status"
@@ -3681,7 +3683,12 @@ class ComponentRunAdmin(admin.ModelAdmin):
                     comp.error_message = ''
                     comp.completed_at = None
                     comp.started_at = timezone.now()
-                    comp.save(update_fields=['status', 'error_message', 'completed_at', 'started_at'])
+                    comp.metrics = {
+                        "reexecuted_at": timezone.now().isoformat(),
+                        "reexecuted_by": request.user.username if request.user.is_authenticated else "admin",
+                    }
+                    comp.celery_task_id = None
+                    comp.save(update_fields=['status', 'error_message', 'completed_at', 'started_at', 'metrics', 'celery_task_id'])
                     node.execute(comp.pipeline_run, comp)
                     count += 1
                     break
