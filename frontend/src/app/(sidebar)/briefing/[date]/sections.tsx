@@ -8,12 +8,12 @@ import { forPage } from '@/lib/bff/core/page'
 import { problemResult } from '@/lib/bff/core/result'
 import { papers as papersService } from '@/lib/bff/papers/service'
 import type { Features } from '@/lib/features'
-import { fmt, type Lang, type T } from '@/lib/i18n'
+import type { Lang, T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
-import { clockStamp, formatDay } from '../../dashboard/format'
+import { formatDay } from '../../dashboard/format'
 import { editionHref, formatEditionDate } from '../format'
 import { hasBriefing } from '../rows'
 import { EditionPaperList } from './edition-paper-list'
@@ -73,23 +73,22 @@ export async function EditionHead({
   return (
     <>
       <div className="space-y-4">
-        <Breadcrumbs
-          items={[
-            { label: t('Briefings'), href: '/briefing' },
-            { label: domain ? `${domain} · ${dateLabel}` : dateLabel },
-          ]}
-          t={t}
-        />
-        {/* The briefing's star sits at the title's right; a briefing is starred by its run. */}
-        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-          <h1 className="min-w-0 flex-1 text-[26px]/8 font-semibold tracking-tight text-zinc-950 dark:text-white">
-            {edition.title}
-          </h1>
-          {features.stars && <StarToggle kind="briefing" id={edition.run_id} className="mt-px" />}
+        {/* No title: the backend's `title` is the first paper's first word (10 Sep 2026).
+            The crumb names the page; the star sits at its right, as a briefing is
+            starred by its run. The heading stays for the outline, unseen. */}
+        <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+          <Breadcrumbs
+            items={[
+              { label: t('Briefings'), href: '/briefing' },
+              { label: domain ? `${domain} · ${dateLabel}` : dateLabel },
+            ]}
+            t={t}
+          />
+          <h1 className="sr-only">{domain ? `${domain} · ${dateLabel}` : dateLabel}</h1>
+          {features.stars && <StarToggle kind="briefing" id={edition.run_id} />}
         </div>
-        <SameDayNotice
+        <StaleLinkNotice
           edition={edition}
-          editions={editions}
           elsewhere={elsewhere}
           runId={runId}
           domains={domains}
@@ -158,20 +157,16 @@ export const namedElsewhere = cache(
 const NOTICE_LINK = 'font-medium text-blue-600 hover:underline dark:text-blue-400'
 
 /**
- * One quiet line under the title when the URL and the day do not tell the
- * whole story. A link that named this run (every link the app mints) lists
- * the day's other briefings; a link that did not — a bookmark from before
- * runs were in the URL — landed on the day's newest and says so, with the
- * earlier ones a click away; a link naming a run of another day, or of
- * another domain, points at that briefing; a link naming a run that is no
- * longer published (its run passed nothing, or is gone) says so first,
- * even when the day holds only this briefing. Nothing when the URL named
- * this run and the day holds no other. `sub` keeps the links on the
- * screening log when that is where the reader is.
+ * One quiet line under the crumb when the URL's run is not the briefing
+ * shown: a link naming a run of another day, or of another domain, points
+ * at that briefing; a link naming a run that is no longer published (its
+ * run passed nothing, or is gone) says so. Nothing otherwise — the day's
+ * other briefings are not listed here (stakeholder edit, 10 Sep 2026); the
+ * ledger is where a day's runs sit side by side. `sub` keeps the link on
+ * the screening log when that is where the reader is.
  */
-export function SameDayNotice({
+export function StaleLinkNotice({
   edition,
-  editions,
   elsewhere,
   runId,
   sub,
@@ -180,8 +175,6 @@ export function SameDayNotice({
   lang,
 }: {
   edition: Edition
-  /** The domain's briefings, newest first (`domainEditions`). */
-  editions: Edition[]
   /** The briefing the URL's run names when it is not this one (`namedElsewhere`). */
   elsewhere: Edition | null
   /** The run the URL named, if any. */
@@ -192,55 +185,33 @@ export function SameDayNotice({
   t: T
   lang: Lang
 }) {
-  const siblings = editions.filter((e) => e.date === edition.date && e.run_id !== edition.run_id)
-  const named = !runId || runId === edition.run_id
-  const gone = !named && !elsewhere
-  if (siblings.length === 0 && named) return null
-  const to = (e: Edition) => editionHref(e.date, e.workspace_id, { runId: e.run_id, sub })
+  if (!runId || runId === edition.run_id) return null
   // Another domain's briefing is named by its domain; this domain's by its day.
   const where = (e: Edition) => {
     const day = formatDay(e.date, lang)
     const name = e.workspace_id === edition.workspace_id ? null : domains[e.workspace_id]
     return name ? `${name} · ${day}` : day
   }
-  const preface = elsewhere ? (
-    <>
-      {t('This link named a different briefing:')}{' '}
-      <Link href={to(elsewhere)} className={NOTICE_LINK}>
-        {where(elsewhere)}
-      </Link>
-      .{' '}
-    </>
-  ) : gone ? (
-    `${t('The briefing this link named is no longer published.')} `
-  ) : null
-  if (siblings.length === 0) {
-    return (
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        {preface}
-        {t("Showing the day's briefing.")}
-      </p>
-    )
-  }
-  const lead =
-    runId === edition.run_id
-      ? t('Other briefings this day:')
-      : `${fmt(t('This is the latest of {n} briefings for this domain on {day}.'), {
-          n: siblings.length + 1,
-          day: formatEditionDate(edition.date, lang),
-        })} ${t('Earlier:')}`
   return (
     <p className="text-sm text-zinc-500 dark:text-zinc-400">
-      {preface}
-      {lead}{' '}
-      {siblings.map((e, i) => (
-        <span key={e.run_id}>
-          {i > 0 && <span aria-hidden="true"> · </span>}
-          <Link href={to(e)} className={NOTICE_LINK}>
-            {e.generated_at ? clockStamp(e.generated_at, lang) : formatDay(e.date, lang)}
+      {elsewhere ? (
+        <>
+          {t('This link named a different briefing:')}{' '}
+          <Link
+            href={editionHref(elsewhere.date, elsewhere.workspace_id, {
+              runId: elsewhere.run_id,
+              sub,
+            })}
+            className={NOTICE_LINK}
+          >
+            {where(elsewhere)}
           </Link>
-        </span>
-      ))}
+          .{' '}
+        </>
+      ) : (
+        `${t('The briefing this link named is no longer published.')} `
+      )}
+      {t("Showing the day's briefing.")}
     </p>
   )
 }
