@@ -1,4 +1,5 @@
 import type { T } from '@/lib/i18n'
+import type { Dimension } from './types'
 
 /**
  * Display name for a scored dimension. The names arrive from the backend —
@@ -46,4 +47,24 @@ export function dimensionLabel(name: string, t: T): string {
     default:
       return name
   }
+}
+
+/**
+ * A dimension's name at its shortest: "Sovereign Cloud & Commercial
+ * Viability" → "Sovereign Cloud"; a TRL definition is just "TRL". Shared by
+ * the paper page's rail (bars, radar) and a briefing's sort options, so the
+ * same dimension reads the same in both.
+ *
+ * The whole name is offered to the mapper first: a mapped dimension ("Fit
+ * score", "Schwarz Fit") is product vocabulary and keeps the reading the
+ * heading and the assessment give it, whatever punctuation it contains. Only
+ * a name the mapper does not know — a domain's own wording — is shortened,
+ * and then the shortened half goes through the mapper too, so a compound like
+ * "Novelty (weighted)" still reads as the dimension.
+ */
+export function dimensionShortName(d: Pick<Dimension, 'name' | 'is_trl'>, t: T): string {
+  if (d.is_trl) return 'TRL'
+  const mapped = dimensionLabel(d.name, t)
+  if (mapped !== d.name) return mapped
+  return dimensionLabel(d.name.split(/ \(| & /)[0]!, t)
 }

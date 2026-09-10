@@ -244,6 +244,32 @@ export function SameDayNotice({
   )
 }
 
+/**
+ * The edition's rows with their scored dimensions. The editions endpoint
+ * sends each paper with `dimensions: []` (seen on prod, 10 Sep 2026), which
+ * leaves the cards without their TRL chip and the view rail without a
+ * dimension to sort by. When every row arrives thin, the run's scorecard —
+ * the read the fallback path below already makes — fills them in by id; the
+ * edition's own score and decision stay. A failed scorecard read is no
+ * enrichment, never a failed page.
+ */
+async function withDimensions(rows: ScoredPaper[], edition: Edition): Promise<ScoredPaper[]> {
+  if (rows.some((p) => (p.dimensions ?? []).length > 0)) return rows
+  const scored = await papersService.listRun(edition.workspace_id, edition.run_id).catch(() => [])
+  if (scored.length === 0) return rows
+  const byId = new Map(scored.map((p) => [p.id, p]))
+  return rows.map((p) => {
+    const full = byId.get(p.id)
+    if (!full) return p
+    return {
+      ...p,
+      dimensions: full.dimensions,
+      risk_and_affiliation: p.risk_and_affiliation ?? full.risk_and_affiliation,
+      summary: p.summary ?? full.summary,
+    }
+  })
+}
+
 /** The papers that passed, as cards with their stars, and the link to the screening log. */
 export async function EditionPapers({
   wsId,
@@ -263,7 +289,7 @@ export async function EditionPapers({
   // use them directly; otherwise resolve run rows via papersService as fallback.
   let cards: ScoredPaper[]
   if (edition.papers.length > 0 && edition.papers[0]?.workspace_id) {
-    cards = edition.papers as unknown as ScoredPaper[]
+    cards = await withDimensions(edition.papers as unknown as ScoredPaper[], edition)
   } else {
     const scored = await forPage(papersService.listRun(edition.workspace_id, edition.run_id))
     const byId = new Map(scored.map((p) => [p.id, p]))

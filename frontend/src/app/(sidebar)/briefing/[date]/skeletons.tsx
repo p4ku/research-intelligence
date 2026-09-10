@@ -1,4 +1,5 @@
 import { AnswerMarkdownSkeleton } from '@/components/answer-markdown'
+import { FilterGroupSkeleton, MinScoreSliderSkeleton } from '@/components/filter-rail'
 import { PaperCardSkeleton } from '@/components/paper-card'
 import { Breadcrumbs, SectionLabel, StatBandSkeleton } from '@/components/scanner-ui'
 import { Bone, Skeleton } from '@/components/skeleton'
@@ -89,6 +90,7 @@ export function EditionPapersSkeleton({
   wsId,
   runId,
   cards = 5,
+  sorts = 5,
   features,
 }: {
   t: T
@@ -97,6 +99,8 @@ export function EditionPapersSkeleton({
   wsId?: string
   runId?: string
   cards?: number
+  /** Sort options: the score, the date and one per scored dimension (three on prod). */
+  sorts?: number
   features: Features
 }) {
   return (
@@ -124,10 +128,25 @@ export function EditionPapersSkeleton({
             )}
           </span>
         </div>
-        <div className="mt-5 space-y-3">
-          {Array.from({ length: cards }, (_, i) => (
-            <PaperCardSkeleton key={i} />
-          ))}
+        <div className="mt-5 grid gap-6 lg:grid-cols-3">
+          <div className="space-y-3 lg:col-span-2">
+            {Array.from({ length: cards }, (_, i) => (
+              <PaperCardSkeleton key={i} />
+            ))}
+          </div>
+          {/* The view's rail: the two labels are known, the options are not. */}
+          <aside className="divide-y divide-line lg:col-span-1">
+            <FilterGroupSkeleton label={t('Sort by')} rows={sorts} />
+            <FilterGroupSkeleton label={t('Schwarz Score')}>
+              <MinScoreSliderSkeleton
+                labels={{
+                  minimum: t('Minimum score'),
+                  low: t('Any score'),
+                  high: t('Only the strongest'),
+                }}
+              />
+            </FilterGroupSkeleton>
+          </aside>
         </div>
       </section>
     </Skeleton.Region>
