@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test'
-import { byValueAsc, byValueDesc, trimTitle, unionDefinitions } from './select'
+import {
+  byValueAsc,
+  byValueDesc,
+  formatMeasure,
+  formatScore,
+  trimTitle,
+  unionDefinitions,
+} from './select'
 import type { DefinitionSummary } from './types'
 
 describe('byValueDesc / byValueAsc', () => {
@@ -66,5 +73,45 @@ describe('trimTitle', () => {
   test('handles empty or blank string safely', () => {
     expect(trimTitle('')).toBe('')
     expect(trimTitle('   ')).toBe('')
+  })
+})
+
+describe('formatScore', () => {
+  test('whole numbers, half up', () => {
+    expect(formatScore(74.6)).toBe('75')
+    expect(formatScore(74.5)).toBe('75')
+    expect(formatScore(74.4)).toBe('74')
+    expect(formatScore(61.666666666666664)).toBe('62')
+    expect(formatScore(100)).toBe('100')
+    expect(formatScore(0)).toBe('0')
+    expect(formatScore(-0.4)).toBe('0')
+  })
+  test('the dash for anything that is not a finite number', () => {
+    expect(formatScore(null)).toBe('—')
+    expect(formatScore(undefined)).toBe('—')
+    expect(formatScore(Number.NaN)).toBe('—')
+    expect(formatScore(Number.POSITIVE_INFINITY)).toBe('—')
+  })
+})
+
+describe('formatMeasure', () => {
+  test('score-like scales read as whole numbers', () => {
+    expect(formatMeasure(61.666666666666664, 100, 'en')).toBe('62')
+    expect(formatMeasure(61.666666666666664, 100, 'de')).toBe('62')
+    expect(formatMeasure(6.5, 9, 'en')).toBe('7')
+    expect(formatMeasure(8, null, 'en')).toBe('8')
+    expect(formatMeasure(12.8, 10, 'en')).toBe('13')
+  })
+  test("small scales keep up to two decimals in the reader's locale", () => {
+    expect(formatMeasure(0.92, 1, 'en')).toBe('0.92')
+    expect(formatMeasure(0.92, 1, 'de')).toBe('0,92')
+    expect(formatMeasure(2.4, 5, 'en')).toBe('2.4')
+    expect(formatMeasure(2, 5, 'en')).toBe('2')
+    expect(formatMeasure(0.8567, 1, 'en')).toBe('0.86')
+  })
+  test('the dash when there is no value', () => {
+    expect(formatMeasure(null, 100, 'en')).toBe('—')
+    expect(formatMeasure(undefined, 1, 'de')).toBe('—')
+    expect(formatMeasure(Number.NaN, null, 'en')).toBe('—')
   })
 })
