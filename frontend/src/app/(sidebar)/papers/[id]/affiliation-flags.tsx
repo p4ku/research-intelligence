@@ -11,6 +11,7 @@ import {
   ShieldCheckIcon,
 } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
+import type { ReactNode } from 'react'
 
 export function normalizeFlagLabel(label: string, key?: string, t: T = (s) => s): string {
   const l = (label || '').trim().toLowerCase()
@@ -258,30 +259,40 @@ export function unpackFlag(
   return { label, value: typeof val === 'string' ? val : String(val ?? '—'), status }
 }
 
+/**
+ * The masthead's metadata card: affiliations, contacts and the artifact
+ * link, funding, then — when the record passes one — the collapsed abstract
+ * link, funding, the compliance chips, and last — when the record passes
+ * one — the collapsed abstract row (abstract.tsx). The card renders with
+ * the abstract alone when the backend recorded no risk data; without either
+ * there is no card.
+ */
 export function RiskAffiliationFlagging({
   risk,
+  abstract,
   className,
   t = (s) => s,
 }: {
   risk?: RiskAndAffiliation | null
+  /** The collapsed abstract row, the card's last row. */
+  abstract?: ReactNode
   className?: string
   t?: T
 }) {
-  if (!risk) return null
+  const hasAffiliations = Boolean(risk?.affiliations && risk.affiliations.length > 0)
+  const hasContacts = Boolean(risk?.author_contacts && risk.author_contacts.length > 0)
+  const hasFunding = Boolean(risk?.funding_entities && risk.funding_entities.length > 0)
+  const hasLink = Boolean(risk?.codebase_artifact_link)
+  const hasFlags = Boolean(risk?.flags && risk.flags.length > 0)
 
-  const hasAffiliations = risk.affiliations && risk.affiliations.length > 0
-  const hasContacts = risk.author_contacts && risk.author_contacts.length > 0
-  const hasFunding = risk.funding_entities && risk.funding_entities.length > 0
-  const hasLink = Boolean(risk.codebase_artifact_link)
-  const hasFlags = risk.flags && risk.flags.length > 0
-
-  if (!hasAffiliations && !hasContacts && !hasFunding && !hasLink && !hasFlags) {
+  if (!hasAffiliations && !hasContacts && !hasFunding && !hasLink && !hasFlags && !abstract) {
     return null
   }
 
-  const sortedFlags = hasFlags
-    ? [...risk.flags].sort((a, b) => getFlagSortOrder(a) - getFlagSortOrder(b))
-    : []
+  const sortedFlags =
+    hasFlags && risk
+      ? [...risk.flags].sort((a, b) => getFlagSortOrder(a) - getFlagSortOrder(b))
+      : []
 
   return (
     <div
@@ -292,7 +303,7 @@ export function RiskAffiliationFlagging({
       )}
     >
       {/* 1. Affiliations, Contacts, and Artifact Links */}
-      {(hasAffiliations || hasContacts || hasLink) && (
+      {(hasAffiliations || hasContacts || hasLink) && risk && (
         <div className="flex max-w-full min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-zinc-600 dark:text-zinc-300">
           {hasAffiliations && (
             <div className="inline-flex max-w-full min-w-0 items-start gap-1.5 font-medium">
@@ -350,7 +361,7 @@ export function RiskAffiliationFlagging({
       )}
 
       {/* 2. Funding Entities */}
-      {hasFunding && (
+      {hasFunding && risk && (
         <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
           <span className="font-medium text-zinc-700 dark:text-zinc-300">{t('Funding: ')}</span>
           {risk.funding_entities.join('; ')}
@@ -358,7 +369,7 @@ export function RiskAffiliationFlagging({
       )}
 
       {/* 3. Risk and Ecosystem Badges / Flags */}
-      {sortedFlags.length > 0 && (
+      {sortedFlags.length > 0 && risk && (
         <div className="flex flex-wrap items-center gap-2 pt-0.5">
           {sortedFlags.map((rawFlag) => {
             const flag = unpackFlag(rawFlag, t)
@@ -423,6 +434,10 @@ export function RiskAffiliationFlagging({
           )}
         </div>
       )}
+
+      {/* 4. The abstract, collapsed, last: the one row that opens, so the
+          text grows out of the card's foot and nothing above it moves. */}
+      {abstract}
     </div>
   )
 }

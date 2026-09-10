@@ -223,21 +223,26 @@ describe('PaperHeader Component Rendering', () => {
     expect(out).toContain('YES (TUM)')
   })
 
-  test('does not render risk and affiliation container when risk_and_affiliation is null', () => {
+  // The card carries the collapsed abstract, so it stands even when the
+  // backend recorded no risk data — with the abstract row and nothing else.
+  test('renders the card with only the abstract row when risk_and_affiliation is null', () => {
     const paper = samplePaper({ risk_and_affiliation: null })
     const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
     expect(out).toContain('data-row="authors"')
-    expect(out).not.toContain('data-row="risk-and-affiliation"')
+    expect(out).toContain('data-row="risk-and-affiliation"')
+    expect(out).toContain('data-row="abstract"')
+    expect(out).not.toContain('Funding')
+    expect(out).not.toContain('Artifact Repository')
   })
 
-  test('does not render risk and affiliation container when risk_and_affiliation is undefined', () => {
+  test('renders the card with only the abstract row when risk_and_affiliation is undefined', () => {
     const paper = samplePaper({ risk_and_affiliation: undefined })
     const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
-    expect(out).toContain('data-row="authors"')
-    expect(out).not.toContain('data-row="risk-and-affiliation"')
+    expect(out).toContain('data-row="risk-and-affiliation"')
+    expect(out).toContain('data-row="abstract"')
   })
 
-  test('does not render risk and affiliation container when risk_and_affiliation has all empty fields', () => {
+  test('renders the card with only the abstract row when risk_and_affiliation has all empty fields', () => {
     const paper = samplePaper({
       risk_and_affiliation: {
         affiliations: [],
@@ -248,7 +253,30 @@ describe('PaperHeader Component Rendering', () => {
       },
     })
     const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
-    expect(out).toContain('data-row="authors"')
-    expect(out).not.toContain('data-row="risk-and-affiliation"')
+    expect(out).toContain('data-row="risk-and-affiliation"')
+    expect(out).toContain('data-row="abstract"')
+  })
+
+  test('the abstract row is the last in the card, below the compliance chips', () => {
+    const paper = samplePaper()
+    const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
+    const funding = out.indexOf('Funding')
+    const chips = out.indexOf('Compliance Risks')
+    const abstract = out.indexOf('data-row="abstract"')
+    expect(funding).toBeGreaterThan(-1)
+    expect(chips).toBeGreaterThan(funding)
+    expect(abstract).toBeGreaterThan(chips)
+  })
+
+  test('a paper without an abstract has no abstract row', () => {
+    const paper = samplePaper({ abstract: '' })
+    const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
+    expect(out).not.toContain('data-row="abstract"')
+  })
+
+  test('the skeleton reserves the card and its abstract row', () => {
+    const out = renderToStaticMarkup(<PaperHeaderSkeleton />)
+    expect(out).toContain('data-row="risk-and-affiliation"')
+    expect(out).toContain('data-row="abstract"')
   })
 })

@@ -14,9 +14,11 @@ import { RECORD_COLUMN, RECORD_GRID } from './sections'
  * crumbs, the loading.tsx shell, so both are pixel-identical. One record,
  * one Region, one sweep.
  *
- * It reserves the live domain's shape: the abstract, seven definitions
- * (ASSESSMENT_SHAPE) and seven bars with a radar in the rail. A domain with
- * fewer definitions sees both shorten on load.
+ * It reserves the live domain's shape: the masthead with its metadata card
+ * (the abstract collapsed inside it), seven definitions (ASSESSMENT_SHAPE)
+ * and seven bars with a radar in the rail. A domain with fewer definitions
+ * sees both shorten on load; a paper with a summary gains that section on
+ * load — the skeleton cannot know.
  *
  * Both take the flags as a required prop — nothing outside this route renders
  * them, so a required prop catches a missed call site — and must mirror the
@@ -45,16 +47,6 @@ export function PaperRecordSkeleton({
         <div className={RECORD_GRID}>
           <div className={RECORD_COLUMN}>
             <PaperHeaderSkeleton features={features} />
-
-            <section>
-              <SectionLabel>{t('Abstract')}</SectionLabel>
-              <p className="mt-3 max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300">
-                <Bone.Text
-                  lines={7}
-                  widths={['100%', '100%', '96%', '100%', '98%', '100%', '62%']}
-                />
-              </p>
-            </section>
 
             <section>
               <SectionLabel className="mb-3">{t('Assessment')}</SectionLabel>
