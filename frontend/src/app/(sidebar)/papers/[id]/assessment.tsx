@@ -1,7 +1,8 @@
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
 import { Bone } from '@/components/skeleton'
-import { fmt, formatNumber, type Lang, type T } from '@/lib/i18n'
+import { fmt, type Lang, type T } from '@/lib/i18n'
 import { dimensionLabel } from '@/lib/papers/dimension-label'
+import { formatMeasure } from '@/lib/papers/select'
 import type { Dimension, DimensionFacet, DimensionField } from '@/lib/papers/types'
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
@@ -94,12 +95,6 @@ function Band({ children }: { children: ReactNode }) {
   )
 }
 
-/** Integers plain, otherwise at most two decimals — the same reading as the rail. */
-function shownNumber(n: number | null | undefined, lang: Lang): string {
-  if (n === null || n === undefined || !Number.isFinite(n)) return '—'
-  return formatNumber(n, lang, undefined, 2)
-}
-
 /** The headline as the row shows it: the number, or the raw string when there is none (excluding prose sentences). */
 function shownValue(d: Dimension, lang: Lang): ReactNode {
   if (d.value === null) {
@@ -108,7 +103,7 @@ function shownValue(d: Dimension, lang: Lang): ReactNode {
   }
   return (
     <>
-      {shownNumber(d.value, lang)}
+      {formatMeasure(d.value, d.max, lang)}
       {d.max !== null && d.max !== 100 && (
         <span className="text-[11px] font-normal text-zinc-400">/{d.max}</span>
       )}
@@ -524,10 +519,10 @@ function SubMeasureRow({ sub, t, lang }: { sub: SubMeasure; t: T; lang: Lang }) 
         )}
 
         <div className="col-start-2 row-start-1 text-right sm:col-start-3">
-          <span className={clsx(FIGURE, 'text-sm')}>{shownNumber(sub.value, lang)}</span>
+          <span className={clsx(FIGURE, 'text-sm')}>{formatMeasure(sub.value, sub.max, lang)}</span>
           {sub.is_dict && sub.value != null && (
             <span className="sr-only">
-              {fmt(t('Sub-score: {n}'), { n: shownNumber(sub.value, lang) })}
+              {fmt(t('Sub-score: {n}'), { n: formatMeasure(sub.value, sub.max, lang) })}
             </span>
           )}
         </div>
