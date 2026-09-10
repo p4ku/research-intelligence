@@ -3390,7 +3390,8 @@ class ComponentRunAdmin(admin.ModelAdmin):
     list_select_related = ('pipeline_run', 'pipeline_run__workspace', 'pipeline_run__triggered_by')
     list_filter = (ComponentRunWorkspaceFilter, 'pipeline_run__triggered_by', 'step_type', 'status', 'started_at')
     search_fields = ('id', 'component_name', 'celery_task_id', 'pipeline_run__id', 'pipeline_run__workspace__name', 'pipeline_run__triggered_by__username', 'pipeline_run__triggered_by__email')
-    readonly_fields = ('started_at', 'completed_at', 'execution_time', 'celery_task_id_display')
+    raw_id_fields = ('pipeline_run',)
+    readonly_fields = ('pipeline_run', 'started_at', 'completed_at', 'execution_time', 'celery_task_id_display')
 
     def changelist_view(self, request, extra_context=None):
         from research_intelligence.utils.celery_liveness import get_active_celery_tasks_map
@@ -3833,6 +3834,7 @@ class PaperAdmin(admin.ModelAdmin):
     list_select_related = ('workspace',)
     list_filter = ('source_database', 'workspace')
     search_fields = ('title', 'authors', 'doi', 'arxiv_id', 'source_url', 'hash_id')
+    raw_id_fields = ('document_registry', 'workspace')
     readonly_fields = ('id', 'hash_id', 'created_at')
 
     fieldsets = (
@@ -4511,8 +4513,11 @@ class ExtractionAdmin(admin.ModelAdmin):
     )
     ordering = ('-created_at', '-id')
     list_filter = ('validation_status', 'workspace')
-    search_fields = ('paper__title', 'category', 'extraction_definition__name')
-    readonly_fields = ('exit_metrics_preview', 'extraction_system_prompt', 'extraction_user_prompt_template', 'created_at')
+    raw_id_fields = ('paper', 'workspace', 'extraction_definition')
+    readonly_fields = ('paper', 'workspace', 'extraction_definition', 'exit_metrics_preview', 'extraction_system_prompt', 'extraction_user_prompt_template', 'created_at')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('paper', 'extraction_definition', 'workspace')
 
     fieldsets = (
         ('Extraction Target & Definition', {
@@ -4874,10 +4879,15 @@ class PaperMetricAdmin(admin.ModelAdmin):
         'paper__title', 'paper__authors', 'paper__doi', 'paper__arxiv_id',
         'pipeline_run__id', 'abstract_screening_reasoning', 'full_text_screening_reasoning'
     )
+    raw_id_fields = ('paper', 'pipeline_run', 'workspace')
     readonly_fields = (
-        'id', 'created_at', 'paper_detail_link', 'pipeline_run_detail_link',
+        'id', 'created_at', 'paper', 'pipeline_run', 'workspace',
+        'paper_detail_link', 'pipeline_run_detail_link',
         'abstract_screening_reasoning_display', 'full_text_screening_reasoning_display'
     )
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('paper', 'pipeline_run', 'workspace')
 
     fieldsets = (
         ('Review & Ingestion Context', {
@@ -5176,6 +5186,8 @@ class NarrativeReportAdmin(admin.ModelAdmin):
     ordering = ('-created_at', '-id')
     list_filter = ('workspace', 'created_at')
     search_fields = ('title', 'content_markdown')
+    raw_id_fields = ('pipeline_run', 'workspace')
+    readonly_fields = ('pipeline_run', 'workspace', 'created_at')
 
 
 @admin.register(HITLCorrection)
@@ -5184,6 +5196,7 @@ class HITLCorrectionAdmin(admin.ModelAdmin):
     ordering = ('-timestamp', '-id')
     list_filter = ('action', 'timestamp')
     search_fields = ('human_operator', 'reason')
+    raw_id_fields = ('extraction',)
 
 
 @admin.register(Subscriber)

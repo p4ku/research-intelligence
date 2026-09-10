@@ -403,6 +403,36 @@ class AdminActionsAndStorageSecurityTestCase(TestCase):
         pr_link = str(admin_obj.pipeline_run_link(metric))
         self.assertIn(str(self.pipeline_run.id)[:8], pr_link)
 
+    def test_papermetric_admin_change_form_safety_and_raw_id_fields(self):
+        """Verify that PaperMetricAdmin defines raw_id_fields and readonly foreign keys to prevent OOM."""
+        admin_obj = PaperMetricAdmin(PaperMetric, self.site)
+        self.assertIn("paper", admin_obj.raw_id_fields)
+        self.assertIn("pipeline_run", admin_obj.raw_id_fields)
+        self.assertIn("workspace", admin_obj.raw_id_fields)
+        self.assertIn("paper", admin_obj.readonly_fields)
+        self.assertIn("pipeline_run", admin_obj.readonly_fields)
+        self.assertIn("workspace", admin_obj.readonly_fields)
+
+        # Test change view renders cleanly via client without loading whole Paper queryset
+        self.client.force_login(self.admin_user)
+        paper = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=self.pipeline_run,
+            hash_id="pm_change_test",
+            title="Safe Paper Rendering"
+        )
+        metric = PaperMetric.objects.create(
+            workspace=self.workspace,
+            paper=paper,
+            pipeline_run=self.pipeline_run,
+            signal_score=95.0,
+            metrics_data={"test": 1}
+        )
+        url = reverse("admin:research_intelligence_papermetric_change", args=[metric.id])
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, "Safe Paper Rendering")
+
     @patch("research_intelligence.tasks.orchestrator.dag.nodes.DownloadNode.execute")
     @patch("research_intelligence.tasks.orchestrator.agent_engine.tick_agent_process")
     def test_component_run_rerun_from_step_forward(self, mock_tick, mock_download_exec):

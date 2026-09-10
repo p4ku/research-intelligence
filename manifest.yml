@@ -5,8 +5,8 @@ applications:
       image: ((backend_image))
       username: ((registry_username))
     instances: 2
-    memory: 512M
-    disk_quota: 1G
+    memory: 2G
+    disk_quota: 2G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/api
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/mcp
@@ -41,8 +41,8 @@ applications:
       image: ((backend_image))
       username: ((registry_username))
     instances: 1
-    memory: 512M
-    disk_quota: 1G
+    memory: 1G
+    disk_quota: 2G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/sse
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/messages
