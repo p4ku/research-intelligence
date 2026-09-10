@@ -13,7 +13,9 @@
 // (`formatScore`, `formatMeasure`), since it needs the locale.
 
 export const SCORE_CEILING = 100
-export const SCORE_STEP = 5
+// One point per step: the stakeholder asked for a 1-point slider on 10 Sep
+// 2026 (it was five).
+export const SCORE_STEP = 1
 
 /** The stored value held to the 0–100 scale the whole UI assumes. */
 export const clampScore = (n: number): number => Math.min(SCORE_CEILING, Math.max(0, n))

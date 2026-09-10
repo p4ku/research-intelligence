@@ -49,12 +49,15 @@ describe('viewFrom', () => {
   test('defaults on a bare permalink and on junk', () => {
     expect(viewFrom({})).toEqual(DEFAULT_VIEW)
     expect(viewFrom({ sort: 'dim:', score: '-5' })).toEqual(DEFAULT_VIEW)
-    expect(viewFrom({ score: '57' })).toEqual(DEFAULT_VIEW)
+    expect(viewFrom({ score: '57.5' })).toEqual(DEFAULT_VIEW)
+    expect(viewFrom({ score: '0' })).toEqual(DEFAULT_VIEW)
     expect(viewFrom({ score: '500' })).toEqual(DEFAULT_VIEW)
     expect(isDefaultView(viewFrom({}))).toBe(true)
   })
 
   test('reads a sort and a score floor, first value of a repeated param', () => {
+    // One point a step (10 Sep 2026): a floor of 57 is the slider's own.
+    expect(viewFrom({ score: '57' })).toEqual({ sort: 'score', minScore: 57 })
     expect(viewFrom({ sort: ['published', 'score'], score: '60' })).toEqual({
       sort: 'published',
       minScore: 60,

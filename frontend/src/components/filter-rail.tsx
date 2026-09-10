@@ -130,7 +130,8 @@ function OptionButtonSkeleton() {
 }
 
 /**
- * The minimum-score slider: the floor's figure at the right of its label,
+ * The minimum-score slider: the floor's figure at the right of its label
+ * (0 at rest — no "Any" doubling the group's header, per the stakeholder),
  * the range in steps, and the two ends named under it.
  */
 export function MinScoreSlider({
@@ -144,15 +145,13 @@ export function MinScoreSlider({
   ceiling: number
   step?: number
   onChange: (value: number) => void
-  labels: { minimum: string; any: string; low: string; high: string }
+  labels: { minimum: string; low: string; high: string }
 }) {
   return (
     <>
       <div className="mb-1.5 flex items-center justify-between">
         <span className="text-xs text-zinc-500 dark:text-zinc-400">{labels.minimum}</span>
-        <span className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">
-          {value > 0 ? value : labels.any}
-        </span>
+        <span className="text-xs text-zinc-500 tabular-nums dark:text-zinc-400">{value}</span>
       </div>
       <input
         type="range"

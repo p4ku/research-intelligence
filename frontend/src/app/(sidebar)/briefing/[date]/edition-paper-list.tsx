@@ -163,7 +163,7 @@ export function EditionPaperList({
 
           <FilterGroup
             label={t('Schwarz Score')}
-            value={narrowed ? `≥ ${view.minScore}` : t('Any')}
+            value={narrowed ? `≥ ${view.minScore}` : undefined}
           >
             <MinScoreSlider
               value={view.minScore}
@@ -172,7 +172,6 @@ export function EditionPaperList({
               onChange={(minScore) => update({ minScore })}
               labels={{
                 minimum: t('Minimum score'),
-                any: t('Any'),
                 low: t('Any score'),
                 high: t('Only the strongest'),
               }}

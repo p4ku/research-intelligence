@@ -15,7 +15,7 @@ describe('clampScore', () => {
     expect(clampScore(-3)).toBe(0)
     expect(clampScore(74.96)).toBe(74.96)
     expect(SCORE_CEILING).toBe(100)
-    expect(SCORE_STEP).toBe(5)
+    expect(SCORE_STEP).toBe(1)
   })
 })
 
