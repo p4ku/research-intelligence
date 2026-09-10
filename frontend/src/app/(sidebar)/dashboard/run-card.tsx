@@ -112,7 +112,9 @@ export function RunCard({
   const [busy, setBusy] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const valid = domain !== '' && from !== '' && to !== '' && from <= to
+  // The window ends today at the latest: the pickers freeze later days and a
+  // typed one keeps the button off, since nothing is published in the future.
+  const valid = domain !== '' && from !== '' && to !== '' && from <= to && to <= today
   const running = processing !== null
   const disabled = !valid || busy || pending || running
 
@@ -160,7 +162,7 @@ export function RunCard({
             type="date"
             name="start_date"
             value={from}
-            max={to || undefined}
+            max={to && to < today ? to : today}
             onChange={(e) => setFrom(e.target.value)}
           />
         </Field>
@@ -172,6 +174,7 @@ export function RunCard({
             name="end_date"
             value={to}
             min={from || undefined}
+            max={today}
             onChange={(e) => setTo(e.target.value)}
           />
         </Field>
