@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 @shared_task(acks_late=True, reject_on_worker_lost=True)
-def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None, pipeline_run_id=None):
+def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None, pipeline_run_id=None, allow_abstract_fallback=True):
     """
     Screens full paper content (OCR Markdown if present, PDF binary if available, or abstract fallback)
     against workspace inclusion/exclusion criteria using the configured screening LLM.
@@ -44,9 +44,9 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None,
             "success": True,
             "passed": False,
             "screening_status": "withdrawn",
-            "reasoning": pm.screening_reasoning or "Paper has been withdrawn by authors.",
-            "evidence_quotes": [],
+            "reasoning": pm.latest_screening_reasoning or "Paper has been withdrawn by authors.",
             "decision_category": "WITHDRAWN",
+            "evidence_quotes": [],
             "input_source": "withdrawn",
             "duration_seconds": duration_sec,
             "usage": {"tokens_in": 0, "tokens_out": 0, "total_tokens": 0}
@@ -92,9 +92,43 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None,
                     pdf_bytes = raw_bytes
                     input_source = "multimodal_pdf"
             else:
-                logger.warning(f"Stored file for paper {paper_id} at {paper.original_pdf_path} is not a valid PDF (e.g. 0 pages or HTML). Falling back to abstract.")
+                logger.warning(f"Stored file for paper {paper_id} at {paper.original_pdf_path} is not a valid PDF (e.g. 0 pages or HTML).")
         except Exception as e:
             logger.warning(f"Failed reading PDF binary from {paper.original_pdf_path} for paper {paper_id}: {e}")
+
+    if not md_text and not pdf_bytes:
+        if not allow_abstract_fallback:
+            duration_sec = round(time.time() - t0, 3)
+            title_snippet = paper.title[:50] if paper.title else "Untitled"
+            logger.warning(f"❌ [FULL-TEXT UNAVAILABLE] Paper '{paper_id}' ({title_snippet}...) has no valid PDF or OCR content. Rejecting from full-text screening.")
+            reasoning_val = "Full-text document (PDF or OCR Markdown) unavailable or unreadable. Excluded from full-text screening."
+            if target_pr_id:
+                try:
+                    pm, _ = PaperMetric.objects.get_or_create(
+                        paper=paper,
+                        pipeline_run_id=target_pr_id,
+                        defaults={
+                            "workspace": workspace,
+                            "screening_status": "rejected",
+                            "full_text_screening_reasoning": reasoning_val
+                        }
+                    )
+                    pm.screening_status = "rejected"
+                    pm.full_text_screening_reasoning = reasoning_val
+                    pm.save(update_fields=['screening_status', 'full_text_screening_reasoning'])
+                except Exception as pm_err:
+                    logger.warning(f"Could not record PaperMetric for paper {paper.id}: {pm_err}")
+            return {
+                "success": True,
+                "passed": False,
+                "screening_status": "rejected",
+                "reasoning": reasoning_val,
+                "decision_category": "REJECTED",
+                "evidence_quotes": [],
+                "input_source": "document_missing",
+                "duration_seconds": duration_sec,
+                "usage": {"tokens_in": 0, "tokens_out": 0, "total_tokens": 0}
+            }
 
     # Resolve dynamic workspace prompt templates and schemas
     system_prompt = workspace.get_full_text_screening_system_prompt()
@@ -317,11 +351,18 @@ def screen_full_text(paper_id, workspace_id, workspace_obj=None, paper_obj=None,
                 }
 
 
-def _screen_full_text_paper_task(paper, workspace_obj, pipeline_run_id=None):
+def _screen_full_text_paper_task(paper, workspace_obj, pipeline_run_id=None, allow_abstract_fallback=True):
     from django.db import close_old_connections
     close_old_connections()
     try:
-        res = screen_full_text(paper.id, workspace_obj.id, workspace_obj=workspace_obj, paper_obj=paper, pipeline_run_id=pipeline_run_id)
+        res = screen_full_text(
+            paper.id,
+            workspace_obj.id,
+            workspace_obj=workspace_obj,
+            paper_obj=paper,
+            pipeline_run_id=pipeline_run_id,
+            allow_abstract_fallback=allow_abstract_fallback
+        )
         return paper, res
     finally:
         close_old_connections()
@@ -375,26 +416,62 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
     try:
         # Determine paper subset to screen based on pipeline history:
         # 1. If an Abstract Screening component run exists, target 'abstract_passed' papers.
+        #    If Download was also completed, ONLY target papers that have retrieved full-text documents.
         # 2. Otherwise, target non-withdrawn papers with downloaded PDFs or converted OCR MDs.
         has_abstract_screening_run = ComponentRun.objects.filter(
             pipeline_run=pipeline_run,
             step_type='screening',
-            component_name__icontains='abstract'
+            component_name__icontains='abstract',
+            status='completed'
         ).exists()
 
+        has_download_run = ComponentRun.objects.filter(
+            pipeline_run=pipeline_run,
+            component_name__icontains='download',
+            status='completed'
+        ).exists()
+
+        from django.db.models import Q
+        retrieved_q = (
+            (Q(original_pdf_path__isnull=False) & ~Q(original_pdf_path='') & ~Q(original_pdf_path__startswith='http://') & ~Q(original_pdf_path__startswith='https://')) |
+            (Q(converted_md_path__isnull=False) & ~Q(converted_md_path=''))
+        )
+
         if has_abstract_screening_run:
-            papers_qs = pipeline_run.get_papers(screening_status='abstract_passed')
-            if not papers_qs.exists():
-                papers_qs = pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn'])
-            logger.info(f"🔍 [FULL-TEXT SCREENING FILTER] Prior Abstract Screening job detected. Targeting {papers_qs.count()} papers with status='abstract_passed'.")
+            if has_download_run:
+                # Prior download step completed: strictly target papers that were successfully retrieved
+                papers_qs = pipeline_run.get_papers(screening_status='abstract_passed').filter(retrieved_q)
+                
+                # Catch-up: Mark any remaining abstract_passed papers without full text as retrieval rejected
+                missing_pm_q = (
+                    (Q(paper__original_pdf_path__isnull=False) & ~Q(paper__original_pdf_path='') & ~Q(paper__original_pdf_path__startswith='http://') & ~Q(paper__original_pdf_path__startswith='https://')) |
+                    (Q(paper__converted_md_path__isnull=False) & ~Q(paper__converted_md_path=''))
+                )
+                unretrieved_pms = pipeline_run.paper_metrics.filter(
+                    screening_status='abstract_passed'
+                ).exclude(missing_pm_q)
+                if unretrieved_pms.exists():
+                    unretrieved_count = unretrieved_pms.count()
+                    unretrieved_pms.update(
+                        screening_status='rejected',
+                        full_text_screening_reasoning="Full-text document could not be retrieved (download failed). Excluded from full-text screening."
+                    )
+                    logger.info(f"🚫 [FULL-TEXT EXCLUSION] Excluded {unretrieved_count} unretrieved papers from full-text screening (marked as rejected).")
+                logger.info(f"🔍 [FULL-TEXT SCREENING FILTER] Prior Download job detected. Targeting {papers_qs.count()} retrieved papers with full-text documents.")
+            else:
+                papers_qs = pipeline_run.get_papers(screening_status='abstract_passed')
+                if not papers_qs.exists():
+                    papers_qs = pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn'])
+                logger.info(f"🔍 [FULL-TEXT SCREENING FILTER] Prior Abstract Screening job detected (no download). Targeting {papers_qs.count()} papers with status='abstract_passed'.")
         else:
-            from django.db.models import Q
-            papers_qs = pipeline_run.get_papers(exclude_status='withdrawn').filter(
-                Q(original_pdf_path__isnull=False) | Q(converted_md_path__isnull=False)
-            )
-            if not papers_qs.exists():
-                papers_qs = pipeline_run.get_papers(exclude_status='withdrawn')
-            logger.info(f"🔍 [FULL-TEXT SCREENING FILTER] No prior Abstract Screening job found. Targeting {papers_qs.count()} downloaded/OCR papers.")
+            if has_download_run:
+                papers_qs = pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn']).filter(retrieved_q)
+                logger.info(f"🔍 [FULL-TEXT SCREENING FILTER] Abstract Screening skipped/absent, Prior Download job detected. Targeting {papers_qs.count()} retrieved papers.")
+            else:
+                papers_qs = pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn']).filter(retrieved_q)
+                if not papers_qs.exists():
+                    papers_qs = pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn'])
+                logger.info(f"🔍 [FULL-TEXT SCREENING FILTER] No prior Abstract Screening job found. Targeting {papers_qs.count()} papers.")
 
         papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
 
@@ -403,7 +480,12 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
         current_paper_ids = set(p.id for p in papers)
         already_screened_pms = pipeline_run.paper_metrics.filter(
             Q(metrics_data__has_key='full_text_screening') |
-            (Q(screening_status__in=['full_text_passed', 'rejected', 'withdrawn']) & Q(full_text_screening_reasoning__isnull=False))
+            (
+                Q(screening_status__in=['full_text_passed', 'rejected', 'withdrawn']) &
+                Q(full_text_screening_reasoning__isnull=False) &
+                ~Q(full_text_screening_reasoning__icontains='retrieval failed') &
+                ~Q(full_text_screening_reasoning__icontains='could not be retrieved')
+            )
         ).exclude(paper_id__in=current_paper_ids)
 
         already_passed_count = already_screened_pms.filter(screening_status='full_text_passed').count()
@@ -504,11 +586,20 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
         chunks = [papers[i:i + chunk_size] for i in range(0, len(papers), chunk_size)]
         total_chunks = len(chunks)
 
+        allow_fallback = not has_download_run
+
         for chunk_idx, chunk in enumerate(chunks):
             if worker_concurrency <= 1:
                 for paper in chunk:
                     try:
-                        res = screen_full_text(paper.id, workspace.id, workspace_obj=workspace, paper_obj=paper, pipeline_run_id=str(pipeline_run.id))
+                        res = screen_full_text(
+                            paper.id,
+                            workspace.id,
+                            workspace_obj=workspace,
+                            paper_obj=paper,
+                            pipeline_run_id=str(pipeline_run.id),
+                            allow_abstract_fallback=allow_fallback
+                        )
                     except Exception as pe:
                         logger.error(f"Error screening paper '{paper.id}': {pe}")
                         res = {"success": False, "error": str(pe), "input_source": "error", "duration_seconds": 0.0, "usage": {}}
@@ -519,7 +610,13 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
                 executor = ThreadPoolExecutor(max_workers=worker_concurrency)
                 try:
                     future_to_paper = {
-                        executor.submit(_screen_full_text_paper_task, paper, workspace, pipeline_run_id=str(pipeline_run.id)): paper
+                        executor.submit(
+                            _screen_full_text_paper_task,
+                            paper,
+                            workspace,
+                            pipeline_run_id=str(pipeline_run.id),
+                            allow_abstract_fallback=allow_fallback
+                        ): paper
                         for paper in chunk
                     }
                     try:

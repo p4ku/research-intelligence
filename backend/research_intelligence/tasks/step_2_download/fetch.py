@@ -27,6 +27,38 @@ def is_valid_pdf_binary(file_bytes: bytes) -> bool:
     return True
 
 
+def _mark_download_retrieval_failed(paper, pipeline_run_obj, error_reason: str):
+    """
+    Marks a paper as rejected in PaperMetric if full-text document retrieval fails permanently.
+    Prevents downstream full-text screening from incorrectly screening unretrieved papers.
+    """
+    target_pr = (pipeline_run_obj.id if pipeline_run_obj else None) or getattr(paper, 'pipeline_run_id', None)
+    if target_pr:
+        try:
+            pm, _ = PaperMetric.objects.update_or_create(
+                paper=paper,
+                pipeline_run_id=target_pr,
+                defaults={
+                    'workspace_id': getattr(paper, 'workspace_id', None),
+                    'screening_status': 'rejected',
+                    'full_text_screening_reasoning': f"Full-text retrieval failed: could not download PDF ({error_reason})."
+                }
+            )
+            pm.screening_status = 'rejected'
+            pm.full_text_screening_reasoning = f"Full-text retrieval failed: could not download PDF ({error_reason})."
+            m_data = dict(pm.metrics_data or {})
+            m_data["download"] = {
+                "success": False,
+                "error": str(error_reason),
+                "screening_status": "rejected"
+            }
+            pm.metrics_data = m_data
+            pm.save(update_fields=['screening_status', 'full_text_screening_reasoning', 'metrics_data'])
+            logger.info(f"🚫 [RETRIEVAL FAILED] Paper '{paper.id}' marked as rejected (reason: {error_reason})")
+        except Exception as me:
+            logger.warning(f"Could not mark PaperMetric retrieval failure for paper {paper.id}: {me}")
+
+
 def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_map=None):
     close_old_connections()
     title_snippet = paper.title[:50] if paper.title else "Untitled"
@@ -94,11 +126,13 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_
 
     if not pdf_source_url:
         logger.warning(f"⚠️ [NO URL] Paper '{paper.id}' ({title_snippet}) has no valid PDF source URL.")
+        _mark_download_retrieval_failed(paper, pipeline_run_obj, "No valid PDF source URL")
         return {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": "No valid PDF source URL"}
 
     from ...utils.url_guard import is_safe_external_url
     if not is_safe_external_url(pdf_source_url):
         logger.warning(f"⚠️ [BLOCKED SSRF URL] PDF URL '{pdf_source_url}' for paper '{paper.id}' rejected by SSRF guard.")
+        _mark_download_retrieval_failed(paper, pipeline_run_obj, f"Disallowed private / internal IP URL: {pdf_source_url}")
         return {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": f"Disallowed private / internal IP URL: {pdf_source_url}"}
 
     max_attempts = 3
@@ -111,6 +145,7 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_
             if file_bytes and len(file_bytes) > 0:
                 if not is_valid_pdf_binary(file_bytes):
                     logger.warning(f"⚠️ [NON-PDF CONTENT] Downloaded {len(file_bytes)} bytes from '{pdf_source_url}' for paper '{title_snippet}...' but content is not a valid PDF (HTML landing page or corrupted).")
+                    _mark_download_retrieval_failed(paper, pipeline_run_obj, "Downloaded content is not a valid PDF (HTML/corrupt)")
                     return {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": "Downloaded content is not a valid PDF (HTML/corrupt)"}
 
                 if default_storage.exists(target_path):
@@ -137,6 +172,7 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_
                 if attempt < max_attempts:
                     time.sleep(2 * attempt)
                 else:
+                    _mark_download_retrieval_failed(paper, pipeline_run_obj, "0 bytes received")
                     return {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": "0 bytes received"}
         except Exception as e:
             err_msg = str(e).lower()
@@ -167,6 +203,7 @@ def _download_paper_task(paper, workspace_obj, pipeline_run_obj, withdrawn_info_
                 time.sleep(delay)
             else:
                 logger.warning(f"❌ [DOWNLOAD FAILED] Error downloading PDF for paper '{title_snippet}...' after {max_attempts} attempts: {e}")
+                _mark_download_retrieval_failed(paper, pipeline_run_obj, str(e))
                 return {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": str(e)}
 
 
@@ -225,6 +262,8 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
             papers = list(papers_qs[:limit] if (limit and limit > 0) else papers_qs)
             logger.info(f"🔍 [PDF DOWNLOAD FILTER] Abstract Screening was skipped or absent. Targeting {len(papers)} total candidate papers.")
 
+        paper_lookup = {str(p.id): p for p in papers}
+
         # Pre-fetch withdrawn papers map once to avoid N database queries in threads
         withdrawn_info_map = {
             pm.paper_id: (pm.latest_screening_reasoning or "Paper has been withdrawn by authors.")
@@ -255,6 +294,9 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
                 downloaded_papers_summary.append(res)
             else:
                 failed_count += 1
+                p_id = res.get("paper_id")
+                if p_id and p_id in paper_lookup:
+                    _mark_download_retrieval_failed(paper_lookup[p_id], pipeline_run, res.get("error") or "PDF download failed")
 
             # Flush live progress metrics to DB
             processed_so_far = downloaded_count + skipped_count + withdrawn_count + failed_count
