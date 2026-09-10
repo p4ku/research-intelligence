@@ -6,7 +6,7 @@ from typing import Any, Optional, Tuple, Union
 
 from research_intelligence.models import Extraction, ExtractionDefinition
 
-RATIONALE_RE = re.compile(r'(reason|rationale|justif)', re.IGNORECASE)
+RATIONALE_RE = re.compile(r'(reason|rationale|justif|summary)', re.IGNORECASE)
 EVIDENCE_RE = re.compile(r'(quote|^evidence$|_evidence$)', re.IGNORECASE)
 BAND_RE = re.compile(r'(_band$|_label$|^band$|^label$)', re.IGNORECASE)
 FACET_KEY_RE = re.compile(r'_score$', re.IGNORECASE)
@@ -720,6 +720,8 @@ def extract_rich_dimension_details(
             rationale = matched_obj["rationale"].strip()
         elif "insight" in matched_obj and isinstance(matched_obj["insight"], str):
             rationale = matched_obj["insight"].strip()
+        elif "summary" in matched_obj and isinstance(matched_obj["summary"], str):
+            rationale = matched_obj["summary"].strip()
 
         if "evidence" in matched_obj:
             ev_val = matched_obj["evidence"]

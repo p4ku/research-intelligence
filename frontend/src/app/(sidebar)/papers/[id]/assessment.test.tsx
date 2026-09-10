@@ -966,4 +966,51 @@ describe('Assessment Component Rendering', () => {
     expect(fitIdx).toBeGreaterThan(researchIdx)
     expect(trlIdx).toBeGreaterThan(fitIdx)
   })
+
+  test('renders non-numeric prose (like Summarisation) on a new line in lead prose with wrapping, never in the header figure slot', () => {
+    const summaryDim: Dimension = {
+      key: 'summarisation',
+      definition_id: 'def-summary-123',
+      name: 'Summarisation',
+      order: 1,
+      value: null,
+      raw: 'Researchers developed Backline, a framework that lets developers write quantum error correction workloads in Python and execute them across mixed hardware.',
+      max: null,
+      is_trl: false,
+      facts: [
+        {
+          key: 'what_it_does',
+          name: 'What it does',
+          value: 'Backline enables users to coordinate quantum error decoding across processors.',
+        },
+        {
+          key: 'how_it_works',
+          name: 'How it works',
+          value: 'A Python interface specifies where tasks run and how data moves.',
+        },
+      ],
+    }
+
+    const out = renderToStaticMarkup(<Assessment dimensions={[summaryDim]} t={t} />)
+
+    // 1. Definition header has title
+    expect(out).toContain('Summarisation')
+
+    // 2. Header MUST NOT contain the long summary text in the header figure slot
+    const headerMatch = out.match(/<header[^>]*>([\s\S]*?)<\/header>/)
+    expect(headerMatch).not.toBeNull()
+    const headerContent = headerMatch![1]
+    expect(headerContent).toContain('Summarisation')
+    expect(headerContent).not.toContain('Researchers developed Backline')
+
+    // 3. The summary text IS rendered in lead prose with break-words text-pretty classes on a new line
+    expect(out).toContain('Researchers developed Backline')
+    expect(out).toContain('break-words')
+    expect(out).toContain('text-pretty')
+
+    // 4. Followed by the facts below it
+    const summaryIdx = out.indexOf('Researchers developed Backline')
+    const whatItDoesIdx = out.indexOf('What it does')
+    expect(whatItDoesIdx).toBeGreaterThan(summaryIdx)
+  })
 })

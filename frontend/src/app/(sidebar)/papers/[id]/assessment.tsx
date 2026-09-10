@@ -25,8 +25,15 @@ export function definitionAnchor(d: Pick<Dimension, 'key' | 'extraction_id'>): s
   return `dimension-${d.key}${d.extraction_id ? `-${d.extraction_id.slice(0, 8)}` : ''}`
 }
 
-const PROSE = 'max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300'
-const SMALL_PROSE = 'max-w-[76ch] text-sm leading-relaxed text-zinc-600 dark:text-zinc-400'
+export function isProse(text: string | null | undefined): boolean {
+  if (!text) return false
+  const trimmed = text.trim()
+  if (trimmed === '' || trimmed === '—') return false
+  return trimmed.length > 25 || trimmed.split(/\s+/).length > 3 || trimmed.includes('\n')
+}
+
+const PROSE = 'max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300 break-words text-pretty'
+const SMALL_PROSE = 'max-w-[76ch] text-sm leading-relaxed text-zinc-600 dark:text-zinc-400 break-words text-pretty'
 const H4 = 'text-sm font-semibold text-zinc-950 dark:text-white'
 const FIGURE = 'font-mono font-medium text-zinc-950 tabular-nums dark:text-white'
 
@@ -91,10 +98,10 @@ function shownNumber(n: number | null | undefined, lang: Lang): string {
   return formatNumber(n, lang, undefined, 2)
 }
 
-/** The headline as the row shows it: the number, or the raw string when there is none. */
+/** The headline as the row shows it: the number, or the raw string when there is none (excluding prose sentences). */
 function shownValue(d: Dimension, lang: Lang): ReactNode {
   if (d.value === null) {
-    if (!d.raw || d.raw === '—' || d.raw.trim() === '') return null
+    if (!d.raw || d.raw === '—' || d.raw.trim() === '' || isProse(d.raw)) return null
     return <span className="text-zinc-500 dark:text-zinc-400">{d.raw}</span>
   }
   return (
@@ -628,14 +635,28 @@ function Definition({ dimension: d, t, lang }: { dimension: Dimension; t: T; lan
       value: String(fact.value).trim(),
     }))
 
+  const rawProse =
+    d.value === null && d.raw && d.raw !== '—' && isProse(d.raw) ? d.raw.trim() : null
+  const leadProse = d.rationale?.trim() || rawProse
+  const secondaryProse =
+    d.rationale?.trim() && rawProse && rawProse !== d.rationale.trim() ? rawProse : null
+
   const allInsights = [...textInsights, ...factInsights]
   const topInsights = allInsights.filter(
     (field, idx) =>
-      (!d.rationale || d.rationale.trim() !== field.value) &&
+      (!leadProse || leadProse !== field.value) &&
       allInsights.findIndex((other) => other.value === field.value) === idx,
   )
 
-  const remainingTexts = visibleTexts.filter((field) => !isInsight(field))
+  const remainingTexts = visibleTexts
+    .filter((field) => !isInsight(field))
+    .filter((field) => {
+      const v = String(field.value ?? '').trim()
+      if (!v) return false
+      if (leadProse && v === leadProse) return false
+      if (secondaryProse && v === secondaryProse) return false
+      return true
+    })
 
   const visibleFacts = (d.facts ?? [])
     .filter((fact) => {
@@ -645,6 +666,9 @@ function Definition({ dimension: d, t, lang }: { dimension: Dimension; t: T; lan
       if (k === 'confidence' || n === 'confidence') return false
       if (isInsight(fact)) return false
       if (isSubMeasureDuplicate(fact)) return false
+      const v = String(fact.value ?? '').trim()
+      if (leadProse && v === leadProse) return false
+      if (secondaryProse && v === secondaryProse) return false
       return true
     })
     .map((fact) => {
@@ -663,7 +687,8 @@ function Definition({ dimension: d, t, lang }: { dimension: Dimension; t: T; lan
       band={d.band && <Band>{d.band}</Band>}
       value={shownValue(d, lang)}
     >
-      {d.rationale ? <AnswerMarkdown text={d.rationale} className={PROSE} /> : null}
+      {leadProse ? <AnswerMarkdown text={leadProse} className={PROSE} /> : null}
+      {secondaryProse ? <AnswerMarkdown text={secondaryProse} className={PROSE} /> : null}
 
       {/* Top insight prose boxes (e.g. "Research Quality Insight", "Schwarz Fit Insight") without subtitle */}
       {topInsights.map((field) => (

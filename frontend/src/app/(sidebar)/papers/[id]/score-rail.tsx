@@ -6,7 +6,7 @@ import { dimensionLabel } from '@/lib/papers/dimension-label'
 import { trlDimension } from '@/lib/papers/select'
 import type { Dimension, ScoredPaper } from '@/lib/papers/types'
 import type { ReactNode } from 'react'
-import { definitionAnchor } from './assessment'
+import { definitionAnchor, isProse } from './assessment'
 import { ScoreBarFrame, ScoreBars, type RailBar } from './score-bars'
 
 /**
@@ -98,8 +98,13 @@ function radarAxes(dimensions: Dimension[], t: T, lang: Lang) {
 
 function railBar(d: Dimension, t: T, lang: Lang): RailBar {
   const hasBar = d.value !== null && d.max !== null && d.max > 0
+  const isTextProse = isProse(d.raw)
   const shown =
-    d.value !== null ? shownNumber(d.value, lang) : d.raw && d.raw !== '—' ? d.raw : null
+    d.value !== null
+      ? shownNumber(d.value, lang)
+      : d.raw && d.raw !== '—' && !isTextProse
+        ? d.raw
+        : null
   return {
     key: d.key + (d.extraction_id ?? ''),
     label: shortName(d, t),
