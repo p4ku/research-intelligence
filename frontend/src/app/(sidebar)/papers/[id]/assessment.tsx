@@ -142,7 +142,7 @@ function FacetRowFrame({
         'grid items-center gap-x-3 gap-y-1',
         fill === undefined || fill === false
           ? 'grid-cols-[minmax(0,1fr)_44px]'
-          : 'grid-cols-[minmax(0,1fr)_44px] sm:grid-cols-[200px_minmax(0,1fr)_44px]',
+          : 'grid-cols-[minmax(0,1fr)_44px] sm:grid-cols-[minmax(0,1fr)_140px_44px]',
       )}
     >
       <span className="text-sm text-zinc-700 dark:text-zinc-200">{name}</span>
@@ -501,12 +501,15 @@ function SubMeasureRow({ sub, t, lang }: { sub: SubMeasure; t: T; lang: Lang }) 
         className={clsx(
           'grid items-center gap-x-3 gap-y-1',
           hasBar
-            ? 'grid-cols-[minmax(0,1fr)_44px] sm:grid-cols-[200px_minmax(0,1fr)_44px]'
+            ? 'grid-cols-[minmax(0,1fr)_44px] sm:grid-cols-[minmax(0,1fr)_140px_44px]'
             : 'grid-cols-[minmax(0,1fr)_44px]',
         )}
       >
         <div className="flex min-w-0 items-center">
-          <span className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">
+          <span
+            title={dimensionLabel(sub.name, t)}
+            className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100"
+          >
             {dimensionLabel(sub.name, t)}
           </span>
         </div>

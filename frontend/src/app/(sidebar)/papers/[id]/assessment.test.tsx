@@ -735,7 +735,7 @@ describe('Assessment Component Rendering', () => {
     expect(out).not.toContain('Important')
 
     // Responsive grid classes are present
-    expect(out).toContain('grid-cols-[minmax(0,1fr)_44px] sm:grid-cols-[200px_minmax(0,1fr)_44px]')
+    expect(out).toContain('grid-cols-[minmax(0,1fr)_44px] sm:grid-cols-[minmax(0,1fr)_140px_44px]')
   })
 
   test('moves Research Quality Insight and Schwarz Fit Insight text boxes to the top under section headers without subtitle', () => {
@@ -1012,5 +1012,46 @@ describe('Assessment Component Rendering', () => {
     const summaryIdx = out.indexOf('Researchers developed Backline')
     const whatItDoesIdx = out.indexOf('What it does')
     expect(whatItDoesIdx).toBeGreaterThan(summaryIdx)
+  })
+
+  test('renders long sub-measure title (e.g. Strategic operational need match) with compact progress bar proportion', () => {
+    const schwarzFitWithLongTitle: Dimension = {
+      key: 'schwarz_fit',
+      definition_id: '00000000-0000-4000-8000-000000000003',
+      name: 'Schwarz Fit',
+      value: 63.2,
+      raw: '63.2',
+      max: 100,
+      is_trl: false,
+      facets: [
+        {
+          key: 'strategic_operational_need_match',
+          name: 'Strategic operational need match',
+          value: 68,
+          max: 100,
+          description:
+            'Ambient Diffusion Policy directly advances automated manipulation and sorting',
+        },
+        {
+          key: 'cross_industry_scalability',
+          name: 'Cross industry scalability',
+          value: 70,
+          max: 100,
+          description: 'Because the algorithmic data sampler is domain-agnostic',
+        },
+      ],
+      texts: [],
+      facts: [],
+    }
+
+    const out = renderToStaticMarkup(<Assessment dimensions={[schwarzFitWithLongTitle]} t={t} />)
+
+    // Full long sub-measure title is rendered
+    expect(out).toContain('Strategic operational need match')
+    expect(out).toContain('title="Strategic operational need match"')
+    expect(out).toContain('Cross industry scalability')
+
+    // Uses flexible minmax(0,1fr) for label and compact 140px progress bar
+    expect(out).toContain('sm:grid-cols-[minmax(0,1fr)_140px_44px]')
   })
 })
