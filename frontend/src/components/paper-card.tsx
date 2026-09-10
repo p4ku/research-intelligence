@@ -5,7 +5,7 @@ import { formatDate, formatNumber } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
 import { dimensionLabel } from '@/lib/papers/dimension-label'
 import { paperHref } from '@/lib/papers/href'
-import { trlDimension } from '@/lib/papers/select'
+import { isFitDimension, trlDimension } from '@/lib/papers/select'
 import type { ScoredPaper } from '@/lib/papers/types'
 import clsx from 'clsx'
 import Link from 'next/link'
@@ -116,10 +116,16 @@ export function PaperCard({
   const { lang } = useLanguage()
   const { stars } = useFeatures()
   const trl = trlDimension(paper)
-  // Two headline dimensions besides TRL, in the workspace's definition order.
+  // The strip reads Schwarz Fit, then the next headline dimension in the
+  // workspace's definition order, then the TRL chip: the fit is the number a
+  // reader scans the list for, so it leads wherever the admin ranked its
+  // definition, and the chip closes the strip rather than opening it.
   const stats = (paper.dimensions ?? [])
     .filter((d) => !d.is_trl && d.value !== null)
-    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+    .sort(
+      (a, b) =>
+        Number(isFitDimension(b)) - Number(isFitDimension(a)) || (a.order ?? 0) - (b.order ?? 0),
+    )
     .slice(0, 2)
   const lead = paper.authors[0]
   return (
@@ -152,7 +158,6 @@ export function PaperCard({
       abstract={paper.abstract}
       footer={
         <>
-          {trl?.value !== null && trl?.value !== undefined && <TrlBadge trl={trl.value} t={t} />}
           {stats.map((d) => (
             <ScoreStat
               key={d.key}
@@ -162,6 +167,7 @@ export function PaperCard({
               value={d.raw ?? formatNumber(d.value!, lang, undefined, 2)}
             />
           ))}
+          {trl?.value !== null && trl?.value !== undefined && <TrlBadge trl={trl.value} t={t} />}
           {paper.signal_score === null && <span className="text-zinc-400">{t('Unscored')}</span>}
           {lead && (
             <span className="ml-auto min-w-0 truncate text-zinc-400">
@@ -197,9 +203,9 @@ export function PaperCardSkeleton({ scored = true }: { scored?: boolean }) {
       abstract={<Bone.Text lines={2} widths={['100%', '88%']} />}
       footer={
         <>
+          <Bone.Text widths={['9ch']} className="text-xs" />
+          <Bone.Text widths={['9ch']} className="text-xs" />
           {scored && <Bone.Chip width={124} />}
-          <Bone.Text widths={['9ch']} className="text-xs" />
-          <Bone.Text widths={['9ch']} className="text-xs" />
           <Bone.Text widths={['14ch']} className="ml-auto text-xs" />
         </>
       }

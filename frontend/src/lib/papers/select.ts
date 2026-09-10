@@ -30,6 +30,16 @@ export function dimensionByKey(paper: ScoredPaper, key: string): Dimension | und
   return (paper.dimensions ?? []).find((d) => d.key === key)
 }
 
+/**
+ * Whether a dimension is the workspace's Schwarz Fit, under either of the
+ * two names it arrives with (the same pair dimension-label.ts maps). The card
+ * leads its strip with it.
+ */
+export function isFitDimension(d: Pick<Dimension, 'name'>): boolean {
+  const name = d.name.trim().toLowerCase()
+  return name === 'schwarz fit' || name === 'fit score'
+}
+
 /** Definitions worth sorting/filtering by: active and, in this corpus, numeric. */
 export function numericDefinitions(
   ws: Pick<WorkspaceSummary, 'definitions'>,

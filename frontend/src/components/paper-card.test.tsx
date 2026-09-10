@@ -44,6 +44,26 @@ describe('PaperCard', () => {
     expect(off).toContain(`href="/papers/${paper.id}"`)
   })
 
+  test('strip reads Schwarz Fit, the next dimension, then the TRL chip', () => {
+    // The fixture's definitions are ordered fit, novelty, TRL already; the
+    // second render ranks the fit last to prove it still leads the strip.
+    const order = (html: string) =>
+      ['Fit score', 'Novelty Score', 'TRL 4'].map((s) => html.indexOf(s))
+    expect(order(out).every((i) => i >= 0)).toBe(true)
+    expect(order(out)).toEqual([...order(out)].sort((a, b) => a - b))
+
+    const fitLast = {
+      ...paper,
+      dimensions: paper.dimensions!.map((d) => ({
+        ...d,
+        order: d.name === 'Fit Score' ? 9 : d.name === 'Novelty Score' ? 1 : 2,
+      })),
+    }
+    const reranked = renderToStaticMarkup(<PaperCard paper={fitLast} />)
+    expect(order(reranked).every((i) => i >= 0)).toBe(true)
+    expect(order(reranked)).toEqual([...order(reranked)].sort((a, b) => a - b))
+  })
+
   test('names the domain in the meta row only when given one', () => {
     expect(out).not.toContain('Hybrid Computing')
     const withDomain = renderToStaticMarkup(<PaperCard paper={paper} domain="Hybrid Computing" />)
