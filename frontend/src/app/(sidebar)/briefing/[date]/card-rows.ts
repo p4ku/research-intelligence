@@ -49,9 +49,12 @@ function cardDimension(d: Dimension): Dimension {
 }
 
 export function cardRow(p: ScoredPaper): ScoredPaper {
+  // Edition rows are cast from `editionPaper`, whose abstract is optional
+  // with no default — never dereference it bare.
+  const abstract = p.abstract ?? ''
   return {
     ...p,
-    abstract: p.abstract.length > ABSTRACT_CHARS ? p.abstract.slice(0, ABSTRACT_CHARS) : p.abstract,
+    abstract: abstract.length > ABSTRACT_CHARS ? abstract.slice(0, ABSTRACT_CHARS) : abstract,
     authors_raw: '',
     dimensions: (p.dimensions ?? []).filter(usable).map(cardDimension),
     screening_reasoning: null,

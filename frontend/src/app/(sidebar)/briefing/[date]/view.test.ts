@@ -59,7 +59,7 @@ describe('viewFrom', () => {
 
   test('reads a sort and a score floor, first value of a repeated param', () => {
     // One point a step (10 Sep 2026): a floor of 57 is the slider's own.
-    expect(viewFrom({ score: '57' })).toEqual({ sort: 'score', minScore: 57 })
+    expect(viewFrom({ score: '57' })).toEqual({ sort: 'score', minScore: 57, page: 1 })
     expect(viewFrom({ sort: ['published', 'score'], score: '60' })).toEqual({
       sort: 'published',
       minScore: 60,
