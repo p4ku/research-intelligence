@@ -9,8 +9,8 @@ from typing import Optional
 
 ENV_TARGETS = {
     "staging": "https://sri.soinventive.co.uk",
-    "prod": "https://sri-prod.apps.01.cf.eu01.onstackit.cloud",
-    "production": "https://sri-prod.apps.01.cf.eu01.onstackit.cloud",
+    "prod": "https://research-scanner.schwarz",
+    "production": "https://research-scanner.schwarz",
     "local": "http://localhost:8000",
 }
 
@@ -18,7 +18,7 @@ ENV_TARGETS = {
 @dataclass
 class E2EConfig:
     target_env: str = os.getenv("E2E_TARGET_ENV", "prod").lower()
-    base_url: str = os.getenv("E2E_API_URL", ENV_TARGETS.get(os.getenv("E2E_TARGET_ENV", "prod").lower(), "https://sri-prod.apps.01.cf.eu01.onstackit.cloud"))
+    base_url: str = os.getenv("E2E_API_URL", ENV_TARGETS.get(os.getenv("E2E_TARGET_ENV", "prod").lower(), "https://research-scanner.schwarz"))
     username: str = os.getenv("E2E_USERNAME", os.getenv("TEST_USERNAME", os.getenv("ADMIN_USERNAME", "test_e2e")))
     password: str = os.getenv("E2E_PASSWORD", os.getenv("TEST_PASSWORD", os.getenv("ADMIN_PASSWORD", "t4st_pa55w0rD!#")))
     provider: str = os.getenv("E2E_PROVIDER", "arxiv").lower()
@@ -45,7 +45,7 @@ class E2EConfig:
         reprocess_existing: Optional[bool] = None,
     ):
         self.target_env = target_env if target_env is not None else os.getenv("E2E_TARGET_ENV", "prod").lower()
-        self.base_url = base_url if base_url is not None else os.getenv("E2E_API_URL", ENV_TARGETS.get(self.target_env, "https://sri-prod.apps.01.cf.eu01.onstackit.cloud"))
+        self.base_url = base_url if base_url is not None else os.getenv("E2E_API_URL", ENV_TARGETS.get(self.target_env, "https://research-scanner.schwarz"))
         self.username = username if username is not None else os.getenv("E2E_USERNAME", os.getenv("TEST_USERNAME", os.getenv("ADMIN_USERNAME", "test_e2e")))
         self.password = password if password is not None else os.getenv("E2E_PASSWORD", os.getenv("TEST_PASSWORD", os.getenv("ADMIN_PASSWORD", "t4st_pa55w0rD!#")))
         self.provider = provider if provider is not None else os.getenv("E2E_PROVIDER", "arxiv").lower()
@@ -88,7 +88,7 @@ class E2EConfig:
     @classmethod
     def from_env(cls, target: str = None) -> "E2EConfig":
         env_name = (target or os.getenv("E2E_TARGET_ENV", "prod")).lower()
-        url = ENV_TARGETS.get(env_name, os.getenv("E2E_API_URL", "https://sri-prod.apps.01.cf.eu01.onstackit.cloud"))
+        url = ENV_TARGETS.get(env_name, os.getenv("E2E_API_URL", "https://research-scanner.schwarz"))
         return cls(
             target_env=env_name,
             base_url=url.rstrip("/"),

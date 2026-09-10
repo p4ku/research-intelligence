@@ -10,8 +10,8 @@ import { defineConfig, devices } from '@playwright/test';
 const ENV_TARGETS: Record<string, string> = {
   local: 'http://localhost:3000',
   staging: 'https://sri.soinventive.co.uk',
-  prod: 'https://sri-prod.apps.01.cf.eu01.onstackit.cloud',
-  production: 'https://sri-prod.apps.01.cf.eu01.onstackit.cloud',
+  prod: 'https://research-scanner.schwarz',
+  production: 'https://research-scanner.schwarz',
 };
 
 const targetEnv = (process.env.E2E_TARGET_ENV || 'local').toLowerCase();

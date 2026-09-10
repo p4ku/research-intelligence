@@ -2,7 +2,7 @@ import { chromium } from '@playwright/test';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
-const BASE_URL = 'https://sri-prod.apps.01.cf.eu01.onstackit.cloud';
+const BASE_URL = 'https://research-scanner.schwarz';
 const USER = 'admin';
 const PASSWORD = 'schwarz123!';
 const OUT_DIR = join(process.cwd(), 'docs', 'user_journeys', 'screenshots');

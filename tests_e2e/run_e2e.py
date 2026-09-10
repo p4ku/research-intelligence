@@ -95,7 +95,7 @@ def parse_args():
         "--url",
         type=str,
         default=None,
-        help="Custom Base API URL override (e.g. https://sri-prod.apps.01.cf.eu01.onstackit.cloud)",
+        help="Custom Base API URL override (e.g. https://research-scanner.schwarz)",
     )
     parser.add_argument(
         "--user",
@@ -356,7 +356,7 @@ def main():
     print_banner()
     args = parse_args()
 
-    base_url = args.url or ENV_TARGETS.get(args.target, "https://sri-prod.apps.01.cf.eu01.onstackit.cloud")
+    base_url = args.url or ENV_TARGETS.get(args.target, "https://research-scanner.schwarz")
     config = E2EConfig(
         target_env=args.target,
         base_url=base_url,
