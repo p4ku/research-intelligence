@@ -76,11 +76,16 @@ export function DefinitionFrame({
       data-row="definition"
       className="scroll-mt-6 border-b border-line-soft py-6 last:border-b-0"
     >
-      <header className="flex items-baseline gap-2.5">
-        <SectionLabel>{name}</SectionLabel>
-        {band}
+      {/* Label and band in one wrapping cell, the figure in its own, so a
+          long name with a band (TRL) folds the band under the label at
+          narrow widths instead of pushing the figure onto a second line. */}
+      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3">
+        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+          <SectionLabel size="sm">{name}</SectionLabel>
+          {band}
+        </div>
         {value != null && value !== '' ? (
-          <span className={clsx(FIGURE, 'ml-auto shrink-0 text-[22px] leading-none')}>{value}</span>
+          <span className={clsx(FIGURE, 'shrink-0 text-lg leading-none')}>{value}</span>
         ) : null}
       </header>
       <div className="mt-3.5 space-y-4">{children}</div>
