@@ -3,7 +3,7 @@ import { PageHeader, SectionLabel } from '@/components/scanner-ui'
 import { Skeleton } from '@/components/skeleton'
 import type { Features } from '@/lib/features'
 import { fmt, type T } from '@/lib/i18n'
-import { HomeLinks } from './home-ui'
+import { HomeGrid, HomeLinks } from './home-ui'
 import { LedgerSkeleton } from './ledger'
 import { RECENT } from './recent'
 import { RunCardSkeleton } from './run-card'
@@ -18,20 +18,20 @@ import { RunCardSkeleton } from './run-card'
 export function LedgerSkeletonRegion({ t, features }: { t: T; features: Features }) {
   return (
     <Skeleton.Region status={t('Loading recent briefings')}>
-      <div className="grid gap-8 lg:grid-cols-3">
-        <div className="min-w-0 lg:col-span-2">
-          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-            <SectionLabel size="sm">{t('Recent briefings')}</SectionLabel>
-            <HomeLinks t={t} />
-          </div>
-          <div className="mt-4">
-            <LedgerSkeleton rows={RECENT} features={features} />
-          </div>
-        </div>
-        <aside className="lg:col-span-1">
-          <RunCardSkeleton />
-        </aside>
-      </div>
+      <HomeGrid
+        ledger={
+          <>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <SectionLabel size="sm">{t('Recent briefings')}</SectionLabel>
+              <HomeLinks t={t} />
+            </div>
+            <div className="mt-4">
+              <LedgerSkeleton rows={RECENT} features={features} />
+            </div>
+          </>
+        }
+        card={<RunCardSkeleton />}
+      />
     </Skeleton.Region>
   )
 }

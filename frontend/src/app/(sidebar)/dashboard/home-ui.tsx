@@ -3,12 +3,50 @@ import { Bone } from '@/components/skeleton'
 import type { Lang, T } from '@/lib/i18n'
 import clsx from 'clsx'
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 
 /**
  * Small pieces Home's ledger and the masthead (gallery only since 7 Sep
  * 2026) share. No directive: the masthead renders on the server, the ledger
  * on the client, and both use these.
  */
+
+/**
+ * Home's two-column frame: Recent Briefings beside New Briefing.
+ *
+ * The ledger takes whatever is left; the run card is a fixed 18rem track, so
+ * the table's width no longer follows a third of the page. The two sit side
+ * by side only from 1400px, which is where both fit: the ledger's seven
+ * columns want about 660px at their tightest, the card 288, the gap 32, and
+ * the shell spends the rest on the sidebar and the page's own margins. Under
+ * that the card drops beneath the ledger and each gets the full measure —
+ * the old two-thirds column left the ledger 443px at 1024 and 616px at 1280,
+ * and the table's last cells, status and Retry, fell outside the panel.
+ *
+ * The loaded section and its skeleton both render through here, so the two
+ * cannot drift.
+ */
+const SIDE_BY_SIDE = 'min-[1400px]:grid-cols-[minmax(0,1fr)_18rem]'
+
+export function HomeGrid({
+  ledger,
+  card,
+  children,
+}: {
+  ledger: ReactNode
+  card: ReactNode
+  /** Anything that renders nothing but belongs to the section (the live refresh). */
+  children?: ReactNode
+}) {
+  return (
+    <div className={`grid gap-8 ${SIDE_BY_SIDE}`}>
+      <div className="min-w-0">{ledger}</div>
+      {/* Stacked, the card keeps a form's width instead of a page's. */}
+      <aside className="max-w-sm min-[1400px]:max-w-none">{card}</aside>
+      {children}
+    </div>
+  )
+}
 
 /** One of the strongest papers in a briefing, as Home lists it. */
 export interface HomePaper {
