@@ -5,7 +5,7 @@
 
 {% block extrahead %}
 {{ block.super }}
-{% if auto_refresh_seconds > 0 %}
+{% if auto_refresh_seconds > 0 and request.GET.sync == "1" %}
 <meta http-equiv="refresh" content="{{ auto_refresh_seconds }}">
 {% endif %}
 <style>
@@ -84,17 +84,57 @@
         font-size: 13px;
         border-bottom: 1px solid var(--hairline-color, #eee);
         color: var(--body-fg, #212529);
+        vertical-align: middle;
     }
     .qm-btn {
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
         padding: 6px 12px;
         border-radius: 4px;
-        font-size: 13px;
+        font-size: 12px;
         font-weight: 600;
         text-decoration: none;
         cursor: pointer;
         line-height: 1.2;
         white-space: nowrap;
+        border: 1px solid transparent;
+        transition: all 0.15s ease-in-out;
+    }
+    .qm-btn:hover {
+        opacity: 0.9;
+        text-decoration: none;
+    }
+    .qm-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+    .qm-btn-restart {
+        background: #fff;
+        color: #d97706;
+        border: 1px solid #d97706;
+    }
+    .qm-btn-restart:hover {
+        background: #d97706;
+        color: #fff;
+    }
+    .qm-btn-kill {
+        background: #fff;
+        color: #dc3545;
+        border: 1px solid #dc3545;
+    }
+    .qm-btn-kill:hover {
+        background: #dc3545;
+        color: #fff;
+    }
+    .qm-btn-inspect {
+        background: #fff;
+        color: #0d6efd;
+        border: 1px solid #0d6efd;
+    }
+    .qm-btn-inspect:hover {
+        background: #0d6efd;
+        color: #fff;
     }
     .qm-badge {
         display: inline-block;
@@ -102,6 +142,94 @@
         border-radius: 12px;
         font-size: 12px;
         font-weight: bold;
+    }
+    .qm-live-dot {
+        width: 8px;
+        height: 8px;
+        background-color: #198754;
+        border-radius: 50%;
+        display: inline-block;
+        box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7);
+        animation: qm-pulse 2s infinite;
+    }
+    @keyframes qm-pulse {
+        0% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0.7); }
+        70% { box-shadow: 0 0 0 6px rgba(25, 135, 84, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(25, 135, 84, 0); }
+    }
+    .qm-spinning {
+        display: inline-block;
+        animation: qm-spin 0.8s linear infinite;
+    }
+    @keyframes qm-spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    /* Skeleton Shimmer Animations */
+    @keyframes qm-shimmer {
+        0% { background-position: -200% 0; }
+        100% { background-position: 200% 0; }
+    }
+    .qm-skeleton {
+        display: inline-block;
+        height: 1em;
+        background: linear-gradient(90deg, #e9ecef 25%, #f8f9fa 50%, #e9ecef 75%);
+        background-size: 200% 100%;
+        animation: qm-shimmer 1.5s infinite;
+        border-radius: 4px;
+    }
+    .qm-skeleton-num {
+        width: 48px;
+        height: 32px;
+        display: block;
+    }
+    .qm-skeleton-row td {
+        padding: 14px 12px;
+    }
+    /* Floating Toasts */
+    #qm-toast-container {
+        position: fixed;
+        top: 24px;
+        right: 24px;
+        z-index: 99999;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        max-width: 420px;
+        pointer-events: none;
+    }
+    .qm-toast {
+        pointer-events: auto;
+        padding: 12px 18px;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        animation: qm-toast-slide 0.3s ease-out;
+        transition: opacity 0.3s ease;
+    }
+    .qm-toast-success {
+        background: #d1e7dd;
+        color: #0f5132;
+        border: 1px solid #badbcc;
+    }
+    .qm-toast-error {
+        background: #f8d7da;
+        color: #842029;
+        border: 1px solid #f5c2c7;
+    }
+    .qm-toast-info {
+        background: #cff4fc;
+        color: #055160;
+        border: 1px solid #b6effb;
+    }
+    @keyframes qm-toast-slide {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
     }
 </style>
 {% endblock %}
@@ -115,15 +243,24 @@
 
 {% block content %}
 <div class="qm-container">
+    <!-- Toast Notifications Container -->
+    <div id="qm-toast-container"></div>
+
+    <!-- Hidden CSRF form for AJAX fetch requests -->
+    <form id="csrf-form" style="display: none;">{% csrf_token %}</form>
+
     <!-- Top Action & Navigation Bar -->
     <div class="qm-top-bar">
         <div>
             <h1 style="margin: 0; font-size: 18px; font-weight: bold; color: var(--body-fg, #212529); display: flex; align-items: center; gap: 8px;">
                 ⚡ <span>Queue &amp; Active Runs</span>
-                <span style="font-size: 12px; font-weight: normal; color: #6c757d; background: #e9ecef; padding: 2px 8px; border-radius: 12px;">Live Monitor</span>
+                <span style="font-size: 12px; font-weight: normal; color: #198754; background: #e8f5e9; padding: 2px 8px; border-radius: 12px; display: inline-flex; align-items: center; gap: 5px;">
+                    <span class="qm-live-dot" id="qm-live-indicator"></span>
+                    Live Monitor
+                </span>
             </h1>
             <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
-                Last updated: <strong>{{ last_updated_str }} UTC</strong>
+                Last updated: <strong id="qm-last-updated">{{ last_updated_str|default:"Loading..." }} UTC</strong>
             </div>
         </div>
 
@@ -131,30 +268,33 @@
             <!-- Auto-refresh Selector -->
             <div style="display: flex; align-items: center; font-size: 12px; color: #6c757d;">
                 <span>⏱️ Auto-refresh:</span>
-                <a href="?refresh=0" class="qm-btn" style="padding: 3px 8px; margin-left: 4px; font-size: 11px; {% if auto_refresh_seconds == 0 %}background: #0d6efd; color: #fff; border: 1px solid #0d6efd;{% else %}background: #f8f9fa; color: #495057; border: 1px solid #ced4da;{% endif %}">Off</a>
-                <a href="?refresh=5" class="qm-btn" style="padding: 3px 8px; margin-left: 4px; font-size: 11px; {% if auto_refresh_seconds == 5 %}background: #0d6efd; color: #fff; border: 1px solid #0d6efd;{% else %}background: #f8f9fa; color: #495057; border: 1px solid #ced4da;{% endif %}">5s</a>
-                <a href="?refresh=10" class="qm-btn" style="padding: 3px 8px; margin-left: 4px; font-size: 11px; {% if auto_refresh_seconds == 10 %}background: #0d6efd; color: #fff; border: 1px solid #0d6efd;{% else %}background: #f8f9fa; color: #495057; border: 1px solid #ced4da;{% endif %}">10s</a>
-                <a href="?refresh=30" class="qm-btn" style="padding: 3px 8px; margin-left: 4px; font-size: 11px; {% if auto_refresh_seconds == 30 %}background: #0d6efd; color: #fff; border: 1px solid #0d6efd;{% else %}background: #f8f9fa; color: #495057; border: 1px solid #ced4da;{% endif %}">30s</a>
+                <button type="button" class="qm-btn" id="btn-refresh-0" onclick="setRefreshInterval(0)" style="padding: 3px 8px; margin-left: 4px; font-size: 11px;">Off</button>
+                <button type="button" class="qm-btn" id="btn-refresh-5" onclick="setRefreshInterval(5)" style="padding: 3px 8px; margin-left: 4px; font-size: 11px;">5s</button>
+                <button type="button" class="qm-btn" id="btn-refresh-10" onclick="setRefreshInterval(10)" style="padding: 3px 8px; margin-left: 4px; font-size: 11px;">10s</button>
+                <button type="button" class="qm-btn" id="btn-refresh-30" onclick="setRefreshInterval(30)" style="padding: 3px 8px; margin-left: 4px; font-size: 11px;">30s</button>
             </div>
 
-            <a href="?refresh={{ auto_refresh_seconds }}" class="qm-btn" style="background: #0d6efd; color: #fff;">🔄 Refresh</a>
-            <a href="?action=run_watchdog" class="qm-btn" style="background: #6c757d; color: #fff;" onclick="return confirm('Trigger Zombie Watchdog to terminate tasks exceeding execution timeouts?');">🧹 Zombie Watchdog</a>
-            <a href="{% url 'admin:storage-browser' %}" class="qm-btn" style="background: #f8f9fa; color: #495057; border: 1px solid #ced4da;">📂 S3 Storage</a>
+            <button type="button" id="btn-manual-refresh" class="qm-btn" onclick="fetchQueueData(true)" style="background: #0d6efd; color: #fff; border: 1px solid #0d6efd;">
+                <span id="icon-refresh">🔄</span> Refresh
+            </button>
+            <button type="button" id="btn-watchdog" class="qm-btn" onclick="triggerWatchdog()" style="background: #6c757d; color: #fff; border: 1px solid #6c757d;">
+                🧹 Zombie Watchdog
+            </button>
+            <a href="{% url 'admin:storage-browser' %}" class="qm-btn" style="background: #f8f9fa; color: #495057; border: 1px solid #ced4da;">
+                📂 S3 Storage
+            </a>
         </div>
     </div>
 
-    <!-- System Warnings (if any) -->
-    {% if redis_error %}
-    <div style="margin-bottom: 16px; padding: 12px 16px; background-color: #fff3cd; border: 1px solid #ffecb5; border-radius: 6px; color: #664d03; font-size: 13px;">
-        ⚠️ <strong>Redis Broker Warning:</strong> {{ redis_error }}. Real-time queue inspection is paused.
+    <!-- System Warnings Container -->
+    <div id="container-warnings">
+        <div id="redis-warning" style="display: {% if redis_error %}block{% else %}none{% endif %}; margin-bottom: 16px; padding: 12px 16px; background-color: #fff3cd; border: 1px solid #ffecb5; border-radius: 6px; color: #664d03; font-size: 13px;">
+            ⚠️ <strong>Redis Broker Warning:</strong> <span id="redis-warning-text">{{ redis_error }}</span>. Real-time queue inspection is paused.
+        </div>
+        <div id="celery-warning" style="display: {% if celery_error and not redis_error %}block{% else %}none{% endif %}; margin-bottom: 16px; padding: 12px 16px; background-color: #e2e3e5; border: 1px solid #d3d6d8; border-radius: 6px; color: #383d41; font-size: 13px;">
+            ℹ️ <strong>Celery Inspector Info:</strong> <span id="celery-warning-text">{{ celery_error }}</span>. Active status is currently read from database records.
+        </div>
     </div>
-    {% endif %}
-
-    {% if celery_error and not redis_error %}
-    <div style="margin-bottom: 16px; padding: 12px 16px; background-color: #e2e3e5; border: 1px solid #d3d6d8; border-radius: 6px; color: #383d41; font-size: 13px;">
-        ℹ️ <strong>Celery Inspector Info:</strong> {{ celery_error }}. Active status is currently read from database records.
-    </div>
-    {% endif %}
 
     <!-- 4 High-Level Stat Cards -->
     <div class="qm-stat-grid">
@@ -163,11 +303,11 @@
                 <span style="font-size: 12px; font-weight: 600; color: #6c757d; text-transform: uppercase;">Active Tasks</span>
                 <span style="font-size: 20px;">🏃</span>
             </div>
-            <div style="font-size: 28px; font-weight: bold; color: {% if total_active_tasks > 0 %}#0d6efd{% else %}#495057{% endif %}; line-height: 1.1;">
-                {{ total_active_tasks }}
+            <div id="stat-active-tasks" style="font-size: 28px; font-weight: bold; color: {% if total_active_tasks > 0 %}#0d6efd{% else %}#495057{% endif %}; line-height: 1.1;">
+                {% if total_active_tasks is not None %}{{ total_active_tasks }}{% else %}<span class="qm-skeleton qm-skeleton-num"></span>{% endif %}
             </div>
-            <div style="font-size: 12px; color: #6c757d; margin-top: 6px;">
-                {{ active_tasks_subtext }}
+            <div id="stat-active-tasks-subtext" style="font-size: 12px; color: #6c757d; margin-top: 6px;">
+                {% if active_tasks_subtext %}{{ active_tasks_subtext }}{% else %}<span class="qm-skeleton" style="width: 140px;"></span>{% endif %}
             </div>
         </div>
 
@@ -176,10 +316,10 @@
                 <span style="font-size: 12px; font-weight: 600; color: #6c757d; text-transform: uppercase;">Messages in Queues</span>
                 <span style="font-size: 20px;">📬</span>
             </div>
-            <div style="font-size: 28px; font-weight: bold; color: {% if total_queued_messages > 0 %}#fd7e14{% else %}#198754{% endif %}; line-height: 1.1;">
-                {{ total_queued_messages }}
+            <div id="stat-queued-messages" style="font-size: 28px; font-weight: bold; color: {% if total_queued_messages > 0 %}#fd7e14{% else %}#198754{% endif %}; line-height: 1.1;">
+                {% if total_queued_messages is not None %}{{ total_queued_messages }}{% else %}<span class="qm-skeleton qm-skeleton-num"></span>{% endif %}
             </div>
-            <div style="font-size: 12px; color: #6c757d; margin-top: 6px;">
+            <div id="stat-queued-messages-subtext" style="font-size: 12px; color: #6c757d; margin-top: 6px;">
                 Pending worker pickup
             </div>
         </div>
@@ -189,10 +329,10 @@
                 <span style="font-size: 12px; font-weight: 600; color: #6c757d; text-transform: uppercase;">Active Pipeline Runs</span>
                 <span style="font-size: 20px;">🚀</span>
             </div>
-            <div style="font-size: 28px; font-weight: bold; color: {% if total_running_pipelines > 0 %}#6f42c1{% else %}#495057{% endif %}; line-height: 1.1;">
-                {{ total_running_pipelines }}
+            <div id="stat-running-pipelines" style="font-size: 28px; font-weight: bold; color: {% if total_running_pipelines > 0 %}#6f42c1{% else %}#495057{% endif %}; line-height: 1.1;">
+                {% if total_running_pipelines is not None %}{{ total_running_pipelines }}{% else %}<span class="qm-skeleton qm-skeleton-num"></span>{% endif %}
             </div>
-            <div style="font-size: 12px; color: #6c757d; margin-top: 6px;">
+            <div id="stat-running-pipelines-subtext" style="font-size: 12px; color: #6c757d; margin-top: 6px;">
                 In-flight SLR pipelines
             </div>
         </div>
@@ -202,11 +342,11 @@
                 <span style="font-size: 12px; font-weight: 600; color: #6c757d; text-transform: uppercase;">Celery Workers</span>
                 <span style="font-size: 20px;">🖥️</span>
             </div>
-            <div style="font-size: 28px; font-weight: bold; color: {% if online_workers_count > 0 %}#198754{% else %}#dc3545{% endif %}; line-height: 1.1;">
-                {{ online_workers_count }}
+            <div id="stat-online-workers" style="font-size: 28px; font-weight: bold; color: {% if online_workers_count > 0 %}#198754{% else %}#dc3545{% endif %}; line-height: 1.1;">
+                {% if online_workers_count is not None %}{{ online_workers_count }}{% else %}<span class="qm-skeleton qm-skeleton-num"></span>{% endif %}
             </div>
-            <div style="font-size: 12px; color: #6c757d; margin-top: 6px;">
-                {{ online_workers_count }} of {{ worker_nodes|length }} online
+            <div id="stat-online-workers-subtext" style="font-size: 12px; color: #6c757d; margin-top: 6px;">
+                {% if worker_nodes is not None %}{{ online_workers_count }} of {{ worker_nodes|length }} online{% else %}<span class="qm-skeleton" style="width: 100px;"></span>{% endif %}
             </div>
         </div>
     </div>
@@ -215,7 +355,7 @@
     <div class="qm-card">
         <div class="qm-card-header">
             <h2>🏃 Active In-Progress Tasks</h2>
-            <span style="font-size: 12px; color: #6c757d;">Total Active: <strong>{{ total_active_tasks }}</strong></span>
+            <span style="font-size: 12px; color: #6c757d;">Total Active: <strong id="count-active-tasks">{{ total_active_tasks|default:"-" }}</strong></span>
         </div>
         <table class="qm-table">
             <thead>
@@ -225,15 +365,15 @@
                     <th>Celery Task ID &amp; Worker Node</th>
                     <th>Start Time</th>
                     <th>Elapsed Duration</th>
-                    <th style="text-align: right;">Actions</th>
+                    <th style="text-align: right; min-width: 190px;">Actions</th>
                 </tr>
             </thead>
-            <tbody>
-                {% if running_components %}
+            <tbody id="tbody-active-tasks">
+                {% if running_components or unmatched_celery_tasks %}
                     {% for comp in running_components %}
                     <tr>
                         <td style="font-weight: 600;">
-                            <a href="{% url 'admin:research_intelligence_componentrun_change' comp.id %}" style="color: #0d6efd; text-decoration: none;">
+                            <a href="{{ comp.admin_change_url }}" style="color: #0d6efd; text-decoration: none;">
                                 ⚙️ {{ comp.component_name }}
                             </a>
                             <div style="font-size: 11px; color: #6c757d; font-weight: normal;">Step: <strong>{{ comp.step_type }}</strong></div>
@@ -272,15 +412,12 @@
                             {% endif %}
                         </td>
                         <td style="text-align: right;">
-                            <a href="{% url 'admin:research_intelligence_componentrun_change' comp.id %}" class="qm-btn" style="padding: 4px 8px; border: 1px solid #0d6efd; color: #0d6efd; font-size: 12px;">
-                                🔍 Inspect
-                            </a>
+                            <button type="button" class="qm-btn qm-btn-restart" onclick="triggerTaskAction('restart_task', '{{ comp.id }}', '{{ comp.component_name }}')">🔄 Restart</button>
+                            <button type="button" class="qm-btn qm-btn-kill" onclick="triggerTaskAction('kill_task', '{{ comp.id }}', '{{ comp.component_name }}', '{{ comp.celery_task_id }}')">🛑 Kill</button>
+                            <a href="{{ comp.admin_change_url }}" class="qm-btn qm-btn-inspect">🔍 Inspect</a>
                         </td>
                     </tr>
                     {% endfor %}
-                {% endif %}
-
-                {% if unmatched_celery_tasks %}
                     {% for ut in unmatched_celery_tasks %}
                     <tr>
                         <td style="font-weight: 600;">
@@ -295,25 +432,28 @@
                             <div style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ ut.id }}">
                                 {{ ut.id }}
                             </div>
-                            <div style="font-size: 11px; color: #198754; font-weight: normal; margin-top: 2px;">
-                                ● {{ ut.worker }}
-                            </div>
+                            <div style="font-size: 11px; color: #198754; font-weight: normal; margin-top: 2px;">● {{ ut.worker }}</div>
                         </td>
                         <td style="color: #6c757d;">{{ ut.start_time }}</td>
                         <td>
-                            <span class="qm-badge" style="background-color: #0d6efd; color: #fff;">
-                                ⏳ {{ ut.elapsed_display }}
-                            </span>
+                            <span class="qm-badge" style="background-color: #0d6efd; color: #fff;">⏳ {{ ut.elapsed_display }}</span>
                         </td>
-                        <td style="text-align: right; color: #6c757d; font-size: 12px;">-</td>
+                        <td style="text-align: right;">
+                            <button type="button" class="qm-btn qm-btn-kill" onclick="triggerTaskAction('kill_task', '', '{{ ut.name }}', '{{ ut.id }}')">🛑 Kill</button>
+                        </td>
                     </tr>
                     {% endfor %}
-                {% endif %}
-
-                {% if not running_components and not unmatched_celery_tasks %}
+                {% elif request.GET.sync == "1" %}
                     <tr>
                         <td colspan="6" style="padding: 24px; text-align: center; color: #6c757d; font-size: 14px;">
                             ✨ No active tasks. All workers are idle and waiting for jobs in queues.
+                        </td>
+                    </tr>
+                {% else %}
+                    <!-- Skeleton Row while fetching asynchronously -->
+                    <tr class="qm-skeleton-row">
+                        <td colspan="6" style="padding: 20px; text-align: center; color: #6c757d;">
+                            <span class="qm-skeleton" style="width: 280px; height: 16px;"></span>
                         </td>
                     </tr>
                 {% endif %}
@@ -325,12 +465,14 @@
     <div class="qm-card">
         <div class="qm-card-header">
             <h2>📬 Messages in Broker Queues (Redis)</h2>
-            <div style="display: flex; gap: 6px;">
-                {% for q in queue_summaries %}
-                <span class="qm-badge" style="background-color: #e9ecef; color: #495057;">
-                    {{ q.name }}: <strong>{{ q.count }}</strong>
-                </span>
-                {% endfor %}
+            <div id="pills-queue-summary" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                {% if queue_summaries %}
+                    {% for q in queue_summaries %}
+                    <span class="qm-badge" style="background-color: #e9ecef; color: #495057;">
+                        {{ q.name }}: <strong>{{ q.count }}</strong>
+                    </span>
+                    {% endfor %}
+                {% endif %}
             </div>
         </div>
         <table class="qm-table">
@@ -343,7 +485,7 @@
                     <th style="width: 120px;">ETA</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="tbody-queued-messages">
                 {% if queued_messages %}
                     {% for msg in queued_messages %}
                     <tr>
@@ -359,10 +501,16 @@
                         <td style="font-size: 12px; color: #6c757d;">{{ msg.eta|default:"Immediate" }}</td>
                     </tr>
                     {% endfor %}
-                {% else %}
+                {% elif request.GET.sync == "1" %}
                     <tr>
                         <td colspan="5" style="padding: 20px; text-align: center; color: #6c757d; font-size: 13px;">
                             🎉 Queues are empty. No pending tasks waiting in Redis.
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr class="qm-skeleton-row">
+                        <td colspan="5" style="padding: 20px; text-align: center; color: #6c757d;">
+                            <span class="qm-skeleton" style="width: 250px; height: 16px;"></span>
                         </td>
                     </tr>
                 {% endif %}
@@ -374,7 +522,7 @@
     <div class="qm-card">
         <div class="qm-card-header">
             <h2>🚀 Active SLR Pipeline Runs (Status: Running)</h2>
-            <span style="font-size: 12px; color: #6c757d;">Count: {{ running_pipelines|length }}</span>
+            <span style="font-size: 12px; color: #6c757d;">Count: <strong id="count-running-pipelines">{{ running_pipelines|length|default:"-" }}</strong></span>
         </div>
         <table class="qm-table">
             <thead>
@@ -387,12 +535,12 @@
                     <th style="text-align: right;">Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="tbody-running-pipelines">
                 {% if running_pipelines %}
                     {% for pr in running_pipelines %}
                     <tr>
                         <td>
-                            <a href="{% url 'admin:research_intelligence_pipelinerun_change' pr.id %}" style="color: #6f42c1; font-weight: bold; text-decoration: none;">
+                            <a href="{{ pr.admin_change_url }}" style="color: #6f42c1; font-weight: bold; text-decoration: none;">
                                 🚀 {{ pr.name }}
                             </a>
                             <div style="font-size: 11px; color: #6c757d;">ID: {{ pr.id }}</div>
@@ -410,16 +558,22 @@
                             </span>
                         </td>
                         <td style="text-align: right;">
-                            <a href="{% url 'admin:research_intelligence_pipelinerun_change' pr.id %}" class="qm-btn" style="padding: 4px 8px; border: 1px solid #6f42c1; color: #6f42c1; font-size: 12px;">
+                            <a href="{{ pr.admin_change_url }}" class="qm-btn" style="padding: 4px 8px; border: 1px solid #6f42c1; color: #6f42c1; font-size: 12px;">
                                 Run Details
                             </a>
                         </td>
                     </tr>
                     {% endfor %}
-                {% else %}
+                {% elif request.GET.sync == "1" %}
                     <tr>
                         <td colspan="6" style="padding: 20px; text-align: center; color: #6c757d; font-size: 13px;">
                             No active pipeline runs in 'running' status.
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr class="qm-skeleton-row">
+                        <td colspan="6" style="padding: 20px; text-align: center; color: #6c757d;">
+                            <span class="qm-skeleton" style="width: 220px; height: 16px;"></span>
                         </td>
                     </tr>
                 {% endif %}
@@ -431,7 +585,7 @@
     <div class="qm-card">
         <div class="qm-card-header">
             <h2>🖥️ Celery Worker Nodes (Cluster Health)</h2>
-            <span style="font-size: 12px; color: #6c757d;">Online: {{ online_workers_count }}</span>
+            <span style="font-size: 12px; color: #6c757d;">Online: <strong id="count-online-workers">{{ online_workers_count|default:"-" }}</strong></span>
         </div>
         <table class="qm-table">
             <thead>
@@ -443,7 +597,7 @@
                     <th>Completed Tasks</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="tbody-worker-nodes">
                 {% if worker_nodes %}
                     {% for w in worker_nodes %}
                     <tr>
@@ -458,10 +612,16 @@
                         <td>{{ w.processed_count }} tasks</td>
                     </tr>
                     {% endfor %}
-                {% else %}
+                {% elif request.GET.sync == "1" %}
                     <tr>
                         <td colspan="5" style="padding: 16px; text-align: center; color: #6c757d; font-size: 13px;">
                             No active Celery worker nodes registered. (Workers might be sleeping or disconnected).
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr class="qm-skeleton-row">
+                        <td colspan="5" style="padding: 20px; text-align: center; color: #6c757d;">
+                            <span class="qm-skeleton" style="width: 240px; height: 16px;"></span>
                         </td>
                     </tr>
                 {% endif %}
@@ -469,4 +629,419 @@
         </table>
     </div>
 </div>
+
+<script>
+(function() {
+    let refreshTimer = null;
+    let currentRefreshInterval = 0;
+
+    function getCsrfToken() {
+        const input = document.querySelector('#csrf-form input[name="csrfmiddlewaretoken"]');
+        if (input && input.value) return input.value;
+        const cookie = document.cookie.split('; ').find(row => row.startsWith('csrftoken='));
+        return cookie ? cookie.split('=')[1] : '';
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    function showToast(type, message) {
+        const container = document.getElementById('qm-toast-container');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = 'qm-toast qm-toast-' + type;
+        toast.innerHTML = `<span>${escapeHtml(message)}</span><button type="button" style="background:none;border:none;cursor:pointer;font-size:14px;color:inherit;" onclick="this.parentElement.remove()">✕</button>`;
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.opacity = '0';
+            setTimeout(() => toast.remove(), 300);
+        }, 4500);
+    }
+
+    window.triggerTaskAction = function(action, componentId, taskName, celeryTaskId) {
+        let confirmPrompt = '';
+        if (action === 'restart_task') {
+            confirmPrompt = `Are you sure you want to RESTART task '${taskName}'?\n\nThis will reset its status to running, clear the previous Celery task ID, and re-dispatch it on Celery workers.`;
+        } else if (action === 'kill_task') {
+            confirmPrompt = `Are you sure you want to KILL task '${taskName}' (${celeryTaskId || 'no Celery ID'})?\n\nThis will send a SIGKILL revocation signal to Celery workers and mark the task aborted in the database.`;
+        }
+
+        if (!confirm(confirmPrompt)) {
+            return;
+        }
+
+        showToast('info', `⏳ Executing ${action === 'restart_task' ? 'restart' : 'kill'} on '${taskName}'...`);
+
+        fetch(window.location.pathname, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                action: action,
+                component_id: componentId,
+                celery_task_id: celeryTaskId
+            })
+        })
+        .then(res => res.json().then(data => ({ status: res.status, ok: res.ok, data: data })))
+        .then(result => {
+            if (result.ok && result.data.success) {
+                showToast('success', '✅ ' + (result.data.message || 'Action executed successfully.'));
+                // Immediately refresh data in background
+                fetchQueueData(false);
+            } else {
+                showToast('error', '❌ ' + (result.data.message || result.data.error || 'Operation failed.'));
+            }
+        })
+        .catch(err => {
+            showToast('error', '❌ Network or server error: ' + err.message);
+        });
+    };
+
+    window.triggerWatchdog = function() {
+        if (!confirm('Trigger Zombie Watchdog to terminate tasks exceeding execution timeouts?')) {
+            return;
+        }
+        showToast('info', '⏳ Triggering Zombie Watchdog reap cycle...');
+
+        fetch(window.location.pathname, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken(),
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ action: 'run_watchdog' })
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                showToast('success', data.message);
+                fetchQueueData(false);
+            } else {
+                showToast('error', '❌ ' + (data.error || 'Failed to run watchdog.'));
+            }
+        })
+        .catch(err => {
+            showToast('error', '❌ Error: ' + err.message);
+        });
+    };
+
+    window.fetchQueueData = function(isManual = false) {
+        const refreshIcon = document.getElementById('icon-refresh');
+        if (refreshIcon && isManual) {
+            refreshIcon.classList.add('qm-spinning');
+        }
+        const liveDot = document.getElementById('qm-live-indicator');
+        if (liveDot) {
+            liveDot.style.backgroundColor = '#0d6efd';
+        }
+
+        const url = window.location.pathname + '?format=json';
+        fetch(url, {
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(res => {
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        })
+        .then(data => {
+            renderDashboard(data);
+            if (isManual) {
+                showToast('info', 'Data updated from cluster.');
+            }
+        })
+        .catch(err => {
+            console.error('Queue monitor fetch error:', err);
+            if (isManual) {
+                showToast('error', 'Failed to fetch queue data: ' + err.message);
+            }
+        })
+        .finally(() => {
+            if (refreshIcon) {
+                refreshIcon.classList.remove('qm-spinning');
+            }
+            if (liveDot) {
+                liveDot.style.backgroundColor = '#198754';
+            }
+        });
+    };
+
+    function renderDashboard(data) {
+        // 1. Timestamp
+        if (data.last_updated_str) {
+            document.getElementById('qm-last-updated').textContent = data.last_updated_str + ' UTC';
+        }
+
+        // 2. Warnings
+        const redisWarn = document.getElementById('redis-warning');
+        if (redisWarn) {
+            if (data.redis_error) {
+                redisWarn.style.display = 'block';
+                document.getElementById('redis-warning-text').textContent = data.redis_error;
+            } else {
+                redisWarn.style.display = 'none';
+            }
+        }
+        const celeryWarn = document.getElementById('celery-warning');
+        if (celeryWarn) {
+            if (data.celery_error && !data.redis_error) {
+                celeryWarn.style.display = 'block';
+                document.getElementById('celery-warning-text').textContent = data.celery_error;
+            } else {
+                celeryWarn.style.display = 'none';
+            }
+        }
+
+        // 3. Stat Cards
+        const statActive = document.getElementById('stat-active-tasks');
+        if (statActive) {
+            statActive.textContent = data.total_active_tasks !== undefined ? data.total_active_tasks : '0';
+            statActive.style.color = data.total_active_tasks > 0 ? '#0d6efd' : '#495057';
+        }
+        const statActiveSub = document.getElementById('stat-active-tasks-subtext');
+        if (statActiveSub) {
+            statActiveSub.textContent = data.active_tasks_subtext || 'All workers idle';
+        }
+
+        const statQueued = document.getElementById('stat-queued-messages');
+        if (statQueued) {
+            statQueued.textContent = data.total_queued_messages !== undefined ? data.total_queued_messages : '0';
+            statQueued.style.color = data.total_queued_messages > 0 ? '#fd7e14' : '#198754';
+        }
+
+        const statPipelines = document.getElementById('stat-running-pipelines');
+        if (statPipelines) {
+            statPipelines.textContent = data.total_running_pipelines !== undefined ? data.total_running_pipelines : '0';
+            statPipelines.style.color = data.total_running_pipelines > 0 ? '#6f42c1' : '#495057';
+        }
+
+        const statWorkers = document.getElementById('stat-online-workers');
+        if (statWorkers) {
+            statWorkers.textContent = data.online_workers_count !== undefined ? data.online_workers_count : '0';
+            statWorkers.style.color = data.online_workers_count > 0 ? '#198754' : '#dc3545';
+        }
+        const statWorkersSub = document.getElementById('stat-online-workers-subtext');
+        if (statWorkersSub) {
+            statWorkersSub.textContent = `${data.online_workers_count || 0} of ${data.worker_nodes_count || 0} online`;
+        }
+
+        // 4. Active In-Progress Tasks Table
+        const countActive = document.getElementById('count-active-tasks');
+        if (countActive) countActive.textContent = data.total_active_tasks !== undefined ? data.total_active_tasks : '0';
+
+        const tbodyActive = document.getElementById('tbody-active-tasks');
+        if (tbodyActive) {
+            const comps = data.running_components || [];
+            const unmatched = data.unmatched_celery_tasks || [];
+
+            if (comps.length === 0 && unmatched.length === 0) {
+                tbodyActive.innerHTML = `<tr><td colspan="6" style="padding: 24px; text-align: center; color: #6c757d; font-size: 14px;">✨ No active tasks. All workers are idle and waiting for jobs in queues.</td></tr>`;
+            } else {
+                let html = '';
+                comps.forEach(c => {
+                    const stalledBadge = c.is_stalled ? '<span style="font-size: 11px; color: #dc3545; font-weight: bold; margin-left: 4px;">⚠️ Stalled</span>' : '';
+                    const durationColor = c.is_stalled ? '#dc3545' : '#0d6efd';
+                    const workerBadge = c.worker ? `<div style="font-size: 11px; color: #198754; font-weight: normal; margin-top: 2px;">● ${escapeHtml(c.worker)}</div>` :
+                        (c.worker_status ? `<div style="font-size: 11px; color: #6c757d; font-weight: normal; margin-top: 2px;">${escapeHtml(c.worker_status)}</div>` : '');
+
+                    html += `
+                    <tr>
+                        <td style="font-weight: 600;">
+                            <a href="${escapeHtml(c.admin_change_url)}" style="color: #0d6efd; text-decoration: none;">⚙️ ${escapeHtml(c.component_name)}</a>
+                            <div style="font-size: 11px; color: #6c757d; font-weight: normal;">Step: <strong>${escapeHtml(c.step_type)}</strong></div>
+                        </td>
+                        <td>
+                            ${c.pipeline_run_id ? `<a href="/admin/research_intelligence/pipelinerun/${escapeHtml(c.pipeline_run_id)}/change/" style="color: #495057; text-decoration: none; font-weight: 500;">${escapeHtml(c.pipeline_run_name)}</a>` : escapeHtml(c.pipeline_run_name)}
+                            <div style="font-size: 11px; color: #6c757d;">WS: ${escapeHtml(c.workspace)}</div>
+                        </td>
+                        <td style="font-family: monospace; font-size: 12px; color: #495057;">
+                            <div style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(c.celery_task_id)}">
+                                ${escapeHtml(c.celery_task_id)}
+                            </div>
+                            ${workerBadge}
+                        </td>
+                        <td style="color: #6c757d;">${escapeHtml(c.started_at_str)}</td>
+                        <td>
+                            <span class="qm-badge" style="background-color: ${durationColor}; color: #fff;">
+                                ⏳ ${escapeHtml(c.elapsed_display)}
+                            </span>
+                            ${stalledBadge}
+                        </td>
+                        <td style="text-align: right;">
+                            <button type="button" class="qm-btn qm-btn-restart" onclick="triggerTaskAction('restart_task', '${escapeHtml(c.id)}', '${escapeHtml(c.component_name)}')">🔄 Restart</button>
+                            <button type="button" class="qm-btn qm-btn-kill" onclick="triggerTaskAction('kill_task', '${escapeHtml(c.id)}', '${escapeHtml(c.component_name)}', '${escapeHtml(c.celery_task_id)}')">🛑 Kill</button>
+                            <a href="${escapeHtml(c.admin_change_url)}" class="qm-btn qm-btn-inspect">🔍 Inspect</a>
+                        </td>
+                    </tr>`;
+                });
+
+                unmatched.forEach(ut => {
+                    html += `
+                    <tr>
+                        <td style="font-weight: 600;">
+                            ⚙️ ${escapeHtml(ut.name)}
+                            <div style="font-size: 11px; color: #6c757d; font-weight: normal;">Type: <strong>Background Task</strong></div>
+                        </td>
+                        <td style="color: #6c757d; font-size: 13px;">
+                            -
+                            <div style="font-size: 11px; color: #6c757d;">WS: System</div>
+                        </td>
+                        <td style="font-family: monospace; font-size: 12px; color: #495057;">
+                            <div style="max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(ut.id)}">
+                                ${escapeHtml(ut.id)}
+                            </div>
+                            <div style="font-size: 11px; color: #198754; font-weight: normal; margin-top: 2px;">● ${escapeHtml(ut.worker)}</div>
+                        </td>
+                        <td style="color: #6c757d;">${escapeHtml(ut.start_time)}</td>
+                        <td>
+                            <span class="qm-badge" style="background-color: #0d6efd; color: #fff;">⏳ ${escapeHtml(ut.elapsed_display)}</span>
+                        </td>
+                        <td style="text-align: right;">
+                            <button type="button" class="qm-btn qm-btn-kill" onclick="triggerTaskAction('kill_task', '', '${escapeHtml(ut.name)}', '${escapeHtml(ut.id)}')">🛑 Kill</button>
+                        </td>
+                    </tr>`;
+                });
+
+                tbodyActive.innerHTML = html;
+            }
+        }
+
+        // 5. Redis Messages Table & Pills
+        const pillsSummary = document.getElementById('pills-queue-summary');
+        if (pillsSummary && data.queue_summaries) {
+            pillsSummary.innerHTML = data.queue_summaries.map(q =>
+                `<span class="qm-badge" style="background-color: #e9ecef; color: #495057;">${escapeHtml(q.name)}: <strong>${q.count}</strong></span>`
+            ).join(' ');
+        }
+
+        const tbodyQueued = document.getElementById('tbody-queued-messages');
+        if (tbodyQueued) {
+            const msgs = data.queued_messages || [];
+            if (msgs.length === 0) {
+                tbodyQueued.innerHTML = `<tr><td colspan="5" style="padding: 20px; text-align: center; color: #6c757d; font-size: 13px;">🎉 Queues are empty. No pending tasks waiting in Redis.</td></tr>`;
+            } else {
+                tbodyQueued.innerHTML = msgs.map(m => `
+                    <tr>
+                        <td><strong>#${m.position}</strong></td>
+                        <td><span class="qm-badge" style="background-color: #cfe2ff; color: #084298;">${escapeHtml(m.queue)}</span></td>
+                        <td style="font-family: monospace; font-size: 12px; font-weight: 600;">
+                            ${escapeHtml(m.task)}
+                            ${m.id ? `<div style="font-size: 11px; color: #6c757d; font-weight: normal; font-family: monospace;">ID: ${escapeHtml(m.id)}</div>` : ''}
+                        </td>
+                        <td style="font-size: 12px; color: #6c757d; font-family: monospace;">${escapeHtml((m.args || '').slice(0, 120))}</td>
+                        <td style="font-size: 12px; color: #6c757d;">${escapeHtml(m.eta || 'Immediate')}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // 6. Running Pipelines Table
+        const countPipelines = document.getElementById('count-running-pipelines');
+        if (countPipelines) countPipelines.textContent = data.total_running_pipelines !== undefined ? data.total_running_pipelines : '0';
+
+        const tbodyPipelines = document.getElementById('tbody-running-pipelines');
+        if (tbodyPipelines) {
+            const pipes = data.running_pipelines || [];
+            if (pipes.length === 0) {
+                tbodyPipelines.innerHTML = `<tr><td colspan="6" style="padding: 20px; text-align: center; color: #6c757d; font-size: 13px;">No active pipeline runs in 'running' status.</td></tr>`;
+            } else {
+                tbodyPipelines.innerHTML = pipes.map(p => `
+                    <tr>
+                        <td>
+                            <a href="${escapeHtml(p.admin_change_url)}" style="color: #6f42c1; font-weight: bold; text-decoration: none;">🚀 ${escapeHtml(p.name)}</a>
+                            <div style="font-size: 11px; color: #6c757d;">ID: ${escapeHtml(p.id)}</div>
+                        </td>
+                        <td>${escapeHtml(p.workspace)}</td>
+                        <td><span class="qm-badge" style="background: #e7f1ff; color: #0c63e4;">${escapeHtml(p.current_stage)}</span></td>
+                        <td style="color: #6c757d;">${escapeHtml(p.started_at_str)}</td>
+                        <td><span class="qm-badge" style="background-color: #6f42c1; color: #fff;">⏳ ${escapeHtml(p.elapsed_display)}</span></td>
+                        <td style="text-align: right;">
+                            <a href="${escapeHtml(p.admin_change_url)}" class="qm-btn" style="padding: 4px 8px; border: 1px solid #6f42c1; color: #6f42c1; font-size: 12px;">Run Details</a>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // 7. Celery Worker Nodes Table
+        const countOnline = document.getElementById('count-online-workers');
+        if (countOnline) countOnline.textContent = data.online_workers_count !== undefined ? data.online_workers_count : '0';
+
+        const tbodyWorkers = document.getElementById('tbody-worker-nodes');
+        if (tbodyWorkers) {
+            const workers = data.worker_nodes || [];
+            if (workers.length === 0) {
+                tbodyWorkers.innerHTML = `<tr><td colspan="5" style="padding: 16px; text-align: center; color: #6c757d; font-size: 13px;">No active Celery worker nodes registered. (Workers might be sleeping or disconnected).</td></tr>`;
+            } else {
+                tbodyWorkers.innerHTML = workers.map(w => {
+                    const isOnline = w.status === 'Online';
+                    const badgeBg = isOnline ? '#d1e7dd' : '#f8d7da';
+                    const badgeFg = isOnline ? '#0f5132' : '#842029';
+                    return `
+                    <tr>
+                        <td style="font-family: monospace; font-weight: 600;">🖥️ ${escapeHtml(w.name)}</td>
+                        <td><span class="qm-badge" style="background-color: ${badgeBg}; color: ${badgeFg};">● ${escapeHtml(w.status)}</span></td>
+                        <td>${w.concurrency} worker processes</td>
+                        <td><strong>${w.active_count}</strong> active</td>
+                        <td>${w.processed_count} tasks</td>
+                    </tr>`;
+                }).join('');
+            }
+        }
+    }
+
+    window.setRefreshInterval = function(seconds) {
+        currentRefreshInterval = seconds;
+        localStorage.setItem('qm_auto_refresh_seconds', String(seconds));
+
+        [0, 5, 10, 30].forEach(s => {
+            const btn = document.getElementById('btn-refresh-' + s);
+            if (btn) {
+                if (s === seconds) {
+                    btn.style.background = '#0d6efd';
+                    btn.style.color = '#fff';
+                    btn.style.borderColor = '#0d6efd';
+                } else {
+                    btn.style.background = '#f8f9fa';
+                    btn.style.color = '#495057';
+                    btn.style.borderColor = '#ced4da';
+                }
+            }
+        });
+
+        if (refreshTimer) {
+            clearInterval(refreshTimer);
+            refreshTimer = null;
+        }
+
+        if (seconds > 0) {
+            refreshTimer = setInterval(() => {
+                fetchQueueData(false);
+            }, seconds * 1000);
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Retrieve stored refresh preference or default to off
+        const saved = parseInt(localStorage.getItem('qm_auto_refresh_seconds') || '0', 10);
+        const valid = [0, 5, 10, 30].includes(saved) ? saved : 0;
+        setRefreshInterval(valid);
+
+        // Fetch data immediately via AJAX
+        fetchQueueData(false);
+    });
+})();
+</script>
 {% endblock %}

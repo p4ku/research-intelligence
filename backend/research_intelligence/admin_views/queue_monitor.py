@@ -9,7 +9,8 @@ from typing import Any, Dict, List, Optional
 
 from django.conf import settings
 from django.contrib import admin, messages
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
+from django.middleware.csrf import get_token
 from django.template.response import TemplateResponse
 from django.urls import reverse
 from django.utils import timezone
@@ -99,6 +100,8 @@ class QueueMonitorView(View):
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated or not request.user.is_staff:
+            if request.GET.get("format") == "json" or request.headers.get("x-requested-with") == "XMLHttpRequest" or request.method == "POST":
+                return JsonResponse({"success": False, "error": "Staff permission required to access Queue & Worker Monitor."}, status=403)
             messages.error(request, "Staff permission required to access Queue & Worker Monitor.")
             return HttpResponseRedirect(reverse("admin:login"))
         return super().dispatch(request, *args, **kwargs)
@@ -289,6 +292,8 @@ class QueueMonitorView(View):
                     "is_stalled": elapsed_sec > 1800 and not has_recent_prog,  # 30m threshold, but not if progressing
                     "has_recent_progress": has_recent_prog,
                     "time_since_progress": time_since_prog,
+                    "admin_change_url": f"/admin/research_intelligence/componentrun/{cr.id}/change/",
+                    "pipeline_change_url": f"/admin/research_intelligence/pipelinerun/{cr.pipeline_run_id}/change/" if cr.pipeline_run_id else "",
                     "details": cr.input_params or {},
                 })
         except Exception as e:
@@ -315,6 +320,7 @@ class QueueMonitorView(View):
                     "elapsed_display": format_elapsed_time(elapsed_sec),
                     "total_papers": pr.total_papers_fetched or 0,
                     "is_stalled": elapsed_sec > 7200,  # 2 hours threshold
+                    "admin_change_url": f"/admin/research_intelligence/pipelinerun/{pr.id}/change/",
                 })
         except Exception as e:
             logger.debug(f"Error fetching running PipelineRuns: {e}")
@@ -344,27 +350,13 @@ class QueueMonitorView(View):
         return running_components, running_pipelines, pending_components
 
     # -------------------------------------------------------------------------
-    # Request Dispatcher & HTML Renderer
+    # Monitor Data Aggregation (Redis, Celery, Database)
     # -------------------------------------------------------------------------
-    def get(self, request):
-        action = request.GET.get("action")
-        base_url = reverse("admin:queue-monitor")
-
-        # Optional action: Trigger Zombie Watchdog immediately
-        if action == "run_watchdog":
-            try:
-                res = reap_zombie_tasks()
-                reaped_comp = res.get("reaped_components", 0)
-                reaped_pipe = res.get("reaped_pipelines", 0)
-                messages.success(
-                    request,
-                    f"🧹 Zombie Watchdog executed successfully: Reaped {reaped_comp} stalled component(s) and {reaped_pipe} pipeline run(s)."
-                )
-            except Exception as e:
-                messages.error(request, f"Error executing Zombie Watchdog: {str(e)}")
-            return HttpResponseRedirect(base_url)
-
-        # 1. Fetch data from all subsystems
+    def get_monitor_data(self) -> dict:
+        """
+        Collects, correlates, and deduplicates real-time task metrics across
+        the Redis broker, Celery worker inspectors, and the PostgreSQL database.
+        """
         redis_client = self.get_redis_client()
         queue_summaries, queued_messages, redis_error = self.get_queue_statistics(redis_client)
         active_celery_tasks, worker_nodes, celery_error = self.get_celery_worker_data()
@@ -374,7 +366,7 @@ class QueueMonitorView(View):
         total_running_pipelines = len(running_pipelines)
         online_workers_count = len([w for w in worker_nodes if w["status"] == "Online"])
 
-        # 2. Correlate and deduplicate active tasks between Database and Celery workers
+        # Correlate and deduplicate active tasks between Database and Celery workers
         worker_by_task_id = {t["id"]: t.get("worker", "") for t in active_celery_tasks if t.get("id")}
         db_task_ids = set()
 
@@ -426,20 +418,9 @@ class QueueMonitorView(View):
             else:
                 active_tasks_subtext = f"{len(running_components)} in DB · {active_in_workers} active in worker(s)"
 
-        # Auto-refresh parameter
-        refresh_sec = request.GET.get("refresh", "0")
-        if not refresh_sec.isdigit() or int(refresh_sec) not in (0, 5, 10, 30, 60):
-            refresh_sec = "0"
-        refresh_val = int(refresh_sec)
-
-        # -------------------------------------------------------------------------
-        # Template Rendering (Integrated into Django Admin)
-        # -------------------------------------------------------------------------
-        context = {
-            **admin.site.each_context(request),
-            "title": "Queue & Active Runs",
+        return {
+            "success": True,
             "last_updated_str": timezone.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "auto_refresh_seconds": refresh_val,
             "redis_error": redis_error,
             "celery_error": celery_error,
             "total_queued_messages": total_queued_messages,
@@ -447,6 +428,7 @@ class QueueMonitorView(View):
             "active_tasks_subtext": active_tasks_subtext,
             "total_running_pipelines": total_running_pipelines,
             "online_workers_count": online_workers_count,
+            "worker_nodes_count": len(worker_nodes),
             "queue_summaries": queue_summaries,
             "queued_messages": queued_messages,
             "active_celery_tasks": active_celery_tasks,
@@ -457,6 +439,131 @@ class QueueMonitorView(View):
             "worker_nodes": worker_nodes,
         }
 
+    # -------------------------------------------------------------------------
+    # Task Control Actions (Restart / Kill)
+    # -------------------------------------------------------------------------
+    def handle_restart_task(self, request, component_id: str) -> tuple[bool, str]:
+        """Restarts a single component run and re-dispatches it onto Celery."""
+        try:
+            comp = ComponentRun.objects.select_related("pipeline_run", "pipeline_run__workspace").get(id=component_id)
+        except (ComponentRun.DoesNotExist, ValueError):
+            return False, f"ComponentRun '{component_id}' not found."
+
+        try:
+            from research_intelligence.tasks.orchestrator.dag import build_default_slr_dag
+            ws = comp.pipeline_run.workspace if comp.pipeline_run else None
+            dag = build_default_slr_dag(ws)
+            matched_node = None
+            for n_name, node in dag.nodes.items():
+                if node.step_type == comp.step_type:
+                    matched_node = node
+                    break
+
+            user_name = request.user.username if request.user.is_authenticated else "admin"
+            comp.status = "running"
+            comp.error_message = ""
+            comp.completed_at = None
+            comp.started_at = timezone.now()
+            comp.metrics = {
+                "reexecuted_at": timezone.now().isoformat(),
+                "reexecuted_by": user_name,
+            }
+            comp.celery_task_id = None
+            comp.save(update_fields=["status", "error_message", "completed_at", "started_at", "metrics", "celery_task_id"])
+
+            if matched_node:
+                matched_node.execute(comp.pipeline_run, comp)
+                return True, f"Restarted task '{comp.component_name}' (step: {comp.step_type}) on Celery."
+            else:
+                return True, f"Reset task '{comp.component_name}' status to running."
+        except Exception as e:
+            logger.exception(f"Error restarting ComponentRun {component_id}: {e}")
+            return False, f"Failed to restart task: {str(e)}"
+
+    def handle_kill_task(self, request, component_id: str = "", celery_task_id: str = "") -> tuple[bool, str]:
+        """Revokes a task in Celery with SIGKILL and marks it aborted in DB."""
+        target_celery_id = celery_task_id
+        comp = None
+        if component_id:
+            try:
+                comp = ComponentRun.objects.select_related("pipeline_run").get(id=component_id)
+                if comp.celery_task_id and comp.celery_task_id != "-":
+                    target_celery_id = comp.celery_task_id
+            except (ComponentRun.DoesNotExist, ValueError):
+                pass
+
+        # 1. Revoke Celery task if task ID is known
+        if target_celery_id and target_celery_id != "-":
+            try:
+                from django_project.celery import app as celery_app
+                celery_app.control.revoke(target_celery_id, terminate=True, signal="SIGKILL")
+                logger.info(f"🛑 [CELERY REVOKE] Revoked task '{target_celery_id}' with SIGKILL.")
+            except Exception as e:
+                logger.warning(f"Failed to revoke Celery task '{target_celery_id}': {e}")
+
+        # 2. Mark ComponentRun as aborted in database
+        if comp:
+            user_name = request.user.username if request.user.is_authenticated else "admin"
+            comp.status = "aborted"
+            comp.error_message = f"🛑 Manually terminated by administrator ({user_name}) from Queue Monitor."
+            comp.completed_at = timezone.now()
+            comp.save(update_fields=["status", "error_message", "completed_at"])
+            return True, f"Successfully killed task '{comp.component_name}'."
+        elif target_celery_id:
+            return True, f"SIGKILL revocation signal sent to Celery workers for task '{target_celery_id}'."
+        else:
+            return False, "No valid component_id or celery_task_id provided to kill."
+
+    # -------------------------------------------------------------------------
+    # HTTP Handlers (GET / POST)
+    # -------------------------------------------------------------------------
+    def get(self, request):
+        action = request.GET.get("action")
+        base_url = reverse("admin:queue-monitor")
+
+        # Optional query action: Trigger Zombie Watchdog immediately
+        if action == "run_watchdog":
+            try:
+                res = reap_zombie_tasks()
+                reaped_comp = res.get("reaped_components", 0)
+                reaped_pipe = res.get("reaped_pipelines", 0)
+                messages.success(
+                    request,
+                    f"🧹 Zombie Watchdog executed successfully: Reaped {reaped_comp} stalled component(s) and {reaped_pipe} pipeline run(s)."
+                )
+            except Exception as e:
+                messages.error(request, f"Error executing Zombie Watchdog: {str(e)}")
+            return HttpResponseRedirect(base_url)
+
+        # AJAX JSON API endpoint
+        is_ajax = (
+            request.GET.get("format") == "json"
+            or request.headers.get("x-requested-with") == "XMLHttpRequest"
+            or "application/json" in request.headers.get("Accept", "")
+        )
+        if is_ajax:
+            return JsonResponse(self.get_monitor_data())
+
+        # Auto-refresh parameter
+        refresh_sec = request.GET.get("refresh", "0")
+        if not refresh_sec.isdigit() or int(refresh_sec) not in (0, 5, 10, 30, 60):
+            refresh_sec = "0"
+        refresh_val = int(refresh_sec)
+
+        # Fast HTML shell response (< 50ms TTFB):
+        # We don't block on Celery/Redis queries here unless ?sync=1 is requested.
+        context = {
+            **admin.site.each_context(request),
+            "title": "Queue & Active Runs",
+            "last_updated_str": timezone.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "auto_refresh_seconds": refresh_val,
+            "csrf_token": get_token(request),
+        }
+
+        # If sync=1 or test environment without JS is requested, include full synchronous data:
+        if request.GET.get("sync") == "1":
+            context.update(self.get_monitor_data())
+
         response = TemplateResponse(
             request,
             "admin/research_intelligence/queue_monitor.html",
@@ -464,6 +571,46 @@ class QueueMonitorView(View):
         )
         response["X-Frame-Options"] = "SAMEORIGIN"
         return response
+
+    def post(self, request):
+        """
+        Interactive task actions (Restart Task, Kill Task, Run Watchdog)
+        called via AJAX POST from the Queue Monitor UI.
+        """
+        payload = {}
+        if request.content_type == "application/json" and request.body:
+            try:
+                payload = json.loads(request.body.decode("utf-8"))
+            except Exception:
+                pass
+        if not payload:
+            payload = request.POST
+
+        action = payload.get("action")
+        component_id = payload.get("component_id") or payload.get("id") or ""
+        celery_task_id = payload.get("celery_task_id") or ""
+
+        if action == "restart_task":
+            ok, msg = self.handle_restart_task(request, component_id)
+            status_code = 200 if ok else 400
+            return JsonResponse({"success": ok, "message": msg}, status=status_code)
+
+        elif action == "kill_task":
+            ok, msg = self.handle_kill_task(request, component_id=component_id, celery_task_id=celery_task_id)
+            status_code = 200 if ok else 400
+            return JsonResponse({"success": ok, "message": msg}, status=status_code)
+
+        elif action == "run_watchdog":
+            try:
+                res = reap_zombie_tasks()
+                reaped_comp = res.get("reaped_components", 0)
+                reaped_pipe = res.get("reaped_pipelines", 0)
+                msg = f"🧹 Zombie Watchdog executed: Reaped {reaped_comp} stalled component(s) and {reaped_pipe} pipeline run(s)."
+                return JsonResponse({"success": True, "message": msg})
+            except Exception as e:
+                return JsonResponse({"success": False, "error": str(e)}, status=500)
+
+        return JsonResponse({"success": False, "error": f"Unknown action '{action}'"}, status=400)
 
 
 queue_monitor_view = QueueMonitorView.as_view()

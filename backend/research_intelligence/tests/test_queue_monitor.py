@@ -106,7 +106,7 @@ class QueueMonitorTestCase(TestCase):
 
     def test_auto_refresh_meta(self):
         self.client.force_login(self.staff_user)
-        url = f"{reverse('admin:queue-monitor')}?refresh=10"
+        url = f"{reverse('admin:queue-monitor')}?refresh=10&sync=1"
         resp = self.client.get(url)
 
         self.assertEqual(resp.status_code, 200)
@@ -135,7 +135,7 @@ class QueueMonitorTestCase(TestCase):
         )
         ComponentRun.objects.filter(id=comp.id).update(started_at=now - timedelta(minutes=12))
 
-        resp = self.client.get(reverse("admin:queue-monitor"))
+        resp = self.client.get(reverse("admin:queue-monitor") + "?sync=1")
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "Quantum Discovery Run")
         self.assertContains(resp, "arxiv_scraper")
@@ -171,7 +171,7 @@ class QueueMonitorTestCase(TestCase):
         mock_get_redis.return_value = mock_r
 
         self.client.force_login(self.staff_user)
-        resp = self.client.get(reverse("admin:queue-monitor"))
+        resp = self.client.get(reverse("admin:queue-monitor") + "?sync=1")
 
         self.assertEqual(resp.status_code, 200)
         self.assertContains(resp, "celery")
@@ -328,7 +328,7 @@ class QueueMonitorTestCase(TestCase):
             "",
         )
 
-        resp = self.client.get(reverse("admin:queue-monitor"))
+        resp = self.client.get(reverse("admin:queue-monitor") + "?sync=1")
         self.assertEqual(resp.status_code, 200)
 
         # Total active count must be 1, NOT 2!
@@ -336,4 +336,195 @@ class QueueMonitorTestCase(TestCase):
         self.assertIn("1 in DB &amp; active on worker", resp.content.decode("utf-8"))
         self.assertContains(resp, "celery@node-01")
         self.assertContains(resp, task_uuid)
+
+    def test_ajax_json_endpoint(self):
+        """Verify that GET ?format=json returns the complete real-time cluster state as JSON."""
+        self.client.force_login(self.staff_user)
+
+        now = timezone.now()
+        pipe = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="JSON API Test Pipeline",
+            status="running",
+            current_stage="extraction",
+        )
+        comp = ComponentRun.objects.create(
+            pipeline_run=pipe,
+            component_name="deep_extractor",
+            step_type="extraction",
+            status="running",
+            celery_task_id="json-test-celery-123",
+            started_at=now - timedelta(minutes=3),
+        )
+
+        url = f"{reverse('admin:queue-monitor')}?format=json"
+        resp = self.client.get(url)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp["Content-Type"], "application/json")
+        data = resp.json()
+
+        self.assertTrue(data["success"])
+        self.assertIn("last_updated_str", data)
+        self.assertGreaterEqual(data["total_active_tasks"], 1)
+        self.assertIsInstance(data["running_components"], list)
+        self.assertIsInstance(data["running_pipelines"], list)
+        self.assertIsInstance(data["queue_summaries"], list)
+
+        # Ensure component details are serialized
+        matched_comp = next((c for c in data["running_components"] if c["id"] == str(comp.id)), None)
+        self.assertIsNotNone(matched_comp)
+        self.assertEqual(matched_comp["component_name"], "deep_extractor")
+        self.assertEqual(matched_comp["celery_task_id"], "json-test-celery-123")
+        self.assertIn("admin_change_url", matched_comp)
+
+    def test_ajax_json_unauthenticated_forbidden(self):
+        """Verify that unauthorized requests are redirected to admin login, and direct dispatch returns 403."""
+        url = f"{reverse('admin:queue-monitor')}?format=json"
+
+        # Anonymous user via Django Admin is redirected to login
+        resp_anon = self.client.get(url)
+        self.assertEqual(resp_anon.status_code, 302)
+        self.assertIn("/admin/login", resp_anon.url)
+
+        # Non-staff user via Django Admin is redirected to login
+        self.client.force_login(self.regular_user)
+        resp_user = self.client.get(url)
+        self.assertEqual(resp_user.status_code, 302)
+        self.assertIn("/admin/login", resp_user.url)
+
+        # Direct view dispatch returns 403 JSON for non-staff
+        from django.test import RequestFactory
+        from research_intelligence.admin_views.queue_monitor import QueueMonitorView
+        factory = RequestFactory()
+        req = factory.get(url)
+        req.user = self.regular_user
+        view_resp = QueueMonitorView.as_view()(req)
+        self.assertEqual(view_resp.status_code, 403)
+        self.assertFalse(json.loads(view_resp.content.decode("utf-8"))["success"])
+
+    @patch("research_intelligence.tasks.orchestrator.dag.build_default_slr_dag")
+    def test_post_restart_task_success(self, mock_build_dag):
+        """Verify that POST action=restart_task resets status and dispatches on Celery."""
+        mock_node = MagicMock()
+        mock_dag = MagicMock()
+        mock_node.step_type = "search"
+        mock_dag.nodes = {"search_node": mock_node}
+        mock_build_dag.return_value = mock_dag
+
+        self.client.force_login(self.staff_user)
+        pipe = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Restart Test Pipeline",
+            status="running",
+        )
+        comp = ComponentRun.objects.create(
+            pipeline_run=pipe,
+            component_name="search_step",
+            step_type="search",
+            status="stalled",
+            celery_task_id="old-celery-id-999",
+        )
+
+        url = reverse("admin:queue-monitor")
+        payload = {
+            "action": "restart_task",
+            "component_id": str(comp.id),
+        }
+        resp = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertIn("Restarted task 'search_step'", data["message"])
+
+        comp.refresh_from_db()
+        self.assertEqual(comp.status, "running")
+        self.assertEqual(comp.error_message, "")
+        self.assertIsNone(comp.celery_task_id)
+        self.assertEqual(comp.metrics.get("reexecuted_by"), "queue_admin")
+        mock_node.execute.assert_called_once_with(pipe, comp)
+
+    def test_post_restart_task_not_found(self):
+        """Verify error response when restarting a nonexistent component."""
+        self.client.force_login(self.staff_user)
+        url = reverse("admin:queue-monitor")
+        payload = {
+            "action": "restart_task",
+            "component_id": "00000000-0000-0000-0000-000000000000",
+        }
+        resp = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+
+        self.assertEqual(resp.status_code, 400)
+        data = resp.json()
+        self.assertFalse(data["success"])
+        self.assertIn("not found", data["message"])
+
+    @patch("django_project.celery.app.control.revoke")
+    def test_post_kill_task_component(self, mock_revoke):
+        """Verify that POST action=kill_task revokes in Celery and marks aborted in DB."""
+        self.client.force_login(self.staff_user)
+        pipe = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Kill Test Pipeline",
+            status="running",
+        )
+        comp = ComponentRun.objects.create(
+            pipeline_run=pipe,
+            component_name="heavy_clustering",
+            step_type="clustering",
+            status="running",
+            celery_task_id="kill-celery-id-444",
+        )
+
+        url = reverse("admin:queue-monitor")
+        payload = {
+            "action": "kill_task",
+            "component_id": str(comp.id),
+        }
+        resp = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertIn("Successfully killed task", data["message"])
+
+        mock_revoke.assert_called_once_with("kill-celery-id-444", terminate=True, signal="SIGKILL")
+        comp.refresh_from_db()
+        self.assertEqual(comp.status, "aborted")
+        self.assertIn("Manually terminated by administrator (queue_admin)", comp.error_message)
+
+    @patch("django_project.celery.app.control.revoke")
+    def test_post_kill_task_celery_id_only(self, mock_revoke):
+        """Verify that killing an orphaned Celery task (without DB component) revokes it directly."""
+        self.client.force_login(self.staff_user)
+        url = reverse("admin:queue-monitor")
+        payload = {
+            "action": "kill_task",
+            "celery_task_id": "orphaned-celery-task-888",
+        }
+        resp = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertIn("SIGKILL revocation signal sent", data["message"])
+        mock_revoke.assert_called_once_with("orphaned-celery-task-888", terminate=True, signal="SIGKILL")
+
+    @patch("research_intelligence.admin_views.queue_monitor.reap_zombie_tasks")
+    def test_post_run_watchdog(self, mock_watchdog):
+        """Verify that POST action=run_watchdog executes watchdog and returns stats."""
+        mock_watchdog.return_value = {"reaped_components": 3, "reaped_pipelines": 2}
+        self.client.force_login(self.staff_user)
+
+        url = reverse("admin:queue-monitor")
+        payload = {"action": "run_watchdog"}
+        resp = self.client.post(url, data=json.dumps(payload), content_type="application/json")
+
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertTrue(data["success"])
+        self.assertIn("Reaped 3 stalled component(s) and 2 pipeline run(s)", data["message"])
+        mock_watchdog.assert_called_once()
+
 
