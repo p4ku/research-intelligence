@@ -267,7 +267,8 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('Technology being Assessed')
     expect(out).not.toContain('Core technology')
     expect(out).not.toContain('The technology being assessed.')
-    expect(out).toContain('last:border-b-0')
+    // Articles carry no border of their own: the next definition's rule is the separation.
+    expect(out).not.toContain('border-b')
   })
 
   test('filters out risk and affiliation dimensions from the Assessment article list', () => {

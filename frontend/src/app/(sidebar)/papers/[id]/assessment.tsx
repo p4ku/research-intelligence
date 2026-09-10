@@ -1,5 +1,4 @@
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
-import { SectionLabel } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import { fmt, type Lang, type T } from '@/lib/i18n'
 import { dimensionLabel } from '@/lib/papers/dimension-label'
@@ -10,8 +9,8 @@ import type { ReactNode } from 'react'
 
 /**
  * The assessment: one article per definition, in the workspace's order, laid
- * out from what the definition emitted — its name as a section label (the
- * teal-square eyebrow every section of the app opens with; there is no
+ * out from what the definition emitted — its name as a rule-through heading
+ * (teal square, mono label, a hairline to the figure; there is no
  * "Assessment" heading above them, each definition is a section of the
  * record in its own right, a peer of Summary), its headline and band, the model's
  * justification, the sub-scores as facet rows (each with its assessment text
@@ -72,31 +71,34 @@ export function DefinitionFrame({
   children: ReactNode
 }) {
   return (
-    <article
-      id={id}
-      data-row="definition"
-      className="scroll-mt-6 border-b border-line-soft py-6 last:border-b-0"
-    >
-      {/* Label and band in one wrapping cell, the figure in its own, so a
-          long name with a band (TRL) folds the band under the label at
-          narrow widths instead of pushing the figure onto a second line. */}
-      <header className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3">
-        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-          <SectionLabel size="sm">{name}</SectionLabel>
+    <article id={id} data-row="definition" className="scroll-mt-6 pt-3.5 pb-6">
+      {/* The divider is the heading ("Rule", picked 10 Sep 2026): the mono
+          label and its band on the left, a hairline running the rest of the
+          row, the figure closing it. The label cell wraps, so a long name
+          with a band (TRL) folds the band under the label at narrow widths
+          while the line and the figure hold their place. No border between
+          articles: the rule of the next one is the separation. */}
+      <header className="flex items-center gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+          <h2 className="flex items-center font-mono text-sm font-medium tracking-[0.12em] text-foreground uppercase">
+            <span aria-hidden="true" className="mr-2.5 inline-block size-2 shrink-0 bg-accent" />
+            {name}
+          </h2>
           {band}
         </div>
+        <span aria-hidden="true" className="h-px min-w-6 flex-1 bg-line" />
         {value != null && value !== '' ? (
-          <span className={clsx(FIGURE, 'shrink-0 text-lg leading-none')}>{value}</span>
+          <span className={clsx(FIGURE, 'shrink-0 text-[17px] leading-none')}>{value}</span>
         ) : null}
       </header>
-      <div className="mt-3.5 space-y-4">{children}</div>
+      <div className="mt-[18px] space-y-4">{children}</div>
     </article>
   )
 }
 
 function Band({ children }: { children: ReactNode }) {
   return (
-    <span className="rounded-sm bg-foreground/6 px-1.5 py-px text-xs font-medium text-zinc-600 dark:text-zinc-300">
+    <span className="rounded-sm bg-foreground/6 px-[7px] py-0.5 text-[13px] font-medium text-zinc-600 dark:text-zinc-300">
       {children}
     </span>
   )
