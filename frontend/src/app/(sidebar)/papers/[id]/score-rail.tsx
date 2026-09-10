@@ -1,9 +1,8 @@
 import { RadarChart } from '@/components/charts'
-import { Card, TrlBadge } from '@/components/scanner-ui'
+import { Card } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import { formatNumber, type Lang, type T } from '@/lib/i18n'
 import { dimensionLabel } from '@/lib/papers/dimension-label'
-import { trlDimension } from '@/lib/papers/select'
 import type { Dimension, ScoredPaper } from '@/lib/papers/types'
 import type { ReactNode } from 'react'
 import { definitionAnchor } from './assessment'
@@ -29,14 +28,12 @@ export function ScoreRailFrame({
   state = 'loaded',
   label,
   score,
-  chips,
   bars,
   radar,
 }: {
   state?: 'loaded' | 'skeleton'
   label: string
   score: ReactNode
-  chips: ReactNode
   bars: ReactNode
   /** Omitted when the paper has fewer than three numeric dimensions. */
   radar?: ReactNode
@@ -48,9 +45,6 @@ export function ScoreRailFrame({
         <span className="text-[11px] font-semibold tracking-[0.18em] text-zinc-400 uppercase dark:text-zinc-500">
           {label}
         </span>
-      </div>
-      <div data-row="chips" className="mt-3 flex flex-wrap gap-1.5">
-        {chips}
       </div>
       <ul className="mt-4 space-y-0.5">{bars}</ul>
       {radar && (
@@ -141,7 +135,6 @@ export function isDisplayableRailDimension(d: Dimension | Partial<Dimension>): b
 export interface RailParts {
   label: string
   score: ReactNode
-  chips: ReactNode
   bars: ReactNode
   /** Omitted when the paper has fewer than three numeric dimensions. */
   radar?: ReactNode
@@ -152,7 +145,6 @@ export function railParts(paper: ScoredPaper, t: T, lang: Lang = 'en'): RailPart
   const visibleDimensions = (paper.dimensions ?? [])
     .filter(isDisplayableRailDimension)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
-  const trl = trlDimension(paper)
   const axes = radarAxes(visibleDimensions, t, lang)
   const score =
     paper.signal_score === null
@@ -163,10 +155,6 @@ export function railParts(paper: ScoredPaper, t: T, lang: Lang = 'en'): RailPart
   return {
     label: t('Schwarz Score'),
     score,
-    chips:
-      trl?.value !== null && trl?.value !== undefined ? (
-        <TrlBadge trl={trl.value} t={t} />
-      ) : undefined,
     bars: <ScoreBars bars={visibleDimensions.map((d) => railBar(d, t, lang))} />,
     radar:
       axes.length >= 3 ? (
@@ -189,7 +177,6 @@ export function ScoreRailSkeleton({ t, bars = 7 }: { t: T; bars?: number }) {
       state="skeleton"
       label={t('Schwarz Score')}
       score={<Bone.Number digits={4} />}
-      chips={<Bone.Chip width={128} />}
       bars={Array.from({ length: bars }, (_, i) => (
         <ScoreBarFrame
           key={i}
