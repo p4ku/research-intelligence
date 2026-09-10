@@ -11,8 +11,8 @@ export const dict: Record<string, string> = {
   'No briefings yet.': 'Noch keine Briefings.',
   'No briefings for this domain yet.': 'Für dieses Themenfeld gibt es noch keine Briefings.',
   'Nothing starred in this domain.': 'In diesem Themenfeld steht nichts auf der Merkliste.',
-  '{screened} screened → {included} included → {inBriefing} in the briefing':
-    '{screened} gesichtet → {included} aufgenommen → {inBriefing} im Briefing',
+  '{screened} screened → {included} analysed → {inBriefing} in the briefing':
+    '{screened} gesichtet → {included} analysiert → {inBriefing} im Briefing',
   'In brief': 'Das Wichtigste in Kürze',
   'Briefing history': 'Briefing-Verlauf',
   // "Auto-Brief" would read as "automatic letter" — Briefing stays the loanword.
@@ -50,7 +50,6 @@ export const dict: Record<string, string> = {
   'Loading the briefings': 'Die Briefings werden geladen',
   'Loading the briefing': 'Das Briefing wird geladen',
   'Loading the screening log': 'Das Screening-Protokoll wird geladen',
-  'passed every gate': 'alle Prüfstufen bestanden',
   '1 paper': '1 Paper',
   '{n} papers': '{n} Papers',
   'Screened out': 'Aussortiert',

@@ -103,7 +103,7 @@ export function Masthead({ lead, t }: { lead: MastheadLead; t: T }) {
           <span className="font-normal text-zinc-500 dark:text-zinc-400"> — {lead.period}</span>
         </>
       }
-      funnel={fmt(t('{screened} screened → {included} included → {lead} lead the briefing'), {
+      funnel={fmt(t('{screened} screened → {included} analysed → {lead} lead the briefing'), {
         screened: lead.screened,
         included: lead.included,
         lead: lead.top.length,

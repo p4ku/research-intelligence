@@ -7,11 +7,7 @@ import { domainEditions, namedElsewhere, SameDayNotice } from '../sections'
 import { ExclusionsTable } from './exclusions-table'
 
 export function funnelCopy(t: T) {
-  return [
-    { label: t('Screened'), sub: t('matched the focus fields') },
-    { label: t('Included'), sub: t('cleared the signal bar') },
-    { label: t('In the briefing'), sub: t('passed every gate') },
-  ]
+  return [{ label: t('Screened') }, { label: t('Analysed') }]
 }
 
 /**
@@ -44,7 +40,6 @@ export async function ScreeningLog({
   const funnel = [
     { value: edition.funnel.fetched, ...copy[0] },
     { value: edition.funnel.passed_screening, ...copy[1] },
-    { value: edition.funnel.surfaced, ...copy[2] },
   ]
 
   return (

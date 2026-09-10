@@ -76,11 +76,7 @@ export const dict: Record<string, string> = {
   // Flat daily digest (no lead story): funnel at daily volumes + today in brief.
   'Today in brief': 'Das Wichtigste heute',
   Screened: 'Gesichtet',
-  'matched the focus fields': 'den Themenfeldern zugeordnet',
-  Included: 'Aufgenommen',
-  'cleared the signal bar': 'über der Signalschwelle',
-  'In the briefing': 'Im Briefing',
-  'listed below': 'unten gelistet',
+  Analysed: 'Analysiert',
   // Streaming skeleton statuses (Skeleton.Region announcements).
   'Loading the funnel': 'Die Kennzahlen werden geladen',
   'Loading today’s brief': '„Das Wichtigste heute“ wird geladen',
@@ -98,9 +94,9 @@ export const dict: Record<string, string> = {
   'Loading the briefing': 'Das Briefing wird geladen',
   'Loading recent briefings': 'Aktuelle Briefings werden geladen',
   'generated {date}': 'erstellt {date}',
-  '{screened} screened → {included} included → {lead} lead the briefing':
-    '{screened} gesichtet → {included} aufgenommen → {lead} führen das Briefing an',
-  '{screened} screened → {included} included': '{screened} gesichtet → {included} aufgenommen',
+  '{screened} screened → {included} analysed → {lead} lead the briefing':
+    '{screened} gesichtet → {included} analysiert → {lead} führen das Briefing an',
+  '{screened} screened → {included} analysed': '{screened} gesichtet → {included} analysiert',
   'Top of the briefing': 'Aufmacher',
   'The brief for this run is not available.': 'Das Briefing zu diesem Lauf ist nicht verfügbar.',
   'No papers met the inclusion criteria for this briefing.':
