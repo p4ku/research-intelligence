@@ -77,19 +77,48 @@ export const LEAD = {
   star: { head: 'w-7 px-0!', cell: 'w-7 px-0!' },
 } as const
 
+/**
+ * The rhythm between columns. The table primitive spends `px-4` a side, which
+ * over seven columns is 224px of air — more than Home's column can lend with
+ * the run card beside it. The overflow that caused fell entirely on the last
+ * column: status and Retry were scrolled out of the panel, with no scrollbar
+ * to say so. `px-2.5` keeps the columns apart and gives the row that width
+ * back. Marked important, as the lead columns are: the primitive's own `px-4`
+ * sorts after it in the sheet and would otherwise win. The outer edges are
+ * left alone (`first:pl-*` / `last:pr-*`), so the table still starts and ends
+ * on the section's margin.
+ */
+const TIGHT = 'px-2.5!'
+
 // One entry per column: the classes of its header and body cells. Both the
 // loaded table and its skeleton render from this list, so they cannot drift.
 const COL = {
   expand: LEAD.expand,
   star: LEAD.star,
-  domain: { head: '', cell: 'font-medium' },
-  period: { head: '', cell: 'font-mono text-xs text-zinc-600 tabular-nums dark:text-zinc-300' },
-  generated: {
-    head: '',
-    cell: 'font-mono text-xs text-zinc-500 tabular-nums dark:text-zinc-400',
+  // Three columns may take a second line rather than force the table wider.
+  // The table primitive sets `nowrap` on everything, and a table of nothing
+  // but unbreakable cells can only overflow — which is what it did, off the
+  // end of the panel, taking status and Retry with it. The pieces that must
+  // stay whole (a date, a count, a label) carry their own `nowrap`; what
+  // wraps is the space between them, so a long domain name or a long German
+  // label now costs the row height instead of the reader the last column.
+  //
+  // Only from `sm`, where wrapping can actually save the table. On a phone
+  // the whole table is narrower than any arrangement of seven columns, so it
+  // scrolls sideways as the archive's does — and there, a row grown tall by a
+  // cell the reader cannot see is just an unexplained tall row.
+  domain: { head: `min-w-32 ${TIGHT}`, cell: `min-w-32 ${TIGHT} font-medium sm:whitespace-normal` },
+  period: {
+    head: TIGHT,
+    cell: `${TIGHT} font-mono text-xs text-zinc-600 tabular-nums dark:text-zinc-300`,
   },
-  papers: { head: 'text-right', cell: 'text-right font-mono tabular-nums' },
-  status: { head: 'text-right', cell: 'text-right' },
+  generated: {
+    head: TIGHT,
+    cell: `${TIGHT} font-mono text-xs text-zinc-500 tabular-nums sm:whitespace-normal dark:text-zinc-400`,
+  },
+  papers: { head: `${TIGHT} text-right`, cell: `${TIGHT} text-right font-mono tabular-nums` },
+  // Last column: only its inner edge tightens — `last:pr-*` keeps the outer one.
+  status: { head: 'pl-2.5! text-right', cell: 'pl-2.5! text-right sm:whitespace-normal' },
 } as const
 
 const COLUMNS = ['expand', 'star', 'domain', 'period', 'generated', 'papers', 'status'] as const
@@ -153,13 +182,35 @@ const STATUS_CLASS: Record<Exclude<RowStatus, 'done'>, { text: string; mark: str
  * briefed more than once that day. Home and the archive render it alike.
  */
 export function Generated({ day, stamp }: { day: string; stamp: string | null }) {
+  // Each part unbreakable, the space between them not: in a narrow column the
+  // clock drops under the day rather than widening the table.
   return stamp ? (
     <>
-      {day}
-      <span className="text-zinc-400"> · {stamp}</span>
+      <span className="whitespace-nowrap">{day}</span>{' '}
+      <span className="whitespace-nowrap text-zinc-400">· {stamp}</span>
     </>
   ) : (
     day
+  )
+}
+
+/**
+ * A Generated cell that reads as a phrase rather than a date — "failed 10 Sep
+ * 2026", "started 16:02 UTC". The words before the value may wrap; the value
+ * and whatever trails it stay whole, because a date that breaks across two
+ * lines reads as two dates. Split on the placeholder, not on a space, so it
+ * holds in German too ("fehlgeschlagen 10. Sept. 2026" gives after the first
+ * word, never inside the date). A translation that opens with the value has
+ * nothing to give here and simply stays on one line.
+ */
+function Phrase({ template, vars }: { template: string; vars: Record<string, string> }) {
+  const at = template.indexOf('{')
+  if (at === -1) return template
+  return (
+    <>
+      {template.slice(0, at)}
+      <span className="whitespace-nowrap">{fmt(template.slice(at), vars)}</span>
+    </>
   )
 }
 
@@ -360,9 +411,9 @@ function Row({
           {row.generated ? (
             <Generated day={row.generated} stamp={row.stamp ?? null} />
           ) : row.failedDay !== null ? (
-            fmt(t('failed {date}'), { date: row.failedDay })
+            <Phrase template={t('failed {date}')} vars={{ date: row.failedDay }} />
           ) : (
-            fmt(t('started {time} UTC'), { time: row.startedClock ?? '—' })
+            <Phrase template={t('started {time} UTC')} vars={{ time: row.startedClock ?? '—' }} />
           )}
         </TableCell>
         <TableCell className={COL.papers.cell}>
@@ -373,7 +424,7 @@ function Row({
           )}
         </TableCell>
         <TableCell className={COL.status.cell}>
-          <span className="flex items-center justify-end gap-3">
+          <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
             <StatusLabel status={row.status} />
             {row.retry && (
               // Positioned like the triangle and the star: should a linked

@@ -3,12 +3,55 @@ import { Bone } from '@/components/skeleton'
 import type { Lang, T } from '@/lib/i18n'
 import clsx from 'clsx'
 import Link from 'next/link'
+import type { ReactNode } from 'react'
 
 /**
  * Small pieces Home's ledger and the masthead (gallery only since 7 Sep
  * 2026) share. No directive: the masthead renders on the server, the ledger
  * on the client, and both use these.
  */
+
+/**
+ * Home's two-column frame: Recent Briefings beside New Briefing.
+ *
+ * No breakpoint. The two are flex items whose widths are stated in `rem` —
+ * the ledger asks for 43rem, about what its seven columns need before they
+ * start wrapping, the card for 18rem — and they sit side by side exactly
+ * while both fit, wrapping onto separate rows when they do not. A viewport
+ * breakpoint could not do this honestly: it is a fixed pixel number, and a
+ * reader on Chrome's larger font setting needs *more* width for the same
+ * table, so a `min-[1400px]` rule hands the ledger less room precisely when
+ * it needs more, and the last column goes back outside the panel. Stated in
+ * rem, the whole arrangement scales with the reader's text.
+ *
+ * Both grow into whatever is left over, so nothing is stranded: side by side
+ * the ledger takes most of the slack, and wrapped, the card fills its row up
+ * to a form's comfortable measure rather than a page's.
+ *
+ * The loaded section and its skeleton both render through here, so the two
+ * cannot drift.
+ */
+const LEDGER = 'min-w-0 grow basis-[43rem]'
+const CARD = 'grow basis-72 max-w-sm'
+
+export function HomeGrid({
+  ledger,
+  card,
+  children,
+}: {
+  ledger: ReactNode
+  card: ReactNode
+  /** Anything that renders nothing but belongs to the section (the live refresh). */
+  children?: ReactNode
+}) {
+  return (
+    <div className="flex flex-wrap items-start gap-8">
+      <div className={LEDGER}>{ledger}</div>
+      <aside className={CARD}>{card}</aside>
+      {children}
+    </div>
+  )
+}
 
 /** One of the strongest papers in a briefing, as Home lists it. */
 export interface HomePaper {

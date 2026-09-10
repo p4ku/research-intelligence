@@ -11,7 +11,7 @@ import { editionHref } from '../briefing/format'
 import { briefingDate, briefingsPerDay, stampFor } from '../briefing/rows'
 import { allRuns, currentRun, inFlightRuns, recentBriefings } from './data'
 import { formatAuthors, formatClock, formatDay, periodLabel } from './format'
-import { HomeLinks, type HomePaper } from './home-ui'
+import { HomeGrid, HomeLinks, type HomePaper } from './home-ui'
 import { Ledger, type HomeRow, type RowStatus } from './ledger'
 import { LiveRefresh } from './live-refresh'
 import { RunCard, type RunDomain } from './run-card'
@@ -127,28 +127,31 @@ export async function LedgerSection({
   const processing = inFlight[0] ?? null
 
   return (
-    <div className="grid gap-8 lg:grid-cols-3">
-      <div className="min-w-0 lg:col-span-2">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <SectionLabel size="sm">{t('Recent briefings')}</SectionLabel>
-          <HomeLinks t={t} />
-        </div>
-        <div className="mt-4">
-          {rows.length === 0 ? (
-            <Card>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                {t('No briefings have been generated yet.')}
-              </p>
-            </Card>
-          ) : (
-            <Ledger rows={rows} busy={processing !== null} />
-          )}
-        </div>
-      </div>
-      <aside className="lg:col-span-1">
+    <HomeGrid
+      ledger={
+        <>
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <SectionLabel size="sm">{t('Recent briefings')}</SectionLabel>
+            <HomeLinks t={t} />
+          </div>
+          <div className="mt-4">
+            {rows.length === 0 ? (
+              <Card>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {t('No briefings have been generated yet.')}
+                </p>
+              </Card>
+            ) : (
+              <Ledger rows={rows} busy={processing !== null} />
+            )}
+          </div>
+        </>
+      }
+      card={
         <RunCard domains={domains} processing={processing?.workspace_name ?? null} today={today} />
-      </aside>
+      }
+    >
       <LiveRefresh processingIds={inFlight.map((run) => run.id)} />
-    </div>
+    </HomeGrid>
   )
 }
