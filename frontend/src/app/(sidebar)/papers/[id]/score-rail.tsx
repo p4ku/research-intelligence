@@ -123,7 +123,7 @@ function railBar(d: Dimension, t: T, lang: Lang): RailBar {
  * Summarisation / qualitative prose, failed extractions, or unassigned metrics).
  * Preserves actual numeric scores including 0.
  */
-export function isDisplayableRailDimension(d: Dimension): boolean {
+export function isDisplayableRailDimension(d: Dimension | Partial<Dimension>): boolean {
   if (
     !d ||
     d.is_risk_and_affiliation ||

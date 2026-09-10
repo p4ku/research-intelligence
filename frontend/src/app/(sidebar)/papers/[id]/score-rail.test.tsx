@@ -178,6 +178,7 @@ describe('ScoreRail Component Rendering', () => {
     expect(
       isDisplayableRailDimension({
         key: 'summarisation',
+        definition_id: null,
         name: 'Summarisation',
         value: null,
         raw: 'This paper presents Backline...',
@@ -189,6 +190,7 @@ describe('ScoreRail Component Rendering', () => {
     expect(
       isDisplayableRailDimension({
         key: 'null_metric',
+        definition_id: null,
         name: 'Null Metric',
         value: null,
         raw: null,
@@ -200,6 +202,7 @@ describe('ScoreRail Component Rendering', () => {
     expect(
       isDisplayableRailDimension({
         key: 'pending_metric',
+        definition_id: null,
         name: 'Pending Metric',
         value: null,
         raw: '—',
@@ -212,6 +215,7 @@ describe('ScoreRail Component Rendering', () => {
     expect(
       isDisplayableRailDimension({
         key: 'string_metric',
+        definition_id: null,
         name: 'String Metric',
         value: 'High' as unknown as number,
         raw: 'High',
@@ -223,6 +227,7 @@ describe('ScoreRail Component Rendering', () => {
     expect(
       isDisplayableRailDimension({
         key: 'nan_metric',
+        definition_id: null,
         name: 'NaN Metric',
         value: NaN,
         raw: 'NaN',
@@ -234,6 +239,7 @@ describe('ScoreRail Component Rendering', () => {
     expect(
       isDisplayableRailDimension({
         key: 'undefined_metric',
+        definition_id: null,
         name: 'Undefined Metric',
         value: undefined as unknown as number,
         raw: null,
@@ -246,6 +252,7 @@ describe('ScoreRail Component Rendering', () => {
     expect(
       isDisplayableRailDimension({
         key: 'zero_score',
+        definition_id: null,
         name: 'Zero Score Metric',
         value: 0,
         raw: '0',
@@ -258,6 +265,7 @@ describe('ScoreRail Component Rendering', () => {
     expect(
       isDisplayableRailDimension({
         key: 'int_metric',
+        definition_id: null,
         name: 'TRL Level',
         value: 4,
         raw: 'TRL 4',
@@ -269,6 +277,7 @@ describe('ScoreRail Component Rendering', () => {
     expect(
       isDisplayableRailDimension({
         key: 'float_metric',
+        definition_id: null,
         name: 'Research Metric',
         value: 58.67,
         raw: '58.67',
