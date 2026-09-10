@@ -1,8 +1,8 @@
 /**
  * How a briefing's papers are viewed: the sort and the score floor, as the
  * URL carries them and as the list applies them. Pure, so the list derives
- * every render from `useSearchParams` (see docs/skeletons.md's URL-state
- * rule) and bun tests the arithmetic. Defaults stay out of the URL, so a
+ * every render from `useSearchParams` (a Back is served from the router
+ * cache, so the view is never seeded from a prop) and bun tests the arithmetic. Defaults stay out of the URL, so a
  * briefing's permalink (`?domain=&run=`) is untouched until a reader
  * changes the view.
  *
@@ -29,10 +29,12 @@ export const DEFAULT_VIEW: EditionView = { sort: 'score', minScore: 0 }
 export const SCORE_CEILING = 100
 export const SCORE_STEP = 5
 
-// A dimension key is the backend's: snake_case, though a name's parentheses survive
-// ("technology_readiness_level_(trl)" on prod). Bounded, never trusted further
-// than a lookup.
-const SORT_RE = /^(score|published|dim:[\w().-]{1,120})$/
+// A dimension key is the backend's own: lower-cased, spaces and hyphens turned
+// to underscores, everything else kept ("sovereign_cloud_&_commercial_viability",
+// "technology_readiness_level_(trl)", non-ASCII letters). Any key the rail can
+// offer must read back, so only whitespace is refused. Bounded, and only ever
+// used as a lookup.
+const SORT_RE = /^(score|published|dim:\S{1,120})$/
 
 /** The view a URL's params describe; anything unusable takes its default. */
 export function viewFrom(params: Record<string, string | string[] | undefined>): EditionView {
@@ -45,7 +47,9 @@ export function viewFrom(params: Record<string, string | string[] | undefined>):
   const min = /^\d+$/.test(score) ? Number(score) : 0
   return {
     sort: SORT_RE.test(sort) ? sort : DEFAULT_VIEW.sort,
-    minScore: min > 0 && min <= SCORE_CEILING ? min : 0,
+    // Only a figure the slider can show: a floor of 57 would read "≥ 57" over
+    // a thumb at 55.
+    minScore: min > 0 && min <= SCORE_CEILING && min % SCORE_STEP === 0 ? min : 0,
   }
 }
 
@@ -68,6 +72,16 @@ export function isDefaultView(view: EditionView): boolean {
   return view.sort === DEFAULT_VIEW.sort && view.minScore === 0
 }
 
+/**
+ * The view with a sort the list can honour. A `dim:` key none of these
+ * papers carries (a hand-edited link, a definition renamed since the link
+ * was shared, a scorecard read that came back empty) falls back to the
+ * score, so the rail always marks the order the list is in.
+ */
+export function withKnownSort(view: EditionView, options: readonly SortOption[]): EditionView {
+  return options.some((o) => o.id === view.sort) ? view : { ...view, sort: DEFAULT_VIEW.sort }
+}
+
 export interface SortOption {
   id: EditionSort
   label: string
@@ -81,7 +95,7 @@ function sortable(d: Dimension): boolean {
 
 /**
  * The sorts on offer for these papers: the Schwarz Score, the publication
- * date, then one per scored dimension — TRL included — in the workspace's
+ * date when any paper has one, then one per scored dimension — TRL included — in the workspace's
  * definition order, each key once. A dimension no paper in the briefing
  * scored is not offered: an order by it would change nothing.
  */
@@ -97,9 +111,13 @@ export function sortOptions(papers: readonly ScoredPaper[], t: T): SortOption[] 
   const dims = [...seen.values()]
     .sort((a, b) => a.order - b.order || a.index - b.index)
     .map(({ d }) => ({ id: `dim:${d.key}`, label: dimensionShortName(d, t) }))
+  // The same rule for the date: the editions endpoint sends no publication
+  // date, and the scorecard may not either, so an order by it would leave the
+  // list as it was. The option appears once any paper carries one.
+  const dated = papers.some((p) => Boolean(p.published_date))
   return [
     { id: 'score', label: t('Schwarz Score') },
-    { id: 'published', label: t('Date published') },
+    ...(dated ? [{ id: 'published', label: t('Date published') }] : []),
     ...dims,
   ]
 }
@@ -125,10 +143,17 @@ export function applyView(papers: readonly ScoredPaper[], view: EditionView): Sc
   return kept.sort((a, b) => byValueDesc(a.signal_score, b.signal_score))
 }
 
-/** Newest first; a paper without a date last. ISO dates compare as strings. */
-function byDateDesc(a: string | null, b: string | null): number {
-  if (a === b) return 0
-  if (a === null) return 1
-  if (b === null) return -1
-  return a < b ? 1 : -1
+/**
+ * Newest first; a paper without a date last. ISO dates compare as strings.
+ * A missing field counts as no date: edition rows are cast from a schema
+ * where `published_date` is optional, and `undefined` must not escape the
+ * null checks and make the order depend on the input's.
+ */
+function byDateDesc(a: string | null | undefined, b: string | null | undefined): number {
+  const x = a ?? null
+  const y = b ?? null
+  if (x === y) return 0
+  if (x === null) return 1
+  if (y === null) return -1
+  return x < y ? 1 : -1
 }
