@@ -108,4 +108,11 @@ describe('the score rule at the parse seam', () => {
         .signal_score,
     ).toBeNull()
   })
+
+  test('an edition row without details keeps its zero — the list endpoint sends none', () => {
+    // The editions LIST serializer strips signal_score_details, so a failed
+    // formula still reads 0 there until the backend carries the error along
+    // (filed for the backend). This pins the hole so the day it closes shows.
+    expect(editionPaper.parse({ ...edition, signal_score: 0 }).signal_score).toBe(0)
+  })
 })

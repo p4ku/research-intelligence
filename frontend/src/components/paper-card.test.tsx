@@ -1,4 +1,5 @@
 import { fixturePapers } from '@/lib/bff/papers/fixtures'
+import { scoredPaper } from '@/lib/bff/papers/schema'
 import { ALL_ON } from '@/lib/features'
 import { FeaturesTestProvider } from '@/lib/features-client'
 import { describe, expect, test } from 'bun:test'
@@ -89,6 +90,20 @@ describe('PaperCard', () => {
     const html = renderToStaticMarkup(<PaperCard paper={{ ...paper, signal_score: null }} />)
     expect(html).toContain('>—</span>')
     expect(html).toContain('Unscored')
+  })
+
+  test('a failed formula reads as unscored from the wire to the card', () => {
+    // The scorer writes 0.0 and an error; the parse seam turns that into
+    // null, and the card never sees a number.
+    const failed = scoredPaper.parse({
+      ...paper,
+      signal_score: 0,
+      signal_score_details: { ...paper.signal_score_details, error: 'ZeroDivisionError' },
+    })
+    const html = renderToStaticMarkup(<PaperCard paper={failed} />)
+    expect(html).toContain('>—</span>')
+    expect(html).toContain('Unscored')
+    expect(html).not.toContain('>0</span>')
   })
 
   test('the ceiling prints whole', () => {

@@ -24,6 +24,17 @@ describe('templateProse', () => {
     expect(p.in_brief).toContain('“Big Result” at signal 88')
     expect(p.in_brief).toContain('Also notable: “Second” and “Third”.')
   })
+  test('the leading score is the whole number the card prints', () => {
+    const p = templateProse({
+      workspaceName: 'Scan',
+      fetched: 3,
+      passedScreening: 2,
+      surfaced: 1,
+      papers: [paper('Edge', 74.6)],
+    })
+    expect(p.in_brief).toContain('“Edge” at signal 75')
+    expect(p.in_brief).not.toContain('74.6')
+  })
   test('empty run', () => {
     const p = templateProse({
       workspaceName: 'Scan',

@@ -109,6 +109,16 @@ describe('formatMeasure', () => {
     expect(formatMeasure(2, 5, 'en')).toBe('2')
     expect(formatMeasure(0.8567, 1, 'en')).toBe('0.86')
   })
+  test('a fraction below one keeps its decimals whatever max says', () => {
+    // The backend only sends max 1 for a 0–1 facet whose key names a
+    // confidence or a ratio; "fidelity_estimate: 0.92" arrives with max 100.
+    expect(formatMeasure(0.92, 100, 'en')).toBe('0.92')
+    expect(formatMeasure(0.92, 9, 'de')).toBe('0,92')
+    expect(formatMeasure(0.92, null, 'en')).toBe('0.92')
+    expect(formatMeasure(0.5, 100, 'en')).toBe('0.5')
+    expect(formatMeasure(0, 100, 'en')).toBe('0')
+    expect(formatMeasure(1, 100, 'en')).toBe('1')
+  })
   test('the dash when there is no value', () => {
     expect(formatMeasure(null, 100, 'en')).toBe('—')
     expect(formatMeasure(undefined, 1, 'de')).toBe('—')

@@ -100,7 +100,9 @@ export function formatScore(n: number | null | undefined): string {
  * A dimension or sub-measure figure. Score-like scales (no `max`, or a `max`
  * of nine or more — the 0–100 definitions and TRL) read as whole numbers;
  * a small scale such as a 0–1 confidence or a 0–5 ratio keeps up to two
- * decimals, so 0.92 does not print as "1".
+ * decimals, so 0.92 does not print as "1". A fraction below one is on a unit
+ * scale whatever `max` says: the backend only labels a 0–1 facet `max: 1`
+ * when its key is named like a confidence or a ratio.
  */
 export function formatMeasure(
   value: number | null | undefined,
@@ -108,6 +110,8 @@ export function formatMeasure(
   lang: Lang,
 ): string {
   if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
-  if (max === null || max === undefined || max >= 9) return formatScore(value)
-  return formatNumber(value, lang, undefined, 2)
+  const unitScale = Math.abs(value) < 1 && !Number.isInteger(value)
+  const smallScale = typeof max === 'number' && max < 9
+  if (unitScale || smallScale) return formatNumber(value, lang, undefined, 2)
+  return formatScore(value)
 }

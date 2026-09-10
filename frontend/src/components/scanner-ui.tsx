@@ -3,7 +3,7 @@ import { Sparkline } from '@/components/charts'
 import { Bone } from '@/components/skeleton'
 import { type Lang, type T } from '@/lib/i18n'
 import { formatMeasure, formatScore } from '@/lib/papers/select'
-import type { Dimension, ScreeningStatus } from '@/lib/papers/types'
+import type { ScreeningStatus } from '@/lib/papers/types'
 import { ArrowDownIcon, ArrowRightIcon, ExclamationTriangleIcon } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import Link from 'next/link'
@@ -804,15 +804,6 @@ export function MiniScore({ score }: { score: number | null }) {
       {formatScore(score)}
     </span>
   )
-}
-
-/* --------------------------- Paper score axes helper ------------------------ */
-
-/** Radar axes from the numeric, scaled dimensions (0–100 each). */
-export function dimensionRadarAxes(dimensions: Dimension[]) {
-  return dimensions
-    .filter((d) => d.value !== null && d.max !== null && d.max > 0)
-    .map((d) => ({ label: d.name, value: Math.max(0, Math.min(100, (d.value! / d.max!) * 100)) }))
 }
 
 /* --------------------------------- TLDR callout ------------------------------ */
