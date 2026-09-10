@@ -111,8 +111,9 @@ yarn-error.log*
 docker-compose*.override.yml
 docker-compose*.override.yaml
 docker-compose.override.yml
-docker-compose.override.yaml
 *.pdf
+!docs/user_journeys/*.pdf
+docs/user_journeys/preview_user_journeys.html
 # Temporary directory (local scratchpad / slide exports)
 /tmp/
 tmp/

@@ -23,7 +23,8 @@
     "snapshot:serve": "bun run scripts/snapshot-serve.ts",
     "scope:check": "bun run scripts/scope-check.ts",
     "screenshots": "bun run scripts/screenshots.ts",
-    "skeleton:drift": "bun run scripts/skeleton-drift.ts"
+    "skeleton:drift": "bun run scripts/skeleton-drift.ts",
+    "docs:pdf": "bun run ../scripts/build_user_journeys_pdf.mjs"
   },
   "dependencies": {
     "@headlessui/react": "^2.2.6",

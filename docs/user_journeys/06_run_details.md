@@ -12,7 +12,11 @@ The Run Details view provides a complete post-execution audit log:
 
 ![Pipeline Run Execution Details](./screenshots/06_run_details.png)
 
-> 🔍 **Full DAG View**: [View complete 9-stage DAG screenshot (full-page)](./screenshots/06_run_details_fullpage.png)
+### Complete 9-Stage DAG Execution View
+
+The full execution DAG details all upstream scrapers, LLM screening, cached downloads, extraction, and synthesis:
+
+![Pipeline Run Complete DAG Stages](./screenshots/06_run_details_fullpage.png)
 
 ---
 
