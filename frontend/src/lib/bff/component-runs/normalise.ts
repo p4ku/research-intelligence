@@ -122,7 +122,10 @@ export function toSummary(step: StepType, metrics: unknown, outputData: unknown)
             (p) =>
               typeof p === 'object' &&
               p !== null &&
-              Boolean((p as Record<string, unknown>).from_cache || (p as Record<string, unknown>).cache_hit),
+              Boolean(
+                (p as Record<string, unknown>).from_cache ||
+                (p as Record<string, unknown>).cache_hit,
+              ),
           ).length
           if (fromPapers > 0) cached = fromPapers
         } else if (typeof o.summary === 'string') {

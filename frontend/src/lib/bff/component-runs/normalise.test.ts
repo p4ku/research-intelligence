@@ -71,11 +71,7 @@ describe('toSummary', () => {
         'download',
         { downloaded: 23, failed: 38 },
         {
-          downloaded_papers: [
-            { cache_hit: true },
-            { from_cache: true },
-            { from_cache: false },
-          ],
+          downloaded_papers: [{ cache_hit: true }, { from_cache: true }, { from_cache: false }],
         },
       ),
     ).toEqual({
