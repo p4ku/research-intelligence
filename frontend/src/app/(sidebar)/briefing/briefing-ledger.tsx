@@ -57,8 +57,8 @@ const COL = {
     head: '',
     cell: 'font-mono text-xs text-zinc-500 tabular-nums dark:text-zinc-400',
   },
-  screened: { head: 'text-right', cell: 'text-right font-mono tabular-nums' },
-  included: { head: 'text-right', cell: 'text-right font-mono tabular-nums' },
+  screened: { head: 'text-center', cell: 'text-center font-mono tabular-nums' },
+  included: { head: 'text-center', cell: 'text-center font-mono tabular-nums' },
   status: { head: 'text-right', cell: 'text-right' },
 } as const
 
