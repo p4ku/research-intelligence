@@ -144,6 +144,7 @@ def try_reuse_cached_pdf(paper: Paper, target_path: str, title_snippet: str = ""
                     "size_kb": round(size_kb, 1),
                     "storage_path": saved_path,
                     "cache_hit": True,
+                    "from_cache": True,
                     "cached_from": doc_reg.canonical_pdf_path,
                     "registry_id": str(doc_reg.id),
                     "access_count": doc_reg.access_count
@@ -204,6 +205,7 @@ def try_reuse_cached_pdf(paper: Paper, target_path: str, title_snippet: str = ""
                 "size_kb": round(size_kb, 1),
                 "storage_path": saved_path,
                 "cache_hit": True,
+                "from_cache": True,
                 "cached_from": cached_paper.original_pdf_path,
                 "registry_id": str(doc_reg.id) if doc_reg else None
             }

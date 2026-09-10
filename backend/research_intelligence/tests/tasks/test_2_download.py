@@ -278,9 +278,137 @@ class DownloadTaskTestCase(TestCase):
 
         self.assertEqual(result["status"], "downloaded")
         self.assertTrue(result.get("cache_hit"))
+        self.assertTrue(result.get("from_cache"))
         self.assertEqual(result.get("cached_from"), ws1_storage_path)
 
         expected_ws7_path = f"workspaces/{ws7.id}/runs/{run100.id}/documents/{paper_ws7.hash_id}/original.pdf"
         self.assertTrue(default_storage.exists(expected_ws7_path))
         paper_ws7.refresh_from_db()
         self.assertEqual(paper_ws7.original_pdf_path, expected_ws7_path)
+
+    def test_execute_pdf_download_job_tracks_cached_and_web_metrics(self):
+        """
+        Validates that execute_pdf_download_job properly records:
+        - downloaded (total retrieved)
+        - cached / from_cache (reused from DocumentRegistry or existing papers)
+        - failed (unretrievable papers)
+        """
+        run = PipelineRun.objects.create(workspace=self.workspace, status="running")
+        comp_run = ComponentRun.objects.create(
+            pipeline_run=run,
+            step_type="download",
+            component_name="pdf_downloader",
+            status="pending"
+        )
+
+        # 1. Paper already in DocumentRegistry (cache hit)
+        pdf_bytes = b"%PDF-1.4 Cached Binary for Unit Testing"
+        cached_reg_path = "cache/documents/test_sha256_01/original.pdf"
+        default_storage.save(cached_reg_path, ContentFile(pdf_bytes))
+        doc_reg = DocumentRegistry.objects.create(
+            sha256_hash="test_sha256_01",
+            doi="10.1000/cached_01",
+            canonical_pdf_path=cached_reg_path,
+            pdf_file_size_bytes=len(pdf_bytes)
+        )
+        p_cached = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="p_cached_01",
+            doi="10.1000/cached_01",
+            title="Cached Paper Title",
+            original_pdf_path="https://arxiv.org/pdf/2401.11111.pdf",
+            source_database="arxiv"
+        )
+        PaperMetric.objects.create(paper=p_cached, pipeline_run=run, workspace=self.workspace, screening_status="pending")
+
+        # 2. Paper to download from web (cache miss)
+        p_web = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="p_web_02",
+            doi="10.1000/web_02",
+            title="Web Paper Title",
+            original_pdf_path="https://arxiv.org/pdf/2401.22222.pdf",
+            source_database="arxiv"
+        )
+        PaperMetric.objects.create(paper=p_web, pipeline_run=run, workspace=self.workspace, screening_status="pending")
+
+        # 3. Paper that fails download
+        p_fail = Paper.objects.create(
+            workspace=self.workspace,
+            pipeline_run=run,
+            hash_id="p_fail_03",
+            doi="10.1000/fail_03",
+            title="Failing Paper Title",
+            original_pdf_path="https://arxiv.org/pdf/2401.33333.pdf",
+            source_database="arxiv"
+        )
+        PaperMetric.objects.create(paper=p_fail, pipeline_run=run, workspace=self.workspace, screening_status="pending")
+
+        def mock_download(url):
+            if "22222" in url:
+                return b"%PDF-1.4 Fresh Download from Web"
+            raise RuntimeError("Connection dropped by remote peer")
+
+        with patch("research_intelligence.scrapers.arxiv.ArxivScraperProvider.download_file", side_effect=mock_download):
+            success = execute_pdf_download_job(str(comp_run.id))
+            self.assertTrue(success)
+
+        comp_run.refresh_from_db()
+        self.assertEqual(comp_run.status, "completed")
+        self.assertEqual(comp_run.metrics["downloaded"], 2)
+        self.assertEqual(comp_run.metrics["cached"], 1)
+        self.assertEqual(comp_run.metrics["from_cache"], 1)
+        self.assertEqual(comp_run.metrics["failed"], 1)
+
+        # Check DownloadNode stage summary
+        node = DownloadNode()
+        summary = node.generate_stage_summary(comp_run, status="completed")
+        self.assertIn("2 downloaded", summary)
+        self.assertIn("1 cached", summary)
+        self.assertIn("1 failed", summary)
+
+    def test_admin_render_component_metrics_summary_download_display(self):
+        """
+        Validates that render_component_metrics_summary in admin.py distinguishes
+        between web downloads and cache hits clearly.
+        """
+        from research_intelligence.admin import render_component_metrics_summary
+
+        # Case 1: Both web and cached PDFs + failed
+        comp_mixed = ComponentRun(
+            step_type="download",
+            component_name="pdf_download",
+            metrics={"downloaded": 23, "cached": 10, "from_cache": 10, "failed": 38}
+        )
+        html_mixed = str(render_component_metrics_summary(comp_mixed))
+        self.assertIn("23 PDFs", html_mixed)
+        self.assertIn("retrieved", html_mixed)
+        self.assertIn("13 from web", html_mixed)
+        self.assertIn("10 cached", html_mixed)
+        self.assertIn("38 failed", html_mixed)
+
+        # Case 2: Only web downloads (cached = 0) + failed
+        comp_web = ComponentRun(
+            step_type="download",
+            component_name="pdf_download",
+            metrics={"downloaded": 23, "cached": 0, "from_cache": 0, "failed": 38}
+        )
+        html_web = str(render_component_metrics_summary(comp_web))
+        self.assertIn("23 PDFs", html_web)
+        self.assertIn("downloaded", html_web)
+        self.assertIn("38 failed", html_web)
+        self.assertNotIn("from web", html_web)
+
+        # Case 3: All from cache
+        comp_all_cached = ComponentRun(
+            step_type="download",
+            component_name="pdf_download",
+            metrics={"downloaded": 10, "cached": 10, "from_cache": 10, "failed": 0}
+        )
+        html_all_cached = str(render_component_metrics_summary(comp_all_cached))
+        self.assertIn("10 PDFs", html_all_cached)
+        self.assertIn("retrieved", html_all_cached)
+        self.assertIn("10 cached", html_all_cached)
+        self.assertNotIn("from web", html_all_cached)

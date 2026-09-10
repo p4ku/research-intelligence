@@ -1508,9 +1508,30 @@ def render_component_metrics_summary(obj):
         dl = m.get('downloaded', 0)
         failed = m.get('failed', 0)
         cached = m.get('cached', m.get('from_cache', m.get('cached_hits', 0)))
+        skipped = m.get('skipped', 0)
+
+        if cached > 0:
+            from_web = max(0, dl - cached)
+            sub_parts = []
+            if from_web > 0:
+                sub_parts.append(f"{from_web} from web")
+            sub_parts.append(f"{cached} cached")
+            if skipped > 0:
+                sub_parts.append(f"{skipped} skipped")
+            if failed > 0:
+                sub_parts.append(f"{failed} failed")
+            return format_html(
+                '<div style="line-height: 1.35; white-space: nowrap;">'
+                '<strong>{} PDFs</strong> retrieved<br>'
+                '<span style="color: #6c757d; font-size: 11px;">({})</span>'
+                '</div>',
+                dl,
+                ", ".join(sub_parts),
+            )
+
         extras = []
-        if cached:
-            extras.append(f"{cached} cached")
+        if skipped:
+            extras.append(f"{skipped} skipped")
         if failed:
             extras.append(f"{failed} failed")
         if extras:

@@ -90,6 +90,7 @@ class DocumentRegistryAndCacheTestCase(TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["status"], "downloaded")
         self.assertTrue(result["cache_hit"])
+        self.assertTrue(result["from_cache"])
         self.assertEqual(result["cached_from"], doc_reg.canonical_pdf_path)
         self.assertEqual(result["registry_id"], str(doc_reg.id))
         self.assertTrue(default_storage.exists(target_path))

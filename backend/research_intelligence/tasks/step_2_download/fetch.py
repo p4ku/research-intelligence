@@ -283,7 +283,7 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
             st = res.get("status")
             if st == "downloaded":
                 downloaded_count += 1
-                if res.get("from_cache"):
+                if res.get("from_cache") or res.get("cache_hit"):
                     cached_count += 1
                 downloaded_papers_summary.append(res)
             elif st in ["already_stored", "already_exists"]:
@@ -303,7 +303,8 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
             total_papers = len(papers)
             pct = round((processed_so_far / total_papers * 100.0), 1) if total_papers > 0 else 100.0
             p_title = res.get('title') or 'Untitled'
-            badge = "DOWNLOADED" if st == "downloaded" else ("CACHED" if res.get("from_cache") else st.upper())
+            is_cached = bool(res.get("from_cache") or res.get("cache_hit"))
+            badge = "CACHED" if is_cached else ("DOWNLOADED" if st == "downloaded" else st.upper())
             try:
                 component_run.metrics = {
                     "total_processed": processed_so_far,
@@ -379,8 +380,9 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
             "failed": failed_count,
             "total_duration_seconds": duration_sec
         }
+        cached_info = f" ({downloaded_count - cached_count} from web, {cached_count} cached)" if cached_count > 0 else ""
         component_run.output_data = {
-            "summary": f"Downloaded {downloaded_count} PDFs, skipped {skipped_count} existing, {withdrawn_count} withdrawn, {failed_count} failed in {duration_sec}s.",
+            "summary": f"Downloaded {downloaded_count} PDFs{cached_info}, skipped {skipped_count} existing, {withdrawn_count} withdrawn, {failed_count} failed in {duration_sec}s.",
             "downloaded_papers": downloaded_papers_summary,
             "total_duration_seconds": duration_sec
         }

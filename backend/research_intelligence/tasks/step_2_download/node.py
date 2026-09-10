@@ -48,7 +48,7 @@ class DownloadNode(BaseWorkflowNode):
         if status == 'completed' and comp_run:
             metrics = comp_run.metrics or {}
             down = metrics.get('downloaded', 0)
-            from_cache = metrics.get('from_cache', 0)
+            from_cache = metrics.get('from_cache', metrics.get('cached', 0))
             failed = metrics.get('failed', 0)
             return f"Download: {down} downloaded, {from_cache} cached, {failed} failed."
         return super().generate_stage_summary(comp_run, status=status)
