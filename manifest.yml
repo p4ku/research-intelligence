@@ -19,6 +19,17 @@ applications:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/schema
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/static
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/media
+      - route: research-scanner.schwarz/api
+      - route: research-scanner.schwarz/mcp
+      - route: research-scanner.schwarz/metrics
+      - route: research-scanner.schwarz/health
+      - route: research-scanner.schwarz/admin
+      - route: research-scanner.schwarz/docs
+      - route: research-scanner.schwarz/swagger
+      - route: research-scanner.schwarz/redoc
+      - route: research-scanner.schwarz/schema
+      - route: research-scanner.schwarz/static
+      - route: research-scanner.schwarz/media
 
     env:
       DEBUG: "False"
@@ -35,6 +46,8 @@ applications:
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/sse
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud/messages
+      - route: research-scanner.schwarz/sse
+      - route: research-scanner.schwarz/messages
     command: python manage.py run_mcp --port 8000
     env:
       DEBUG: "False"
@@ -80,9 +93,10 @@ applications:
     disk_quota: 1G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud
+      - route: research-scanner.schwarz
     env:
-      BACKEND_INTERNAL_URL: https://sri-prod.apps.01.cf.eu01.onstackit.cloud
-      SITE_URL: https://sri-prod.apps.01.cf.eu01.onstackit.cloud
+      BACKEND_INTERNAL_URL: https://research-scanner.schwarz
+      SITE_URL: https://research-scanner.schwarz
 
 
 
