@@ -59,7 +59,7 @@ import { railParts } from './score-rail'
 export const RECORD_GRID =
   'group/record mt-6 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px] lg:has-[[data-console-open]]:grid-cols-[minmax(0,1fr)_400px]'
 export const RECORD_COLUMN =
-  'min-w-0 space-y-9 lg:group-has-[[data-console-open]]/record:animate-dip'
+  'min-w-0 space-y-9 lg:group-has-[[data-console-open]]/record:animate-dip motion-reduce:animate-none'
 
 /** The title crumb — the only thing above the record that needs the fetch. */
 export async function PaperCrumb({ id }: { id: string }) {

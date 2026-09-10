@@ -630,7 +630,7 @@
     "/bff/chat/sessions": {
       "get": {
         "operationId": "chat.sessions.bff",
-        "summary": "Paginated sessions for the history rail.",
+        "summary": "Paginated sessions for the history rail. ?mine=1 keeps only the caller's own rows — Django lists a whole workspace to its admins and managers.",
         "tags": [
           "chat"
         ],
@@ -674,6 +674,17 @@
               "type": "string",
               "format": "uuid",
               "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          {
+            "name": "mine",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
             }
           }
         ],

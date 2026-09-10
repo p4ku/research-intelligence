@@ -36,7 +36,7 @@
   --animate-star-pop: star-pop 260ms var(--ease-out) both;
   /* The paper record re-wrapping once as the ask console opens: a dip that
      masks the single reflow (papers/[id]/sections.tsx). */
-  --animate-dip: dip 200ms var(--ease-out) both;
+  --animate-dip: dip 200ms var(--ease-out);
 
   @keyframes unveil {
     from {

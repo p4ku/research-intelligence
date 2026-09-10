@@ -66,6 +66,9 @@ import { usePaperThread, type Msg } from './use-paper-thread'
 
 const LG = '(min-width: 1024px)'
 const CONSOLE_TOP = 32 // lg:top-8 on the sticky rail
+// Under this the console scrolls as a whole (the card, not just the thread),
+// so the composer stays reachable on a short or zoomed viewport.
+const CONSOLE_MIN = 240
 const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
 const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)'
 
@@ -95,9 +98,9 @@ export function PaperChat({
   const radarRef = useRef<HTMLDivElement>(null)
   const barsRef = useRef<HTMLUListElement>(null)
   const threadRef = useRef<HTMLDivElement>(null)
-  const scrollerRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const titleRef = useRef<HTMLButtonElement>(null)
   // The radar's rect before a layout switch, for the FLIP that follows it.
   const flipFrom = useRef<DOMRect | null>(null)
 
@@ -110,12 +113,17 @@ export function PaperChat({
     void thread.ensureLoaded()
   }, [open, thread])
 
+  // Collapsing unmounts the reveal, so an answer still running is filed in
+  // full the moment its stream ends (settleBlind) rather than waiting for a
+  // reveal that will never report.
+  const { ensureLoaded, ask, settleBlind } = thread
   const hide = useCallback(() => {
     if (!open) return
     flipFrom.current = radarRef.current?.getBoundingClientRect() ?? null
     setRecentsOpen(false)
     setOpen(false)
-  }, [open])
+    settleBlind()
+  }, [open, settleBlind])
 
   /**
    * The layout switch is never animated — the grid re-wraps the record
@@ -172,7 +180,7 @@ export function PaperChat({
         return
       }
       const top = Math.max(CONSOLE_TOP, el.parentElement?.getBoundingClientRect().top ?? 0)
-      el.style.height = `${window.innerHeight - top - CONSOLE_TOP}px`
+      el.style.height = `${Math.max(CONSOLE_MIN, window.innerHeight - top - CONSOLE_TOP)}px`
     }
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(fit)
@@ -192,7 +200,8 @@ export function PaperChat({
     if (!open) return
     const timer = window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 120)
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
+      // A dialog above the console (delete) takes its own Escape first.
+      if (e.key !== 'Escape' || e.defaultPrevented) return
       if (recentsOpen) setRecentsOpen(false)
       else hide()
     }
@@ -203,9 +212,16 @@ export function PaperChat({
     }
   }, [open, recentsOpen, hide])
 
+  // Collapse unmounts the control that had focus; it lands on the entry
+  // card's title, the control that reopens the console.
+  const wasOpen = useRef(open)
+  useEffect(() => {
+    if (!open && wasOpen.current) titleRef.current?.focus({ preventScroll: true })
+    wasOpen.current = open
+  }, [open])
+
   // A `?session=` link lands with the console already open (see useState
   // above); the thread it names is fetched here.
-  const { ensureLoaded } = thread
   useEffect(() => {
     if (initialSessionId) void ensureLoaded()
   }, [initialSessionId, ensureLoaded])
@@ -215,16 +231,35 @@ export function PaperChat({
     if (open && thread.msgs.length > 0) follow()
   }, [open, thread.msgs, follow])
 
+  /**
+   * A question is sent once the resume has landed (instant after the first
+   * open), so it joins the thread the card promised to continue rather than
+   * opening a stray session beside it. The line is cleared only when the
+   * question was taken — a refused one stays where it was typed.
+   */
+  const submit = useCallback(
+    (q: string, clear: (q: string) => void) => {
+      const question = q.trim()
+      if (!question) return
+      void ensureLoaded().then(() => {
+        if (ask(question)) clear(q)
+      })
+    },
+    [ensureLoaded, ask],
+  )
+  const clearDraft = useCallback((q: string) => setDraft((v) => (v === q ? '' : v)), [])
+  const clearInput = useCallback((q: string) => setInput((v) => (v === q ? '' : v)), [])
+
   /** The entry card: a question typed under the score opens the console with it asked. */
   function askFromCard(e: FormEvent) {
     e.preventDefault()
-    const q = draft.trim()
-    if (!q) return
+    if (thread.asking) {
+      thread.stop()
+      return
+    }
+    if (!draft.trim()) return
     show()
-    setDraft('')
-    // The card promised `Continue "…"`: the question joins that thread once
-    // the resume has landed (instant after the first open).
-    void thread.ensureLoaded().then(() => thread.ask(q))
+    submit(draft, clearDraft)
   }
 
   function askFromConsole(e: FormEvent) {
@@ -233,11 +268,25 @@ export function PaperChat({
       thread.stop()
       return
     }
-    if (thread.ask(input)) setInput('')
+    submit(input, clearInput)
   }
 
   const label = fmt(t('Ask about {title}'), { title: paper.title })
   const count = thread.sessions.length
+  const lastAnswer = thread.msgs.findLast((m) => m.role === 'scanner')
+  // Transitions only — never a live region on the streamed markdown, which
+  // re-renders every animation frame (the same line the Ask page carries).
+  const status = (
+    <p role="status" className="sr-only">
+      {thread.asking
+        ? t('Reading the full text…')
+        : lastAnswer
+          ? lastAnswer.error
+            ? t('The answer failed.')
+            : t('Answer ready')
+          : ''}
+    </p>
+  )
   const placeholder = thread.activeId ? t('Ask a follow-up…') : t('What would you like to know?')
 
   if (!open) {
@@ -252,8 +301,9 @@ export function PaperChat({
         />
         <PaperChatFrame
           title={t('Ask this paper')}
-          count={thread.historyStatus === 'ready' ? count : null}
+          count={thread.historyStatus === 'ready' && count > 0 ? count : null}
           onOpen={show}
+          titleRef={titleRef}
           hint={
             thread.asking ? (
               <span className="inline-flex items-center gap-2 text-foreground">
@@ -273,6 +323,7 @@ export function PaperChat({
               placeholder={placeholder}
               label={t('Ask a question about this paper')}
               send={t('Send')}
+              stop={thread.asking ? t('Stop') : null}
             />
           }
           cont={
@@ -286,6 +337,7 @@ export function PaperChat({
             )
           }
         />
+        {status}
         <DeleteDialog thread={thread} />
       </>
     )
@@ -304,9 +356,9 @@ export function PaperChat({
         aria-label={label}
         className="lg:flex lg:flex-col"
       >
-        <Card flush className="flex min-h-0 flex-col overflow-hidden lg:h-full">
+        <Card flush className="flex min-h-0 flex-col overflow-hidden lg:h-full lg:overflow-y-auto">
           {/* The profile: score, chip, radar — pinned, never scrolls, never covered. */}
-          <div data-row="profile" className="border-b border-line-soft p-5 pb-4">
+          <div data-row="profile" className="shrink-0 border-b border-line-soft p-5 pb-4">
             <div className="flex items-baseline justify-between gap-4">
               <span className="font-mono text-[44px] leading-none font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white">
                 {rail.score}
@@ -317,7 +369,7 @@ export function PaperChat({
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5">{rail.chips}</div>
             {rail.radar && (
-              <div className="mx-auto mt-3 flex max-w-[320px] justify-center border-t border-line-soft pt-3">
+              <div className="mx-auto mt-3 flex w-full max-w-[260px] justify-center border-t border-line-soft pt-3">
                 <div ref={radarRef}>{rail.radar}</div>
               </div>
             )}
@@ -325,7 +377,7 @@ export function PaperChat({
 
           <div
             data-row="head"
-            className="flex flex-wrap items-center gap-x-2 border-b border-line-soft py-1.5 pr-2 pl-4"
+            className="flex shrink-0 flex-wrap items-center gap-x-2 border-b border-line-soft py-1.5 pr-2 pl-4"
           >
             <div className="flex min-w-0 flex-1 items-center gap-2 font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase">
               <ChatBubbleLeftRightIcon
@@ -337,7 +389,11 @@ export function PaperChat({
             <div className="flex shrink-0 items-center gap-0.5">
               <button
                 type="button"
-                onClick={() => setRecentsOpen((v) => !v)}
+                onClick={() => {
+                  // A list that failed to load is tried again when asked for.
+                  if (!recentsOpen && thread.historyStatus === 'stale') void thread.retryHistory()
+                  setRecentsOpen((v) => !v)
+                }}
                 data-open={recentsOpen || undefined}
                 aria-expanded={recentsOpen}
                 aria-label={t('Recent chats')}
@@ -376,9 +432,10 @@ export function PaperChat({
           </div>
 
           {/* The scroller: bars first (they scroll away), then the thread. The list overlays this and only this. */}
-          <div className="relative min-h-0 flex-1">
+          <div className="relative min-h-0 flex-1 lg:min-h-28">
+            {/* Inert under the list, so Tab cannot land on the bars it covers. */}
             <div
-              ref={scrollerRef}
+              inert={recentsOpen}
               className="overscroll-contain px-5 pt-3 pb-4 lg:h-full lg:overflow-y-auto"
             >
               <ul ref={barsRef} className="space-y-0.5">
@@ -426,6 +483,7 @@ export function PaperChat({
           />
         </Card>
       </div>
+      {status}
       <DeleteDialog thread={thread} />
     </>
   )
@@ -512,6 +570,7 @@ function Recents({
   const n = thread.sessions.length
   return (
     <div
+      role="region"
       inert={!open}
       aria-hidden={!open}
       aria-label={t('Recent chats')}
@@ -538,7 +597,9 @@ function Recents({
             openingId={thread.openingId}
             rowError={thread.rowError}
             onOpen={(s) => {
-              void thread.openThread(s).then(onOpened)
+              void thread.openThread(s).then((opened) => {
+                if (opened) onOpened()
+              })
             }}
             onDelete={thread.requestDelete}
             meta="count"
@@ -667,6 +728,7 @@ export function PaperChatFrame({
   title,
   count,
   onOpen,
+  titleRef,
   hint,
   composer,
   cont,
@@ -676,6 +738,7 @@ export function PaperChatFrame({
   /** How many chats this paper has; null until the list is known. */
   count: ReactNode
   onOpen?: () => void
+  titleRef?: RefObject<HTMLButtonElement | null>
   /** The one line under the card's title saying what the answers draw on. */
   hint: ReactNode
   /** The rail's question line. */
@@ -691,12 +754,13 @@ export function PaperChatFrame({
       className="mt-3 overflow-hidden"
     >
       <button
+        ref={titleRef}
         type="button"
         data-row="title"
         onClick={onOpen}
         disabled={!onOpen}
         aria-expanded={false}
-        className="flex w-full items-center gap-2 px-4 pt-3 text-left font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase transition-transform duration-150 ease-out active:scale-[0.985]"
+        className="flex w-full items-center gap-2 px-4 pt-3 text-left font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase transition-transform duration-150 ease-out focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent active:scale-[0.985]"
       >
         <ChatBubbleLeftRightIcon aria-hidden="true" className="size-3.5 shrink-0 text-accent" />
         {title}

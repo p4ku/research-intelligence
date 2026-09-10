@@ -151,6 +151,12 @@ export type ChatSessionDetail = z.infer<typeof chatSessionDetail>
 export const sessionsQuery = listQuery.extend({
   workspace_id: z.uuid().optional(),
   paper_id: z.uuid().optional(),
+  /**
+   * Only the caller's own sessions. Django lists every session in a
+   * workspace to its admins and managers; a surface that resumes a thread
+   * on the reader's behalf must never resume a colleague's.
+   */
+  mine: z.enum(['1']).optional(),
 })
 export type SessionsQuery = z.infer<typeof sessionsQuery>
 

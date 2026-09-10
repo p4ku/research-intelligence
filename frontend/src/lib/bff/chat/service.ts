@@ -14,6 +14,7 @@ import { paginate, type Page } from '../core/pagination'
 import { problem, ProblemError } from '../core/problem'
 import { sourceOf } from '../core/source'
 import { assertUuid } from '../core/validate'
+import { settings } from '../settings/service'
 import { fixtureSessionDetails, fixtureSessions } from './fixtures'
 import type { ChatSession, ChatSessionDetail, ChatTurn, SessionsQuery } from './schema'
 import { factCheck, visualCitation } from './schema'
@@ -88,8 +89,13 @@ export const chat = {
       return paginate(fixtureSessions, query, '/bff/chat/sessions', extra)
     }
     const params = new URLSearchParams(extra)
-    const rows = await listSessionsRaw(params.size > 0 ? `?${params}` : '')
-    return paginate(rows.map(toSession), query, '/bff/chat/sessions', extra)
+    const [rows, me] = await Promise.all([
+      listSessionsRaw(params.size > 0 ? `?${params}` : ''),
+      query.mine ? settings.profile() : null,
+    ])
+    const mine = me ? rows.filter((row) => row.user === me.id) : rows
+    if (query.mine) extra.mine = '1'
+    return paginate(mine.map(toSession), query, '/bff/chat/sessions', extra)
   },
 
   async getSession(id: string): Promise<ChatSessionDetail | null> {
