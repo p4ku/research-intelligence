@@ -122,14 +122,14 @@ class SearchNode(BaseWorkflowNode):
         comp_run.scraper = first_scraper
         comp_run.component_name = f"{first_scraper.provider}_scraper"
         first_input = dict(comp_run.input_params or {})
-        first_input["limit"] = limit if limit is not None else getattr(first_scraper, 'limit', 2000)
+        first_input["limit"] = first_scraper.limit if limit is None else limit
         comp_run.input_params = first_input
         comp_run.save(update_fields=['scraper', 'component_name', 'input_params'])
 
         additional_runs = []
         for additional_scraper in scrapers[1:]:
             add_input = dict(comp_run.input_params or {})
-            add_input["limit"] = limit if limit is not None else getattr(additional_scraper, 'limit', 2000)
+            add_input["limit"] = additional_scraper.limit if limit is None else limit
             add_run = ComponentRun.objects.create(
                 pipeline_run=pipeline_run,
                 step_type='search',

@@ -86,7 +86,7 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
             n_last_days = 7
 
         provider = get_scraper_provider(scraper.provider, n_last_days=n_last_days)
-        final_limit = limit if limit is not None else (getattr(scraper, 'limit', 2000) or 2000)
+        final_limit = scraper.limit if limit is None else limit
         sort_by = getattr(scraper, 'sort_by', 'relevance')
         sort_order = getattr(scraper, 'sort_order', 'desc')
 
@@ -470,7 +470,7 @@ def execute_workspace_search(workspace_id, pipeline_run_id, limit=50):
     active_scrapers = workspace.scrapers.filter(is_active=True)
     config_override = getattr(pipeline_run, 'configuration_override', {}) or {}
     for scraper in active_scrapers:
-        scraper_limit = limit if limit is not None else getattr(scraper, 'limit', 50)
+        scraper_limit = scraper.limit if limit is None else limit
         comp_run = ComponentRun.objects.create(
             pipeline_run=pipeline_run,
             step_type='search',

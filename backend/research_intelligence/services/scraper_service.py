@@ -35,7 +35,7 @@ def preview_search_query(
     scraper_inst = factory.get_scraper_provider(provider, n_last_days=effective_n)
     results = scraper_inst.search(
         search_query.strip(),
-        max_results=min(limit, 2000),
+        max_results=min(limit, 10000),
         start_date=start_date,
         end_date=end_date,
         n_last_days=n_last_days

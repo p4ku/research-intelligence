@@ -157,3 +157,20 @@ class SerializerLimitTests(TestCase):
             self.assertEqual(len(dispatched_runs), 2)
             self.assertEqual(dispatched_runs[0].input_params["limit"], 1500)
             self.assertEqual(dispatched_runs[1].input_params["limit"], 2500)
+
+        # Verify execute_scraper_run_job uses scraper.limit (2500 for openalex, 1500 for arxiv)
+        from research_intelligence.tasks.step_1_search.search import execute_scraper_run_job
+        with patch("research_intelligence.tasks.step_1_search.search.get_scraper_provider") as mock_prov_factory:
+            mock_prov = mock_prov_factory.return_value
+            mock_prov.search.return_value = []
+
+            # Test OpenAlex run (s2 with limit 2500)
+            execute_scraper_run_job(str(dispatched_runs[1].id), limit=None)
+            self.assertTrue(mock_prov.search.called)
+            self.assertEqual(mock_prov.search.call_args[1].get("limit"), 2500)
+
+            # Test arXiv run (s1 with limit 1500)
+            mock_prov.search.reset_mock()
+            execute_scraper_run_job(str(dispatched_runs[0].id), limit=None)
+            self.assertTrue(mock_prov.search.called)
+            self.assertEqual(mock_prov.search.call_args[1].get("limit"), 1500)
