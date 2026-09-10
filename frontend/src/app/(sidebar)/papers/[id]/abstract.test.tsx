@@ -9,14 +9,18 @@ describe('AbstractDisclosure', () => {
   test('renders collapsed on the server: one labelled control, the text mounted but inert', () => {
     const html = renderToStaticMarkup(<AbstractDisclosure text={ABSTRACT} />)
     expect(html).toMatch(/<button[^>]*aria-expanded="false"[^>]*>Abstract/)
-    const panelId = html.match(/aria-controls="([^"]+)"/)?.[1]
-    expect(panelId).toBeDefined()
-    expect(html).toContain(`id="${panelId}"`)
     expect((html.match(/<button/g) ?? []).length).toBe(1)
-    // Closed: zero rows and inert, so the text is neither seen nor reachable.
+    // Closed: zero rows and inert, so the text is neither seen nor reachable,
+    // and the button names no panel — a reference to an inert node is none.
+    expect(html).not.toContain('aria-controls')
     expect(html).toContain('grid-rows-[0fr]')
     expect(html).toMatch(/<div[^>]*id="[^"]+"[^>]*inert=""/)
     // The authors' text is all there for the unfold — nothing is truncated.
     expect(html).toContain(ABSTRACT)
+  })
+
+  test('the row is a fair touch target', () => {
+    const html = renderToStaticMarkup(<AbstractDisclosure text={ABSTRACT} />)
+    expect(html).toMatch(/<button[^>]*class="[^"]*min-h-6/)
   })
 })

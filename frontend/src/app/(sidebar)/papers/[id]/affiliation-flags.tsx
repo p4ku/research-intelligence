@@ -261,7 +261,6 @@ export function unpackFlag(
 
 /**
  * The masthead's metadata card: affiliations, contacts and the artifact
- * link, funding, then — when the record passes one — the collapsed abstract
  * link, funding, the compliance chips, and last — when the record passes
  * one — the collapsed abstract row (abstract.tsx). The card renders with
  * the abstract alone when the backend recorded no risk data; without either

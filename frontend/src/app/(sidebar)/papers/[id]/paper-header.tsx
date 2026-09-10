@@ -157,14 +157,30 @@ export function PaperHeaderSkeleton({ features = ALL_ON }: { features?: Features
       authors={<Bone.Text widths={['60%']} />}
       action={features.stars ? <Bone.Block className="h-[30px] w-24" /> : undefined}
     >
-      {/* The metadata card at its floor: every paper has an abstract, so the
-          card is always there with at least its collapsed row; the risk rows
-          and chips above it are the backend's to add on load. */}
+      {/* The metadata card in its usual shape: an affiliation line, a
+          funding line, a chip row and the collapsed abstract row — what
+          almost every scored paper has (the fixture and the stakeholder's
+          prod examples alike). The bones sit in the abstract slot, so the
+          card is one shape here and on load. A paper with no risk data
+          loses the upper rows on load; one with no abstract loses the card. */}
       <RiskAffiliationFlagging
         abstract={
-          <div data-row="abstract" className="flex h-5 items-center">
-            <Bone.Text widths={['9ch']} className="text-[11px]" />
-          </div>
+          <>
+            <div data-row="affiliation" className="flex h-4 items-center">
+              <Bone.Text widths={['30ch']} className="text-xs" />
+            </div>
+            <div data-row="funding" className="flex h-4 items-center">
+              <Bone.Text widths={['44ch']} className="text-[11px]" />
+            </div>
+            <div data-row="flags" className="flex flex-wrap gap-2 pt-0.5">
+              <Bone.Block className="h-[22px] w-36 rounded-md" />
+              <Bone.Block className="h-[22px] w-44 rounded-md" />
+              <Bone.Block className="h-[22px] w-40 rounded-md" />
+            </div>
+            <div data-row="abstract-disclosure" className="flex min-h-6 items-center">
+              <Bone.Text widths={['9ch']} className="text-[11px]" />
+            </div>
+          </>
         }
       />
     </PaperHeaderFrame>

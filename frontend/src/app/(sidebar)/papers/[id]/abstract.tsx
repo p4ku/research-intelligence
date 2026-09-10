@@ -15,8 +15,12 @@ import { useId, useState } from 'react'
  *
  * The panel stays mounted and opens on a grid-rows transition (0fr → 1fr;
  * none under reduced motion); closed it is `inert`, so its text is neither
- * focusable, findable nor read out. The button carries aria-expanded and
- * aria-controls, and nothing else in the row is interactive.
+ * focusable, findable nor read out — a reader searching the page for a term
+ * that only the abstract carries must open it first, the trade for a panel
+ * that animates. The button carries aria-expanded and, while the panel is
+ * live, aria-controls (the ledger's rule: no reference to an inert node),
+ * and nothing else in the row is interactive. The row is 24px tall so it
+ * stays a fair target on touch, where the triangle is also drawn darker.
  */
 export function AbstractDisclosure({ text }: { text: string }) {
   const t = useT()
@@ -24,14 +28,14 @@ export function AbstractDisclosure({ text }: { text: string }) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div data-row="abstract" className="-mx-1">
+    <div data-row="abstract-disclosure" className="-mx-1">
       <button
         type="button"
         aria-expanded={open}
-        aria-controls={id}
+        aria-controls={open ? id : undefined}
         onClick={() => setOpen((o) => !o)}
         className={clsx(
-          'group/abstract flex items-center gap-1 rounded-sm px-1 py-0.5 text-[11px] font-semibold tracking-[0.18em] text-zinc-700 uppercase transition-colors duration-150 ease-out hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white',
+          'group/abstract flex min-h-6 items-center gap-1 rounded-sm px-1 text-[11px] font-semibold tracking-[0.18em] text-zinc-700 uppercase transition-colors duration-150 ease-out hover:text-zinc-950 dark:text-zinc-300 dark:hover:text-white',
           'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
         )}
       >
@@ -41,6 +45,8 @@ export function AbstractDisclosure({ text }: { text: string }) {
           strokeWidth={1.75}
           className={clsx(
             'size-3.5 text-zinc-400 transition-transform duration-200 ease-out group-hover/abstract:text-zinc-600 motion-reduce:transition-none dark:text-zinc-500 dark:group-hover/abstract:text-zinc-300',
+            // No hover on touch: the triangle must be seen to be pressed.
+            'pointer-coarse:text-zinc-600 dark:pointer-coarse:text-zinc-300',
             open && 'rotate-90',
           )}
         />
@@ -54,7 +60,7 @@ export function AbstractDisclosure({ text }: { text: string }) {
         )}
       >
         <div className="min-h-0 overflow-hidden">
-          <p className="max-w-[76ch] px-1 pt-1.5 pb-1 text-[13px] leading-relaxed text-pretty text-zinc-700 dark:text-zinc-300">
+          <p className="max-w-[76ch] px-1 pt-1 pb-1 text-[13px] leading-relaxed text-pretty text-zinc-700 dark:text-zinc-300">
             {text}
           </p>
         </div>

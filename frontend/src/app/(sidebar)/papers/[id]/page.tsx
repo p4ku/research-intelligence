@@ -26,8 +26,9 @@ export async function generateMetadata({
 
 /**
  * The crumbs render with the shell (the title crumb streams in on its own);
- * the record — header, signal card, dimensions, screening, abstract, files
- * and the chat rail — streams behind one Suspense boundary, since all of it
+ * the record — header with the abstract collapsed in its card, signal card,
+ * dimensions, screening, summary, files and the chat rail — streams behind
+ * one Suspense boundary, since all of it
  * comes from the one `papers.get`. loading.tsx shows the same skeleton on
  * navigation, and the <ViewTransition> pair animates the handoff.
  *

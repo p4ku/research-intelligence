@@ -230,7 +230,7 @@ describe('PaperHeader Component Rendering', () => {
     const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
     expect(out).toContain('data-row="authors"')
     expect(out).toContain('data-row="risk-and-affiliation"')
-    expect(out).toContain('data-row="abstract"')
+    expect(out).toContain('data-row="abstract-disclosure"')
     expect(out).not.toContain('Funding')
     expect(out).not.toContain('Artifact Repository')
   })
@@ -239,7 +239,7 @@ describe('PaperHeader Component Rendering', () => {
     const paper = samplePaper({ risk_and_affiliation: undefined })
     const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
     expect(out).toContain('data-row="risk-and-affiliation"')
-    expect(out).toContain('data-row="abstract"')
+    expect(out).toContain('data-row="abstract-disclosure"')
   })
 
   test('renders the card with only the abstract row when risk_and_affiliation has all empty fields', () => {
@@ -254,7 +254,7 @@ describe('PaperHeader Component Rendering', () => {
     })
     const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
     expect(out).toContain('data-row="risk-and-affiliation"')
-    expect(out).toContain('data-row="abstract"')
+    expect(out).toContain('data-row="abstract-disclosure"')
   })
 
   test('the abstract row is the last in the card, below the compliance chips', () => {
@@ -262,7 +262,7 @@ describe('PaperHeader Component Rendering', () => {
     const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
     const funding = out.indexOf('Funding')
     const chips = out.indexOf('Compliance Risks')
-    const abstract = out.indexOf('data-row="abstract"')
+    const abstract = out.indexOf('data-row="abstract-disclosure"')
     expect(funding).toBeGreaterThan(-1)
     expect(chips).toBeGreaterThan(funding)
     expect(abstract).toBeGreaterThan(chips)
@@ -271,12 +271,12 @@ describe('PaperHeader Component Rendering', () => {
   test('a paper without an abstract has no abstract row', () => {
     const paper = samplePaper({ abstract: '' })
     const out = renderToStaticMarkup(<PaperHeader paper={paper} t={t} lang="en" />)
-    expect(out).not.toContain('data-row="abstract"')
+    expect(out).not.toContain('data-row="abstract-disclosure"')
   })
 
   test('the skeleton reserves the card and its abstract row', () => {
     const out = renderToStaticMarkup(<PaperHeaderSkeleton />)
     expect(out).toContain('data-row="risk-and-affiliation"')
-    expect(out).toContain('data-row="abstract"')
+    expect(out).toContain('data-row="abstract-disclosure"')
   })
 })
