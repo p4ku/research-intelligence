@@ -507,7 +507,17 @@ class WorkflowDAG:
             all_done = all(st in ("completed", "skipped") for st in status_map.values())
             if all_done:
                 from research_intelligence.models import Extraction
-                accepted_count = pipeline_run.get_papers(screening_status=['accepted', 'full_text_passed']).count()
+                ft_status = status_map.get('full_text_screening')
+                abs_status = status_map.get('abstract_screening')
+                if ft_status == 'completed':
+                    accepted_count = pipeline_run.get_papers(screening_status=['accepted', 'full_text_passed']).count()
+                elif abs_status == 'completed':
+                    accepted_count = pipeline_run.get_papers(screening_status=['accepted', 'abstract_passed']).count()
+                elif abs_status == 'skipped' and ft_status == 'skipped':
+                    accepted_count = pipeline_run.get_papers(exclude_status=['rejected', 'withdrawn']).count()
+                else:
+                    accepted_count = pipeline_run.get_papers(screening_status=['accepted', 'full_text_passed', 'abstract_passed']).count()
+
                 extracted_count = Extraction.objects.filter(paper__in=pipeline_run.get_papers()).count()
                 total_fetched = pipeline_run.get_papers().count()
                 summary_msg = (

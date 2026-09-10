@@ -48,10 +48,11 @@ def collect_telemetry_snapshot() -> Dict[str, Any]:
 
     total_passed_abstract = accepted_count + full_text_passed + abstract_passed
     total_screened = total_passed_abstract + rejected_count
+    total_accepted = accepted_count + full_text_passed
 
     abstract_conversion_pct = round((total_passed_abstract / total_screened * 100), 2) if total_screened > 0 else 0.0
-    full_text_conversion_pct = round((accepted_count / (accepted_count + full_text_passed + rejected_count) * 100), 2) if (accepted_count + full_text_passed + rejected_count) > 0 else 0.0
-    end_to_end_yield_pct = round((accepted_count / total_papers * 100), 2) if total_papers > 0 else 0.0
+    full_text_conversion_pct = round((total_accepted / (total_accepted + rejected_count) * 100), 2) if (total_accepted + rejected_count) > 0 else 0.0
+    end_to_end_yield_pct = round((total_accepted / total_papers * 100), 2) if total_papers > 0 else 0.0
 
     # --------------------------------------------------------------------------
     # 2. Token Economics & Cost Distribution
@@ -84,7 +85,7 @@ def collect_telemetry_snapshot() -> Dict[str, Any]:
     total_completion_tokens = int((pipeline_cost_agg.get('total_tokens_out') or 0) + (chat_cost_agg.get('total_tokens_out') or 0))
     total_tokens_consumed = total_prompt_tokens + total_completion_tokens
 
-    cost_per_accepted_paper_avg = round((total_platform_usd / accepted_count), 4) if accepted_count > 0 else 0.0
+    cost_per_accepted_paper_avg = round((total_platform_usd / total_accepted), 4) if total_accepted > 0 else 0.0
     cost_per_run_avg = round(float(pipeline_cost_agg.get('avg_usd') or 0.0), 4)
     cost_per_run_min = round(float(pipeline_cost_agg.get('min_usd') or 0.0), 4)
     cost_per_run_max = round(float(pipeline_cost_agg.get('max_usd') or 0.0), 4)

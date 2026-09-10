@@ -1482,7 +1482,7 @@ def render_component_metrics_summary(obj):
             passed,
             rej_color,
             rejected,
-            format_html(extra_html) if extra_html else mark_safe(""),
+            mark_safe(extra_html) if extra_html else mark_safe(""),
         )
     elif obj.step_type == 'search':
         created = m.get('ingested_new', m.get('total_created', 0))
