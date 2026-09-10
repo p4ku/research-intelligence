@@ -125,7 +125,6 @@ export const dict: Record<string, string> = {
 
   // Paper analysis (sidecar layout)
   'Schwarz Score': 'Schwarz-Score',
-  Assessment: 'Bewertung',
   'View original paper': 'Originalpaper ansehen',
   'Previous paper': 'Vorheriges Paper',
   'Next paper': 'Nächstes Paper',
