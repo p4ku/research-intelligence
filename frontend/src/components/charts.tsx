@@ -264,7 +264,9 @@ export function RadarChart({
       className={clsx('h-auto w-full', className)}
       style={{ maxWidth: w }}
       role="img"
-      aria-label={axes.map((a) => `${a.label} ${Math.round(a.value)}`).join(', ')}
+      // The accessible name reads what the chart prints — the same `shown`
+      // string the visible labels use, not a second rounding of the value.
+      aria-label={labels.map((l) => `${l.full} ${l.shown}`).join(', ')}
     >
       {rings.map((t) => (
         <polygon

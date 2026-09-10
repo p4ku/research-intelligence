@@ -1,11 +1,11 @@
 'use client'
 
 import { useFeatures } from '@/lib/features-client'
-import { formatDate, formatNumber } from '@/lib/i18n'
+import { formatDate } from '@/lib/i18n'
 import { useLanguage, useT } from '@/lib/i18n-client'
 import { dimensionLabel } from '@/lib/papers/dimension-label'
 import { paperHref } from '@/lib/papers/href'
-import { isFitDimension, trlDimension } from '@/lib/papers/select'
+import { formatMeasure, isFitDimension, trlDimension } from '@/lib/papers/select'
 import type { ScoredPaper } from '@/lib/papers/types'
 import clsx from 'clsx'
 import Link from 'next/link'
@@ -162,9 +162,7 @@ export function PaperCard({
             <ScoreStat
               key={d.key}
               label={dimensionLabel(d.name, t)}
-              // `raw` is the model's own words and stays as written; a bare
-              // number is ours to format, so it reads "88,5" in German.
-              value={d.raw ?? formatNumber(d.value!, lang, undefined, 2)}
+              value={formatMeasure(d.value, d.max, lang)}
             />
           ))}
           {trl?.value !== null && trl?.value !== undefined && <TrlBadge trl={trl.value} t={t} />}

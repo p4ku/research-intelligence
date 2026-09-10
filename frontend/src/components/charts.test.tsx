@@ -86,4 +86,20 @@ describe('RadarChart', () => {
     expect(out).toContain('role="img"')
     expect(out).toContain('Significance 88')
   })
+
+  // The accessible name used to round the 0–100 value itself, so a TRL axis
+  // read "TRL 40" out loud while the chart printed "4", and a 74.6 fit was
+  // announced twice over. It now quotes the labels the chart draws.
+  test('reads out exactly the figures the chart prints', () => {
+    const axes = [
+      { label: 'TRL', value: 40, shown: '4' },
+      { label: 'Rigour', value: 74.6 },
+      { label: 'Novelty', value: 82 },
+    ]
+    const html = renderToStaticMarkup(<RadarChart axes={axes} size={260} valueLabels />)
+    expect(html).toContain('aria-label="TRL 4, Rigour 75, Novelty 82"')
+    for (const shown of ['4', '75', '82']) {
+      expect(html).toContain(`tabular-nums dark:fill-white">${shown}</tspan>`)
+    }
+  })
 })
