@@ -467,8 +467,22 @@ SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
 
 if SENTRY_DSN and not is_testing:
     import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.logging import LoggingIntegration
+
+    sentry_logging = LoggingIntegration(
+        level=logging.INFO,        # Capture info and above as breadcrumbs
+        event_level=logging.ERROR  # Send error and exception logs as events to Sentry
+    )
+
     sentry_sdk.init(
         dsn=SENTRY_DSN,
+        integrations=[
+            DjangoIntegration(),
+            CeleryIntegration(),
+            sentry_logging,
+        ],
         # Add data like request headers and IP for users
         send_default_pii=True,
         # Enable sending logs to Sentry

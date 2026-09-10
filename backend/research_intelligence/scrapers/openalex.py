@@ -15,38 +15,58 @@ class OpenAlexScraperProvider(BaseScraperProvider):
     def search(
         self,
         query: str,
-        limit: int = 10,
+        limit: int = 10000,
         sort_by: str = "relevance",
         sort_order: str = "desc",
         start_date: str | datetime | None = None,
         end_date: str | datetime | None = None,
         n_last_days: int | None = None,
     ) -> list[dict]:
-        effective_limit = int(limit or 10)
+        effective_limit = max(1, int(limit or 10000))
         encoded_query = urllib.parse.quote(query)
-        url = f"https://api.openalex.org/works?search={encoded_query}&per_page={effective_limit}"
+        base_url = f"https://api.openalex.org/works?search={encoded_query}"
         if sort_by == "date":
-            url += f"&sort=publication_date:{sort_order}"
+            base_url += f"&sort=publication_date:{sort_order}"
         
         start_dt, end_dt = self.resolve_date_range(start_date, end_date, n_last_days)
         from_date, to_date = self.format_iso_date_range(start_dt, end_dt)
         date_filter = f"from_publication_date:{from_date},to_publication_date:{to_date}"
-        if "from_publication_date" not in query and "from_publication_date" not in url:
-            if "filter=" in url:
-                url += f",{date_filter}"
+        if "from_publication_date" not in query and "from_publication_date" not in base_url:
+            if "filter=" in base_url:
+                base_url += f",{date_filter}"
             else:
-                url += f"&filter={date_filter}"
-        
-        try:
-            req = urllib.request.Request(
-                url, 
-                headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64); mailto:agentic-scanner@example.com'}
-            )
-            with urllib.request.urlopen(req, timeout=10) as response:
-                data = json.loads(response.read().decode('utf-8'))
+                base_url += f"&filter={date_filter}"
+
+        results = []
+        page = 1
+        max_page_size = 200
+
+        while len(results) < effective_limit:
+            remaining = effective_limit - len(results)
+            current_per_page = min(remaining, max_page_size)
+            page_url = f"{base_url}&per_page={current_per_page}&page={page}"
+
+            try:
+                req = urllib.request.Request(
+                    page_url, 
+                    headers={'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64); mailto:agentic-scanner@example.com'}
+                )
+                with urllib.request.urlopen(req, timeout=15) as response:
+                    data = json.loads(response.read().decode('utf-8'))
+            except Exception as e:
+                logger.exception(f"Error querying OpenAlex API (page {page}): {str(e)}")
+                try:
+                    import sentry_sdk
+                    sentry_sdk.capture_exception(e)
+                except Exception:
+                    pass
+                break
             
-            results = []
-            for item in data.get("results", []):
+            items = data.get("results", [])
+            if not items:
+                break
+
+            for item in items:
                 title = item.get("title") or "Unknown Title"
                 published = item.get("publication_date") or ""
                 
@@ -107,10 +127,18 @@ class OpenAlexScraperProvider(BaseScraperProvider):
                     "published_date": published,
                     "meta": item
                 })
-            return results
-        except Exception as e:
-            logger.exception(f"Error querying OpenAlex API: {str(e)}")
-            return []
+
+                if len(results) >= effective_limit:
+                    break
+
+            if len(items) < current_per_page:
+                break
+
+            page += 1
+            if page * max_page_size > 10000:
+                break
+
+        return results
 
     def download_file(self, url: str) -> bytes:
         if not url or not url.lower().startswith(('http://', 'https://')):

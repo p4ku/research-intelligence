@@ -106,6 +106,11 @@ class LensScraperProvider(BaseScraperProvider):
             return results
         except Exception as e:
             logger.exception(f"Error querying Lens.org API: {str(e)}")
+            try:
+                import sentry_sdk
+                sentry_sdk.capture_exception(e)
+            except Exception:
+                pass
             return []
 
     def download_file(self, url: str) -> bytes:

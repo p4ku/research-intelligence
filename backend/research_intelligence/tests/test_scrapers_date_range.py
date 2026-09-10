@@ -503,6 +503,66 @@ class ScraperProviderDateQueryAdvancedEdgeCasesTests(TestCase):
         req = mock_urlopen.call_args[0][0]
         self.assertIn("from_publication_date:2026-07-01,to_publication_date:2026-07-15", req.full_url)
 
+    @patch("research_intelligence.scrapers.openalex.urllib.request.urlopen")
+    def test_openalex_pagination_per_page_capped_at_200(self, mock_urlopen):
+        # Page 1 returns 200 results, page 2 returns 50 results to satisfy limit=250
+        def fake_response(req, timeout=15):
+            url = req.full_url
+            mock_res = MagicMock()
+            mock_res.__enter__.return_value = mock_res
+            if "page=1" in url:
+                mock_res.read.return_value = json.dumps({
+                    "results": [{"id": f"W{i}", "title": f"Paper {i}", "publication_date": "2026-01-01"} for i in range(200)]
+                }).encode("utf-8")
+            else:
+                mock_res.read.return_value = json.dumps({
+                    "results": [{"id": f"W{i+200}", "title": f"Paper {i+200}", "publication_date": "2026-01-01"} for i in range(50)]
+                }).encode("utf-8")
+            return mock_res
+
+        mock_urlopen.side_effect = fake_response
+        provider = OpenAlexScraperProvider()
+        results = provider.search("quantum", limit=250)
+
+        self.assertEqual(len(results), 250)
+        self.assertEqual(mock_urlopen.call_count, 2)
+        call1_url = mock_urlopen.call_args_list[0][0][0].full_url
+        call2_url = mock_urlopen.call_args_list[1][0][0].full_url
+        self.assertIn("per_page=200&page=1", call1_url)
+        self.assertIn("per_page=50&page=2", call2_url)
+
+    @patch("research_intelligence.scrapers.openalex.urllib.request.urlopen")
+    def test_openalex_default_limit_is_10000(self, mock_urlopen):
+        mock_response = MagicMock()
+        mock_response.read.return_value = b'{"results": []}'
+        mock_response.__enter__.return_value = mock_response
+        mock_urlopen.return_value = mock_response
+
+        provider = OpenAlexScraperProvider()
+        provider.search("quantum", limit=None)
+
+        self.assertTrue(mock_urlopen.called)
+        req = mock_urlopen.call_args[0][0]
+        # First page should use max page size of 200
+        self.assertIn("per_page=200&page=1", req.full_url)
+
+    @patch("research_intelligence.scrapers.openalex.urllib.request.urlopen")
+    @patch("sentry_sdk.capture_exception")
+    def test_openalex_captures_exception_in_sentry(self, mock_sentry_capture, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            "https://api.openalex.org/works", 400, "Bad Request", {}, None
+        )
+
+        provider = OpenAlexScraperProvider()
+        results = provider.search("quantum", limit=50)
+
+        self.assertEqual(results, [])
+        mock_sentry_capture.assert_called_once()
+        err_arg = mock_sentry_capture.call_args[0][0]
+        self.assertIsInstance(err_arg, urllib.error.HTTPError)
+        self.assertEqual(err_arg.code, 400)
+
 
 class SearchExecutionFallbackCascadeTests(TestCase):
     def setUp(self):

@@ -427,6 +427,11 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
 
     except Exception as e:
         logger.exception(f"Error in ComponentRun '{component_run_id}': {e}")
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_exception(e)
+        except Exception:
+            pass
         component_run.status = 'failed'
         component_run.error_message = str(e)
         component_run.completed_at = timezone.now()
