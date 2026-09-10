@@ -8,6 +8,7 @@
  * reader has not chosen a sort of their own.
  */
 import { isPassed } from '@/lib/papers/map'
+import { SCORE_CEILING } from '@/lib/papers/score'
 import {
   byValueAsc,
   byValueDesc,
@@ -53,11 +54,9 @@ export function corpusFacets(
   const { papers, workspaces } = corpus
   return {
     total: papers.length,
-    // The score slider spans 0–100 unless a workspace formula scores higher.
-    score_ceiling: Math.max(
-      100,
-      Math.ceil(papers.reduce((m, p) => Math.max(m, p.signal_score ?? 0), 0)),
-    ),
+    // The slider spans 0–100 and never grows: the parse seam caps every score
+    // there, so no corpus can hold one that reaches past it.
+    score_ceiling: SCORE_CEILING,
     newest: newestOf(papers),
     has_trl: hasTrl(papers),
     // The same key once, however many domains define it; TRL has its own control.

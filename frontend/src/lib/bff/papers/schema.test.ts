@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { fixturePapers } from './fixtures'
-import { scoredPaper, signalScoreDetails } from './schema'
+import { dimension, editionPaper, scoredPaper, signalScoreDetails } from './schema'
 import { signalScoreDetailsDTO } from './upstream'
 
 // Production sends booleans for extraction dimensions such as
@@ -52,5 +52,60 @@ describe('paper summary', () => {
       'A control-electronics paper.',
     )
     expect(scoredPaper.parse({ ...base, summary: null }).summary).toBeNull()
+  })
+})
+
+// Production papers reach the UI through this parse and no other, so the one
+// score rule (lib/papers/score.ts) holds here rather than in any component.
+describe('the score rule at the parse seam', () => {
+  const base = fixturePapers[0]!
+  const edition = { id: base.id, title: base.title, authors: base.authors, source: base.source }
+  const failed = { ...base.signal_score_details, error: 'ZeroDivisionError' }
+
+  test('a stored score past the ceiling is capped at 100', () => {
+    expect(scoredPaper.parse({ ...base, signal_score: 112.5 }).signal_score).toBe(100)
+  })
+
+  test('a failed formula is not scored, whatever zero the scorer wrote', () => {
+    const paper = scoredPaper.parse({
+      ...base,
+      signal_score: 0,
+      signal_score_details: failed,
+    })
+    expect(paper.signal_score).toBeNull()
+    // The details still come through — the ledger explains what failed.
+    expect(paper.signal_score_details?.error).toBe('ZeroDivisionError')
+  })
+
+  test('a real zero survives', () => {
+    expect(scoredPaper.parse({ ...base, signal_score: 0 }).signal_score).toBe(0)
+  })
+
+  test('a TRL dimension becomes a whole 1–9 level', () => {
+    const trl = { key: 'trl_level', definition_id: null, name: 'TRL', max: 9, is_trl: true }
+    expect(dimension.parse({ ...trl, value: 6.5 }).value).toBe(7)
+    expect(dimension.parse({ ...trl, value: 12 }).value).toBe(9)
+    expect(dimension.parse({ ...trl, value: null }).value).toBeNull()
+  })
+
+  test('a non-TRL dimension keeps its exact value, over its max included', () => {
+    // `max` is inferred and legitimately exceeded; only the bar clamps.
+    const parsed = dimension.parse({
+      key: 'novelty_score',
+      definition_id: null,
+      name: 'Novelty Score',
+      value: 12.8,
+      max: 10,
+      is_trl: false,
+    })
+    expect(parsed.value).toBe(12.8)
+  })
+
+  test('an edition paper follows the same rule', () => {
+    expect(editionPaper.parse({ ...edition, signal_score: 112.5 }).signal_score).toBe(100)
+    expect(
+      editionPaper.parse({ ...edition, signal_score: 0, signal_score_details: failed })
+        .signal_score,
+    ).toBeNull()
   })
 })

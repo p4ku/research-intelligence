@@ -17,6 +17,7 @@ import type {
   WorkspaceDTO,
 } from '@/lib/api/types'
 import type { ScoreVariableValue } from '@/lib/bff/papers/schema'
+import { signalScoreOf, trlLevel } from './score'
 import {
   PASSED_STATUSES,
   SCREENING_STATUSES,
@@ -771,7 +772,7 @@ function dimensionFor(
   // outranks the parsed extraction value ("null not 0", like parseNumeric).
   const fromMetric = metric?.metrics_data?.[ctx.key]
   let value = typeof fromMetric === 'number' && fromMetric !== 0 ? fromMetric : parseNumeric(raw)
-  if (ctx.is_trl && value !== null) value = Math.min(9, Math.max(1, Math.round(value)))
+  if (ctx.is_trl && value !== null) value = trlLevel(value)
 
   const details = detailsFor(data, matchedKey)
   const used = new Set([...(matchedKey ? [matchedKey] : []), ...details.used])
@@ -804,7 +805,11 @@ function orphanDimension(extraction: ExtractionDTO, detail: boolean): Dimension 
   const details = detailsFor(data, matchedKey)
   const used = new Set([...(matchedKey ? [matchedKey] : []), ...details.used])
   const name = extraction.category || 'Extraction'
-  const value = parseNumeric(raw)
+  const is_trl = isTrlName(name)
+  const parsed = parseNumeric(raw)
+  // An orphan named TRL is still a TRL: a whole 1–9 level, like the ones a
+  // definition backs.
+  const value = is_trl && parsed !== null ? trlLevel(parsed) : parsed
   return {
     key: sanitizeIdentifier(name),
     definition_id: null,
@@ -812,7 +817,7 @@ function orphanDimension(extraction: ExtractionDTO, detail: boolean): Dimension 
     value,
     raw,
     max: null,
-    is_trl: isTrlName(name),
+    is_trl,
     rationale: details.rationale,
     evidence: details.evidence,
     confidence: details.confidence ?? extraction.confidence_score ?? null,
@@ -830,12 +835,14 @@ function legacyTrlDimension(metric: PaperMetricDTO | null): Dimension | null {
   const evidence = Array.isArray(data.trl_evidence)
     ? (data.trl_evidence as unknown[]).filter((e): e is string => typeof e === 'string')
     : undefined
+  const level = trlLevel(data.trl_score)
   return {
     key: 'trl_score',
     definition_id: null,
     name: 'TRL',
-    value: Math.min(9, Math.max(1, Math.round(data.trl_score))),
-    raw: String(data.trl_score),
+    value: level,
+    // The reader is shown the level, not the unrounded figure behind it.
+    raw: String(level),
     max: 9,
     is_trl: true,
     rationale: reasoning,
@@ -892,6 +899,9 @@ export function toScoredPaper(
 
   const details = metric?.signal_score_details
   const hasDetails = Boolean(details && typeof details === 'object' && Object.keys(details).length)
+  // Read out first: the error is what tells a real 0 from the 0.0 the scorer
+  // writes when the formula failed, so the score below needs it.
+  const scoreError = hasDetails ? ((details as { error?: string | null }).error ?? null) : null
 
   return {
     id: paper.id,
@@ -908,14 +918,14 @@ export function toScoredPaper(
     screening_reasoning: paper.screening_reasoning || null,
     abstract_screening_reasoning: paper.abstract_screening_reasoning || null,
     full_text_screening_reasoning: paper.full_text_screening_reasoning || null,
-    signal_score: typeof metric?.signal_score === 'number' ? metric.signal_score : null,
+    signal_score: signalScoreOf(metric?.signal_score, { error: scoreError }),
     signal_score_details: hasDetails
       ? {
           variables:
             (details as { variables?: Record<string, ScoreVariableValue> }).variables ?? {},
           code_snippet: (details as { code_snippet?: string }).code_snippet ?? null,
           calculated_at: (details as { calculated_at?: string }).calculated_at ?? null,
-          error: (details as { error?: string | null }).error ?? null,
+          error: scoreError,
         }
       : null,
     dimensions,

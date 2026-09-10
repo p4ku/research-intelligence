@@ -68,6 +68,13 @@ describe('ledgerInputs — only when the mirror provably applies', () => {
   test('stored score disagrees with the mirror → null', () => {
     expect(ledgerInputs(PROD, vars, 70)).toBeNull()
   })
+  test('a capped stored 100 still proves inputs whose mirror is 112.5', () => {
+    // The mirror runs to 125 with the ×1.25 TRL bonus; the record is capped
+    // at 100, and that must not read as a mismatch.
+    const bonus = { trl_level: 8, fit_score: 100, novelty_score: 75 }
+    expect(evaluate({ trl: 8, fit: 100, novelty: 75 }).score).toBe(112.5)
+    expect(ledgerInputs(PROD, bonus, 100)).toEqual({ trl: 8, fit: 100, novelty: 75 })
+  })
   test('unknown snippet, missing inputs, or unscored → null', () => {
     expect(ledgerInputs(PROD.replace('0.4', '0.5'), vars, 76.4)).toBeNull()
     expect(ledgerInputs(PROD, { trl_level: 4 }, 76.4)).toBeNull()
