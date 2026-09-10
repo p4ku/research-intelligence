@@ -48,6 +48,9 @@ export const dict: Record<string, string> = {
   'Loading the screening log': 'Das Screening-Protokoll wird geladen',
   '1 paper': '1 Paper',
   '{n} papers': '{n} Papers',
+  // The count when the list is paged: "21–40 of 566 papers". 'Previous' and
+  // 'Next' on the pager are dashboard.ts keys.
+  '{from}–{to} of {n} papers': '{from}–{to} von {n} Papers',
   'Screened out': 'Aussortiert',
   'a sample from the log': 'Auszug aus dem Protokoll',
   Paper: 'Paper',

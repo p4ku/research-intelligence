@@ -1,13 +1,14 @@
 /**
- * How a briefing's papers are viewed: the sort and the score floor, as the
- * URL carries them and as the list applies them. Pure, so the list derives
- * every render from `useSearchParams` (a Back is served from the router
- * cache, so the view is never seeded from a prop) and bun tests the arithmetic. Defaults stay out of the URL, so a
- * briefing's permalink (`?domain=&run=`) is untouched until a reader
- * changes the view.
+ * How a briefing's papers are viewed: the sort, the score floor and the
+ * page, as the URL carries them and as the list applies them. Pure, so the
+ * list derives every render from `useSearchParams` (a Back is served from
+ * the router cache, so the view is never seeded from a prop) and bun tests
+ * the arithmetic. Defaults stay out of the URL, so a briefing's permalink
+ * (`?domain=&run=`) is untouched until a reader changes the view.
  *
  * Everything here works on the papers in hand — a briefing is one run's
- * list, never paged — so no BFF round trip is involved.
+ * list, sorted and narrowed whole and only then cut into pages — so no BFF
+ * round trip is involved.
  */
 import type { T } from '@/lib/i18n'
 import { dimensionShortName } from '@/lib/papers/dimension-label'
@@ -22,9 +23,22 @@ export interface EditionView {
   sort: EditionSort
   /** The Schwarz Score floor; 0 = every paper. */
   minScore: number
+  /** 1-based; the first page stays out of the URL. */
+  page: number
 }
 
-export const DEFAULT_VIEW: EditionView = { sort: 'score', minScore: 0 }
+export const DEFAULT_VIEW: EditionView = { sort: 'score', minScore: 0, page: 1 }
+
+/**
+ * Cards per page. A briefing on prod ran to 566 papers (Hybrid Computing,
+ * 7 Sep 2026); twenty is a screen's worth of reading before the pager, and
+ * keeps the DOM to a size a phone scrolls without stutter.
+ */
+export const PAGE_SIZE = 20
+
+// A page number is a bounded positive integer; anything else is the first
+// page. Six digits is far past any list the page could hold.
+const PAGE_RE = /^[1-9]\d{0,5}$/
 
 /**
  * The slider's range: the score is read on a 0–100 scale, one point a step.
@@ -49,6 +63,7 @@ export function viewFrom(params: Record<string, string | string[] | undefined>):
   }
   const sort = one('sort') ?? ''
   const score = one('score') ?? ''
+  const page = one('page') ?? ''
   const min = /^\d+$/.test(score) ? Number(score) : 0
   return {
     sort: SORT_RE.test(sort) ? sort : DEFAULT_VIEW.sort,
@@ -57,6 +72,7 @@ export function viewFrom(params: Record<string, string | string[] | undefined>):
     // test is idle while the step is one point — it is what re-arms the rule
     // if the step ever grows again.
     minScore: min > 0 && min <= SCORE_CEILING && min % SCORE_STEP === 0 ? min : 0,
+    page: PAGE_RE.test(page) ? Number(page) : 1,
   }
 }
 
@@ -71,12 +87,49 @@ export function searchWith(current: string, view: EditionView): string {
   else q.set('sort', view.sort)
   if (view.minScore > 0) q.set('score', String(view.minScore))
   else q.delete('score')
+  if (view.page > 1) q.set('page', String(view.page))
+  else q.delete('page')
   const s = q.toString()
   return s ? `?${s}` : ''
 }
 
+/**
+ * Whether the sort and the floor are the defaults. The page is not a
+ * filter: being on page three is nothing "Reset filters" should offer to
+ * undo, and a reset lands on the first page anyway.
+ */
 export function isDefaultView(view: EditionView): boolean {
   return view.sort === DEFAULT_VIEW.sort && view.minScore === 0
+}
+
+export interface Page<T> {
+  rows: T[]
+  /** The page shown: the one asked for, folded back onto the last when past the end. */
+  page: number
+  pageCount: number
+  /** 1-based positions of the first and last row shown; 0–0 for an empty list. */
+  from: number
+  to: number
+}
+
+/**
+ * One page of an already ordered and narrowed list. A page past the end (a
+ * link shared from page nine, then the floor raised) shows the last page
+ * rather than an empty one; an empty list is one empty page, so the pager
+ * has nothing to draw.
+ */
+export function pageOf<T>(rows: readonly T[], asked: number, size = PAGE_SIZE): Page<T> {
+  const pageCount = Math.max(1, Math.ceil(rows.length / size))
+  const page = Math.min(Math.max(1, asked), pageCount)
+  const start = (page - 1) * size
+  const slice = rows.slice(start, start + size)
+  return {
+    rows: slice,
+    page,
+    pageCount,
+    from: slice.length ? start + 1 : 0,
+    to: start + slice.length,
+  }
 }
 
 /**
