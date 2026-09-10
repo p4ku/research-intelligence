@@ -1,4 +1,4 @@
-import { Breadcrumbs, SectionLabel } from '@/components/scanner-ui'
+import { Breadcrumbs } from '@/components/scanner-ui'
 import { Bone, Skeleton } from '@/components/skeleton'
 import type { Features } from '@/lib/features'
 import type { T } from '@/lib/i18n'
@@ -48,10 +48,7 @@ export function PaperRecordSkeleton({
           <div className={RECORD_COLUMN}>
             <PaperHeaderSkeleton features={features} />
 
-            <section>
-              <SectionLabel className="mb-3">{t('Assessment')}</SectionLabel>
-              <AssessmentSkeleton />
-            </section>
+            <AssessmentSkeleton />
 
             <footer className="border-t border-line pt-4 text-xs">
               <Bone.Text widths={['44ch']} />

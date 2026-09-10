@@ -1,4 +1,5 @@
 import { AnswerMarkdown, AnswerMarkdownSkeleton } from '@/components/answer-markdown'
+import { SectionLabel } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
 import { fmt, formatNumber, type Lang, type T } from '@/lib/i18n'
 import { dimensionLabel } from '@/lib/papers/dimension-label'
@@ -8,7 +9,10 @@ import type { ReactNode } from 'react'
 
 /**
  * The assessment: one article per definition, in the workspace's order, laid
- * out from what the definition emitted — its headline and band, the model's
+ * out from what the definition emitted — its name as a section label (the
+ * teal-square eyebrow every section of the app opens with; there is no
+ * "Assessment" heading above them, each definition is a section of the
+ * record in its own right, a peer of Summary), its headline and band, the model's
  * justification, the sub-scores as facet rows (each with its assessment text
  * when the definition wrote one), the longer prose fields, the lists, the
  * quoted evidence, the short facts, and one quiet line of provenance. Nothing
@@ -73,9 +77,7 @@ export function DefinitionFrame({
       className="scroll-mt-6 border-b border-line-soft py-6 last:border-b-0"
     >
       <header className="flex items-baseline gap-2.5">
-        <h3 className="text-[17px] font-semibold tracking-[-0.005em] text-zinc-950 dark:text-white">
-          {name}
-        </h3>
+        <SectionLabel>{name}</SectionLabel>
         {band}
         {value != null && value !== '' ? (
           <span className={clsx(FIGURE, 'ml-auto shrink-0 text-[22px] leading-none')}>{value}</span>

@@ -267,10 +267,10 @@ export async function PaperRecord({
             </section>
           )}
 
-          <section>
-            <SectionLabel className="mb-3">{t('Assessment')}</SectionLabel>
-            <Assessment dimensions={paper.dimensions} t={t} lang={lang} />
-          </section>
+          {/* No heading of its own: each definition opens with the section
+              label (assessment.tsx), so an "Assessment" eyebrow above them
+              would label a section that has no siblings. */}
+          <Assessment dimensions={paper.dimensions} t={t} lang={lang} />
 
           <Provenance paper={paper} t={t} lang={lang} />
         </div>
