@@ -123,3 +123,37 @@ class SerializerLimitTests(TestCase):
     def test_pagination_max_page_size(self):
         pagination = StandardResultsSetPagination()
         self.assertEqual(pagination.max_page_size, 10000)
+
+    def test_search_node_respects_custom_scraper_limit_when_no_global_limit(self):
+        from unittest.mock import patch
+        from research_intelligence.models import PipelineRun, ComponentRun
+        from research_intelligence.tasks.step_1_search.node import SearchNode
+
+        workspace = Workspace.objects.create(name="Scraper Limit WS")
+        s1 = Scraper.objects.create(workspace=workspace, provider="arxiv", search_query="test 1", limit=1500, is_active=True)
+        s2 = Scraper.objects.create(workspace=workspace, provider="openalex", search_query="test 2", limit=2500, is_active=True)
+
+        pipeline_run = PipelineRun.objects.create(workspace=workspace, configuration_override={})
+        node = SearchNode()
+        comp_run = ComponentRun.objects.create(
+            pipeline_run=pipeline_run,
+            step_type="search",
+            component_name="workspace_search",
+            input_params=node.get_input_params(pipeline_run, workspace, {}, limit=None)
+        )
+
+        with patch.object(node, 'dispatch_multiple_celery_tasks') as mock_dispatch:
+            mock_dispatch.return_value = {"status": "ok"}
+            node.execute(pipeline_run, comp_run, limit=None)
+
+            self.assertTrue(mock_dispatch.called)
+            dispatched_runs = mock_dispatch.call_args[0][1]
+            dispatched_limit = mock_dispatch.call_args[1].get("limit")
+
+            # Global dispatch limit must be None so execute_scraper_run_job uses scraper.limit
+            self.assertIsNone(dispatched_limit)
+
+            # Check individual component runs have their respective limits stored
+            self.assertEqual(len(dispatched_runs), 2)
+            self.assertEqual(dispatched_runs[0].input_params["limit"], 1500)
+            self.assertEqual(dispatched_runs[1].input_params["limit"], 2500)

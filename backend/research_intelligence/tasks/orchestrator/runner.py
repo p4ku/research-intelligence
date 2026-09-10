@@ -60,7 +60,7 @@ class PipelineRunner:
             config = dict(pipeline_run.configuration_override or {})
             if agent_process and getattr(agent_process, 'configuration_override', None):
                 config = {**config, **agent_process.configuration_override}
-            limit = config.get("limit") or 2000
+            limit = config.get("limit")
 
             # Execute and dispatch via Workflow DAG
             dag = build_default_slr_dag(workspace=workspace, config=config)
