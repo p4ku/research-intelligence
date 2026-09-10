@@ -4,7 +4,7 @@ applications:
     docker:
       image: ((backend_image))
       username: ((registry_username))
-    instances: 2
+    instances: 4
     memory: 2G
     disk_quota: 2G
     routes:
