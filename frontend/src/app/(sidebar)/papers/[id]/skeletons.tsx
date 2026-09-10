@@ -7,6 +7,7 @@ import { PaperChatSkeleton } from './paper-chat'
 import { PaperHeaderSkeleton } from './paper-header'
 import { PaperNavSkeleton } from './paper-nav'
 import { ScoreRailSkeleton } from './score-rail'
+import { RECORD_COLUMN, RECORD_GRID } from './sections'
 
 /**
  * The paper page's skeleton — the page's Suspense fallback and, with the
@@ -41,8 +42,8 @@ export function PaperRecordSkeleton({
       <div className="mt-6">
         <PaperNavSkeleton t={t} features={features} back={back} />
 
-        <div className="mt-6 grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="min-w-0 space-y-9">
+        <div className={RECORD_GRID}>
+          <div className={RECORD_COLUMN}>
             <PaperHeaderSkeleton features={features} />
 
             <section>
@@ -67,7 +68,7 @@ export function PaperRecordSkeleton({
 
           <div className="lg:sticky lg:top-8">
             <ScoreRailSkeleton t={t} />
-            <PaperChatSkeleton label={t('Ask this paper')} title={t('Ask this paper')} />
+            <PaperChatSkeleton title={t('Ask this paper')} />
           </div>
         </div>
       </div>

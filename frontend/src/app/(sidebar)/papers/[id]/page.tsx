@@ -55,9 +55,9 @@ export default async function PaperDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ run?: string }>
+  searchParams: Promise<{ run?: string; session?: string }>
 }) {
-  const [{ id }, { run }, t, lang, features] = await Promise.all([
+  const [{ id }, { run, session }, t, lang, features] = await Promise.all([
     params,
     searchParams,
     getT(),
@@ -66,6 +66,8 @@ export default async function PaperDetailPage({
   ])
   if (!isUuid(id)) notFound()
   const runId = runScope(run)
+  // `?session=` names the conversation to open the ask console on (paper-chat.tsx).
+  const sessionId = session && isUuid(session) ? session : null
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -115,7 +117,14 @@ export default async function PaperDetailPage({
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <PaperRecord id={id} runId={runId} t={t} lang={lang} features={features} />
+          <PaperRecord
+            id={id}
+            runId={runId}
+            sessionId={sessionId}
+            t={t}
+            lang={lang}
+            features={features}
+          />
         </ViewTransition>
       </Suspense>
     </div>

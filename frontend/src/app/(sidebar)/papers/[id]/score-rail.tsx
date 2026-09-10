@@ -121,7 +121,17 @@ function railBar(d: Dimension, t: T, lang: Lang): RailBar {
   }
 }
 
-export function ScoreRail({ paper, t, lang = 'en' }: { paper: ScoredPaper; t: T; lang?: Lang }) {
+/** The score card's parts, so a client surface can lay them out its own way (paper-chat.tsx). */
+export interface RailParts {
+  label: string
+  score: ReactNode
+  chips: ReactNode
+  bars: ReactNode
+  /** Omitted when the paper has fewer than three numeric dimensions. */
+  radar?: ReactNode
+}
+
+export function railParts(paper: ScoredPaper, t: T, lang: Lang = 'en'): RailParts {
   // Exclude Risk & Affiliation dimensions from the score rail bars
   const visibleDimensions = (paper.dimensions ?? [])
     .filter((d) => !d.is_risk_and_affiliation && d.key !== 'risk_and_affiliation')
@@ -134,23 +144,23 @@ export function ScoreRail({ paper, t, lang = 'en' }: { paper: ScoredPaper; t: T;
       : Number.isInteger(paper.signal_score)
         ? formatNumber(paper.signal_score, lang)
         : formatNumber(paper.signal_score, lang, 1)
-  return (
-    <ScoreRailFrame
-      label={t('Schwarz Score')}
-      score={score}
-      chips={
-        trl?.value !== null && trl?.value !== undefined ? (
-          <TrlBadge trl={trl.value} t={t} />
-        ) : undefined
-      }
-      bars={<ScoreBars bars={visibleDimensions.map((d) => railBar(d, t, lang))} />}
-      radar={
-        axes.length >= 3 && (
-          <RadarChart axes={axes} color="var(--accent)" size={RADAR} valueLabels />
-        )
-      }
-    />
-  )
+  return {
+    label: t('Schwarz Score'),
+    score,
+    chips:
+      trl?.value !== null && trl?.value !== undefined ? (
+        <TrlBadge trl={trl.value} t={t} />
+      ) : undefined,
+    bars: <ScoreBars bars={visibleDimensions.map((d) => railBar(d, t, lang))} />,
+    radar:
+      axes.length >= 3 ? (
+        <RadarChart axes={axes} color="var(--accent)" size={RADAR} valueLabels />
+      ) : undefined,
+  }
+}
+
+export function ScoreRail({ paper, t, lang = 'en' }: { paper: ScoredPaper; t: T; lang?: Lang }) {
+  return <ScoreRailFrame {...railParts(paper, t, lang)} />
 }
 
 /**

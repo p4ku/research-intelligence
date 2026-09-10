@@ -71,7 +71,7 @@ export const chatOperations: Operation[] = [
     path: '/api/chat/sessions/?workspace_id={workspace_id}',
     supersedes: 'chat.sessions.current',
     summary: 'Same endpoint, paginated and scoped to the OWNER (not all workspace members).',
-    query: sessionsQuery,
+    query: sessionsQuery.omit({ mine: true }),
     responses: { 200: sessionPage },
     probe: { requires: ['workspace_id'] },
   },
@@ -107,7 +107,8 @@ export const chatOperations: Operation[] = [
     kind: 'bff',
     method: 'GET',
     path: '/bff/chat/sessions',
-    summary: 'Paginated sessions for the history rail.',
+    summary:
+      "Paginated sessions for the history rail. ?mine=1 keeps only the caller's own rows — Django lists a whole workspace to its admins and managers.",
     query: sessionsQuery,
     responses: { 200: sessionPage },
   },

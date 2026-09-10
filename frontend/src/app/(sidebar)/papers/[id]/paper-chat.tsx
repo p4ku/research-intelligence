@@ -2,287 +2,664 @@
 
 import { AnswerMarkdown } from '@/components/answer-markdown'
 import { LiveAnswer } from '@/components/live-answer'
-import { Card, ErrorNote } from '@/components/scanner-ui'
+import { Card, ErrorNote, SectionLabel } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
-import type { VisualCitation } from '@/lib/bff/chat/schema'
-import { problemMessage } from '@/lib/bff/problem-copy'
-import { useChatStream, type ChatStreamState } from '@/lib/chat/use-chat-stream'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Spinner } from '@/components/ui/spinner'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import type { ScoredPaper } from '@/lib/papers/types'
-import { ChatBubbleLeftRightIcon, PaperAirplaneIcon, XMarkIcon } from '@heroicons/react/16/solid'
+import {
+  ChatBubbleLeftRightIcon,
+  PaperAirplaneIcon,
+  PencilSquareIcon,
+  StopIcon,
+  XMarkIcon,
+} from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import { useReducedMotion } from 'motion/react'
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type FormEvent,
   type ReactNode,
   type RefObject,
 } from 'react'
-
-interface Msg {
-  role: 'user' | 'scanner'
-  text: string
-  /** Structured partners of the answer's inline `[Page N, …]` markers. */
-  visualCitations: VisualCitation[]
-  /** Mapped problem copy when the turn failed; partial `text` is kept. */
-  error?: string | null
-}
+import { ICON_BUTTON, PanelRightIcon } from '../../ask/console-frame'
+import { HistoryList } from '../../ask/history-sidecar'
+import { shortTitle } from '../../ask/types'
+import { ScoreRailFrame, type RailParts } from './score-rail'
+import { usePaperThread, type Msg } from './use-paper-thread'
 
 /**
- * Ask this paper: a composer card under the score rail where the first
- * question is typed, and a sheet from the right edge that opens with that
- * question asked — a plain vertical conversation scoped to this one paper,
- * streamed from POST /bff/chat/stream. On narrow screens the rail stacks
- * under the record, so a pill fixed to the bottom-right opens the sheet
- * empty instead. Every open is a new conversation: closing the sheet drops
- * the thread and the session with it, so the next open starts empty.
- * Deliberately bare — history lives on Ask.
+ * Ask this paper — the "Column" direction (picker of 9 Sep 2026).
+ *
+ * Closed, the rail is the score card (ScoreRailFrame) with the composer
+ * card under it: title row, one line on scope, the question line, and —
+ * once this paper has a thread — a `Continue "…"` line naming it. Open, the
+ * rail widens from 300 to 400px (sections.tsx, via `:has`) and becomes ONE
+ * console: the score, the TRL chip and the radar pinned at the top, the
+ * bars and the conversation scrolling beneath, the composer at the foot.
+ * The radar is never covered and never leaves the screen — the whole point
+ * of the direction — and the recent-chats list opens in the space beneath
+ * it, never over it.
+ *
+ * The thread outlives the surface: collapsing keeps it, the next open finds
+ * it, and only "New chat" clears it. Everything about sessions, resume and
+ * streaming is use-paper-thread.ts; this file is the layout and its motion.
+ *
+ * Below lg the rail stacks under the record and the console simply expands
+ * in place — no sheet, no pill, no scroll lock.
  */
-export function PaperChat({ paper }: { paper: ScoredPaper }) {
+
+const LG = '(min-width: 1024px)'
+const CONSOLE_TOP = 32 // lg:top-8 on the sticky rail
+// Under this the console scrolls as a whole (the card, not just the thread),
+// so the composer stays reachable on a short or zoomed viewport.
+const CONSOLE_MIN = 240
+const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
+const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)'
+
+export function PaperChat({
+  paper,
+  rail,
+  initialSessionId = null,
+}: {
+  paper: ScoredPaper
+  /** The score card's parts, computed on the server (score-rail.tsx). */
+  rail: RailParts
+  /** A `?session=` from the URL: opens the console on that thread. */
+  initialSessionId?: string | null
+}) {
   const t = useT()
-  const [open, setOpen] = useState(false)
-  const [msgs, setMsgs] = useState<Msg[]>([])
-  const [sessionId, setSessionId] = useState<string | null>(null)
-  const [input, setInput] = useState('')
-  // The rail composer's own draft: it survives a closed sheet, the sheet's does not.
+  const reduceMotion = useReducedMotion()
+  const thread = usePaperThread({ paperId: paper.id, t, initialSessionId })
+
+  // Open from the start when the URL names a thread; the FLIP has nothing to
+  // move from then, and the layout effect below sees no `flipFrom`.
+  const [open, setOpen] = useState(initialSessionId !== null)
+  const [recentsOpen, setRecentsOpen] = useState(false)
   const [draft, setDraft] = useState('')
-  const [asking, setAskingState] = useState(false)
-  const askingRef = useRef(false)
-  const setAsking = (v: boolean) => {
-    askingRef.current = v
-    setAskingState(v)
-  }
-  // Bumps per question so the live answer mounts fresh (its reveal position
-  // is never reset, only clamped).
-  const [askSeq, setAskSeq] = useState(0)
+  const [input, setInput] = useState('')
+
+  const consoleRef = useRef<HTMLDivElement>(null)
+  const radarRef = useRef<HTMLDivElement>(null)
+  const barsRef = useRef<HTMLUListElement>(null)
+  const threadRef = useRef<HTMLDivElement>(null)
   const endRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const reduceMotion = useReducedMotion()
+  const titleRef = useRef<HTMLButtonElement>(null)
+  // The radar's rect before a layout switch, for the FLIP that follows it.
+  const flipFrom = useRef<DOMRect | null>(null)
 
   const follow = useCallback(() => endRef.current?.scrollIntoView({ block: 'end' }), [])
 
-  // As on Ask, a stream settles into the transcript once two things are
-  // true: the stream has finished (finalRef) and the reveal has shown every
-  // word (revealedRef). Either can come first.
-  const finalRef = useRef<ChatStreamState | null>(null)
-  const revealedRef = useRef(false)
+  const show = useCallback(() => {
+    if (open) return
+    flipFrom.current = radarRef.current?.getBoundingClientRect() ?? null
+    setOpen(true)
+    void thread.ensureLoaded()
+  }, [open, thread])
 
-  const commit = useCallback(
-    (final: ChatStreamState) => {
-      if (!askingRef.current) return
-      setMsgs((prev) => [
-        ...prev,
-        {
-          role: 'scanner',
-          // A failure keeps what streamed; the error rides alongside the text.
-          text: final.text,
-          visualCitations: final.visualCitations,
-          error: final.status === 'error' ? problemMessage(final.error, t) : null,
-        },
-      ])
-      if (final.sessionId) setSessionId(final.sessionId)
-      setAsking(false)
-    },
-    [t],
-  )
-
-  const trySettle = useCallback(() => {
-    const final = finalRef.current
-    if (!final || !revealedRef.current || !askingRef.current) return
-    finalRef.current = null
-    revealedRef.current = false
-    // Let the last words finish unveiling before the settled text takes over.
-    const delay = reduceMotion || final.status === 'error' ? 0 : 600
-    window.setTimeout(() => commit(final), delay)
-  }, [commit, reduceMotion])
-
-  const {
-    state: live,
-    send,
-    reset,
-  } = useChatStream((final) => {
-    if (!askingRef.current) return
-    finalRef.current = final
-    trySettle()
-  })
-
-  const onRevealed = useCallback(() => {
-    revealedRef.current = true
-    trySettle()
-  }, [trySettle])
+  // Collapsing unmounts the reveal, so an answer still running is filed in
+  // full the moment its stream ends (settleBlind) rather than waiting for a
+  // reveal that will never report.
+  const { ensureLoaded, ask, settleBlind } = thread
+  const hide = useCallback(() => {
+    if (!open) return
+    flipFrom.current = radarRef.current?.getBoundingClientRect() ?? null
+    setRecentsOpen(false)
+    setOpen(false)
+    settleBlind()
+  }, [open, settleBlind])
 
   /**
-   * A sitting, not a thread. Opening clears the transcript and the session id
-   * so the next question starts a new conversation; closing drops an answer
-   * still streaming rather than letting it write into a transcript nobody
-   * will see again.
+   * The layout switch is never animated — the grid re-wraps the record
+   * once. What moves is the radar: it FLIPs from its seat in the card to its
+   * seat at the console's top (translate only; it keeps its size and its
+   * labels must not distort). The console's new material is revealed
+   * leftward so the page's right edge stays still; bars and thread fade in.
    */
-  function openChat() {
-    setMsgs([])
-    setSessionId(null)
-    setInput('')
-    setOpen(true)
-  }
-
-  const closeChat = useCallback(() => {
-    setOpen(false)
-    if (askingRef.current) {
-      finalRef.current = null
-      revealedRef.current = false
-      reset()
-      setAsking(false)
+  useLayoutEffect(() => {
+    const from = flipFrom.current
+    flipFrom.current = null
+    if (reduceMotion || !from || !matchMedia(LG).matches) return
+    const radar = radarRef.current
+    if (radar) {
+      const to = radar.getBoundingClientRect()
+      const dx = from.left - to.left
+      const dy = from.top - to.top
+      if (Math.abs(dx) >= 1 || Math.abs(dy) >= 1) {
+        radar.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }], {
+          duration: 280,
+          easing: EASE_IN_OUT,
+        })
+      }
     }
-  }, [reset])
+    if (open) {
+      consoleRef.current?.animate(
+        [{ clipPath: 'inset(0 0 0 100px)' }, { clipPath: 'inset(0 0 0 0)' }],
+        { duration: 260, easing: EASE_OUT },
+      )
+      barsRef.current?.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 160,
+        easing: 'ease-out',
+      })
+      threadRef.current?.animate([{ opacity: 0 }, { opacity: 1 }], {
+        duration: 160,
+        delay: 120,
+        easing: 'ease-out',
+        fill: 'backwards',
+      })
+    }
+  }, [open, reduceMotion])
 
-  useEffect(() => {
-    if (open && msgs.length > 0) follow()
-  }, [open, msgs, follow])
-
-  // The sheet: focus the composer once it has slid in; Escape closes it.
+  // The console takes what is left of the viewport under the rail's top —
+  // at y32 once the sticky wrapper is stuck, lower at the top of the page.
   useEffect(() => {
     if (!open) return
-    const timer = window.setTimeout(() => inputRef.current?.focus(), 260)
+    const el = consoleRef.current
+    if (!el) return
+    let frame = 0
+    const fit = () => {
+      frame = 0
+      if (!matchMedia(LG).matches) {
+        el.style.height = ''
+        return
+      }
+      const top = Math.max(CONSOLE_TOP, el.parentElement?.getBoundingClientRect().top ?? 0)
+      el.style.height = `${Math.max(CONSOLE_MIN, window.innerHeight - top - CONSOLE_TOP)}px`
+    }
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(fit)
+    }
+    fit()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [open])
+
+  // Open: focus the composer; Escape closes the list first, then the console.
+  useEffect(() => {
+    if (!open) return
+    const timer = window.setTimeout(() => inputRef.current?.focus({ preventScroll: true }), 120)
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeChat()
+      // A dialog above the console (delete) takes its own Escape first.
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      if (recentsOpen) setRecentsOpen(false)
+      else hide()
     }
     document.addEventListener('keydown', onKey)
     return () => {
       window.clearTimeout(timer)
       document.removeEventListener('keydown', onKey)
     }
-  }, [open, closeChat])
+  }, [open, recentsOpen, hide])
+
+  // Collapse unmounts the control that had focus; it lands on the entry
+  // card's title, the control that reopens the console.
+  const wasOpen = useRef(open)
+  useEffect(() => {
+    if (!open && wasOpen.current) titleRef.current?.focus({ preventScroll: true })
+    wasOpen.current = open
+  }, [open])
+
+  // A `?session=` link lands with the console already open (see useState
+  // above); the thread it names is fetched here.
+  useEffect(() => {
+    if (initialSessionId) void ensureLoaded()
+  }, [initialSessionId, ensureLoaded])
+
+  // Keep the newest turn at the foot as the thread grows or a thread lands.
+  useEffect(() => {
+    if (open && thread.msgs.length > 0) follow()
+  }, [open, thread.msgs, follow])
 
   /**
-   * `session` is the conversation to continue — this render's, unless the
-   * caller knows state has not landed yet (the rail opens a new sitting and
-   * asks in the same tick, so it passes null rather than the last one's id).
+   * A question is sent once the resume has landed (instant after the first
+   * open), so it joins the thread the card promised to continue rather than
+   * opening a stray session beside it. The line is cleared only when the
+   * question was taken — a refused one stays where it was typed.
    */
-  function ask(q: string, session: string | null = sessionId) {
-    if (asking) return
-    setMsgs((prev) => [...prev, { role: 'user', text: q, visualCitations: [] }])
-    setAsking(true)
-    setAskSeq((n) => n + 1)
-    setInput('')
-    void send({
-      question: q,
-      paper_id: paper.id,
-      session_id: session ?? undefined,
-      deep_thinking: false,
-    })
-  }
+  const submit = useCallback(
+    (q: string, clear: (q: string) => void) => {
+      const question = q.trim()
+      if (!question) return
+      void ensureLoaded().then(() => {
+        if (ask(question)) clear(q)
+      })
+    },
+    [ensureLoaded, ask],
+  )
+  const clearDraft = useCallback((q: string) => setDraft((v) => (v === q ? '' : v)), [])
+  const clearInput = useCallback((q: string) => setInput((v) => (v === q ? '' : v)), [])
 
-  /**
-   * The rail composer: a question typed under the score opens the sheet
-   * with it already asked — always the first turn of a new sitting, so the
-   * previous sitting's session id is not carried over. Guarded by the refs,
-   * not the render's values: the sheet may have opened this same tick.
-   */
-  function askFromRail(e: FormEvent) {
+  /** The entry card: a question typed under the score opens the console with it asked. */
+  function askFromCard(e: FormEvent) {
     e.preventDefault()
-    const q = draft.trim()
-    if (!q || open || askingRef.current) return
-    openChat()
-    ask(q, null)
-    setDraft('')
+    if (thread.asking) {
+      thread.stop()
+      return
+    }
+    if (!draft.trim()) return
+    show()
+    submit(draft, clearDraft)
   }
+
+  function askFromConsole(e: FormEvent) {
+    e.preventDefault()
+    if (thread.asking) {
+      thread.stop()
+      return
+    }
+    submit(input, clearInput)
+  }
+
+  const label = fmt(t('Ask about {title}'), { title: paper.title })
+  const count = thread.sessions.length
+  const lastAnswer = thread.msgs.findLast((m) => m.role === 'scanner')
+  // Transitions only — never a live region on the streamed markdown, which
+  // re-renders every animation frame (the same line the Ask page carries).
+  const status = (
+    <p role="status" className="sr-only">
+      {thread.asking
+        ? t('Reading the full text…')
+        : lastAnswer
+          ? lastAnswer.error
+            ? t('The answer failed.')
+            : t('Answer ready')
+          : ''}
+    </p>
+  )
+  const placeholder = thread.activeId ? t('Ask a follow-up…') : t('What would you like to know?')
+
+  if (!open) {
+    return (
+      <>
+        <ScoreRailFrame
+          label={rail.label}
+          score={rail.score}
+          chips={rail.chips}
+          bars={rail.bars}
+          radar={rail.radar && <div ref={radarRef}>{rail.radar}</div>}
+        />
+        <PaperChatFrame
+          title={t('Ask this paper')}
+          count={thread.historyStatus === 'ready' && count > 0 ? count : null}
+          onOpen={show}
+          titleRef={titleRef}
+          hint={
+            thread.asking ? (
+              <span className="inline-flex items-center gap-2 text-foreground">
+                <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
+                {t('Answering…')}
+              </span>
+            ) : (
+              t('Answered from this paper alone.')
+            )
+          }
+          composer={
+            <Composer
+              name="rail-question"
+              value={draft}
+              onChange={setDraft}
+              onSubmit={askFromCard}
+              placeholder={placeholder}
+              label={t('Ask a question about this paper')}
+              send={t('Send')}
+              stop={thread.asking ? t('Stop') : null}
+            />
+          }
+          cont={
+            thread.resumeTarget && (
+              <>
+                <span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-accent" />
+                <span className="truncate">
+                  {fmt(t('Continue "{title}"'), { title: thread.resumeTarget.title })}
+                </span>
+              </>
+            )
+          }
+        />
+        {status}
+        <DeleteDialog thread={thread} />
+      </>
+    )
+  }
+
+  const loadingThread = thread.openingId !== null && thread.msgs.length === 0
+  const empty = thread.msgs.length === 0 && !thread.asking && !loadingThread
 
   return (
-    <PaperChatFrame
-      open={open}
-      onOpen={openChat}
-      onClose={closeChat}
-      label={fmt(t('Ask about {title}'), { title: paper.title })}
-      title={t('Ask this paper')}
-      subtitle={paper.title}
-      hint={t('Answered from this paper alone.')}
-      composer={
-        <Composer
-          name="rail-question"
-          value={draft}
-          onChange={setDraft}
-          onSubmit={askFromRail}
-          placeholder={t('What would you like to know?')}
-          label={t('Ask a question about this paper')}
-          send={t('Send')}
-          disabled={open}
-        />
-      }
-      body={
-        msgs.length === 0 && !asking ? (
-          <p className="text-sm leading-relaxed text-balance text-muted-foreground">
-            {t('Questions here are answered from this paper alone.')}
+    <>
+      <div
+        ref={consoleRef}
+        data-shape="paper-console"
+        data-console-open=""
+        role="region"
+        aria-label={label}
+        className="lg:flex lg:flex-col"
+      >
+        <Card flush className="flex min-h-0 flex-col overflow-hidden lg:h-full lg:overflow-y-auto">
+          {/* The profile: score, chip, radar — pinned, never scrolls, never covered. */}
+          <div data-row="profile" className="shrink-0 border-b border-line-soft p-5 pb-4">
+            <div className="flex items-baseline justify-between gap-4">
+              <span className="font-mono text-[44px] leading-none font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white">
+                {rail.score}
+              </span>
+              <span className="text-[11px] font-semibold tracking-[0.18em] text-zinc-400 uppercase dark:text-zinc-500">
+                {rail.label}
+              </span>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-1.5">{rail.chips}</div>
+            {rail.radar && (
+              <div className="mx-auto mt-3 flex w-full max-w-[260px] justify-center border-t border-line-soft pt-3">
+                <div ref={radarRef}>{rail.radar}</div>
+              </div>
+            )}
+          </div>
+
+          <div
+            data-row="head"
+            className="flex shrink-0 flex-wrap items-center gap-x-2 border-b border-line-soft py-1.5 pr-2 pl-4"
+          >
+            <div className="flex min-w-0 flex-1 items-center gap-2 font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase">
+              <ChatBubbleLeftRightIcon
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-accent"
+              />
+              {t('Ask this paper')}
+            </div>
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                onClick={() => {
+                  // A list that failed to load is tried again when asked for.
+                  if (!recentsOpen && thread.historyStatus === 'stale') void thread.retryHistory()
+                  setRecentsOpen((v) => !v)
+                }}
+                data-open={recentsOpen || undefined}
+                aria-expanded={recentsOpen}
+                aria-label={t('Recent chats')}
+                title={t('Recent chats')}
+                className={ICON_BUTTON}
+              >
+                <PanelRightIcon className="size-[18px]" />
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  thread.newChat()
+                  setRecentsOpen(false)
+                  inputRef.current?.focus()
+                }}
+                disabled={thread.activeId === null && thread.msgs.length === 0}
+                aria-label={t('New chat')}
+                title={t('New chat')}
+                className={ICON_BUTTON}
+              >
+                <PencilSquareIcon className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={hide}
+                aria-label={t('Collapse')}
+                title={t('Collapse')}
+                className={ICON_BUTTON}
+              >
+                <XMarkIcon className="size-4" />
+              </button>
+            </div>
+            <div className="mt-0.5 basis-full truncate pb-1 text-[13px] font-semibold tracking-tight">
+              {thread.title}
+            </div>
+          </div>
+
+          {/* The scroller: bars first (they scroll away), then the thread. The list overlays this and only this. */}
+          <div className="relative min-h-0 flex-1 lg:min-h-28">
+            {/* Inert under the list, so Tab cannot land on the bars it covers. */}
+            <div
+              inert={recentsOpen}
+              className="overscroll-contain px-5 pt-3 pb-4 lg:h-full lg:overflow-y-auto"
+            >
+              <ul ref={barsRef} className="space-y-0.5">
+                {rail.bars}
+              </ul>
+              <div
+                ref={threadRef}
+                className="mt-4 border-t border-line-soft pt-4 max-lg:min-h-[50dvh]"
+              >
+                {loadingThread ? (
+                  <p className="text-[13px] leading-relaxed text-muted-foreground">
+                    <Bone.Text lines={3} widths={['92%', '100%', '48%']} />
+                  </p>
+                ) : empty ? (
+                  <p className="text-[13px] leading-relaxed text-balance text-muted-foreground">
+                    {t('Answered from this paper alone.')}
+                  </p>
+                ) : (
+                  <Thread
+                    msgs={thread.msgs}
+                    asking={thread.asking}
+                    live={thread.live}
+                    askSeq={thread.askSeq}
+                    onGrow={follow}
+                    onRevealed={thread.onRevealed}
+                    endRef={endRef}
+                  />
+                )}
+              </div>
+            </div>
+
+            <Recents open={recentsOpen} thread={thread} onOpened={() => setRecentsOpen(false)} />
+          </div>
+
+          <Composer
+            inputRef={inputRef}
+            name="question"
+            value={input}
+            onChange={setInput}
+            onSubmit={askFromConsole}
+            placeholder={placeholder}
+            label={t('Ask a question about this paper')}
+            send={t('Send')}
+            stop={thread.asking ? t('Stop') : null}
+          />
+        </Card>
+      </div>
+      {status}
+      <DeleteDialog thread={thread} />
+    </>
+  )
+}
+
+type ThreadState = ReturnType<typeof usePaperThread>
+
+function Thread({
+  msgs,
+  asking,
+  live,
+  askSeq,
+  onGrow,
+  onRevealed,
+  endRef,
+}: {
+  msgs: Msg[]
+  asking: boolean
+  live: ThreadState['live']
+  askSeq: number
+  onGrow: () => void
+  onRevealed: () => void
+  endRef: RefObject<HTMLDivElement | null>
+}) {
+  const t = useT()
+  return (
+    <div className="space-y-4">
+      {msgs.map((m, i) =>
+        m.role === 'user' ? (
+          <p
+            key={i}
+            className="pt-1 text-[13px] font-semibold tracking-tight text-pretty text-foreground"
+          >
+            {m.text}
           </p>
         ) : (
-          <div className="space-y-4">
-            {msgs.map((m, i) =>
-              m.role === 'user' ? (
-                <p
-                  key={i}
-                  className="pt-1 text-[13px] font-semibold tracking-tight text-pretty text-foreground"
-                >
-                  {m.text}
-                </p>
-              ) : (
-                <div key={i} className="min-w-0">
-                  {m.text !== '' && (
-                    <AnswerMarkdown
-                      text={m.text}
-                      citations={m.visualCitations}
-                      t={t}
-                      className={clsx('text-[13px] text-muted-foreground', m.error && 'mb-2')}
-                    />
-                  )}
-                  {m.error && (
-                    <ErrorNote className="whitespace-pre-wrap">
-                      {m.text !== '' ? t('The answer stopped part-way through.') : m.error}
-                    </ErrorNote>
-                  )}
-                </div>
-              ),
-            )}
-            {asking && (
-              <LiveAnswer
-                key={askSeq}
-                state={live}
-                scanning={t('Reading the full text…')}
-                className="text-[13px] text-muted-foreground"
-                onGrow={follow}
-                onRevealed={onRevealed}
+          <div key={i} className="min-w-0">
+            {m.text !== '' && (
+              <AnswerMarkdown
+                text={m.text}
+                citations={m.visualCitations}
+                t={t}
+                className={clsx('text-[13px] text-muted-foreground', m.error && 'mb-2')}
               />
             )}
-            <div ref={endRef} aria-hidden="true" />
+            {m.error && (
+              <ErrorNote className="whitespace-pre-wrap">
+                {m.text !== '' ? t('The answer stopped part-way through.') : m.error}
+              </ErrorNote>
+            )}
           </div>
-        )
-      }
-      footer={
-        <Composer
-          inputRef={inputRef}
-          name="question"
-          value={input}
-          onChange={setInput}
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (input.trim()) ask(input.trim())
-          }}
-          placeholder={t('Ask a question about this paper…')}
-          label={t('Ask a question about this paper')}
-          send={t('Send')}
-          disabled={asking}
+        ),
+      )}
+      {asking && (
+        <LiveAnswer
+          key={askSeq}
+          state={live}
+          scanning={t('Reading the full text…')}
+          className="text-[13px] text-muted-foreground"
+          onGrow={onGrow}
+          onRevealed={onRevealed}
         />
-      }
-    />
+      )}
+      <div ref={endRef} aria-hidden="true" />
+    </div>
+  )
+}
+
+/**
+ * Recent chats about this paper, in the space beneath the radar: over the
+ * bars and the thread, never over the profile or the composer. Full width
+ * of the console — at 400px a sliver would leave no usable transcript.
+ */
+function Recents({
+  open,
+  thread,
+  onOpened,
+}: {
+  open: boolean
+  thread: ThreadState
+  onOpened: () => void
+}) {
+  const t = useT()
+  const n = thread.sessions.length
+  return (
+    <div
+      role="region"
+      inert={!open}
+      aria-hidden={!open}
+      aria-label={t('Recent chats')}
+      className={clsx(
+        'absolute inset-0 z-10 flex flex-col bg-surface transition-[opacity,transform] duration-150 ease-out motion-reduce:transition-none',
+        open ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-1.5 opacity-0',
+      )}
+    >
+      <div className="flex shrink-0 items-baseline justify-between px-4 pt-3 pb-1.5">
+        <SectionLabel className="text-[11px]">{t('Recent')}</SectionLabel>
+        <span className="font-mono text-[11px] text-muted-foreground tabular-nums">
+          {n === 1 ? t('1 chat') : fmt(t('{count} chats'), { count: n })}
+        </span>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 pb-2">
+        {thread.historyStatus === 'loading' ? (
+          <p className="px-3 py-4 text-xs text-muted-foreground">
+            <Bone.Text lines={2} widths={['80%', '55%']} />
+          </p>
+        ) : (
+          <HistoryList
+            threads={thread.sessions}
+            activeId={thread.activeId}
+            openingId={thread.openingId}
+            rowError={thread.rowError}
+            onOpen={(s) => {
+              void thread.openThread(s).then((opened) => {
+                if (opened) onOpened()
+              })
+            }}
+            onDelete={thread.requestDelete}
+            meta="count"
+            empty={t('Questions about this paper are filed here.')}
+          />
+        )}
+        {thread.historyStatus === 'stale' && (
+          <p className="px-3 pt-2 text-[11px] text-muted-foreground">
+            {t('History may be out of date.')}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/** The shipped copy, unchanged; a failure keeps it open. */
+function DeleteDialog({ thread }: { thread: ThreadState }) {
+  const t = useT()
+  return (
+    <AlertDialog
+      open={thread.pendingDelete !== null}
+      onOpenChange={(open) => {
+        if (!open) thread.cancelDelete()
+      }}
+    >
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t('Delete this conversation?')}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {fmt(t('"{title}" and every answer in it will be deleted. This cannot be undone.'), {
+              title: thread.pendingDelete ? shortTitle(thread.pendingDelete.title) : '',
+            })}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {thread.deleteError && <ErrorNote>{thread.deleteError}</ErrorNote>}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={thread.deleting}>{t('Cancel')}</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={thread.deleting}
+            onClick={(event) => {
+              // Radix closes on Action by default; we close only on success.
+              event.preventDefault()
+              void thread.confirmDelete()
+            }}
+          >
+            {thread.deleting && <Spinner className="size-3.5" aria-hidden="true" />}
+            {thread.deleting ? t('Deleting…') : t('Delete')}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   )
 }
 
 /**
  * One question line with a send button, under a hairline — the same row in
- * the rail card and at the foot of the sheet. `disabled` holds the send
- * (an answer streaming, or the sheet already open) while the text stays
- * editable.
+ * the entry card and at the foot of the console. With `stop` set the button
+ * is Stop: an answer is streaming and the thread now outlives the surface,
+ * so the reader can always end it.
  */
 function Composer({
   inputRef,
@@ -293,7 +670,7 @@ function Composer({
   placeholder,
   label,
   send,
-  disabled = false,
+  stop = null,
 }: {
   inputRef?: RefObject<HTMLInputElement | null>
   name: string
@@ -303,9 +680,10 @@ function Composer({
   placeholder: string
   label: string
   send: string
-  disabled?: boolean
+  /** The Stop label while an answer streams; null offers Send. */
+  stop?: string | null
 }) {
-  const ready = value.trim() !== '' && !disabled
+  const ready = value.trim() !== ''
   return (
     <form
       onSubmit={onSubmit}
@@ -324,178 +702,106 @@ function Composer({
         />
         <button
           type="submit"
-          aria-label={send}
-          disabled={disabled}
+          aria-label={stop ?? send}
           className={clsx(
-            'flex size-8 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
-            ready
+            'flex size-8 shrink-0 items-center justify-center rounded-full transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:scale-[0.97]',
+            stop || ready
               ? 'bg-foreground text-background hover:bg-foreground/85'
               : 'bg-foreground/10 text-muted-foreground',
           )}
         >
-          <PaperAirplaneIcon className="size-4" />
+          {stop ? <StopIcon className="size-4" /> : <PaperAirplaneIcon className="size-4" />}
         </button>
       </div>
     </form>
   )
 }
 
-const PILL_CLASS =
-  'bg-foreground text-background fixed right-6 bottom-6 z-30 inline-flex h-11 items-center gap-2.5 rounded-full pr-[18px] pl-3.5 text-[13.5px] font-medium shadow-[0_8px_24px_-6px_rgba(19,19,17,0.35)] transition-[transform,opacity] duration-150 ease-out lg:hidden'
-
 /**
- * The chat's chrome: the composer card under the score rail (title, one
- * line on scope, the question line), the pill that stands in for it on
- * narrow screens, and the sheet — header strip with the title, the
- * scrolling body, and whatever sits under it (the composer, an error).
- * PaperChat and PaperChatSkeleton both fill it. The sheet stays mounted
- * (translated off-screen) so the thread keeps its scroll position between
- * opens.
+ * The entry card under the score card: the title row (a button that opens
+ * the console, with the paper's chat count), one line on scope, the
+ * question line, and the continue line naming the thread the next question
+ * joins. PaperChat and PaperChatSkeleton both fill it.
  */
 export function PaperChatFrame({
   state = 'loaded',
-  open = false,
-  onOpen,
-  onClose,
-  label,
   title,
-  subtitle,
+  count,
+  onOpen,
+  titleRef,
   hint,
   composer,
-  body,
-  footer,
+  cont,
 }: {
   state?: 'loaded' | 'skeleton'
-  open?: boolean
-  onOpen?: () => void
-  onClose?: () => void
-  label: string
   title: string
-  subtitle?: ReactNode
+  /** How many chats this paper has; null until the list is known. */
+  count: ReactNode
+  onOpen?: () => void
+  titleRef?: RefObject<HTMLButtonElement | null>
   /** The one line under the card's title saying what the answers draw on. */
   hint: ReactNode
   /** The rail's question line. */
   composer: ReactNode
-  body: ReactNode
-  footer: ReactNode
+  /** The continue line's content; falsy hides the row. */
+  cont?: ReactNode
 }) {
-  const t = useT()
   return (
-    <>
-      {/*
-        `inert` while the sheet is open: the browser blurs the card, keeps
-        Tab out of it and drops it from the accessibility tree, where
-        aria-hidden alone would hide a subtree that still holds focus for the
-        260ms before the sheet's composer takes it. mt-3 is the gap to the
-        score card above; the rail wrapper carries no space-y, which would
-        also margin the fixed pill and sheet rendered after this card.
-      */}
-      <Card
-        flush
-        data-shape="paper-chat-composer"
-        data-state={state}
-        inert={open}
-        className={clsx(
-          'mt-3 overflow-hidden transition-opacity duration-150 ease-out',
-          open && 'opacity-55',
-        )}
-      >
-        <div
-          data-row="title"
-          className="flex items-center gap-2 px-4 pt-3 font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase"
-        >
-          <ChatBubbleLeftRightIcon aria-hidden="true" className="size-3.5 shrink-0 text-accent" />
-          {title}
-        </div>
-        <p data-row="hint" className="px-4 pt-1.5 pb-2.5 text-xs text-muted-foreground">
-          {hint}
-        </p>
-        {composer}
-      </Card>
-
+    <Card
+      flush
+      data-shape="paper-chat-composer"
+      data-state={state}
+      className="mt-3 overflow-hidden"
+    >
       <button
+        ref={titleRef}
         type="button"
-        data-shape="paper-chat-pill"
-        data-state={state}
+        data-row="title"
         onClick={onOpen}
         disabled={!onOpen}
-        aria-expanded={open}
-        className={clsx(PILL_CLASS, 'active:scale-[0.97]', open && 'pointer-events-none opacity-0')}
+        aria-expanded={false}
+        className="flex w-full items-center gap-2 px-4 pt-3 text-left font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase transition-transform duration-150 ease-out focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent active:scale-[0.985]"
       >
-        <span aria-hidden="true" className="size-1.5 rounded-full bg-accent" />
+        <ChatBubbleLeftRightIcon aria-hidden="true" className="size-3.5 shrink-0 text-accent" />
         {title}
+        <span className="ml-auto font-mono text-[11px] tracking-normal text-zinc-400 tabular-nums dark:text-zinc-500">
+          {count}
+        </span>
       </button>
-
-      <aside
-        aria-label={label}
-        aria-hidden={!open}
-        inert={!open}
-        data-shape="paper-chat"
-        data-state={state}
-        className={clsx(
-          'fixed inset-y-0 right-0 z-40 flex w-full max-w-[440px] flex-col border-l border-line-strong bg-surface shadow-[-12px_0_40px_-16px_rgba(19,19,17,0.25)] transition-transform duration-[260ms] ease-out motion-reduce:transition-none',
-          open ? 'translate-x-0' : 'translate-x-full',
-        )}
-      >
-        <div className="flex items-start justify-between gap-3 border-b border-line-soft py-3 pr-3 pl-[18px]">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 font-mono text-[11px] font-medium tracking-[0.18em] text-foreground uppercase">
-              <ChatBubbleLeftRightIcon
-                aria-hidden="true"
-                className="size-3.5 shrink-0 text-accent"
-              />
-              {title}
-            </div>
-            {subtitle && (
-              <div className="mt-0.5 truncate text-xs text-zinc-400 dark:text-zinc-500">
-                {subtitle}
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={!onClose}
-            aria-label={t('Close')}
-            className="rounded-sm p-1.5 text-zinc-500 transition-colors hover:bg-line-soft"
-          >
-            <XMarkIcon aria-hidden="true" className="size-4" />
-          </button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto px-[18px] py-4">{body}</div>
-
-        {footer}
-      </aside>
-    </>
+      <p data-row="hint" className="px-4 pt-1.5 pb-2.5 text-xs text-muted-foreground">
+        {hint}
+      </p>
+      {composer}
+      {cont && (
+        <p
+          data-row="continue"
+          className="flex items-center gap-2 border-t border-line-soft px-4 py-2 text-xs text-zinc-600 dark:text-zinc-300"
+        >
+          {cont}
+        </p>
+      )}
+    </Card>
   )
 }
 
-/** Before the record arrives: the composer card with its rows boned, the pill, and the sheet closed. */
-export function PaperChatSkeleton({ label, title }: { label: string; title: string }) {
-  const composer = (
-    <div className="border-t border-line-soft">
-      <div className="flex items-center gap-2 p-1.5 pl-4">
-        <span className="min-w-0 flex-1 text-sm max-sm:text-base">
-          <Bone.Text widths={['20ch']} />
-        </span>
-        <Bone.Block className="size-8" round />
-      </div>
-    </div>
-  )
+/** Before the record arrives: the composer card with its rows boned. */
+export function PaperChatSkeleton({ title }: { title: string }) {
   return (
     <PaperChatFrame
       state="skeleton"
-      label={label}
       title={title}
+      count={<Bone.Text widths={['1ch']} />}
       hint={<Bone.Text widths={['26ch']} />}
-      composer={composer}
-      body={
-        <p className="text-sm leading-relaxed text-muted-foreground">
-          <Bone.Text lines={2} widths={['92%', '48%']} />
-        </p>
+      composer={
+        <div className="border-t border-line-soft">
+          <div className="flex items-center gap-2 p-1.5 pl-4">
+            <span className="min-w-0 flex-1 text-sm max-sm:text-base">
+              <Bone.Text widths={['20ch']} />
+            </span>
+            <Bone.Block className="size-8" round />
+          </div>
+        </div>
       }
-      footer={composer}
     />
   )
 }
