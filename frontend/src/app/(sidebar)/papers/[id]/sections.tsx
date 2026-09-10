@@ -31,7 +31,8 @@ import { railParts } from './score-rail'
  * which is why the record is a single boundary rather than one per card.
  *
  * The layout is the "sidecar": the record reads top to bottom in one column
- * (masthead, abstract, then the assessment definition by
+ * (masthead with the abstract collapsed into its metadata card, the
+ * pipeline's summary when it has one, then the assessment definition by
  * definition, provenance) with the score card sticky beside it — its bars
  * link into the assessment and mark the definition being read — and the
  * paper's chat composer directly under the card. A question typed there
@@ -253,12 +254,18 @@ export async function PaperRecord({
         <div className={RECORD_COLUMN}>
           <PaperHeader paper={paper} t={t} lang={lang} features={features} />
 
-          <section>
-            <SectionLabel>{t('Abstract')}</SectionLabel>
-            <p className="mt-3 max-w-[76ch] text-[15px] leading-relaxed text-pretty text-zinc-700 dark:text-zinc-300">
-              {paper.abstract}
-            </p>
-          </section>
+          {/* The pipeline's own reading of the paper, where the abstract
+              used to stand (the abstract is collapsed into the masthead's
+              card); a paper the pipeline has not summarised has no section,
+              not an empty one. */}
+          {paper.summary && (
+            <section>
+              <SectionLabel>{t('Summary')}</SectionLabel>
+              <p className="mt-3 max-w-[76ch] text-[15px] leading-relaxed text-pretty text-zinc-700 dark:text-zinc-300">
+                {paper.summary}
+              </p>
+            </section>
+          )}
 
           <section>
             <SectionLabel className="mb-3">{t('Assessment')}</SectionLabel>

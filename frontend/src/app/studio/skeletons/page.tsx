@@ -61,14 +61,11 @@ import { HistorySidecarDemo, PaperPickerDemo } from './gallery-clients'
 // fixture edition) joins it in the archive ledger as the same-day pair.
 const edition = fixtureEditions[1]
 // The gallery card should show the typical shape: an abstract long enough to
-// hit the two-line clamp, like almost every real paper at desktop width. The
-// contract fixture's abstract is one line, which is the exception, so the
-// gallery extends it locally rather than editing the shared fixture.
+// hit the two-line clamp, like almost every real paper at desktop width —
+// which the contract fixture's abstract now is.
 const paper = {
   ...fixturePapers[0],
-  abstract:
-    'We study coordinated tool use in multi-agent language model systems, showing that a shared scratchpad and a lightweight arbitration protocol reduce redundant calls by 41% while preserving task success across three benchmark suites, and that the effect strengthens as the number of cooperating agents grows from two to eight.',
-  // Likewise the first dimension's rationale: real ones run to a couple of
+  // The first dimension's rationale: real ones run to a couple of
   // lines, which is what the paper skeleton reserves (DIMENSION_ROWS).
   dimensions: fixturePapers[0].dimensions.map((d, i) =>
     i === 0

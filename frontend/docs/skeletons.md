@@ -139,8 +139,9 @@ Things learned:
 
 ## Done (pass 3) — paper detail, the assistant, the briefings
 
-`/papers/[id]` streams the whole record — the nav row, header, screening,
-assessment rows, abstract, provenance, the score rail, and the chat pill —
+`/papers/[id]` streams the whole record — the nav row, header (with the
+abstract collapsed inside its metadata card), screening, assessment rows,
+provenance, the score rail, and the chat pill —
 behind **one** boundary, because everything reads the one `papers.get` (now
 React-cached, so the title crumb, `generateMetadata` and the record share the
 call; the nav row's neighbours come from the cached `papers.listAll`). Both go

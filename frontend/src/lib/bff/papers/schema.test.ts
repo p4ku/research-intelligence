@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
-import { signalScoreDetails } from './schema'
+import { fixturePapers } from './fixtures'
+import { scoredPaper, signalScoreDetails } from './schema'
 import { signalScoreDetailsDTO } from './upstream'
 
 // Production sends booleans for extraction dimensions such as
@@ -31,5 +32,25 @@ describe('signal score variables', () => {
   test('still rejects structured values', () => {
     const nested = { ...fromProduction, variables: { weights: { a: 1 } } }
     expect(signalScoreDetails.safeParse(nested).success).toBe(false)
+  })
+})
+
+// The summary is asked of the backend and not yet served: today's scorecard
+// has no such key and must keep parsing; once it lands, the paragraph must
+// come through rather than be stripped as an unknown key.
+describe('paper summary', () => {
+  const base = fixturePapers[0]!
+
+  test('a scorecard without the field parses, summary undefined', () => {
+    const { summary: _omitted, ...withoutSummary } = base
+    const parsed = scoredPaper.parse(withoutSummary)
+    expect(parsed.summary).toBeUndefined()
+  })
+
+  test('a served summary comes through, null included', () => {
+    expect(scoredPaper.parse({ ...base, summary: 'A control-electronics paper.' }).summary).toBe(
+      'A control-electronics paper.',
+    )
+    expect(scoredPaper.parse({ ...base, summary: null }).summary).toBeNull()
   })
 })

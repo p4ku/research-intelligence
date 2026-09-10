@@ -224,6 +224,13 @@ export const scoredPaper = z
     evaluation_label: z.string().nullable().optional().default(null),
     /** The source's publication date (ISO 8601 date), when the backend has it. */
     published_date: z.string().nullable(),
+    /**
+     * The pipeline's own summary of the paper, a paragraph of prose the
+     * record shows under the folded abstract. Asked of the backend (10 Sep
+     * 2026) and absent until it lands: optional so today's scorecard still
+     * parses, and the section is not rendered without it.
+     */
+    summary: z.string().nullable().optional(),
     /** Ingest time (ISO 8601). */
     created_at: z.string(),
     /** The scoring run's display name, beside its id. */

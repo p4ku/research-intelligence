@@ -67,6 +67,7 @@ JSON Schema; `src/lib/bff/papers/fixtures.ts` for full examples):
   "pdf_key": null, "markdown_key": null,
   "source_url": "https://arxiv.org/abs/2608.01234",   // Paper.source_url verbatim
   "is_benchmark": false, "evaluation_label": null,
+  "summary": null,                             // pipeline's summary paragraph; requested, absent until it lands
   "created_at": "2026-08-27T05:58:00Z"
 }
 ```
@@ -83,6 +84,9 @@ JSON Schema; `src/lib/bff/papers/fixtures.ts` for full examples):
 - `rationale`/`evidence`: from `fields_data.evidence[]` (`{quote, rationale}`) or sibling `*reason*`/`*evidence*` keys.
 - `signal_score`: the `PaperMetric` matching the paper's run, else the newest.
 - `source_url`: `Paper.source_url` as stored by the backend.
+- `summary`: the pipeline's summary of the paper (one paragraph of prose, in
+  the workspace's language), shown under the abstract on the paper page.
+  Optional in the contract; the page renders no section while it is missing.
 
 ### `GET /api/papers/{paper_id}/scorecard/`
 

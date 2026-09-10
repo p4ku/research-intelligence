@@ -5,13 +5,15 @@ import { fmt, formatDate, type Lang, type T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { ArrowUpRightIcon, BookmarkIcon } from '@heroicons/react/16/solid'
 import type { ReactNode } from 'react'
+import { AbstractDisclosure } from './abstract'
 import { RiskAffiliationFlagging } from './affiliation-flags'
 
 /**
  * The record's masthead: provenance on one line (the source, the
  * publication date when the backend has it and the ingest date otherwise,
- * the link out to the original paper), the title, the authors, the risk &
- * affiliation flagging card, and the star at the right.
+ * the link out to the original paper), the title, the authors, the metadata
+ * card (risk & affiliation rows and chips with the collapsed abstract as
+ * its last row), and the star at the right.
  * PaperHeaderFrame owns the layout so PaperHeader and PaperHeaderSkeleton
  * cannot drift.
  */
@@ -129,7 +131,11 @@ export function PaperHeader({
       // beside the masthead on a narrow viewport.
       action={features.stars ? <StarToggle kind="paper" id={paper.id} /> : undefined}
     >
-      <RiskAffiliationFlagging risk={paper.risk_and_affiliation} t={t} />
+      <RiskAffiliationFlagging
+        risk={paper.risk_and_affiliation}
+        abstract={paper.abstract ? <AbstractDisclosure text={paper.abstract} /> : undefined}
+        t={t}
+      />
     </PaperHeaderFrame>
   )
 }
@@ -150,6 +156,33 @@ export function PaperHeaderSkeleton({ features = ALL_ON }: { features?: Features
       title={<Bone.Text lines={2} widths={['92%', '55%']} />}
       authors={<Bone.Text widths={['60%']} />}
       action={features.stars ? <Bone.Block className="h-[30px] w-24" /> : undefined}
-    />
+    >
+      {/* The metadata card in its usual shape: an affiliation line, a
+          funding line, a chip row and the collapsed abstract row — what
+          almost every scored paper has (the fixture and the stakeholder's
+          prod examples alike). The bones sit in the abstract slot, so the
+          card is one shape here and on load. A paper with no risk data
+          loses the upper rows on load; one with no abstract loses the card. */}
+      <RiskAffiliationFlagging
+        abstract={
+          <>
+            <div data-row="affiliation" className="flex h-4 items-center">
+              <Bone.Text widths={['30ch']} className="text-xs" />
+            </div>
+            <div data-row="funding" className="flex h-4 items-center">
+              <Bone.Text widths={['44ch']} className="text-[11px]" />
+            </div>
+            <div data-row="flags" className="flex flex-wrap gap-2 pt-0.5">
+              <Bone.Block className="h-[22px] w-36 rounded-md" />
+              <Bone.Block className="h-[22px] w-44 rounded-md" />
+              <Bone.Block className="h-[22px] w-40 rounded-md" />
+            </div>
+            <div data-row="abstract-disclosure" className="flex min-h-6 items-center">
+              <Bone.Text widths={['9ch']} className="text-[11px]" />
+            </div>
+          </>
+        }
+      />
+    </PaperHeaderFrame>
   )
 }

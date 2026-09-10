@@ -72,8 +72,13 @@ export const fixturePapers: ScoredPaper[] = [
     title: 'Coordinated Tool Use in Multi-Agent Language Model Systems',
     authors: ['A. Example', 'B. Beispiel'],
     authors_raw: 'A. Example, B. Beispiel',
+    // A real-length abstract, so the collapsed row on the paper page opens on
+    // something worth collapsing and the list cards hit their two-line clamp;
+    // the summary is the shape the backend is asked to serve.
     abstract:
-      'We study how cooperating language-model agents divide tool use and show a 31% task-completion gain over single-agent baselines on a new benchmark.',
+      'We study how cooperating language-model agents divide tool use and show a 31% task-completion gain over single-agent baselines on a new benchmark. Agents in our protocol announce the tools they intend to call before calling them, and a lightweight arbiter resolves conflicting intents by expected information gain rather than by turn order. We evaluate on 1,200 tasks spanning retrieval, code execution and structured data entry, with ablations over team size, arbiter policy and the cost of announcement. Gains persist at team sizes up to eight and degrade gracefully when the arbiter is removed; announcement overhead stays below 4% of total tokens. We release the benchmark, the protocol implementation and all evaluation traces.',
+    summary:
+      'A coordination protocol for teams of language-model agents. The claim is a 31% task-completion gain over a single agent; the evidence is a new 1,200-task benchmark with ablations over team size and arbiter policy, released with the traces.',
     doi: null,
     arxiv_id: '2608.01234',
     source: 'arxiv',
@@ -84,6 +89,20 @@ export const fixturePapers: ScoredPaper[] = [
       'The abstract proposes a coordination protocol for cooperating language-model agents and reports an empirical gain, matching the acceptance criteria.',
     full_text_screening_reasoning:
       'The full text carries a complete method, a new benchmark with three suites, and an ablation over the number of agents; directly on-topic for the workspace.',
+    // The metadata card in full — affiliation, contact, artifact link,
+    // funding and the three compliance chips — so stub mode shows the
+    // collapsed abstract in its place as the card's last row.
+    risk_and_affiliation: {
+      affiliations: ['Example Institute of Technology'],
+      author_contacts: ['a.example@eit.example'],
+      funding_entities: ['Example Research Council Fellowship', 'Beispiel Foundation'],
+      codebase_artifact_link: 'https://github.com/example/coordinated-tool-use',
+      flags: [
+        { key: 'gdpr', label: 'GDPR Sovereignty', value: 'NO', status: 'safe' },
+        { key: 'schwarz_ecosystem', label: 'Schwarz Ecosystem', value: 'NO', status: 'neutral' },
+        { key: 'competitor', label: 'Competitor Involvement', value: 'None', status: 'safe' },
+      ],
+    },
     signal_score: 87.5,
     signal_score_details: {
       variables: { fit_score: 92, novelty_score: 8, trl_level: 4 },
