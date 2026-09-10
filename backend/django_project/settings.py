@@ -15,6 +15,7 @@ Notifications: Mailgun Transactional API.
 
 
 from pathlib import Path
+import logging
 import os
 import sys
 import json
