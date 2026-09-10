@@ -8,7 +8,6 @@ import {
   EnvelopeIcon,
   ExclamationTriangleIcon,
   InformationCircleIcon,
-  ShieldCheckIcon,
 } from '@heroicons/react/16/solid'
 import clsx from 'clsx'
 import type { ReactNode } from 'react'
@@ -176,6 +175,23 @@ export function unpackEmbeddedDictsInString(str: string): string {
   })
 }
 
+type Verdict = 'yes' | 'no' | null
+
+/**
+ * Chip colour is a product rule, not backend data (stakeholder edit,
+ * 10 Sep 2026): green is the outcome Schwarz wants — inside its ecosystem,
+ * no competitor — and the opposite verdict is a neutral blue. Only the two
+ * yes/no flags follow the rule; Compliance Risks keeps the warn/safe tone
+ * the backend sent, and a flag with no readable verdict keeps its status.
+ */
+export function flagTone(flag: RiskFlag, verdict: Verdict, status: string): string {
+  if (!verdict) return status
+  const order = getFlagSortOrder(flag)
+  if (order === 1) return verdict === 'yes' ? 'safe' : 'highlight'
+  if (order === 2) return verdict === 'no' ? 'safe' : 'highlight'
+  return status
+}
+
 // The verdicts this file writes itself (never backend prose), so they are
 // translated; `t` defaults to identity for the unit tests that call the
 // unpacker directly.
@@ -185,6 +201,7 @@ export function unpackFlag(
 ): { label: string; value: string; status: string } {
   let val = flag.value
   let status = flag.status
+  let verdict: Verdict = null
   const label = normalizeFlagLabel(flag.label, flag.key, t)
 
   let parsed: Record<string, unknown> | null = null
@@ -236,10 +253,11 @@ export function unpackFlag(
 
     if (isPos) {
       val = items.length > 0 ? `${t('YES')} (${items.join(', ')})` : t('YES')
-      if (flag.key.includes('schwarz') || flag.key.includes('ecosystem')) status = 'highlight'
-      else status = 'warn'
+      verdict = 'yes'
+      status = 'warn'
     } else if (isNeg) {
       val = flag.key.includes('competitor') ? t('None') : t('NO')
+      verdict = 'no'
       status = 'safe'
     } else {
       val = items.length > 0 ? `${statStr} (${items.join(', ')})` : statStr || '—'
@@ -254,9 +272,16 @@ export function unpackFlag(
         status = 'warn'
       }
     }
+    // Backend prose leads with its verdict ("YES (TUM)", "None", "NO").
+    if (/^(yes|true)\b/i.test(val)) verdict = 'yes'
+    else if (/^(no|none|false)\b/i.test(val)) verdict = 'no'
   }
 
-  return { label, value: typeof val === 'string' ? val : String(val ?? '—'), status }
+  return {
+    label,
+    value: typeof val === 'string' ? val : String(val ?? '—'),
+    status: flagTone(flag, verdict, status),
+  }
 }
 
 /**
@@ -406,7 +431,10 @@ export function RiskAffiliationFlagging({
                   />
                 )}
                 {isHighlight && (
-                  <ShieldCheckIcon aria-hidden="true" className="size-3 shrink-0 text-sky-500" />
+                  <InformationCircleIcon
+                    aria-hidden="true"
+                    className="size-3 shrink-0 text-sky-500"
+                  />
                 )}
                 {!isSafe && !isWarn && !isHighlight && (
                   <InformationCircleIcon

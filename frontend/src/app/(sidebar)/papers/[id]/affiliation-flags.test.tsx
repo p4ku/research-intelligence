@@ -8,6 +8,13 @@ import {
   unpackFlag,
 } from './affiliation-flags'
 
+/** The rendered chip whose bold label reads `label:`, so colour asserts are per chip. */
+function chip(out: string, label: string): string {
+  const at = out.indexOf(`${label}:</span>`)
+  expect(at).toBeGreaterThan(-1)
+  return out.slice(out.lastIndexOf('<span class="inline-flex', at), at)
+}
+
 describe('RiskAffiliationFlagging Component Rendering', () => {
   const fullRiskData: RiskAndAffiliation = {
     affiliations: ['University of Cambridge', 'Max Planck Institute'],
@@ -154,10 +161,10 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={dictFlagsRisk} />)
     expect(out).toContain('Schwarz Ecosystem:')
     expect(out).toContain('YES (TUM)')
-    expect(out).toContain('text-sky-700')
+    expect(chip(out, 'Schwarz Ecosystem')).toContain('text-emerald-700')
     expect(out).toContain('Competitor Involvement:')
     expect(out).toContain('None')
-    expect(out).toContain('text-emerald-700')
+    expect(chip(out, 'Competitor Involvement')).toContain('text-emerald-700')
     expect(out).not.toContain('"status"')
   })
 
@@ -215,10 +222,10 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     const out = renderToStaticMarkup(<RiskAffiliationFlagging risk={directDictRisk} />)
     expect(out).toContain('Schwarz Ecosystem:')
     expect(out).toContain('YES (TUM)')
-    expect(out).toContain('text-sky-700')
+    expect(chip(out, 'Schwarz Ecosystem')).toContain('text-emerald-700')
     expect(out).toContain('Competitor Involvement:')
     expect(out).toContain('None')
-    expect(out).toContain('text-emerald-700')
+    expect(chip(out, 'Competitor Involvement')).toContain('text-emerald-700')
   })
 
   test('renders production extraction 0ee3ad96-c128-4aa0-a4f8-0a6ee644659d payload into affiliations, contacts, funding, links, and flags', () => {
@@ -296,15 +303,15 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     // 5. Sovereignty & Risk flags (displayed in order: Schwarz Ecosystem, Competitor Involvement, Compliance Risks)
     expect(out).toContain('Compliance Risks:')
     expect(out).toContain('NO')
-    expect(out).toContain('text-emerald-700')
+    expect(chip(out, 'Compliance Risks')).toContain('text-emerald-700')
 
     expect(out).toContain('Schwarz Ecosystem:')
     expect(out).toContain('YES (TUM)')
-    expect(out).toContain('text-sky-700')
+    expect(chip(out, 'Schwarz Ecosystem')).toContain('text-emerald-700')
 
     expect(out).toContain('Competitor Involvement:')
     expect(out).toContain('None')
-    expect(out).toContain('text-emerald-700')
+    expect(chip(out, 'Competitor Involvement')).toContain('text-emerald-700')
 
     const ecoIdx = out.indexOf('Schwarz Ecosystem:')
     const compIdx = out.indexOf('Competitor Involvement:')
@@ -424,7 +431,7 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     })
     expect(flagSingle.label).toBe('Competitor Involvement')
     expect(flagSingle.value).toBe('YES (Google (Funder))')
-    expect(flagSingle.status).toBe('warn')
+    expect(flagSingle.status).toBe('highlight')
 
     // 2. Multiple competitors with mixed roles
     const flagMulti = unpackFlag({
@@ -457,7 +464,49 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
       },
     })
     expect(flagFromDict.value).toBe('YES (Google (Funder))')
-    expect(flagFromDict.status).toBe('warn')
+    expect(flagFromDict.status).toBe('highlight')
+  })
+
+  test('chip colour follows the product rule, not the backend status: ecosystem YES and competitor NO are green, the opposite verdicts neutral blue', () => {
+    const eco = (value: string, status: string, dict_value?: Record<string, unknown>) =>
+      unpackFlag({
+        key: 'schwarz_ecosystem',
+        label: 'Schwarz Ecosystem',
+        value,
+        status,
+        dict_value,
+      })
+    const comp = (value: string, status: string, dict_value?: Record<string, unknown>) =>
+      unpackFlag({ key: 'competitor', label: 'Competitor Involvement', value, status, dict_value })
+
+    // Backend prose, with the status the adapter sends today
+    expect(eco('YES (TUM)', 'highlight').status).toBe('safe')
+    expect(eco('NO', 'neutral').status).toBe('highlight')
+    expect(comp('YES (Google (Funder))', 'warn').status).toBe('highlight')
+    expect(comp('None', 'safe').status).toBe('safe')
+
+    // Dict-shaped values, where the unpacker used to pick the tone itself
+    expect(eco('YES', 'neutral', { status: 'YES', matched_institutions: ['TUM'] }).status).toBe(
+      'safe',
+    )
+    expect(eco('NO', 'neutral', { status: 'NO', matches: null }).status).toBe('highlight')
+    expect(
+      comp('YES', 'neutral', { status: 'YES', matches: [{ competitor: 'Google' }] }).status,
+    ).toBe('highlight')
+    expect(comp('None', 'safe', { status: 'NO', matches: null }).status).toBe('safe')
+
+    // No readable verdict: the backend status stands
+    expect(eco('Aligned with STACKIT', 'highlight').status).toBe('highlight')
+    expect(comp('High proprietary overlap', 'warn').status).toBe('warn')
+
+    // Compliance keeps its warn/safe tone either way
+    expect(
+      unpackFlag({ key: 'gdpr', label: 'Compliance Risks', value: 'YES (consent)', status: 'warn' })
+        .status,
+    ).toBe('warn')
+    expect(
+      unpackFlag({ key: 'gdpr', label: 'Compliance Risks', value: 'NO', status: 'safe' }).status,
+    ).toBe('safe')
   })
 
   test('formatInvolvementType formats various role naming conventions correctly', () => {
@@ -482,7 +531,7 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     expect(formatFlagItem('Amazon')).toBe('Amazon')
   })
 
-  test('renders user screenshot scenario with clean unpacked competitor badge and warning styling', () => {
+  test('renders user screenshot scenario with clean unpacked competitor badge in the neutral tone', () => {
     const screenshotRiskData: RiskAndAffiliation = {
       affiliations: ['New York University'],
       author_contacts: ['atk331@nyu.edu', 'rovinski@nyu.edu'],
@@ -526,7 +575,11 @@ describe('RiskAffiliationFlagging Component Rendering', () => {
     expect(out).not.toContain("'involvement_type'")
     expect(out).not.toContain('FUNDER') // should be formatted as Funder
 
-    // Verify warning status badge classes
-    expect(out).toContain('bg-amber-50 text-amber-800')
+    // A competitor is present: neutral blue, not a warning; not in the
+    // ecosystem: neutral blue too; no compliance risk: green.
+    expect(chip(out, 'Competitor Involvement')).toContain('bg-sky-50 text-sky-700')
+    expect(chip(out, 'Schwarz Ecosystem')).toContain('bg-sky-50 text-sky-700')
+    expect(chip(out, 'Compliance Risks')).toContain('bg-emerald-50 text-emerald-700')
+    expect(out).not.toContain('text-amber-800')
   })
 })
