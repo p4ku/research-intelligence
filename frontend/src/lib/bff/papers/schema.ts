@@ -6,6 +6,7 @@
  * Until then the BFF composes it (see ./compose.ts, port reference
  * src/lib/papers/map.ts). Pure.
  */
+import { normaliseDimension, normaliseScore } from '@/lib/papers/score'
 import * as z from 'zod'
 import { listQuery, pageSchema } from '../core/pagination'
 
@@ -164,6 +165,11 @@ export const dimension = z
     model: z.string().nullable().optional(),
   })
   .passthrough()
+  // The parse seam is where a TRL becomes a whole 1–9 level; every other
+  // dimension keeps its exact value (see lib/papers/score.ts). `.overwrite`
+  // is a check, so the inferred type and the generated JSON schema are the
+  // same as without it.
+  .overwrite(normaliseDimension)
   .meta({ id: 'Dimension' })
 export type Dimension = z.infer<typeof dimension>
 
@@ -237,6 +243,10 @@ export const scoredPaper = z
     pipeline_run_name: z.string().nullable(),
     risk_and_affiliation: riskAndAffiliation.nullable().optional(),
   })
+  // Production papers reach the UI through this parse and no other, so the
+  // one score rule is applied here: capped at 100, and null when the formula
+  // recorded an error (the scorer writes 0.0 on failure).
+  .overwrite(normaliseScore)
   .meta({ id: 'ScoredPaper' })
 export type ScoredPaper = z.infer<typeof scoredPaper>
 
@@ -275,6 +285,9 @@ export const editionPaper = z
     risk_and_affiliation: riskAndAffiliation.nullable().optional(),
   })
   .passthrough()
+  // Same rule as `scoredPaper`: an edition's papers come from the same
+  // scorer, so they are capped and unscored-on-error at the parse too.
+  .overwrite(normaliseScore)
   .meta({ id: 'EditionPaper' })
 export type EditionPaper = z.infer<typeof editionPaper>
 
@@ -345,7 +358,7 @@ export const papersFacets = z
   .object({
     /** Papers in the corpus before any filter. */
     total: z.number().int().min(0),
-    /** The score slider's top: 100, or higher when a formula scores higher. */
+    /** The score slider's top. Always 100: the parse seam caps every score there. */
     score_ceiling: z.number().int(),
     /** The newest ingest time — what the ingested window counts back from. */
     newest: z.iso.datetime({ offset: true }).nullable(),

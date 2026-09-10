@@ -132,6 +132,15 @@ describe('applyView', () => {
     expect(ids(applyView([a, b, c, d], { sort: 'score', minScore: 75 }))).toEqual(['b', 'd'])
   })
 
+  test('the floor and the order read the exact score, not the whole number the card prints', () => {
+    // Both print "75"; only the one stored at or above 75 clears the floor,
+    // and the higher of the two leads the list.
+    const just = paper('just', 74.6, null, [])
+    const over = paper('over', 75.4, null, [])
+    expect(ids(applyView([just, over], { sort: 'score', minScore: 75 }))).toEqual(['over'])
+    expect(ids(applyView([just, over], { sort: 'score', minScore: 0 }))).toEqual(['over', 'just'])
+  })
+
   test('does not reorder the input', () => {
     const input = [a, b, c]
     applyView(input, DEFAULT_VIEW)

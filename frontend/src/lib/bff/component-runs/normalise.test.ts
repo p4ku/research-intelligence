@@ -82,6 +82,16 @@ describe('toSummary', () => {
     ).toEqual({ kind: 'signal_score', scored: 2, total: 2, avg: null, max: 88 })
   })
 
+  test('signal_score reads on the 0–100 scale, whatever the engine recorded', () => {
+    expect(
+      toSummary(
+        'signal_score',
+        { scored_count: 1, total_papers: 1, avg_signal_score: 112.5, max_signal_score: 112.5 },
+        {},
+      ),
+    ).toEqual({ kind: 'signal_score', scored: 1, total: 1, avg: 100, max: 100 })
+  })
+
   test('reporting reads output_data when metrics is thin', () => {
     expect(
       toSummary(

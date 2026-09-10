@@ -841,3 +841,72 @@ describe('definition detail (the rest of the payload, shaped by its keys)', () =
     })
   })
 })
+
+// The mapper is the backend-port reference for the same rule the parse seam
+// applies (lib/papers/score.ts): a whole TRL, a capped score, no number at
+// all when the formula failed.
+describe('the score rule in the mapper', () => {
+  const contexts = definitionContexts(defs, corpusMaxima(defs, []))
+  const metric = (partial: Record<string, unknown>) => ({
+    id: 'm-r',
+    paper: 'p-r',
+    pipeline_run: 'run-1',
+    workspace: 'ws-1',
+    signal_score: null,
+    metrics_data: {},
+    created_at: '2026-08-02T00:00:00Z',
+    ...partial,
+  })
+
+  test('a legacy trl_score reads as a level, raw included', () => {
+    // The legacy dimension only stands in for a workspace with no TRL definition.
+    const noTrl = defs.filter((d) => d.id !== 'def-trl')
+    const p = toScoredPaper(
+      paper({ id: 'p-r', metrics: [metric({ metrics_data: { trl_score: 6.5 } })] }),
+      [],
+      definitionContexts(noTrl, corpusMaxima(noTrl, [])),
+    )
+    const trl = p.dimensions.find((d) => d.is_trl)!
+    expect(trl).toMatchObject({ key: 'trl_score', value: 7, raw: '7' })
+  })
+
+  test('an orphan extraction named TRL is a level too', () => {
+    const orphan = extraction({
+      id: 'e-orph',
+      paper: 'p-r',
+      extraction_definition: null,
+      category: 'TRL',
+      fields_data: { trl: 6.5 },
+    })
+    const p = toScoredPaper(paper({ id: 'p-r' }), [orphan], contexts, { detail: true })
+    const trl = p.dimensions.find((d) => d.key === 'trl')!
+    expect(trl).toMatchObject({ is_trl: true, value: 7 })
+  })
+
+  test('a stored score past the ceiling is capped at 100', () => {
+    const p = toScoredPaper(
+      paper({ id: 'p-r', metrics: [metric({ signal_score: 112.5 })] }),
+      [],
+      contexts,
+    )
+    expect(p.signal_score).toBe(100)
+  })
+
+  test('a failed formula is not scored, and its error still reaches the ledger', () => {
+    const p = toScoredPaper(
+      paper({
+        id: 'p-r',
+        metrics: [
+          metric({
+            signal_score: 0,
+            signal_score_details: { variables: {}, error: 'ZeroDivisionError' },
+          }),
+        ],
+      }),
+      [],
+      contexts,
+    )
+    expect(p.signal_score).toBeNull()
+    expect(p.signal_score_details?.error).toBe('ZeroDivisionError')
+  })
+})

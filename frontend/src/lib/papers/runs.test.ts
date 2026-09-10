@@ -54,6 +54,20 @@ describe('indexRuns', () => {
     expect(index.get(NEW)?.has(b.id)).toBe(true)
   })
 
+  test('the run’s score follows the one rule: capped, and null when the formula failed', () => {
+    const index = indexRuns([
+      {
+        id: a.id,
+        metrics: [
+          metric(OLD, { signal_score: 140 }),
+          metric(NEW, { signal_score: 0, signal_score_details: { error: 'ZeroDivisionError' } }),
+        ],
+      },
+    ])
+    expect(index.get(OLD)?.get(a.id)?.signal_score).toBe(100)
+    expect(index.get(NEW)?.get(a.id)?.signal_score).toBeNull()
+  })
+
   test('a metric without a run, or without a decision, is indexed honestly', () => {
     const index = indexRuns([
       { id: a.id, metrics: [metric(OLD), { ...metric(NEW), pipeline_run: null }] },

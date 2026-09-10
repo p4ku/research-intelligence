@@ -21,6 +21,7 @@ import {
   type BrowseState,
   type Screening,
 } from '@/lib/papers/browse'
+import { SCORE_STEP } from '@/lib/papers/score'
 import { useStars } from '@/lib/stars-client'
 import { XMarkIcon } from '@heroicons/react/16/solid'
 import { useSearchParams } from 'next/navigation'
@@ -449,6 +450,7 @@ export function PapersBrowser({
             <MinScoreSlider
               value={state.minScore}
               ceiling={facets.score_ceiling}
+              step={SCORE_STEP}
               onChange={(minScore) => update({ minScore })}
               labels={{
                 minimum: t('Minimum score'),

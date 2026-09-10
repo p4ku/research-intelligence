@@ -110,6 +110,31 @@ describe('Assessment Component Rendering', () => {
     expect(out).toContain('scaleX(')
   })
 
+  test('rounds score-like figures to whole numbers, headline and sub-measure alike', () => {
+    // The two scales that round: a 0–100 headline (the float the formula
+    // stores) and a sub-measure on a max of ten or more. The 0–1 confidence
+    // and the 0–5 ratio above keep their decimals.
+    const roundingDimension: Dimension = {
+      key: 'research_metric',
+      definition_id: '00000000-0000-4000-8000-000000000021',
+      name: 'Research Metric',
+      value: 61.666666666666664,
+      raw: '61.666666666666664',
+      max: 100,
+      is_trl: false,
+      facets: [{ key: 'rigour', name: 'Rigour', value: 7.5, max: 10, text: null }],
+      texts: [],
+      facts: [],
+    }
+
+    const out = renderToStaticMarkup(<Assessment dimensions={[roundingDimension]} t={t} />)
+
+    expect(out).toMatch(/leading-none">62</)
+    expect(out).not.toContain('61.6')
+    expect(out).toMatch(/text-sm">8</)
+    expect(out).not.toContain('7.5')
+  })
+
   test('renders titled texts sections', () => {
     const out = renderToStaticMarkup(<Assessment dimensions={[fullDimension]} t={t} />)
     expect(out).toContain('Hardware target notes')

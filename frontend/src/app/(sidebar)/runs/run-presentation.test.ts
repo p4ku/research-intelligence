@@ -1,9 +1,17 @@
 import { COMPONENT_LABELS, STEP_LABELS } from '@/lib/bff/component-runs/normalise'
+import type { ComponentSummary } from '@/lib/bff/component-runs/schema'
 import { STAGE_LABELS } from '@/lib/bff/pipeline-runs/schema'
 import { makeT } from '@/lib/i18n'
 import { de } from '@/locales/de'
 import { describe, expect, test } from 'bun:test'
-import { formatDuration, formatTokens, formatUsd, runStatusLabel } from './run-presentation'
+import { renderToStaticMarkup } from 'react-dom/server'
+import {
+  formatDuration,
+  formatTokens,
+  formatUsd,
+  runStatusLabel,
+  StepSummary,
+} from './run-presentation'
 import { COLUMNS } from './runs-table'
 
 describe('formatDuration', () => {
@@ -104,6 +112,30 @@ describe('German readings', () => {
     expect(runStatusLabel('aborted', t)).toBe('Abgebrochen')
     expect(runStatusLabel('completed', t)).toBe('Abgeschlossen')
     expect(runStatusLabel('running', t)).toBe('Läuft')
+  })
+})
+
+/* ------------------------------- Step summary ------------------------------- */
+
+describe('StepSummary', () => {
+  // A hookless server component, so the test calls it and renders what it
+  // returns rather than reaching for JSX in a .ts file.
+  const markup = (summary: ComponentSummary) => renderToStaticMarkup(StepSummary({ summary }))
+
+  test('the scoring step reads its average and best as whole scores', () => {
+    // The Schwarz Score is a whole number wherever it is shown; a one-decimal
+    // "88.5" here would disagree with the paper card and the briefing.
+    const html = markup({ kind: 'signal_score', scored: 8, total: 10, avg: 71.25, max: 88.5 })
+    expect(html).toContain('>71<')
+    expect(html).toContain('>89<')
+    expect(html).not.toContain('71.3')
+    expect(html).not.toContain('88.5')
+  })
+
+  test('an unscored step shows no figures at all', () => {
+    const html = markup({ kind: 'signal_score', scored: 0, total: 10, avg: null, max: null })
+    expect(html).not.toContain('avg')
+    expect(html).not.toContain('max')
   })
 })
 

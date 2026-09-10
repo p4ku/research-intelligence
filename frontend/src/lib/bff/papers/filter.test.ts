@@ -128,6 +128,15 @@ describe('applyPapersQuery', () => {
     expect(ids(applyPapersQuery(corpus(), q({ min_score: 80 }), none).rows)).toEqual([id(1)])
   })
 
+  test('the floor compares the stored value, not the figure on the card', () => {
+    // 74.6 reads as "75" and is still under a floor of 75; only display rounds.
+    const c = corpus()
+    c.papers[1] = { ...c.papers[1]!, signal_score: 74.6 }
+    expect(ids(applyPapersQuery(c, q({ min_score: 75 }), none).rows)).toEqual([id(1)])
+    c.papers[1] = { ...c.papers[1]!, signal_score: 75 }
+    expect(ids(applyPapersQuery(c, q({ min_score: 75 }), none).rows)).toEqual([id(1), id(2)])
+  })
+
   test('the TRL window applies, and drops papers without a TRL', () => {
     const { rows } = applyPapersQuery(
       corpus(),
@@ -211,10 +220,12 @@ describe('corpusFacets', () => {
     })
   })
 
-  test('the ceiling rises with a formula that scores past 100, ceiled', () => {
+  test('the ceiling stays 100 even when a stored score exceeds it', () => {
+    // Nothing this high survives the parse seam any more; the slider is fixed
+    // whatever a hand-built corpus holds.
     const c = corpus()
     c.papers[0] = { ...c.papers[0]!, signal_score: 140.2 }
-    expect(corpusFacets(c, none).score_ceiling).toBe(141)
+    expect(corpusFacets(c, none).score_ceiling).toBe(100)
   })
 
   test('dimension sorts list a definition once across domains, only with a value, never TRL', () => {

@@ -57,6 +57,13 @@ describe('stateFrom / searchOf', () => {
     expect(state).toEqual(DEFAULT_STATE)
   })
 
+  test('a score floor above the scale falls back to any score', () => {
+    // The Schwarz Score is a 0–100 scale; ?score=150 is a hand-edited link.
+    expect(stateFrom({ score: '150' }, domains).minScore).toBe(0)
+    expect(stateFrom({ score: '100' }, domains).minScore).toBe(100)
+    expect(stateFrom({ score: '75' }, domains).minScore).toBe(75)
+  })
+
   test('a repeated param reads its first value', () => {
     expect(stateFrom({ page: ['2', '9'] }, domains).page).toBe(2)
   })

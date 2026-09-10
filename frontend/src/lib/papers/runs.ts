@@ -11,6 +11,7 @@
  */
 import type { PaperDTO } from '@/lib/api/types'
 import { normalizeStatus } from './map'
+import { signalScoreOf } from './score'
 import type { ScoredPaper, ScreeningStatus } from './types'
 
 /** One run's row for one paper. */
@@ -50,7 +51,7 @@ export function indexRuns(papers: Pick<PaperDTO, 'id' | 'metrics'>[]): RunIndex 
           m.full_text_screening_reasoning || m.abstract_screening_reasoning || null,
         abstract_screening_reasoning: m.abstract_screening_reasoning || null,
         full_text_screening_reasoning: m.full_text_screening_reasoning || null,
-        signal_score: typeof m.signal_score === 'number' ? m.signal_score : null,
+        signal_score: signalScoreOf(m.signal_score, m.signal_score_details),
       })
     }
   }

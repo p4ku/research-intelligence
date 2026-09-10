@@ -1,8 +1,9 @@
 import { RadarChart } from '@/components/charts'
 import { Card } from '@/components/scanner-ui'
 import { Bone } from '@/components/skeleton'
-import { formatNumber, type Lang, type T } from '@/lib/i18n'
+import { type Lang, type T } from '@/lib/i18n'
 import { dimensionShortName } from '@/lib/papers/dimension-label'
+import { formatMeasure, formatScore } from '@/lib/papers/select'
 import type { Dimension, ScoredPaper } from '@/lib/papers/types'
 import type { ReactNode } from 'react'
 import { definitionAnchor } from './assessment'
@@ -56,11 +57,6 @@ export function ScoreRailFrame({
   )
 }
 
-/** Integers plain, otherwise at most two decimals — the reading the assessment uses too. */
-function shownNumber(value: number | null, lang: Lang): string {
-  return value === null ? '—' : formatNumber(value, lang, undefined, 2)
-}
-
 /** The radar's axes: the scaled dimensions, each printing the figure its bar shows, not a percentage. */
 function radarAxes(dimensions: Dimension[], t: T, lang: Lang) {
   return dimensions
@@ -68,13 +64,13 @@ function radarAxes(dimensions: Dimension[], t: T, lang: Lang) {
     .map((d) => ({
       label: dimensionShortName(d, t),
       value: Math.max(0, Math.min(100, (d.value! / d.max!) * 100)),
-      shown: shownNumber(d.value, lang),
+      shown: formatMeasure(d.value, d.max, lang),
     }))
 }
 
 function railBar(d: Dimension, t: T, lang: Lang): RailBar {
   const hasBar = d.value !== null && d.max !== null && d.max > 0
-  const shown = shownNumber(d.value, lang)
+  const shown = formatMeasure(d.value, d.max, lang)
   return {
     key: d.key + (d.extraction_id ?? ''),
     label: dimensionShortName(d, t),
@@ -128,12 +124,7 @@ export function railParts(paper: ScoredPaper, t: T, lang: Lang = 'en'): RailPart
     .filter(isDisplayableRailDimension)
     .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
   const axes = radarAxes(visibleDimensions, t, lang)
-  const score =
-    paper.signal_score === null
-      ? '—'
-      : Number.isInteger(paper.signal_score)
-        ? formatNumber(paper.signal_score, lang)
-        : formatNumber(paper.signal_score, lang, 1)
+  const score = formatScore(paper.signal_score)
   return {
     label: t('Schwarz Score'),
     score,
@@ -158,7 +149,7 @@ export function ScoreRailSkeleton({ t, bars = 7 }: { t: T; bars?: number }) {
     <ScoreRailFrame
       state="skeleton"
       label={t('Schwarz Score')}
-      score={<Bone.Number digits={4} />}
+      score={<Bone.Number digits={3} />}
       bars={Array.from({ length: bars }, (_, i) => (
         <ScoreBarFrame
           key={i}

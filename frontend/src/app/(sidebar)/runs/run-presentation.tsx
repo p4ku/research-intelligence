@@ -13,6 +13,7 @@ import { Bone } from '@/components/skeleton'
 import type { ComponentRun, ComponentSummary } from '@/lib/bff/component-runs/schema'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import { fmt, formatNumber, type Lang, type T } from '@/lib/i18n'
+import { formatScore } from '@/lib/papers/select'
 import clsx from 'clsx'
 
 /* --------------------------------- Values --------------------------------- */
@@ -276,7 +277,7 @@ export function StepSummary({
             <span className="whitespace-nowrap text-zinc-500 dark:text-zinc-400">
               {t('avg')}{' '}
               <span className="font-medium text-zinc-900 tabular-nums dark:text-zinc-100">
-                {formatNumber(summary.avg, lang, 1)}
+                {formatScore(summary.avg)}
               </span>
             </span>
           )}
@@ -284,7 +285,7 @@ export function StepSummary({
             <span className="whitespace-nowrap text-zinc-500 dark:text-zinc-400">
               {t('max')}{' '}
               <span className="font-medium text-zinc-900 tabular-nums dark:text-zinc-100">
-                {formatNumber(summary.max, lang, 1)}
+                {formatScore(summary.max)}
               </span>
             </span>
           )}

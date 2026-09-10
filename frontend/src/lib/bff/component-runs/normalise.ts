@@ -7,6 +7,7 @@
  *  - absent is not zero (`{kind:'none'}`, `cost.usd === null`);
  *  - never estimate. Only what the engine measured is reported.
  */
+import { clampScore } from '@/lib/papers/score'
 import type { ComponentCost, ComponentSummary, StepType } from './schema'
 
 /* ------------------------------ JSON readers ------------------------------ */
@@ -30,6 +31,9 @@ function num(source: Record<string, unknown>, ...keys: string[]): number | null 
   }
   return null
 }
+
+/** A score-like number held to the 0–100 scale; null passes through. */
+const capped = (value: number | null): number | null => (value === null ? null : clampScore(value))
 
 function int(source: Record<string, unknown>, ...keys: string[]): number {
   const value = num(source, ...keys)
@@ -154,8 +158,10 @@ export function toSummary(step: StepType, metrics: unknown, outputData: unknown)
         kind: 'signal_score',
         scored: int(both, 'scored_count', 'papers_scored'),
         total: int(both, 'total_papers'),
-        avg: num(both, 'avg_signal_score'),
-        max: num(both, 'max_signal_score', 'top_score'),
+        // The engine records these unrounded and uncapped; the step summary
+        // reads on the same 0–100 scale as every other score.
+        avg: capped(num(both, 'avg_signal_score')),
+        max: capped(num(both, 'max_signal_score', 'top_score')),
       }
     }
     case 'reporting': {

@@ -1,5 +1,6 @@
 // Small selectors over the domain types, safe for client components.
 
+import { formatNumber, type Lang } from '@/lib/i18n'
 import type { DefinitionSummary, Dimension, ScoredPaper, WorkspaceSummary } from './types'
 
 /** A title up to its first colon — the part people say out loud. */
@@ -84,9 +85,33 @@ export function byValueAsc(a: number | null, b: number | null): number {
   return a - b
 }
 
-/** "95.5" → 96, "12.25" → 12.3; integers stay integers. */
-export function formatScore(n: number | null): string {
-  if (n === null) return '—'
-  if (Number.isInteger(n)) return String(n)
-  return (Math.round(n * 10) / 10).toString()
+/**
+ * A score as a reader sees it: the whole number, or the dash when there is
+ * none. Rounds half up (74.5 → "75"); no locale, since a whole number under
+ * a thousand reads the same in German and English. Thresholds and sorts
+ * never read this — they compare the exact stored value (see `score.ts`).
+ */
+export function formatScore(n: number | null | undefined): string {
+  if (typeof n !== 'number' || !Number.isFinite(n)) return '—'
+  return String(Math.round(n))
+}
+
+/**
+ * A dimension or sub-measure figure. Score-like scales (no `max`, or a `max`
+ * of nine or more — the 0–100 definitions and TRL) read as whole numbers;
+ * a small scale such as a 0–1 confidence or a 0–5 ratio keeps up to two
+ * decimals, so 0.92 does not print as "1". A fraction below one is on a unit
+ * scale whatever `max` says: the backend only labels a 0–1 facet `max: 1`
+ * when its key is named like a confidence or a ratio.
+ */
+export function formatMeasure(
+  value: number | null | undefined,
+  max: number | null | undefined,
+  lang: Lang,
+): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '—'
+  const unitScale = Math.abs(value) < 1 && !Number.isInteger(value)
+  const smallScale = typeof max === 'number' && max < 9
+  if (unitScale || smallScale) return formatNumber(value, lang, undefined, 2)
+  return formatScore(value)
 }

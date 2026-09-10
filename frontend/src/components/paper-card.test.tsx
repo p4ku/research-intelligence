@@ -1,4 +1,5 @@
 import { fixturePapers } from '@/lib/bff/papers/fixtures'
+import { scoredPaper } from '@/lib/bff/papers/schema'
 import { ALL_ON } from '@/lib/features'
 import { FeaturesTestProvider } from '@/lib/features-client'
 import { describe, expect, test } from 'bun:test'
@@ -62,6 +63,53 @@ describe('PaperCard', () => {
     const reranked = renderToStaticMarkup(<PaperCard paper={fitLast} />)
     expect(order(reranked).every((i) => i >= 0)).toBe(true)
     expect(order(reranked)).toEqual([...order(reranked)].sort((a, b) => a - b))
+  })
+
+  // One rounding rule (10 Sep 2026): the strip and the ring print whole
+  // numbers, and the ring's colour still reads the exact stored value.
+  test('rounds a long float in the strip to a whole number', () => {
+    const messy = {
+      ...paper,
+      dimensions: paper.dimensions!.map((d) =>
+        d.key === 'fit_score' ? { ...d, value: 61.666666666666664, raw: '61.666666666666664' } : d,
+      ),
+    }
+    const html = renderToStaticMarkup(<PaperCard paper={messy} />)
+    expect(html).toContain('>62</span>')
+    expect(html).not.toContain('61.66')
+  })
+
+  test('a score just under the band prints rounded up but keeps the warn colour', () => {
+    const html = renderToStaticMarkup(<PaperCard paper={{ ...paper, signal_score: 74.6 }} />)
+    expect(html).toContain('>75</span>')
+    expect(html).toContain('stroke="var(--warn)"')
+    expect(html).not.toContain('stroke="var(--accent)"')
+  })
+
+  test('an unscored paper reads as a dash, not a number', () => {
+    const html = renderToStaticMarkup(<PaperCard paper={{ ...paper, signal_score: null }} />)
+    expect(html).toContain('>—</span>')
+    expect(html).toContain('Unscored')
+  })
+
+  test('a failed formula reads as unscored from the wire to the card', () => {
+    // The scorer writes 0.0 and an error; the parse seam turns that into
+    // null, and the card never sees a number.
+    const failed = scoredPaper.parse({
+      ...paper,
+      signal_score: 0,
+      signal_score_details: { ...paper.signal_score_details, error: 'ZeroDivisionError' },
+    })
+    const html = renderToStaticMarkup(<PaperCard paper={failed} />)
+    expect(html).toContain('>—</span>')
+    expect(html).toContain('Unscored')
+    expect(html).not.toContain('>0</span>')
+  })
+
+  test('the ceiling prints whole', () => {
+    const html = renderToStaticMarkup(<PaperCard paper={{ ...paper, signal_score: 100 }} />)
+    expect(html).toContain('>100</span>')
+    expect(html).toContain('stroke="var(--accent)"')
   })
 
   test('names the domain in the meta row only when given one', () => {

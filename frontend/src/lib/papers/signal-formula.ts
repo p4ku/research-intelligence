@@ -12,6 +12,7 @@
 //   return round(base * multiplier, 2)
 
 import type { ScoreVariableValue } from '@/lib/bff/papers/schema'
+import { clampScore } from './score'
 
 export interface Inputs {
   trl: number
@@ -105,5 +106,9 @@ export function ledgerInputs(
   if (score === null || !recognisedSnippet(code)) return null
   const inputs = readInputs(vars)
   if (!inputs) return null
-  return Math.abs(evaluate(inputs).score - score) < 0.011 ? inputs : null
+  // The stored score is capped at 100 while the mirror runs to 125 (the ×1.25
+  // TRL bonus), so a capped record proves its inputs just as a raw one does.
+  const mirror = evaluate(inputs).score
+  const near = (n: number) => Math.abs(n - score) < 0.011
+  return near(mirror) || near(clampScore(mirror)) ? inputs : null
 }
