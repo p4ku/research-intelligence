@@ -32,8 +32,10 @@ export function isProse(text: string | null | undefined): boolean {
   return trimmed.length > 25 || trimmed.split(/\s+/).length > 3 || trimmed.includes('\n')
 }
 
-const PROSE = 'max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300 break-words text-pretty'
-const SMALL_PROSE = 'max-w-[76ch] text-sm leading-relaxed text-zinc-600 dark:text-zinc-400 break-words text-pretty'
+const PROSE =
+  'max-w-[76ch] text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-300 break-words text-pretty'
+const SMALL_PROSE =
+  'max-w-[76ch] text-sm leading-relaxed text-zinc-600 dark:text-zinc-400 break-words text-pretty'
 const H4 = 'text-sm font-semibold text-zinc-950 dark:text-white'
 const FIGURE = 'font-mono font-medium text-zinc-950 tabular-nums dark:text-white'
 
