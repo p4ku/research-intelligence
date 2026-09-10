@@ -27,11 +27,7 @@ import { EditionPaperList } from './edition-paper-list'
  */
 
 export function funnelCopy(t: T) {
-  return [
-    { label: t('Screened'), sub: t('matched the focus fields') },
-    { label: t('Included'), sub: t('cleared the signal bar') },
-    { label: t('In the briefing'), sub: t('listed below') },
-  ]
+  return [{ label: t('Screened') }, { label: t('Analysed') }]
 }
 
 /** Crumbs and title, the funnel, the brief. */
@@ -65,7 +61,6 @@ export async function EditionHead({
   const funnel = [
     { value: edition.funnel.fetched, ...copy[0] },
     { value: edition.funnel.passed_screening, ...copy[1] },
-    { value: edition.funnel.surfaced, ...copy[2] },
   ]
   const domain = domains[edition.workspace_id]
   const dateLabel = formatEditionDate(edition.date, lang)

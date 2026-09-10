@@ -119,7 +119,7 @@ function LedgerFrame({
     period: t('Period'),
     generated: t('Generated'),
     screened: t('Screened'),
-    included: t('Included'),
+    included: t('Analysed'),
     status: '',
   }
   return (

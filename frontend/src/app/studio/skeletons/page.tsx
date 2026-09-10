@@ -292,13 +292,8 @@ export default async function SkeletonsPage({
         loaded={
           <StatBand
             items={[
-              { value: edition.funnel.fetched, label: 'Screened', sub: 'matched the focus fields' },
-              {
-                value: edition.funnel.passed_screening,
-                label: 'Included',
-                sub: 'cleared the signal bar',
-              },
-              { value: edition.funnel.surfaced, label: 'In the briefing', sub: 'listed below' },
+              { value: edition.funnel.fetched, label: 'Screened' },
+              { value: edition.funnel.passed_screening, label: 'Analysed' },
             ]}
             flow
             className="lg:grid-cols-3!"
@@ -306,9 +301,9 @@ export default async function SkeletonsPage({
         }
         skeleton={
           <StatBandSkeleton
-            count={3}
-            labels={['Screened', 'Included', 'In the briefing']}
-            subs={['matched the focus fields', 'cleared the signal bar', 'listed below']}
+            count={2}
+            labels={['Screened', 'Analysed']}
+            below="none"
             flow
             className="lg:grid-cols-3!"
           />
@@ -366,7 +361,7 @@ export default async function SkeletonsPage({
         loaded={
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <StatTile label="Papers fetched" value={12} delta={4} sub="vs. yesterday" />
-            <StatTile label="Included" value={5} sub="cleared the signal bar" />
+            <StatTile label="Analysed" value={5} sub="cleared the signal bar" />
           </div>
         }
         skeleton={

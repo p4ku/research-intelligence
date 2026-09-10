@@ -270,7 +270,7 @@ export function BriefPanel({ brief }: { brief: HomeBrief }) {
     >
       <div className={clsx(brief.top.length > 0 && 'lg:col-span-3')}>
         <p className="font-mono text-[11px] text-zinc-500 tabular-nums dark:text-zinc-400">
-          {fmt(t('{screened} screened → {included} included'), {
+          {fmt(t('{screened} screened → {included} analysed'), {
             screened: formatNumber(brief.screened, lang),
             included: formatNumber(brief.included, lang),
           })}

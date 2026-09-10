@@ -328,7 +328,7 @@ export function EditionBrowser({ editions, lang }: { editions: BrowserEdition[];
               stars ? <StarToggle kind="briefing" id={active.runId} className="shrink-0" /> : null
             }
             funnel={fmt(
-              t('{screened} screened → {included} included → {inBriefing} in the briefing'),
+              t('{screened} screened → {included} analysed → {inBriefing} in the briefing'),
               {
                 screened: active.funnel.screened,
                 included: active.funnel.included,
