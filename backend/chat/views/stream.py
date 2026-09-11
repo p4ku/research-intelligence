@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from chat.models import PaperChatSession, PaperChatMessage
-from research_intelligence.models import Paper, Workspace
+from research_intelligence.models import Paper, Workspace, WorkspaceMember
 from chat.serializers import PaperChatSubmitSerializer
 from chat.engine import PaperChatEngine
 from research_intelligence.services import check_workspace_access

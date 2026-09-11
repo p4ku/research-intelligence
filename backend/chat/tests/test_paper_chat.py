@@ -361,6 +361,55 @@ class PaperChatTestCase(TestCase):
         self.assertEqual(sessions_res.status_code, status.HTTP_200_OK)
         self.assertEqual(len(sessions_res.data), 0)
 
+    def test_chat_session_owner_isolation_within_workspace(self):
+        """A researcher never sees or appends to a colleague's session in the same workspace."""
+        colleague = User.objects.create_user(
+            username="researcher_c",
+            email="c@schwarz-intelligence.com",
+            password=self.password
+        )
+        WorkspaceMember.objects.create(
+            workspace=self.workspace_a,
+            user=colleague,
+            role="researcher"
+        )
+        colleague_session = PaperChatSession.objects.create(
+            workspace=self.workspace_a,
+            paper=self.paper_a,
+            user=colleague,
+            title="Colleague's thread"
+        )
+
+        login_resp = self.client.post('/api/auth/login/', {
+            'username': 'researcher_a',
+            'password': self.password
+        }, format='json')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {login_resp.data["access"]}')
+
+        # The list and the detail route both hide it
+        sessions_res = self.client.get('/api/chat/sessions/')
+        self.assertEqual(sessions_res.status_code, status.HTTP_200_OK)
+        self.assertNotIn(str(colleague_session.id), [row['id'] for row in sessions_res.data])
+
+        detail_res = self.client.get(f'/api/chat/sessions/{colleague_session.id}/')
+        self.assertEqual(detail_res.status_code, status.HTTP_404_NOT_FOUND)
+
+        # Appending is refused outright — 403, not a 500 from the guard itself
+        for path in ('/api/chat/', '/api/chat/stream/'):
+            with self.subTest(path=path):
+                res = self.client.post(path, {
+                    'paper_id': str(self.paper_a.id),
+                    'session_id': str(colleague_session.id),
+                    'question': 'What did they ask?'
+                }, format='json')
+                self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(colleague_session.messages.count(), 0)
+
+        # Admins and managers, by contrast, oversee the whole workspace
+        WorkspaceMember.objects.filter(workspace=self.workspace_a, user=self.user_a).update(role='admin')
+        admin_res = self.client.get('/api/chat/sessions/')
+        self.assertIn(str(colleague_session.id), [row['id'] for row in admin_res.data])
+
     @patch("chat.engine.orchestrator.get_llm_provider")
     def test_fastmcp_ask_paper_tool(self, mock_get_llm_provider):
         """Test FastMCP ask_paper tool integration."""
