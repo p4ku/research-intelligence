@@ -1574,7 +1574,7 @@
     "/bff/stars": {
       "get": {
         "operationId": "stars.get.bff",
-        "summary": "The user's stars. Cookie-backed stub until Django persists them.",
+        "summary": "The user's stars, from Django's /api/stars/.",
         "tags": [
           "stars"
         ],
