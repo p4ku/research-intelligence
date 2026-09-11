@@ -12,6 +12,7 @@
 import 'server-only'
 
 import type { PaperDTO } from '@/lib/api/types'
+import { isPassed } from '@/lib/papers/map'
 import { indexRuns, papersOfRun, type RunIndex } from '@/lib/papers/runs'
 import { cache } from 'react'
 import * as z from 'zod'
@@ -35,6 +36,7 @@ import {
   type PapersQuery,
   type ScoredPaper,
 } from './schema'
+import { scorecardQuery, scorecardRows, type ScorecardScope } from './scorecard-query'
 
 export interface WorkspacePapers {
   workspace: WorkspaceSummary
@@ -83,19 +85,29 @@ const scorecardWorkspace = z
   .passthrough()
 
 const detailResponse = z.object({ workspace: scorecardWorkspace, paper: scoredPaper }).passthrough()
+// Either list key is read (./scorecard-query.ts), so the request can ask for
+// the smaller body without the parsed shape depending on whether the backend
+// it reached honoured `results_only`.
 const workspaceScorecardResponse = z
-  .object({ workspace: scorecardWorkspace, papers: z.array(scoredPaper) })
+  .object({
+    workspace: scorecardWorkspace,
+    papers: z.array(scoredPaper).optional(),
+    results: z.array(scoredPaper).optional(),
+  })
   .passthrough()
+  .transform(({ papers, results, ...rest }) => ({
+    ...rest,
+    papers: scorecardRows({ papers, results }),
+  }))
 
 /** The requested endpoint: retrieves the workspace scorecard directly. */
 async function djangoPapersOf(workspaceId: string, runId?: string): Promise<ScoredPaper[]> {
   assertUuid(workspaceId, 'workspace_id')
   const papers: ScoredPaper[] = []
   let page = 1
-  const runQuery = runId ? `&run_id=${encodeURIComponent(runId)}` : ''
   for (;;) {
     const result = await django(
-      `/api/workspaces/${workspaceId}/scorecard/?page=${page}&page_size=200${runQuery}`,
+      `/api/workspaces/${workspaceId}/scorecard/?${scorecardQuery({ runId }, `page=${page}`, 'page_size=200')}`,
       paperPage,
     )
     papers.push(...result.results)
@@ -105,12 +117,14 @@ async function djangoPapersOf(workspaceId: string, runId?: string): Promise<Scor
   return papers
 }
 
-async function djangoListAll(workspaceId: string, runId?: string): Promise<WorkspacePapers | null> {
+async function djangoListAll(
+  workspaceId: string,
+  scope?: ScorecardScope,
+): Promise<WorkspacePapers | null> {
   assertUuid(workspaceId, 'workspace_id')
-  const runQuery = runId ? `?run_id=${encodeURIComponent(runId)}` : ''
   try {
     const res = await django(
-      `/api/workspaces/${workspaceId}/scorecard/${runQuery}`,
+      `/api/workspaces/${workspaceId}/scorecard/?${scorecardQuery(scope)}`,
       workspaceScorecardResponse,
     )
     return { workspace: res.workspace, papers: res.papers }
@@ -211,17 +225,28 @@ export const papers = {
   /**
    * The papers one run wrote, scored against the workspace's definitions.
    * Directly queries the Django workspace scorecard scoped by ?run_id=.
+   *
+   * `screening` narrows that to the papers the run passed. A reader that only
+   * wants the rows a briefing lists must say so: the run filter alone returns
+   * everything the run screened, and a scorecard row weighs ~39 KB, so a
+   * 771-screened run costs ~30 MB to answer a question about 23 papers.
+   * A primitive argument, not an options object, so the React cache still
+   * dedupes the call across a page's streamed sections.
+   *
    * Cached per request.
    */
-  listRun: cache(async (workspaceId: string, runId: string): Promise<ScoredPaper[]> => {
-    if (sourceOf('papers') === 'stub') {
-      const [scored, index] = await Promise.all([papers.listAll(workspaceId), papers.runIndex()])
-      const corpus = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
-      return papersOfRun(runId, corpus, index).map((r) => r.paper)
-    }
-    const res = await djangoListAll(workspaceId, runId)
-    return res ? res.papers : []
-  }),
+  listRun: cache(
+    async (workspaceId: string, runId: string, screening?: 'passed'): Promise<ScoredPaper[]> => {
+      if (sourceOf('papers') === 'stub') {
+        const [scored, index] = await Promise.all([papers.listAll(workspaceId), papers.runIndex()])
+        const corpus = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
+        const rows = papersOfRun(runId, corpus, index).map((r) => r.paper)
+        return screening === 'passed' ? rows.filter((p) => isPassed(p.screening_status)) : rows
+      }
+      const res = await djangoListAll(workspaceId, { runId, screening })
+      return res ? res.papers : []
+    },
+  ),
 
   /**
    * The Papers page's HTTP face: one page of the corpus under every control,
