@@ -39,9 +39,20 @@ export function scorecardQuery(scope?: ScorecardScope, ...extra: string[]): stri
 /**
  * The rows of a scorecard response, from whichever key carries them: a backend
  * that honoured `results_only` sends `results` alone, one that did not sends
- * both, and one that predates the parameter sends `papers` alone. Neither key
- * is no rows, never a throw — an empty scorecard is a legitimate answer.
+ * both, and one that predates the parameter sends `papers` alone. The `[]` is
+ * unreachable in the parse: `hasScorecardList` rejects a body carrying neither
+ * before this runs. It stands so the function is total for its own callers.
  */
 export function scorecardRows<T>(body: { papers?: T[]; results?: T[] }): T[] {
   return body.papers ?? body.results ?? []
+}
+
+/**
+ * Whether a scorecard response carried a list at all. One key or the other is
+ * fine; neither is a broken contract and must fail as `upstream-shape` rather
+ * than read as an empty corpus — every consumer of a corpus read would draw
+ * "nothing here" and nothing would say why.
+ */
+export function hasScorecardList(body: { papers?: unknown; results?: unknown }): boolean {
+  return body.papers !== undefined || body.results !== undefined
 }

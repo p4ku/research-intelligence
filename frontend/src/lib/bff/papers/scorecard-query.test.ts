@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { scorecardQuery, scorecardRows } from './scorecard-query'
+import { hasScorecardList, scorecardQuery, scorecardRows } from './scorecard-query'
 
 describe('scorecardQuery', () => {
   test('asks for one copy of the list even with no scope', () => {
@@ -37,5 +37,17 @@ describe('scorecardRows', () => {
 
   test('no list is an empty scorecard, not a failure', () => {
     expect(scorecardRows({})).toEqual([])
+  })
+})
+
+describe('hasScorecardList', () => {
+  test('either key is a list, and an empty one still counts', () => {
+    expect(hasScorecardList({ results: [] })).toBe(true)
+    expect(hasScorecardList({ papers: [] })).toBe(true)
+    expect(hasScorecardList({ papers: [1], results: [1] })).toBe(true)
+  })
+
+  test('neither key is a broken contract, not an empty corpus', () => {
+    expect(hasScorecardList({})).toBe(false)
   })
 })

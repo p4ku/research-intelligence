@@ -36,7 +36,12 @@ import {
   type PapersQuery,
   type ScoredPaper,
 } from './schema'
-import { scorecardQuery, scorecardRows, type ScorecardScope } from './scorecard-query'
+import {
+  hasScorecardList,
+  scorecardQuery,
+  scorecardRows,
+  type ScorecardScope,
+} from './scorecard-query'
 
 export interface WorkspacePapers {
   workspace: WorkspaceSummary
@@ -95,6 +100,13 @@ const workspaceScorecardResponse = z
     results: z.array(scoredPaper).optional(),
   })
   .passthrough()
+  // One key or the other, but not neither: a 200 carrying no list at all is a
+  // broken contract, and must still fail as `upstream-shape` rather than read
+  // as an empty corpus — every consumer of `listAll` would render "nothing
+  // here" and no one would know why.
+  .refine(hasScorecardList, {
+    message: 'scorecard response carries neither `results` nor `papers`',
+  })
   .transform(({ papers, results, ...rest }) => ({
     ...rest,
     papers: scorecardRows({ papers, results }),
@@ -240,8 +252,11 @@ export const papers = {
       if (sourceOf('papers') === 'stub') {
         const [scored, index] = await Promise.all([papers.listAll(workspaceId), papers.runIndex()])
         const corpus = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
-        const rows = papersOfRun(runId, corpus, index).map((r) => r.paper)
-        return screening === 'passed' ? rows.filter((p) => isPassed(p.screening_status)) : rows
+        // The run's own decision, not the paper's current one: `papersOfRun`
+        // carries both and they differ once a paper has been through two runs.
+        return papersOfRun(runId, corpus, index)
+          .filter((r) => screening !== 'passed' || isPassed(r.status))
+          .map((r) => r.paper)
       }
       const res = await djangoListAll(workspaceId, { runId, screening })
       return res ? res.papers : []

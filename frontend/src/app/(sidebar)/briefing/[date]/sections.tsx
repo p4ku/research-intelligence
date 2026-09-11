@@ -110,9 +110,10 @@ export async function EditionHead({
  * ledgers (the same rule as `hasBriefing`), so the notice never offers an
  * edition the archive hides. The list is the one `findByDate` already read
  * under the composed source; a failed read is no list, never a failed
- * page. Cached per request: the edition page and the screening log both ask.
+ * page. Cached per request; `namedElsewhere` is its only caller, and only
+ * reaches it for a link whose run is not the briefing shown.
  */
-export const domainEditions = cache(async (edition: Edition, lang: Lang): Promise<Edition[]> => {
+const domainEditions = cache(async (edition: Edition, lang: Lang): Promise<Edition[]> => {
   const [all, capped] = await Promise.all([
     briefings.listAll(edition.workspace_id, lang).catch(() => []),
     papersService.corpusTruncated().catch(() => false),
