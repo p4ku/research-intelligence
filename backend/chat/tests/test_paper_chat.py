@@ -379,6 +379,12 @@ class PaperChatTestCase(TestCase):
             user=colleague,
             title="Colleague's thread"
         )
+        own_session = PaperChatSession.objects.create(
+            workspace=self.workspace_a,
+            paper=self.paper_a,
+            user=self.user_a,
+            title="My own thread"
+        )
 
         login_resp = self.client.post('/api/auth/login/', {
             'username': 'researcher_a',
@@ -386,10 +392,13 @@ class PaperChatTestCase(TestCase):
         }, format='json')
         self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {login_resp.data["access"]}')
 
-        # The list and the detail route both hide it
+        # The list and the detail route both hide it — and the list is not
+        # simply empty: the reader's own session is right there beside it.
         sessions_res = self.client.get('/api/chat/sessions/')
         self.assertEqual(sessions_res.status_code, status.HTTP_200_OK)
-        self.assertNotIn(str(colleague_session.id), [row['id'] for row in sessions_res.data])
+        listed = [row['id'] for row in sessions_res.data]
+        self.assertIn(str(own_session.id), listed)
+        self.assertNotIn(str(colleague_session.id), listed)
 
         detail_res = self.client.get(f'/api/chat/sessions/{colleague_session.id}/')
         self.assertEqual(detail_res.status_code, status.HTTP_404_NOT_FOUND)
@@ -409,6 +418,48 @@ class PaperChatTestCase(TestCase):
         WorkspaceMember.objects.filter(workspace=self.workspace_a, user=self.user_a).update(role='admin')
         admin_res = self.client.get('/api/chat/sessions/')
         self.assertIn(str(colleague_session.id), [row['id'] for row in admin_res.data])
+
+    def test_ownerless_session_is_not_a_back_door(self):
+        """A session with no owner — MCP makes these — is nobody's to read or continue."""
+        ownerless = PaperChatSession.objects.create(
+            workspace=self.workspace_a,
+            paper=self.paper_a,
+            user=None,
+            title="Ownerless thread"
+        )
+        turn = PaperChatMessage.objects.create(
+            session=ownerless,
+            sender='user',
+            status='completed',
+            question="What is the gate fidelity?",
+            message="99.4%, from the compilation benchmark."
+        )
+
+        login_resp = self.client.post('/api/auth/login/', {
+            'username': 'researcher_a',
+            'password': self.password
+        }, format='json')
+        self.client.credentials(HTTP_AUTHORIZATION=f'Bearer {login_resp.data["access"]}')
+
+        # The list already hid it; every other route now agrees
+        sessions_res = self.client.get('/api/chat/sessions/')
+        self.assertNotIn(str(ownerless.id), [row['id'] for row in sessions_res.data])
+
+        detail_res = self.client.get(f'/api/chat/sessions/{ownerless.id}/')
+        self.assertEqual(detail_res.status_code, status.HTTP_404_NOT_FOUND)
+
+        turn_res = self.client.get(f'/api/chat/messages/{turn.id}/')
+        self.assertEqual(turn_res.status_code, status.HTTP_403_FORBIDDEN)
+
+        for path in ('/api/chat/', '/api/chat/stream/'):
+            with self.subTest(path=path):
+                res = self.client.post(path, {
+                    'paper_id': str(self.paper_a.id),
+                    'session_id': str(ownerless.id),
+                    'question': 'Continue that thread'
+                }, format='json')
+                self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(ownerless.messages.count(), 1)
 
     @patch("chat.engine.orchestrator.get_llm_provider")
     def test_fastmcp_ask_paper_tool(self, mock_get_llm_provider):

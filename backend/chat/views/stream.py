@@ -92,7 +92,8 @@ class ChatStreamView(APIView):
                     {"error": f"Chat session '{session_id}' not found in workspace."},
                     status=status.HTTP_404_NOT_FOUND
                 )
-            if session.user_id and session.user_id != request.user.id:
+            # Ownerless sessions included — see the note in submit.py.
+            if session.user_id != request.user.id:
                 is_admin = WorkspaceMember.objects.filter(
                     workspace=target_workspace, user=request.user, role__in=['admin', 'manager']
                 ).exists()

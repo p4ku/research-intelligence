@@ -49,9 +49,10 @@ class ChatMessageDetailView(APIView):
         if error_msg:
             return Response({"error": error_msg}, status=status.HTTP_403_FORBIDDEN)
 
-        # Owner isolation check
+        # Owner isolation check — an ownerless session is nobody's to read,
+        # so it falls to admins and managers like anyone else's does.
         session = message.session
-        if session.user_id and session.user_id != request.user.id:
+        if session.user_id != request.user.id:
             if getattr(membership, 'role', None) not in ['admin', 'manager']:
                 return Response(
                     {"error": "You do not have permission to view another user's chat message."},
