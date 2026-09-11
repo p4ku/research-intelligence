@@ -2,8 +2,10 @@ import { Bone } from '@/components/skeleton'
 import { StarToggle } from '@/components/star'
 import { ALL_ON, type Features } from '@/lib/features'
 import { fmt, formatDate, type Lang, type T } from '@/lib/i18n'
+import { paperExportHref } from '@/lib/papers/href'
 import type { ScoredPaper } from '@/lib/papers/types'
-import { ArrowUpRightIcon, BookmarkIcon } from '@heroicons/react/16/solid'
+import { ArrowDownTrayIcon, ArrowUpRightIcon, BookmarkIcon } from '@heroicons/react/16/solid'
+import clsx from 'clsx'
 import type { ReactNode } from 'react'
 import { AbstractDisclosure } from './abstract'
 import { RiskAffiliationFlagging } from './affiliation-flags'
@@ -13,7 +15,7 @@ import { RiskAffiliationFlagging } from './affiliation-flags'
  * publication date when the backend has it and the ingest date otherwise,
  * the link out to the original paper), the title, the authors, the metadata
  * card (risk & affiliation rows and chips with the collapsed abstract as
- * its last row), and the star at the right.
+ * its last row), and at the right the export link and the star.
  * PaperHeaderFrame owns the layout so PaperHeader and PaperHeaderSkeleton
  * cannot drift.
  */
@@ -37,7 +39,7 @@ export function PaperHeaderFrame({
   title: ReactNode
   authors: ReactNode
   children?: ReactNode
-  /** The star toggle, right of the masthead. */
+  /** The export link and the star toggle, right of the masthead. */
   action?: ReactNode
 }) {
   return (
@@ -61,18 +63,47 @@ export function PaperHeaderFrame({
         </p>
         {children}
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      {action && <div className="flex shrink-0 items-center gap-2">{action}</div>}
     </div>
+  )
+}
+
+/**
+ * The paper's printable record, opened in its own tab
+ * (app/(document)/papers/[id]/export) where it prints itself: the browser's
+ * dialog then saves it as a PDF. A plain link, not a button: it navigates,
+ * needs no script, and the tab is where the reader lands. Cut to the star's
+ * own chip so the two read as one row of quiet actions.
+ */
+export function ExportPdfLink({ id, runId, t }: { id: string; runId?: string; t: T }) {
+  return (
+    <a
+      href={paperExportHref(id, { runId })}
+      target="_blank"
+      rel="noopener"
+      data-row="export-pdf"
+      className={clsx(
+        'inline-flex h-[30px] shrink-0 items-center gap-1.5 rounded-sm border border-line bg-surface px-2.5 text-xs font-medium whitespace-nowrap text-zinc-600 transition-colors duration-150 ease-out',
+        'hover:border-zinc-400 hover:text-zinc-950 active:scale-[0.98]',
+        'dark:text-zinc-300 dark:hover:border-zinc-500 dark:hover:text-white',
+      )}
+    >
+      <ArrowDownTrayIcon aria-hidden="true" className="size-3.5 text-zinc-400" />
+      {t('Export PDF')}
+    </a>
   )
 }
 
 export function PaperHeader({
   paper,
+  runId,
   t,
   lang,
   features = ALL_ON,
 }: {
   paper: ScoredPaper
+  /** The briefing the paper was opened from; the export keeps that reading. */
+  runId?: string
   t: T
   lang: Lang
   features?: Features
@@ -126,10 +157,12 @@ export function PaperHeader({
           ? paper.authors.join(', ') || paper.authors_raw
           : paper.authors || paper.authors_raw || ''
       }
-      // Withheld, not rendered null: PaperHeaderFrame's `{action && …}` would
-      // otherwise wrap an empty node in a shrink-0 flex item and open a gap
-      // beside the masthead on a narrow viewport.
-      action={features.stars ? <StarToggle kind="paper" id={paper.id} /> : undefined}
+      action={
+        <>
+          <ExportPdfLink id={paper.id} runId={runId} t={t} />
+          {features.stars && <StarToggle kind="paper" id={paper.id} />}
+        </>
+      }
     >
       <RiskAffiliationFlagging
         risk={paper.risk_and_affiliation}
@@ -155,7 +188,12 @@ export function PaperHeaderSkeleton({ features = ALL_ON }: { features?: Features
       }
       title={<Bone.Text lines={2} widths={['92%', '55%']} />}
       authors={<Bone.Text widths={['60%']} />}
-      action={features.stars ? <Bone.Block className="h-[30px] w-24" /> : undefined}
+      action={
+        <>
+          <Bone.Block className="h-[30px] w-[100px]" />
+          {features.stars && <Bone.Block className="h-[30px] w-24" />}
+        </>
+      }
     >
       {/* The metadata card in its usual shape: an affiliation line, a
           funding line, a chip row and the collapsed abstract row — what

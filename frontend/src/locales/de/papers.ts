@@ -179,6 +179,19 @@ export const dict: Record<string, string> = {
   'Rule verified': 'Regelbasiert geprüft',
   'Human verified': 'Von Menschen geprüft',
 
+  // PDF export: the masthead's link, the document's toolbar and the rows
+  // the printed record adds to what the page shows (app/(document)).
+  'Export PDF': 'PDF exportieren',
+  'Back to paper': 'Zurück zum Paper',
+  'Save as PDF': 'Als PDF speichern',
+  'Laid out for A4. In the print dialog, choose “Save as PDF”.':
+    'Für A4 gesetzt. Wählen Sie im Druckdialog „Als PDF speichern“.',
+  'Exported {date}': 'Exportiert am {date}',
+  Affiliations: 'Zugehörigkeiten',
+  Contacts: 'Kontakte',
+  Funding: 'Förderung',
+  Compliance: 'Compliance',
+
   // Ask-this-paper rail
   'Ask this paper': 'Paper befragen',
   'Reading the full text…': 'Der Volltext wird gelesen…',

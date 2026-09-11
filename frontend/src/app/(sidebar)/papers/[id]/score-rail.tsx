@@ -58,7 +58,7 @@ export function ScoreRailFrame({
 }
 
 /** The radar's axes: the scaled dimensions, each printing the figure its bar shows, not a percentage. */
-function radarAxes(dimensions: Dimension[], t: T, lang: Lang) {
+export function radarAxes(dimensions: Dimension[], t: T, lang: Lang) {
   return dimensions
     .filter((d) => d.value !== null && d.max !== null && d.max > 0)
     .map((d) => ({

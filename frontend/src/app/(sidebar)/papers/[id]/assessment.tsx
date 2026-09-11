@@ -239,7 +239,7 @@ export function getSchemaProperty(
   return { title, description, maximum, type }
 }
 
-interface UnpackedField {
+export interface UnpackedField {
   key?: string
   name: string
   description?: string | null
@@ -335,7 +335,7 @@ function unpackField(field: DimensionField): UnpackedField {
   return { name: field.name, value, band, evidence, score, is_dict: isDict }
 }
 
-interface SubMeasure {
+export interface SubMeasure {
   key: string
   name: string
   description?: string | null
@@ -566,7 +566,27 @@ function SubMeasureRow({ sub, t, lang }: { sub: SubMeasure; t: T; lang: Lang }) 
   )
 }
 
-function Definition({ dimension: d, t, lang }: { dimension: Dimension; t: T; lang: Lang }) {
+/**
+ * What a definition shows, computed once from its payload: the lead prose
+ * (rationale, raw prose or the definition's self-named fact), the insight
+ * paragraphs, the sub-measures that get a row, the longer prose fields and
+ * the short facts — with every duplicate, confidence field and TRL
+ * sub-measure the page hides already dropped. `Definition` below and the
+ * PDF export (app/(document)/papers/[id]/export) both render from this, so
+ * the printed record cannot say something the page does not.
+ */
+export interface DefinitionView {
+  isTrl: boolean
+  leadProse: string | null
+  secondaryProse: string | null
+  selfLead: string | null
+  topInsights: { key: string; value: string }[]
+  subMeasures: SubMeasure[]
+  texts: UnpackedField[]
+  facts: DimensionField[]
+}
+
+export function definitionView(d: Dimension): DefinitionView {
   const isTrl =
     d.is_trl || d.key.toLowerCase().includes('trl') || d.name.toLowerCase().includes('trl')
 
@@ -705,6 +725,28 @@ function Definition({ dimension: d, t, lang }: { dimension: Dimension; t: T; lan
       return fact
     })
 
+  return {
+    isTrl,
+    leadProse,
+    secondaryProse,
+    selfLead,
+    topInsights,
+    subMeasures: visibleSubMeasures,
+    texts: remainingTexts,
+    facts: visibleFacts,
+  }
+}
+
+function Definition({ dimension: d, t, lang }: { dimension: Dimension; t: T; lang: Lang }) {
+  const {
+    leadProse,
+    secondaryProse,
+    selfLead,
+    topInsights,
+    subMeasures: visibleSubMeasures,
+    texts: remainingTexts,
+    facts: visibleFacts,
+  } = definitionView(d)
   return (
     <DefinitionFrame
       id={definitionAnchor(d)}

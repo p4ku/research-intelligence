@@ -1,0 +1,754 @@
+/*
+ * The document group's stylesheet (app/(document)): a paged layout for the
+ * paper record, A4 with running heads and page numbers, that the browser's
+ * print dialog turns into a PDF. On screen the same rules preview the sheet
+ * on a grey ground under a toolbar.
+ *
+ * Deliberately outside any cascade layer: Tailwind's utilities live in
+ * `@layer utilities`, and unlayered rules win over every layer whatever
+ * their specificity, so the markdown renderer's elements (which carry
+ * utility classes) take the document's type from here without a fight.
+ *
+ * Sizes are in points — this is a print stylesheet, and the preview is the
+ * print at 96dpi. Sans (Switzer, the app's own) for the furniture: labels,
+ * meta, figures' captions, the sub-measure rows. A serif for the long
+ * prose, the one place the app's rules allow it: long-form reading. Plex
+ * Mono for every figure.
+ */
+
+:root {
+  --doc-ink: #131311;
+  --doc-ink-2: #45453f;
+  --doc-ink-3: #8a8a82;
+  --doc-line: #d5d5cd;
+  --doc-line-soft: #ebebe4;
+  --doc-tint: #f5f5f1;
+  --doc-accent: #00c3cd;
+  --doc-safe: #1e7b44;
+  --doc-safe-tint: #edf8f1;
+  --doc-warn-ink: #7d6510;
+  --doc-warn-tint: #fdf6dc;
+  --doc-sans: var(--font-switzer), Switzer, system-ui, sans-serif;
+  --doc-serif:
+    Charter, 'Iowan Old Style', 'Source Serif 4', Georgia, Cambria, 'Times New Roman', serif;
+  --doc-mono: var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  --doc-margin-x: 20mm;
+}
+
+/* ------------------------------- The page ------------------------------- */
+
+@page {
+  size: A4;
+  margin: 22mm var(--doc-margin-x) 24mm;
+
+  @top-left {
+    font: 600 7pt/1 var(--doc-sans);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--doc-ink-3);
+    vertical-align: bottom;
+    padding-bottom: 8mm;
+  }
+  @top-right {
+    font: 400 8pt/1 var(--doc-sans);
+    color: var(--doc-ink-3);
+    vertical-align: bottom;
+    padding-bottom: 8mm;
+  }
+  @bottom-left {
+    font: 400 7.5pt/1 var(--doc-sans);
+    color: var(--doc-ink-3);
+    vertical-align: top;
+    padding-top: 8mm;
+  }
+  @bottom-right {
+    font: 500 8pt/1 var(--doc-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--doc-ink-3);
+    vertical-align: top;
+    padding-top: 8mm;
+  }
+}
+
+/* ------------------------------ The stage ------------------------------- */
+
+.doc-stage {
+  min-height: 100dvh;
+  background: #e4e4df;
+  color: var(--doc-ink);
+  padding-block: 0 72px;
+  padding-inline: 16px;
+}
+
+.doc-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 -16px 32px;
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--doc-line);
+  font-family: var(--doc-sans);
+  font-size: 13px;
+}
+.doc-toolbar-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: -6px;
+  padding: 0 8px 0 4px;
+  height: 30px;
+  border-radius: 2px;
+  font-weight: 500;
+  color: var(--doc-ink-2);
+  text-decoration: none;
+}
+.doc-toolbar-back:hover {
+  color: var(--doc-ink);
+  background: rgba(19, 19, 17, 0.06);
+}
+.doc-toolbar-hint {
+  flex: 1;
+  margin: 0;
+  color: var(--doc-ink-3);
+  text-align: center;
+  text-wrap: balance;
+}
+.doc-toolbar-print {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--doc-ink);
+  border-radius: 2px;
+  background: var(--doc-ink);
+  color: #fff;
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+}
+.doc-toolbar-print:hover {
+  background: #2a2a26;
+  border-color: #2a2a26;
+}
+.doc-toolbar-print:active {
+  transform: scale(0.98);
+}
+@media (max-width: 640px) {
+  .doc-toolbar-hint {
+    display: none;
+  }
+}
+
+.doc-sheet {
+  box-sizing: border-box;
+  width: 210mm;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 22mm var(--doc-margin-x) 24mm;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgba(19, 19, 17, 0.06),
+    0 24px 48px -20px rgba(19, 19, 17, 0.35);
+}
+@media (max-width: 640px) {
+  .doc-sheet {
+    padding: 28px 20px 40px;
+  }
+}
+
+/* ------------------------------ The document ---------------------------- */
+
+.doc {
+  font-family: var(--doc-sans);
+  font-size: 10.5pt;
+  line-height: 1.5;
+  color: var(--doc-ink);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+}
+
+.doc-square {
+  display: inline-block;
+  width: 6pt;
+  height: 6pt;
+  margin-right: 6pt;
+  background: var(--doc-accent);
+  vertical-align: 0.5pt;
+}
+.doc-mono {
+  font-family: var(--doc-mono);
+  font-variant-numeric: tabular-nums;
+}
+.doc-url {
+  color: inherit;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+/* Masthead */
+
+.doc-brandline {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12pt;
+  padding-bottom: 7pt;
+  border-bottom: 1px solid var(--doc-ink);
+  font-size: 7pt;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--doc-ink-3);
+}
+.doc-brand {
+  display: inline-flex;
+  align-items: center;
+  color: var(--doc-ink);
+}
+.doc-context {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0 8pt;
+  text-align: right;
+}
+.doc-context > span + span::before {
+  content: '·';
+  margin-right: 8pt;
+}
+
+.doc-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2pt 8pt;
+  margin: 24pt 0 0;
+  font-size: 8.5pt;
+  color: var(--doc-ink-3);
+}
+.doc-meta > span + span::before {
+  content: '·';
+  margin-right: 8pt;
+}
+.doc-meta-mark {
+  font-weight: 600;
+  color: #6d28d9;
+}
+
+.doc-title {
+  margin: 6pt 0 0;
+  font-size: 21pt;
+  line-height: 1.18;
+  font-weight: 600;
+  letter-spacing: -0.012em;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.doc-authors {
+  margin: 8pt 0 0;
+  font-size: 10.5pt;
+  line-height: 1.4;
+  color: var(--doc-ink-2);
+}
+
+/* Glance band: score, bars, radar */
+
+.doc-glance {
+  display: grid;
+  grid-template-columns: 30mm minmax(0, 1fr);
+  gap: 0 10mm;
+  /* Centred on the radar, the tallest of the three, so the score and the
+     bars sit level with it instead of leaving a well beneath them. */
+  align-items: center;
+  margin-top: 18pt;
+  padding: 12pt 0;
+  border-top: 1px solid var(--doc-line);
+  border-bottom: 1px solid var(--doc-line);
+  break-inside: avoid;
+}
+.doc-glance-radar {
+  grid-template-columns: 30mm minmax(0, 1fr) 56mm;
+}
+.doc-score-figure {
+  display: block;
+  font-family: var(--doc-mono);
+  font-size: 40pt;
+  line-height: 1;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.doc-score-label {
+  display: block;
+  margin-top: 7pt;
+  font-size: 7pt;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--doc-ink-3);
+}
+
+.doc-bars {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 9pt;
+}
+.doc-bars td {
+  padding: 2.5pt 0;
+  vertical-align: middle;
+}
+.doc-bars-name {
+  width: 1%;
+  padding-right: 10pt !important;
+  white-space: nowrap;
+  color: var(--doc-ink-2);
+}
+.doc-bars-figure {
+  width: 1%;
+  padding-left: 10pt !important;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.doc-track {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--doc-line-soft);
+  overflow: hidden;
+}
+.doc-track > span {
+  display: block;
+  height: 100%;
+  background: var(--doc-accent);
+}
+
+.doc-radar {
+  margin: 0;
+}
+.doc-radar svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.doc-figure {
+  font-family: var(--doc-mono);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.doc-figure-sm {
+  font-size: 9pt;
+}
+.doc-figure-lg {
+  font-size: 14pt;
+  line-height: 1;
+}
+.doc-figure-raw {
+  font-family: var(--doc-sans);
+  font-weight: 500;
+  font-size: 10pt;
+  color: var(--doc-ink-2);
+}
+.doc-figure-max {
+  margin-left: 1pt;
+  font-size: 0.6em;
+  font-weight: 400;
+  color: var(--doc-ink-3);
+}
+
+/* Record rows (affiliations, funding, compliance) and the colophon */
+
+.doc-record,
+.doc-colophon dl,
+.doc-facts {
+  margin: 0;
+}
+.doc-row {
+  display: grid;
+  grid-template-columns: 28mm minmax(0, 1fr);
+  gap: 0 8pt;
+  align-items: baseline;
+}
+.doc-row dt {
+  font-size: 7pt;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--doc-ink-3);
+}
+.doc-row dd {
+  margin: 0;
+  color: var(--doc-ink-2);
+}
+
+.doc-record {
+  margin-top: 12pt;
+  font-size: 9pt;
+  line-height: 1.45;
+}
+.doc-record .doc-row + .doc-row {
+  margin-top: 3pt;
+}
+
+.doc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3pt 4pt;
+  align-items: center;
+}
+.doc-chip {
+  display: inline-block;
+  padding: 0.5pt 5pt;
+  border: 1px solid var(--doc-line);
+  border-radius: 2px;
+  font-size: 8pt;
+  font-weight: 500;
+  color: var(--doc-ink-2);
+  background: #fff;
+}
+.doc-chip b {
+  font-weight: 600;
+}
+.doc-chip-safe {
+  background: var(--doc-safe-tint);
+  border-color: rgba(30, 123, 68, 0.3);
+  color: var(--doc-safe);
+}
+.doc-chip-warn {
+  background: var(--doc-warn-tint);
+  border-color: rgba(125, 101, 16, 0.3);
+  color: var(--doc-warn-ink);
+}
+
+/* Sections */
+
+.doc-section {
+  margin-top: 18pt;
+}
+.doc-label {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  font-family: var(--doc-sans);
+  font-size: 8pt;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--doc-ink);
+  break-after: avoid;
+}
+.doc-label-lg {
+  font-size: 9.5pt;
+}
+.doc-label-lg .doc-square {
+  width: 7pt;
+  height: 7pt;
+}
+
+/* Prose: the abstract, the summary and everything the markdown renderer
+   emits. Serif, 10.5pt, a measure the page's margins already bound. */
+.doc-prose,
+.doc-prose p,
+.doc-prose li {
+  font-family: var(--doc-serif);
+  font-size: 10.5pt;
+  line-height: 1.5;
+  color: var(--doc-ink);
+}
+.doc-prose {
+  margin: 6pt 0 0;
+  text-wrap: pretty;
+  hyphens: auto;
+  overflow-wrap: anywhere;
+}
+.doc-prose > * {
+  margin-top: 0;
+}
+.doc-prose > * + * {
+  margin-top: 5pt;
+}
+.doc-prose-sm,
+.doc-prose-sm p,
+.doc-prose-sm li {
+  font-size: 9.5pt;
+  color: var(--doc-ink-2);
+}
+.doc-prose ul,
+.doc-prose ol {
+  padding-left: 14pt;
+}
+.doc-prose li + li {
+  margin-top: 2pt;
+}
+.doc-prose h4 {
+  margin-top: 8pt;
+  padding: 0;
+  font-family: var(--doc-sans);
+  font-size: 7.5pt;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--doc-ink);
+  break-after: avoid;
+}
+.doc-prose strong {
+  font-weight: 700;
+  color: inherit;
+}
+.doc-prose a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--doc-line);
+  text-underline-offset: 2px;
+}
+.doc-prose code {
+  padding: 0;
+  background: none;
+  font-family: var(--doc-mono);
+  font-size: 0.86em;
+}
+.doc-prose pre {
+  padding: 6pt 8pt;
+  border: 1px solid var(--doc-line-soft);
+  background: var(--doc-tint);
+  font-size: 8pt;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  break-inside: avoid;
+}
+.doc-prose blockquote {
+  padding-left: 8pt;
+  border-left: 1.5px solid var(--doc-line);
+  color: var(--doc-ink-2);
+}
+.doc-prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--doc-sans);
+  font-size: 8.5pt;
+}
+.doc-prose th,
+.doc-prose td {
+  padding: 2pt 6pt 2pt 0;
+  border-bottom: 1px solid var(--doc-line-soft);
+  vertical-align: top;
+  text-align: left;
+}
+.doc-prose th {
+  border-bottom-color: var(--doc-line);
+  font-weight: 600;
+}
+/* The renderer sets figures in mono; keep them on the serif's size. */
+.doc-prose .font-mono {
+  font-family: var(--doc-mono);
+  font-size: 0.9em;
+}
+.doc-prose .katex {
+  font-size: 1em;
+}
+
+/* Assessment: one section per definition */
+
+.doc-assessment {
+  margin-top: 18pt;
+  border-top: 1px solid var(--doc-line);
+}
+.doc-definition {
+  padding: 12pt 0 14pt;
+  border-bottom: 1px solid var(--doc-line-soft);
+}
+.doc-definition:last-child {
+  border-bottom: 0;
+}
+.doc-definition-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4pt 8pt;
+  break-after: avoid;
+}
+.doc-definition-head .doc-label {
+  display: inline-flex;
+}
+.doc-definition-head .doc-figure-lg {
+  margin-left: auto;
+}
+.doc-band {
+  padding: 0.5pt 4pt;
+  border-radius: 2px;
+  background: var(--doc-tint);
+  font-size: 8pt;
+  font-weight: 500;
+  color: var(--doc-ink-2);
+}
+.doc-empty {
+  margin: 12pt 0 0;
+  font-size: 9.5pt;
+  color: var(--doc-ink-3);
+}
+
+.doc-subs {
+  margin-top: 8pt;
+}
+.doc-sub {
+  padding: 7pt 9pt 8pt;
+  border: 1px solid var(--doc-line-soft);
+  border-radius: 2px;
+  break-inside: avoid;
+}
+.doc-sub + .doc-sub {
+  margin-top: 5pt;
+}
+.doc-sub-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 10pt;
+  font-size: 9pt;
+}
+.doc-sub-head-bar {
+  grid-template-columns: minmax(0, 1fr) 34mm auto;
+}
+.doc-sub-name {
+  font-weight: 600;
+}
+.doc-sub-head .doc-figure {
+  text-align: right;
+}
+.doc-sub .doc-prose {
+  margin-top: 4pt;
+}
+
+.doc-field {
+  margin-top: 10pt;
+}
+.doc-h3 {
+  margin: 0;
+  font-family: var(--doc-sans);
+  font-size: 9.5pt;
+  font-weight: 600;
+  break-after: avoid;
+}
+.doc-field-note {
+  margin: 1pt 0 0;
+  font-size: 8.5pt;
+  color: var(--doc-ink-3);
+}
+.doc-field .doc-prose {
+  margin-top: 3pt;
+}
+
+.doc-list {
+  margin: 4pt 0 0;
+  padding: 0;
+  list-style: none;
+}
+.doc-list li {
+  position: relative;
+  padding-left: 12pt;
+  font-family: var(--doc-serif);
+  font-size: 10pt;
+  line-height: 1.45;
+}
+.doc-list li + li {
+  margin-top: 2.5pt;
+}
+.doc-list li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.72em;
+  width: 6pt;
+  height: 1px;
+  background: var(--doc-ink-2);
+}
+
+.doc-facts {
+  margin-top: 10pt;
+  font-size: 9pt;
+}
+.doc-facts .doc-row {
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0 12pt;
+}
+.doc-facts .doc-row + .doc-row {
+  margin-top: 2pt;
+}
+.doc-facts dt {
+  font-size: 9pt;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--doc-ink);
+}
+
+/* Colophon */
+
+.doc-colophon {
+  margin-top: 22pt;
+  padding-top: 8pt;
+  border-top: 1px solid var(--doc-ink);
+  font-size: 8.5pt;
+  line-height: 1.45;
+  break-inside: avoid;
+}
+.doc-colophon .doc-row + .doc-row {
+  margin-top: 2pt;
+}
+.doc-colophon dd {
+  color: var(--doc-ink-3);
+}
+
+/* -------------------------------- Print --------------------------------- */
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+  .doc-stage {
+    min-height: 0;
+    padding: 0;
+    background: none;
+  }
+  .doc-toolbar {
+    display: none;
+  }
+  .doc-sheet {
+    width: auto;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+  }
+  .doc-url {
+    text-decoration: none;
+  }
+}
+
+/* ------------------------------ Phone preview --------------------------- */
+
+/* After the band's own rules, so these win at equal specificity. The glance
+   band's three columns need the sheet's full width; on a phone the preview
+   stacks them — score, bars, then the radar. Print is never this narrow, so
+   the page keeps its band. */
+@media (max-width: 640px) {
+  .doc-glance,
+  .doc-glance-radar {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10pt 0;
+  }
+  .doc-radar {
+    max-width: 62mm;
+    margin: 0 auto;
+  }
+}

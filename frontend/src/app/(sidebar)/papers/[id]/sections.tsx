@@ -88,7 +88,7 @@ export interface RunContext {
  * its reads degrades to "no run", never to an error page. Cached per
  * request: the crumbs and the record resolve it once between them.
  */
-const runContext = cache(
+export const runContext = cache(
   async (id: string, runId: string, lang: Lang): Promise<RunContext | null> => {
     try {
       const [result, ledger] = await Promise.all([papers.get(id, runId), runs.listEverywhere()])
@@ -252,7 +252,7 @@ export async function PaperRecord({
 
       <div className={RECORD_GRID}>
         <div className={RECORD_COLUMN}>
-          <PaperHeader paper={paper} t={t} lang={lang} features={features} />
+          <PaperHeader paper={paper} runId={ctx?.run.id} t={t} lang={lang} features={features} />
 
           {/* The pipeline's own reading of the paper, where the abstract
               used to stand (the abstract is collapsed into the masthead's
