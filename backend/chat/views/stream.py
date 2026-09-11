@@ -1,17 +1,15 @@
 import logging
-from django.core.exceptions import ValidationError
 from django.http import StreamingHttpResponse
 from rest_framework import permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
-from chat.models import PaperChatSession, PaperChatMessage
-from research_intelligence.models import Paper, Workspace, WorkspaceMember
+from chat.models import PaperChatMessage
 from chat.serializers import PaperChatSubmitSerializer
 from chat.engine import PaperChatEngine
-from research_intelligence.services import check_workspace_access
 from api.throttles import ChatRateThrottle
+from .scope import resolve_chat_target
 
 logger = logging.getLogger(__name__)
 
@@ -41,82 +39,16 @@ class ChatStreamView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         data = serializer.validated_data
-        paper_id = data.get('paper_id')
-        workspace_id = data.get('workspace_id')
-        session_id = data.get('session_id')
-        question = data['question'].strip()
-        deep_thinking = data.get('deep_thinking', False)
+        target, error = resolve_chat_target(request, data)
+        if error:
+            return error
 
-        paper = None
-        target_workspace = None
-
-        if paper_id:
-            try:
-                paper = Paper.objects.select_related('workspace').get(id=paper_id)
-                target_workspace = paper.workspace
-            except Paper.DoesNotExist:
-                return Response(
-                    {"error": f"Paper with id '{paper_id}' not found."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-        elif workspace_id:
-            try:
-                target_workspace = Workspace.objects.get(id=workspace_id)
-            except Workspace.DoesNotExist:
-                return Response(
-                    {"error": f"Workspace with id '{workspace_id}' not found."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-        else:
-            return Response(
-                {"error": "Either paper_id or workspace_id must be provided."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # RBAC Check
-        workspace, membership, error_msg = check_workspace_access(
-            request.user,
-            str(target_workspace.id),
-            required_roles=['admin', 'manager', 'researcher']
-        )
-        if error_msg:
-            return Response({"error": error_msg}, status=status.HTTP_403_FORBIDDEN)
-
-        # Resolve or create Session
-        session = None
-        if session_id:
-            try:
-                session = PaperChatSession.objects.get(id=session_id, workspace=target_workspace)
-            except (PaperChatSession.DoesNotExist, ValueError, ValidationError):
-                return Response(
-                    {"error": f"Chat session '{session_id}' not found in workspace."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            # Ownerless sessions included — see the note in submit.py.
-            if session.user_id != request.user.id:
-                is_admin = WorkspaceMember.objects.filter(
-                    workspace=target_workspace, user=request.user, role__in=['admin', 'manager']
-                ).exists()
-                if not is_admin:
-                    return Response(
-                        {"error": "You do not have permission to append to another user's chat session."},
-                        status=status.HTTP_403_FORBIDDEN
-                    )
-        else:
-            session = PaperChatSession.objects.create(
-                workspace=target_workspace,
-                paper=paper,
-                user=request.user,
-                title=(question[:50] + "...") if len(question) > 50 else question
-            )
-
-        # Create Message
         message = PaperChatMessage.objects.create(
-            session=session,
+            session=target.session,
             sender='user',
             status='pending',
-            question=question,
-            deep_thinking=deep_thinking
+            question=data['question'].strip(),
+            deep_thinking=data.get('deep_thinking', False)
         )
 
         response = StreamingHttpResponse(

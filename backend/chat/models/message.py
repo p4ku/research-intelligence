@@ -18,6 +18,9 @@ class PaperChatMessage(models.Model):
         ('processing', 'Processing'),
         ('completed', 'Completed'),
         ('failed', 'Failed'),
+        # The reader stopped the stream (or the tab went away) part-way: the
+        # text that had arrived is kept and billed, unlike a failure.
+        ('aborted', 'Aborted'),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

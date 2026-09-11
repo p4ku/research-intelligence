@@ -55,6 +55,9 @@ class PreparedTurn:
     prompt: str
     system_instruction: str
     source_text: str
+    # False when source_text carries no document body (URL-only paper, or a
+    # PDF whose text could not be extracted): quotes then cannot be verified.
+    has_body: bool
     pdf_bytes: bytes | None
     mime_type: str | None
     provider: object
@@ -145,6 +148,14 @@ class PaperChatEngine:
             yield self._sse('error', {'error': quota_error})
             return
 
+        # Declared before the try: a disconnect can arrive at the very first
+        # yield, and the GeneratorExit handler files whatever exists by then.
+        turn: PreparedTurn | None = None
+        accumulated_text: list[str] = []
+        thoughts: list[str] = []
+        usage = TurnUsage()
+        chunks = None
+
         try:
             message.status = 'processing'
             message.save(update_fields=['status'])
@@ -158,12 +169,10 @@ class PaperChatEngine:
             })
 
             turn = self._prepare(message)
-            accumulated_text = []
-            usage = TurnUsage()
 
             if hasattr(turn.provider, 'generate_stream'):
-                thoughts = []
-                for chunk_text, chunk_usage in turn.provider.generate_stream(**self._generation_kwargs(turn)):
+                chunks = turn.provider.generate_stream(**self._generation_kwargs(turn))
+                for chunk_text, chunk_usage in chunks:
                     if chunk_usage and isinstance(chunk_usage, dict):
                         if chunk_usage.get("thought"):
                             thoughts.append(chunk_usage["thought"])
@@ -193,12 +202,30 @@ class PaperChatEngine:
             yield self._sse('done', {'status': 'completed', 'message_id': str(message.id)})
 
         except GeneratorExit:
+            # The reader pressed Stop or closed the tab. The provider has
+            # already charged for what it produced, and the reader saw it, so
+            # the partial answer is filed and billed like a finished one,
+            # under its own status. Nothing may be yielded from here.
             logger.info(f"Client disconnected during SSE stream for message '{message.id}'.")
+            if chunks is not None and hasattr(chunks, 'close'):
+                try:
+                    chunks.close()
+                except Exception:  # pragma: no cover - best effort
+                    logger.debug("Provider stream did not close cleanly", exc_info=True)
             if message.status == 'processing':
-                message.status = 'aborted'
-                message.error_message = 'Client disconnected during streaming generation.'
-                message.completed_at = timezone.now()
-                message.save(update_fields=['status', 'error_message', 'completed_at'])
+                usage.thought_process = "".join(thoughts)
+                filed = False
+                if turn is not None:
+                    try:
+                        self._finish(message, turn, "".join(accumulated_text), usage, status='aborted')
+                        filed = True
+                    except Exception:
+                        logger.exception(f"Could not file the aborted answer for message '{message.id}'")
+                if not filed:
+                    message.status = 'aborted'
+                    message.error_message = 'Client disconnected during streaming generation.'
+                    message.completed_at = timezone.now()
+                    message.save(update_fields=['status', 'error_message', 'completed_at'])
             raise
 
         except Exception as ex:
@@ -226,13 +253,19 @@ class PaperChatEngine:
         if paper:
             doc = self.context_builder.document(paper)
             document_text, pdf_bytes, mime_type = doc.text, doc.pdf_bytes, doc.mime_type
+            verification_text, has_body = doc.verification_text, doc.has_body
             annotations_text = self.context_builder.annotations(paper, workspace)
         else:
             document_text = self.context_builder.workspace_overview(workspace) if workspace else ""
             pdf_bytes, mime_type, annotations_text = None, None, ""
+            verification_text, has_body = "", False
 
+        # A stopped answer the reader saw is still part of the conversation.
         history_messages = list(
-            session.messages.filter(status='completed').exclude(id=message.id).order_by('created_at')
+            session.messages.filter(status__in=['completed', 'aborted'])
+            .exclude(id=message.id)
+            .exclude(message='')
+            .order_by('created_at')
         )
         self.session_summarizer.compress_and_update(session, history_messages)
         history_text = self.session_summarizer.build_history_block(session, history_messages)
@@ -255,7 +288,13 @@ class PaperChatEngine:
         return PreparedTurn(
             prompt=prompt,
             system_instruction=SYSTEM_INSTRUCTION + ("\n\n" + PDF_CITATION_ADDENDUM if pdf_bytes else ""),
-            source_text="\n\n".join(part for part in (document_text, annotations_text) if part),
+            # What the fact-checker reads. On the PDF path the prompt text has
+            # no body (Gemini reads the bytes), so the extracted text is added
+            # here and only here — never to the prompt.
+            source_text="\n\n".join(
+                part for part in (document_text, verification_text, annotations_text) if part
+            ),
+            has_body=has_body,
             pdf_bytes=pdf_bytes,
             mime_type=mime_type,
             provider=get_llm_provider(provider_name),
@@ -331,8 +370,19 @@ class PaperChatEngine:
         usage.citations = getattr(llm_response, 'citations', []) or []
         return answer_raw, usage
 
-    def _finish(self, message: PaperChatMessage, turn: PreparedTurn, answer_raw: str, usage: TurnUsage) -> dict:
-        """Extracts citations, fact-checks, records cost, persists the completed message, returns the result payload."""
+    def _finish(
+        self,
+        message: PaperChatMessage,
+        turn: PreparedTurn,
+        answer_raw: str,
+        usage: TurnUsage,
+        status: str = 'completed',
+    ) -> dict:
+        """
+        Extracts citations, fact-checks, records cost, persists the message under
+        `status` ('completed', or 'aborted' for a partial answer the reader
+        stopped), returns the result payload.
+        """
         session = message.session
         paper = session.paper
         workspace = session.workspace
@@ -341,7 +391,8 @@ class PaperChatEngine:
         verified_visual_cits, guard_summary = self.fact_checker.verify(
             source_text=turn.source_text,
             visual_citations=parsed_visual_citations,
-            answer_text=cleaned_answer
+            answer_text=cleaned_answer,
+            has_body=turn.has_body,
         )
 
         # Fallback estimation if the provider omitted token metrics
@@ -369,7 +420,7 @@ class PaperChatEngine:
         message.total_tokens = total_tokens
         message.usd_cost = cost
         message.llm_model = turn.model_name
-        message.status = 'completed'
+        message.status = status
         message.completed_at = timezone.now()
         message.citations = usage.citations
         message.visual_citations = verified_visual_cits
@@ -385,7 +436,7 @@ class PaperChatEngine:
             session.save(update_fields=['title', 'updated_at'])
 
         return {
-            "status": "completed",
+            "status": status,
             "message_id": str(message.id),
             "session_id": str(session.id),
             "paper_id": str(paper.id) if paper else None,
