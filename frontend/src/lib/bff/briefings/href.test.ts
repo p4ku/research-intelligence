@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { editionHref } from './href'
+import { editionHref, screeningLogPdfHref } from './href'
 
 const WS = '00000000-0000-4000-8000-000000000001'
 const RUN = '00000000-0000-4000-8000-000000000101'
@@ -28,5 +28,17 @@ describe('editionHref', () => {
       `/briefing/2026-08-31/run?domain=${WS}&run=${RUN}`,
     )
     expect(editionHref('2026-08-31', undefined, { sub: 'run' })).toBe('/briefing/2026-08-31/run')
+  })
+})
+
+describe('screeningLogPdfHref', () => {
+  test('the BFF export for the same edition, in the BFF query names', () => {
+    expect(screeningLogPdfHref('2026-08-31')).toBe('/bff/briefings/2026-08-31/screening-log')
+    expect(screeningLogPdfHref('2026-08-31', WS, RUN)).toBe(
+      `/bff/briefings/2026-08-31/screening-log?workspace_id=${WS}&run_id=${RUN}`,
+    )
+    expect(screeningLogPdfHref('2026-08-31', undefined, RUN)).toBe(
+      `/bff/briefings/2026-08-31/screening-log?run_id=${RUN}`,
+    )
   })
 })

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-11 (screening log export)
+
+- The screening log has an Export PDF button at the right of its title. The
+  BFF renders the edition's log as a document — funnel, then every paper
+  that screened out with the model's reasoning in full — set in Switzer on
+  A4 with a running head and page numbers, and sends it as an attachment
+  named for the domain and the day (`GET /bff/briefings/{date}/screening-log`,
+  same query as the JSON route). The button fetches in place, shows it is
+  working, and reports a failure as a toast; without JavaScript it is the
+  plain link.
+
 ## 2026-09-08 (Home lists briefings, not runs)
 
 - Home's Recent Briefings is the head of the Briefings archive: the five

@@ -17,10 +17,11 @@ editions endpoint — its screening status for the paper), and the exclusions
 
 ## BFF routes
 
-| Route                       | Query                                                                                                    | Returns                               |
-| --------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------- |
-| `GET /bff/briefings`        | `workspace_id` (optional; absent = every domain), `page`, `page_size`                                    | `BriefingEditionPage` (summaries)     |
-| `GET /bff/briefings/{date}` | `workspace_id` (optional; absent = every domain), `run_id` (optional; absent = the day's newest edition) | `BriefingEdition` (with `exclusions`) |
+| Route                                     | Query                                                                                                    | Returns                                                                     |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `GET /bff/briefings`                      | `workspace_id` (optional; absent = every domain), `page`, `page_size`                                    | `BriefingEditionPage` (summaries)                                           |
+| `GET /bff/briefings/{date}`               | `workspace_id` (optional; absent = every domain), `run_id` (optional; absent = the day's newest edition) | `BriefingEdition` (with `exclusions`)                                       |
+| `GET /bff/briefings/{date}/screening-log` | as above                                                                                                 | the screening log as a PDF attachment (`screening-log-<domain>-<date>.pdf`) |
 
 Schemas: `src/lib/bff/briefings/schema.ts`. Dates are `YYYY-MM-DD`. A domain
 that ran twice in a day has two editions; `run_id` picks one, and without it

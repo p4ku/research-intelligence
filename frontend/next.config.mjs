@@ -31,6 +31,12 @@ const nextConfig = {
     root: resolve(__dirname),
   },
   devIndicators: false,
+  // The screening log's PDF: react-pdf runs as a plain Node dependency, and
+  // the standalone image needs the embedded font files next to the route.
+  serverExternalPackages: ['@react-pdf/renderer'],
+  outputFileTracingIncludes: {
+    '/bff/briefings/[date]/screening-log': ['./src/fonts/Switzer-*.otf'],
+  },
   // Runs moved from the Studio into the reading app; old links keep working.
   async redirects() {
     return [

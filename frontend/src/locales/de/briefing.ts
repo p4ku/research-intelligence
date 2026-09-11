@@ -46,6 +46,11 @@ export const dict: Record<string, string> = {
   'Loading the briefings': 'Die Briefings werden geladen',
   'Loading the briefing': 'Das Briefing wird geladen',
   'Loading the screening log': 'Das Screening-Protokoll wird geladen',
+  // The log's export: the button, its busy state, and the PDF's own furniture.
+  'Export PDF': 'PDF exportieren',
+  'Preparing the PDF': 'Das PDF wird erstellt',
+  'Exported {when}': 'Exportiert am {when}',
+  'Page {n} of {total}': 'Seite {n} von {total}',
   '1 paper': '1 Paper',
   '{n} papers': '{n} Papers',
   // The count when the list is paged: "21–40 of 566 papers". 'Previous' and

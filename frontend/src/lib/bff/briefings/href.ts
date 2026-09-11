@@ -19,3 +19,16 @@ export function editionHref(
   const query = q.toString()
   return `/briefing/${date}${sub ? `/${sub}` : ''}${query ? `?${query}` : ''}`
 }
+
+/**
+ * The screening log as a PDF, from the BFF: the same day, domain and run as
+ * the page, in the BFF's own query names. The response names the file; the
+ * path stays extension-free (a `.pdf` folder would fall under .gitignore).
+ */
+export function screeningLogPdfHref(date: string, workspaceId?: string, runId?: string): string {
+  const q = new URLSearchParams()
+  if (workspaceId) q.set('workspace_id', workspaceId)
+  if (runId) q.set('run_id', runId)
+  const query = q.toString()
+  return `/bff/briefings/${date}/screening-log${query ? `?${query}` : ''}`
+}
