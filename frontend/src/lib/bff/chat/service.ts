@@ -85,16 +85,18 @@ export const chat = {
     const extra: Record<string, string> = {}
     if (query.workspace_id) extra.workspace_id = query.workspace_id
     if (query.paper_id) extra.paper_id = query.paper_id
+    // Upstream takes no `mine` — it is ours — but the pager links must keep
+    // it, or page 2 of a scoped list comes back unscoped.
+    const params = new URLSearchParams(extra)
+    if (query.mine) extra.mine = '1'
     if (sourceOf('chat') === 'stub') {
       return paginate(fixtureSessions, query, '/bff/chat/sessions', extra)
     }
-    const params = new URLSearchParams(extra)
     const [rows, me] = await Promise.all([
       listSessionsRaw(params.size > 0 ? `?${params}` : ''),
       query.mine ? settings.profile() : null,
     ])
     const mine = me ? rows.filter((row) => row.user === me.id) : rows
-    if (query.mine) extra.mine = '1'
     return paginate(mine.map(toSession), query, '/bff/chat/sessions', extra)
   },
 

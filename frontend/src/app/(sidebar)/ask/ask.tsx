@@ -226,8 +226,8 @@ export function Ask({
   const focusField = () => fieldRef.current?.focus()
 
   // `mine` matters: Django lists a whole workspace to its admins and
-  // managers, and this rail opens, renames and deletes what it lists — none
-  // of which may ever land on a colleague's conversation.
+  // managers, and this rail opens and deletes what it lists — neither may
+  // ever land on a colleague's conversation.
   const refreshSessions = useCallback(async () => {
     try {
       const page = await bffFetch<Page<ChatSession>>('/bff/chat/sessions?mine=1&page_size=100')
