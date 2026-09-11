@@ -45,6 +45,8 @@ export interface Msg {
   visualCitations: VisualCitation[]
   /** Mapped problem copy when the turn failed; partial `text` is kept. */
   error?: string | null
+  /** The reader stopped the stream; `text` is what had arrived. Filed as such on the server too. */
+  stopped?: boolean
 }
 
 export type HistoryStatus = 'idle' | 'loading' | 'ready' | 'stale'
@@ -59,6 +61,7 @@ function msgsOf(detail: ChatSessionDetail, t: T): Msg[] {
       text: turn.answer ?? '',
       visualCitations: turn.visual_citations,
       error: turn.status === 'failed' ? (turn.error ?? t('The answer failed.')) : null,
+      stopped: turn.status === 'aborted',
     },
   ])
 }
@@ -118,6 +121,9 @@ export function usePaperThread({
   // Bumps per question so the live answer mounts fresh (its reveal position
   // is never reset, only clamped).
   const [askSeq, setAskSeq] = useState(0)
+  // Set by stop(), cleared by the next ask(): the answer that settles after
+  // a stop is filed as stopped, the same way the server files it.
+  const stoppedRef = useRef(false)
 
   const [pendingDelete, setPendingDelete] = useState<ChatSession | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -240,6 +246,7 @@ export function usePaperThread({
           text: final.text,
           visualCitations: final.visualCitations,
           error: final.status === 'error' ? problemMessage(final.error, t) : null,
+          stopped: stoppedRef.current && final.status !== 'error',
         },
       ])
       if (final.sessionId) {
@@ -370,6 +377,7 @@ export function usePaperThread({
       // this one settle before its own reveal has caught up.
       finalRef.current = null
       revealedRef.current = false
+      stoppedRef.current = false
       setMsgs((prev) => [
         ...prev,
         {
@@ -395,6 +403,7 @@ export function usePaperThread({
   /** The reader's stop: what has arrived is filed as the answer. */
   const stop = useCallback(() => {
     if (!askingRef.current) return
+    stoppedRef.current = true
     stopStream()
   }, [stopStream])
 

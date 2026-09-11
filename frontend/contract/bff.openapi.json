@@ -3050,7 +3050,8 @@
               "pending",
               "processing",
               "completed",
-              "failed"
+              "failed",
+              "aborted"
             ]
           },
           "deep_thinking": {

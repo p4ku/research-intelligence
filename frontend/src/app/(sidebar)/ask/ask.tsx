@@ -339,6 +339,7 @@ export function Ask({
           factCheck: turn.fact_check,
           usage: turn.usage,
           error: turn.status === 'failed' ? (turn.error ?? t('The answer failed.')) : null,
+          stopped: turn.status === 'aborted',
         },
       ])
       clearInFlight()
