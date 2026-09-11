@@ -174,7 +174,9 @@ class CodeSmellsAndPracticesTestCase(TestCase):
         self.assertEqual(log.input_params.get("api_key"), "[REDACTED]")
         self.assertEqual(log.input_params.get("token"), "[REDACTED]")
         self.assertEqual(log.input_params.get("username"), "tester")
-        self.assertEqual(log.output_summary.get("token"), "[REDACTED]")
+        # Response bodies are not stored at all, redacted or otherwise
+        self.assertNotIn("token", log.output_summary)
+        self.assertNotIn("new_secret_token", json.dumps(log.output_summary))
 
     def test_middleware_ignores_non_api_endpoints(self):
         """

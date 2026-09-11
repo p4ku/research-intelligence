@@ -15,16 +15,22 @@ def list_user_activity_logs_logic(
     """
     queryset = UserActivityLog.objects.all()
 
+    # The same rule as GET /api/activity-logs/: your own rows everywhere,
+    # everyone's only where you administer or manage the workspace.
     if workspace_id:
         workspace, membership, error = check_workspace_access(user, workspace_id, required_roles=['admin', 'manager', 'researcher'])
         if error:
             return json.dumps({"status": "error", "error": error}, indent=2)
         queryset = queryset.filter(workspace=workspace)
+        if getattr(membership, 'role', None) not in ('admin', 'manager'):
+            queryset = queryset.filter(user=user)
     else:
         from research_intelligence.models import WorkspaceMember
         from django.db.models import Q
-        ws_ids = list(WorkspaceMember.objects.filter(user=user).values_list('workspace_id', flat=True))
-        queryset = queryset.filter(Q(workspace_id__in=ws_ids) | Q(user=user))
+        admin_ws_ids = list(WorkspaceMember.objects.filter(
+            user=user, role__in=['admin', 'manager']
+        ).values_list('workspace_id', flat=True))
+        queryset = queryset.filter(Q(workspace_id__in=admin_ws_ids) | Q(user=user))
 
     if interface:
         queryset = queryset.filter(interface=interface)

@@ -107,13 +107,14 @@ class UserActionAuditMiddleware(MiddlewareMixin):
         user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
         action_name = f"{method} {path}"
 
-        # Capture response summary if brief with strict sensitive data redaction
+        # What identifies the call and how it ended — never the body itself. A
+        # response can be a whole chat transcript, and workspace resolution
+        # needs nothing past the ids UserActivityLog.summarise_output keeps.
         output_summary = {"status_code": status_code}
         try:
             if hasattr(response, 'content') and response.content and len(response.content) < 4000:
                 res_data = json.loads(response.content.decode('utf-8'))
-                if isinstance(res_data, dict):
-                    output_summary.update(redact_sensitive_payload(res_data))
+                output_summary.update(UserActivityLog.summarise_output(res_data))
         except Exception:
             pass
 
