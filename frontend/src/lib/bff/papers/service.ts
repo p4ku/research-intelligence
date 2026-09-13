@@ -191,8 +191,10 @@ export const papers = {
       if (sourceOf('papers') === 'stub') {
         const [scored, index] = await Promise.all([papers.listAll(workspaceId), papers.runIndex()])
         const corpus = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
-        // The run's own decision, not the paper's current one: `papersOfRun`
-        // carries both and they differ once a paper has been through two runs.
+        // `papersOfRun`'s status is the run's where a run index exists; under
+        // the stub `runIndex()` is null, so it is the paper's own — the same
+        // thing there, since that path only admits papers whose latest run is
+        // this one.
         return papersOfRun(runId, corpus, index)
           .filter((r) => screening !== 'passed' || isPassed(r.status))
           .map((r) => r.paper)

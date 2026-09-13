@@ -303,7 +303,7 @@ describe('Scorecard data flow through stack contracts', () => {
     expect(complianceFlag.status).toBe('safe')
   })
 
-  test('workspaceScorecardResponse validates workspace and list of scored papers', () => {
+  test('a workspace scorecard body parses as the workspace plus a list of scored papers', () => {
     const workspaceScorecardResponse = z.object({
       workspace,
       papers: z.array(scoredPaper),
