@@ -2105,7 +2105,7 @@
     "/bff/pipeline-runs/start": {
       "post": {
         "operationId": "pipeline-runs.start.bff",
-        "summary": "Start a briefing run for one of the user's domains; the new run appears at the top of /bff/pipeline-runs as `running`.",
+        "summary": "Start a briefing run for one of the user's domains; the new run appears at the top of /bff/pipeline-runs as `running`. 409 `conflict` while the domain has five runs in flight or this search window is already running.",
         "tags": [
           "pipeline-runs"
         ],

@@ -392,7 +392,7 @@ export default async function SkeletonsPage({
         shape="home-ledger"
         title="Home ledger"
         status="Loading recent briefings"
-        loaded={<Ledger rows={homeRows} busy={false} />}
+        loaded={<Ledger rows={homeRows} />}
         skeleton={<LedgerSkeleton rows={homeRows.length} />}
       />
 
@@ -405,7 +405,7 @@ export default async function SkeletonsPage({
           <div className="max-w-sm">
             <RunCard
               domains={[{ id: fixtureWorkspace.id, name: fixtureWorkspace.name }]}
-              processing={null}
+              inFlight={[]}
               today="2026-09-07"
             />
           </div>

@@ -6,8 +6,14 @@ import { Card, SectionLabel } from '@/components/scanner-ui'
 import { Select } from '@/components/select'
 import { Bone } from '@/components/skeleton'
 import { bffFetch } from '@/lib/bff/client'
+import {
+  admission,
+  MAX_IN_FLIGHT_PER_DOMAIN,
+  type Admission,
+  type InFlightRun,
+} from '@/lib/bff/pipeline-runs/admission'
 import { errorsFromSubmit } from '@/lib/bff/problem-copy'
-import { fmt } from '@/lib/i18n'
+import { fmt, type T } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { useRouter } from 'next/navigation'
 import { useState, useTransition, type ReactNode } from 'react'
@@ -16,11 +22,45 @@ import { isConflict } from './ledger'
 
 /**
  * New briefing: a domain, a search window, one button — always on
- * Home, never a modal. One run at a time across all analysts: while any run
- * is processing the button is disabled and the note says which domain is
- * running. A start posts to the BFF and re-reads the page, so the new run
- * appears at the top of Recent Briefings as Processing.
+ * Home, never a modal. Runs go in parallel, up to five per domain and one
+ * per search window (lib/bff/pipeline-runs/admission.ts, Django's rule):
+ * the button is off only while the chosen domain is full or the chosen
+ * window is already running, and the note says what is in flight. A start
+ * posts to the BFF and re-reads the page, so the new run appears at the top
+ * of Recent Briefings as Processing.
  */
+
+/** "Hybrid Computing ×2, Retail Robotics" — the domains with runs in flight. */
+function runningDomains(runs: readonly InFlightRun[]): string {
+  const counts = new Map<string, number>()
+  for (const run of runs) counts.set(run.workspace_name, (counts.get(run.workspace_name) ?? 0) + 1)
+  return [...counts].map(([name, n]) => (n > 1 ? `${name} ×${n}` : name)).join(', ')
+}
+
+/** The form's note: why Start is off, else what is running. Exported for the test. */
+export function runCardNote(verdict: Admission, inFlight: readonly InFlightRun[], t: T): string {
+  const max = MAX_IN_FLIGHT_PER_DOMAIN
+  if (!verdict.ok) {
+    return verdict.reason === 'cap'
+      ? fmt(t('{domain} has {max} briefings in progress. Wait for one to finish.'), {
+          domain: verdict.domain,
+          max,
+        })
+      : fmt(t('{domain} is already running this window.'), { domain: verdict.domain })
+  }
+  if (inFlight.length === 0) {
+    return fmt(
+      t(
+        'Up to {max} briefings can run at once per domain. A new one tops the list when it finishes.',
+      ),
+      { max },
+    )
+  }
+  return fmt(t('{n} running: {domains}'), {
+    n: inFlight.length,
+    domains: runningDomains(inFlight),
+  })
+}
 
 export interface RunDomain {
   id: string
@@ -94,12 +134,12 @@ function RunCardFrame({
 
 export function RunCard({
   domains,
-  processing,
+  inFlight,
   today,
 }: {
   domains: RunDomain[]
-  /** The domain whose run is in flight, or null when none is. */
-  processing: string | null
+  /** Every run in flight across the user's domains (not just the rows shown). */
+  inFlight: InFlightRun[]
   /** YYYY-MM-DD from the server, so the default window is the same on both renders. */
   today: string
 }) {
@@ -116,8 +156,13 @@ export function RunCard({
   // out later days, and a typed one marks the field and keeps Start off.
   const future = to !== '' && to > today
   const valid = domain !== '' && from !== '' && to !== '' && from <= to && !future
-  const running = processing !== null
-  const disabled = !valid || busy || pending || running
+  // The same verdict the start route takes, so the note and the 409 agree.
+  const verdict = admission(inFlight, {
+    workspace_id: domain,
+    start_date: from || undefined,
+    end_date: to || undefined,
+  })
+  const disabled = !valid || busy || pending || !verdict.ok
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -134,8 +179,12 @@ export function RunCard({
     } catch (error) {
       console.error('[home] start failed', error)
       setErrors(errorsFromSubmit(error, FIELDS, t, t("Couldn't start the run. Try again.")))
-      // 409: another run is already in flight — re-read so the form locks.
-      if (isConflict(error)) startTransition(() => router.refresh())
+      // 409: the domain filled up, or this window started, since the page
+      // rendered — say so and re-read, so the note explains the refusal.
+      if (isConflict(error)) {
+        setErrors({ _: t('Another analyst started a run first. The list has been refreshed.') })
+        startTransition(() => router.refresh())
+      }
     } finally {
       setBusy(false)
     }
@@ -193,13 +242,7 @@ export function RunCard({
           </p>
         )
       }
-      note={
-        running
-          ? fmt(t('{domain} is running. Briefings and papers stay available meanwhile.'), {
-              domain: processing,
-            })
-          : t('Briefings run one at a time. When this one finishes, it tops the list.')
-      }
+      note={runCardNote(verdict, inFlight, t)}
     />
   )
 }

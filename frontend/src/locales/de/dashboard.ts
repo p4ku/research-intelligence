@@ -118,10 +118,15 @@ export const dict: Record<string, string> = {
   To: 'Bis',
   Start: 'Starten',
   'Starting…': 'Wird gestartet…',
-  'Briefings run one at a time. When this one finishes, it tops the list.':
-    'Briefings laufen nacheinander. Sobald dieses fertig ist, steht es oben in der Liste.',
-  '{domain} is running. Briefings and papers stay available meanwhile.':
-    'Für {domain} läuft gerade ein Briefing. Briefings und Papers bleiben verfügbar.',
+  // Runs go in parallel: up to five per domain, one per search window.
+  'Up to {max} briefings can run at once per domain. A new one tops the list when it finishes.':
+    'Pro Themenfeld können bis zu {max} Briefings gleichzeitig laufen. Ein neues steht oben in der Liste, sobald es fertig ist.',
+  '{n} running: {domains}': '{n} in Arbeit: {domains}',
+  '{domain} has {max} briefings in progress. Wait for one to finish.':
+    'Für {domain} sind {max} Briefings in Arbeit. Warten Sie, bis eines fertig ist.',
+  '{domain} is already running this window.': 'Für {domain} läuft dieser Zeitraum bereits.',
+  'Another analyst started a run first. The list has been refreshed.':
+    'Jemand anderes hat gerade einen Lauf gestartet. Die Liste wurde aktualisiert.',
   "Couldn't start the run. Try again.":
     'Der Lauf konnte nicht gestartet werden. Bitte erneut versuchen.',
   'A dense day for Hybrid Computing: agents pick up deterministic control flow, recovery-first tool use, and a learned memory at a sixth of the tokens; durable content credentials survive real platform pipelines, and verifiable delegation answers the know-your-agent question at checkout.':

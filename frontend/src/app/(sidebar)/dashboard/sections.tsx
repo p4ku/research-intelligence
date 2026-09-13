@@ -3,6 +3,7 @@ import type { Edition } from '@/lib/bff/briefings/schema'
 import { editionDate } from '@/lib/bff/briefings/select'
 import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
+import type { InFlightRun } from '@/lib/bff/pipeline-runs/admission'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
@@ -122,8 +123,17 @@ export async function LedgerSection({
         : null,
     }
   })
-  // From every run in flight, not the rows: one may sit below the fifth briefing.
-  const processing = inFlight[0] ?? null
+  // Every run in flight, not the rows: one may sit below the fifth briefing.
+  // Trimmed to what the form's admission rule reads (it is a client island).
+  const flying: InFlightRun[] = inFlight.map((run) => ({
+    id: run.id,
+    workspace_id: run.workspace_id,
+    workspace_name: run.workspace_name,
+    status: run.status,
+    period_start: run.period_start,
+    period_end: run.period_end,
+    lookback_days: run.lookback_days,
+  }))
 
   return (
     <HomeGrid
@@ -141,14 +151,12 @@ export async function LedgerSection({
                 </p>
               </Card>
             ) : (
-              <Ledger rows={rows} busy={processing !== null} />
+              <Ledger rows={rows} />
             )}
           </div>
         </>
       }
-      card={
-        <RunCard domains={domains} processing={processing?.workspace_name ?? null} today={today} />
-      }
+      card={<RunCard domains={domains} inFlight={flying} today={today} />}
     >
       <LiveRefresh processingIds={inFlight.map((run) => run.id)} />
     </HomeGrid>

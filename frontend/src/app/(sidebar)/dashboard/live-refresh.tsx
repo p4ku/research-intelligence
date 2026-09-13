@@ -12,7 +12,7 @@ const IDLE_MS = 60_000
 
 /**
  * Keeps Home current without a reload — the spec's "Home updates
- * automatically" and "disable new runs globally while processing". It polls
+ * automatically" — and the form's note about what is in flight. It polls
  * the runs list (one small Django call) every 10 s while a run is in flight
  * and every 60 s otherwise, and re-reads the page only when the set of
  * in-flight runs differs from what this render was built from: a run

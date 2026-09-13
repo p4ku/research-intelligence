@@ -1,4 +1,5 @@
 import type { Edition } from '@/lib/bff/briefings/schema'
+import { isInFlight as inFlight } from '@/lib/bff/pipeline-runs/admission'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import { hasBriefing } from '../briefing/rows'
 
@@ -25,15 +26,13 @@ export interface RecentBriefing {
   edition: Edition | null
 }
 
-const inFlight = (run: Pick<PipelineRun, 'status'>) =>
-  run.status === 'running' || run.status === 'pending'
 const failed = (run: Pick<PipelineRun, 'status'>) =>
   run.status === 'failed' || run.status === 'aborted'
 
 /**
  * The newest RECENT briefings across the user's domains — the first page of
  * the archive — with the runs that are not briefings yet kept in their
- * place: a run in flight (there is at most one at a time) and, per domain,
+ * place: every run in flight (up to five per domain) and, per domain,
  * its latest failure until that domain briefs again, so Retry is offered
  * where it is still wanted and an old failure does not outlive its fix.
  * Only briefings count toward RECENT; the others ride along above the

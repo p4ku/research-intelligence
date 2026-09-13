@@ -1,0 +1,56 @@
+import type { InFlightRun } from '@/lib/bff/pipeline-runs/admission'
+import type { T } from '@/lib/i18n'
+import { describe, expect, test } from 'bun:test'
+import { runCardNote } from './run-card'
+
+const t: T = (s) => s
+
+function run(name: string, over: Partial<InFlightRun> = {}): InFlightRun {
+  return {
+    id: '00000000-0000-4000-8000-000000000103',
+    workspace_id: '00000000-0000-4000-8000-0000000000a1',
+    workspace_name: name,
+    status: 'running',
+    period_start: null,
+    period_end: null,
+    lookback_days: 7,
+    ...over,
+  }
+}
+
+describe('runCardNote', () => {
+  test('nothing in flight: the rule, in one sentence', () => {
+    expect(runCardNote({ ok: true, count: 0 }, [], t)).toBe(
+      'Up to 5 briefings can run at once per domain. A new one tops the list when it finishes.',
+    )
+  })
+
+  test('runs in flight: counted, domains named, repeats folded', () => {
+    const flying = [run('Hybrid Computing'), run('Hybrid Computing'), run('Retail Robotics')]
+    expect(runCardNote({ ok: true, count: 2 }, flying, t)).toBe(
+      '3 running: Hybrid Computing ×2, Retail Robotics',
+    )
+  })
+
+  test('at the cap: the domain and the number', () => {
+    const one = run('Hybrid Computing')
+    expect(
+      runCardNote(
+        { ok: false, reason: 'cap', domain: 'Hybrid Computing', count: 5, run: one },
+        [one],
+        t,
+      ),
+    ).toBe('Hybrid Computing has 5 briefings in progress. Wait for one to finish.')
+  })
+
+  test('a twin window: the domain', () => {
+    const one = run('Hybrid Computing')
+    expect(
+      runCardNote(
+        { ok: false, reason: 'duplicate', domain: 'Hybrid Computing', count: 1, run: one },
+        [one],
+        t,
+      ),
+    ).toBe('Hybrid Computing is already running this window.')
+  })
+})

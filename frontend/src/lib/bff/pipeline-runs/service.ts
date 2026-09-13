@@ -125,9 +125,11 @@ export const runs = {
   /**
    * Start an autonomous run for one domain over a search window. Django
    * creates the run as `running` and dispatches the first stage before it
-   * answers, so the id returned is already in the list. Membership and
-   * quota refusals come back as 403 → `forbidden`; the caller reads the
-   * list again for the new row rather than trusting the envelope.
+   * answers, so the id returned is already in the list. Membership refusals
+   * come back as 403 → `forbidden`; a domain at its five-run cap or a window
+   * already in flight as 409 → `conflict` (the envelope's `error` sentence
+   * is the detail); a quota refusal is a 400 → `validation`. The caller
+   * reads the list again for the new row rather than trusting the envelope.
    */
   async start(input: StartRun): Promise<StartedRun> {
     const res = await django('/api/pipeline-runs/start/', startRunResponseDTO, {
