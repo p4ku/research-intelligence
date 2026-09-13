@@ -190,6 +190,10 @@ export const dict: Record<string, string> = {
   Close: 'Schließen',
   'Ask about this paper…': 'Zu diesem Paper fragen…',
   'Answered from this paper alone.': 'Wird allein aus diesem Paper beantwortet.',
+  // A paper whose PDF was never stored (URL only): the chat has the abstract, nothing more.
+  "Answered from this paper's abstract only.":
+    'Wird allein aus dem Abstract dieses Papers beantwortet.',
+  'Reading the abstract…': 'Der Abstract wird gelesen…',
   'What would you like to know?': 'Was möchten Sie wissen?',
   // The console (Column layout, 9 Sep 2026): the thread outlives the surface.
   'Ask a follow-up…': 'Eine Rückfrage stellen…',

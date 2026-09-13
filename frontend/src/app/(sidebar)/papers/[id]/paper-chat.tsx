@@ -73,6 +73,17 @@ const CONSOLE_MIN = 240
 const EASE_OUT = 'cubic-bezier(0.23, 1, 0.32, 1)'
 const EASE_IN_OUT = 'cubic-bezier(0.77, 0, 0.175, 1)'
 
+/**
+ * Whether the chat can read the paper's body. The backend sends the OCR
+ * markdown or the stored PDF; a paper whose PDF is still just a URL (most of
+ * the corpus, 11 Sep 2026) gives the model the abstract and nothing more, and
+ * the copy must not promise otherwise.
+ */
+function readsFullText(paper: Pick<ScoredPaper, 'pdf_key' | 'markdown_key'>): boolean {
+  if (paper.markdown_key) return true
+  return Boolean(paper.pdf_key && !/^https?:\/\//i.test(paper.pdf_key))
+}
+
 export function PaperChat({
   paper,
   rail,
@@ -270,12 +281,17 @@ export function PaperChat({
   const label = fmt(t('Ask about {title}'), { title: paper.title })
   const count = thread.sessions.length
   const lastAnswer = thread.msgs.findLast((m) => m.role === 'scanner')
+  const fullText = readsFullText(paper)
+  const reading = fullText ? t('Reading the full text…') : t('Reading the abstract…')
+  const scopeLine = fullText
+    ? t('Answered from this paper alone.')
+    : t("Answered from this paper's abstract only.")
   // Transitions only — never a live region on the streamed markdown, which
   // re-renders every animation frame (the same line the Ask page carries).
   const status = (
     <p role="status" className="sr-only">
       {thread.asking
-        ? t('Reading the full text…')
+        ? reading
         : lastAnswer
           ? lastAnswer.error
             ? t('The answer failed.')
@@ -306,7 +322,7 @@ export function PaperChat({
                 {t('Answering…')}
               </span>
             ) : (
-              t('Answered from this paper alone.')
+              scopeLine
             )
           }
           composer={
@@ -440,7 +456,7 @@ export function PaperChat({
                   </p>
                 ) : empty ? (
                   <p className="text-[13px] leading-relaxed text-balance text-muted-foreground">
-                    {t('Answered from this paper alone.')}
+                    {scopeLine}
                   </p>
                 ) : (
                   <Thread
@@ -448,6 +464,7 @@ export function PaperChat({
                     asking={thread.asking}
                     live={thread.live}
                     askSeq={thread.askSeq}
+                    scanning={reading}
                     onGrow={follow}
                     onRevealed={thread.onRevealed}
                     endRef={endRef}
@@ -485,6 +502,7 @@ function Thread({
   asking,
   live,
   askSeq,
+  scanning,
   onGrow,
   onRevealed,
   endRef,
@@ -493,6 +511,8 @@ function Thread({
   asking: boolean
   live: ThreadState['live']
   askSeq: number
+  /** What the reveal says before the first token ("Reading the full text…" or the abstract line). */
+  scanning: string
   onGrow: () => void
   onRevealed: () => void
   endRef: RefObject<HTMLDivElement | null>
@@ -523,6 +543,9 @@ function Thread({
                 {m.text !== '' ? t('The answer stopped part-way through.') : m.error}
               </ErrorNote>
             )}
+            {m.stopped && !m.error && (
+              <p className="mt-2 font-mono text-[11px] text-muted-foreground">{t('Stopped')}</p>
+            )}
           </div>
         ),
       )}
@@ -530,7 +553,7 @@ function Thread({
         <LiveAnswer
           key={askSeq}
           state={live}
-          scanning={t('Reading the full text…')}
+          scanning={scanning}
           className="text-[13px] text-muted-foreground"
           onGrow={onGrow}
           onRevealed={onRevealed}

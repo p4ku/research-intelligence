@@ -6,7 +6,7 @@ from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from chat.models import PaperChatSession, PaperChatMessage
-from research_intelligence.models import Paper, Workspace, PipelineRun
+from research_intelligence.models import Paper, Workspace, PipelineRun, WorkspaceMember
 from chat.serializers import (
     PaperChatMessageSerializer,
     PaperChatSubmitSerializer,
@@ -106,7 +106,10 @@ class ChatSubmitView(APIView):
                     {"error": f"Chat session '{session_id}' not found in workspace."},
                     status=status.HTTP_404_NOT_FOUND
                 )
-            if session.user_id and session.user_id != request.user.id:
+            # An ownerless session (MCP created it for an unauthenticated caller)
+            # is nobody's to continue: the list route already hides it from
+            # everyone but admins and managers, so the write path matches it.
+            if session.user_id != request.user.id:
                 is_admin = WorkspaceMember.objects.filter(
                     workspace=target_workspace, user=request.user, role__in=['admin', 'manager']
                 ).exists()

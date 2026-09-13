@@ -6,7 +6,6 @@
  */
 import 'server-only'
 
-import { oneLine } from '@/lib/papers/map'
 import { cache } from 'react'
 import * as z from 'zod'
 import { django, djangoVoid } from '../core/http'
@@ -16,65 +15,9 @@ import { sourceOf } from '../core/source'
 import { assertUuid } from '../core/validate'
 import { settings } from '../settings/service'
 import { fixtureSessionDetails, fixtureSessions } from './fixtures'
-import type { ChatSession, ChatSessionDetail, ChatTurn, SessionsQuery } from './schema'
-import { factCheck, visualCitation } from './schema'
-import { chatMessageDTO, chatSessionDetailDTO, chatSessionDTO } from './upstream'
-
-type SessionDTO = z.infer<typeof chatSessionDTO>
-type MessageDTO = z.infer<typeof chatMessageDTO>
-
-function toSession(dto: SessionDTO): ChatSession {
-  return {
-    id: dto.id,
-    workspace_id: dto.workspace,
-    paper_id: dto.paper,
-    // Django serializes the stored column as-is; sessions never pass through
-    // toScoredPaper, and the Ask rail puts this in a `title=` attribute, which
-    // HTML does not collapse.
-    paper_title: dto.paper_title === null ? null : oneLine(dto.paper_title),
-    title: dto.title,
-    summary: dto.summary || null,
-    turns_count: dto.messages_count,
-    created_at: dto.created_at,
-    updated_at: dto.updated_at,
-  }
-}
-
-export function toTurn(dto: MessageDTO): ChatTurn {
-  const visuals = Array.isArray(dto.visual_citations)
-    ? dto.visual_citations
-        .map((v) => visualCitation.safeParse(v))
-        .filter((r) => r.success)
-        .map((r) => r.data)
-    : []
-  const guard = factCheck.safeParse(dto.hallucination_guard)
-  const hasUsage = dto.tokens_in !== null || dto.tokens_out !== null || dto.total_tokens !== null
-  const status = (['pending', 'processing', 'completed', 'failed'] as const).includes(
-    dto.status as never,
-  )
-    ? (dto.status as ChatTurn['status'])
-    : 'failed'
-  return {
-    id: dto.id,
-    question: dto.question,
-    answer: dto.message || null,
-    status,
-    deep_thinking: dto.deep_thinking,
-    visual_citations: visuals,
-    fact_check: guard.success ? guard.data : null,
-    usage: hasUsage
-      ? {
-          tokens_in: dto.tokens_in,
-          tokens_out: dto.tokens_out,
-          total_tokens: dto.total_tokens,
-          usd_cost: dto.usd_cost !== null && dto.usd_cost !== '' ? Number(dto.usd_cost) : null,
-        }
-      : null,
-    error: dto.error_message || null,
-    created_at: dto.created_at,
-    completed_at: dto.completed_at,
-  }
-}
+import { toSession, toTurn } from './normalise'
+import type { ChatSession, ChatSessionDetail, SessionsQuery } from './schema'
+import { chatSessionDetailDTO, chatSessionDTO } from './upstream'
 
 const listSessionsRaw = cache(async (filter: string) =>
   django(`/api/chat/sessions/${filter}`, z.array(chatSessionDTO)),
@@ -85,16 +28,18 @@ export const chat = {
     const extra: Record<string, string> = {}
     if (query.workspace_id) extra.workspace_id = query.workspace_id
     if (query.paper_id) extra.paper_id = query.paper_id
+    // Upstream takes no `mine` — it is ours — but the pager links must keep
+    // it, or page 2 of a scoped list comes back unscoped.
+    const params = new URLSearchParams(extra)
+    if (query.mine) extra.mine = '1'
     if (sourceOf('chat') === 'stub') {
       return paginate(fixtureSessions, query, '/bff/chat/sessions', extra)
     }
-    const params = new URLSearchParams(extra)
     const [rows, me] = await Promise.all([
       listSessionsRaw(params.size > 0 ? `?${params}` : ''),
       query.mine ? settings.profile() : null,
     ])
     const mine = me ? rows.filter((row) => row.user === me.id) : rows
-    if (query.mine) extra.mine = '1'
     return paginate(mine.map(toSession), query, '/bff/chat/sessions', extra)
   },
 

@@ -15,9 +15,9 @@ export const fixtureSessions: ChatSession[] = [
     paper_title: PAPER.title,
     title: 'What does this paper enable?',
     summary: null,
-    turns_count: 1,
+    turns_count: 2,
     created_at: '2026-08-27T09:12:00Z',
-    updated_at: '2026-08-27T09:12:40Z',
+    updated_at: '2026-08-27T09:14:06Z',
   },
   {
     id: '00000000-0000-4000-8000-000000000052',
@@ -65,6 +65,21 @@ export const fixtureSessionDetails: ChatSessionDetail[] = [
         error: null,
         created_at: '2026-08-27T09:12:00Z',
         completed_at: '2026-08-27T09:12:40Z',
+      },
+      {
+        // The reader pressed Stop: the words that had arrived are the answer.
+        id: '00000000-0000-4000-8000-000000000062',
+        question: 'And the cost of that coordination?',
+        answer:
+          'Coordination adds roughly one extra model call per hand-off, which the paper prices at',
+        status: 'aborted',
+        deep_thinking: false,
+        visual_citations: [],
+        fact_check: null,
+        usage: { tokens_in: 4300, tokens_out: 18, total_tokens: 4318, usd_cost: 0.0033 },
+        error: null,
+        created_at: '2026-08-27T09:14:00Z',
+        completed_at: '2026-08-27T09:14:06Z',
       },
     ],
   },
