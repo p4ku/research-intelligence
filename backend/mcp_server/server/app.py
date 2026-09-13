@@ -167,13 +167,18 @@ def with_db_connection(func):
                 api_key_id = getattr(api_key, 'key_id', None) if api_key else None
                 out_sum = None
                 if result:
+                    # Ids and outcome only, never the tool's answer: ask_paper
+                    # returns the whole reply, and admins read these rows.
+                    parsed = None
                     if isinstance(result, str) and len(result) < 2000:
                         try:
-                            out_sum = json.loads(result)
+                            parsed = json.loads(result)
                         except Exception:
-                            out_sum = {"result": result[:500]}
-                    else:
-                        out_sum = {"result_length": len(str(result))}
+                            pass
+                    out_sum = {
+                        "result_length": len(str(result)),
+                        **UserActivityLog.summarise_output(parsed),
+                    }
 
                 req = None
                 try:
