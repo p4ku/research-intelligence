@@ -5,6 +5,7 @@ import { Bone } from '@/components/skeleton'
 import { StarButton } from '@/components/star'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/table'
 import { bffFetch } from '@/lib/bff/client'
+import { admission, type InFlightRun } from '@/lib/bff/pipeline-runs/admission'
 import type { StartRun } from '@/lib/bff/pipeline-runs/schema'
 import { errorsFromSubmit } from '@/lib/bff/problem-copy'
 import { ALL_ON, type Features } from '@/lib/features'
@@ -357,6 +358,7 @@ function Row({
   open: boolean
   onToggle: () => void
   onRetry: () => void
+  /** A retry is in flight, or this row's window would be refused (Start's own rule). */
   busy: boolean
   stars: boolean
 }) {
@@ -467,7 +469,14 @@ export function isConflict(error: unknown): boolean {
 
 /* -------------------------------- Ledger -------------------------------- */
 
-export function Ledger({ rows }: { rows: HomeRow[] }) {
+export function Ledger({
+  rows,
+  inFlight,
+}: {
+  rows: HomeRow[]
+  /** Every run in flight — Retry takes the same admission verdict as Start. */
+  inFlight: InFlightRun[]
+}) {
   const t = useT()
   const router = useRouter()
   const { stars } = useFeatures()
@@ -489,9 +498,15 @@ export function Ledger({ rows }: { rows: HomeRow[] }) {
       startTransition(() => router.refresh())
     } catch (err) {
       console.error('[home] retry failed', err)
-      setError(errorsFromSubmit(err, [], t, t("Couldn't start the run. Try again."))._)
-      // 409: the domain is at its cap or this window is already running — show it.
-      if (isConflict(err)) startTransition(() => router.refresh())
+      // 409: the domain filled up, or this window started, since the page
+      // rendered — the same sentence as Start's, then re-read so Retry locks.
+      // The line stays until the next Retry: a locked button has no note.
+      if (isConflict(err)) {
+        setError(t('This domain changed since the page loaded. The list has been refreshed.'))
+        startTransition(() => router.refresh())
+      } else {
+        setError(errorsFromSubmit(err, [], t, t("Couldn't start the run. Try again."))._)
+      }
     } finally {
       setRetrying(false)
     }
@@ -510,7 +525,7 @@ export function Ledger({ rows }: { rows: HomeRow[] }) {
             open={row.id === openId}
             onToggle={() => setOpenId((id) => (id === row.id ? null : row.id))}
             onRetry={() => void retry(row)}
-            busy={retrying || pending}
+            busy={retrying || pending || (row.retry !== null && !admission(inFlight, row.retry).ok)}
           />
         ))}
       />

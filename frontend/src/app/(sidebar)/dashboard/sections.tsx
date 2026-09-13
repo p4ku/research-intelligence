@@ -151,7 +151,7 @@ export async function LedgerSection({
                 </p>
               </Card>
             ) : (
-              <Ledger rows={rows} />
+              <Ledger rows={rows} inFlight={flying} />
             )}
           </div>
         </>
