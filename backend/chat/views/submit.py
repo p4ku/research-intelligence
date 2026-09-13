@@ -1,12 +1,10 @@
 import logging
-from django.core.exceptions import ValidationError
 from rest_framework import permissions, status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
-from chat.models import PaperChatSession, PaperChatMessage
-from research_intelligence.models import Paper, Workspace, PipelineRun, WorkspaceMember
+from chat.models import PaperChatMessage
 from chat.serializers import (
     PaperChatMessageSerializer,
     PaperChatSubmitSerializer,
@@ -14,8 +12,8 @@ from chat.serializers import (
 )
 from chat.tasks import execute_paper_chat_task
 from chat.engine import PaperChatEngine
-from research_intelligence.services import check_workspace_access
 from api.throttles import ChatRateThrottle
+from .scope import resolve_chat_target
 
 logger = logging.getLogger(__name__)
 
@@ -46,98 +44,24 @@ class ChatSubmitView(APIView):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
         data = serializer.validated_data
-        paper_id = data.get('paper_id')
-        workspace_id = data.get('workspace_id')
-        session_id = data.get('session_id')
-        question = data['question'].strip()
         is_sync = data.get('sync', False)
-        deep_thinking = data.get('deep_thinking', False)
 
-        paper = None
-        target_workspace = None
+        target, error = resolve_chat_target(request, data)
+        if error:
+            return error
+        paper, session = target.paper, target.session
 
-        if paper_id:
-            try:
-                paper = Paper.objects.select_related('workspace').get(id=paper_id)
-                target_workspace = paper.workspace
-            except Paper.DoesNotExist:
-                return Response(
-                    {"error": f"Paper with id '{paper_id}' not found."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-        elif workspace_id:
-            try:
-                target_workspace = Workspace.objects.get(id=workspace_id)
-                paper = None
-            except Workspace.DoesNotExist:
-                return Response(
-                    {"error": f"Workspace with id '{workspace_id}' not found."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-        else:
-            return Response(
-                {"error": "Either paper_id or workspace_id must be provided."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # If explicit workspace_id was passed with a paper, ensure it matches paper's workspace
-        if workspace_id and paper and str(paper.workspace_id) != str(workspace_id):
-            return Response(
-                {"error": "Mismatch between provided workspace_id and paper's workspace."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # 2. RBAC Access Control Check
-        workspace, membership, error_msg = check_workspace_access(
-            request.user,
-            str(target_workspace.id),
-            required_roles=['admin', 'manager', 'researcher']
-        )
-        if error_msg:
-            return Response({"error": error_msg}, status=status.HTTP_403_FORBIDDEN)
-
-        # 3. Resolve or Create Chat Session
-        session = None
-        if session_id:
-            try:
-                session = PaperChatSession.objects.get(id=session_id, workspace=target_workspace)
-            except (PaperChatSession.DoesNotExist, ValueError, ValidationError):
-                return Response(
-                    {"error": f"Chat session '{session_id}' not found in workspace."},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            # An ownerless session (MCP created it for an unauthenticated caller)
-            # is nobody's to continue: the list route already hides it from
-            # everyone but admins and managers, so the write path matches it.
-            if session.user_id != request.user.id:
-                is_admin = WorkspaceMember.objects.filter(
-                    workspace=target_workspace, user=request.user, role__in=['admin', 'manager']
-                ).exists()
-                if not is_admin:
-                    return Response(
-                        {"error": "You do not have permission to append to another user's chat session."},
-                        status=status.HTTP_403_FORBIDDEN
-                    )
-        else:
-            session = PaperChatSession.objects.create(
-                workspace=target_workspace,
-                paper=paper,
-                user=request.user,
-                title=(question[:50] + "...") if len(question) > 50 else question
-            )
-
-        # 4. Create Pending Message Record
         message = PaperChatMessage.objects.create(
             session=session,
             sender='user',
             status='pending',
-            question=question,
-            deep_thinking=deep_thinking
+            question=data['question'].strip(),
+            deep_thinking=data.get('deep_thinking', False)
         )
 
         # Synchronous execution flow
         if is_sync:
-            result = PaperChatEngine().execute(message)
+            PaperChatEngine().execute(message)
             message.refresh_from_db()
             return Response(PaperChatMessageSerializer(message).data, status=status.HTTP_200_OK)
 
@@ -157,7 +81,6 @@ class ChatSubmitView(APIView):
             "deep_thinking": message.deep_thinking,
             "created_at": message.created_at
         }
-        # In test environments or when caller expects 200 on async or 202
         return Response(
             PaperChatAsyncResponseSerializer(async_response_data).data,
             status=status.HTTP_202_ACCEPTED

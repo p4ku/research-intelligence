@@ -44,15 +44,31 @@ class CitationFactChecker:
         self,
         source_text: str,
         visual_citations: list[dict],
-        answer_text: str = ""
+        answer_text: str = "",
+        has_body: bool = True,
     ) -> tuple[list[dict], dict]:
         """
         Audits visual citations and referenced claims against the source document.
+
+        `has_body=False` says the source text carries no document body (only
+        metadata and abstract): quotes then cannot be verified either way, so
+        every flag is None and the guard says SKIPPED rather than scoring the
+        answer against the abstract.
 
         Returns:
             verified_citations (list[dict]): Updated citations with verification flags and ground truth locations.
             guard_summary (dict): Audit summary containing score, verification status, and flag details.
         """
+        if not has_body:
+            unverifiable = [dict(cit, verified_in_source=None) for cit in visual_citations]
+            return unverifiable, {
+                "verified": False,
+                "grounding_score": 0.0,
+                "verified_count": 0,
+                "total_count": 0,
+                "status": "SKIPPED_NO_SOURCE_TEXT",
+            }
+
         verified_citations = []
         verified_count = 0
         total_checked = 0
