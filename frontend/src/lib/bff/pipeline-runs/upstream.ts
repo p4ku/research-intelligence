@@ -68,6 +68,21 @@ export const startRunResponseDTO = z.looseObject({
 })
 
 /**
+ * Django's 409 on a start: the workspace is at its cap of runs in flight, or
+ * this search window is already running. `error` is the sentence shown.
+ */
+export const startRunRefusalDTO = z.looseObject({
+  status: z.literal('error'),
+  code: z.enum(['run_limit_reached', 'duplicate_run']),
+  error: z.string(),
+  workspace_id: z.string(),
+  workspace_name: z.string(),
+  in_flight: z.number().int(),
+  limit: z.number().int(),
+  conflicting_run_id: z.string().optional(),
+})
+
+/**
  * `POST /api/pipeline-runs/{id}/abort/` — the same kind of envelope. Refusals
  * do not reach this schema: they are 400s with an `error` sentence, mapped
  * by abort.ts.

@@ -36,10 +36,15 @@ Starting a run calls `POST /api/pipeline-runs/start/` with `workspace_id`,
 `running` and dispatches the first stage before answering, so the run is
 already in the list when the response lands. Membership (`admin`, `manager`,
 `researcher`) refusals arrive as 403 → `forbidden`; a quota refusal is a 400
-whose `error` becomes the problem's `detail`. Django does not serialise
-starts: "one run at a time" is enforced by this route (409 `conflict` while
-any run is `running` / `pending`) and by the form, which is disabled while
-Home shows a run in flight.
+whose `error` becomes the problem's `detail`. Django admits at most five
+runs in flight (`pending` / `running` / `paused`) per workspace and refuses
+a search window that is already running — 409 with `code:
+run_limit_reached | duplicate_run` → `conflict`, the `error` sentence as
+`detail`. This route takes the same verdict first from the live list
+(`src/lib/bff/pipeline-runs/admission.ts`, the rule's pure mirror) so a
+stale Home gets its 409 without a round-trip; the form uses the same module
+to keep Start off only while the chosen domain is full or the chosen window
+is running.
 
 Stopping a run calls `POST /api/pipeline-runs/{id}/abort/`; Django marks the
 run and its active steps `aborted` and stamps `completed_at`, so the row reads

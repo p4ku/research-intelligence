@@ -6,6 +6,7 @@ import {
   abortRunResponseDTO,
   pipelineRunDetailDTO,
   pipelineRunDTO,
+  startRunRefusalDTO,
   startRunRequestDTO,
   startRunResponseDTO,
 } from './upstream'
@@ -54,9 +55,9 @@ export const pipelineRunsOperations: Operation[] = [
     method: 'POST',
     path: '/api/pipeline-runs/start/',
     summary:
-      'Start an autonomous run for a workspace over a search window (start_date/end_date, YYYY-MM-DD); answers with a status envelope carrying pipeline_run_id. Never executed by the checker.',
+      'Start an autonomous run for a workspace over a search window (start_date/end_date, YYYY-MM-DD); answers with a status envelope carrying pipeline_run_id. 409 when the workspace already has five runs in flight (`run_limit_reached`) or this window is already running (`duplicate_run`). Never executed by the checker.',
     body: startRunRequestDTO,
-    responses: { 201: startRunResponseDTO },
+    responses: { 201: startRunResponseDTO, 409: startRunRefusalDTO },
   },
   {
     id: 'pipeline-runs.abort.current',
@@ -90,7 +91,7 @@ export const pipelineRunsOperations: Operation[] = [
     method: 'POST',
     path: '/bff/pipeline-runs/start',
     summary:
-      "Start a briefing run for one of the user's domains; the new run appears at the top of /bff/pipeline-runs as `running`.",
+      "Start a briefing run for one of the user's domains; the new run appears at the top of /bff/pipeline-runs as `running`. 409 `conflict` while the domain has five runs in flight or this search window is already running.",
     body: startRun,
     responses: { 201: startedRun },
   },

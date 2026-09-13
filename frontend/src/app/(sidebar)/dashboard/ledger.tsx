@@ -455,7 +455,7 @@ function Row({
   )
 }
 
-/** A 409 from the start route: the page is stale, another run is in flight. */
+/** A 409 from the start route: the page is stale — the domain filled up, or this window started elsewhere. */
 export function isConflict(error: unknown): boolean {
   return (
     !!error &&
@@ -467,7 +467,7 @@ export function isConflict(error: unknown): boolean {
 
 /* -------------------------------- Ledger -------------------------------- */
 
-export function Ledger({ rows, busy }: { rows: HomeRow[]; busy: boolean }) {
+export function Ledger({ rows }: { rows: HomeRow[] }) {
   const t = useT()
   const router = useRouter()
   const { stars } = useFeatures()
@@ -490,7 +490,7 @@ export function Ledger({ rows, busy }: { rows: HomeRow[]; busy: boolean }) {
     } catch (err) {
       console.error('[home] retry failed', err)
       setError(errorsFromSubmit(err, [], t, t("Couldn't start the run. Try again."))._)
-      // 409: another run is already in flight — show it.
+      // 409: the domain is at its cap or this window is already running — show it.
       if (isConflict(err)) startTransition(() => router.refresh())
     } finally {
       setRetrying(false)
@@ -510,7 +510,7 @@ export function Ledger({ rows, busy }: { rows: HomeRow[]; busy: boolean }) {
             open={row.id === openId}
             onToggle={() => setOpenId((id) => (id === row.id ? null : row.id))}
             onRetry={() => void retry(row)}
-            busy={busy || retrying || pending}
+            busy={retrying || pending}
           />
         ))}
       />
