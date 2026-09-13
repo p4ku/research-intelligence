@@ -71,6 +71,12 @@ export type StartRun = z.infer<typeof startRun>
 export const startedRun = z.object({ run_id: z.uuid() }).meta({ id: 'StartedPipelineRun' })
 export type StartedRun = z.infer<typeof startedRun>
 
+/** The run that was stopped; the list carries everything else. */
+export const abortedRun = z
+  .object({ run_id: z.uuid(), status: z.literal('aborted') })
+  .meta({ id: 'AbortedPipelineRun' })
+export type AbortedRun = z.infer<typeof abortedRun>
+
 export const runsQuery = listQuery.extend({
   /** Absent = every domain the user belongs to. */
   workspace_id: z.uuid().optional(),

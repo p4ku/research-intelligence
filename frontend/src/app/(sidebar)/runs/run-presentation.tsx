@@ -145,6 +145,15 @@ export function RunStatus({ run, t = (s) => s }: { run: Pick<PipelineRun, 'statu
   return <Pill tone={RUN_TONE[run.status]}>{runStatusLabel(run.status, t)}</Pill>
 }
 
+/**
+ * Whether a run can still be stopped. Django aborts `pending`, `running` and
+ * `paused` (which the contract reads as pending); the rest have ended. Lives
+ * here, not in the client island, so server components can ask it.
+ */
+export function offersStop(status: PipelineRun['status']): boolean {
+  return status === 'running' || status === 'pending'
+}
+
 const STEP_TONE: Record<ComponentRun['status'], Tone> = {
   completed: 'ok',
   running: 'busy',

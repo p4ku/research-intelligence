@@ -11,7 +11,11 @@
  *          (the proxy only reads `exp`; rotation is mirrored like production).
  * - POST /api/pipeline-runs/start/ → a simulated run: `running` at the top
  *          of the list at once, `completed` (or `failed`, see env) after
- *          SNAPSHOT_RUN_MS. In memory only; restart to forget it.
+ *          SNAPSHOT_RUN_MS. In memory only; restart to forget it. Its detail
+ *          GET is served too, so /runs/<id> opens.
+ * - POST /api/pipeline-runs/{id}/abort/ → a simulated run still in flight
+ *          becomes `aborted` at once; an ended or captured run gets Django's
+ *          400 "already in status" sentence; an unknown id 404.
  * - Anything else that writes → 501, in Django's error shape.
  *
  * Env: SNAPSHOT_DIR (default: newest folder under local-data/), SNAPSHOT_PORT
@@ -96,6 +100,8 @@ type Row = Record<string, unknown>
 
 /** Runs started through the replay, newest first; served ahead of the capture. */
 const startedRuns: Row[] = []
+/** The pending finish per simulated run, so an abort can cancel it. */
+const finishTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
 function readJson(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve) => {
@@ -163,6 +169,8 @@ function simulateRun(
  * rather than claiming papers the corpus does not have.
  */
 function finishRun(run: Row) {
+  finishTimers.delete(String(run.id))
+  if (run.status !== 'running') return
   const now = new Date()
   const started = new Date(String(run.started_at))
   run.status = RUN_OUTCOME
@@ -235,7 +243,10 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       return (log(400), send(res, 400, { status: 'error', error: 'end_date precedes start_date' }))
     const run = simulateRun(ws, input)
     startedRuns.unshift(run)
-    setTimeout(() => finishRun(run), RUN_MS)
+    finishTimers.set(
+      String(run.id),
+      setTimeout(() => finishRun(run), RUN_MS),
+    )
     log(201)
     return send(res, 201, {
       status: 'success',
@@ -244,7 +255,53 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       run_status: 'running',
     })
   }
+  const abort = /^\/api\/pipeline-runs\/([0-9a-f-]{36})\/abort\/$/i.exec(pathname)
+  if (method === 'POST' && abort) {
+    const id = abort[1]
+    const live = startedRuns.find((r) => r.id === id)
+    const run = live ?? capturedRuns().find((r) => r.id === id)
+    if (!run) return (log(404), djangoError(res, 404, 'Not found.'))
+    if (run.status !== 'running' && run.status !== 'pending') {
+      // Exactly Django's shape: the view wraps the bare "Error: …" sentence.
+      log(400)
+      return send(res, 400, {
+        error: `Error: PipelineRun '${id}' is already in status '${run.status}'.`,
+      })
+    }
+    const timer = finishTimers.get(id)
+    if (timer) clearTimeout(timer)
+    finishTimers.delete(id)
+    const now = new Date()
+    Object.assign(run, {
+      status: 'aborted',
+      completed_at: now.toISOString(),
+      duration_seconds: (now.getTime() - new Date(String(run.started_at)).getTime()) / 1000,
+      status_message: 'Stopped by user (snapshot replay).',
+      execution_time_display: '⏹ aborted',
+    })
+    log(200)
+    return send(res, 200, {
+      success: true,
+      status: 'success',
+      message: `PipelineRun '${id}' and 1 active component run(s) have been aborted.`,
+      pipeline_run_id: id,
+    })
+  }
   if (method !== 'GET') return (log(501), djangoError(res, 501, 'Snapshot replay is read-only.'))
+
+  // A simulated run's detail, so /runs/<id> opens on it; no component runs.
+  const detail = /^\/api\/pipeline-runs\/([0-9a-f-]{36})\/$/i.exec(pathname)
+  const simulated = detail && startedRuns.find((r) => r.id === detail[1])
+  if (simulated) {
+    log(200)
+    return send(res, 200, {
+      ...simulated,
+      papers_count: 0,
+      duplicates_count: 0,
+      extractions_count: 0,
+      storage_stats: null,
+    })
+  }
 
   let body = load(pathname)
   if (body === undefined) return (log(404), djangoError(res, 404, 'Not found.'))

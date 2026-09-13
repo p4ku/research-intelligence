@@ -5,7 +5,10 @@ import { ProblemError } from '@/lib/bff/core/problem'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import { fmt, formatNumber, formatPercent, type Lang, type T } from '@/lib/i18n'
 import { notFound } from 'next/navigation'
-import { formatUsd, RunStatus, shortId } from '../run-presentation'
+import { LiveRefresh } from '../../dashboard/live-refresh'
+import { inFlightIds } from '../../dashboard/recent'
+import { formatUsd, offersStop, RunStatus, shortId } from '../run-presentation'
+import { StopRunButton } from '../stop-run-button'
 import { RunFacts } from './run-facts'
 import { StepTimeline } from './step-timeline'
 
@@ -37,6 +40,12 @@ function getSteps(id: string) {
 /** Header, funnel band and the facts card — everything the run record alone gives. */
 export async function RunHead({ id, t, lang }: { id: string; t: T; lang: Lang }) {
   const run = await forPage(getRun(id))
+  // Only a run in flight can change under the reader. The poller compares
+  // in-flight sets drawn from the same window on both sides (dashboard/recent.ts),
+  // so it watches the list, never `[run.id]`; one extra call, only while live.
+  const watched = offersStop(run.status)
+    ? inFlightIds(await forPage(runsService.listEverywhere()))
+    : null
 
   return (
     <div className="space-y-8">
@@ -44,8 +53,14 @@ export async function RunHead({ id, t, lang }: { id: string; t: T; lang: Lang })
         eyebrow={run.workspace_name}
         title={fmt(t('Run {id}'), { id: shortId(run.id) })}
         description={run.status_message ?? undefined}
-        actions={<RunStatus run={run} t={t} />}
+        actions={
+          <>
+            <RunStatus run={run} t={t} />
+            <StopRunButton run={run} />
+          </>
+        }
       />
+      {watched && <LiveRefresh processingIds={watched} />}
 
       <StatBand
         flow
