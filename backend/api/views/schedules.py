@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, OpenApiResponse
 
 from research_intelligence.models import WorkflowSchedule, WorkspaceMember
-from research_intelligence.services import check_workspace_access
+from research_intelligence.services import check_workspace_access, RunAdmissionRefused
 from ..serializers.schedules import WorkflowScheduleSerializer
 
 logger = logging.getLogger(__name__)
@@ -103,11 +103,11 @@ class WorkflowScheduleViewSet(viewsets.ModelViewSet):
         if error:
             return Response({"error": error}, status=status.HTTP_403_FORBIDDEN)
 
-        agent = schedule.trigger_run(triggered_by_user=request.user)
+        try:
+            agent = schedule.trigger_run(triggered_by_user=request.user)
+        except RunAdmissionRefused as refused:
+            return Response(refused.as_error_json(), status=status.HTTP_409_CONFLICT)
         if agent is None:
-            refused = getattr(schedule, 'last_refusal', None)
-            if refused is not None:
-                return Response(refused.as_error_json(), status=status.HTTP_409_CONFLICT)
             return Response({
                 "status": "error",
                 "code": "schedule_overlap",

@@ -407,6 +407,7 @@ class WorkflowSchedule(models.Model):
         """
         Dispatches an autonomous pipeline run for this schedule:
         1. Checks concurrency / overlap policy (skips if prevent_overlap=True and previous run is active, unless force=True)
+           and raises RunAdmissionRefused when the workspace is at its concurrent-run cap (force never bypasses that)
         2. Creates a PipelineRun (linked to self) & ResearchAgentProcess
         3. Ticks the orchestrator runner asynchronously (with optional jitter delay)
         4. Updates last_run_at, next_run_at, total_runs_count, and last_pipeline_run
@@ -417,7 +418,6 @@ class WorkflowSchedule(models.Model):
         from research_intelligence.tasks.orchestrator.agent_engine import run_agent_process_tick, tick_agent_process
 
         now = timezone.now()
-        self.last_refusal = None
 
         # Concurrency / Overlap Guard
         if not force and self.prevent_overlap and self.last_pipeline_run:
@@ -455,8 +455,7 @@ class WorkflowSchedule(models.Model):
             logger.warning(
                 f"⚠️ [SCHEDULE CAPACITY] Schedule '{self.name}' ({self.id}) skipped: {refused.message}"
             )
-            self.last_refusal = refused
-            return None
+            raise
         agent = ResearchAgentProcess.objects.get(pk=pipeline_run.pk)
 
         self.last_run_at = now

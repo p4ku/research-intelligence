@@ -42,6 +42,7 @@ def dispatch_due_workflow_schedules(dry_run: bool = False) -> Dict[str, Any]:
         }
 
     from research_intelligence.models import WorkflowSchedule
+    from research_intelligence.services import RunAdmissionRefused
 
     due_schedules = WorkflowSchedule.objects.filter(
         is_active=True,
@@ -88,18 +89,18 @@ def dispatch_due_workflow_schedules(dry_run: bool = False) -> Dict[str, Any]:
 
                     # Stagger multiple simultaneous dispatches by 0s, 5s, 10s... up to max 45s
                     jitter_sec = min(45, idx * 5)
-                    agent = locked_sched.trigger_run(jitter_seconds=jitter_sec)
-                    if agent is None:
+                    try:
+                        agent = locked_sched.trigger_run(jitter_seconds=jitter_sec)
+                    except RunAdmissionRefused as refused:
                         # Workspace at its concurrent-run cap: advance next_run_at like the
                         # overlap branch so a saturated workspace is not retried every minute.
-                        refused = getattr(locked_sched, 'last_refusal', None)
                         locked_sched.next_run_at = locked_sched.compute_next_run(base_time=now)
                         locked_sched.save(update_fields=['next_run_at', 'updated_at'])
                         skipped_overlap.append({
                             "schedule_id": str(locked_sched.id),
                             "schedule_name": locked_sched.name,
-                            "reason": refused.code if refused is not None else "overlap",
-                            "detail": refused.message if refused is not None else None,
+                            "reason": refused.code,
+                            "detail": refused.message,
                             "next_run_at": locked_sched.next_run_at.isoformat() if locked_sched.next_run_at else None
                         })
                         continue

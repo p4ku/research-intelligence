@@ -3,8 +3,9 @@ Run admission: at most MAX_CONCURRENT_RUNS_PER_WORKSPACE runs in flight per
 workspace, and no second in-flight run for the same search window.
 
 These tests run on SQLite, where select_for_update is a no-op: they prove the
-counting and the HTTP mapping, not the race. The race is exercised by the
-E2E scenario tests_e2e/scenarios/run_admission_guard.py against Postgres.
+counting and the HTTP mapping, not the race. The race is proven against a
+real Postgres by `manage.py check_run_admission_race` (and end to end by
+tests_e2e/scenarios/run_admission_guard.py).
 """
 import datetime
 from unittest.mock import patch
@@ -143,16 +144,6 @@ class AdmitRunHelperTests(AdmissionBase):
         with transaction.atomic():
             admit_run(self.workspace.id, {"n_last_days": 7}, check_window=False)
 
-    def test_locks_the_workspace_row_on_postgres(self):
-        """Proves the lock is requested, not that it serialises — SQLite ignores it."""
-        with patch('research_intelligence.services.run_admission.connection') as conn, \
-             patch('research_intelligence.services.run_admission.Workspace.objects') as manager:
-            conn.in_atomic_block = True
-            conn.vendor = 'postgresql'
-            manager.filter.return_value.select_for_update.return_value.get.return_value = self.workspace
-            admit_run(self.workspace.id, {"n_last_days": 7})
-            manager.filter.return_value.select_for_update.assert_called_once_with()
-
 
 class StartEndpointAdmissionTests(AdmissionBase):
     @patch(TICK, return_value={"success": True})
@@ -273,12 +264,15 @@ class ScheduleAdmissionTests(AdmissionBase):
         defaults.update(kwargs)
         return WorkflowSchedule.objects.create(**defaults)
 
-    def test_trigger_run_returns_none_at_the_cap_even_when_forced(self):
+    def test_trigger_run_raises_at_the_cap_even_when_forced(self):
         schedule = self.make_schedule()
         self.in_flight(n=5)
-        self.assertIsNone(schedule.trigger_run(triggered_by_user=self.user, force=True))
+        with self.assertRaises(RunAdmissionRefused) as ctx:
+            schedule.trigger_run(triggered_by_user=self.user, force=True)
+        self.assertEqual(ctx.exception.code, CODE_RUN_LIMIT_REACHED)
+        schedule.refresh_from_db()
         self.assertEqual(schedule.total_runs_count, 0)
-        self.assertEqual(schedule.last_refusal.code, CODE_RUN_LIMIT_REACHED)
+        self.assertEqual(PipelineRun.objects.filter(workspace=self.workspace).count(), 5)
 
     def test_trigger_run_ignores_the_duplicate_window_rule(self):
         schedule = self.make_schedule(n_last_days=7)
