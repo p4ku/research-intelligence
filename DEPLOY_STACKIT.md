@@ -147,6 +147,8 @@ cf scale sri-api -i 3                # Scale Django API to 3 instances
 cf scale sri-worker -m 2G            # Increase Celery worker memory to 2GB
 ```
 
+Restarting `sri-worker` (or deploying) is safe for running pipelines: `REMAP_SIGTERM=SIGQUIT` plus the soft-shutdown window in `settings.py` re-queue in-flight Celery tasks before the old instance exits, and the new instance resumes them within seconds. Steps with resume logic skip finished work; abstract screening re-runs from the start of the step.
+
 ### SSH into Container (Debugging):
 ```bash
 # Open interactive shell in a running instance:

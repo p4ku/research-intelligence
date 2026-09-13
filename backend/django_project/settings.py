@@ -348,6 +348,12 @@ CELERY_TIMEZONE = 'UTC'
 CELERY_TASK_ACKS_LATE = True
 CELERY_TASK_REJECT_ON_WORKER_LOST = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+# Cloud Foundry sends SIGTERM and SIGKILLs 10 s later. With REMAP_SIGTERM=SIGQUIT in the
+# worker's env (manifest.yml), TERM starts a cold shutdown; the soft-shutdown window lets short
+# tasks finish, then the rest are cancelled and their messages re-queued before the process exits,
+# instead of sitting unacked in Redis until the 1 h visibility timeout.
+CELERY_WORKER_SOFT_SHUTDOWN_TIMEOUT = float(os.environ.get('CELERY_SOFT_SHUTDOWN_SECONDS', '6'))
+CELERY_WORKER_ENABLE_SOFT_SHUTDOWN_ON_IDLE = True  # ETA tasks (agent tick countdowns) are held while idle
 
 # ==============================================================================
 # Feature Switching / Capability Toggles (Default: False for opt-in features)

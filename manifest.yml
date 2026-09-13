@@ -69,6 +69,7 @@ applications:
       SCREENING_PARALLEL_WORKERS: "4"
       DOWNLOAD_PARALLEL_WORKERS: "4"
       OCR_PARALLEL_WORKERS: "4"
+      REMAP_SIGTERM: SIGQUIT
       ALLOWED_HOSTS: "sri-prod.apps.01.cf.eu01.onstackit.cloud,research-scanner.schwarz,sri.soinventive.co.uk,localhost,127.0.0.1"
 
   - name: sri-beat

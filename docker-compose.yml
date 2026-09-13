@@ -178,6 +178,8 @@ services:
     volumes:
       - ./backend:/app
     environment:
+      # TERM → cold shutdown, so in-flight tasks are re-queued on stop (see settings.py soft shutdown)
+      - REMAP_SIGTERM=SIGQUIT
       - DEBUG=True
       - SECRET_KEY=dev_secret_key_12345
       - DB_HOST=db
