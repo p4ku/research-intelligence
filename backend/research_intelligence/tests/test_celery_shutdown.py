@@ -15,7 +15,7 @@ class CeleryShutdownRequeueTestCase(SimpleTestCase):
     a Docker app's `command:` under `sh -c`, so the manifest command must `exec`), TERM must
     mean cold shutdown (REMAP_SIGTERM=SIGQUIT in the worker env), and the shutdown must
     finish inside the 10 s window with late acks so kombu restores the unacked messages
-    when the broker channel closes.
+    when the broker channel closes. local_cicd/celery_shutdown_probe reproduces it.
     """
 
     def test_soft_shutdown_window_leaves_headroom_inside_cloud_foundry_grace_period(self):
@@ -28,12 +28,6 @@ class CeleryShutdownRequeueTestCase(SimpleTestCase):
             timeout, 5,
             "Cancel + pool join + exit took ~2 s under the prod worker flags; the window must leave "
             "that headroom inside Cloud Foundry's 10 s SIGKILL grace period."
-        )
-
-    def test_soft_shutdown_on_idle_is_enabled(self):
-        self.assertTrue(
-            app.conf.worker_enable_soft_shutdown_on_idle,
-            "Celery recommends soft shutdown on idle when ETA tasks (retry countdowns) can be reserved."
         )
 
     def test_late_ack_and_reject_on_worker_lost(self):

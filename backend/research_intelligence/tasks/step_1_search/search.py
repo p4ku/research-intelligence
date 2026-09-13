@@ -40,9 +40,10 @@ def execute_scraper_run_job(self, component_run_id: str, limit: Optional[int] = 
                 logger.error(f"ComponentRun with ID '{component_run_id}' not found after 4 attempts.")
                 return False
 
-    # Check if already aborted before execution starts
-    if component_run.status == 'aborted':
-        logger.info(f"ComponentRun '{component_run_id}' was aborted before task start.")
+    # Aborted before start, or a re-delivered message for a step that already finished
+    # (worker shutdown between the final save and the ack): do not run it again.
+    if component_run.status in ('aborted', 'completed', 'skipped'):
+        logger.info(f"ComponentRun '{component_run_id}' is already {component_run.status}; not running.")
         return False
 
     pipeline_run = component_run.pipeline_run

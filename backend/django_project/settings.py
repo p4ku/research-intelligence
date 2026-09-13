@@ -352,9 +352,10 @@ CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 # and an `exec` start command (manifest.yml), so TERM reaches Celery and starts a cold shutdown:
 # running tasks get this many seconds to finish, then are cancelled and their unacked messages
 # restored to Redis on exit instead of waiting out the 1 h visibility timeout. Cancel + pool join
-# + exit took ~2 s under the prod worker flags, so keep the window small.
+# + exit took ~2 s under the prod worker flags, so keep the window small. Measured on 5.6.3
+# (local_cicd/celery_shutdown_probe): reserved ETA tasks are restored on exit without
+# worker_enable_soft_shutdown_on_idle, which would only add this window to every idle restart.
 CELERY_WORKER_SOFT_SHUTDOWN_TIMEOUT = 3.0
-CELERY_WORKER_ENABLE_SOFT_SHUTDOWN_ON_IDLE = True  # Celery's recommendation when ETA tasks (retry countdowns) may be reserved while idle
 
 # ==============================================================================
 # Feature Switching / Capability Toggles (Default: False for opt-in features)

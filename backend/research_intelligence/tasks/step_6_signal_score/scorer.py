@@ -302,6 +302,12 @@ def execute_signal_score_job(self, component_run_id: str, limit: Optional[int] =
                 logger.error(f"ComponentRun {component_run_id} does not exist after 4 attempts.")
                 return {"success": False, "error": "ComponentRun not found"}
 
+    # A re-delivered message for a step that already finished (worker shutdown between the
+    # final save and the ack) must not run it again.
+    if comp_run.status in ('completed', 'skipped', 'aborted'):
+        logger.info(f"ComponentRun '{component_run_id}' is already {comp_run.status}; ignoring re-delivered task.")
+        return {"success": True, "skipped": f"already {comp_run.status}"}
+
     pipeline_run = comp_run.pipeline_run
     workspace = pipeline_run.workspace
 

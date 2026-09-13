@@ -387,6 +387,12 @@ def execute_full_text_screening_job(self, component_run_id: str, limit: int = No
                 logger.error(f"ComponentRun '{component_run_id}' not found after 4 attempts.")
                 return False
 
+    # A re-delivered message for a step that already finished (worker shutdown between the
+    # final save and the ack) must not run it again.
+    if component_run.status in ('completed', 'skipped', 'aborted'):
+        logger.info(f"ComponentRun '{component_run_id}' is already {component_run.status}; ignoring re-delivered task.")
+        return True
+
     pipeline_run = component_run.pipeline_run
     workspace = pipeline_run.workspace
 
