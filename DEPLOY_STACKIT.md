@@ -10,11 +10,11 @@ When deploying to **Production** (`sri-prod.apps.01.cf.eu01.onstackit.cloud`) or
 
 | Application / Service | Cloud Foundry Name | Instances & Sizing | Routes / Command | Role & Responsibility |
 | :--- | :--- | :--- | :--- | :--- |
-| **Django REST API** | `sri-api` | 2 instances · 1 GB RAM · 2 GB Disk | `.../api`, `.../mcp`, `.../health`, `.../admin`, `.../docs` | Core API, Auth (JWT), Swagger/OpenAPI, Admin. |
-| **FastMCP SSE Server** | `sri-mcp` | 1 instance · 512 MB RAM · 1 GB Disk | `.../sse`, `.../messages` <br>`python manage.py run_mcp` | Model Context Protocol (MCP) Server for AI tools. |
+| **Django REST API** | `sri-api` | 4 instances · 2 GB RAM · 2 GB Disk | `.../api`, `.../mcp`, `.../health`, `.../admin`, `.../docs` | Core API, Auth (JWT), Swagger/OpenAPI, Admin. |
+| **FastMCP SSE Server** | `sri-mcp` | 1 instance · 1 GB RAM · 2 GB Disk | `.../sse`, `.../messages` <br>`python manage.py run_mcp` | Model Context Protocol (MCP) Server for AI tools. |
 | **Celery Task Worker** | `sri-worker` | 2 instances · 3 GB RAM · 4 GB Disk | `no-route: true` <br>`celery -A django_project worker` | Background SLR pipeline execution (4 worker threads). |
 | **Celery Beat Scheduler** | `sri-beat` | 1 instance · 256 MB RAM · 1 GB Disk | `no-route: true` <br>`celery -A django_project beat` | Periodic scraper scheduler (strictly 1 instance). |
-| **Next.js Dashboard** | `sri-frontend` | 1 instance · 512 MB RAM · 2 GB Disk | `sri-prod.apps.01.cf.eu01.onstackit.cloud` | Modern Next.js frontend application. |
+| **Next.js Dashboard** | `sri-frontend` | 1 instance · 1 GB RAM · 1 GB Disk | `sri-prod.apps.01.cf.eu01.onstackit.cloud` | Modern Next.js frontend application. |
 | **PostgreSQL Flex** | `sri-postgres-service` | Managed DB Service | *Internal STACKIT VNet* | Relational DB with `pgvector` similarity search. |
 | **Redis Queue** | `sri-redis-service` | Managed Cache Service | *Internal STACKIT VNet* | Broker for Celery tasks and in-memory caching. |
 | **Object Storage** | `sri-storage-service` | Managed S3 Bucket | *S3-compatible API* | Persistent PDF documents and OCR Markdowns. |
