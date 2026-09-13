@@ -17,6 +17,8 @@
  *          or captured that way) becomes `aborted` at once, in memory; an
  *          ended run gets Django's 400 "already in status" sentence; an
  *          unknown id 404.
+ * - GET/PUT /api/stars/ → an in-memory star set (ids must exist in the
+ *          capture, as Django would 404). Restart to forget.
  * - Anything else that writes → 501, in Django's error shape.
  *
  * Env: SNAPSHOT_DIR (default: newest folder under local-data/), SNAPSHOT_PORT
@@ -113,6 +115,19 @@ function findRun(id: string): Row | undefined {
     abortedCaptured.get(id) ??
     capturedRuns().find((r) => r.id === id)
   )
+}
+
+/** The replay user's stars, the shape of Django's /api/stars/. In memory only. */
+const starred: { papers: string[]; briefings: string[] } = { papers: [], briefings: [] }
+
+/** Ids the capture knows for a star kind, plus simulated runs for briefings. */
+function knownIds(kind: 'paper' | 'briefing'): Set<string> {
+  const body = load(kind === 'paper' ? '/api/papers/' : '/api/pipeline-runs/')
+  const rows = Array.isArray(body)
+    ? (body as Row[])
+    : (((body as { results?: Row[] } | undefined)?.results ?? []) as Row[])
+  const extra = kind === 'briefing' ? startedRuns : []
+  return new Set([...rows, ...extra].map((r) => String(r.id)))
 }
 
 function readJson(req: IncomingMessage): Promise<unknown> {
@@ -298,6 +313,25 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       message: `PipelineRun '${id}' and 1 active component run(s) have been aborted.`,
       pipeline_run_id: id,
     })
+  }
+  if (pathname === '/api/stars/' && method === 'GET') return (log(200), send(res, 200, starred))
+  if (pathname === '/api/stars/' && method === 'PUT') {
+    const input = (await readJson(req)) as { kind?: unknown; id?: unknown; starred?: unknown }
+    const kind = input.kind === 'paper' || input.kind === 'briefing' ? input.kind : null
+    if (!kind || typeof input.id !== 'string' || typeof input.starred !== 'boolean')
+      return (
+        log(400),
+        send(res, 400, { non_field_errors: ['kind, id and starred are required.'] })
+      )
+    if (!knownIds(kind).has(input.id))
+      return (
+        log(404),
+        djangoError(res, 404, `${kind === 'paper' ? 'Paper' : 'Briefing'} not found.`)
+      )
+    const key = kind === 'paper' ? 'papers' : 'briefings'
+    const rest = starred[key].filter((id) => id !== input.id)
+    starred[key] = input.starred ? [...rest, input.id] : rest
+    return (log(200), send(res, 200, starred))
   }
   if (method !== 'GET') return (log(501), djangoError(res, 501, 'Snapshot replay is read-only.'))
 

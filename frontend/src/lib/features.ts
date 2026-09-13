@@ -61,7 +61,7 @@ export type Features = Record<FeatureKey, boolean>
 
 export const ALL_ON: Features = { all_papers: true, stars: true, ask: true }
 
-/** Separator that survives cookie serialisation unencoded (see bff/stars/cookie.ts). */
+/** Separator that survives cookie serialisation unencoded. */
 const SEP = '.'
 
 /**

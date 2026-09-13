@@ -3,7 +3,6 @@ import type { Edition } from '@/lib/bff/briefings/schema'
 import { editionDate } from '@/lib/bff/briefings/select'
 import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
-import { papers } from '@/lib/bff/papers/service'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
@@ -78,7 +77,7 @@ export async function LedgerSection({
       inFlightRuns(),
       briefings.listEverywhere(lang),
       allRuns(),
-      papers.corpusTruncated(),
+      briefings.capped(),
     ]),
   )
   // The same-day clock follows the archive's count over every briefing, not
