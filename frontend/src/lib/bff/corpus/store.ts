@@ -22,6 +22,7 @@
  * today. Pure apart from the injected functions.
  */
 import { isUnauthenticated } from '../core/problem'
+import { sharedInstance } from '../core/shared'
 import { TtlCache } from '../core/ttl-cache'
 
 export interface SnapshotStoreOptions<T> {
@@ -36,6 +37,14 @@ export interface SnapshotStoreOptions<T> {
   maxBytes?: number
   sizeOf?: (value: T) => number
   now?: () => number
+  /**
+   * Share the entries process-wide under this name (../core/shared.ts):
+   * Next's route-handler and page layers each get their own module
+   * instances, and a corpus one layer warmed must be warm for the other.
+   * `probe` and `load` stay the caller's own — each layer's React cache
+   * dedupes them per request — only the held entries are shared.
+   */
+  shared?: string
 }
 
 /**
@@ -87,16 +96,20 @@ export function createSnapshotStore<T>({
   maxBytes,
   sizeOf,
   now = Date.now,
+  shared,
 }: SnapshotStoreOptions<T>): SnapshotStore<T> {
-  const cache = new TtlCache<Entry<T>>({
-    ttlMs,
-    maxEntries,
-    maxBytes,
-    sizeOf: sizeOf ? (entry) => sizeOf(entry.value) : undefined,
-    now,
+  const state = () => ({
+    cache: new TtlCache<Entry<T>>({
+      ttlMs,
+      maxEntries,
+      maxBytes,
+      sizeOf: sizeOf ? (entry) => sizeOf(entry.value) : undefined,
+      now,
+    }),
+    // One revalidation per key at a time, however many requests arrive together.
+    revalidating: new Map<string, { promise: Promise<Entry<T>>; startedAt: number }>(),
   })
-  // One revalidation per key at a time, however many requests arrive together.
-  const revalidating = new Map<string, { promise: Promise<Entry<T>>; startedAt: number }>()
+  const { cache, revalidating } = shared ? sharedInstance(`snapshot.${shared}`, state) : state()
 
   async function cold(): Promise<Entry<T>> {
     let loaded = false

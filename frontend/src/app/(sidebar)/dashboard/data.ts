@@ -2,7 +2,6 @@ import 'server-only'
 
 import type { Edition } from '@/lib/bff/briefings/schema'
 import { briefings } from '@/lib/bff/briefings/service'
-import { papers } from '@/lib/bff/papers/service'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import type { Lang } from '@/lib/i18n'
@@ -40,7 +39,7 @@ export const recentBriefings = cache(async (lang: Lang): Promise<RecentBriefing[
   const [all, editions, capped] = await Promise.all([
     allRuns(),
     briefings.listEverywhere(lang),
-    papers.corpusTruncated(),
+    briefings.capped(),
   ])
   const byRun = new Map<string, Edition>(editions.map((e) => [e.run_id, e]))
   return selectRecent(all, byRun, capped)

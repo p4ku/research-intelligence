@@ -241,6 +241,41 @@ describe('createSnapshotStore', () => {
   })
 })
 
+describe('createSnapshotStore shared', () => {
+  test('two stores under one name hold one set of entries, each with its own probe and load', async () => {
+    const c = clock()
+    const calls = { a: 0, b: 0, solo: 0 }
+    const make = (name: keyof typeof calls, shared?: string) =>
+      createSnapshotStore<{ n: number }>({
+        probe: async () => 'v1',
+        load: async () => {
+          calls[name] += 1
+          return { n: calls[name] }
+        },
+        ttlMs: 600_000,
+        maxEntries: 4,
+        now: c.now,
+        shared,
+      })
+    // Module-layer twins of one store: the second must see what the first loaded.
+    const twins = `test-${Math.random()}`
+    const a = make('a', twins)
+    const b = make('b', twins)
+    const first = await a.get('k')
+    c.tick(1)
+    expect(await b.get('k')).toBe(first)
+    expect(calls).toEqual({ a: 1, b: 0, solo: 0 })
+    // An invalidation through either twin reaches both.
+    b.invalidate()
+    c.tick(1)
+    await a.get('k')
+    expect(calls).toEqual({ a: 2, b: 0, solo: 0 })
+    // A store with no name keeps its own entries.
+    await make('solo').get('k')
+    expect(calls).toEqual({ a: 2, b: 0, solo: 1 })
+  })
+})
+
 describe('effectiveTrust', () => {
   test('a request that read the ledger always probes', () => {
     expect(effectiveTrust({ requested: 10_000, cooldownMs: 5_000, ledgerRequested: true })).toBe(0)
