@@ -24,9 +24,12 @@ repo's root is self-contained (`bun install` → `next build` standalone →
 
 ```yaml
 - name: sri-frontend
-  memory: 512M # deliberate: the CF org quota is tight; 1G when it allows
+  memory: 1G # was 512M while the CF org quota was tight
   env:
     NODE_ENV: production
+    # Tell V8 the container's size so it collects before CF kills the process;
+    # the scored-corpus cache holds ~70 MB of heap per warm user.
+    NODE_OPTIONS: --max-old-space-size=768
     BACKEND_INTERNAL_URL: https://<the shared hostname> # or the C2C internal route
     SITE_URL: https://<the shared hostname>
     # BFF sources — override as endpoints land (defaults in
@@ -38,7 +41,7 @@ repo's root is self-contained (`bun install` → `next build` standalone →
     # BFF_SOURCE_STARS: django
     # Corpus snapshot bounds (defaults in src/lib/bff/corpus/snapshot.ts;
     # documented in .env.example). Keep CORPUS_CACHE_MAX_MB at or under 128
-    # while the instance is 512M.
+    # at 1G (V8 holds roughly twice the retained JSON once parsed).
     # CORPUS_MAX_PAPERS: "2000"
     # CORPUS_CACHE_MAX_MB: "128"
     # CORPUS_PROBE_COOLDOWN_MS: "5000"

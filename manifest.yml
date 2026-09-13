@@ -89,13 +89,18 @@ applications:
       image: ((frontend_image))
       username: ((registry_username))
     instances: 1
-    memory: 512M
+    memory: 1G
     disk_quota: 1G
     routes:
       - route: sri-prod.apps.01.cf.eu01.onstackit.cloud
       - route: research-scanner.schwarz
     env:
       NODE_ENV: production
+      # The scored-corpus cache (frontend/src/lib/bff/corpus/snapshot.ts) holds
+      # ~70 MB of heap per warm user. Tell V8 the container's size so it collects
+      # before Cloud Foundry kills the process: 768M of the 1G, the rest for the
+      # runtime and the buffers of a cold load.
+      NODE_OPTIONS: --max-old-space-size=768
       BACKEND_INTERNAL_URL: https://sri-prod.apps.01.cf.eu01.onstackit.cloud
       SITE_URL: https://research-scanner.schwarz
       UV_THREADPOOL_SIZE: "64"
