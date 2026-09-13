@@ -339,7 +339,8 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
             else:
                 chunk_timeout_sec = max(180.0, (len(chunk) / max(1, worker_concurrency)) * 180.0)
                 completed_paper_ids = set()
-                with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
+                executor = ThreadPoolExecutor(max_workers=worker_concurrency)
+                try:
                     future_to_paper = {
                         executor.submit(_safe_call_download_task, paper, workspace, pipeline_run, withdrawn_info_map): paper
                         for paper in chunk
@@ -364,6 +365,9 @@ def execute_pdf_download_job(self, component_run_id: str, limit: int = None, max
                             logger.warning(f"⚠️ [TIMEOUT RECOVERY] Paper '{paper.id}' ({paper.title[:40]}...) timed out during PDF download. Recording as failed.")
                             res = {"status": "failed", "paper_id": str(paper.id), "title": paper.title, "error": "Download timed out."}
                             _record_result(res)
+                finally:
+                    # wait=False: a worker soft-shutdown cancel must not block on in-flight downloads
+                    executor.shutdown(wait=False, cancel_futures=True)
 
             # Aggressively reclaim memory after every batch of PDFs
             reclaim_ram(f"download_batch_{chunk_idx + 1}_of_{total_chunks}")

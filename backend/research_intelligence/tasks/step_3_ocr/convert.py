@@ -249,7 +249,8 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
             else:
                 chunk_timeout_sec = max(300.0, (len(chunk) / max(1, worker_concurrency)) * 300.0)
                 completed_paper_ids = set()
-                with ThreadPoolExecutor(max_workers=worker_concurrency) as executor:
+                executor = ThreadPoolExecutor(max_workers=worker_concurrency)
+                try:
                     future_to_paper = {
                         executor.submit(_ocr_paper_task, paper): paper
                         for paper in chunk
@@ -274,6 +275,9 @@ def execute_ocr_job(self, component_run_id: str, limit: int = None, max_workers:
                             logger.warning(f"⚠️ [TIMEOUT RECOVERY] Paper '{paper.id}' ({paper.title[:40]}...) timed out during OCR conversion. Recording as failed.")
                             res = {"success": False, "error": "OCR conversion operation timed out."}
                             _record_result(paper, res)
+                finally:
+                    # wait=False: a worker soft-shutdown cancel must not block on in-flight OCR calls
+                    executor.shutdown(wait=False, cancel_futures=True)
 
             # Aggressively reclaim memory after each OCR batch
             reclaim_ram(f"ocr_batch_{chunk_idx + 1}_of_{total_chunks}")
