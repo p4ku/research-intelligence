@@ -4,11 +4,13 @@ import { forPage } from '@/lib/bff/core/page'
 import { ProblemError } from '@/lib/bff/core/problem'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import { fmt, formatNumber, formatPercent, type Lang, type T } from '@/lib/i18n'
+import { getWorkspacesState } from '@/lib/workspace-server'
 import { notFound } from 'next/navigation'
 import { LiveRefresh } from '../../dashboard/live-refresh'
 import { inFlightIds } from '../../dashboard/recent'
 import { formatUsd, offersStop, RunStatus, shortId } from '../run-presentation'
 import { StopRunButton } from '../stop-run-button'
+import { stoppableWorkspaces } from '../stoppable'
 import { RunFacts } from './run-facts'
 import { StepTimeline } from './step-timeline'
 
@@ -40,12 +42,17 @@ function getSteps(id: string) {
 /** Header, funnel band and the facts card — everything the run record alone gives. */
 export async function RunHead({ id, t, lang }: { id: string; t: T; lang: Lang }) {
   const run = await forPage(getRun(id))
-  // Only a run in flight can change under the reader. The poller compares
-  // in-flight sets drawn from the same window on both sides (dashboard/recent.ts),
-  // so it watches the list, never `[run.id]`; one extra call, only while live.
-  const watched = offersStop(run.status)
-    ? inFlightIds(await forPage(runsService.listEverywhere()))
-    : null
+  // Only a run in flight can change under the reader, and only an admin or
+  // manager may stop it: two more reads, both only while the run is live. The
+  // poller compares in-flight sets drawn from the same window on both sides
+  // (dashboard/recent.ts), so it watches the list, never `[run.id]`.
+  const live = offersStop(run.status)
+  const [watched, stoppable] = live
+    ? await Promise.all([
+        forPage(runsService.listEverywhere()).then(inFlightIds),
+        getWorkspacesState().then(stoppableWorkspaces),
+      ])
+    : [null, null]
 
   return (
     <div className="space-y-8">
@@ -56,7 +63,7 @@ export async function RunHead({ id, t, lang }: { id: string; t: T; lang: Lang })
         actions={
           <>
             <RunStatus run={run} t={t} />
-            <StopRunButton run={run} />
+            {stoppable?.has(run.workspace_id) && <StopRunButton run={run} />}
           </>
         }
       />

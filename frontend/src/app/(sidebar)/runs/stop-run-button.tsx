@@ -35,7 +35,13 @@ export type StopRun = Pick<PipelineRun, 'id' | 'workspace_name' | 'status'>
  * renders for a run that has ended unless its dialog is open: then the
  * dialog stays, its Stop disabled, so a reader whose run ended under them —
  * by itself, or a 409 from a stale click — sees why, on the row that now
- * reads Completed or Aborted behind it. A closed Radix root renders no DOM.
+ * reads Completed or Aborted behind it. The page re-reads when they dismiss,
+ * not before: a refresh with the dialog open would drop the row from a
+ * filtered tab and the dialog with it. A closed Radix root renders no DOM.
+ *
+ * Only rendered for runs the reader may stop (the sections check the
+ * workspace role); the 403 copy below still covers a role that changed
+ * under a stale page.
  */
 export function StopRunButton({ run }: { run: StopRun }) {
   const [open, setOpen] = useState(false)
@@ -59,8 +65,13 @@ function StopRunControl({
   const router = useRouter()
   const [stopping, setStopping] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // A 409 says the run ended before the click landed. The row behind still
+  // reads Running until the page re-reads on dismiss (the poller holds off
+  // under a modal), so the dialog stops offering Stop on its own.
+  const [ended, setEnded] = useState(false)
   const [, startTransition] = useTransition()
   const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const settledRef = useRef<HTMLSpanElement | null>(null)
 
   async function confirm() {
     if (stopping) return
@@ -74,8 +85,7 @@ function StopRunControl({
     } catch (err) {
       console.error('[runs] stop failed', err)
       setError(stopErrorMessage(err, t))
-      // 409: the run ended on its own since this page rendered — show that.
-      if (statusOf(err) === 409) startTransition(() => router.refresh())
+      if (problemType(err) === '/problems/conflict') setEnded(true)
     } finally {
       setStopping(false)
     }
@@ -85,11 +95,12 @@ function StopRunControl({
     <StopRunView
       run={run}
       t={t}
-      live={live}
+      live={live && !ended}
       open={open}
       stopping={stopping}
       error={error}
       triggerRef={triggerRef}
+      settledRef={settledRef}
       onOpen={() => {
         setError(null)
         setOpen(true)
@@ -97,15 +108,20 @@ function StopRunControl({
       onClose={() => {
         if (stopping) return
         setOpen(false)
+        // A refusal (the run ended first, or a role that changed) means the
+        // page is stale: re-read it now that the reader has seen why.
+        const stale = error !== null || ended || !live
         setError(null)
+        setEnded(false)
+        if (stale) startTransition(() => router.refresh())
       }}
       onConfirm={() => void confirm()}
     />
   )
 }
 
-const statusOf = (error: unknown): number | null =>
-  error instanceof BffClientError ? error.problem.status : null
+const problemType = (error: unknown): string | null =>
+  error instanceof BffClientError ? error.problem.type : null
 
 /**
  * The sentence for a failed stop. The two refusals the backend names get
@@ -114,10 +130,10 @@ const statusOf = (error: unknown): number | null =>
  * what would be allowed.
  */
 export function stopErrorMessage(error: unknown, t: T): string {
-  switch (statusOf(error)) {
-    case 409:
+  switch (problemType(error)) {
+    case '/problems/conflict':
       return t('This run has already ended.')
-    case 403:
+    case '/problems/forbidden':
       return t('Only an admin or manager of this domain can stop its runs.')
     default:
       return errorsFromSubmit(error, [], t, t("Couldn't stop this run. Try again."))._
@@ -133,6 +149,7 @@ export function StopRunView({
   stopping,
   error,
   triggerRef,
+  settledRef,
   onOpen,
   onClose,
   onConfirm,
@@ -145,6 +162,8 @@ export function StopRunView({
   stopping: boolean
   error: string | null
   triggerRef?: RefObject<HTMLButtonElement | null>
+  /** Where focus lands on close once the trigger is gone: the row, not <body>. */
+  settledRef?: RefObject<HTMLSpanElement | null>
   onOpen: () => void
   onClose: () => void
   onConfirm: () => void
@@ -153,7 +172,7 @@ export function StopRunView({
     <>
       {/* Positioned, like Home's Retry, so it paints above a linked row's
           overlay and takes the click; the link is a sibling, not an ancestor. */}
-      {live && (
+      {live ? (
         <button
           ref={triggerRef}
           type="button"
@@ -163,6 +182,8 @@ export function StopRunView({
           <StopIcon className="size-3" aria-hidden="true" />
           {t('Stop')}
         </button>
+      ) : (
+        <span ref={settledRef} tabIndex={-1} className="sr-only" />
       )}
 
       <AlertDialog
@@ -173,16 +194,23 @@ export function StopRunView({
       >
         <AlertDialogContent
           onCloseAutoFocus={(event) => {
+            const target = triggerRef?.current ?? settledRef?.current
+            if (!target) return
             event.preventDefault()
-            triggerRef?.current?.focus()
+            target.focus()
           }}
         >
           <AlertDialogHeader>
             <AlertDialogTitle>{t('Stop this run?')}</AlertDialogTitle>
             <AlertDialogDescription>
-              {fmt(t('The {domain} run will stop where it is. This cannot be undone.'), {
-                domain: run.workspace_name,
-              })}
+              {/* Django marks the run aborted and dispatches no further step; the
+                  step already executing runs to its end. Say that, not "at once". */}
+              {fmt(
+                t(
+                  'The {domain} run will stop once its current step finishes. This cannot be undone.',
+                ),
+                { domain: run.workspace_name },
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           {error && <ErrorNote>{error}</ErrorNote>}

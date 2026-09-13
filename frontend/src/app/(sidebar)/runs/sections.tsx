@@ -2,11 +2,13 @@ import { Card, StatBand } from '@/components/scanner-ui'
 import { forPage } from '@/lib/bff/core/page'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import { fmt, formatNumber, formatPercent, type Lang, type T } from '@/lib/i18n'
+import { getWorkspacesState } from '@/lib/workspace-server'
 import { LiveRefresh } from '../dashboard/live-refresh'
 import { inFlightIds } from '../dashboard/recent'
 import { formatUsd } from './run-presentation'
 import { matches, RunTabs, type Tab } from './run-tabs'
 import { RunsTable } from './runs-table'
+import { stoppableWorkspaces } from './stoppable'
 
 /**
  * The runs page's streamed body: band, filter strip and table all read the one
@@ -19,7 +21,13 @@ export async function RunsSection({ tab, t, lang }: { tab: Tab; t: T; lang: Lang
   // leading column is Started, so it reads in start order, newest first. The
   // live refresh below watches the run-clock order — the order the poll
   // shares — so the two in-flight sets can only differ when a run changed.
-  const ledger = await forPage(runsService.listEverywhere())
+  // The page already awaited the workspaces (React-cached): the roles gate
+  // which rows offer Stop.
+  const [ledger, workspaces] = await Promise.all([
+    forPage(runsService.listEverywhere()),
+    getWorkspacesState(),
+  ])
+  const stoppable = stoppableWorkspaces(workspaces)
   const all = ledger
     .slice()
     .sort((a, b) => (b.started_at ?? b.run_date).localeCompare(a.started_at ?? a.run_date))
@@ -69,7 +77,7 @@ export async function RunsSection({ tab, t, lang }: { tab: Tab; t: T; lang: Lang
           </p>
         </Card>
       ) : (
-        <RunsTable runs={shown} t={t} lang={lang} />
+        <RunsTable runs={shown} stoppable={stoppable} t={t} lang={lang} />
       )}
 
       {/* A run ending or stopping re-reads the page: its Stop goes, its row settles. */}

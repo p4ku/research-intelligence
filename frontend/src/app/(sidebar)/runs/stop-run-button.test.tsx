@@ -10,13 +10,13 @@ import { StopRunButton, StopRunView, stopErrorMessage } from './stop-run-button'
 
 const run = { id: '4f6b1c1e-0d5b-4f8b-9d4b-2f8c6a9d1e10', workspace_name: 'Hybrid Computing' }
 
-const view = (t = (s: string) => s, live = true) =>
+const view = (t = (s: string) => s, live = true, open = false) =>
   renderToStaticMarkup(
     <StopRunView
       run={run}
       t={t}
       live={live}
-      open={false}
+      open={open}
       stopping={false}
       error={null}
       onOpen={() => {}}
@@ -56,15 +56,25 @@ describe('StopRunButton', () => {
     expect(out).not.toContain('alertdialog')
   })
 
-  test('once the run has ended the trigger goes, whatever the dialog is doing', () => {
-    expect(view(undefined, false)).toBe('')
+  test('once the run has ended the trigger goes and a focus target takes its place', () => {
+    const out = view(undefined, false)
+    expect(out).not.toContain('<button')
+    expect(out).toContain('tabindex="-1"')
+  })
+
+  test('the dialog stays open over an ended run, with its Stop disabled', () => {
+    // Static render: Radix paints nothing for a portal, so the assertion is
+    // that the closed/open gate in StopRunButton keeps the control mounted.
+    const ended = { ...run, status: 'completed' as const }
+    expect(renderToStaticMarkup(<StopRunButton run={ended} />)).toBe('')
+    expect(view(undefined, false, true)).toContain('tabindex="-1"')
   })
 
   test('reads in German', () => {
     expect(view(makeT('de'))).toContain('Stopp')
     for (const key of [
       'Stop this run?',
-      'The {domain} run will stop where it is. This cannot be undone.',
+      'The {domain} run will stop once its current step finishes. This cannot be undone.',
       'Stopping…',
       'This run has already ended.',
       'Only an admin or manager of this domain can stop its runs.',

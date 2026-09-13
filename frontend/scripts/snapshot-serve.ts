@@ -13,9 +13,10 @@
  *          of the list at once, `completed` (or `failed`, see env) after
  *          SNAPSHOT_RUN_MS. In memory only; restart to forget it. Its detail
  *          GET is served too, so /runs/<id> opens.
- * - POST /api/pipeline-runs/{id}/abort/ → a simulated run still in flight
- *          becomes `aborted` at once; an ended or captured run gets Django's
- *          400 "already in status" sentence; an unknown id 404.
+ * - POST /api/pipeline-runs/{id}/abort/ → a run still in flight (simulated,
+ *          or captured that way) becomes `aborted` at once, in memory; an
+ *          ended run gets Django's 400 "already in status" sentence; an
+ *          unknown id 404.
  * - Anything else that writes → 501, in Django's error shape.
  *
  * Env: SNAPSHOT_DIR (default: newest folder under local-data/), SNAPSHOT_PORT
@@ -102,6 +103,17 @@ type Row = Record<string, unknown>
 const startedRuns: Row[] = []
 /** The pending finish per simulated run, so an abort can cancel it. */
 const finishTimers = new Map<string, ReturnType<typeof setTimeout>>()
+/** Captured runs stopped through the replay: `load()` re-reads the file, so the overlay wins. */
+const abortedCaptured = new Map<string, Row>()
+
+/** A run by id — simulated, stopped-captured, or captured; the first two in memory. */
+function findRun(id: string): Row | undefined {
+  return (
+    startedRuns.find((r) => r.id === id) ??
+    abortedCaptured.get(id) ??
+    capturedRuns().find((r) => r.id === id)
+  )
+}
 
 function readJson(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve) => {
@@ -258,8 +270,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
   const abort = /^\/api\/pipeline-runs\/([0-9a-f-]{36})\/abort\/$/i.exec(pathname)
   if (method === 'POST' && abort) {
     const id = abort[1]
-    const live = startedRuns.find((r) => r.id === id)
-    const run = live ?? capturedRuns().find((r) => r.id === id)
+    const run = findRun(id)
     if (!run) return (log(404), djangoError(res, 404, 'Not found.'))
     if (run.status !== 'running' && run.status !== 'pending') {
       // Exactly Django's shape: the view wraps the bare "Error: …" sentence.
@@ -279,6 +290,7 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       status_message: 'Stopped by user (snapshot replay).',
       execution_time_display: '⏹ aborted',
     })
+    if (!startedRuns.includes(run)) abortedCaptured.set(id, run)
     log(200)
     return send(res, 200, {
       success: true,
@@ -289,7 +301,8 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
   }
   if (method !== 'GET') return (log(501), djangoError(res, 501, 'Snapshot replay is read-only.'))
 
-  // A simulated run's detail, so /runs/<id> opens on it; no component runs.
+  // A simulated run's detail, so /runs/<id> opens on it (no component runs);
+  // a stopped captured run's detail reads from the capture with the overlay.
   const detail = /^\/api\/pipeline-runs\/([0-9a-f-]{36})\/$/i.exec(pathname)
   const simulated = detail && startedRuns.find((r) => r.id === detail[1])
   if (simulated) {
@@ -302,10 +315,19 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       storage_stats: null,
     })
   }
+  const stopped = detail && abortedCaptured.get(detail[1])
+  if (stopped) {
+    const captured = load(pathname)
+    log(200)
+    return send(res, 200, { ...(captured as Row | undefined), ...stopped })
+  }
 
   let body = load(pathname)
   if (body === undefined) return (log(404), djangoError(res, 404, 'Not found.'))
-  if (pathname === '/api/pipeline-runs/' && Array.isArray(body)) body = [...startedRuns, ...body]
+  if (pathname === '/api/pipeline-runs/' && Array.isArray(body)) {
+    const rows = (body as Row[]).map((r) => abortedCaptured.get(String(r.id)) ?? r)
+    body = [...startedRuns, ...rows]
+  }
   const rows = Array.isArray(body) && url.search ? filterRows(body, url.searchParams) : body
   if (Array.isArray(rows) && (url.searchParams.has('page') || url.searchParams.has('page_size'))) {
     const page = paginateRows(rows, url)

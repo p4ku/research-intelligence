@@ -38,8 +38,8 @@ export const dict: Record<string, string> = {
 
   // Stop a run (the button and the action reuse Stop; Cancel is shared too)
   'Stop this run?': 'Diesen Lauf stoppen?',
-  'The {domain} run will stop where it is. This cannot be undone.':
-    'Der Lauf für {domain} wird an der aktuellen Stelle gestoppt. Dies kann nicht rückgängig gemacht werden.',
+  'The {domain} run will stop once its current step finishes. This cannot be undone.':
+    'Der Lauf für {domain} wird nach dem aktuellen Schritt gestoppt. Dies kann nicht rückgängig gemacht werden.',
   'Stopping…': 'Wird gestoppt…',
   'This run has already ended.': 'Dieser Lauf ist bereits beendet.',
   'Only an admin or manager of this domain can stop its runs.':

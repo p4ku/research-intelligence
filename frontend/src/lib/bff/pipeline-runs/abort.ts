@@ -14,8 +14,13 @@ import { problem, ProblemError } from '../core/problem'
 
 /** "PipelineRun '…' is already in status 'completed'." — the run ended first. */
 const ALREADY_ENDED = /already in status|cannot be aborted/i
-/** "Insufficient workspace permissions. Role '…' required to be one of ['admin', 'manager'] …" */
-const NO_PERMISSION = /insufficient workspace permissions|required to be one of/i
+/**
+ * "Insufficient workspace permissions. Role '…' required to be one of
+ * ['admin', 'manager'] …" — and, should the view's membership scoping ever
+ * loosen, "Access denied. User '…' is not a member of workspace '…'."
+ */
+const NO_PERMISSION =
+  /insufficient workspace permissions|required to be one of|access denied|not a member/i
 
 export function abortProblem(error: unknown): unknown {
   if (!(error instanceof ProblemError) || error.problem.status !== 400) return error

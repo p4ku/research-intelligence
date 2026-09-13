@@ -24,6 +24,11 @@ describe('abortProblem', () => {
     expect(mapped.problem.status).toBe(403)
   })
 
+  test('a non-member sentence is forbidden too, if the scoping ever lets it through', () => {
+    const detail = "Error: Access denied. User 'u' is not a member of workspace 'x'."
+    expect(asProblem(abortProblem(fromUpstream(400, { error: detail }))).problem.status).toBe(403)
+  })
+
   test('an unknown 400 sentence never surfaces as validation prose', () => {
     const mapped = asProblem(
       abortProblem(fromUpstream(400, { error: 'Error: something new happened.' })),

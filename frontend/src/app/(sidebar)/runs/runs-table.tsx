@@ -36,7 +36,9 @@ function timestampUtc(iso: string | null, lang: Lang): string {
 //
 // Outcome reserves room for a Stop control beside the pill (stop-run-button.tsx),
 // so a run settling from Running to Aborted — or the skeleton handing over to
-// a table with a run in flight — moves no column.
+// a table with a run in flight — moves no column. `min-w-48` is border-box:
+// 160px of content after the cell's padding, against ~145px for the widest
+// German pill ("Ausstehend") plus the control.
 export const COLUMNS: { key: string; label: string; head?: string; cell?: string }[] = [
   { key: 'started', label: 'Started (UTC)', cell: 'font-medium tabular-nums' },
   { key: 'domain', label: 'Domain', cell: 'max-w-48 truncate text-zinc-500 dark:text-zinc-400' },
@@ -111,10 +113,13 @@ function RunsTableFrame({
 
 export function RunsTable({
   runs,
+  stoppable,
   t = (s) => s,
   lang = 'en',
 }: {
   runs: PipelineRun[]
+  /** Workspace ids whose runs the reader may stop (admin or manager). */
+  stoppable?: ReadonlySet<string>
   t?: T
   lang?: Lang
 }) {
@@ -131,7 +136,7 @@ export function RunsTable({
         // moves nothing.
         <span key="status" className="inline-flex items-center gap-2">
           <RunStatusPill run={run} t={t} />
-          <StopRunButton run={run} />
+          {stoppable?.has(run.workspace_id) && <StopRunButton run={run} />}
         </span>,
         // The stage the engine last dispatched — reported, not interpreted. A
         // rerun rewrites it to the re-triggered step, so it is not evidence
