@@ -125,8 +125,8 @@ export const dict: Record<string, string> = {
   '{domain} has {max} briefings in progress. Wait for one to finish.':
     'Für {domain} sind {max} Briefings in Arbeit. Warten Sie, bis eines fertig ist.',
   '{domain} is already running this window.': 'Für {domain} läuft dieser Zeitraum bereits.',
-  'Another analyst started a run first. The list has been refreshed.':
-    'Jemand anderes hat gerade einen Lauf gestartet. Die Liste wurde aktualisiert.',
+  'This domain changed since the page loaded. The list has been refreshed.':
+    'Dieses Themenfeld hat sich seit dem Laden der Seite geändert. Die Liste wurde aktualisiert.',
   "Couldn't start the run. Try again.":
     'Der Lauf konnte nicht gestartet werden. Bitte erneut versuchen.',
   'A dense day for Hybrid Computing: agents pick up deterministic control flow, recovery-first tool use, and a learned memory at a sixth of the tokens; durable content credentials survive real platform pipelines, and verifiable delegation answers the know-your-agent question at checkout.':

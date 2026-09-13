@@ -16,7 +16,7 @@ import { errorsFromSubmit } from '@/lib/bff/problem-copy'
 import { fmt, type T } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { useRouter } from 'next/navigation'
-import { useState, useTransition, type ReactNode } from 'react'
+import { useEffect, useState, useTransition, type ReactNode } from 'react'
 import { shiftDays } from './format'
 import { isConflict } from './ledger'
 
@@ -151,6 +151,9 @@ export function RunCard({
   const [to, setTo] = useState(today)
   const [busy, setBusy] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  // A start refused with 409: the page was stale. Kept apart from field
+  // errors because the list, not the user, clears it (below).
+  const [conflict, setConflict] = useState(false)
 
   // The window ends on the server's UTC today at the latest: the pickers grey
   // out later days, and a typed one marks the field and keeps Start off.
@@ -164,11 +167,23 @@ export function RunCard({
   })
   const disabled = !valid || busy || pending || !verdict.ok
 
+  // Once the refresh a 409 asked for has landed and the note explains a
+  // refusal, the alert would only repeat it. When the note does not — the
+  // slot freed again meanwhile — the alert stays, so the click is accounted for.
+  const flying = inFlight
+    .map((run) => run.id)
+    .sort()
+    .join(',')
+  useEffect(() => {
+    if (!verdict.ok) setConflict(false)
+  }, [flying, verdict.ok])
+
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
     if (disabled) return
     setBusy(true)
     setErrors({})
+    setConflict(false)
     try {
       await bffFetch('/bff/pipeline-runs/start', {
         method: 'POST',
@@ -178,12 +193,13 @@ export function RunCard({
       startTransition(() => router.refresh())
     } catch (error) {
       console.error('[home] start failed', error)
-      setErrors(errorsFromSubmit(error, FIELDS, t, t("Couldn't start the run. Try again.")))
       // 409: the domain filled up, or this window started, since the page
       // rendered — say so and re-read, so the note explains the refusal.
       if (isConflict(error)) {
-        setErrors({ _: t('Another analyst started a run first. The list has been refreshed.') })
+        setConflict(true)
         startTransition(() => router.refresh())
+      } else {
+        setErrors(errorsFromSubmit(error, FIELDS, t, t("Couldn't start the run. Try again.")))
       }
     } finally {
       setBusy(false)
@@ -236,9 +252,10 @@ export function RunCard({
         </Button>
       }
       error={
-        errors._ && (
+        (errors._ || conflict) && (
           <p role="alert" className="text-xs text-negative">
-            {errors._}
+            {errors._ ??
+              t('This domain changed since the page loaded. The list has been refreshed.')}
           </p>
         )
       }

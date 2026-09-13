@@ -392,7 +392,7 @@ export default async function SkeletonsPage({
         shape="home-ledger"
         title="Home ledger"
         status="Loading recent briefings"
-        loaded={<Ledger rows={homeRows} />}
+        loaded={<Ledger rows={homeRows} inFlight={[]} />}
         skeleton={<LedgerSkeleton rows={homeRows.length} />}
       />
 
