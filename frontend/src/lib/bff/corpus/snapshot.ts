@@ -55,6 +55,7 @@ import { intEnv } from '../core/env'
 import { django, djangoPage } from '../core/http'
 import { sourceOf } from '../core/source'
 import { scoredPaper } from '../papers/schema'
+import { scorecardQuery } from '../papers/scorecard-query'
 import { extractionDTO, paperDTO } from '../papers/upstream'
 import { runs } from '../pipeline-runs/service'
 import { workspaceDTO } from '../workspaces/upstream'
@@ -184,9 +185,10 @@ export type ScoredCorpus = ScoredDrained<ScoredPaper>
  * corpus version, not one per page view. Calibration domains are left out
  * here as everywhere (../workspaces/visible.ts), so their papers never cost
  * a page read or a place under the cap. The bytes weighed are the rows kept,
- * re-serialised, not the pages as received: Django sends each page's list
- * twice (`papers` and `results`, docs/scorecard-backlog.md item 7) plus the
- * workspace summary, and only the parsed `results` stay in memory, so
+ * re-serialised, not the pages as received: without `results_only=true`
+ * Django sends each page's list twice (`papers` and `results`,
+ * docs/scorecard-backlog.md item 7) plus the workspace summary, and only
+ * the parsed `results` stay in memory, so
  * weighing the wire body would count each user at almost twice their
  * footprint and halve the users the budget holds. On the 8 Sep prod data
  * that is 46 MB kept against 91 MB received per user; the re-serialisation
@@ -199,7 +201,7 @@ async function loadScored(): Promise<ScoredCorpus> {
     memberships.map((ws) => ws.id),
     async (workspaceId, page, size) => {
       const fetched = await djangoPage(
-        `/api/workspaces/${workspaceId}/scorecard/`,
+        `/api/workspaces/${workspaceId}/scorecard/?${scorecardQuery()}`,
         scoredPaper,
         page,
         size,

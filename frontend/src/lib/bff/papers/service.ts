@@ -14,6 +14,7 @@
 import 'server-only'
 
 import type { PaperDTO } from '@/lib/api/types'
+import { isPassed } from '@/lib/papers/map'
 import { indexRuns, papersOfRun, type RunIndex } from '@/lib/papers/runs'
 import { cache } from 'react'
 import * as z from 'zod'
@@ -37,6 +38,7 @@ import {
   type PapersQuery,
   type ScoredPaper,
 } from './schema'
+import { scorecardQuery } from './scorecard-query'
 
 export interface WorkspacePapers {
   workspace: WorkspaceSummary
@@ -176,44 +178,58 @@ export const papers = {
    * each paper's newest run, not every run that saw it (src/lib/papers/runs.ts),
    * and a run-scoped read carries that run's decision and score. Empty when
    * the workspace is gone. Cached per request.
+   *
+   * `screening` narrows the read to the papers the run passed. A reader that
+   * only wants the rows a briefing lists must say so: the run filter alone
+   * returns everything the run screened, and a scorecard row weighs ~19 KB,
+   * so a 771-screened run costs ~15 MB to answer a question about 23 papers.
+   * A primitive argument, not an options object, so the React cache still
+   * dedupes the call across a page's streamed sections.
    */
-  listRun: cache(async (workspaceId: string, runId: string): Promise<ScoredPaper[]> => {
-    if (sourceOf('papers') === 'stub') {
-      const [scored, index] = await Promise.all([papers.listAll(workspaceId), papers.runIndex()])
-      const corpus = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
-      return papersOfRun(runId, corpus, index).map((r) => r.paper)
-    }
-    assertUuid(workspaceId, 'workspace_id')
-    assertUuid(runId, 'run id')
-    try {
-      const rows = await drain(
-        (page, size) =>
-          djangoPage(
-            `/api/workspaces/${workspaceId}/scorecard/?run_id=${runId}`,
-            scoredPaper,
-            page,
-            size,
-          ),
-        {
-          pageSize: SCORECARD_PAGE_SIZE,
-          maxItems: Number.POSITIVE_INFINITY,
-          maxPages: RUN_PAGES_CEILING,
-          id: (p) => p.id,
-        },
-      )
-      if (rows.cutShort) {
-        console.warn(
-          '[bff] run %s: stopped after %d pages of its scorecard; some papers are missing',
-          runId,
-          rows.pages,
-        )
+  listRun: cache(
+    async (workspaceId: string, runId: string, screening?: 'passed'): Promise<ScoredPaper[]> => {
+      if (sourceOf('papers') === 'stub') {
+        const [scored, index] = await Promise.all([papers.listAll(workspaceId), papers.runIndex()])
+        const corpus = new Map((scored?.papers ?? []).map((p) => [p.id, p]))
+        // The run's own decision, not the paper's current one: `papersOfRun`
+        // carries both and they differ once a paper has been through two runs.
+        return papersOfRun(runId, corpus, index)
+          .filter((r) => screening !== 'passed' || isPassed(r.status))
+          .map((r) => r.paper)
       }
-      return rows.items
-    } catch (error) {
-      if (error instanceof ProblemError && error.problem.status === 404) return []
-      throw error
-    }
-  }),
+      assertUuid(workspaceId, 'workspace_id')
+      assertUuid(runId, 'run id')
+      const query = scorecardQuery({ runId, screening })
+      try {
+        const rows = await drain(
+          (page, size) =>
+            djangoPage(
+              `/api/workspaces/${workspaceId}/scorecard/?${query}`,
+              scoredPaper,
+              page,
+              size,
+            ),
+          {
+            pageSize: SCORECARD_PAGE_SIZE,
+            maxItems: Number.POSITIVE_INFINITY,
+            maxPages: RUN_PAGES_CEILING,
+            id: (p) => p.id,
+          },
+        )
+        if (rows.cutShort) {
+          console.warn(
+            '[bff] run %s: stopped after %d pages of its scorecard; some papers are missing',
+            runId,
+            rows.pages,
+          )
+        }
+        return rows.items
+      } catch (error) {
+        if (error instanceof ProblemError && error.problem.status === 404) return []
+        throw error
+      }
+    },
+  ),
 
   /**
    * The Papers page's HTTP face: one page of the corpus under every control,
