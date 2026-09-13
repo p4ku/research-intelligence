@@ -24,7 +24,7 @@ repo's root is self-contained (`bun install` → `next build` standalone →
 
 ```yaml
 - name: sri-frontend
-  memory: 1G # was 512M while the CF org quota was tight
+  memory: 1G
   env:
     NODE_ENV: production
     # Tell V8 the container's size so it collects before CF kills the process;
