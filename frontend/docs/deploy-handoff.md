@@ -35,6 +35,7 @@ repo's root is self-contained (`bun install` → `next build` standalone →
     # BFF_SOURCE_BRIEFINGS: composed
     # BFF_SOURCE_SCORING: composed
     # BFF_SOURCE_PREFERENCES: stub
+    # BFF_SOURCE_STARS: django
     # Corpus snapshot bounds (defaults in src/lib/bff/corpus/snapshot.ts;
     # documented in .env.example). Keep CORPUS_CACHE_MAX_MB at or under 128
     # while the instance is 512M.
