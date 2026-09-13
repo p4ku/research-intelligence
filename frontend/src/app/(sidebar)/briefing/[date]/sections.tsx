@@ -116,7 +116,7 @@ export async function EditionHead({
 const domainEditions = cache(async (edition: Edition, lang: Lang): Promise<Edition[]> => {
   const [all, capped] = await Promise.all([
     briefings.listAll(edition.workspace_id, lang).catch(() => []),
-    papersService.corpusTruncated().catch(() => false),
+    briefings.capped().catch(() => false),
   ])
   return all.filter((e) => hasBriefing(e.funnel.passed_screening, e, capped)).sort(byNewest)
 })
@@ -142,7 +142,7 @@ export const namedElsewhere = cache(
     if (inDomain) return inDomain
     const [all, capped] = await Promise.all([
       briefings.listEverywhere(lang).catch(() => []),
-      papersService.corpusTruncated().catch(() => false),
+      briefings.capped().catch(() => false),
     ])
     return (
       all.find((e) => e.run_id === runId && hasBriefing(e.funnel.passed_screening, e, capped)) ??

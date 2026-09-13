@@ -2,9 +2,11 @@
  * Papers service — the seam every papers consumer goes through.
  *
  * Sources:
- * - `composed` (default): built from today's `/api/papers/` + `/api/extractions/`
- *   + `/api/workspaces/` (see ./compose.ts).
- * - `django`: the requested scorecard endpoints (validated pass-through).
+ * - `django` (default): Django's scorecard endpoints. The lists come from
+ *   the user's scored corpus (../corpus/snapshot.ts), one drain per domain
+ *   per corpus version held across requests; a run's papers and one paper
+ *   are live reads. `composed` reads the same scorecard and, for the run
+ *   index, the raw lists too (docs/scorecard-backlog.md item 15).
  * - `stub`: contract-shaped fixtures.
  *
  * Server-only; always returns contract shapes (src/lib/bff/papers/schema.ts).
@@ -16,12 +18,13 @@ import { isPassed } from '@/lib/papers/map'
 import { indexRuns, papersOfRun, type RunIndex } from '@/lib/papers/runs'
 import { cache } from 'react'
 import * as z from 'zod'
-import { django } from '../core/http'
+import { drain } from '../core/drain'
+import { django, djangoPage } from '../core/http'
 import { paginate } from '../core/pagination'
 import { problem, ProblemError } from '../core/problem'
 import { sourceOf } from '../core/source'
 import { assertUuid } from '../core/validate'
-import { corpusSnapshot } from '../corpus/snapshot'
+import { SCORECARD_PAGE_SIZE, scoredCorpus } from '../corpus/snapshot'
 import { stars } from '../stars/service'
 import type { WorkspaceSummary } from '../workspaces/schema'
 import { workspaces } from '../workspaces/service'
@@ -29,19 +32,13 @@ import { listPapersRaw } from './compose'
 import { applyPapersQuery, corpusFacets } from './filter'
 import { fixturePapers, fixtureWorkspace } from './fixtures'
 import {
-  paperPage,
   papersQuery,
   scoredPaper,
   type PapersList,
   type PapersQuery,
   type ScoredPaper,
 } from './schema'
-import {
-  hasScorecardList,
-  scorecardQuery,
-  scorecardRows,
-  type ScorecardScope,
-} from './scorecard-query'
+import { scorecardQuery } from './scorecard-query'
 
 export interface WorkspacePapers {
   workspace: WorkspaceSummary
@@ -52,7 +49,7 @@ export interface WorkspacePapers {
 export interface CorpusPapers {
   workspaces: WorkspaceSummary[]
   papers: ScoredPaper[]
-  /** Set when the per-user cap dropped older papers (../corpus/snapshot.ts). */
+  /** Set when the per-user cap dropped older papers (../corpus/scored.ts). */
   truncated?: { kept: number; total: number }
 }
 
@@ -90,61 +87,6 @@ const scorecardWorkspace = z
   .passthrough()
 
 const detailResponse = z.object({ workspace: scorecardWorkspace, paper: scoredPaper }).passthrough()
-// Either list key is read (./scorecard-query.ts), so the request can ask for
-// the smaller body without the parsed shape depending on whether the backend
-// it reached honoured `results_only`.
-const workspaceScorecardResponse = z
-  .object({
-    workspace: scorecardWorkspace,
-    papers: z.array(scoredPaper).optional(),
-    results: z.array(scoredPaper).optional(),
-  })
-  .passthrough()
-  // One key or the other, but not neither: a 200 carrying no list at all is a
-  // broken contract, and must still fail as `upstream-shape` rather than read
-  // as an empty corpus — every consumer of `listAll` would render "nothing
-  // here" and no one would know why.
-  .refine(hasScorecardList, {
-    message: 'scorecard response carries neither `results` nor `papers`',
-  })
-  .transform(({ papers, results, ...rest }) => ({
-    ...rest,
-    papers: scorecardRows({ papers, results }),
-  }))
-
-/** The requested endpoint: retrieves the workspace scorecard directly. */
-async function djangoPapersOf(workspaceId: string, runId?: string): Promise<ScoredPaper[]> {
-  assertUuid(workspaceId, 'workspace_id')
-  const papers: ScoredPaper[] = []
-  let page = 1
-  for (;;) {
-    const result = await django(
-      `/api/workspaces/${workspaceId}/scorecard/?${scorecardQuery({ runId }, `page=${page}`, 'page_size=200')}`,
-      paperPage,
-    )
-    papers.push(...result.results)
-    if (!result.next || page >= 50) break
-    page += 1
-  }
-  return papers
-}
-
-async function djangoListAll(
-  workspaceId: string,
-  scope?: ScorecardScope,
-): Promise<WorkspacePapers | null> {
-  assertUuid(workspaceId, 'workspace_id')
-  try {
-    const res = await django(
-      `/api/workspaces/${workspaceId}/scorecard/?${scorecardQuery(scope)}`,
-      workspaceScorecardResponse,
-    )
-    return { workspace: res.workspace, papers: res.papers }
-  } catch (error) {
-    if (error instanceof ProblemError && error.problem.status === 404) return null
-    throw error
-  }
-}
 
 function stubListAll(workspaceId: string): WorkspacePapers {
   return {
@@ -159,54 +101,50 @@ const starredPapers = cache(() => stars.get())
 /** The run index is a pure function of the raw list, which lives across requests — so does the index. */
 const runIndexOf = new WeakMap<PaperDTO[], RunIndex>()
 
+/** Pages of one run's scorecard read at most (10,000 papers at 200 a page) — a bound, not a cap. */
+const RUN_PAGES_CEILING = 50
+
 export const papers = {
   /**
-   * The whole workspace corpus + its workspace summary; null when not visible.
-   * React-cached per request so sibling streamed sections share one fetch.
+   * The whole workspace corpus + its workspace summary; null when the user is
+   * not a member (a hidden domain included). The rows are the scored corpus's,
+   * the summary the memberships list's, so a warm corpus answers with no
+   * upstream call. React-cached per request so sibling streamed sections
+   * share one read. An outage throws: a fetched corpus must never read as
+   * "no membership".
    */
   listAll: cache(async (workspaceId: string): Promise<WorkspacePapers | null> => {
-    if (sourceOf('papers') === 'stub') {
-      return stubListAll(workspaceId)
-    }
-    return djangoListAll(workspaceId)
+    if (sourceOf('papers') === 'stub') return stubListAll(workspaceId)
+    assertUuid(workspaceId, 'workspace_id')
+    const [workspace, corpus] = await Promise.all([workspaces.get(workspaceId), scoredCorpus()])
+    if (!workspace) return null
+    return { workspace, papers: corpus.byWorkspace.get(workspaceId) ?? [] }
   }),
 
   /**
    * Every paper across every domain the user belongs to, with the domain
    * summaries (definitions, scales) the lists need for their sort options.
-   * Under `composed` the fan-out is free — the raw lists are cached and only
-   * the per-domain scoring repeats; under `django` it is one corpus fetch per
-   * domain, with the summaries taken from the memberships list instead of a
-   * second GET each. Cached per request.
+   * One read of the scored corpus, whatever the number of domains. Papers
+   * are deduped by id (the stub repeats its fixtures). Cached per request.
    */
   listEverywhere: cache(async (): Promise<CorpusPapers> => {
     const memberships = await workspaces.listAll()
-    const perWorkspace = await Promise.all(
-      memberships.map(
-        async (ws): Promise<WorkspacePapers | null> =>
-          sourceOf('papers') === 'django'
-            ? { workspace: ws, papers: await djangoPapersOf(ws.id) }
-            : papers.listAll(ws.id),
-      ),
-    )
     const seen = new Set<string>()
     const merged: ScoredPaper[] = []
-    const summaries: WorkspaceSummary[] = []
-    for (const scored of perWorkspace) {
-      // A membership the corpus cannot see is a backend inconsistency, not an
-      // outage (that would have thrown): it drops out rather than failing the
-      // whole page. Papers are deduped by id (the stub repeats its fixtures).
-      if (!scored) continue
-      summaries.push(scored.workspace)
-      for (const paper of scored.papers) {
+    const add = (rows: ScoredPaper[]) => {
+      for (const paper of rows) {
         if (seen.has(paper.id)) continue
         seen.add(paper.id)
         merged.push(paper)
       }
     }
-    const truncated =
-      sourceOf('papers') === 'composed' ? (await corpusSnapshot()).truncated : undefined
-    return { workspaces: summaries, papers: merged, truncated }
+    if (sourceOf('papers') === 'stub') {
+      for (const ws of memberships) add(stubListAll(ws.id).papers)
+      return { workspaces: memberships, papers: merged }
+    }
+    const corpus = await scoredCorpus()
+    for (const ws of memberships) add(corpus.byWorkspace.get(ws.id) ?? [])
+    return { workspaces: memberships, papers: merged, truncated: corpus.truncated }
   }),
 
   /**
@@ -214,7 +152,7 @@ export const papers = {
    * readers that need a paper as one run saw it rather than as it stands
    * today — the briefings. Only the `composed` source sees the per-run
    * metrics; the others return null and the corpus's own attribution is all
-   * there is. Cached per request, over the same snapshot as `listAll`.
+   * there is. Cached per request, over the same snapshot as before.
    */
   runIndex: cache(async (): Promise<RunIndex | null> => {
     if (sourceOf('papers') !== 'composed') return null
@@ -225,27 +163,28 @@ export const papers = {
   }),
 
   /**
-   * Whether the per-user cap dropped older papers from the corpus
-   * (../corpus/snapshot.ts). A reader deciding that a run "has no papers"
+   * Whether the per-user cap dropped older papers from the scored corpus
+   * (../corpus/scored.ts). A reader deciding that a run "has no papers"
    * must ask first: past the cap, absence is not evidence. Cached per request.
    */
   corpusTruncated: cache(async (): Promise<boolean> => {
-    if (sourceOf('papers') !== 'composed') return false
-    return Boolean((await corpusSnapshot()).truncated)
+    if (sourceOf('papers') === 'stub') return false
+    return Boolean((await scoredCorpus()).truncated)
   }),
 
   /**
-   * The papers one run wrote, scored against the workspace's definitions.
-   * Directly queries the Django workspace scorecard scoped by ?run_id=.
+   * The papers one run wrote, scored — read live from Django's run-scoped
+   * scorecard, a page at a time. Live on purpose: the corpus's rows carry
+   * each paper's newest run, not every run that saw it (src/lib/papers/runs.ts),
+   * and a run-scoped read carries that run's decision and score. Empty when
+   * the workspace is gone. Cached per request.
    *
-   * `screening` narrows that to the papers the run passed. A reader that only
-   * wants the rows a briefing lists must say so: the run filter alone returns
-   * everything the run screened, and a scorecard row weighs ~39 KB, so a
-   * 771-screened run costs ~30 MB to answer a question about 23 papers.
+   * `screening` narrows the read to the papers the run passed. A reader that
+   * only wants the rows a briefing lists must say so: the run filter alone
+   * returns everything the run screened, and a scorecard row weighs ~19 KB,
+   * so a 771-screened run costs ~15 MB to answer a question about 23 papers.
    * A primitive argument, not an options object, so the React cache still
    * dedupes the call across a page's streamed sections.
-   *
-   * Cached per request.
    */
   listRun: cache(
     async (workspaceId: string, runId: string, screening?: 'passed'): Promise<ScoredPaper[]> => {
@@ -258,16 +197,45 @@ export const papers = {
           .filter((r) => screening !== 'passed' || isPassed(r.status))
           .map((r) => r.paper)
       }
-      const res = await djangoListAll(workspaceId, { runId, screening })
-      return res ? res.papers : []
+      assertUuid(workspaceId, 'workspace_id')
+      assertUuid(runId, 'run id')
+      const query = scorecardQuery({ runId, screening })
+      try {
+        const rows = await drain(
+          (page, size) =>
+            djangoPage(
+              `/api/workspaces/${workspaceId}/scorecard/?${query}`,
+              scoredPaper,
+              page,
+              size,
+            ),
+          {
+            pageSize: SCORECARD_PAGE_SIZE,
+            maxItems: Number.POSITIVE_INFINITY,
+            maxPages: RUN_PAGES_CEILING,
+            id: (p) => p.id,
+          },
+        )
+        if (rows.cutShort) {
+          console.warn(
+            '[bff] run %s: stopped after %d pages of its scorecard; some papers are missing',
+            runId,
+            rows.pages,
+          )
+        }
+        return rows.items
+      } catch (error) {
+        if (error instanceof ProblemError && error.problem.status === 404) return []
+        throw error
+      }
     },
   ),
 
   /**
    * The Papers page's HTTP face: one page of the corpus under every control,
    * with the rail's facets. The whole corpus is read even for one domain —
-   * it is cached per request and the facets span it anyway — and the filters
-   * themselves are pure (./filter.ts).
+   * it is held across requests and the facets span it anyway — and the
+   * filters themselves are pure (./filter.ts).
    */
   async list(query: PapersQuery): Promise<PapersList> {
     const corpus = await papers.listEverywhere()
@@ -297,8 +265,10 @@ export const papers = {
   },
 
   /**
-   * One paper with its workspace; null when missing or not visible. Cached per
-   * request: generateMetadata and the page's streamed sections share the call.
+   * One paper with its workspace; null when missing or not visible. A live
+   * read: a paper ingested a moment ago is readable, a missing id is a
+   * genuine 404. Cached per request: generateMetadata and the page's
+   * streamed sections share the call.
    */
   get: cache(
     async (

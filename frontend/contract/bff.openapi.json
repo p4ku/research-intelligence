@@ -1574,7 +1574,7 @@
     "/bff/stars": {
       "get": {
         "operationId": "stars.get.bff",
-        "summary": "The user's stars. Cookie-backed stub until Django persists them.",
+        "summary": "The user's stars, from Django's /api/stars/.",
         "tags": [
           "stars"
         ],
@@ -2181,6 +2181,64 @@
         }
       }
     },
+    "/bff/pipeline-runs/{run_id}/abort": {
+      "post": {
+        "operationId": "pipeline-runs.abort.bff",
+        "summary": "Stop a run in flight. 409 once it has already ended, 403 unless the caller is an admin or manager of its domain; the row reads `aborted` on the next /bff/pipeline-runs.",
+        "tags": [
+          "pipeline-runs"
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "run_id": {
+                      "type": "string",
+                      "format": "uuid",
+                      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                    },
+                    "status": {
+                      "type": "string",
+                      "const": "aborted"
+                    }
+                  },
+                  "required": [
+                    "run_id",
+                    "status"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Error (RFC 9457)",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/bff/component-runs": {
       "get": {
         "operationId": "component-runs.list.bff",
@@ -2288,6 +2346,26 @@
   },
   "components": {
     "schemas": {
+      "AbortedPipelineRun": {
+        "$id": "#/components/schemas/AbortedPipelineRun",
+        "type": "object",
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "format": "uuid",
+            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+          },
+          "status": {
+            "type": "string",
+            "const": "aborted"
+          }
+        },
+        "required": [
+          "run_id",
+          "status"
+        ],
+        "additionalProperties": false
+      },
       "BriefingEdition": {
         "$id": "#/components/schemas/BriefingEdition",
         "type": "object",
@@ -3050,7 +3128,8 @@
               "pending",
               "processing",
               "completed",
-              "failed"
+              "failed",
+              "aborted"
             ]
           },
           "deep_thinking": {

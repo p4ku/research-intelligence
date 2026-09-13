@@ -45,6 +45,19 @@ async function composeAll(workspaceId: string, lang: Lang): Promise<Edition[]> {
 
 export const briefings = {
   /**
+   * Whether an edition's absence, or its emptiness, can be trusted. Under
+   * `composed` the editions are cut from the per-user corpus, which the
+   * paper cap may have cut through, so a run "with no papers" may only be
+   * past the cap. Django's editions are never cut, so nothing is capped —
+   * and the corpus is not read to say so: the ledger pages must neither
+   * wait on the papers nor fail with them. Cached per request.
+   */
+  capped: cache(
+    async (): Promise<boolean> =>
+      sourceOf('briefings') === 'composed' ? papers.corpusTruncated() : false,
+  ),
+
+  /**
    * Every edition for a workspace, newest first, with exclusions. `lang` only
    * affects composed template prose. React-cached per request so the streamed
    * sections of one page share a single fetch.

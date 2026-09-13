@@ -1,7 +1,6 @@
 import { Card } from '@/components/scanner-ui'
 import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
-import { papers } from '@/lib/bff/papers/service'
 import { runs } from '@/lib/bff/pipeline-runs/service'
 import type { Lang, T } from '@/lib/i18n'
 import type { WorkspaceSummary } from '@/lib/papers/types'
@@ -24,7 +23,7 @@ export async function LedgerSection({
   t: T
 }) {
   const [editions, all, capped] = await forPage(
-    Promise.all([briefings.listEverywhere(lang), runs.listEverywhere(), papers.corpusTruncated()]),
+    Promise.all([briefings.listEverywhere(lang), runs.listEverywhere(), briefings.capped()]),
   )
   const completed = all.filter((run) => run.status === 'completed')
 
