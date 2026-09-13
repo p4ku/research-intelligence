@@ -2,11 +2,12 @@ import json
 import uuid
 import time
 import logging
+from django.db import transaction
 from django.utils import timezone
 from django.core.serializers.json import DjangoJSONEncoder
 from research_intelligence.models import Workspace, ResearchAgentProcess
 from research_intelligence.tasks.orchestrator.agent_engine import tick_agent_process
-from research_intelligence.services import check_workspace_access
+from research_intelligence.services import check_workspace_access, admit_run, RunAdmissionRefused
 
 logger = logging.getLogger(__name__)
 
@@ -55,19 +56,26 @@ def start_research_agent_logic(
         "reprocess_existing": bool(reprocess_existing if reprocess_existing is not None else getattr(workspace, 'reprocess_existing', False))
     }
 
-    agent_process = ResearchAgentProcess.objects.create(
-        workspace=workspace,
-        name=agent_name,
-        status='running',
-        current_step='initialized',
-        triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None,
-        configuration_override=config_override,
-        step_history=[{
-            "step": "initialized",
-            "event": "created",
-            "timestamp": timezone.now().isoformat()
-        }]
-    )
+    # Admission (cap + duplicate window) under the Workspace row lock; the
+    # first tick below runs outside it.
+    try:
+        with transaction.atomic():
+            workspace = admit_run(workspace.id, config_override)
+            agent_process = ResearchAgentProcess.objects.create(
+                workspace=workspace,
+                name=agent_name,
+                status='running',
+                current_step='initialized',
+                triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None,
+                configuration_override=config_override,
+                step_history=[{
+                    "step": "initialized",
+                    "event": "created",
+                    "timestamp": timezone.now().isoformat()
+                }]
+            )
+    except RunAdmissionRefused as refused:
+        return json.dumps(refused.as_error_json(), indent=2)
 
     # Trigger first tick to launch Search & Ingestion
     tick_res = tick_agent_process(str(agent_process.id))

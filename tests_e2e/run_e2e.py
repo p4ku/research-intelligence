@@ -48,6 +48,7 @@ from tests_e2e.scenarios import (
     run_hitl_validation_journey_scenario,
     run_stars_curation_journey_scenario,
     run_paper_page_scorecard_journey_scenario,
+    run_run_admission_guard_scenario,
 )
 
 # Configure rich colored terminal logging
@@ -80,6 +81,7 @@ def parse_args():
             "hitl", "hitl_validation", "correction",
             "stars", "curation",
             "paper_page", "paper_scorecard", "scorecard_page",
+            "admission", "run_admission",
             "all"
         ],
         default="slr",
@@ -504,6 +506,11 @@ def main():
             total_elapsed = time.time() - t0
             print(f"\n✅ PAPER PAGE SCORECARD SCENARIO COMPLETED in {total_elapsed:.1f}s (Dimensions: {res.get('dimensions_count')}, Risk: {res.get('has_risk_and_affiliation')})\n")
 
+        elif args.scenario in ("admission", "run_admission"):
+            res = run_run_admission_guard_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ RUN ADMISSION GUARD SCENARIO COMPLETED in {total_elapsed:.1f}s (Burst: {res.get('burst_status_codes')}, Duplicate: {res.get('duplicate_status_codes')})\n")
+
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")
             suite_results = []
@@ -578,6 +585,9 @@ def main():
 
             # 11. Concurrent Agents Load
             _run_and_track("Concurrent Agents Load", run_concurrent_agents_load_scenario, config, num_agents=2)
+
+            # 11b. Run Admission Guard (cap + duplicate window, needs Postgres row lock)
+            _run_and_track("Run Admission Guard", run_run_admission_guard_scenario, config)
 
             # 12. Workflow Schedule & Observability
             _run_and_track("Workflow Schedule & Observability", run_workflow_schedule_scenario, config)

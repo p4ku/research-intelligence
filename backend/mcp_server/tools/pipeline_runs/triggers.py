@@ -1,6 +1,7 @@
 import json
 import uuid
 import logging
+from django.db import transaction
 from django.utils import timezone
 from django.core.serializers.json import DjangoJSONEncoder
 
@@ -19,7 +20,7 @@ from research_intelligence.tasks.step_4_screening.abstract import execute_screen
 from research_intelligence.tasks.step_4_screening.full_text import execute_full_text_screening_job
 from research_intelligence.tasks.step_5_extraction.extract import execute_extraction_job
 from research_intelligence.tasks.step_6_signal_score.scorer import execute_signal_score_job
-from research_intelligence.services import check_workspace_access
+from research_intelligence.services import check_workspace_access, admit_run, RunAdmissionRefused
 
 logger = logging.getLogger(__name__)
 
@@ -78,20 +79,25 @@ def trigger_search_job_logic(
         "end_date": end_date,
     }
 
-    # Create new PipelineRun
-    pipeline_run = PipelineRun.objects.create(
-        workspace=workspace,
-        status='running',
-        current_stage='search',
-        reprocess_existing=bool(reprocess_val),
-        triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None,
-        configuration_override=config_override,
-        step_history=[{
-            "step": "search",
-            "event": "started",
-            "timestamp": timezone.now().isoformat()
-        }]
-    )
+    # Create new PipelineRun (admission: per-workspace cap and no duplicate window)
+    try:
+        with transaction.atomic():
+            workspace = admit_run(workspace.id, config_override)
+            pipeline_run = PipelineRun.objects.create(
+                workspace=workspace,
+                status='running',
+                current_stage='search',
+                reprocess_existing=bool(reprocess_val),
+                triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None,
+                configuration_override=config_override,
+                step_history=[{
+                    "step": "search",
+                    "event": "started",
+                    "timestamp": timezone.now().isoformat()
+                }]
+            )
+    except RunAdmissionRefused as refused:
+        return json.dumps(refused.as_error_json(), indent=2)
 
     created_runs = []
     for scraper in scrapers:
@@ -690,20 +696,27 @@ def start_pipeline_run_logic(
         "end_date": end_date,
     }
 
-    pipeline_run = PipelineRun.objects.create(
-        workspace=workspace,
-        name=run_name,
-        status='running',
-        current_stage='search',
-        reprocess_existing=config_override["reprocess_existing"],
-        triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None,
-        configuration_override=config_override,
-        step_history=[{
-            "step": "search",
-            "event": "started",
-            "timestamp": timezone.now().isoformat()
-        }]
-    )
+    # Admission holds the Workspace row lock only around the create; the first
+    # tick opens its own transaction and must not run under that lock.
+    try:
+        with transaction.atomic():
+            workspace = admit_run(workspace.id, config_override)
+            pipeline_run = PipelineRun.objects.create(
+                workspace=workspace,
+                name=run_name,
+                status='running',
+                current_stage='search',
+                reprocess_existing=config_override["reprocess_existing"],
+                triggered_by=user if getattr(user, 'is_authenticated', False) or getattr(user, 'id', None) else None,
+                configuration_override=config_override,
+                step_history=[{
+                    "step": "search",
+                    "event": "started",
+                    "timestamp": timezone.now().isoformat()
+                }]
+            )
+    except RunAdmissionRefused as refused:
+        return json.dumps(refused.as_error_json(), indent=2)
 
     tick_res = pipeline_run.tick()
     pipeline_run.refresh_from_db()

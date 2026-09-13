@@ -364,6 +364,9 @@ FEATURES = {
     'EMAIL_NOTIFICATIONS': _env_feature_bool('FEATURE_EMAIL_NOTIFICATIONS', default=False),
 }
 
+# How many pipeline runs one workspace may have in flight (pending/running/paused) at once.
+MAX_CONCURRENT_RUNS_PER_WORKSPACE = int(os.environ.get('MAX_CONCURRENT_RUNS_PER_WORKSPACE', '5'))
+
 
 # Celery Beat Periodic Scheduled Tasks (Zombie Watchdog, Workflow Dispatcher & Scheduled Digests)
 CELERY_BEAT_SCHEDULE = {

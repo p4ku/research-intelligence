@@ -1,5 +1,6 @@
 import json
 import uuid
+from django.db import transaction
 from rest_framework import viewsets, status, permissions
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -34,7 +35,26 @@ from mcp_server.tools.pipeline_runs.lifecycle import (
     abort_job_logic,
     delete_pipeline_run_logic,
 )
-from research_intelligence.services import check_workspace_access
+from research_intelligence.services import (
+    check_workspace_access,
+    admit_run,
+    RunAdmissionRefused,
+    is_admission_error,
+)
+
+
+def start_error_response(res_data):
+    """
+    HTTP status for an MCP start-logic error envelope: 409 when admission
+    refused the run (cap reached or duplicate window), 403 for membership
+    and role refusals, 400 for everything else (quota, bad input).
+    """
+    if is_admission_error(res_data):
+        return Response(res_data, status=status.HTTP_409_CONFLICT)
+    err_msg = str(res_data.get("error", "Error starting pipeline run"))
+    if "denied" in err_msg.lower() or "permissions" in err_msg.lower():
+        return Response(res_data, status=status.HTTP_403_FORBIDDEN)
+    return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
 
 
 @extend_schema(tags=['Pipeline Runs & Components'])
@@ -106,6 +126,7 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             201: PipelineRunSerializer,
             400: OpenApiResponse(description="Bad request - missing workspace ID or invalid payload"),
             403: OpenApiResponse(description="Forbidden - Insufficient permissions in target workspace"),
+            409: OpenApiResponse(description="Conflict - workspace at its concurrent-run limit, or this search window is already running"),
         }
     )
     def create(self, request, *args, **kwargs):
@@ -137,15 +158,21 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
         if n_last_days is not None:
             config_override['n_last_days'] = n_last_days
 
-        pipeline_run = PipelineRun.objects.create(
-            workspace=workspace,
-            name=run_name,
-            status='pending',
-            current_stage='search',
-            reprocess_existing=bool(reprocess_existing),
-            triggered_by=request.user,
-            configuration_override=config_override,
-        )
+        # A pending run holds a slot (it can be ticked), so it is admitted too.
+        try:
+            with transaction.atomic():
+                workspace = admit_run(workspace.id, config_override)
+                pipeline_run = PipelineRun.objects.create(
+                    workspace=workspace,
+                    name=run_name,
+                    status='pending',
+                    current_stage='search',
+                    reprocess_existing=bool(reprocess_existing),
+                    triggered_by=request.user,
+                    configuration_override=config_override,
+                )
+        except RunAdmissionRefused as refused:
+            return Response(refused.as_error_json(), status=status.HTTP_409_CONFLICT)
 
         return Response(
             PipelineRunSerializer(pipeline_run).data,
@@ -158,6 +185,7 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             201: OpenApiResponse(description="Autonomous pipeline run started successfully"),
             400: OpenApiResponse(description="Bad request or validation error"),
             403: OpenApiResponse(description="Forbidden - Insufficient permissions"),
+            409: OpenApiResponse(description="Conflict - workspace at its concurrent-run limit, or this search window is already running"),
         }
     )
     @action(detail=False, methods=['post'], url_path='start')
@@ -188,10 +216,7 @@ class PipelineRunViewSet(viewsets.ModelViewSet):
             res_data = {"raw_response": res_json}
 
         if isinstance(res_data, dict) and res_data.get("status") == "error":
-            err_msg = res_data.get("error", "Error starting pipeline run")
-            if "denied" in err_msg.lower() or "permissions" in err_msg.lower():
-                return Response(res_data, status=status.HTTP_403_FORBIDDEN)
-            return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
+            return start_error_response(res_data)
 
         return Response(res_data, status=status.HTTP_201_CREATED)
 

@@ -2706,8 +2706,17 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
         from django.shortcuts import get_object_or_404, redirect
         from django.contrib import messages
         schedule = get_object_or_404(WorkflowSchedule, id=schedule_id)
-        agent = schedule.trigger_run(triggered_by_user=request.user, force=True)
-        messages.success(request, f"Successfully triggered scheduled workflow '{schedule.name}' (Agent Process: {agent.id}).")
+        from research_intelligence.services import RunAdmissionRefused
+        try:
+            agent = schedule.trigger_run(triggered_by_user=request.user, force=True)
+        except RunAdmissionRefused as refused:
+            agent, reason = None, refused.message
+        else:
+            reason = "previous run still active"
+        if agent is None:
+            messages.warning(request, f"Scheduled workflow '{schedule.name}' was not triggered: {reason}")
+        else:
+            messages.success(request, f"Successfully triggered scheduled workflow '{schedule.name}' (Agent Process: {agent.id}).")
         return redirect('admin:research_intelligence_workflowschedule_changelist')
 
     def toggle_schedule_view(self, request, schedule_id):
@@ -2726,11 +2735,23 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
 
     @admin.action(description="🚀 Trigger Selected Schedules Now")
     def trigger_now_action(self, request, queryset):
+        from django.contrib import messages
+        from research_intelligence.services import RunAdmissionRefused
         count = 0
+        skipped = []
         for sched in queryset:
-            sched.trigger_run(triggered_by_user=request.user, force=True)
-            count += 1
+            try:
+                agent = sched.trigger_run(triggered_by_user=request.user, force=True)
+            except RunAdmissionRefused as refused:
+                skipped.append(f"{sched.name} ({refused.message})")
+                continue
+            if agent is None:
+                skipped.append(f"{sched.name} (previous run still active)")
+            else:
+                count += 1
         self.message_user(request, f"Successfully triggered {count} scheduled workflow run(s).")
+        if skipped:
+            self.message_user(request, f"Not triggered: {'; '.join(skipped)}", level=messages.WARNING)
 
     @admin.action(description="▶️ Activate / Resume Selected Schedules")
     def activate_schedules_action(self, request, queryset):
