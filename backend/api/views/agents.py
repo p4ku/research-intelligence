@@ -16,6 +16,7 @@ from mcp_server.tools.agents import (
     delete_research_agent_logic
 )
 from drf_spectacular.utils import extend_schema, OpenApiResponse
+from .pipeline_runs import start_error_response
 
 
 @extend_schema(tags=['Autonomous Agents & Pipelines'])
@@ -58,6 +59,7 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
             201: ResearchAgentProcessSerializer,
             400: OpenApiResponse(description="Bad request - missing workspace ID or invalid parameters"),
             403: OpenApiResponse(description="Forbidden - Insufficient permissions in target workspace"),
+            409: OpenApiResponse(description="Conflict - workspace at its concurrent-run limit, or this search window is already running"),
         },
         summary="Launch autonomous research agent",
         description="Initiates an end-to-end autonomous research state engine run."
@@ -98,10 +100,7 @@ class ResearchAgentViewSet(viewsets.ModelViewSet):
             return Response({"result": res_json}, status=status.HTTP_200_OK)
 
         if "error" in res_data or res_data.get("status") == "error":
-            err_msg = str(res_data.get("error", ""))
-            if "denied" in err_msg.lower() or "permissions" in err_msg.lower():
-                return Response(res_data, status=status.HTTP_403_FORBIDDEN)
-            return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
+            return start_error_response(res_data)
 
 
         process_id = res_data.get("process_id")

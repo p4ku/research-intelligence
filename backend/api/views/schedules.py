@@ -90,6 +90,7 @@ class WorkflowScheduleViewSet(viewsets.ModelViewSet):
         responses={
             200: OpenApiResponse(description="Schedule triggered successfully"),
             403: OpenApiResponse(description="Forbidden - Requires Admin/Manager role"),
+            409: OpenApiResponse(description="Conflict - previous run still active, or workspace at its concurrent-run limit"),
         }
     )
     @action(detail=True, methods=['post'])
@@ -103,6 +104,15 @@ class WorkflowScheduleViewSet(viewsets.ModelViewSet):
             return Response({"error": error}, status=status.HTTP_403_FORBIDDEN)
 
         agent = schedule.trigger_run(triggered_by_user=request.user)
+        if agent is None:
+            refused = getattr(schedule, 'last_refusal', None)
+            if refused is not None:
+                return Response(refused.as_error_json(), status=status.HTTP_409_CONFLICT)
+            return Response({
+                "status": "error",
+                "code": "schedule_overlap",
+                "error": f"Scheduled workflow '{schedule.name}' was not triggered: its previous run is still active.",
+            }, status=status.HTTP_409_CONFLICT)
         return Response({
             "message": f"Successfully triggered scheduled workflow '{schedule.name}'.",
             "status": "running",

@@ -347,11 +347,13 @@ class ReprocessExistingPipelineE2ETestCase(TestCase):
             self.assertEqual(run_false.papers.count(), 1)
 
             # 2. Trigger with reprocess_existing=True
+            # The first run is still in flight: a distinct window, or admission refuses the duplicate.
             res_true_str = trigger_search_job_logic(
                 user=self.user,
                 workspace_id=str(self.workspace.id),
                 limit=10,
-                reprocess_existing=True
+                reprocess_existing=True,
+                n_last_days=14,
             )
             res_true = json.loads(res_true_str)
             self.assertTrue(res_true["success"])
@@ -454,7 +456,8 @@ class WorkspaceReprocessFlagTestCase(TestCase):
 
         # 2. Start agent with explicit override reprocess_existing=False -> overrides workspace True
         start_false_raw = start_research_agent_logic(
-            self.admin, workspace_id=str(ws_true.id), name="Override False Agent", reprocess_existing=False
+            self.admin, workspace_id=str(ws_true.id), name="Override False Agent", reprocess_existing=False,
+            n_last_days=14,  # the first agent is still in flight on the default window
         )
         proc_false = ResearchAgentProcess.objects.get(id=json.loads(start_false_raw)["process_id"])
         self.assertFalse(proc_false.configuration_override.get("reprocess_existing"))
@@ -474,7 +477,8 @@ class WorkspaceReprocessFlagTestCase(TestCase):
 
             # Trigger with explicit reprocess_existing=False -> overrides workspace True
             res_raw_override = trigger_search_job_logic(
-                self.admin, workspace_id=str(ws_true.id), scraper_id=str(scraper.id), reprocess_existing=False
+                self.admin, workspace_id=str(ws_true.id), scraper_id=str(scraper.id), reprocess_existing=False,
+                n_last_days=14,  # the first run is still in flight on the default window
             )
             res_ov = json.loads(res_raw_override)
             self.assertTrue(res_ov.get("success"))
@@ -575,10 +579,12 @@ class WorkspaceReprocessFlagTestCase(TestCase):
             self.assertTrue(run.reprocess_existing)
 
             # 2. Start via /api/pipeline-runs/start/ with explicit reprocess_existing=False -> overrides to False
+            # Each start below gets its own window: the earlier runs stay in flight.
             res_start_false = self.client.post("/api/pipeline-runs/start/", {
                 "workspace_id": str(ws_true.id),
                 "name": "Explicit False Run",
-                "reprocess_existing": False
+                "reprocess_existing": False,
+                "n_last_days": 14
             }, format="json")
             self.assertEqual(res_start_false.status_code, status.HTTP_201_CREATED)
             run_false = PipelineRun.objects.get(id=res_start_false.data.get("pipeline_run_id"))
@@ -586,7 +592,8 @@ class WorkspaceReprocessFlagTestCase(TestCase):
 
             # 3. Start via /api/workspaces/{id}/run-pipeline/ without reprocess_existing -> inherits True
             res_ws_run = self.client.post(f"/api/workspaces/{ws_true.id}/run-pipeline/", {
-                "name": "WS Action Inherited True"
+                "name": "WS Action Inherited True",
+                "n_last_days": 21
             }, format="json")
             self.assertEqual(res_ws_run.status_code, status.HTTP_201_CREATED)
             run_ws = PipelineRun.objects.get(id=res_ws_run.data.get("pipeline_run_id"))

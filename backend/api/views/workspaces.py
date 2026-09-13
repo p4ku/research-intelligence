@@ -134,12 +134,14 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             201: OpenApiResponse(description="Autonomous pipeline run started for workspace"),
             400: OpenApiResponse(description="Bad request"),
             403: OpenApiResponse(description="Forbidden"),
+            409: OpenApiResponse(description="Conflict - workspace at its concurrent-run limit, or this search window is already running"),
         }
     )
     @action(detail=True, methods=['post'], url_path='run-pipeline')
     def run_pipeline(self, request, pk=None):
         import json
         from mcp_server.tools.pipeline_runs.triggers import start_pipeline_run_logic
+        from .pipeline_runs import start_error_response
 
         workspace = self.get_object()
         data = request.data.copy() if hasattr(request.data, 'copy') else dict(request.data)
@@ -171,10 +173,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             res_data = {"raw_response": res_json}
 
         if isinstance(res_data, dict) and res_data.get("status") == "error":
-            err_msg = res_data.get("error", "Error starting pipeline run")
-            if "denied" in err_msg.lower() or "permissions" in err_msg.lower():
-                return Response(res_data, status=status.HTTP_403_FORBIDDEN)
-            return Response(res_data, status=status.HTTP_400_BAD_REQUEST)
+            return start_error_response(res_data)
 
         return Response(res_data, status=status.HTTP_201_CREATED)
 

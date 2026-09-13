@@ -413,9 +413,11 @@ class WorkflowSchedule(models.Model):
         For One-Off schedules, automatically marks is_active=False and next_run_at=None.
         """
         from research_intelligence.models import PipelineRun, ResearchAgentProcess
+        from research_intelligence.services.run_admission import admit_run, RunAdmissionRefused
         from research_intelligence.tasks.orchestrator.agent_engine import run_agent_process_tick, tick_agent_process
 
         now = timezone.now()
+        self.last_refusal = None
 
         # Concurrency / Overlap Guard
         if not force and self.prevent_overlap and self.last_pipeline_run:
@@ -432,16 +434,29 @@ class WorkflowSchedule(models.Model):
         if "n_last_days" not in config_override or config_override["n_last_days"] is None:
             config_override["n_last_days"] = self.n_last_days if self.n_last_days is not None else 7
 
-        pipeline_run = PipelineRun.objects.create(
-            workspace=self.workspace,
-            name=f"Scheduled Run - {self.name}",
-            schedule=self,
-            status='running',
-            current_stage='search',
-            reprocess_existing=self.reprocess_existing,
-            triggered_by=triggered_by_user or self.created_by,
-            configuration_override=config_override
-        )
+        # Workspace capacity guard. `force` overrides this schedule's own
+        # overlap policy, never the workspace cap. The duplicate-window rule
+        # is skipped here: a schedule re-runs the same window by design and
+        # prevent_overlap is its duplicate policy.
+        try:
+            with transaction.atomic():
+                admit_run(self.workspace_id, config_override, check_window=False)
+                pipeline_run = PipelineRun.objects.create(
+                    workspace=self.workspace,
+                    name=f"Scheduled Run - {self.name}",
+                    schedule=self,
+                    status='running',
+                    current_stage='search',
+                    reprocess_existing=self.reprocess_existing,
+                    triggered_by=triggered_by_user or self.created_by,
+                    configuration_override=config_override
+                )
+        except RunAdmissionRefused as refused:
+            logger.warning(
+                f"⚠️ [SCHEDULE CAPACITY] Schedule '{self.name}' ({self.id}) skipped: {refused.message}"
+            )
+            self.last_refusal = refused
+            return None
         agent = ResearchAgentProcess.objects.get(pk=pipeline_run.pk)
 
         self.last_run_at = now

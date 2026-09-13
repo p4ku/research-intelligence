@@ -15,6 +15,12 @@ from .scraper_service import (
     preview_search_query,
     list_workspace_papers,
 )
+from .run_admission import (
+    RunAdmissionRefused,
+    admit_run,
+    is_admission_error,
+    max_concurrent_runs,
+)
 
 __all__ = [
     "check_workspace_access",
@@ -26,4 +32,8 @@ __all__ = [
     "build_paper_extractions_matrix",
     "preview_search_query",
     "list_workspace_papers",
+    "RunAdmissionRefused",
+    "admit_run",
+    "is_admission_error",
+    "max_concurrent_runs",
 ]

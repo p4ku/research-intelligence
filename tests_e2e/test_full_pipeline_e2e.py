@@ -33,6 +33,7 @@ from tests_e2e.scenarios import (
     run_hitl_validation_journey_scenario,
     run_stars_curation_journey_scenario,
     run_paper_page_scorecard_journey_scenario,
+    run_run_admission_guard_scenario,
 )
 
 
@@ -185,6 +186,13 @@ class TestFullPipelineE2E:
         config = E2EConfig.from_env()
         results = run_concurrent_runs_in_workspace_scenario(config)
         assert results["status"] == "passed"
+
+    @pytest.mark.e2e
+    def test_run_admission_guard(self):
+        config = E2EConfig.from_env()
+        results = run_run_admission_guard_scenario(config)
+        assert results["status"] == "passed"
+        assert results["burst_status_codes"].count(409) == 1
 
     @pytest.mark.e2e
     def test_signal_score_variables_and_math(self):

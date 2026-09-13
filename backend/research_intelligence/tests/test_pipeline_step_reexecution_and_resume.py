@@ -94,7 +94,8 @@ class PipelineStepReexecutionAndResumeTestCase(TestCase):
             {"title": "Solid State Electrolyte V1", "hash_id": "2401.0001", "pdf_url": "https://arxiv.org/pdf/2401.0001.pdf", "abstract": "Paper 1", "source_database": "arxiv"},
             {"title": "Solid State Electrolyte V3", "hash_id": "2401.0003", "pdf_url": "https://arxiv.org/pdf/2401.0003.pdf", "abstract": "Paper 3", "source_database": "arxiv"},
         ]
-        res2 = trigger_search_job_logic(self.user, str(self.workspace.id), limit=10)
+        # Run 1 is still in flight: a distinct window, or admission refuses the duplicate.
+        res2 = trigger_search_job_logic(self.user, str(self.workspace.id), limit=10, n_last_days=14)
         data2 = json.loads(res2)
         self.assertTrue(data2["success"])
         for cr in data2["component_runs"]:

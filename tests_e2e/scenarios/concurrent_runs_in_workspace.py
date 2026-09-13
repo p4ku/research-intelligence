@@ -85,10 +85,13 @@ def run_concurrent_runs_in_workspace_scenario(config: Optional[E2EConfig] = None
         )
 
         logger.info("🚀 Launching Run 2 (Reinforcement Ingestion & Reprocess) concurrently...")
+        # A distinct search window: Django refuses a second in-flight run for
+        # the same window (see run_admission_guard).
         run2_proc = agent_svc.start_research_agent(
             workspace_id=workspace_id,
             name=f"Run 2 Reinforcement - {workspace_name}",
             limit=3,
+            n_last_days=14,
             reprocess_existing=True,
         )
 
