@@ -1,8 +1,9 @@
 /** Pipeline-runs contract registry entries. Pure. */
 import * as z from 'zod'
 import type { Operation } from '../core/contract-types'
-import { runPage, runsQuery, startedRun, startRun } from './schema'
+import { abortedRun, runPage, runsQuery, startedRun, startRun } from './schema'
 import {
+  abortRunResponseDTO,
   pipelineRunDetailDTO,
   pipelineRunDTO,
   startRunRequestDTO,
@@ -58,6 +59,18 @@ export const pipelineRunsOperations: Operation[] = [
     responses: { 201: startRunResponseDTO },
   },
   {
+    id: 'pipeline-runs.abort.current',
+    resource: 'pipeline-runs',
+    face: 'django',
+    kind: 'current',
+    method: 'POST',
+    path: '/api/pipeline-runs/{run_id}/abort/',
+    summary:
+      'Stop a run in flight: the run and its active steps become `aborted`. Refusals are 400 with an `error` sentence (already ended; caller not an admin or manager of the workspace); non-members get 404. Never executed by the checker.',
+    responses: { 200: abortRunResponseDTO },
+    probe: { requires: ['run_id'] },
+  },
+  {
     id: 'pipeline-runs.list.bff',
     resource: 'pipeline-runs',
     face: 'bff',
@@ -80,5 +93,16 @@ export const pipelineRunsOperations: Operation[] = [
       "Start a briefing run for one of the user's domains; the new run appears at the top of /bff/pipeline-runs as `running`.",
     body: startRun,
     responses: { 201: startedRun },
+  },
+  {
+    id: 'pipeline-runs.abort.bff',
+    resource: 'pipeline-runs',
+    face: 'bff',
+    kind: 'bff',
+    method: 'POST',
+    path: '/bff/pipeline-runs/{run_id}/abort',
+    summary:
+      'Stop a run in flight. 409 once it has already ended, 403 unless the caller is an admin or manager of its domain; the row reads `aborted` on the next /bff/pipeline-runs.',
+    responses: { 200: abortedRun },
   },
 ]

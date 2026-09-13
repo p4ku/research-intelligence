@@ -11,7 +11,14 @@
  *          (the proxy only reads `exp`; rotation is mirrored like production).
  * - POST /api/pipeline-runs/start/ → a simulated run: `running` at the top
  *          of the list at once, `completed` (or `failed`, see env) after
- *          SNAPSHOT_RUN_MS. In memory only; restart to forget it.
+ *          SNAPSHOT_RUN_MS. In memory only; restart to forget it. Its detail
+ *          GET is served too, so /runs/<id> opens.
+ * - POST /api/pipeline-runs/{id}/abort/ → a run still in flight (simulated,
+ *          or captured that way) becomes `aborted` at once, in memory; an
+ *          ended run gets Django's 400 "already in status" sentence; an
+ *          unknown id 404.
+ * - GET/PUT /api/stars/ → an in-memory star set (ids must exist in the
+ *          capture, as Django would 404). Restart to forget.
  * - Anything else that writes → 501, in Django's error shape.
  *
  * Env: SNAPSHOT_DIR (default: newest folder under local-data/), SNAPSHOT_PORT
@@ -96,6 +103,32 @@ type Row = Record<string, unknown>
 
 /** Runs started through the replay, newest first; served ahead of the capture. */
 const startedRuns: Row[] = []
+/** The pending finish per simulated run, so an abort can cancel it. */
+const finishTimers = new Map<string, ReturnType<typeof setTimeout>>()
+/** Captured runs stopped through the replay: `load()` re-reads the file, so the overlay wins. */
+const abortedCaptured = new Map<string, Row>()
+
+/** A run by id — simulated, stopped-captured, or captured; the first two in memory. */
+function findRun(id: string): Row | undefined {
+  return (
+    startedRuns.find((r) => r.id === id) ??
+    abortedCaptured.get(id) ??
+    capturedRuns().find((r) => r.id === id)
+  )
+}
+
+/** The replay user's stars, the shape of Django's /api/stars/. In memory only. */
+const starred: { papers: string[]; briefings: string[] } = { papers: [], briefings: [] }
+
+/** Ids the capture knows for a star kind, plus simulated runs for briefings. */
+function knownIds(kind: 'paper' | 'briefing'): Set<string> {
+  const body = load(kind === 'paper' ? '/api/papers/' : '/api/pipeline-runs/')
+  const rows = Array.isArray(body)
+    ? (body as Row[])
+    : (((body as { results?: Row[] } | undefined)?.results ?? []) as Row[])
+  const extra = kind === 'briefing' ? startedRuns : []
+  return new Set([...rows, ...extra].map((r) => String(r.id)))
+}
 
 function readJson(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve) => {
@@ -163,6 +196,8 @@ function simulateRun(
  * rather than claiming papers the corpus does not have.
  */
 function finishRun(run: Row) {
+  finishTimers.delete(String(run.id))
+  if (run.status !== 'running') return
   const now = new Date()
   const started = new Date(String(run.started_at))
   run.status = RUN_OUTCOME
@@ -235,7 +270,10 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       return (log(400), send(res, 400, { status: 'error', error: 'end_date precedes start_date' }))
     const run = simulateRun(ws, input)
     startedRuns.unshift(run)
-    setTimeout(() => finishRun(run), RUN_MS)
+    finishTimers.set(
+      String(run.id),
+      setTimeout(() => finishRun(run), RUN_MS),
+    )
     log(201)
     return send(res, 201, {
       status: 'success',
@@ -244,11 +282,86 @@ async function handle(req: IncomingMessage, res: ServerResponse) {
       run_status: 'running',
     })
   }
+  const abort = /^\/api\/pipeline-runs\/([0-9a-f-]{36})\/abort\/$/i.exec(pathname)
+  if (method === 'POST' && abort) {
+    const id = abort[1]
+    const run = findRun(id)
+    if (!run) return (log(404), djangoError(res, 404, 'Not found.'))
+    if (run.status !== 'running' && run.status !== 'pending') {
+      // Exactly Django's shape: the view wraps the bare "Error: …" sentence.
+      log(400)
+      return send(res, 400, {
+        error: `Error: PipelineRun '${id}' is already in status '${run.status}'.`,
+      })
+    }
+    const timer = finishTimers.get(id)
+    if (timer) clearTimeout(timer)
+    finishTimers.delete(id)
+    const now = new Date()
+    Object.assign(run, {
+      status: 'aborted',
+      completed_at: now.toISOString(),
+      duration_seconds: (now.getTime() - new Date(String(run.started_at)).getTime()) / 1000,
+      status_message: 'Stopped by user (snapshot replay).',
+      execution_time_display: '⏹ aborted',
+    })
+    if (!startedRuns.includes(run)) abortedCaptured.set(id, run)
+    log(200)
+    return send(res, 200, {
+      success: true,
+      status: 'success',
+      message: `PipelineRun '${id}' and 1 active component run(s) have been aborted.`,
+      pipeline_run_id: id,
+    })
+  }
+  if (pathname === '/api/stars/' && method === 'GET') return (log(200), send(res, 200, starred))
+  if (pathname === '/api/stars/' && method === 'PUT') {
+    const input = (await readJson(req)) as { kind?: unknown; id?: unknown; starred?: unknown }
+    const kind = input.kind === 'paper' || input.kind === 'briefing' ? input.kind : null
+    if (!kind || typeof input.id !== 'string' || typeof input.starred !== 'boolean')
+      return (
+        log(400),
+        send(res, 400, { non_field_errors: ['kind, id and starred are required.'] })
+      )
+    if (!knownIds(kind).has(input.id))
+      return (
+        log(404),
+        djangoError(res, 404, `${kind === 'paper' ? 'Paper' : 'Briefing'} not found.`)
+      )
+    const key = kind === 'paper' ? 'papers' : 'briefings'
+    const rest = starred[key].filter((id) => id !== input.id)
+    starred[key] = input.starred ? [...rest, input.id] : rest
+    return (log(200), send(res, 200, starred))
+  }
   if (method !== 'GET') return (log(501), djangoError(res, 501, 'Snapshot replay is read-only.'))
+
+  // A simulated run's detail, so /runs/<id> opens on it (no component runs);
+  // a stopped captured run's detail reads from the capture with the overlay.
+  const detail = /^\/api\/pipeline-runs\/([0-9a-f-]{36})\/$/i.exec(pathname)
+  const simulated = detail && startedRuns.find((r) => r.id === detail[1])
+  if (simulated) {
+    log(200)
+    return send(res, 200, {
+      ...simulated,
+      papers_count: 0,
+      duplicates_count: 0,
+      extractions_count: 0,
+      storage_stats: null,
+    })
+  }
+  const stopped = detail && abortedCaptured.get(detail[1])
+  if (stopped) {
+    const captured = load(pathname)
+    log(200)
+    return send(res, 200, { ...(captured as Row | undefined), ...stopped })
+  }
 
   let body = load(pathname)
   if (body === undefined) return (log(404), djangoError(res, 404, 'Not found.'))
-  if (pathname === '/api/pipeline-runs/' && Array.isArray(body)) body = [...startedRuns, ...body]
+  if (pathname === '/api/pipeline-runs/' && Array.isArray(body)) {
+    const rows = (body as Row[]).map((r) => abortedCaptured.get(String(r.id)) ?? r)
+    body = [...startedRuns, ...rows]
+  }
   const rows = Array.isArray(body) && url.search ? filterRows(body, url.searchParams) : body
   if (Array.isArray(rows) && (url.searchParams.has('page') || url.searchParams.has('page_size'))) {
     const page = paginateRows(rows, url)

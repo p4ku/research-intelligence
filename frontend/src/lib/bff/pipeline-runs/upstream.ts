@@ -68,6 +68,18 @@ export const startRunResponseDTO = z.looseObject({
 })
 
 /**
+ * `POST /api/pipeline-runs/{id}/abort/` — the same kind of envelope. Refusals
+ * do not reach this schema: they are 400s with an `error` sentence, mapped
+ * by abort.ts.
+ */
+export const abortRunResponseDTO = z.looseObject({
+  success: z.boolean().optional(),
+  status: z.string().optional(),
+  message: z.string().optional(),
+  pipeline_run_id: z.string(),
+})
+
+/**
  * `PipelineRunDetailSerializer` — the list shape plus per-run counts and
  * storage stats. `storage_stats` is loose because the serializer's success
  * path returns `size_bytes` while its exception fallback returns

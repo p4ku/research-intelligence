@@ -19,8 +19,9 @@ const IDLE_MS = 60_000
  * finishing, or another analyst starting one. Both sets are drawn from the
  * same POLL_RUNS newest runs (recent.ts), so they differ only when a run
  * really changed. `router.refresh()` keeps client state (an open row, the
- * form), so nothing jumps. Nothing polls while the tab is hidden; a tab
- * coming back checks at once.
+ * form), so nothing jumps. Nothing polls while the tab is hidden or while a
+ * confirmation dialog is open; a tab coming back checks at once. Also mounted
+ * on /runs and, while a run is live, on /runs/[id].
  */
 export function LiveRefresh({
   processingIds,
@@ -36,6 +37,10 @@ export function LiveRefresh({
     let cancelled = false
     async function check() {
       if (document.visibilityState !== 'visible' || refreshing.current) return
+      // Never re-read the page from under a modal: a refresh can drop the row
+      // a confirmation belongs to (a filtered tab, a run that just ended) and
+      // the dialog with it. The dialog re-reads the page when it closes.
+      if (document.querySelector('[role="alertdialog"]')) return
       try {
         const page = await bffFetch<Page<PipelineRun>>(`/bff/pipeline-runs?page_size=${POLL_RUNS}`)
         if (!cancelled && inFlightIds(page.results).join(',') !== known) {

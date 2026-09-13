@@ -116,7 +116,8 @@ export const chatTurn = z
      * not — the UI renders them as chips (`AnswerMarkdown` + `visual_citations`).
      */
     answer: z.string().nullable(),
-    status: z.enum(['pending', 'processing', 'completed', 'failed']),
+    /** `aborted`: the reader stopped the stream; `answer` is what had arrived, filed and billed. */
+    status: z.enum(['pending', 'processing', 'completed', 'failed', 'aborted']),
     deep_thinking: z.boolean(),
     visual_citations: z.array(visualCitation),
     fact_check: factCheck.nullable(),

@@ -7,7 +7,10 @@
  * snapshots — the small workspaces list every page reads, and the heavy
  * papers + extractions pair only the corpus pages read — so the corpus is
  * pulled and parsed once, not once per navigation, and a page that never
- * reads papers neither waits on them nor fails with them.
+ * reads papers neither waits on them nor fails with them. Under `papers:
+ * django` the papers + extractions pair gives way to a third snapshot, the
+ * scored corpus: Django's scorecard per domain, already scored, held the
+ * same way (./scored.ts walks it).
  *
  * The corpus is bounded twice. Per user, the papers list is walked
  * newest-first in pages and stops at `CORPUS_MAX_PAPERS`: an analyst with
@@ -42,6 +45,7 @@ import 'server-only'
 
 import type { ExtractionDTO, PaperDTO, WorkspaceDTO } from '@/lib/api/types'
 import { ACCESS_COOKIE } from '@/lib/auth/cookies'
+import type { ScoredPaper } from '@/lib/papers/types'
 import { cookies } from 'next/headers'
 import { createHash } from 'node:crypto'
 import { cache } from 'react'
@@ -50,10 +54,14 @@ import { drain } from '../core/drain'
 import { intEnv } from '../core/env'
 import { django, djangoPage } from '../core/http'
 import { sourceOf } from '../core/source'
+import { scoredPaper } from '../papers/schema'
+import { scorecardQuery } from '../papers/scorecard-query'
 import { extractionDTO, paperDTO } from '../papers/upstream'
 import { runs } from '../pipeline-runs/service'
 import { workspaceDTO } from '../workspaces/upstream'
+import { isHiddenWorkspace } from '../workspaces/visible'
 import { ledgerRequested } from './ledger-flag'
+import { drainScored, type ScoredDrained } from './scored'
 import { createSnapshotStore, effectiveTrust } from './store'
 import { corpusVersion } from './version'
 import { extractionCutoff, truncation } from './window'
@@ -78,6 +86,8 @@ export const SNAPSHOT_TTL_MS = 10 * 60_000
 const SNAPSHOT_MAX_USERS = 16
 /** Django's `max_page_size` (backend/api/pagination.py). */
 export const CORPUS_PAGE_SIZE = 500
+/** What the scorecard endpoint clamps `page_size` to (build_workspace_scorecard_data). */
+export const SCORECARD_PAGE_SIZE = 200
 /** The newest papers a user's snapshot keeps. Documented in .env.example. */
 export const CORPUS_MAX_PAPERS = intEnv('CORPUS_MAX_PAPERS', 2000, { min: 1 })
 /** Retained JSON across users; V8 holds roughly twice this once parsed. */
@@ -99,6 +109,7 @@ const workspacesStore = createSnapshotStore<WorkspaceDTO[]>({
   load: () => django('/api/workspaces/', z.array(workspaceDTO)),
   ttlMs: SNAPSHOT_TTL_MS,
   maxEntries: SNAPSHOT_MAX_USERS,
+  shared: 'workspaces',
 })
 
 async function loadCorpus(): Promise<CorpusSnapshot> {
@@ -162,6 +173,62 @@ const corpusStore = createSnapshotStore<CorpusSnapshot>({
   maxEntries: SNAPSHOT_MAX_USERS,
   maxBytes: CORPUS_CACHE_MAX_MB * 1_048_576,
   sizeOf: (snapshot) => snapshot.bytes,
+  shared: 'corpus',
+})
+
+export type ScoredCorpus = ScoredDrained<ScoredPaper>
+
+/**
+ * The scored papers of every domain the user belongs to, as Django's
+ * scorecard serves them. Nothing is derived from these rows — they arrive
+ * scored — so what this adds is the holding: one drain per domain per
+ * corpus version, not one per page view. Calibration domains are left out
+ * here as everywhere (../workspaces/visible.ts), so their papers never cost
+ * a page read or a place under the cap. The bytes weighed are the rows kept,
+ * re-serialised, not the pages as received: without `results_only=true`
+ * Django sends each page's list twice (`papers` and `results`,
+ * docs/scorecard-backlog.md item 7) plus the workspace summary, and only
+ * the parsed `results` stay in memory, so
+ * weighing the wire body would count each user at almost twice their
+ * footprint and halve the users the budget holds. On the 8 Sep prod data
+ * that is 46 MB kept against 91 MB received per user; the re-serialisation
+ * takes tens of milliseconds, once per corpus version.
+ */
+async function loadScored(): Promise<ScoredCorpus> {
+  if (sourceOf('papers') === 'stub') return { byWorkspace: new Map(), bytes: 0 }
+  const memberships = (await workspacesSnapshot()).filter((ws) => !isHiddenWorkspace(ws.name))
+  const corpus = await drainScored(
+    memberships.map((ws) => ws.id),
+    async (workspaceId, page, size) => {
+      const fetched = await djangoPage(
+        `/api/workspaces/${workspaceId}/scorecard/?${scorecardQuery()}`,
+        scoredPaper,
+        page,
+        size,
+      )
+      return { page: fetched.page, bytes: JSON.stringify(fetched.page.results).length }
+    },
+    { pageSize: SCORECARD_PAGE_SIZE, cap: CORPUS_MAX_PAPERS },
+  )
+  if (corpus.truncated) {
+    console.warn(
+      '[bff] scored corpus capped: kept newest %d of %d papers (CORPUS_MAX_PAPERS=%d)',
+      corpus.truncated.kept,
+      corpus.truncated.total,
+      CORPUS_MAX_PAPERS,
+    )
+  }
+  return corpus
+}
+
+const scoredStore = createSnapshotStore<ScoredCorpus>({
+  probe,
+  load: loadScored,
+  ttlMs: SNAPSHOT_TTL_MS,
+  maxEntries: SNAPSHOT_MAX_USERS,
+  maxBytes: CORPUS_CACHE_MAX_MB * 1_048_576,
+  sizeOf: (corpus) => corpus.bytes,
+  shared: 'scored',
 })
 
 /** The per-user key; null without a session, when nothing may be cached. */
@@ -211,8 +278,15 @@ export const corpusSnapshot = cache(
     corpusStore.get(await corpusCacheKey(), { trustMs: trustMs() }),
 )
 
+/** The user's scored papers per domain, once per request. */
+export const scoredCorpus = cache(
+  async (): Promise<ScoredCorpus> =>
+    scoredStore.get(await corpusCacheKey(), { trustMs: trustMs() }),
+)
+
 /** Forget every user's snapshot — a run just started, so every corpus is about to change. */
 export function invalidateCorpusSnapshot(): void {
   workspacesStore.invalidate()
   corpusStore.invalidate()
+  scoredStore.invalidate()
 }

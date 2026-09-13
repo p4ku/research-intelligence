@@ -55,8 +55,7 @@ export async function EditionHead({
   // A date with no edition is a true 404 — rendered in-stream now that the
   // shell has already gone out (see docs/skeletons.md).
   if (!edition) notFound()
-  const editions = await domainEditions(edition, lang)
-  const elsewhere = await namedElsewhere(runId, edition, editions, lang)
+  const elsewhere = await namedElsewhere(runId, edition, lang)
 
   const copy = funnelCopy(t)
   const funnel = [
@@ -111,12 +110,13 @@ export async function EditionHead({
  * ledgers (the same rule as `hasBriefing`), so the notice never offers an
  * edition the archive hides. The list is the one `findByDate` already read
  * under the composed source; a failed read is no list, never a failed
- * page. Cached per request: the edition page and the screening log both ask.
+ * page. Cached per request; `namedElsewhere` is its only caller, and only
+ * reaches it for a link whose run is not the briefing shown.
  */
-export const domainEditions = cache(async (edition: Edition, lang: Lang): Promise<Edition[]> => {
+const domainEditions = cache(async (edition: Edition, lang: Lang): Promise<Edition[]> => {
   const [all, capped] = await Promise.all([
     briefings.listAll(edition.workspace_id, lang).catch(() => []),
-    papersService.corpusTruncated().catch(() => false),
+    briefings.capped().catch(() => false),
   ])
   return all.filter((e) => hasBriefing(e.funnel.passed_screening, e, capped)).sort(byNewest)
 })
@@ -128,20 +128,21 @@ export const domainEditions = cache(async (edition: Edition, lang: Lang): Promis
  * is asked first; only a run missing from it costs the every-domain read.
  * Null when the run is not a published briefing anywhere. Cached per
  * request, like `domainEditions`.
+ *
+ * The lists are read here, not by the caller: a link whose run is the one
+ * shown — every link the app mints (#117) — needs neither, and reading the
+ * domain's editions ahead of this check put a whole `/editions/?page_size=200`
+ * on the critical path of a page that then renders no notice at all.
  */
 export const namedElsewhere = cache(
-  async (
-    runId: string | undefined,
-    edition: Edition,
-    editions: Edition[],
-    lang: Lang,
-  ): Promise<Edition | null> => {
+  async (runId: string | undefined, edition: Edition, lang: Lang): Promise<Edition | null> => {
     if (!runId || runId === edition.run_id) return null
+    const editions = await domainEditions(edition, lang)
     const inDomain = editions.find((e) => e.run_id === runId)
     if (inDomain) return inDomain
     const [all, capped] = await Promise.all([
       briefings.listEverywhere(lang).catch(() => []),
-      papersService.corpusTruncated().catch(() => false),
+      briefings.capped().catch(() => false),
     ])
     return (
       all.find((e) => e.run_id === runId && hasBriefing(e.funnel.passed_screening, e, capped)) ??
@@ -222,13 +223,18 @@ export function StaleLinkNotice({
  * did carry, and the edition's own score and decision stay. A failed scorecard read is no
  * enrichment, never a failed page: the problem is logged, and a 401 still
  * signs the reader out (`problemResult` under `forPage`).
+ *
+ * The read is narrowed to the papers that passed: the run filter alone returns
+ * everything the run screened (771 where this briefing lists 23), and only the
+ * rows the edition lists can be enriched. A row the narrowed read does not
+ * carry is left exactly as it came, as it always was.
  */
 async function withScorecard(rows: ScoredPaper[], edition: Edition): Promise<ScoredPaper[]> {
   const thin = rows.every((p) => (p.dimensions ?? []).length === 0)
   const undated = rows.every((p) => !p.published_date)
   if (rows.length === 0 || (!thin && !undated)) return rows
   const read = await forPage(
-    problemResult(papersService.listRun(edition.workspace_id, edition.run_id)),
+    problemResult(papersService.listRun(edition.workspace_id, edition.run_id, 'passed')),
   )
   if (!read.ok || read.value.length === 0) return rows
   const byId = new Map(read.value.map((p) => [p.id, p]))
@@ -266,7 +272,9 @@ export async function EditionPapers({
   if (edition.papers.length > 0 && edition.papers[0]?.workspace_id) {
     cards = await withScorecard(edition.papers as unknown as ScoredPaper[], edition)
   } else {
-    const scored = await forPage(papersService.listRun(edition.workspace_id, edition.run_id))
+    const scored = await forPage(
+      papersService.listRun(edition.workspace_id, edition.run_id, 'passed'),
+    )
     const byId = new Map(scored.map((p) => [p.id, p]))
     cards = []
     for (const entry of edition.papers) {

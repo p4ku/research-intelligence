@@ -3,7 +3,7 @@
 // Keys reused from other area modules and deliberately NOT repeated here, so
 // the audit cannot see two values for one key: All (briefing), Domain, Passed,
 // Pending, Run, papers, Search, Screening, Extraction, Signal score (papers),
-// Failed, Summary, screened (dashboard), passed (ask).
+// Failed, Summary, screened (dashboard), passed, Stop, Cancel (ask).
 export const dict: Record<string, string> = {
   // Page shell
   Runs: 'Läufe',
@@ -35,6 +35,17 @@ export const dict: Record<string, string> = {
   Fetched: 'Abgerufen',
   Duration: 'Dauer',
   Cost: 'Kosten',
+
+  // Stop a run (the button and the action reuse Stop; Cancel is shared too)
+  'Stop this run?': 'Diesen Lauf stoppen?',
+  'The {domain} run will stop once its current step finishes. This cannot be undone.':
+    'Der Lauf für {domain} wird nach dem aktuellen Schritt gestoppt. Dies kann nicht rückgängig gemacht werden.',
+  'Stopping…': 'Wird gestoppt…',
+  'This run has already ended.': 'Dieser Lauf ist bereits beendet.',
+  'Only an admin or manager of this domain can stop its runs.':
+    'Nur Admins oder Manager dieses Themenfelds können seine Läufe stoppen.',
+  "Couldn't stop this run. Try again.":
+    'Der Lauf konnte nicht gestoppt werden. Versuchen Sie es erneut.',
 
   // Empty states
   'No pipeline runs yet.': 'Noch keine Pipeline-Läufe.',

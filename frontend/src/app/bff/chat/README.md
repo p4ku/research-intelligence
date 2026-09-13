@@ -63,22 +63,26 @@ The chat backend **exists and works** — these are upgrades to
    `PaperChatMessage.citations` is never populated today; either populate it
    or emit the event.)
 2. **Stream hygiene**: `id:` lines, `: ping` heartbeats (≤15 s), problem+json
-   `error` payloads, and **cancel generation when the client disconnects**
-   (today the generator keeps running — LLM cost accrues after abort).
-3. **Sessions**: paginate, and scope to the **owner** (`user=request.user`) —
-   today any workspace member can list/read/append to/delete another
-   member's sessions.
+   `error` payloads. _Disconnect is handled (11 Sep 2026): the provider stream
+   is closed, and the words that had arrived are filed under status `aborted`
+   and billed — the UI shows them with a "Stopped" line._
+3. **Sessions**: paginate, and scope to the **owner** in the queryset — the
+   list is owner-scoped for researchers (admins/managers see the workspace;
+   the BFF filters `mine=1` after the rows arrive). Appending to a colleague's
+   session is a 403, and a `session_id` from another paper a 400.
 4. **Rename**: `PATCH /api/chat/sessions/{id}/ {title}` currently returns 200
    without saving (all-read-only serializer). Make it save; the BFF's PATCH
    answers 501 until then.
-5. **Citations on the stream**: `visual_citations` is emitted before the fact
-   checker runs (`chat/engine/orchestrator.py`), so live answers never carry
-   `verified_in_source` — only the stored message does. Emit the verified list
-   (move the yield after `verify()`, or send a second frame). Longer term,
-   strip the inline markers server-side (`citations.py` parses but keeps them)
-   and carry citation positions in the contract — then the UI's marker regex
-   (`src/lib/chat/citation-markers.ts`) can go. Until then the backend must
-   **not** strip them silently: the chips depend on them.
+5. **Citations on the stream**: _fixed — `visual_citations` streams after
+   `verify()`, so live chips carry `verified_in_source`._ The flag is `null`
+   (no tick, no cross) when the backend had no body text to check against:
+   most of the corpus is URL-only papers, where the model sees the abstract
+   alone; the `fact_check` frame then says `SKIPPED_NO_SOURCE_TEXT`. On the
+   stored-PDF path the body is extracted server-side for the check only.
+   Longer term, strip the inline markers server-side (`citations.py` parses
+   but keeps them) and carry citation positions in the contract — then the
+   UI's marker regex (`src/lib/chat/citation-markers.ts`) can go. Until then
+   the backend must **not** strip them silently: the chips depend on them.
 
 ## Current implementation
 

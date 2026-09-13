@@ -16,10 +16,12 @@ import { django } from '../core/http'
 import { paginate, type Page } from '../core/pagination'
 import { assertUuid } from '../core/validate'
 import { ledgerRequested } from '../corpus/ledger-flag'
+import { abortProblem } from './abort'
 import { byRunClock } from './clock'
 import { isRetryable, runPeriod } from './period'
 import {
   runStatus,
+  type AbortedRun,
   type PipelineRun,
   type PipelineRunDetail,
   type RunStatus,
@@ -27,7 +29,12 @@ import {
   type StartRun,
   type StartedRun,
 } from './schema'
-import { pipelineRunDTO, pipelineRunDetailDTO, startRunResponseDTO } from './upstream'
+import {
+  abortRunResponseDTO,
+  pipelineRunDTO,
+  pipelineRunDetailDTO,
+  startRunResponseDTO,
+} from './upstream'
 
 function toRun(dto: PipelineRunDTO): PipelineRun {
   const status = (runStatus.options as readonly string[]).includes(dto.status)
@@ -135,6 +142,25 @@ export const runs = {
       }),
     })
     return { run_id: assertUuid(res.pipeline_run_id, 'pipeline_run_id') }
+  },
+
+  /**
+   * Stop a run in flight. Django marks the run and its active steps
+   * `aborted` and stamps completed_at, so the row reads as ended on the next
+   * list. Refusals arrive as 400 sentences; abort.ts re-types them (already
+   * ended → conflict, caller not an admin or manager → forbidden). A run the
+   * user cannot see is Django's 404, passed through.
+   */
+  async abort(id: string): Promise<AbortedRun> {
+    const runId = assertUuid(id, 'run id')
+    try {
+      const res = await django(`/api/pipeline-runs/${runId}/abort/`, abortRunResponseDTO, {
+        method: 'POST',
+      })
+      return { run_id: assertUuid(res.pipeline_run_id, 'pipeline_run_id'), status: 'aborted' }
+    } catch (error) {
+      throw abortProblem(error)
+    }
   },
 
   async list(query: RunsQuery): Promise<Page<PipelineRun>> {

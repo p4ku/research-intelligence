@@ -44,7 +44,8 @@ class PaperChatMessageAdmin(admin.ModelAdmin):
             'completed': '#198754',
             'processing': '#0d6efd',
             'pending': '#ffc107',
-            'failed': '#dc3545'
+            'failed': '#dc3545',
+            'aborted': '#6c757d',
         }
         color = colors.get(obj.status, '#6c757d')
         return format_html(

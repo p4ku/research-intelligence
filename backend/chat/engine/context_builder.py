@@ -11,6 +11,7 @@ from research_intelligence.models import (
     Extraction,
     PaperMetric,
 )
+from .pdf_text import extract_pdf_text
 
 logger = logging.getLogger(__name__)
 
@@ -25,10 +26,17 @@ class PaperDocument:
     The immutable part of a paper's chat context: metadata plus the full text
     (layout markdown) or, failing that, the raw PDF for multimodal reading.
     Sent first in every prompt so Gemini's implicit prefix cache can hit.
+
+    `verification_text` is the PDF's extracted text on the PDF path: not part
+    of the prompt (the model reads the bytes), but what the fact-checker
+    matches quotes against. `has_body` says whether any body text exists at
+    all — on the markdown path it is inside `text`.
     """
     text: str
     pdf_bytes: bytes | None = None
     mime_type: str | None = None
+    verification_text: str = ""
+    has_body: bool = False
 
 
 class PaperContextBuilder:
@@ -90,6 +98,8 @@ class PaperContextBuilder:
         context_parts = []
         pdf_bytes = None
         mime_type = None
+        verification_text = ""
+        has_body = False
 
         # 1. Paper Core Metadata
         meta_lines = [f"Title: {paper.title}"]
@@ -113,6 +123,7 @@ class PaperContextBuilder:
         md_text = self._read_markdown(paper.converted_md_path) if paper.converted_md_path else ""
         if md_text:
             context_parts.append("### Full Document Text (Layout OCR Markdown)\n" + md_text)
+            has_body = True
         elif paper.original_pdf_path:
             # Fallback to multimodal PDF binary if Markdown was not found
             if not paper.original_pdf_path.startswith(("http://", "https://")) and default_storage.exists(paper.original_pdf_path):
@@ -121,10 +132,33 @@ class PaperContextBuilder:
                         pdf_bytes = f.read()
                     mime_type = "application/pdf"
                     context_parts.append("### Full Document Binary: Attached as native multimodal PDF.")
+                    verification_text = self._pdf_text(paper.original_pdf_path, pdf_bytes)
+                    has_body = bool(verification_text)
                 except Exception as e:
                     logger.warning(f"Failed to read original PDF from {paper.original_pdf_path}: {e}")
 
-        return PaperDocument(text="\n\n".join(context_parts), pdf_bytes=pdf_bytes, mime_type=mime_type)
+        return PaperDocument(
+            text="\n\n".join(context_parts),
+            pdf_bytes=pdf_bytes,
+            mime_type=mime_type,
+            verification_text=verification_text,
+            has_body=has_body,
+        )
+
+    def _pdf_text(self, path: str, pdf_bytes: bytes) -> str:
+        """
+        Plain text of the stored PDF, for quote verification only. Memoised
+        like the markdown: the path carries the document hash, so the text
+        can only go stale if the file is replaced.
+        """
+        key = "chat:pdftext:" + hashlib.sha1(path.encode("utf-8")).hexdigest()
+        text = cache.get(key)
+        if text is not None:
+            return text
+        text = extract_pdf_text(pdf_bytes)
+        if text:
+            cache.set(key, text, DOCUMENT_CACHE_TIMEOUT)
+        return text
 
     def _read_markdown(self, path: str) -> str:
         """Reads the OCR markdown from storage, memoised so repeat turns skip the object-store round trip."""

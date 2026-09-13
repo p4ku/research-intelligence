@@ -3,7 +3,7 @@ import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import type { Lang, T } from '@/lib/i18n'
 import { notFound } from 'next/navigation'
-import { domainEditions, namedElsewhere, StaleLinkNotice } from '../sections'
+import { namedElsewhere, StaleLinkNotice } from '../sections'
 import { ExclusionsTable } from './exclusions-table'
 
 export function funnelCopy(t: T) {
@@ -33,8 +33,7 @@ export async function ScreeningLog({
 }) {
   const edition = await forPage(briefings.findByDate(date, lang, wsId, runId))
   if (!edition) notFound()
-  const editions = await domainEditions(edition, lang)
-  const elsewhere = await namedElsewhere(runId, edition, editions, lang)
+  const elsewhere = await namedElsewhere(runId, edition, lang)
 
   const copy = funnelCopy(t)
   const funnel = [

@@ -51,6 +51,26 @@ class UserActivityLog(models.Model):
             models.Index(fields=['status']),
         ]
 
+    # What an audit row may keep from a response: what identifies the call and
+    # how it ended. Everything else — a transcript, a paper, a profile — stays
+    # out; admins read these rows, and redacting secrets by key name never
+    # covered content that simply is not a secret's name.
+    OUTPUT_SUMMARY_KEYS = (
+        'id', 'workspace', 'workspace_id', 'pipeline_run_id',
+        'session_id', 'message_id', 'status', 'success',
+    )
+
+    @classmethod
+    def summarise_output(cls, payload) -> dict:
+        """The allow-listed scalar fields of a response payload; {} for anything else."""
+        if not isinstance(payload, dict):
+            return {}
+        return {
+            key: payload[key]
+            for key in cls.OUTPUT_SUMMARY_KEYS
+            if isinstance(payload.get(key), (str, int, float, bool))
+        }
+
     @classmethod
     def log_action(
         cls,
