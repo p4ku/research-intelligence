@@ -270,37 +270,32 @@ Security and tenant isolation require that **no credentials, private keys, or pa
 
 ```mermaid
 flowchart TD
-    subgraph Layer1["1. CI/CD Pipeline Store (GitHub Actions Secrets)"]
-        GH_Secrets["Deployment Plane Credentials<br/>CF_API · CF_USERNAME · CF_PASSWORD<br/>CF_ORG · CF_SPACE · REGISTRY_USERNAME · REGISTRY_PASSWORD"]
+    subgraph Layer1["1. CI/CD Secrets Store (GitHub Actions Secrets)"]
+        GH_Secrets["Deployment Credentials: CF_API, CF_USERNAME, CF_PASSWORD, REGISTRY_ROBOT"]
     end
 
     subgraph Layer2["2. Ephemeral Automation Plane (GitHub Actions Runner)"]
-        GH_Runner["Transient Runner Memory<br/>In-memory CF CLI authentication token & ephemeral vars-ci.yml<br/>(Wiped immediately upon job completion)"]
+        GH_Runner["Transient Session: In-memory CF CLI session token & dynamic vars-ci.yml"]
     end
 
-    subgraph Layer3["3. STACKIT Cloud Foundry Control Plane (Diego CCDB)"]
-        CF_CCDB["Encrypted Space Environment Store<br/>Managed via cf set-env / service credentials broker<br/>Persists across application container updates"]
+    subgraph Layer3["3. Control Plane Store (STACKIT Cloud Foundry Diego CCDB)"]
+        CF_CCDB["Encrypted Space Store: Application environment variables set via cf set-env"]
     end
 
     subgraph Layer4["4. Runtime Application Instances (Diego Cells)"]
         direction LR
-        Pod_API["sri-api<br/>(4 instances)"]
-        Pod_Worker["sri-worker<br/>(2 instances)"]
-        Pod_MCP["sri-mcp<br/>(1 instance)"]
-        Pod_Frontend["sri-frontend<br/>(1 instance)"]
+        Pod_API["sri-api (4 instances)"] ~~~ Pod_Worker["sri-worker (2 instances)"] ~~~ Pod_MCP["sri-mcp (1 instance)"] ~~~ Pod_Frontend["sri-frontend (1 instance)"]
     end
 
     subgraph Layer5["5. STACKIT Managed Infrastructure (Private VNet)"]
         direction LR
-        Postgres[("PostgreSQL Flex<br/>188.34.100.167:5432")]
-        Redis[("Redis Cache & Broker<br/>Port 52267 (TLS)")]
-        S3[("Object Storage S3<br/>bucket-sri-production")]
+        Postgres[("PostgreSQL Flex<br/>188.34.100.167:5432")] ~~~ Redis[("Redis Broker & Cache<br/>Port 52267 (TLS)")] ~~~ S3[("Object Storage S3<br/>bucket-sri-production")]
     end
 
-    Layer1 -->|Injected during deployment stage only| Layer2
-    Layer2 -->|Authenticated CF CLI API Calls| Layer3
-    Layer3 -->|Injected as OS Environment Variables| Layer4
-    Layer4 -->|Encrypted TLS Service Connections| Layer5
+    Layer1 --> Layer2
+    Layer2 --> Layer3
+    Layer3 --> Layer4
+    Layer4 --> Layer5
 ```
 
 ### 5.2 Production Secrets & Configuration Inventory
