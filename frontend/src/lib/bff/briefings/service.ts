@@ -276,7 +276,8 @@ export const briefings = {
       page?: number,
       pageSize?: number,
     ): Promise<Edition | null> => {
-      if (workspaceId) return briefings.getByDate(workspaceId, date, lang, runId, scope, page, pageSize)
+      if (workspaceId)
+        return briefings.getByDate(workspaceId, date, lang, runId, scope, page, pageSize)
       const found = editionFor(await briefings.listEverywhere(lang), date, runId)
       if (!found) return null
       let res: Edition = found

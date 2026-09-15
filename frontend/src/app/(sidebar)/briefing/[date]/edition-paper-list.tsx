@@ -18,8 +18,8 @@ import {
   applyView,
   DEFAULT_VIEW,
   isDefaultView,
-  pageOf,
   PAGE_SIZE,
+  pageOf,
   SCORE_CEILING,
   SCORE_STEP,
   searchWith,
@@ -63,7 +63,7 @@ export function EditionPaperList({
   logHref,
   syncUrl = true,
   total,
-  page: serverPage,
+  page: _serverPage,
   pageSize = PAGE_SIZE,
 }: {
   papers: ScoredPaper[]
@@ -142,8 +142,14 @@ export function EditionPaperList({
   const paged = pageOf(shown, view.page, pageSize)
   const pageCount = isServerPaged ? Math.max(1, Math.ceil(totalPapers / pageSize)) : paged.pageCount
   const currentPage = isServerPaged ? view.page : paged.page
-  const from = isServerPaged ? (totalPapers === 0 ? 0 : (currentPage - 1) * pageSize + 1) : paged.from
-  const to = isServerPaged ? Math.min(totalPapers, (currentPage - 1) * pageSize + papers.length) : paged.to
+  const from = isServerPaged
+    ? totalPapers === 0
+      ? 0
+      : (currentPage - 1) * pageSize + 1
+    : paged.from
+  const to = isServerPaged
+    ? Math.min(totalPapers, (currentPage - 1) * pageSize + papers.length)
+    : paged.to
   const cardsToRender = isServerPaged ? shown : paged.rows
 
   const narrowed = view.minScore > 0
