@@ -244,13 +244,19 @@ export const briefings = {
         }
       }
       if (page !== undefined && pageSize !== undefined) {
-        const total = res.total ?? res.papers.length
+        const isExcluded = scope === 'excluded'
+        const total = res.total ?? (isExcluded ? res.exclusions.length : res.papers.length)
         const start = (page - 1) * pageSize
-        const slice =
+        const paperSlice =
           res.papers.length > pageSize ? res.papers.slice(start, start + pageSize) : res.papers
+        const exclusionSlice =
+          isExcluded && res.exclusions.length > pageSize
+            ? res.exclusions.slice(start, start + pageSize)
+            : res.exclusions
         return {
           ...res,
-          papers: slice,
+          papers: paperSlice,
+          exclusions: exclusionSlice,
           total,
           page,
           page_size: pageSize,
@@ -285,13 +291,19 @@ export const briefings = {
       if (scope === 'included') res = { ...found, exclusions: [] }
       else if (scope === 'excluded') res = { ...found, papers: [] }
       if (page !== undefined && pageSize !== undefined) {
-        const total = res.total ?? res.papers.length
+        const isExcluded = scope === 'excluded'
+        const total = res.total ?? (isExcluded ? res.exclusions.length : res.papers.length)
         const start = (page - 1) * pageSize
-        const slice =
+        const paperSlice =
           res.papers.length > pageSize ? res.papers.slice(start, start + pageSize) : res.papers
+        const exclusionSlice =
+          isExcluded && res.exclusions.length > pageSize
+            ? res.exclusions.slice(start, start + pageSize)
+            : res.exclusions
         return {
           ...res,
-          papers: slice,
+          papers: paperSlice,
+          exclusions: exclusionSlice,
           total,
           page,
           page_size: pageSize,

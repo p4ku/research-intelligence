@@ -556,11 +556,11 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         # Pagination handling
         page_param = request.query_params.get('page')
         page_size_param = request.query_params.get('page_size') or request.query_params.get('pageSize')
-        is_paginated = page_param is not None
+        is_paginated = page_param is not None or page_size_param is not None
 
         if is_paginated:
             try:
-                page = max(1, int(page_param))
+                page = max(1, int(page_param)) if page_param is not None else 1
             except (ValueError, TypeError):
                 page = 1
             try:
