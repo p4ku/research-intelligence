@@ -34,6 +34,7 @@ from tests_e2e.scenarios import (
     run_stars_curation_journey_scenario,
     run_paper_page_scorecard_journey_scenario,
     run_run_admission_guard_scenario,
+    run_briefing_filters_and_pagination_scenario,
 )
 
 
@@ -261,6 +262,17 @@ class TestFullPipelineE2E:
         assert results["status"] == "passed"
         assert results["dimensions_count"] > 0
         assert results["paper_id"] is not None
+
+    @pytest.mark.e2e
+    def test_briefing_filters_and_pagination(self):
+        config = E2EConfig.from_env()
+        results = run_briefing_filters_and_pagination_scenario(config)
+        assert results["status"] == "passed"
+        assert results["checks"]["scope_included"] == "PASSED"
+        assert results["checks"]["scope_excluded"] == "PASSED"
+        assert results["checks"]["pagination"] == "PASSED"
+        assert results["checks"]["sorting"] == "PASSED"
+
 
 
 class TestE2EConfig:

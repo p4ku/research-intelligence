@@ -94,4 +94,49 @@ export class BriefingPage extends BasePage {
     const url = new URL(this.currentURL());
     return url.pathname + url.search;
   }
+
+  /** Checks if the pagination component is rendered on the page. */
+  async hasPagination(): Promise<boolean> {
+    return this.page.locator("nav[aria-label='Pagination'], nav[aria-label='Seitennavigation']").isVisible({ timeout: 3000 });
+  }
+
+  /** Returns current active page number from the pager. */
+  async getActivePage(): Promise<number> {
+    const activeBtn = this.page.locator("nav[aria-label*='agin' i] button[aria-current='page']").first();
+    await activeBtn.waitFor({ state: 'visible', timeout: 5000 });
+    const text = (await activeBtn.innerText()).trim();
+    return parseInt(text, 10);
+  }
+
+  /** Clicks a specific page number button in the pagination bar and waits for DOM update. */
+  async clickPage(n: number): Promise<void> {
+    const pageBtn = this.page.locator(`nav[aria-label*='agin' i] button:has-text('${n}')`).first();
+    await pageBtn.click();
+    await this.page.waitForSelector(`nav[aria-label*='agin' i] button[aria-current='page']:has-text('${n}')`, { timeout: 10000 });
+    await this.waitForNetworkIdle();
+  }
+
+  /** Navigates to the run's screening log (scope=excluded) via the "Screening log →" link. */
+  async openScreeningLog(): Promise<string> {
+    const logLink = this.page.locator("a[href*='/briefing/'][href*='/run'], main a:has-text('Screening log'), main a:has-text('Screening-Protokoll')").first();
+    await logLink.waitFor({ state: 'visible', timeout: 10000 });
+    await logLink.click();
+    await this.page.waitForURL(/\/briefing\/\d{4}-\d{2}-\d{2}\/run/, { timeout: 15000 });
+    await this.waitForNetworkIdle();
+    return this.currentURL();
+  }
+
+  /** Selects a sort option in the right-hand sort rail. */
+  async selectSortOption(labelOrSubstring: string): Promise<void> {
+    const optionBtn = this.page.locator("aside button").filter({ hasText: labelOrSubstring }).first();
+    await optionBtn.waitFor({ state: 'visible', timeout: 5000 });
+    await optionBtn.click();
+    await this.waitForNetworkIdle();
+  }
+
+  /** Returns count of currently visible paper cards. */
+  async getCardsCount(): Promise<number> {
+    return this.paperCards.count();
+  }
 }
+

@@ -44,29 +44,39 @@ export class LoginPage extends BasePage {
 
   async login(identifier: string, password: string, waitForRedirect: boolean = true): Promise<boolean> {
     await this.load();
-    await this.fillCredentials(identifier, password);
-    await this.submit();
 
-    if (waitForRedirect) {
-      try {
-        await this.page.waitForURL((url) => {
-          const str = url.toString();
-          return !str.includes('/login') && (
-            str.includes('/dashboard') ||
-            str.includes('/briefing') ||
-            str.includes('/papers') ||
-            str.includes('/settings') ||
-            str.endsWith('.cloud/') ||
-            str.endsWith(':3000/')
-          );
-        }, { timeout: 15000 });
-        await this.waitForNetworkIdle();
+    // If already authenticated and inside app (sidebar or dashboard visible), no need to log in again
+    try {
+      if (await this.page.locator("aside, nav a[href='/briefing'], nav a[href='/dashboard']").first().isVisible({ timeout: 2000 })) {
         return true;
-      } catch {
-        return false;
       }
+    } catch {
+      // Proceed to login form
     }
-    return true;
+
+    try {
+      await this.identifierInput.waitFor({ state: 'visible', timeout: 5000 });
+      await this.fillCredentials(identifier, password);
+      await this.submit();
+
+      if (waitForRedirect) {
+        await Promise.race([
+          this.page.waitForURL((url) => {
+            try {
+              const path = new URL(url.toString()).pathname;
+              return path.includes('/dashboard') || path.includes('/briefing') || path.includes('/papers');
+            } catch {
+              return false;
+            }
+          }, { timeout: 15000 }),
+          this.page.locator("aside, nav a[href='/dashboard'], a[href='/briefing']").first().waitFor({ state: 'visible', timeout: 15000 }),
+        ]);
+        await this.waitForNetworkIdle();
+      }
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async getErrorMessage(): Promise<string | null> {

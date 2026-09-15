@@ -382,3 +382,39 @@ class WorkspaceService:
         resp = self.client.delete(f"/api/subscribers/{subscriber_id}/")
         return resp.status_code in (200, 204)
 
+    def list_editions(self, workspace_id: str) -> List[Dict[str, Any]]:
+        """List editions for a workspace."""
+        resp = self.client.get(f"/api/workspaces/{workspace_id}/editions/", expected_status=200)
+        data = resp.json()
+        return data if isinstance(data, list) else data.get("results", [])
+
+    def get_edition_detail(
+        self,
+        workspace_id: str,
+        date: str,
+        run_id: Optional[str] = None,
+        scope: Optional[str] = None,
+        page: Optional[int] = None,
+        page_size: Optional[int] = None,
+        min_score: Optional[float] = None,
+        sort: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Fetch edition detail with optional run, scope, pagination, min_score, and sort filtering."""
+        params = {}
+        if run_id:
+            params["run_id"] = run_id
+        if scope:
+            params["scope"] = scope
+        if page is not None:
+            params["page"] = page
+        if page_size is not None:
+            params["page_size"] = page_size
+        if min_score is not None:
+            params["min_score"] = min_score
+        if sort:
+            params["sort"] = sort
+
+        resp = self.client.get(f"/api/workspaces/{workspace_id}/editions/{date}/", params=params, expected_status=200)
+        return resp.json()
+
+

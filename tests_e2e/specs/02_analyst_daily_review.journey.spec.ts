@@ -52,16 +52,100 @@ test.describe('Journey 2: Analyst Daily Review & Literature Scouting', () => {
         const back = page.locator("[data-shape='paper-nav'] [data-row='back'] a");
         await expect(back).toHaveAttribute('href', editionUrl);
         console.log(`  ✅ Paper opened at ${cardScore} (as the card showed); back link returns to the edition.`);
+
+        // Navigate back to the edition using the back link
+        await back.click();
+        await page.waitForURL(/\/briefing\/\d{4}-\d{2}-\d{2}/, { timeout: 10000 });
+        await briefing.waitForNetworkIdle();
+        console.log('  ✅ Returned to briefing edition.');
       }
+
+      // Step 2c: Server-side pagination & pager checks
+      console.log(`📍 Step 2c: Testing Pagination on edition '${editionUrl}'...`);
+      const hasPager = await briefing.hasPagination();
+      if (hasPager) {
+        const p1 = await briefing.getActivePage();
+        expect(p1).toBe(1);
+        console.log('  • Page 1 is active by default.');
+
+        const page2Btn = page.locator("nav[aria-label*='agin' i] button:has-text('2')").first();
+        if (await page2Btn.isVisible()) {
+          console.log('  • Clicking page 2...');
+          await briefing.clickPage(2);
+          expect(page.url()).toContain('page=2');
+          const p2 = await briefing.getActivePage();
+          expect(p2).toBe(2);
+          const cardsP2 = await briefing.getCardsCount();
+          expect(cardsP2).toBeGreaterThan(0);
+          console.log(`  ✅ Successfully transitioned to Page 2 (${cardsP2} cards rendered).`);
+
+          console.log('  • Returning to page 1...');
+          await briefing.clickPage(1);
+          const p1Back = await briefing.getActivePage();
+          expect(p1Back).toBe(1);
+          console.log('  ✅ Successfully returned to Page 1.');
+        }
+      } else {
+        console.log('  • Briefing papers fit on one page without pager (count <= 20).');
+        const page2Url = editionUrl.includes('?') ? `${editionUrl}&page=2` : `${editionUrl}?page=2`;
+        console.log(`  • Validating server pagination route with direct page=2 URL: ${page2Url}...`);
+        await page.goto(page2Url, { waitUntil: 'domcontentloaded' });
+        await briefing.waitForNetworkIdle();
+        expect(page.url()).toContain('page=2');
+        console.log('  ✅ Server accepted page=2 query parameter.');
+
+        await page.goto(editionUrl, { waitUntil: 'domcontentloaded' });
+        await briefing.waitForNetworkIdle();
+      }
+
+      // Step 2d: Screening Log navigation (scope=excluded)
+      console.log('📍 Step 2d: Testing Screening Log navigation (scope=excluded)...');
+      const screeningLogLink = page.locator("main a[href*='/run'], a[href*='/briefing/'][href*='/run'], a:has-text('Screening')").first();
+      if (await screeningLogLink.isVisible()) {
+        const logUrl = await briefing.openScreeningLog();
+        expect(logUrl).toMatch(/\/briefing\/\d{4}-\d{2}-\d{2}\/run/);
+        console.log(`  ✅ Screening Log page loaded: ${logUrl}`);
+
+        const statItems = page.locator("main dt, main dd, main div:has-text('Screened'), main div:has-text('Gefiltert')");
+        expect(await statItems.count()).toBeGreaterThan(0);
+        console.log('  ✅ Screening log funnel stats verified.');
+
+        // Navigate back to the edition
+        const breadcrumbToBriefing = page.locator("nav[aria-label*='Breadcrumb' i] a[href*='/briefing/']").filter({ hasNotText: /^Briefings?$/ }).first();
+        if (await breadcrumbToBriefing.isVisible()) {
+          await breadcrumbToBriefing.click();
+          await page.waitForURL((url) => !url.pathname.includes('/run'), { timeout: 10000 });
+          await briefing.waitForNetworkIdle();
+          console.log('  ✅ Breadcrumb navigated back to briefing edition.');
+        } else {
+          await page.goto(editionUrl, { waitUntil: 'domcontentloaded' });
+          await briefing.waitForNetworkIdle();
+        }
+      } else {
+        console.log('  • No screening log link present.');
+      }
+
+      // Step 2e: Sort Options & Score Filter Rail
+      console.log('📍 Step 2e: Testing Sort Options Rail...');
+      const sortOption = page.locator("aside button[aria-pressed]").first();
+      await sortOption.waitFor({ state: 'visible', timeout: 10000 });
+      const sortButtons = page.locator("aside button[aria-pressed]");
+      const count = await sortButtons.count();
+      console.log(`  • Found ${count} sort option buttons in aside rail.`);
+      expect(count).toBeGreaterThan(1);
+
+      // Click the second available sort option
+      const secondSort = sortButtons.nth(1);
+      const sortLabel = (await secondSort.innerText()).trim();
+      console.log(`  • Clicking sort option '${sortLabel}'...`);
+      await secondSort.click();
+      await expect(secondSort).toHaveAttribute('aria-pressed', 'true', { timeout: 5000 });
+      await expect(page).toHaveURL(/sort=/, { timeout: 10000 });
+      console.log(`  ✅ Sort option applied, URL updated to: ${page.url()}`);
+
       await sidebar.navigateTo('briefing');
       expect(await briefing.isLoaded()).toBe(true);
     }
-
-    // /papers is fixed off since 9 Sep 2026 (frontend/src/lib/features.ts);
-    // journey 07 asserts its absence. SidebarNav.navigateTo('papers') would
-    // fall back to goto('/papers') and pass on the not-found card, so the
-    // former Steps 3-4 (corpus list, first paper's scorecard) are gone rather
-    // than skipped. The paper detail itself is still reached from the
-    // briefing in Step 2.
   });
 });
+

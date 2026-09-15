@@ -26,6 +26,7 @@ from .hitl_validation_journey import run_hitl_validation_journey_scenario
 from .stars_curation_journey import run_stars_curation_journey_scenario
 from .paper_page_scorecard_journey import run_paper_page_scorecard_journey_scenario
 from .run_admission_guard import run_run_admission_guard_scenario
+from .briefing_filters_and_pagination import run_briefing_filters_and_pagination_scenario
 
 __all__ = [
     "run_full_slr_pipeline_scenario",
@@ -53,4 +54,5 @@ __all__ = [
     "run_stars_curation_journey_scenario",
     "run_paper_page_scorecard_journey_scenario",
     "run_run_admission_guard_scenario",
+    "run_briefing_filters_and_pagination_scenario",
 ]

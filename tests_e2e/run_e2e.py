@@ -49,6 +49,7 @@ from tests_e2e.scenarios import (
     run_stars_curation_journey_scenario,
     run_paper_page_scorecard_journey_scenario,
     run_run_admission_guard_scenario,
+    run_briefing_filters_and_pagination_scenario,
 )
 
 # Configure rich colored terminal logging
@@ -82,10 +83,11 @@ def parse_args():
             "stars", "curation",
             "paper_page", "paper_scorecard", "scorecard_page",
             "admission", "run_admission",
+            "briefing_filters", "editions", "briefing_pagination",
             "all"
         ],
         default="slr",
-        help="Target test scenario to execute (slr, impexp, direct_ft, hitl, stars, date_range, ask_paper, variables, all)",
+        help="Target test scenario to execute (slr, briefing_filters, editions, date_range, all)",
     )
     parser.add_argument(
         "--provider",
@@ -510,6 +512,11 @@ def main():
             res = run_run_admission_guard_scenario(config)
             total_elapsed = time.time() - t0
             print(f"\n✅ RUN ADMISSION GUARD SCENARIO COMPLETED in {total_elapsed:.1f}s (Burst: {res.get('burst_status_codes')}, Duplicate: {res.get('duplicate_status_codes')})\n")
+
+        elif args.scenario in ("briefing_filters", "editions", "briefing_pagination"):
+            res = run_briefing_filters_and_pagination_scenario(config)
+            total_elapsed = time.time() - t0
+            print(f"\n✅ BRIEFING FILTERS, SCOPE & PAGINATION SCENARIO COMPLETED in {total_elapsed:.1f}s (Checks: {res.get('checks')})\n")
 
         elif args.scenario == "all":
             logger.info("🧪 Running ALL E2E test scenarios sequentially...")
