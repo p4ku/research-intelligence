@@ -38,11 +38,14 @@ export async function ScreeningLog({
   /** Domain names by workspace id, for the notice. */
   domains: Record<string, string>
 }) {
-  const editionPromise = briefings.findByDate(date, lang, wsId, runId, 'excluded')
-  const runPromise = runId ? runsService.get(runId).catch(() => null) : null
-  const [edition, earlyRun] = await forPage(Promise.all([editionPromise, runPromise]))
+  const edition = await forPage(briefings.findByDate(date, lang, wsId, runId, 'excluded'))
   if (!edition) notFound()
-  const run = earlyRun ?? (await runsService.get(edition.run_id).catch(() => null))
+
+  // Resolve lightweight run record for period and timestamps via listAll (GET /api/pipeline-runs/, ~40ms, cached)
+  // instead of the heavy detail endpoint (which computes S3 storage stats and transfers megabytes).
+  const targetRunId = runId || edition.run_id
+  const runList = await runsService.listAll(edition.workspace_id).catch(() => [])
+  const run = runList.find((r) => r.id === targetRunId) ?? null
   const elsewhere = await namedElsewhere(runId, edition, lang)
 
   const copy = funnelCopy(t)

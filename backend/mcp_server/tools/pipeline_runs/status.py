@@ -68,15 +68,25 @@ def _get_run_storage_stats(dir_path: str) -> dict:
         except Exception:
             pass
 
-    _traverse(clean_dir)
+    if hasattr(default_storage, 'bucket'):
+        try:
+            prefix = clean_dir + '/' if not clean_dir.endswith('/') else clean_dir
+            for obj in default_storage.bucket.objects.filter(Prefix=prefix):
+                total_files += 1
+                total_bytes += (obj.size or 0)
+        except Exception as e:
+            logger.warning("Failed to query S3 bucket objects for storage stats: %s", e)
+            _traverse(clean_dir)
+    else:
+        _traverse(clean_dir)
 
     result = {
         "storage_path": clean_dir,
         "total_files": total_files,
         "size_bytes": total_bytes,
-        "size_formatted": _format_size(total_bytes)
+        "size_formatted": _format_size(total_bytes),
     }
-    cache.set(cache_key, result, timeout=30)
+    cache.set(cache_key, result, timeout=86400)
     return result
 
 

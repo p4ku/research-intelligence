@@ -62,23 +62,18 @@ export async function EditionHead({
   minScore?: number
   sort?: string
 }) {
-  const editionPromise = briefings.findByDate(
-    date,
-    lang,
-    wsId,
-    runId,
-    'included',
-    page,
-    20,
-    minScore,
-    sort,
+  const edition = await forPage(
+    briefings.findByDate(date, lang, wsId, runId, 'included', page, 20, minScore, sort),
   )
-  const runPromise = runId ? runsService.get(runId).catch(() => null) : null
-  const [edition, earlyRun] = await forPage(Promise.all([editionPromise, runPromise]))
   // A date with no edition is a true 404 — rendered in-stream now that the
   // shell has already gone out (see docs/skeletons.md).
   if (!edition) notFound()
-  const run = earlyRun ?? (await runsService.get(edition.run_id).catch(() => null))
+
+  // Resolve lightweight run record for period and timestamps via listAll (GET /api/pipeline-runs/, ~40ms, cached)
+  // instead of the heavy detail endpoint (which computes S3 storage stats and transfers megabytes).
+  const targetRunId = runId || edition.run_id
+  const runList = await runsService.listAll(edition.workspace_id).catch(() => [])
+  const run = runList.find((r) => r.id === targetRunId) ?? null
   const elsewhere = await namedElsewhere(runId, edition, lang)
 
   const copy = funnelCopy(t)

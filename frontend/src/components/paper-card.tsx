@@ -83,6 +83,7 @@ function PaperCardFrame({
     <div className="group relative">
       <Link
         href={href}
+        prefetch={false}
         data-shape="paper-card"
         data-state="loaded"
         className={clsx(CARD, CARD_HOVER)}
