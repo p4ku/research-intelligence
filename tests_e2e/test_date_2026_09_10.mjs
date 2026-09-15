@@ -49,29 +49,36 @@ async function main() {
     console.log('\nObserving background requests for 2s...');
     await page.waitForTimeout(2000);
 
-    // Test clicking pagination button (e.g., page 2 or page 4)
+    // Test clicking pagination button (e.g., page 2)
     console.log('\nTesting pagination click to page 2...');
-    const page2Btn = page.locator('a[href*="page=2"], button:has-text("2")').first();
+    const page2Btn = page.locator('button:has-text("2")').first();
     if (await page2Btn.isVisible()) {
       const tPage = Date.now();
-      await Promise.all([
-        page.waitForResponse((r) => r.url().includes('_rsc=') || r.url().includes('page=2'), { timeout: 15000 }),
-        page2Btn.click(),
-      ]);
-      console.log(`Pagination request completed in ${Date.now() - tPage}ms`);
+      await page2Btn.click();
+      await page.waitForSelector('button[aria-current="page"]:has-text("2")', { timeout: 10000 });
+      const p2Dur = Date.now() - tPage;
+      console.log(`✅ Page 2 transition committed in DOM in ${p2Dur}ms`);
       await page.waitForLoadState('networkidle');
-      console.log(`Pagination fully idle in ${Date.now() - tPage}ms`);
+      console.log(`Page 2 networkidle reached in ${Date.now() - tPage}ms`);
     } else {
-      console.log('Page 2 button not visible. Looking for pagination elements:');
-      const allLinks = await page.locator('nav[aria-label*="pagin" i] a, a[href*="page="]').evaluateAll((els) =>
-        els.map((e) => ({ text: e.textContent?.trim(), href: e.getAttribute('href') }))
-      );
-      console.log('Pagination links found:', JSON.stringify(allLinks));
+      console.log('Page 2 button not visible.');
     }
 
-    // Capture screenshot
-    await page.screenshot({ path: '/tmp/briefing_page3.png', fullPage: false });
-    console.log('Screenshot saved to /tmp/briefing_page3.png');
+    // Test clicking back to page 1
+    console.log('\nTesting pagination click back to page 1...');
+    const page1Btn = page.locator('button:has-text("1")').first();
+    if (await page1Btn.isVisible()) {
+      const tPage1 = Date.now();
+      await page1Btn.click();
+      await page.waitForSelector('button[aria-current="page"]:has-text("1")', { timeout: 10000 });
+      const p1Dur = Date.now() - tPage1;
+      console.log(`✅ Page 1 transition committed in DOM in ${p1Dur}ms`);
+      await page.waitForLoadState('networkidle');
+    }
+
+    // Capture screenshot of final state
+    await page.screenshot({ path: 'scratch/briefing_final.png', fullPage: false });
+    console.log('Screenshot saved to scratch/briefing_final.png');
 
   } catch (err) {
     console.error('Error during test:', err);
