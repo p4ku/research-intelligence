@@ -244,9 +244,10 @@ export const briefings = {
         }
       }
       if (page !== undefined && pageSize !== undefined) {
-        const total = res.papers.length
+        const total = res.total ?? res.papers.length
         const start = (page - 1) * pageSize
-        const slice = res.papers.slice(start, start + pageSize)
+        const slice =
+          res.papers.length > pageSize ? res.papers.slice(start, start + pageSize) : res.papers
         return {
           ...res,
           papers: slice,
@@ -284,9 +285,10 @@ export const briefings = {
       if (scope === 'included') res = { ...found, exclusions: [] }
       else if (scope === 'excluded') res = { ...found, papers: [] }
       if (page !== undefined && pageSize !== undefined) {
-        const total = res.papers.length
+        const total = res.total ?? res.papers.length
         const start = (page - 1) * pageSize
-        const slice = res.papers.slice(start, start + pageSize)
+        const slice =
+          res.papers.length > pageSize ? res.papers.slice(start, start + pageSize) : res.papers
         return {
           ...res,
           papers: slice,

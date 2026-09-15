@@ -515,6 +515,87 @@ class ApiEndpointOptimizationsTestCase(TestCase):
         self.assertEqual(data_all["page"], 1)
         self.assertEqual(data_all["total_pages"], 1)
 
+    def test_edition_detail_profile_500_papers(self):
+        """
+        Benchmark and profile edition_detail with 500 papers.
+        """
+        import time
+        import cProfile
+        import pstats
+        import io
+
+        target_date = datetime(2026, 9, 8, 14, 0, 0, tzinfo=dt_timezone.utc)
+        target_date_str = "2026-09-08"
+
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Profile 500 Run",
+            status="completed",
+            completed_at=target_date,
+            total_papers_fetched=500,
+            total_papers_passed_screening=400,
+        )
+
+        for i in range(3):
+            ExtractionDefinition.objects.get_or_create(
+                workspace=self.workspace,
+                name=f"Dimension {i}",
+                defaults={"is_active": True, "response_schema": {"type": "object"}}
+            )
+
+        papers_to_create = []
+        metrics_to_create = []
+        for i in range(500):
+            is_passed = i < 400
+            p = Paper(
+                id=uuid.uuid4(),
+                workspace=self.workspace,
+                title=f"Sample Research Paper on Quantum Machine Learning Algorithm {i}",
+                authors="Author A, Author B, Author C, Author D",
+                abstract="This paper introduces a novel method for quantum neural network optimization with extensive synthetic benchmarks." * 3,
+                source_database="arxiv",
+                meta={"published": "2026-09-01", "journal_ref": "Nature Quantum 2026", "doi": f"10.1000/{i}"},
+                hash_id=f"profile_hash_{i}"
+            )
+            papers_to_create.append(p)
+            pm = PaperMetric(
+                paper=p,
+                pipeline_run=run,
+                workspace=self.workspace,
+                screening_status="accepted" if is_passed else "rejected",
+                signal_score=90.0 - (i * 0.1) if is_passed else None,
+                screening_reasoning="Passed screening" if is_passed else "Off topic"
+            )
+            metrics_to_create.append(pm)
+
+        Paper.objects.bulk_create(papers_to_create)
+        PaperMetric.objects.bulk_create(metrics_to_create)
+
+        url = f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?scope=included&page=1&page_size=20"
+
+        # Warm-up call (one-time imports, serializers, schemas)
+        self.client.get(url)
+
+        with CaptureQueriesContext(connection) as ctx:
+            t0 = time.perf_counter()
+            profiler = cProfile.Profile()
+            profiler.enable()
+            resp = self.client.get(url)
+            profiler.disable()
+            t1 = time.perf_counter()
+
+        self.assertEqual(resp.status_code, 200)
+        print(f"\n[PROFILE RESULTS 500 PAPERS]")
+        print(f"Total time: {(t1 - t0)*1000:.2f} ms")
+        print(f"Total DB queries: {len(ctx.captured_queries)}")
+        for idx, q in enumerate(ctx.captured_queries):
+            sql = ' '.join(q['sql'].split())
+            print(f"Q{idx+1} ({q['time']}s): {sql}")
+        s = io.StringIO()
+        ps = pstats.Stats(profiler, stream=s).sort_stats('tottime')
+        ps.print_stats(25)
+        print(s.getvalue())
+
     def test_chat_sessions_single_workspacemember_query(self):
         """
         Verify GET /api/chat/sessions/ for a non-superuser:

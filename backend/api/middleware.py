@@ -130,7 +130,7 @@ class UserActionAuditMiddleware(MiddlewareMixin):
         try:
             UserActivityLog.log_action(
                 user=user,
-                workspace=None, # Automatically resolved by log_action from action_name, input_params, or output_summary
+                workspace=getattr(request, '_audit_workspace', None),
                 interface="rest_api",
                 action_name=action_name,
                 status=status_str,
