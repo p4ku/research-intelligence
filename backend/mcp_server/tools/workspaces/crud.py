@@ -151,7 +151,7 @@ def get_workspace_logic(user, workspace_id: str) -> str:
                 "last_status": sched.current_execution_status or sched.last_status,
             }
             for sched in workspace.schedules.all()
-        ] if is_feature_enabled(Feature.SCHEDULING) else []
+        ]
     }
     return json.dumps(data, indent=2, cls=DjangoJSONEncoder)
 

@@ -37,10 +37,10 @@ class FeatureFlagsTestCase(TestCase):
         self.assertFalse(is_feature_enabled("RANDOM_FLAG"))
 
     def test_default_flags_are_false_in_base_settings(self):
-        """By default, core opt-in flags (scheduling & emails) evaluate to False."""
-        self.assertFalse(is_feature_enabled(Feature.SCHEDULING))
+        """SCHEDULING is permanently enabled; EMAIL_NOTIFICATIONS evaluates to False by default."""
+        self.assertTrue(is_feature_enabled(Feature.SCHEDULING))
         self.assertFalse(is_feature_enabled(Feature.EMAIL_NOTIFICATIONS))
-        self.assertFalse(is_feature_enabled("SCHEDULING"))
+        self.assertTrue(is_feature_enabled("SCHEDULING"))
         self.assertFalse(is_feature_enabled("EMAIL_NOTIFICATIONS"))
 
     def test_explicit_default_fallback_argument(self):

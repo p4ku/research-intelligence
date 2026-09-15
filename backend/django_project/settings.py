@@ -360,7 +360,6 @@ def _env_feature_bool(name: str, default: bool = False) -> bool:
 
 
 FEATURES = {
-    'SCHEDULING': _env_feature_bool('FEATURE_SCHEDULING', default=False),
     'EMAIL_NOTIFICATIONS': _env_feature_bool('FEATURE_EMAIL_NOTIFICATIONS', default=False),
 }
 
@@ -380,14 +379,12 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': 86400.0,  # runs daily (every 24 hours)
         'options': {'queue': 'celery'}
     },
-}
-
-if FEATURES.get('SCHEDULING', False):
-    CELERY_BEAT_SCHEDULE['dispatch-scheduled-workflow-runs'] = {
+    'dispatch-scheduled-workflow-runs': {
         'task': 'research_intelligence.tasks.auxiliary.schedule_dispatcher.dispatch_scheduled_workflow_runs_task',
         'schedule': 60.0,  # runs every 60 seconds
         'options': {'queue': 'celery'}
-    }
+    },
+}
 
 
 if is_testing:

@@ -27,20 +27,6 @@ def dispatch_due_workflow_schedules(dry_run: bool = False) -> Dict[str, Any]:
     close_old_connections()
     now = timezone.now()
 
-    from research_intelligence.features import is_feature_enabled, Feature
-
-    if not is_feature_enabled(Feature.SCHEDULING):
-        return {
-            "status": "disabled",
-            "dispatched_count": 0,
-            "dispatched": [],
-            "skipped_overlap_count": 0,
-            "skipped_overlap": [],
-            "errors_count": 0,
-            "errors": [],
-            "checked_at": now.isoformat()
-        }
-
     from research_intelligence.models import WorkflowSchedule
     from research_intelligence.services import RunAdmissionRefused
 

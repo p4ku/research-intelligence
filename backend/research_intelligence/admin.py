@@ -1818,11 +1818,9 @@ class WorkspaceAdmin(admin.ModelAdmin):
     inlines = [WorkspaceMemberInline, ScraperInline, ExtractionDefinitionInline]
 
     def get_inlines(self, request, obj=None):
-        inlines = [WorkspaceMemberInline, ScraperInline, ExtractionDefinitionInline]
+        inlines = [WorkspaceMemberInline, ScraperInline, ExtractionDefinitionInline, WorkflowScheduleInline]
         if is_feature_enabled(Feature.EMAIL_NOTIFICATIONS):
             inlines.append(SubscriberInline)
-        if is_feature_enabled(Feature.SCHEDULING):
-            inlines.append(WorkflowScheduleInline)
         return inlines
 
     def get_queryset(self, request):
@@ -2396,32 +2394,6 @@ class WorkflowScheduleAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'frequency', 'timezone_name', 'workspace')
     search_fields = ('name', 'workspace__name', 'cron_expression')
     actions = ['trigger_now_action', 'activate_schedules_action', 'pause_schedules_action']
-
-    def has_module_permission(self, request):
-        if not is_feature_enabled(Feature.SCHEDULING):
-            return False
-        return super().has_module_permission(request)
-
-    def has_view_permission(self, request, obj=None):
-        if not is_feature_enabled(Feature.SCHEDULING):
-            return False
-        return super().has_view_permission(request, obj=obj)
-
-    def has_add_permission(self, request):
-        if not is_feature_enabled(Feature.SCHEDULING):
-            return False
-        return super().has_add_permission(request)
-
-    def has_change_permission(self, request, obj=None):
-        if not is_feature_enabled(Feature.SCHEDULING):
-            return False
-        return super().has_change_permission(request, obj=obj)
-
-    def has_delete_permission(self, request, obj=None):
-        if not is_feature_enabled(Feature.SCHEDULING):
-            return False
-        return super().has_delete_permission(request, obj=obj)
-
     fieldsets = (
         ('Schedule Target & Basic Info', {
             'fields': ('name', 'workspace', 'is_active', 'created_by')
@@ -2909,7 +2881,7 @@ class PipelineRunAdmin(admin.ModelAdmin):
     stopped_stage_badge.short_description = "Halt / Final Stage"
 
     def schedule_display(self, obj):
-        if not obj.schedule or not is_feature_enabled(Feature.SCHEDULING):
+        if not obj.schedule:
             return format_html('<span style="color: #adb5bd; font-size: 11px;">Manual</span>')
         sched_url = reverse('admin:research_intelligence_workflowschedule_change', args=[obj.schedule.id])
         return format_html(

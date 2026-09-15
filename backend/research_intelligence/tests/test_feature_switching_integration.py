@@ -75,19 +75,21 @@ class FeatureSwitchingIntegrationTestCase(TestCase):
 
     @override_settings(FEATURES={"SCHEDULING": False, "EMAIL_NOTIFICATIONS": False})
     def test_admin_permissions_denied_when_features_disabled(self):
-        """Admin modules must deny view and module permissions when features are False."""
+        """SubscriberAdmin denies permissions when EMAIL_NOTIFICATIONS is False; WorkflowScheduleAdmin is permanently active."""
         request = self.factory.get("/admin/")
         request.user = self.user
 
         ws_admin = WorkflowScheduleAdmin(WorkflowSchedule, self.admin_site)
         sub_admin = SubscriberAdmin(Subscriber, self.admin_site)
 
-        self.assertFalse(ws_admin.has_module_permission(request))
-        self.assertFalse(ws_admin.has_view_permission(request))
-        self.assertFalse(ws_admin.has_add_permission(request))
-        self.assertFalse(ws_admin.has_change_permission(request))
-        self.assertFalse(ws_admin.has_delete_permission(request))
+        # WorkflowScheduleAdmin is permanently enabled
+        self.assertTrue(ws_admin.has_module_permission(request))
+        self.assertTrue(ws_admin.has_view_permission(request))
+        self.assertTrue(ws_admin.has_add_permission(request))
+        self.assertTrue(ws_admin.has_change_permission(request))
+        self.assertTrue(ws_admin.has_delete_permission(request))
 
+        # SubscriberAdmin remains gated on EMAIL_NOTIFICATIONS
         self.assertFalse(sub_admin.has_module_permission(request))
         self.assertFalse(sub_admin.has_view_permission(request))
         self.assertFalse(sub_admin.has_add_permission(request))
@@ -110,7 +112,7 @@ class FeatureSwitchingIntegrationTestCase(TestCase):
 
     @override_settings(FEATURES={"SCHEDULING": False, "EMAIL_NOTIFICATIONS": False})
     def test_workspace_admin_inlines_excluded_when_disabled(self):
-        """WorkspaceAdmin.get_inlines must omit WorkflowScheduleInline and SubscriberInline."""
+        """WorkflowScheduleInline is permanently included; SubscriberInline is omitted when disabled."""
         request = self.factory.get("/admin/research_intelligence/workspace/")
         request.user = self.user
         admin = WorkspaceAdmin(Workspace, self.admin_site)
@@ -118,7 +120,7 @@ class FeatureSwitchingIntegrationTestCase(TestCase):
         inlines = admin.get_inlines(request, self.workspace)
         inline_classes = [i if isinstance(i, type) else type(i) for i in inlines]
 
-        self.assertNotIn(WorkflowScheduleInline, inline_classes)
+        self.assertIn(WorkflowScheduleInline, inline_classes)
         self.assertNotIn(SubscriberInline, inline_classes)
 
     @override_settings(FEATURES={"SCHEDULING": True, "EMAIL_NOTIFICATIONS": True})
@@ -136,12 +138,17 @@ class FeatureSwitchingIntegrationTestCase(TestCase):
 
     @override_settings(FEATURES={"SCHEDULING": False})
     def test_pipelinerun_admin_schedule_display_when_scheduling_disabled(self):
-        """PipelineRunAdmin.schedule_display renders unlinked plain text when scheduling is disabled."""
+        """PipelineRunAdmin.schedule_display renders linked schedule permanently when present."""
         run = PipelineRun.objects.create(workspace=self.workspace, schedule=self.schedule)
+        manual_run = PipelineRun.objects.create(workspace=self.workspace)
         admin = PipelineRunAdmin(PipelineRun, self.admin_site)
-        rendered = str(admin.schedule_display(run))
-        self.assertIn("Manual", rendered)
-        self.assertNotIn("href=", rendered)
+
+        rendered_scheduled = str(admin.schedule_display(run))
+        self.assertIn("href=", rendered_scheduled)
+        self.assertIn(self.schedule.name, rendered_scheduled)
+
+        rendered_manual = str(admin.schedule_display(manual_run))
+        self.assertIn("Manual", rendered_manual)
 
     # --------------------------------------------------------------------------
     # 2. Pipeline Dispatching & Mailer Suppression
@@ -149,10 +156,10 @@ class FeatureSwitchingIntegrationTestCase(TestCase):
 
     @override_settings(FEATURES={"SCHEDULING": False})
     def test_schedule_dispatcher_early_exits_when_disabled(self):
-        """Periodic schedule dispatcher exits early with disabled status when feature is False."""
+        """Periodic schedule dispatcher is permanently active and checks due schedules."""
         res = dispatch_due_workflow_schedules(dry_run=False)
-        self.assertEqual(res["status"], "disabled")
-        self.assertEqual(res["dispatched_count"], 0)
+        self.assertIn("dispatched_count", res)
+        self.assertIn("checked_at", res)
 
     @override_settings(FEATURES={"EMAIL_NOTIFICATIONS": False})
     @patch("research_intelligence.utils.mailer.send_mailgun_message")
@@ -195,12 +202,12 @@ class FeatureSwitchingIntegrationTestCase(TestCase):
 
     @override_settings(FEATURES={"SCHEDULING": False})
     def test_schedules_api_returns_404_when_disabled(self):
-        """WorkflowScheduleViewSet returns 404 Not Found when SCHEDULING is disabled."""
+        """WorkflowScheduleViewSet is permanently enabled and returns 200 OK."""
         req = self.api_factory.get("/api/v1/schedules/")
         force_authenticate(req, user=self.user)
         view = WorkflowScheduleViewSet.as_view({"get": "list"})
         resp = view(req)
-        self.assertEqual(resp.status_code, 404)
+        self.assertEqual(resp.status_code, 200)
 
     @override_settings(FEATURES={"SCHEDULING": True})
     def test_schedules_api_accessible_when_enabled(self):
@@ -235,10 +242,10 @@ class FeatureSwitchingIntegrationTestCase(TestCase):
 
     @override_settings(FEATURES={"SCHEDULING": False, "EMAIL_NOTIFICATIONS": False})
     def test_mcp_workspace_details_omits_subscribers_and_schedules_when_disabled(self):
-        """MCP get_workspace_logic returns empty lists for schedules and subscribers when disabled."""
+        """MCP get_workspace_logic always includes schedules; subscribers omitted when disabled."""
         raw_json = get_workspace_logic(self.user, str(self.workspace.id))
         data = json.loads(raw_json)
-        self.assertEqual(data["schedules"], [])
+        self.assertEqual(len(data["schedules"]), 1)
         self.assertEqual(data["subscribers"], [])
 
     @override_settings(FEATURES={"SCHEDULING": True, "EMAIL_NOTIFICATIONS": True})

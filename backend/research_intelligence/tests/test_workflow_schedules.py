@@ -229,6 +229,35 @@ class WorkflowScheduleRecurrenceTests(WorkflowScheduleBaseTestCase):
         with self.assertRaises(ValidationError):
             schedule.clean()
 
+    def test_schedule_recalculates_next_run_at_when_timing_configuration_changes(self):
+        """
+        Tests that WorkflowSchedule.save() automatically recalculates next_run_at
+        whenever timing fields (e.g. time_of_day, cron_expression, frequency) are edited.
+        """
+        schedule = self.create_schedule(
+            name="Timing Update Schedule",
+            frequency="daily",
+            time_of_day=datetime.time(2, 0),
+            timezone_name="UTC"
+        )
+        self.assertEqual(schedule.next_run_at.hour, 2)
+        initial_next_run = schedule.next_run_at
+
+        # Change time of day from 02:00 to 18:00
+        schedule.time_of_day = datetime.time(18, 0)
+        schedule.save()
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.next_run_at.hour, 18)
+        self.assertNotEqual(schedule.next_run_at, initial_next_run)
+
+        # Editing non-timing field (name) should NOT recalculate next_run_at
+        saved_next_run = schedule.next_run_at
+        schedule.name = "Renamed Schedule"
+        schedule.save()
+        schedule.refresh_from_db()
+        self.assertEqual(schedule.next_run_at, saved_next_run)
+
+
 
 # ==============================================================================
 # 2. DISPATCHER & CONCURRENCY / OVERLAP CONTROLS
@@ -626,6 +655,59 @@ class WorkflowScheduleAdminAndAPITests(WorkflowScheduleBaseTestCase):
         schedule.refresh_from_db()
         serializer = WorkflowScheduleSerializer(schedule)
         self.assertEqual(serializer.data["last_status"], "completed")
+
+    def test_api_trigger_overlap_returns_409_and_force_triggers(self):
+        """
+        Tests that POST /api/v1/schedules/{id}/trigger/ returns 409 Conflict if a run is already active
+        and force is not set, but allows force=True to bypass overlap prevention.
+        """
+        schedule = self.create_schedule(name="Overlap Guard Schedule", prevent_overlap=True)
+        running_run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            schedule=schedule,
+            status='running'
+        )
+        schedule.last_pipeline_run = running_run
+        schedule.last_status = 'running'
+        schedule.save(update_fields=['last_pipeline_run', 'last_status'])
+
+        trigger_url = reverse('schedule-trigger', args=[schedule.id])
+
+        # 1. Trigger without force should return 409 Conflict
+        resp_conflict = self.client.post(trigger_url)
+        self.assertEqual(resp_conflict.status_code, status.HTTP_409_CONFLICT)
+        self.assertEqual(resp_conflict.data["code"], "schedule_overlap")
+        self.assertIn("still active", resp_conflict.data["error"])
+
+        # 2. Trigger with force=True should bypass overlap and return 200 OK
+        resp_force = self.client.post(trigger_url, {"force": True}, format="json")
+        self.assertEqual(resp_force.status_code, status.HTTP_200_OK)
+        self.assertEqual(resp_force.data["status"], "running")
+
+    def test_serializer_validation_rejects_invalid_timezone_and_cron(self):
+        """
+        Tests that WorkflowScheduleSerializer rejects invalid timezones and malformed cron expressions.
+        """
+        url = reverse('schedule-list')
+
+        # Invalid timezone
+        resp_bad_tz = self.client.post(url, {
+            "workspace": str(self.workspace.id),
+            "name": "Bad TZ Schedule",
+            "frequency": "daily",
+            "timezone_name": "Atlantis/Underwater"
+        }, format="json")
+        self.assertEqual(resp_bad_tz.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Invalid custom_cron
+        resp_bad_cron = self.client.post(url, {
+            "workspace": str(self.workspace.id),
+            "name": "Bad Cron Schedule",
+            "frequency": "custom_cron",
+            "cron_expression": "invalid cron string"
+        }, format="json")
+        self.assertEqual(resp_bad_cron.status_code, status.HTTP_400_BAD_REQUEST)
+
 
 
 # ==============================================================================

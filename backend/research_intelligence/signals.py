@@ -106,6 +106,10 @@ def on_pipeline_run_status_changed_update_schedules(sender, instance, **kwargs):
                         f"after reaching {schedule.consecutive_failures_count} consecutive execution failures."
                     )
 
+            # Only write to DB if actual schedule fields changed
+            if len(fields_to_update) <= 1:
+                continue
+
             schedule.save(update_fields=fields_to_update)
             logger.info(
                 f"🔄 [SCHEDULE OBSERVER] PipelineRun '{instance.id}' status '{target_status}' "

@@ -15,6 +15,20 @@ class WorkflowScheduleSerializer(serializers.ModelSerializer):
     def validate_cron_expression(self, value):
         return value or ''
 
+    def validate(self, attrs):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        test_instance = WorkflowSchedule()
+        if self.instance:
+            for field in self.instance._meta.fields:
+                setattr(test_instance, field.name, getattr(self.instance, field.name))
+        for k, v in attrs.items():
+            setattr(test_instance, k, v)
+        try:
+            test_instance.clean()
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(e.message_dict if hasattr(e, 'message_dict') else e.messages)
+        return attrs
+
     class Meta:
         model = WorkflowSchedule
         fields = [

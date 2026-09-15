@@ -21,13 +21,6 @@ class WorkflowScheduleViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     ordering = ['-is_active', 'next_run_at', '-created_at']
 
-    def initial(self, request, *args, **kwargs):
-        super().initial(request, *args, **kwargs)
-        from research_intelligence.features import is_feature_enabled, Feature
-        from rest_framework.exceptions import NotFound
-        if not is_feature_enabled(Feature.SCHEDULING):
-            raise NotFound("Workflow scheduling is currently disabled.")
-
     def get_queryset(self):
         user = self.request.user
         if not user or not user.is_authenticated:
@@ -103,15 +96,23 @@ class WorkflowScheduleViewSet(viewsets.ModelViewSet):
         if error:
             return Response({"error": error}, status=status.HTTP_403_FORBIDDEN)
 
+        force_param = request.data.get('force') if isinstance(request.data, dict) else None
+        if force_param is None:
+            force_param = request.query_params.get('force')
+        force = str(force_param).lower() in ('true', '1') if force_param is not None else False
+
         try:
-            agent = schedule.trigger_run(triggered_by_user=request.user)
+            agent = schedule.trigger_run(triggered_by_user=request.user, force=force)
         except RunAdmissionRefused as refused:
             return Response(refused.as_error_json(), status=status.HTTP_409_CONFLICT)
-        if agent is None:
+
+        if not agent:
             return Response({
                 "status": "error",
                 "code": "schedule_overlap",
-                "error": f"Scheduled workflow '{schedule.name}' was not triggered: its previous run is still active.",
+                "error": f"Scheduled workflow '{schedule.name}' was not triggered: its previous run is still active. Set 'force=true' to trigger anyway.",
+                "current_execution_status": schedule.current_execution_status,
+                "last_pipeline_run_id": str(schedule.last_pipeline_run.id) if schedule.last_pipeline_run else None,
             }, status=status.HTTP_409_CONFLICT)
         return Response({
             "message": f"Successfully triggered scheduled workflow '{schedule.name}'.",

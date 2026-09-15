@@ -31,9 +31,9 @@ class Feature(StrEnum):
 # All known feature flag members for iteration and inspection
 ALL_FEATURES: list[Feature] = list(Feature)
 
-# Registry of known feature flags with human-readable descriptions (EXPERIMENTAL: In testing phase, not production-ready)
+# Registry of known feature flags with human-readable descriptions
 KNOWN_FEATURES: Dict[Feature, str] = {
-    Feature.SCHEDULING: "Periodic workflow task scheduling (Celery Beat dispatcher & WorkflowSchedule in Admin) [TESTING PHASE - NOT PROD READY]",
+    Feature.SCHEDULING: "Periodic workflow task scheduling (Celery Beat dispatcher & WorkflowSchedule in Admin) [PERMANENTLY ENABLED]",
     Feature.EMAIL_NOTIFICATIONS: "Transactional email notifications and digests via Mailgun / Subscribers in Admin [TESTING PHASE - NOT PROD READY]",
 }
 
@@ -66,10 +66,11 @@ def is_feature_enabled(feature_name: Optional[Union[str, Feature]], default: boo
     Evaluates whether a feature flag is enabled.
 
     Resolution order (all lookup keys are case-insensitive):
-    1. `settings.FEATURES` dictionary (e.g. `{"SCHEDULING": True}`)
-    2. Direct setting attribute (e.g. `settings.FEATURE_SCHEDULING = True`)
-    3. Environment variable (e.g. `FEATURE_SCHEDULING="true"`)
-    4. Fallback `default` argument (defaults to False)
+    1. Permanent built-in features (SCHEDULING is permanently enabled)
+    2. `settings.FEATURES` dictionary (e.g. `{"EMAIL_NOTIFICATIONS": True}`)
+    3. Direct setting attribute (e.g. `settings.FEATURE_EMAIL_NOTIFICATIONS = True`)
+    4. Environment variable (e.g. `FEATURE_EMAIL_NOTIFICATIONS="true"`)
+    5. Fallback `default` argument (defaults to False)
 
     Args:
         feature_name: Feature member or string identifier (e.g. Feature.SCHEDULING or 'scheduling').
@@ -84,6 +85,10 @@ def is_feature_enabled(feature_name: Optional[Union[str, Feature]], default: boo
     # Handles Feature enum members and raw strings alike
     raw_str = feature_name.value if isinstance(feature_name, Feature) else str(feature_name)
     normalized_key = raw_str.strip().upper()
+
+    # SCHEDULING is permanently enabled system-wide
+    if normalized_key == "SCHEDULING":
+        return True
 
     # 1. Check settings.FEATURES dictionary
     features_dict = getattr(settings, "FEATURES", None)

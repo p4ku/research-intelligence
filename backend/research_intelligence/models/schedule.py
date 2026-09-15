@@ -491,8 +491,15 @@ class WorkflowSchedule(models.Model):
 
     def save(self, *args, **kwargs):
         """Auto-computes cron_expression and next_run_at before saving."""
+        update_fields = kwargs.get('update_fields')
+
         if not self.cron_expression or self.frequency != 'custom_cron':
             self.cron_expression = self.get_effective_cron_expression()
+
+        # If update_fields was explicitly provided and does not contain next_run_at, do not alter next_run_at
+        if update_fields is not None and 'next_run_at' not in update_fields:
+            super().save(*args, **kwargs)
+            return
 
         if self.frequency == 'one_off':
             if self.total_runs_count > 0:
@@ -500,10 +507,30 @@ class WorkflowSchedule(models.Model):
                 self.next_run_at = None
             elif self.is_active and self.one_off_datetime:
                 self.next_run_at = self.one_off_datetime
-        else:
-            if self.is_active and (not self.next_run_at or self.next_run_at <= timezone.now() - datetime.timedelta(hours=24)):
-                self.next_run_at = self.compute_next_run()
-            elif not self.is_active:
+            else:
                 self.next_run_at = None
+        else:
+            if not self.is_active:
+                self.next_run_at = None
+            else:
+                # Detect if schedule timing configuration changed on an existing record
+                timing_changed = False
+                if self.pk and getattr(self, '_state', None) and not self._state.adding:
+                    try:
+                        old = WorkflowSchedule.objects.filter(pk=self.pk).values(
+                            'cron_expression', 'timezone_name', 'frequency'
+                        ).first()
+                        if old:
+                            if (
+                                old.get('cron_expression') != self.cron_expression
+                                or old.get('timezone_name') != self.timezone_name
+                                or old.get('frequency') != self.frequency
+                            ):
+                                timing_changed = True
+                    except Exception:
+                        pass
+
+                if timing_changed or not self.next_run_at or self.next_run_at <= timezone.now() - datetime.timedelta(hours=24):
+                    self.next_run_at = self.compute_next_run()
 
         super().save(*args, **kwargs)
