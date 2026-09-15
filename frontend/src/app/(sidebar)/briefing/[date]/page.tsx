@@ -40,9 +40,22 @@ export default async function BriefingEditionPage({
   searchParams,
 }: {
   params: Promise<{ date: string }>
-  searchParams: Promise<{ domain?: string; run?: string; page?: string }>
+  searchParams: Promise<{
+    domain?: string
+    run?: string
+    page?: string
+    score?: string
+    sort?: string
+  }>
 }) {
-  const [{ date }, { domain, run, page: pageStr }, state, t, lang, features] = await Promise.all([
+  const [
+    { date },
+    { domain, run, page: pageStr, score: scoreStr, sort: sortStr },
+    state,
+    t,
+    lang,
+    features,
+  ] = await Promise.all([
     params,
     searchParams,
     getWorkspacesState(),
@@ -59,6 +72,8 @@ export default async function BriefingEditionPage({
   const runId = runScope(run)
   const domains = domainNames(state.all)
   const page = pageStr && /^[1-9]\d*$/.test(pageStr) ? Number(pageStr) : 1
+  const minScore = scoreStr && /^\d+$/.test(scoreStr) ? Number(scoreStr) : undefined
+  const sort = sortStr && /^(score|published|dim:\S{1,120})$/.test(sortStr) ? sortStr : undefined
 
   return (
     <div className="space-y-10">
@@ -85,6 +100,8 @@ export default async function BriefingEditionPage({
             domains={domains}
             features={features}
             page={page}
+            minScore={minScore}
+            sort={sort}
           />
         </ViewTransition>
       </Suspense>
@@ -103,7 +120,15 @@ export default async function BriefingEditionPage({
         }
       >
         <ViewTransition enter="bone-enter" default="none">
-          <EditionPapers wsId={wsId} runId={runId} date={date} lang={lang} page={page} />
+          <EditionPapers
+            wsId={wsId}
+            runId={runId}
+            date={date}
+            lang={lang}
+            page={page}
+            minScore={minScore}
+            sort={sort}
+          />
         </ViewTransition>
       </Suspense>
     </div>

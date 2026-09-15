@@ -28,6 +28,7 @@ import {
   sortOptions,
   viewFrom,
   withKnownSort,
+  type DefinitionMeta,
   type EditionView,
 } from './view'
 
@@ -42,22 +43,9 @@ function useSafeRouter() {
 /**
  * The edition's papers, with the rail that orders and narrows them (the
  * white paper's SORT BY / SIGNAL STRENGTH box) and the Starred filter.
- * Client-side because the filter reads the star store and the view is
- * applied in hand — a briefing is one run's list, so no fetch is needed.
- * The header row and the rail mirror EditionPapersSkeleton (skeletons.tsx)
- * slot for slot. Each card links to the paper *as this run read it*
- * (`?run=`), so the page opens on the score and decision the card shows
- * rather than a later run's.
- *
- * The URL is the view: `?sort=`, `?score=` and `?page=` are read afresh every
- * render (never seeded from a prop — the App Router serves a Back from its
- * cache without a server render), and written with `replaceState` beside the
- * briefing's own `domain` and `run`. The gallery keeps local state via
- * `syncUrl={false}`.
- *
- * The list is cut into pages of PAGE_SIZE after the sort and the floor, so
- * a large briefing (566 papers on prod) mounts twenty cards, not hundreds;
- * a change of sort or floor starts again from the first page.
+ * When server pagination is enabled (`total !== undefined`), filtering by score
+ * and sorting are executed globally on the server across the database dataset.
+ * When client-side, the list derives every render from `useSearchParams`.
  */
 export function EditionPaperList({
   papers,
@@ -65,8 +53,9 @@ export function EditionPaperList({
   logHref,
   syncUrl = true,
   total,
-  page: _serverPage,
+  page: serverPage,
   pageSize = PAGE_SIZE,
+  definitions,
 }: {
   papers: ScoredPaper[]
   /** The edition's run — the reading its cards show. */
@@ -76,6 +65,7 @@ export function EditionPaperList({
   total?: number
   page?: number
   pageSize?: number
+  definitions?: readonly DefinitionMeta[]
 }) {
   const t = useT()
   const { isStarred } = useStars()
@@ -84,12 +74,21 @@ export function EditionPaperList({
   // Null outside the App Router (a static test render, the gallery).
   const params = useSearchParams()
   const router = useSafeRouter()
-  const [local, setLocal] = useState<EditionView>(DEFAULT_VIEW)
+  const [local, setLocal] = useState<EditionView>(
+    serverPage ? { ...DEFAULT_VIEW, page: serverPage } : DEFAULT_VIEW,
+  )
   const [isPending, startTransition] = useTransition()
   const [targetPage, setTargetPage] = useState<number | null>(null)
   const prevPageRef = useRef<number | null>(null)
 
-  const asked = syncUrl && params ? viewFrom(Object.fromEntries(params)) : local
+  const parsedParams = params ? viewFrom(Object.fromEntries(params)) : null
+  const asked =
+    syncUrl && parsedParams
+      ? {
+          ...parsedParams,
+          ...(params?.get('page') ? {} : serverPage ? { page: serverPage } : {}),
+        }
+      : { ...local, ...(serverPage ? { page: serverPage } : {}) }
   const update = useCallback(
     (patch: Partial<EditionView>) => {
       // A narrower or reordered list starts again from its first page: page
@@ -99,6 +98,11 @@ export function EditionPaperList({
         setLocal((v) => ({ ...v, ...change }))
         return
       }
+      if ('page' in patch) {
+        setTargetPage(patch.page ?? 1)
+      } else {
+        setTargetPage(null)
+      }
       // From the address bar as it is now, so two writes inside one render
       // build on each other and the briefing's own params survive.
       const current = new URLSearchParams(window.location.search)
@@ -106,7 +110,7 @@ export function EditionPaperList({
       const newQuery = searchWith(current.toString(), next)
       const newPath = window.location.pathname + newQuery
 
-      if (total !== undefined && 'page' in patch) {
+      if (total !== undefined) {
         if (router) {
           startTransition(() => {
             router.push(newPath)
@@ -140,14 +144,22 @@ export function EditionPaperList({
   // The effective filter, not the state: with the chip gone there would be no
   // way to clear it, so a flip taken mid-filter must show the whole edition.
   const filtering = stars && starredOnly
-  const sorts = sortOptions(papers, t)
+  const sorts = sortOptions(papers, t, definitions)
   // The effective view, like the effective filter: a sort the rail cannot
   // offer is the score's.
   const view = withKnownSort(asked, sorts)
-  const shown = applyView(filtering ? starred : papers, view)
-
   const isServerPaged = total !== undefined
-  const totalPapers = total ?? shown.length
+  const shown = isServerPaged
+    ? filtering
+      ? starred
+      : papers
+    : applyView(filtering ? starred : papers, view)
+
+  const totalPapers = isServerPaged
+    ? filtering
+      ? starred.length
+      : (total ?? papers.length)
+    : shown.length
   const paged = pageOf(shown, view.page, pageSize)
   const pageCount = isServerPaged ? Math.max(1, Math.ceil(totalPapers / pageSize)) : paged.pageCount
   const currentPage = isServerPaged ? view.page : paged.page
@@ -166,7 +178,7 @@ export function EditionPaperList({
       : (currentPage - 1) * pageSize + 1
     : paged.from
   const to = isServerPaged
-    ? Math.min(totalPapers, (currentPage - 1) * pageSize + papers.length)
+    ? Math.min(totalPapers, (currentPage - 1) * pageSize + shown.length)
     : paged.to
   const cardsToRender = isServerPaged ? shown : paged.rows
 

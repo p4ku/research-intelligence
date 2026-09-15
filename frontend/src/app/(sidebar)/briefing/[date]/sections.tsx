@@ -47,6 +47,8 @@ export async function EditionHead({
   domains,
   features,
   page = 1,
+  minScore,
+  sort,
 }: {
   wsId?: string
   runId?: string
@@ -58,8 +60,20 @@ export async function EditionHead({
   /** Required: page.tsx is the only caller, and its skeleton must agree. */
   features: Features
   page?: number
+  minScore?: number
+  sort?: string
 }) {
-  const editionPromise = briefings.findByDate(date, lang, wsId, runId, 'included', page, 20)
+  const editionPromise = briefings.findByDate(
+    date,
+    lang,
+    wsId,
+    runId,
+    'included',
+    page,
+    20,
+    minScore,
+    sort,
+  )
   const runPromise = runId ? runsService.get(runId).catch(() => null) : null
   const [edition, earlyRun] = await forPage(Promise.all([editionPromise, runPromise]))
   // A date with no edition is a true 404 — rendered in-stream now that the
@@ -275,14 +289,20 @@ export async function EditionPapers({
   date,
   lang,
   page = 1,
+  minScore,
+  sort,
 }: {
   wsId?: string
   runId?: string
   date: string
   lang: Lang
   page?: number
+  minScore?: number
+  sort?: string
 }) {
-  const edition = await forPage(briefings.findByDate(date, lang, wsId, runId, 'included', page, 20))
+  const edition = await forPage(
+    briefings.findByDate(date, lang, wsId, runId, 'included', page, 20, minScore, sort),
+  )
   if (!edition) notFound()
 
   // If edition.papers already carries full scorecard records (from backend single-stream detail),
@@ -322,6 +342,7 @@ export async function EditionPapers({
       total={total}
       page={page}
       pageSize={20}
+      definitions={edition.definitions}
     />
   )
 }

@@ -50,6 +50,17 @@ export const editionSummary = z
     total_pages: z.number().int().optional(),
     total_papers: z.number().int().optional(),
     total_exclusions: z.number().int().optional(),
+    definitions: z
+      .array(
+        z.object({
+          id: z.string().optional(),
+          key: z.string(),
+          name: z.string(),
+          order: z.number().optional(),
+          is_trl: z.boolean().optional(),
+        }),
+      )
+      .optional(),
   })
   .meta({ id: 'BriefingEditionSummary' })
 export type EditionSummary = z.infer<typeof editionSummary>
@@ -73,6 +84,10 @@ export const editionQuery = z.object({
   scope: z.enum(['all', 'included', 'excluded']).optional(),
   page: z.coerce.number().int().min(1).optional(),
   page_size: z.coerce.number().int().min(1).optional(),
+  min_score: z.coerce.number().optional(),
+  score: z.coerce.number().optional(),
+  sort: z.string().optional(),
+  ordering: z.string().optional(),
 })
 export type EditionQuery = z.infer<typeof editionQuery>
 

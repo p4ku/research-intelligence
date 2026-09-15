@@ -153,24 +153,54 @@ function sortable(d: Dimension): boolean {
   return typeof d.value === 'number' && Number.isFinite(d.value)
 }
 
+export interface DefinitionMeta {
+  key: string
+  name: string
+  order?: number
+  is_trl?: boolean
+}
+
 /**
  * The sorts on offer for these papers: the Schwarz Score, the publication
  * date when any paper has one, then one per scored dimension — TRL included — in the workspace's
- * definition order, each key once. A dimension no paper in the briefing
- * scored is not offered: an order by it would change nothing.
+ * definition order, each key once. When definitions are provided, they supply
+ * the dimension options even if the current page of papers is filtered down.
  */
-export function sortOptions(papers: readonly ScoredPaper[], t: T): SortOption[] {
-  const seen = new Map<string, { d: Dimension; order: number; index: number }>()
-  let index = 0
-  for (const p of papers) {
-    for (const d of p.dimensions ?? []) {
-      if (!sortable(d) || seen.has(d.key)) continue
-      seen.set(d.key, { d, order: d.order ?? Number.MAX_SAFE_INTEGER, index: index++ })
+export function sortOptions(
+  papers: readonly ScoredPaper[],
+  t: T,
+  definitions?: readonly DefinitionMeta[],
+): SortOption[] {
+  let dims: SortOption[] = []
+  if (definitions && definitions.length > 0) {
+    dims = [...definitions]
+      .filter((d) => !d.key.includes('risk_and_affiliation'))
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+      .map((d) => ({
+        id: `dim:${d.key}`,
+        label: dimensionShortName(
+          {
+            name: d.name,
+            is_trl: Boolean(
+              d.is_trl ?? (d.name.toLowerCase().includes('trl') || d.key.includes('trl')),
+            ),
+          },
+          t,
+        ),
+      }))
+  } else {
+    const seen = new Map<string, { d: Dimension; order: number; index: number }>()
+    let index = 0
+    for (const p of papers) {
+      for (const d of p.dimensions ?? []) {
+        if (!sortable(d) || seen.has(d.key)) continue
+        seen.set(d.key, { d, order: d.order ?? Number.MAX_SAFE_INTEGER, index: index++ })
+      }
     }
+    dims = [...seen.values()]
+      .sort((a, b) => a.order - b.order || a.index - b.index)
+      .map(({ d }) => ({ id: `dim:${d.key}`, label: dimensionShortName(d, t) }))
   }
-  const dims = [...seen.values()]
-    .sort((a, b) => a.order - b.order || a.index - b.index)
-    .map(({ d }) => ({ id: `dim:${d.key}`, label: dimensionShortName(d, t) }))
   // The same rule for the date: the editions endpoint sends no publication
   // date, and the scorecard may not either, so an order by it would leave the
   // list as it was. The option appears once any paper carries one.

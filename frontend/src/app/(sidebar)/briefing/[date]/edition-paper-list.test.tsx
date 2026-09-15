@@ -196,4 +196,37 @@ describe('EditionPaperList paging', () => {
     expect(out).toContain('Previous')
     expect(out).toContain('Next')
   })
+
+  test('server-side pagination on page 2 renders correct range', () => {
+    const out = renderToStaticMarkup(
+      <EditionPaperList
+        papers={many.slice(20, 40)}
+        runId={runId}
+        logHref={logHref}
+        total={63}
+        page={2}
+        pageSize={20}
+      />,
+    )
+    expect(out).toContain('21–40 of 63 papers')
+    expect(out).toContain('Paper 21</h3>')
+    expect(out).toContain('Paper 40</h3>')
+  })
+
+  test('renders definition sort options when definitions prop is supplied', () => {
+    const definitions = [
+      { key: 'trl', name: 'Technology Readiness Level (TRL)', order: 1, is_trl: true },
+      { key: 'schwarz_fit', name: 'Schwarz Fit', order: 2 },
+    ]
+    const out = renderToStaticMarkup(
+      <EditionPaperList
+        papers={many.slice(0, 5)}
+        runId={runId}
+        logHref={logHref}
+        definitions={definitions}
+      />,
+    )
+    expect(out).toContain('TRL')
+    expect(out).toContain('Schwarz Fit')
+  })
 })

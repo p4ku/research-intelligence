@@ -553,7 +553,21 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         else:
             target_statuses = ['accepted', 'full_text_passed', 'abstract_passed', 'rejected', 'withdrawn']
 
-        # Pagination handling
+        # Pagination & Filtering handling
+        min_score_param = request.query_params.get('min_score') or request.query_params.get('score')
+        min_score = None
+        if min_score_param is not None and str(min_score_param).strip() != '':
+            try:
+                min_score = float(min_score_param)
+            except (ValueError, TypeError):
+                min_score = None
+
+        sort_param = (
+            request.query_params.get('sort')
+            or request.query_params.get('ordering')
+            or ''
+        ).strip().lower()
+
         page_param = request.query_params.get('page')
         page_size_param = request.query_params.get('page_size') or request.query_params.get('pageSize')
         is_paginated = page_param is not None or page_size_param is not None
@@ -573,8 +587,21 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
 
         from django.db import models as db_models
         base_pm_qs = PaperMetric.objects.filter(pipeline_run=run)
+        definitions = list(workspace.extraction_definitions.filter(is_active=True).order_by('order', 'created_at'))
+        definitions_metadata = [
+            {
+                "id": str(d.id),
+                "key": d.name.lower().replace(' ', '_').replace('-', '_'),
+                "name": d.name,
+                "order": getattr(d, 'order', 0),
+                "is_trl": 'trl' in d.name.lower() or 'technology readiness' in d.name.lower(),
+            }
+            for d in definitions
+        ]
 
         import math
+        paged_surfaced_scored = None
+
         if is_paginated and page_size is not None:
             # Paginated path: slice directly in PostgreSQL to avoid fetching hundreds of Paper models into memory
             start = (page - 1) * page_size
@@ -585,14 +612,75 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                     base_pm_qs.filter(screening_status__in=passed_statuses, paper__isnull=False)
                     .defer('metrics_data')
                 )
-                paged_surfaced_metrics = list(
-                    surfaced_qs.select_related('paper')
-                    .order_by(db_models.F('signal_score').desc(nulls_last=True), '-created_at')[start:end]
-                )
-                if start == 0 and len(paged_surfaced_metrics) < page_size:
-                    total_surfaced = len(paged_surfaced_metrics)
+                if min_score is not None and min_score > 0:
+                    surfaced_qs = surfaced_qs.filter(signal_score__gte=min_score)
+
+                if sort_param.startswith('dim:'):
+                    target_dim_key = sort_param[4:].strip().lower()
+                    all_surfaced_metrics = list(
+                        surfaced_qs.select_related('paper')
+                        .order_by(db_models.F('signal_score').desc(nulls_last=True), '-created_at')
+                    )
+                    total_surfaced = len(all_surfaced_metrics)
+
+                    surfaced_paper_ids = [pm.paper_id for pm in all_surfaced_metrics if pm.paper_id]
+                    extractions_map = {}
+                    if surfaced_paper_ids:
+                        from research_intelligence.models import Extraction
+                        exts = list(
+                            Extraction.objects.filter(paper_id__in=surfaced_paper_ids)
+                            .select_related('extraction_definition')
+                            .order_by('-created_at')
+                        )
+                        for ext in exts:
+                            extractions_map.setdefault(ext.paper_id, []).append(ext)
+
+                    from research_intelligence.services.scorecard_service import build_single_scored_paper
+
+                    all_scored = []
+                    for pm in all_surfaced_metrics:
+                        sp = build_single_scored_paper(
+                            paper=pm.paper,
+                            definitions=definitions,
+                            target_pr_id=run.id,
+                            target_pr=run,
+                            metrics_list=[pm],
+                            extractions_list=extractions_map.get(pm.paper.id, []),
+                            request=request,
+                        )
+                        sp['screening_status'] = pm.screening_status
+                        sp['signal_score'] = pm.signal_score
+                        all_scored.append(sp)
+
+                    def _dim_val(sp):
+                        for d in sp.get('dimensions', []):
+                            if d.get('key') == target_dim_key:
+                                v = d.get('value')
+                                if isinstance(v, (int, float)):
+                                    return v
+                        return -float('inf')
+
+                    all_scored.sort(
+                        key=lambda sp: (_dim_val(sp), sp.get('signal_score') or 0.0),
+                        reverse=True
+                    )
+                    paged_surfaced_scored = all_scored[start:end]
+                    paged_surfaced_metrics = []
                 else:
-                    total_surfaced = surfaced_qs.count()
+                    if sort_param in ('published', 'date', '-published', '-date'):
+                        order_expr = (db_models.F('paper__created_at').desc(nulls_last=True), '-created_at')
+                    elif sort_param in ('score_asc', '+score', 'signal_score_asc'):
+                        order_expr = (db_models.F('signal_score').asc(nulls_last=True), '-created_at')
+                    else:
+                        order_expr = (db_models.F('signal_score').desc(nulls_last=True), '-created_at')
+
+                    paged_surfaced_metrics = list(
+                        surfaced_qs.select_related('paper').order_by(*order_expr)[start:end]
+                    )
+                    if start == 0 and len(paged_surfaced_metrics) < page_size:
+                        total_surfaced = len(paged_surfaced_metrics)
+                    else:
+                        total_surfaced = surfaced_qs.count()
             else:
                 total_surfaced = 0
                 paged_surfaced_metrics = []
@@ -625,14 +713,25 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             total_pages = max(1, math.ceil(total_items / page_size)) if page_size > 0 else 1
         else:
             # Unpaginated backward-compatibility path: single combined query to preserve 1-query contract
-            all_metrics = list(
-                base_pm_qs.filter(
-                    screening_status__in=target_statuses,
-                    paper__isnull=False
+            unpaginated_qs = base_pm_qs.filter(
+                screening_status__in=target_statuses,
+                paper__isnull=False
+            ).defer('metrics_data')
+            if min_score is not None and min_score > 0:
+                unpaginated_qs = unpaginated_qs.filter(
+                    db_models.Q(screening_status__in=excluded_statuses) |
+                    (db_models.Q(screening_status__in=passed_statuses) & db_models.Q(signal_score__gte=min_score))
                 )
-                .defer('metrics_data')
-                .select_related('paper')
-                .order_by(db_models.F('signal_score').desc(nulls_last=True), '-created_at')
+
+            if sort_param in ('published', 'date', '-published', '-date'):
+                unpaginated_order = (db_models.F('paper__created_at').desc(nulls_last=True), '-created_at')
+            elif sort_param in ('score_asc', '+score', 'signal_score_asc'):
+                unpaginated_order = (db_models.F('signal_score').asc(nulls_last=True), '-created_at')
+            else:
+                unpaginated_order = (db_models.F('signal_score').desc(nulls_last=True), '-created_at')
+
+            all_metrics = list(
+                unpaginated_qs.select_related('paper').order_by(*unpaginated_order)
             )
             surfaced_metrics = []
             paged_excluded_metrics = []
@@ -678,8 +777,9 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 })
 
         surfaced = []
-        if include_surfaced and paged_surfaced_metrics:
-            definitions = list(workspace.extraction_definitions.filter(is_active=True).order_by('created_at'))
+        if paged_surfaced_scored is not None:
+            surfaced = paged_surfaced_scored
+        elif include_surfaced and paged_surfaced_metrics:
             surfaced_paper_ids = [pm.paper_id for pm in paged_surfaced_metrics if pm.paper_id]
 
             extractions_map = {}
@@ -713,11 +813,12 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
         actual_date_str = run_dt.strftime('%Y-%m-%d')
 
         passed_count = (
-            total_surfaced if include_surfaced
-            else (run.total_papers_passed_screening if run.total_papers_passed_screening is not None else 0)
+            run.total_papers_passed_screening
+            if run.total_papers_passed_screening is not None
+            else total_surfaced
         )
         total_fetched = run.total_papers_fetched or (
-            total_surfaced + (total_exclusions if include_exclusions else 0)
+            passed_count + (total_exclusions if include_exclusions else 0)
         )
         surfaced_count = passed_count
 
@@ -747,6 +848,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             "total_pages": total_pages,
             "papers": surfaced,
             "exclusions": exclusions,
+            "definitions": definitions_metadata,
             "generated_at": (
                 run.completed_at.isoformat()
                 if (hasattr(run.completed_at, 'tzinfo') and run.completed_at.tzinfo)

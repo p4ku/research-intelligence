@@ -106,6 +106,19 @@ describe('sortOptions', () => {
   test('a dimension nobody scored, and the affiliation flags, are not offered', () => {
     expect(sortOptions([c, d], t).map((s) => s.id)).toEqual(['score', 'published'])
   })
+
+  test('uses definitions metadata when provided, even if papers list is empty', () => {
+    const definitions = [
+      { key: 'trl', name: 'Technology Readiness Level (TRL)', order: 1, is_trl: true },
+      { key: 'schwarz_fit', name: 'Schwarz Fit', order: 2 },
+      { key: 'risk_and_affiliation', name: 'Risk & Affiliation', order: 3 },
+    ]
+    expect(sortOptions([], t, definitions)).toEqual([
+      { id: 'score', label: 'Total Score' },
+      { id: 'dim:trl', label: 'TRL' },
+      { id: 'dim:schwarz_fit', label: 'Schwarz Fit' },
+    ])
+  })
 })
 
 describe('applyView', () => {

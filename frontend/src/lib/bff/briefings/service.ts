@@ -161,6 +161,8 @@ export const briefings = {
       scope?: BriefingScope,
       page?: number,
       pageSize?: number,
+      minScore?: number,
+      sort?: string,
     ): Promise<Edition | null> => {
       if (sourceOf('briefings') === 'django') {
         try {
@@ -169,6 +171,8 @@ export const briefings = {
           if (scope && scope !== 'all') params.set('scope', scope)
           if (page !== undefined) params.set('page', String(page))
           if (pageSize !== undefined) params.set('page_size', String(pageSize))
+          if (minScore !== undefined && minScore > 0) params.set('min_score', String(minScore))
+          if (sort && sort !== 'score') params.set('sort', sort)
           const q = params.toString() ? `?${params.toString()}` : ''
           const ed = await django(
             `/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/editions/${date}/${q}`,
@@ -282,14 +286,32 @@ export const briefings = {
       scope?: BriefingScope,
       page?: number,
       pageSize?: number,
+      minScore?: number,
+      sort?: string,
     ): Promise<Edition | null> => {
       if (workspaceId)
-        return briefings.getByDate(workspaceId, date, lang, runId, scope, page, pageSize)
+        return briefings.getByDate(
+          workspaceId,
+          date,
+          lang,
+          runId,
+          scope,
+          page,
+          pageSize,
+          minScore,
+          sort,
+        )
       const found = editionFor(await briefings.listEverywhere(lang), date, runId)
       if (!found) return null
       let res: Edition = found
       if (scope === 'included') res = { ...found, exclusions: [] }
       else if (scope === 'excluded') res = { ...found, papers: [] }
+      if (minScore !== undefined && minScore > 0) {
+        res = {
+          ...res,
+          papers: res.papers.filter((p) => p.signal_score !== null && p.signal_score >= minScore),
+        }
+      }
       if (page !== undefined && pageSize !== undefined) {
         const isExcluded = scope === 'excluded'
         const total = res.total ?? (isExcluded ? res.exclusions.length : res.papers.length)

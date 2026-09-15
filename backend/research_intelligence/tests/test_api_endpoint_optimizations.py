@@ -1165,6 +1165,109 @@ class ApiEndpointOptimizationsTestCase(TestCase):
             self.assertEqual(data["run_id"], str(run.id))
             self.assertEqual(data["date"], "2026-09-08")
 
+    def test_edition_detail_score_floor_and_dimension_sorting(self):
+        """
+        Verify GET /api/workspaces/{id}/editions/{date}/:
+        1. Correctly filters by min_score / score in the database, updating total and papers.
+        2. Correctly sorts by dimension (e.g. ?sort=dim:trl) across all run papers before slicing.
+        3. Returns definitions metadata for frontend sort options.
+        """
+        target_date = datetime(2026, 9, 11, 10, 0, 0, tzinfo=dt_timezone.utc)
+        target_date_str = "2026-09-11"
+
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Score Filter & Sort Run",
+            status="completed",
+            completed_at=target_date,
+            total_papers_fetched=10,
+            total_papers_passed_screening=4,
+        )
+
+        def_trl = ExtractionDefinition.objects.create(
+            workspace=self.workspace,
+            name="TRL",
+            system_prompt="Extract TRL",
+            user_prompt_template="{paper_text}",
+            response_schema={},
+            exit_metrics="trl_level",
+            is_active=True,
+            order=1,
+        )
+
+        # Create 4 papers:
+        # p1: score=90, TRL=3
+        # p2: score=75, TRL=7
+        # p3: score=60, TRL=9
+        # p4: score=40, TRL=5
+        papers_data = [
+            ("p1", 90.0, 3),
+            ("p2", 75.0, 7),
+            ("p3", 60.0, 9),
+            ("p4", 40.0, 5),
+        ]
+        for name, score, trl in papers_data:
+            p = Paper.objects.create(
+                workspace=self.workspace,
+                title=f"Paper {name}",
+                source_database="arXiv",
+                hash_id=f"hash_{name}",
+            )
+            PaperMetric.objects.create(
+                workspace=self.workspace,
+                paper=p,
+                pipeline_run=run,
+                signal_score=score,
+                screening_status="accepted",
+            )
+            Extraction.objects.create(
+                workspace=self.workspace,
+                paper=p,
+                extraction_definition=def_trl,
+                category="TRL",
+                fields_data={"trl_level": trl},
+                validation_status="pass",
+            )
+
+        # 1. Test score floor filtering: ?score=63 -> should only return p1 (90) and p2 (75)
+        resp_filter = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&score=63&page=1&page_size=20"
+        )
+        self.assertEqual(resp_filter.status_code, 200)
+        data_filter = resp_filter.json()
+        self.assertEqual(data_filter["total"], 2, "Total must be 2 matching score >= 63")
+        self.assertEqual(data_filter["total_papers"], 2)
+        self.assertEqual(len(data_filter["papers"]), 2)
+        self.assertEqual([p["signal_score"] for p in data_filter["papers"]], [90.0, 75.0])
+        # Funnel should preserve full run count
+        self.assertEqual(data_filter["funnel"]["passed_screening"], 4)
+
+        # Definitions must be in response
+        self.assertIn("definitions", data_filter)
+        self.assertTrue(any(d["name"] == "TRL" for d in data_filter["definitions"]))
+
+        # 2. Test dimension sorting: ?sort=dim:trl -> should return papers ordered by TRL DESC: p3 (9), p2 (7), p4 (5), p1 (3)
+        resp_sort = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&sort=dim:trl&page=1&page_size=20"
+        )
+        self.assertEqual(resp_sort.status_code, 200)
+        data_sort = resp_sort.json()
+        self.assertEqual(len(data_sort["papers"]), 4)
+        titles = [p["title"] for p in data_sort["papers"]]
+        self.assertEqual(titles, ["Paper p3", "Paper p2", "Paper p4", "Paper p1"])
+
+        # 3. Test combined score floor + dimension sorting: ?score=63&sort=dim:trl
+        # Papers with score >= 63 are p1 (TRL 3) and p2 (TRL 7).
+        # Ordered by TRL DESC: p2 (7), p1 (3)
+        resp_comb = self.client.get(
+            f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?run_id={run.id}&scope=included&score=63&sort=dim:trl&page=1&page_size=20"
+        )
+        self.assertEqual(resp_comb.status_code, 200)
+        data_comb = resp_comb.json()
+        self.assertEqual(data_comb["total"], 2)
+        self.assertEqual([p["title"] for p in data_comb["papers"]], ["Paper p2", "Paper p1"])
+
+
     def test_workspace_scorecard_pagination_preserves_global_ordering(self):
         """
         Verify that requesting pagination (page_size=2) with ordering by score (-signal_score)
