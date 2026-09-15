@@ -5,7 +5,6 @@ import type { Edition } from '@/lib/bff/briefings/schema'
 import { byNewest } from '@/lib/bff/briefings/select'
 import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
-import { problemResult } from '@/lib/bff/core/result'
 import { papers as papersService } from '@/lib/bff/papers/service'
 import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import type { Features } from '@/lib/features'
@@ -244,44 +243,6 @@ export function StaleLinkNotice({
   )
 }
 
-/**
- * The edition's rows with what the editions endpoint leaves out. It sends
- * each paper with `dimensions: []` and `published_date: null` (backend
- * `workspaces.py`, seen on prod 10 Sep 2026), which leaves the cards without
- * their TRL chip and the view rail without a dimension or a date to sort by.
- * When every row lacks either, the run's scorecard — the read the fallback
- * path below already makes — fills them in by id; a row keeps whatever it
- * did carry, and the edition's own score and decision stay. A failed scorecard read is no
- * enrichment, never a failed page: the problem is logged, and a 401 still
- * signs the reader out (`problemResult` under `forPage`).
- *
- * The read is narrowed to the papers that passed: the run filter alone returns
- * everything the run screened (771 where this briefing lists 23), and only the
- * rows the edition lists can be enriched. A row the narrowed read does not
- * carry is left exactly as it came, as it always was.
- */
-async function withScorecard(rows: ScoredPaper[], edition: Edition): Promise<ScoredPaper[]> {
-  const thin = rows.every((p) => (p.dimensions ?? []).length === 0)
-  const undated = rows.every((p) => !p.published_date)
-  if (rows.length === 0 || (!thin && !undated)) return rows
-  const read = await forPage(
-    problemResult(papersService.listRun(edition.workspace_id, edition.run_id, 'passed')),
-  )
-  if (!read.ok || read.value.length === 0) return rows
-  const byId = new Map(read.value.map((p) => [p.id, p]))
-  return rows.map((p) => {
-    const full = byId.get(p.id)
-    if (!full) return p
-    return {
-      ...p,
-      dimensions: (p.dimensions ?? []).length > 0 ? p.dimensions : full.dimensions,
-      published_date: p.published_date || full.published_date || null,
-      risk_and_affiliation: p.risk_and_affiliation ?? full.risk_and_affiliation,
-      summary: p.summary ?? full.summary,
-    }
-  })
-}
-
 /** The papers that passed, as cards with their stars, and the link to the screening log. */
 export async function EditionPapers({
   wsId,
@@ -308,8 +269,9 @@ export async function EditionPapers({
   // If edition.papers already carries full scorecard records (from backend single-stream detail),
   // use them directly; otherwise resolve run rows via papersService as fallback.
   let cards: ScoredPaper[]
-  if (edition.papers.length > 0 && edition.papers[0]?.workspace_id) {
-    cards = await withScorecard(edition.papers as unknown as ScoredPaper[], edition)
+  const hasDimensions = edition.papers.some((p) => (p.dimensions?.length ?? 0) > 0)
+  if (edition.papers.length === 0 || edition.papers[0]?.workspace_id || hasDimensions) {
+    cards = edition.papers as unknown as ScoredPaper[]
   } else {
     const scored = await forPage(
       papersService.listRun(edition.workspace_id, edition.run_id, 'passed'),

@@ -200,10 +200,16 @@ export const briefings = {
             title = prose.title
             in_brief = prose.in_brief
           }
+          const papers = (ed.papers || []).map((p) => ({
+            ...p,
+            workspace_id: p.workspace_id || ed.workspace_id,
+            pipeline_run_id: p.pipeline_run_id || ed.run_id,
+          }))
           return {
             ...ed,
             title,
             in_brief,
+            papers,
           }
         } catch (error) {
           if (error instanceof ProblemError && error.problem.status === 404) return null

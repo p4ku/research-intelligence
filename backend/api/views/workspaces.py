@@ -650,6 +650,8 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                         )
                         sp['screening_status'] = pm.screening_status
                         sp['signal_score'] = pm.signal_score
+                        sp['workspace_id'] = str(workspace.id)
+                        sp['pipeline_run_id'] = str(run.id)
                         all_scored.append(sp)
 
                     def _dim_val(sp):
@@ -807,6 +809,8 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 )
                 sp['screening_status'] = pm.screening_status
                 sp['signal_score'] = pm.signal_score
+                sp['workspace_id'] = str(workspace.id)
+                sp['pipeline_run_id'] = str(run.id)
                 surfaced.append(sp)
 
         run_dt = run.completed_at or run.run_date or run.started_at
