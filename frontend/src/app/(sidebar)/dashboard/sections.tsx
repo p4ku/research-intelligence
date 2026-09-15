@@ -1,16 +1,19 @@
 import { Card, SectionLabel } from '@/components/scanner-ui'
 import type { Edition } from '@/lib/bff/briefings/schema'
-import { editionDate } from '@/lib/bff/briefings/select'
-import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import type { InFlightRun } from '@/lib/bff/pipeline-runs/admission'
 import type { PipelineRun } from '@/lib/bff/pipeline-runs/schema'
 import type { Lang, T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
 import { editionHref } from '../briefing/format'
-import { briefingDate, briefingsPerDay, stampFor } from '../briefing/rows'
-import { allRuns, currentRun, inFlightRuns, recentBriefings } from './data'
-import { formatAuthors, formatClock, formatDay, periodLabel } from './format'
+import { currentRun, inFlightRuns, recentBriefings } from './data'
+import {
+  clockStamp,
+  formatAuthors,
+  formatClock,
+  formatDay,
+  periodLabel,
+} from './format'
 import { HomeGrid, HomeLinks, type HomePaper } from './home-ui'
 import { Ledger, type HomeRow, type RowStatus } from './ledger'
 import { LiveRefresh } from './live-refresh'
@@ -71,37 +74,28 @@ export async function LedgerSection({
   domains: RunDomain[]
   today: string
 }) {
-  const [items, current, inFlight, editions, all, capped] = await forPage(
+  const [items, current, inFlight] = await forPage(
     Promise.all([
       recentBriefings(lang),
       currentRun(),
       inFlightRuns(),
-      briefings.listEverywhere(lang),
-      allRuns(),
-      briefings.capped(),
     ]),
   )
-  // The same-day clock follows the archive's count over every briefing, not
-  // the five shown: a row must read the same on both screens.
-  const perDay = briefingsPerDay(editions, new Map(all.map((run) => [run.id, run])), capped)
   const rows: HomeRow[] = items.map(({ run, edition }) => {
     const status = rowStatus(run, current?.id ?? null)
     const completed = run.status === 'completed'
+    const instant = run.completed_at ?? edition?.generated_at ?? run.started_at
+    const day = instant ? formatDay(instant, lang) : formatDay(edition?.date ?? run.run_date, lang)
+    const stamp = instant ? clockStamp(instant, lang) : null
     return {
       id: run.id,
       domain: run.workspace_name,
       status,
       period: periodLabel(run, t, lang),
-      generated: completed
-        ? formatDay(edition ? briefingDate(edition, run) : editionDate(run), lang)
-        : null,
-      stamp: edition ? stampFor(edition, run, perDay, lang) : null,
+      generated: completed ? day : null,
+      stamp,
       startedClock: run.started_at ? formatClock(run.started_at, lang) : null,
-      // Django stamps completed_at on failure and abort alike.
-      failedDay:
-        status === 'failed'
-          ? formatDay(run.completed_at ?? run.started_at ?? run.run_date, lang)
-          : null,
+      failedDay: status === 'failed' ? day : null,
       papers: completed ? run.total_papers_passed_screening : null,
       retry:
         status === 'failed' && run.retryable

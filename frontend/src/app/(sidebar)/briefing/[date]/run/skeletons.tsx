@@ -11,11 +11,11 @@ export function ScreeningLogSkeleton({ t }: { t: T }) {
   return (
     <Skeleton.Region status={t('Loading the screening log')} innerClassName="space-y-10">
       <StatBandSkeleton
-        count={2}
+        count={copy.length}
         labels={copy.map((c) => c.label)}
+        noFlows={[false, false, true, true]}
         below="none"
         flow
-        className="lg:grid-cols-3!"
       />
       <section>
         <SectionLabel size="sm">{t('Screened out')}</SectionLabel>

@@ -1,5 +1,5 @@
 import { AnswerMarkdown } from '@/components/answer-markdown'
-import { Breadcrumbs, SectionLabel, StatBand } from '@/components/scanner-ui'
+import { Breadcrumbs, SectionLabel, StatBand, type StatBandItem } from '@/components/scanner-ui'
 import { StarToggle } from '@/components/star'
 import type { Edition } from '@/lib/bff/briefings/schema'
 import { byNewest } from '@/lib/bff/briefings/select'
@@ -7,13 +7,14 @@ import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
 import { problemResult } from '@/lib/bff/core/result'
 import { papers as papersService } from '@/lib/bff/papers/service'
+import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import type { Features } from '@/lib/features'
 import type { Lang, T } from '@/lib/i18n'
 import type { ScoredPaper } from '@/lib/papers/types'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { cache } from 'react'
-import { formatDay } from '../../dashboard/format'
+import { formatDay, formatTimestamp, periodLabel } from '../../dashboard/format'
 import { editionHref, formatEditionDate } from '../format'
 import { hasBriefing } from '../rows'
 import { cardRows } from './card-rows'
@@ -28,7 +29,12 @@ import { EditionPaperList } from './edition-paper-list'
  */
 
 export function funnelCopy(t: T) {
-  return [{ label: t('Screened') }, { label: t('Analysed') }]
+  return [
+    { label: t('Screened') },
+    { label: t('Analysed') },
+    { label: t('Period covered') },
+    { label: t('Generated') },
+  ]
 }
 
 /** Crumbs and title, the funnel, the brief. */
@@ -51,16 +57,27 @@ export async function EditionHead({
   /** Required: page.tsx is the only caller, and its skeleton must agree. */
   features: Features
 }) {
-  const edition = await forPage(briefings.findByDate(date, lang, wsId, runId))
+  const editionPromise = briefings.findByDate(date, lang, wsId, runId)
+  const runPromise = runId ? runsService.get(runId).catch(() => null) : null
+  const [edition, earlyRun] = await forPage(Promise.all([editionPromise, runPromise]))
   // A date with no edition is a true 404 — rendered in-stream now that the
   // shell has already gone out (see docs/skeletons.md).
   if (!edition) notFound()
+  const run = earlyRun ?? (await runsService.get(edition.run_id).catch(() => null))
   const elsewhere = await namedElsewhere(runId, edition, lang)
 
   const copy = funnelCopy(t)
-  const funnel = [
+  const period = run ? periodLabel(run, t, lang) : formatDay(edition.date, lang)
+  const instant = run?.completed_at ?? edition.generated_at ?? run?.started_at
+  const generatedStamp = instant
+    ? formatTimestamp(instant, lang)
+    : formatDay(edition.date, lang)
+
+  const funnel: StatBandItem[] = [
     { value: edition.funnel.fetched, ...copy[0] },
     { value: edition.funnel.passed_screening, ...copy[1] },
+    { value: period, noFlow: true, ...copy[2] },
+    { value: generatedStamp, noFlow: true, ...copy[3] },
   ]
   const domain = domains[edition.workspace_id]
   const dateLabel = formatEditionDate(edition.date, lang)
@@ -92,7 +109,7 @@ export async function EditionHead({
         />
       </div>
 
-      <StatBand items={funnel} flow className="lg:grid-cols-3!" />
+      <StatBand items={funnel} flow />
 
       <section>
         <SectionLabel size="sm">{t('In brief')}</SectionLabel>

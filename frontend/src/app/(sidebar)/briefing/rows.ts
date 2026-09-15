@@ -34,7 +34,7 @@ export interface ArchiveRow {
   period: string
   /** The completion day, already worded. */
   generated: string
-  /** "12:03 UTC" when the domain briefed more than once that day, so the rows read apart; null otherwise. */
+  /** "12:03 UTC" when the execution instant is known; null otherwise. */
   stamp: string | null
   screened: number
   included: number
@@ -113,17 +113,15 @@ export function briefingsPerDay(
 }
 
 /**
- * The clock a row carries when its (domain, day) holds more than one
- * briefing — "12:03 UTC" — so two rows that would otherwise read the same
- * are told apart. Null for a day with one briefing, or with no instant.
+ * The clock a row carries — "12:03 UTC" — so rows display their full execution
+ * timestamp. Null only when no instant is available.
  */
 export function stampFor(
   e: Pick<Edition, 'workspace_id' | 'date' | 'generated_at'>,
   run: Pick<PipelineRun, 'completed_at' | 'started_at'> | null | undefined,
-  perDay: ReadonlyMap<string, number>,
+  _perDay?: ReadonlyMap<string, number>,
   lang: Lang = 'en',
 ): string | null {
-  if ((perDay.get(briefingDay(e, run)) ?? 0) < 2) return null
   const at = briefingClock(e, run)
   return at ? clockStamp(at, lang) : null
 }

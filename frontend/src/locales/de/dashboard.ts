@@ -102,6 +102,7 @@ export const dict: Record<string, string> = {
   'No papers met the inclusion criteria for this briefing.':
     'Kein Paper hat die Aufnahmekriterien für dieses Briefing erfüllt.',
   Period: 'Zeitraum',
+  'Period covered': 'Abgedeckter Zeitraum',
   Generated: 'Erstellt',
   Latest: 'Aktuell',
   Processing: 'In Arbeit',

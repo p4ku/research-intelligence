@@ -260,11 +260,12 @@ export function StatTileSkeleton({ digits = 3 }: { digits?: number }) {
 
 export interface StatBandItem {
   label: string
-  value: string | number
+  value: React.ReactNode
   /** Small caption shown when there is no sparkline (e.g. "all sources, 90 days"). */
   sub?: string
   delta?: number
   spark?: number[]
+  noFlow?: boolean
 }
 
 /**
@@ -281,6 +282,7 @@ interface StatBandCell {
   value: React.ReactNode
   delta?: React.ReactNode
   below?: React.ReactNode
+  noFlow?: boolean
 }
 
 // The band chrome for both orientations. Slots receive fully-wrapped nodes;
@@ -317,7 +319,7 @@ function StatBandFrame({
           >
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-                {flow && i > 0 && (
+                {flow && i > 0 && !cell.noFlow && (
                   <ArrowDownIcon className="size-3 shrink-0 text-zinc-300 dark:text-zinc-600" />
                 )}
                 <span className="truncate">{cell.label}</span>
@@ -326,7 +328,14 @@ function StatBandFrame({
             </div>
             <div className="flex shrink-0 items-baseline gap-2">
               {cell.delta}
-              <span className="font-mono text-3xl font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white">
+              <span
+                className={clsx(
+                  'font-mono font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white',
+                  typeof cell.value === 'string' && cell.value.length > 10
+                    ? 'text-lg sm:text-xl lg:text-xl'
+                    : 'text-3xl',
+                )}
+              >
                 {cell.value}
               </span>
             </div>
@@ -348,13 +357,20 @@ function StatBandFrame({
       {cells.map((cell, i) => (
         <div key={cell.key} data-row="cell" className="lg:px-6 lg:first:pl-0 lg:last:pr-0">
           <div className="flex items-center gap-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-            {flow && i > 0 && (
+            {flow && i > 0 && !cell.noFlow && (
               <ArrowRightIcon className="size-3 shrink-0 text-zinc-300 dark:text-zinc-600" />
             )}
             <span className="truncate">{cell.label}</span>
           </div>
           <div className="mt-1 flex items-baseline gap-2">
-            <span className="font-mono text-3xl font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white">
+            <span
+              className={clsx(
+                'font-mono font-medium tracking-tight text-zinc-950 tabular-nums dark:text-white',
+                typeof cell.value === 'string' && cell.value.length > 10
+                  ? 'text-lg sm:text-xl lg:text-xl'
+                  : 'text-3xl',
+              )}
+            >
               {cell.value}
             </span>
             {cell.delta}
@@ -383,6 +399,7 @@ export function StatBand({
       key: item.label,
       label: item.label,
       value: item.value,
+      noFlow: item.noFlow,
       delta: typeof item.delta === 'number' ? <DeltaBadge delta={item.delta} /> : undefined,
       below: vertical ? (
         item.sub && (
@@ -423,6 +440,8 @@ export function StatBandSkeleton({
   withDelta = false,
   below = 'sub',
   flow = false,
+  noFlows,
+  values,
   orientation = 'horizontal',
   className,
 }: {
@@ -433,6 +452,8 @@ export function StatBandSkeleton({
   withDelta?: boolean
   below?: 'sub' | 'spark' | 'none'
   flow?: boolean
+  noFlows?: boolean[]
+  values?: React.ReactNode[]
   orientation?: 'horizontal' | 'vertical'
   className?: string
 }) {
@@ -445,7 +466,8 @@ export function StatBandSkeleton({
     (_, i): StatBandCell => ({
       key: labels?.[i] ?? `bone-${i}`,
       label: labels?.[i] ?? <Bone.Text widths={['9ch']} />,
-      value: <Bone.Number digits={digits} />,
+      value: values?.[i] ?? <Bone.Number digits={digits} />,
+      noFlow: noFlows?.[i],
       delta: withDelta ? (
         <Bone.Text widths={['3ch']} className="font-mono text-[11px]" />
       ) : undefined,

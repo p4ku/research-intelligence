@@ -97,10 +97,9 @@ describe('composeRows', () => {
     expect(rows[1].stamp).toMatch(/^\d\d:\d\d UTC$/)
   })
 
-  test('a domain that briefed once in a day carries no clock', () => {
+  test('every briefing with an instant carries a clock timestamp', () => {
     const [row] = composeRows({ editions: [edition, older], runs: [run], domains, t, lang: 'en' })
-    expect(row.stamp).toBeNull()
-    // Two domains on one day are told apart by their names, not a clock.
+    expect(row.stamp).toMatch(/^\d\d:\d\d UTC$/)
     const other = {
       ...edition,
       run_id: '00000000-0000-4000-8000-000000000034',
@@ -113,7 +112,8 @@ describe('composeRows', () => {
       t,
       lang: 'en',
     })
-    expect(rows.map((r) => r.stamp)).toEqual([null, null])
+    expect(rows[0].stamp).toMatch(/^\d\d:\d\d UTC$/)
+    expect(rows[1].stamp).toMatch(/^\d\d:\d\d UTC$/)
   })
 
   test('a completed run without a completion stamp still carries a clock, from its start', () => {
@@ -187,7 +187,7 @@ describe('composeRows', () => {
       lang: 'en',
     })
     expect(rows.map((r) => r.id)).toEqual([edition.run_id])
-    expect(rows[0].stamp).toBeNull()
+    expect(rows[0].stamp).toMatch(/^\d\d:\d\d UTC$/)
   })
 
   test('the newest completion is current, even when an older run started later', () => {

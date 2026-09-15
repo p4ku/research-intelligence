@@ -413,7 +413,10 @@ function Row({
           {row.generated ? (
             <Generated day={row.generated} stamp={row.stamp ?? null} />
           ) : row.failedDay !== null ? (
-            <Phrase template={t('failed {date}')} vars={{ date: row.failedDay }} />
+            <>
+              <Phrase template={t('failed {date}')} vars={{ date: row.failedDay }} />{' '}
+              {row.stamp && <span className="whitespace-nowrap text-zinc-400">· {row.stamp}</span>}
+            </>
           ) : (
             <Phrase template={t('started {time} UTC')} vars={{ time: row.startedClock ?? '—' }} />
           )}

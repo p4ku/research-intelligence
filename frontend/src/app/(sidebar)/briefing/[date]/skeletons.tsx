@@ -63,11 +63,11 @@ export function EditionHeadSkeleton({
       </div>
 
       <StatBandSkeleton
-        count={2}
+        count={copy.length}
         labels={copy.map((c) => c.label)}
+        noFlows={[false, false, true, true]}
         below="none"
         flow
-        className="lg:grid-cols-3!"
       />
 
       <section>

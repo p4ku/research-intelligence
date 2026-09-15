@@ -60,6 +60,11 @@ export function clockStamp(iso: string, lang: Lang = 'en'): string {
   return `${formatClock(iso, lang)} UTC`
 }
 
+/** "11 Sep 2026 · 06:06 UTC" — full date + time stamp. */
+export function formatTimestamp(iso: string, lang: Lang = 'en'): string {
+  return `${formatDay(iso, lang)} · ${clockStamp(iso, lang)}`
+}
+
 /**
  * The Period cell: the window a run searched. Explicit dates read as a
  * range, a relative window as "Last N days", and a run that recorded

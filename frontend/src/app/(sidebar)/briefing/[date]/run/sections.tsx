@@ -1,13 +1,20 @@
-import { SectionLabel, StatBand } from '@/components/scanner-ui'
+import { SectionLabel, StatBand, type StatBandItem } from '@/components/scanner-ui'
 import { briefings } from '@/lib/bff/briefings/service'
 import { forPage } from '@/lib/bff/core/page'
+import { runs as runsService } from '@/lib/bff/pipeline-runs/service'
 import type { Lang, T } from '@/lib/i18n'
 import { notFound } from 'next/navigation'
+import { formatDay, formatTimestamp, periodLabel } from '../../../dashboard/format'
 import { namedElsewhere, StaleLinkNotice } from '../sections'
 import { ExclusionsTable } from './exclusions-table'
 
 export function funnelCopy(t: T) {
-  return [{ label: t('Screened') }, { label: t('Analysed') }]
+  return [
+    { label: t('Screened') },
+    { label: t('Analysed') },
+    { label: t('Period covered') },
+    { label: t('Generated') },
+  ]
 }
 
 /**
@@ -31,14 +38,25 @@ export async function ScreeningLog({
   /** Domain names by workspace id, for the notice. */
   domains: Record<string, string>
 }) {
-  const edition = await forPage(briefings.findByDate(date, lang, wsId, runId))
+  const editionPromise = briefings.findByDate(date, lang, wsId, runId)
+  const runPromise = runId ? runsService.get(runId).catch(() => null) : null
+  const [edition, earlyRun] = await forPage(Promise.all([editionPromise, runPromise]))
   if (!edition) notFound()
+  const run = earlyRun ?? (await runsService.get(edition.run_id).catch(() => null))
   const elsewhere = await namedElsewhere(runId, edition, lang)
 
   const copy = funnelCopy(t)
-  const funnel = [
+  const period = run ? periodLabel(run, t, lang) : formatDay(edition.date, lang)
+  const instant = run?.completed_at ?? edition.generated_at ?? run?.started_at
+  const generatedStamp = instant
+    ? formatTimestamp(instant, lang)
+    : formatDay(edition.date, lang)
+
+  const funnel: StatBandItem[] = [
     { value: edition.funnel.fetched, ...copy[0] },
     { value: edition.funnel.passed_screening, ...copy[1] },
+    { value: period, noFlow: true, ...copy[2] },
+    { value: generatedStamp, noFlow: true, ...copy[3] },
   ]
 
   return (
@@ -54,7 +72,7 @@ export async function ScreeningLog({
         t={t}
         lang={lang}
       />
-      <StatBand items={funnel} flow className="lg:grid-cols-3!" />
+      <StatBand items={funnel} flow />
 
       <section>
         <SectionLabel size="sm">{t('Screened out')}</SectionLabel>

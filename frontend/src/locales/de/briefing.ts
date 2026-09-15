@@ -15,6 +15,10 @@ export const dict: Record<string, string> = {
     '{screened} gesichtet → {included} analysiert → {inBriefing} im Briefing',
   'In brief': 'Das Wichtigste in Kürze',
   'Briefing history': 'Briefing-Verlauf',
+  Screened: 'Gesichtet',
+  Analysed: 'Analysiert',
+  'Period covered': 'Abgedeckter Zeitraum',
+  Generated: 'Erstellt',
   // "Auto-Brief" would read as "automatic letter" — Briefing stays the loanword.
   'auto-brief': 'Auto-Briefing',
   'Screening log →': 'Screening-Protokoll →',
