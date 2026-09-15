@@ -1,13 +1,13 @@
-# 🚀 GitHub Actions — CI/CD Workflows for STACKIT Cloud Foundry
+# GitHub Actions — CI/CD Workflows for STACKIT Cloud Foundry
 
 This directory defines the automated Continuous Integration and Continuous Deployment pipelines for the **Schwarz Research Intelligence (SRI)** platform.
 
-> 📖 **Full DevOps Specification**: For a detailed architectural deep-dive into STACKIT Cloud Foundry topology, automated update procedures, multi-tier cache refresh policies, and secrets management, see:
+> **Full DevOps Specification**: For a detailed architectural deep-dive into STACKIT Cloud Foundry topology, automated update procedures, multi-tier cache refresh policies, and secrets management, see:
 > **[`docs/STACKIT_INFRASTRUCTURE_AND_CICD.md`](file:///Users/piotr/git/schwarz_research_inteligence/docs/STACKIT_INFRASTRUCTURE_AND_CICD.md)**
 
 ---
 
-## 📈 Pipeline Flow
+## Pipeline Flow
 
 The repository operates on an automated two-phase pipeline:
 1. **Continuous Integration (CI)**: Runs on Pull Requests, feature branches, and as an automated pre-deployment quality gate.
@@ -42,7 +42,7 @@ flowchart TD
 
 ---
 
-## 📂 Workflow Definitions
+## Workflow Definitions
 
 ### 1. `ci.yml` (Continuous Integration)
 - **Triggers**:
@@ -64,7 +64,7 @@ flowchart TD
 
 ---
 
-## 🔑 Required Repository Secrets
+## Required Repository Secrets
 
 The following secrets must be configured under **GitHub Repository Settings -> Secrets and variables -> Actions**:
 
@@ -79,4 +79,4 @@ The following secrets must be configured under **GitHub Repository Settings -> S
 | `REGISTRY_PASSWORD` | Build/Deploy | STACKIT Harbor Container Registry robot/service account password/token. |
 | `GOOGLE_AGENT_API_KEY` | Testing/Runtime | API key for automated test execution and agent tooling. |
 
-> 🔒 **Runtime Secrets**: Application-level secrets (such as database credentials, Redis URLs, S3 access keys, and Vertex AI service accounts) are **not** in GitHub Secrets or the git repository. They are managed inside the Cloud Foundry Diego management plane via `cf set-env` or bound managed services, persisting across deployments.
+> **Runtime Secrets**: Application-level secrets (such as database credentials, Redis URLs, S3 access keys, and Vertex AI service accounts) are **not** in GitHub Secrets or the git repository. They are managed inside the Cloud Foundry Diego management plane via `cf set-env` or bound managed services, persisting across deployments.

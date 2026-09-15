@@ -1,10 +1,10 @@
-# 🚀 STACKIT Infrastructure Review & CI/CD Architecture Guide
+# STACKIT Infrastructure Review & CI/CD Architecture Guide
 
 This document provides a comprehensive technical overview of the **Schwarz Research Intelligence (SRI)** production environment hosted on **STACKIT Cloud Foundry**. It is specifically structured for the **STACKIT DevOps and Cloud Operations teams** to clarify system topology, automated update procedures, multi-tier cache refresh policies, and secrets management.
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 1. [Architecture & STACKIT Cloud Foundry Topology](#1-architecture--stackit-cloud-foundry-topology)
 2. [End-to-End CI/CD Pipeline Flow](#2-end-to-end-cicd-pipeline-flow)
 3. [Automated Update Procedures & Rolling Deployments](#3-automated-update-procedures--rolling-deployments)
@@ -94,6 +94,27 @@ flowchart TD
 
     Beat --> Redis
 ```
+
+### 1.4 Production Cluster Network & Connectivity Specifications
+
+The following live networking parameters, DNS endpoints, and IP allocations are queried directly from the STACKIT Cloud Foundry production space:
+
+| Parameter | Configuration Value | Operational Significance |
+| :--- | :--- | :--- |
+| **STACKIT Cloud Foundry API** | `https://api.system.01.cf.eu01.stackit.cloud` | Cloud Controller management endpoint (API v3.225.0). |
+| **Organization Name & GUID** | `organization-sri-production`<br>`551eb590-c316-4717-b9cd-a19a257dcc57` | Top-level tenant isolation boundary in STACKIT Cloud. |
+| **Space Name & GUID** | `sri-prod`<br>`b0f24de2-6fe7-4205-9b76-7c0aa8a6e189` | Isolated runtime environment containing all 5 application pods. |
+| **Public Ingress Hostnames** | `sri-prod.apps.01.cf.eu01.onstackit.cloud`<br>`research-scanner.schwarz`<br>`sri.soinventive.co.uk` | Ingress FQDNs mapped to STACKIT Gorouter; TLS terminated at edge. |
+| **Outbound Egress NAT IPv4** | `45.135.247.119` | Public egress IP address for all outbound Diego cell traffic (PostgreSQL Flex whitelist, external AI APIs). |
+| **PostgreSQL Flex Hostname** | `ce6f3475-5c0b-4db1-ae6c-4ba442306e57.postgresql.eu01.onstackit.cloud` | Managed PostgreSQL Flex FQDN (resolves to `188.34.100.167`). |
+| **PostgreSQL Port & Database** | Port `5432` · DB `sri-production` · User `sri_user` | Primary relational database; SSL connection mode enforced. |
+| **Redis Cluster Hostname** | `red461f3c-master-1.data.eu01.onstackit.cloud` | Managed Redis FQDN (resolves to `45.129.44.191`, `45.135.247.226`, `193.148.164.98`). |
+| **Redis Port & Protocol** | Port `52267` · `rediss://` | TLS-encrypted Redis connection for Celery task queuing and query cache. |
+| **Object Storage S3 Endpoint** | `https://object.storage.eu01.onstackit.cloud` | S3-compatible API endpoint (resolves to `193.148.160.80`, `193.148.160.68`). |
+| **S3 Region & Bucket Name** | Region `eu01` · Bucket `bucket-sri-production` | Persistent bucket for paper PDFs, Markdown OCR extractions, and briefings. |
+| **Harbor Container Registry** | `registry.onstackit.cloud/sri-production` | Private container registry for immutable backend and frontend images. |
+| **Internal DNS Recursor** | `169.254.0.53` | BOSH link-local DNS recursor (`bosh-dns` / CoreDNS) running inside Diego cells. |
+| **Active Security Groups (ASG)** | `dns` (Port 53 TCP/UDP to 0.0.0.0/0)<br>`public_networks` (Restricts RFC 1918 egress) | Egress firewall policies enforced by Cloud Foundry at the container network interface. |
 
 ---
 
@@ -245,39 +266,64 @@ sequenceDiagram
 
 Security and tenant isolation require that **no credentials, private keys, or passwords exist in the git repository or container images**.
 
-### 5.1 Secrets Inventory & Storage Locations
+### 5.1 Secrets Architecture & Storage Plane Hierarchy
 
 ```mermaid
 flowchart TD
-    subgraph GitHub_Secrets["GitHub Actions Repository Secrets"]
-        G1["CF_API (Cloud Foundry API endpoint)"]
-        G2["CF_USERNAME & CF_PASSWORD (Deployer Account)"]
-        G3["CF_ORG & CF_SPACE (Target Environment)"]
-        G4["REGISTRY_USERNAME & REGISTRY_PASSWORD (Harbor Robot)"]
-        G5["GOOGLE_AGENT_API_KEY (Integration Testing)"]
+    subgraph Layer1["1. CI/CD Pipeline Store (GitHub Actions Secrets)"]
+        GH_Secrets["Deployment Plane Credentials<br/>CF_API · CF_USERNAME · CF_PASSWORD<br/>CF_ORG · CF_SPACE · REGISTRY_USERNAME · REGISTRY_PASSWORD"]
     end
 
-    subgraph CF_Diego["STACKIT Cloud Foundry Diego Management Plane"]
-        C1["SECRET_KEY (Django Cryptographic Signing Key)"]
-        C2["DB_HOST, DB_NAME, DB_USER, DB_PASSWORD (Postgres Flex)"]
-        C3["REDIS_URL (STACKIT Redis Connection String & Token)"]
-        C4["S3_ACCESS_KEY, S3_SECRET_KEY, S3_ENDPOINT (Object Storage)"]
-        C5["GOOGLE_SERVICE_ACCOUNT_JSON (Vertex AI Gemini Service Account)"]
+    subgraph Layer2["2. Ephemeral Automation Plane (GitHub Actions Runner)"]
+        GH_Runner["Transient Runner Memory<br/>In-memory CF CLI authentication token & ephemeral vars-ci.yml<br/>(Wiped immediately upon job completion)"]
     end
 
-    subgraph Runtime_Containers["Running Container Environments"]
-        AppAPI["sri-api"]
-        AppWorker["sri-worker"]
-        AppMCP["sri-mcp"]
-        AppFrontend["sri-frontend"]
+    subgraph Layer3["3. STACKIT Cloud Foundry Control Plane (Diego CCDB)"]
+        CF_CCDB["Encrypted Space Environment Store<br/>Managed via cf set-env / service credentials broker<br/>Persists across application container updates"]
     end
 
-    GitHub_Secrets -->|Passed during deploy step only| Runner["GHA Ephemeral Runner"]
-    Runner -->|CF CLI Session Token| CF_Diego
-    CF_Diego -->|Injected as OS Environment Variables into Container| Runtime_Containers
+    subgraph Layer4["4. Runtime Application Instances (Diego Cells)"]
+        direction LR
+        Pod_API["sri-api<br/>(4 instances)"]
+        Pod_Worker["sri-worker<br/>(2 instances)"]
+        Pod_MCP["sri-mcp<br/>(1 instance)"]
+        Pod_Frontend["sri-frontend<br/>(1 instance)"]
+    end
+
+    subgraph Layer5["5. STACKIT Managed Infrastructure (Private VNet)"]
+        direction LR
+        Postgres[("PostgreSQL Flex<br/>188.34.100.167:5432")]
+        Redis[("Redis Cache & Broker<br/>Port 52267 (TLS)")]
+        S3[("Object Storage S3<br/>bucket-sri-production")]
+    end
+
+    Layer1 -->|Injected during deployment stage only| Layer2
+    Layer2 -->|Authenticated CF CLI API Calls| Layer3
+    Layer3 -->|Injected as OS Environment Variables| Layer4
+    Layer4 -->|Encrypted TLS Service Connections| Layer5
 ```
 
-### 5.2 Secret Classifications & Injection Methods
+### 5.2 Production Secrets & Configuration Inventory
+
+The following inventory details all sensitive credentials, database tokens, and operational parameters across the environment:
+
+| Secret / Environment Key | Storage Location | Injected Applications | Purpose & Lifecycle |
+| :--- | :--- | :--- | :--- |
+| **`CF_API`** | GitHub Actions Secrets | GHA Runner | STACKIT Cloud Foundry API endpoint (`https://api.system.01.cf.eu01.stackit.cloud`). |
+| **`CF_USERNAME` / `CF_PASSWORD`** | GitHub Actions Secrets | GHA Runner | Space-scoped deployment service account credentials. |
+| **`CF_ORG` / `CF_SPACE`** | GitHub Actions Secrets | GHA Runner | Target deployment tenancy (`organization-sri-production` / `sri-prod`). |
+| **`REGISTRY_USERNAME` / `REGISTRY_PASSWORD`** | GitHub Actions Secrets | GHA Runner | STACKIT Harbor Registry robot credentials used to push and pull container images. |
+| **`SECRET_KEY`** | STACKIT Cloud Foundry (`cf set-env`) | `sri-api`, `sri-worker`, `sri-mcp` | Django cryptographic signing key for sessions, CSRF, and JWT validation. |
+| **`DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_PORT`** | STACKIT Cloud Foundry (`cf set-env`) | `sri-api`, `sri-worker`, `sri-mcp` | STACKIT PostgreSQL Flex connection parameters (`188.34.100.167:5432`, SSL mode). |
+| **`REDIS_URL`** | STACKIT Cloud Foundry (`cf set-env`) | `sri-api`, `sri-worker`, `sri-beat`, `sri-mcp` | STACKIT Redis TLS connection string (`rediss://...:52267`) for Celery broker and cache. |
+| **`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`** | STACKIT Cloud Foundry (`cf set-env`) | `sri-api`, `sri-worker` | STACKIT Object Storage credentials for paper PDF and briefing report storage. |
+| **`AWS_S3_ENDPOINT_URL`, `AWS_STORAGE_BUCKET_NAME`** | STACKIT Cloud Foundry (`cf set-env`) | `sri-api`, `sri-worker` | S3 endpoint (`https://object.storage.eu01.onstackit.cloud`) and bucket (`bucket-sri-production`). |
+| **`GOOGLE_SERVICE_ACCOUNT_JSON`** | STACKIT Cloud Foundry (`cf set-env`) | `sri-api`, `sri-worker` | GCP IAM service account credentials for Google Vertex AI / Gemini 3.7 Flash models. |
+| **`SENTRY_DSN`** | STACKIT Cloud Foundry (`cf set-env`) | `sri-api`, `sri-worker`, `sri-mcp`, `sri-beat` | Sentry APM error tracking and distributed tracing ingest key. |
+| **`MAILGUN_API_KEY`** | STACKIT Cloud Foundry (`cf set-env`) | `sri-api` | Transactional email delivery service API key. |
+| **`ALLOWED_HOSTS`, `CSRF_TRUSTED_ORIGINS`** | Application Manifest (`manifest.yml`) | `sri-api`, `sri-frontend` | Public routing domain whitelist (`research-scanner.schwarz`, `sri-prod.apps.01.cf.eu01.onstackit.cloud`). |
+
+### 5.3 Secret Classifications & Injection Methods
 
 1. **Deployment Secrets (Stored in GitHub Secrets)**:
    - Configured under GitHub Repository Settings -> Secrets and variables -> Actions.
