@@ -126,7 +126,7 @@ export function railParts(paper: ScoredPaper, t: T, lang: Lang = 'en'): RailPart
   const axes = radarAxes(visibleDimensions, t, lang)
   const score = formatScore(paper.signal_score)
   return {
-    label: t('Schwarz Score'),
+    label: t('Total Score'),
     score,
     bars: <ScoreBars bars={visibleDimensions.map((d) => railBar(d, t, lang))} />,
     radar:
@@ -148,7 +148,7 @@ export function ScoreRailSkeleton({ t, bars = 7 }: { t: T; bars?: number }) {
   return (
     <ScoreRailFrame
       state="skeleton"
-      label={t('Schwarz Score')}
+      label={t('Total Score')}
       score={<Bone.Number digits={3} />}
       bars={Array.from({ length: bars }, (_, i) => (
         <ScoreBarFrame

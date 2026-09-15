@@ -66,12 +66,12 @@ function mockPaper(overrides: Partial<ScoredPaper> = {}): ScoredPaper {
 }
 
 describe('ScoreRail Component Rendering', () => {
-  test('renders the Schwarz score as a whole number and its label', () => {
+  test('renders the Total score as a whole number and its label', () => {
     const paper = mockPaper({ signal_score: 84.6 })
     const out = renderToStaticMarkup(<ScoreRail paper={paper} t={t} />)
     expect(out).toContain('85')
     expect(out).not.toContain('84.6')
-    expect(out).toContain('Schwarz Score')
+    expect(out).toContain('Total Score')
   })
 
   test('formats integer score without trailing zero and null score as dash', () => {

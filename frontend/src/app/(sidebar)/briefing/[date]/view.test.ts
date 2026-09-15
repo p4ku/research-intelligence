@@ -90,7 +90,7 @@ describe('searchWith', () => {
 describe('sortOptions', () => {
   test('score and date first, then each scored dimension once in definition order, TRL included', () => {
     expect(sortOptions([a, b, c, d], t)).toEqual([
-      { id: 'score', label: 'Schwarz Score' },
+      { id: 'score', label: 'Total Score' },
       { id: 'published', label: 'Date published' },
       { id: 'dim:trl', label: 'TRL' },
       { id: 'dim:rigour', label: 'Rigour' },

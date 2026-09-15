@@ -203,10 +203,7 @@ export function EditionPaperList({
             </div>
           </FilterGroup>
 
-          <FilterGroup
-            label={t('Schwarz Score')}
-            value={narrowed ? `≥ ${view.minScore}` : undefined}
-          >
+          <FilterGroup label={t('Total Score')} value={narrowed ? `≥ ${view.minScore}` : undefined}>
             <MinScoreSlider
               value={view.minScore}
               ceiling={SCORE_CEILING}

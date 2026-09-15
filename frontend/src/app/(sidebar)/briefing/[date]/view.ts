@@ -176,7 +176,7 @@ export function sortOptions(papers: readonly ScoredPaper[], t: T): SortOption[] 
   // list as it was. The option appears once any paper carries one.
   const dated = papers.some((p) => Boolean(p.published_date))
   return [
-    { id: 'score', label: t('Schwarz Score') },
+    { id: 'score', label: t('Total Score') },
     ...(dated ? [{ id: 'published', label: t('Date published') }] : []),
     ...dims,
   ]

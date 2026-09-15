@@ -123,6 +123,7 @@ export const dict: Record<string, string> = {
   Abstract: 'Abstract',
 
   // Paper analysis (sidecar layout)
+  'Total Score': 'Gesamt-Score',
   'Schwarz Score': 'Schwarz-Score',
   'View original paper': 'Originalpaper ansehen',
   'Previous paper': 'Vorheriges Paper',
