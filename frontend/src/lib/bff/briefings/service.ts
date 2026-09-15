@@ -247,6 +247,12 @@ export const briefings = {
           }
         }
       }
+      if (minScore !== undefined && minScore > 0) {
+        res = {
+          ...res,
+          papers: res.papers.filter((p) => p.signal_score !== null && p.signal_score >= minScore),
+        }
+      }
       if (page !== undefined && pageSize !== undefined) {
         const isExcluded = scope === 'excluded'
         const total = res.total ?? (isExcluded ? res.exclusions.length : res.papers.length)
