@@ -585,12 +585,27 @@ class ApiEndpointOptimizationsTestCase(TestCase):
             t1 = time.perf_counter()
 
         self.assertEqual(resp.status_code, 200)
-        print(f"\n[PROFILE RESULTS 500 PAPERS]")
-        print(f"Total time: {(t1 - t0)*1000:.2f} ms")
-        print(f"Total DB queries: {len(ctx.captured_queries)}")
+        data = resp.json()
+        total_time_ms = (t1 - t0) * 1000
+
+        print(f"\n" + "="*80)
+        print(f"📊 [PROFILING RESULTS: 500 PAPERS DATASET]")
+        print(f"Endpoint: GET /api/workspaces/{{id}}/editions/{{date}}/?scope=included&page=1&page_size=20")
+        print(f"Total Response Time: {total_time_ms:.2f} ms")
+        print(f"Total Database Queries: {len(ctx.captured_queries)}")
+        print(f"Surfaced Papers Returned: {len(data['papers'])} (Total Surfaced in Run: {data['total_papers']})")
+        print(f"="*80)
+
+        print(f"\n🔍 [SQL QUERIES SEQUENTIAL TRACE]")
+        total_db_time_s = 0.0
         for idx, q in enumerate(ctx.captured_queries):
+            q_time = float(q['time'])
+            total_db_time_s += q_time
             sql = ' '.join(q['sql'].split())
-            print(f"Q{idx+1} ({q['time']}s): {sql}")
+            print(f"[{idx+1}] ({q_time*1000:.2f} ms) {sql}")
+        print(f"Sum of DB Query Times: {total_db_time_s*1000:.2f} ms")
+
+        print(f"\n⚡ [CPROFILE: TOP 25 FUNCTIONS BY SELF TIME (tottime)]")
         s = io.StringIO()
         ps = pstats.Stats(profiler, stream=s).sort_stats('tottime')
         ps.print_stats(25)
