@@ -43,6 +43,8 @@ async function composeAll(workspaceId: string, lang: Lang): Promise<Edition[]> {
   return composeEditions(completed, scored.workspace.name, corpus, index, lang)
 }
 
+export type BriefingScope = 'all' | 'included' | 'excluded'
+
 export const briefings = {
   /**
    * Whether an edition's absence, or its emptiness, can be trusted. Under
@@ -148,6 +150,7 @@ export const briefings = {
    * One edition by date — the run's, when `runId` names one of that day's
    * runs, else the day's newest (see ./select.ts). Null when no completed
    * run produced one. Cached per request.
+   * `scope` can be 'all' (default), 'included' (surfaced only), or 'excluded' (exclusions only).
    */
   getByDate: cache(
     async (
@@ -155,10 +158,18 @@ export const briefings = {
       date: string,
       lang: Lang = 'en',
       runId?: string,
+      scope?: BriefingScope,
+      page?: number,
+      pageSize?: number,
     ): Promise<Edition | null> => {
       if (sourceOf('briefings') === 'django') {
         try {
-          const q = runId ? `?run_id=${assertUuid(runId, 'run_id')}` : ''
+          const params = new URLSearchParams()
+          if (runId) params.set('run_id', assertUuid(runId, 'run_id'))
+          if (scope && scope !== 'all') params.set('scope', scope)
+          if (page !== undefined) params.set('page', String(page))
+          if (pageSize !== undefined) params.set('page_size', String(pageSize))
+          const q = params.toString() ? `?${params.toString()}` : ''
           const ed = await django(
             `/api/workspaces/${assertUuid(workspaceId, 'workspace_id')}/editions/${date}/${q}`,
             edition,
@@ -197,25 +208,55 @@ export const briefings = {
       }
       const found = editionFor(await briefings.listAll(workspaceId, lang), date, runId)
       if (!found) return null
-      if (sourceOf('briefings') !== 'composed') return found
-      // An edition at or past the corpus snapshot's cap composed from fewer
-      // papers than its run wrote — none, or the cap cut through the run.
-      // `listRun` reads them live in that case; recompose from what it gives.
-      const [completed, scored, index, rows] = await Promise.all([
-        runs.listAll(workspaceId, 'completed'),
-        papers.listAll(workspaceId),
-        papers.runIndex(),
-        papers.listRun(workspaceId, found.run_id),
-      ])
-      const run = completed.find((r) => r.id === found.run_id)
-      if (!run || !scored) return found
-      const corpus = new Map(scored.papers.map((p) => [p.id, p]))
-      const held = papersOfRun(run.id, corpus, index).length
-      if (rows.length <= held) return found
-      // Live rows are run-scoped: each carries this run's decision and
-      // score already, so they are read as the corpus's own attribution.
-      const live = new Map(rows.map((p) => [p.id, p]))
-      return composeEdition(run, scored.workspace.name, live, null, lang)
+      let res: Edition = found
+      if (sourceOf('briefings') !== 'composed') {
+        if (scope === 'included') res = { ...found, exclusions: [] }
+        else if (scope === 'excluded') res = { ...found, papers: [] }
+      } else {
+        // An edition at or past the corpus snapshot's cap composed from fewer
+        // papers than its run wrote — none, or the cap cut through the run.
+        // `listRun` reads them live in that case; recompose from what it gives.
+        const [completed, scored, index, rows] = await Promise.all([
+          runs.listAll(workspaceId, 'completed'),
+          papers.listAll(workspaceId),
+          papers.runIndex(),
+          papers.listRun(workspaceId, found.run_id),
+        ])
+        const run = completed.find((r) => r.id === found.run_id)
+        if (!run || !scored) {
+          res = found
+        } else {
+          const corpus = new Map(scored.papers.map((p) => [p.id, p]))
+          const held = papersOfRun(run.id, corpus, index).length
+          if (rows.length <= held) {
+            if (scope === 'included') res = { ...found, exclusions: [] }
+            else if (scope === 'excluded') res = { ...found, papers: [] }
+            else res = found
+          } else {
+            // Live rows are run-scoped: each carries this run's decision and
+            // score already, so they are read as the corpus's own attribution.
+            const live = new Map(rows.map((p) => [p.id, p]))
+            const composed = composeEdition(run, scored.workspace.name, live, null, lang)
+            if (scope === 'included') res = { ...composed, exclusions: [] }
+            else if (scope === 'excluded') res = { ...composed, papers: [] }
+            else res = composed
+          }
+        }
+      }
+      if (page !== undefined && pageSize !== undefined) {
+        const total = res.papers.length
+        const start = (page - 1) * pageSize
+        const slice = res.papers.slice(start, start + pageSize)
+        return {
+          ...res,
+          papers: slice,
+          total,
+          page,
+          page_size: pageSize,
+          total_pages: Math.max(1, Math.ceil(total / pageSize)),
+        }
+      }
+      return res
     },
   ),
 
@@ -231,9 +272,30 @@ export const briefings = {
       lang: Lang = 'en',
       workspaceId?: string,
       runId?: string,
+      scope?: BriefingScope,
+      page?: number,
+      pageSize?: number,
     ): Promise<Edition | null> => {
-      if (workspaceId) return briefings.getByDate(workspaceId, date, lang, runId)
-      return editionFor(await briefings.listEverywhere(lang), date, runId)
+      if (workspaceId) return briefings.getByDate(workspaceId, date, lang, runId, scope, page, pageSize)
+      const found = editionFor(await briefings.listEverywhere(lang), date, runId)
+      if (!found) return null
+      let res: Edition = found
+      if (scope === 'included') res = { ...found, exclusions: [] }
+      else if (scope === 'excluded') res = { ...found, papers: [] }
+      if (page !== undefined && pageSize !== undefined) {
+        const total = res.papers.length
+        const start = (page - 1) * pageSize
+        const slice = res.papers.slice(start, start + pageSize)
+        return {
+          ...res,
+          papers: slice,
+          total,
+          page,
+          page_size: pageSize,
+          total_pages: Math.max(1, Math.ceil(total / pageSize)),
+        }
+      }
+      return res
     },
   ),
 }

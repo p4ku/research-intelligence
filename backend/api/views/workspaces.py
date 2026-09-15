@@ -446,6 +446,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             OpenApiParameter(name='workspace_id', type=str, location=OpenApiParameter.PATH, description='Target workspace UUID'),
             OpenApiParameter(name='edition_date', type=str, location=OpenApiParameter.PATH, description='Edition date in YYYY-MM-DD format'),
             OpenApiParameter(name='run_id', type=str, location=OpenApiParameter.QUERY, description='Optional PipelineRun UUID to select a specific run for that date'),
+            OpenApiParameter(name='scope', type=str, location=OpenApiParameter.QUERY, description="Filter scope for edition papers: 'all' (default, returns both surfaced papers and exclusions), 'included' (surfaced papers only), or 'excluded' (exclusions only)"),
         ],
         responses={
             200: OpenApiResponse(description="Briefing edition details including surfaced papers, exclusions, and funnel counts"),
@@ -512,16 +513,49 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+        # Parse scope parameter: 'all' (default), 'included', or 'excluded'
+        raw_scope = (
+            request.query_params.get('scope')
+            or request.query_params.get('include')
+            or request.query_params.get('papers')
+            or ''
+        ).strip().lower()
+
+        inc_excl = request.query_params.get('include_exclusions')
+        if inc_excl is not None and not raw_scope:
+            if inc_excl.strip().lower() in ('false', '0', 'no'):
+                raw_scope = 'included'
+            elif inc_excl.strip().lower() in ('true', '1', 'yes'):
+                raw_scope = 'all'
+
+        if raw_scope not in ('all', 'included', 'excluded'):
+            scope = 'all'
+        else:
+            scope = raw_scope
+
+        include_surfaced = scope in ('all', 'included')
+        include_exclusions = scope in ('all', 'excluded')
+
+        passed_statuses = {'accepted', 'full_text_passed', 'abstract_passed'}
+        excluded_statuses = {'rejected', 'withdrawn'}
+
+        if scope == 'included':
+            target_statuses = list(passed_statuses)
+        elif scope == 'excluded':
+            target_statuses = list(excluded_statuses)
+        else:
+            target_statuses = ['accepted', 'full_text_passed', 'abstract_passed', 'rejected', 'withdrawn']
+
+        from django.db import models as db_models
         all_metrics = list(
             PaperMetric.objects.filter(
                 pipeline_run=run,
-                screening_status__in=['accepted', 'full_text_passed', 'abstract_passed', 'rejected', 'withdrawn']
+                screening_status__in=target_statuses
             )
             .select_related('paper')
-            .order_by('-created_at')
+            .order_by(db_models.F('signal_score').desc(nulls_last=True), '-created_at')
         )
 
-        passed_statuses = {'accepted', 'full_text_passed', 'abstract_passed'}
         surfaced_metrics = []
         exclusions = []
 
@@ -529,72 +563,118 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             if not pm.paper:
                 continue
             if pm.screening_status in passed_statuses:
-                surfaced_metrics.append(pm)
+                if include_surfaced:
+                    surfaced_metrics.append(pm)
             else:
-                reason = pm.screening_reasoning or pm.abstract_screening_reasoning or pm.full_text_screening_reasoning
-                meta = getattr(pm.paper, 'meta', None) or {}
-                pub_date = None
-                for k in ('published', 'publication_date', 'published_date', 'date'):
-                    val = meta.get(k)
-                    if val:
-                        pub_date = str(val)[:10]
-                        break
-                if not pub_date and pm.paper.created_at:
-                    pub_date = pm.paper.created_at.strftime('%Y-%m-%d')
+                if include_exclusions:
+                    reason = pm.screening_reasoning or pm.abstract_screening_reasoning or pm.full_text_screening_reasoning
+                    meta = getattr(pm.paper, 'meta', None) or {}
+                    pub_date = None
+                    for k in ('published', 'publication_date', 'published_date', 'date'):
+                        val = meta.get(k)
+                        if val:
+                            pub_date = str(val)[:10]
+                            break
+                    if not pub_date and pm.paper.created_at:
+                        pub_date = pm.paper.created_at.strftime('%Y-%m-%d')
 
-                from research_intelligence.utils.source_url import resolve_paper_source_url
-                source_url = resolve_paper_source_url(pm.paper)
+                    from research_intelligence.utils.source_url import resolve_paper_source_url
+                    source_url = resolve_paper_source_url(pm.paper)
 
-                exclusions.append({
-                    "paper_id": str(pm.paper.id),
-                    "title": pm.paper.title,
-                    "source": pm.paper.source_database or 'arXiv',
-                    "reason": reason,
-                    "published_date": pub_date,
-                    "source_url": source_url,
-                })
+                    exclusions.append({
+                        "paper_id": str(pm.paper.id),
+                        "title": pm.paper.title,
+                        "source": pm.paper.source_database or 'arXiv',
+                        "reason": reason,
+                        "published_date": pub_date,
+                        "source_url": source_url,
+                    })
 
-        surfaced_metrics.sort(
-            key=lambda m: (m.signal_score is not None, m.signal_score or 0.0, m.created_at or timezone.now()),
-            reverse=True
-        )
+        # Pagination handling
+        page_param = request.query_params.get('page')
+        page_size_param = request.query_params.get('page_size') or request.query_params.get('pageSize')
+        is_paginated = page_param is not None
 
-        definitions = list(workspace.extraction_definitions.filter(is_active=True).order_by('created_at'))
-        surfaced_paper_ids = [pm.paper_id for pm in surfaced_metrics if pm.paper_id]
+        if is_paginated:
+            try:
+                page = max(1, int(page_param))
+            except (ValueError, TypeError):
+                page = 1
+            try:
+                page_size = max(1, min(200, int(page_size_param))) if page_size_param is not None else 20
+            except (ValueError, TypeError):
+                page_size = 20
+        else:
+            page = 1
+            page_size = None
 
-        extractions_map = {}
-        if surfaced_paper_ids:
-            from research_intelligence.models import Extraction
-            exts = list(
-                Extraction.objects.filter(paper_id__in=surfaced_paper_ids)
-                .select_related('extraction_definition')
-                .order_by('-created_at')
-            )
-            for ext in exts:
-                extractions_map.setdefault(ext.paper_id, []).append(ext)
+        total_surfaced = len(surfaced_metrics)
+        total_exclusions = len(exclusions)
+        total_items = total_exclusions if scope == 'excluded' else total_surfaced
 
-        from research_intelligence.services.scorecard_service import build_single_scored_paper
+        import math
+        if is_paginated and page_size is not None:
+            start = (page - 1) * page_size
+            end = start + page_size
+            total_pages = max(1, math.ceil(total_items / page_size)) if page_size > 0 else 1
+            if include_surfaced:
+                paged_surfaced_metrics = surfaced_metrics[start:end]
+            else:
+                paged_surfaced_metrics = []
+            if include_exclusions and scope == 'excluded':
+                exclusions = exclusions[start:end]
+        else:
+            paged_surfaced_metrics = surfaced_metrics
+            total_pages = 1
+            page_size = total_items
 
         surfaced = []
-        for pm in surfaced_metrics:
-            sp = build_single_scored_paper(
-                paper=pm.paper,
-                definitions=definitions,
-                target_pr_id=run.id,
-                target_pr=run,
-                metrics_list=[pm],
-                extractions_list=extractions_map.get(pm.paper.id, []),
-                request=request,
-            )
-            sp['screening_status'] = pm.screening_status
-            sp['signal_score'] = pm.signal_score
-            surfaced.append(sp)
+        if include_surfaced and paged_surfaced_metrics:
+            definitions = list(workspace.extraction_definitions.filter(is_active=True).order_by('created_at'))
+            surfaced_paper_ids = [pm.paper_id for pm in paged_surfaced_metrics if pm.paper_id]
+
+            extractions_map = {}
+            if surfaced_paper_ids:
+                from research_intelligence.models import Extraction
+                exts = list(
+                    Extraction.objects.filter(paper_id__in=surfaced_paper_ids)
+                    .select_related('extraction_definition')
+                    .order_by('-created_at')
+                )
+                for ext in exts:
+                    extractions_map.setdefault(ext.paper_id, []).append(ext)
+
+            from research_intelligence.services.scorecard_service import build_single_scored_paper
+
+            for pm in paged_surfaced_metrics:
+                sp = build_single_scored_paper(
+                    paper=pm.paper,
+                    definitions=definitions,
+                    target_pr_id=run.id,
+                    target_pr=run,
+                    metrics_list=[pm],
+                    extractions_list=extractions_map.get(pm.paper.id, []),
+                    request=request,
+                )
+                sp['screening_status'] = pm.screening_status
+                sp['signal_score'] = pm.signal_score
+                surfaced.append(sp)
 
         run_dt = run.completed_at or run.run_date or run.started_at
         actual_date_str = run_dt.strftime('%Y-%m-%d')
+
+        passed_count = (
+            total_surfaced if include_surfaced
+            else (run.total_papers_passed_screening if run.total_papers_passed_screening is not None else 0)
+        )
+        total_fetched = run.total_papers_fetched or (
+            total_surfaced + (total_exclusions if include_exclusions else 0)
+        )
+        surfaced_count = passed_count
+
         in_brief_text = (
             run.status_message
-            or f"{workspace.name} briefing for {actual_date_str}: {run.total_papers_fetched} papers ingested, {len(surfaced)} surfaced, {len(exclusions)} excluded."
+            or f"{workspace.name} briefing for {actual_date_str}: {total_fetched} papers ingested, {surfaced_count} surfaced."
         )
 
         return Response({
@@ -606,10 +686,16 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             "in_brief": in_brief_text,
             "in_brief_source": "template",
             "funnel": {
-                "fetched": run.total_papers_fetched or (len(surfaced) + len(exclusions)),
-                "passed_screening": run.total_papers_passed_screening or len(surfaced),
-                "surfaced": len(surfaced),
+                "fetched": total_fetched,
+                "passed_screening": passed_count,
+                "surfaced": surfaced_count,
             },
+            "total": total_items,
+            "total_papers": total_surfaced,
+            "total_exclusions": total_exclusions,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
             "papers": surfaced,
             "exclusions": exclusions,
             "generated_at": (

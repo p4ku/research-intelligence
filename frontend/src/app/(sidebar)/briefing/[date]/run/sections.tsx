@@ -38,7 +38,7 @@ export async function ScreeningLog({
   /** Domain names by workspace id, for the notice. */
   domains: Record<string, string>
 }) {
-  const editionPromise = briefings.findByDate(date, lang, wsId, runId)
+  const editionPromise = briefings.findByDate(date, lang, wsId, runId, 'excluded')
   const runPromise = runId ? runsService.get(runId).catch(() => null) : null
   const [edition, earlyRun] = await forPage(Promise.all([editionPromise, runPromise]))
   if (!edition) notFound()

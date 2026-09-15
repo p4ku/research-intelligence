@@ -44,6 +44,12 @@ export const editionSummary = z
     /** Surfaced papers, signal-first. */
     papers: z.array(editionPaper),
     generated_at: z.iso.datetime({ offset: true }).nullable(),
+    total: z.number().int().optional(),
+    page: z.number().int().optional(),
+    page_size: z.number().int().optional(),
+    total_pages: z.number().int().optional(),
+    total_papers: z.number().int().optional(),
+    total_exclusions: z.number().int().optional(),
   })
   .meta({ id: 'BriefingEditionSummary' })
 export type EditionSummary = z.infer<typeof editionSummary>
@@ -64,6 +70,9 @@ export const editionQuery = z.object({
   workspace_id: z.uuid().optional(),
   /** Absent = the day's newest edition; set = that run's, when it ran that day. */
   run_id: z.uuid().optional(),
+  scope: z.enum(['all', 'included', 'excluded']).optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  page_size: z.coerce.number().int().min(1).optional(),
 })
 export type EditionQuery = z.infer<typeof editionQuery>
 

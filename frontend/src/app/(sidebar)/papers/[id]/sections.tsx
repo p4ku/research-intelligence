@@ -96,7 +96,7 @@ const runContext = cache(
       const run = ledger.find((r) => r.id === runId) ?? null
       if (!run) return null
       const [found, index] = await Promise.all([
-        briefings.getByDate(run.workspace_id, editionDate(run), lang, runId),
+        briefings.getByDate(run.workspace_id, editionDate(run), lang, runId, 'included'),
         papers.runIndex(),
       ])
       // getByDate falls back to the day's newest edition; only the run's own counts.

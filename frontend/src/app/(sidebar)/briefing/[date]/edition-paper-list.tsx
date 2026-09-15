@@ -12,13 +12,14 @@ import { paperHref } from '@/lib/papers/href'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { useStars } from '@/lib/stars-client'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useCallback, useRef, useState } from 'react'
 import {
   applyView,
   DEFAULT_VIEW,
   isDefaultView,
   pageOf,
+  PAGE_SIZE,
   SCORE_CEILING,
   SCORE_STEP,
   searchWith,
@@ -27,6 +28,14 @@ import {
   withKnownSort,
   type EditionView,
 } from './view'
+
+function useSafeRouter() {
+  try {
+    return useRouter()
+  } catch {
+    return null
+  }
+}
 
 /**
  * The edition's papers, with the rail that orders and narrows them (the
@@ -53,12 +62,18 @@ export function EditionPaperList({
   runId,
   logHref,
   syncUrl = true,
+  total,
+  page: serverPage,
+  pageSize = PAGE_SIZE,
 }: {
   papers: ScoredPaper[]
   /** The edition's run — the reading its cards show. */
   runId: string
   logHref: string
   syncUrl?: boolean
+  total?: number
+  page?: number
+  pageSize?: number
 }) {
   const t = useT()
   const { isStarred } = useStars()
@@ -66,6 +81,7 @@ export function EditionPaperList({
   const [starredOnly, setStarredOnly] = useState(false)
   // Null outside the App Router (a static test render, the gallery).
   const params = useSearchParams()
+  const router = useSafeRouter()
   const [local, setLocal] = useState<EditionView>(DEFAULT_VIEW)
   const asked = syncUrl && params ? viewFrom(Object.fromEntries(params)) : local
   const update = useCallback(
@@ -81,15 +97,22 @@ export function EditionPaperList({
       // build on each other and the briefing's own params survive.
       const current = new URLSearchParams(window.location.search)
       const next = { ...viewFrom(Object.fromEntries(current)), ...change }
-      // No navigation: the App Router picks the query up from history and
-      // `useSearchParams` re-renders.
-      window.history.replaceState(
-        null,
-        '',
-        window.location.pathname + searchWith(current.toString(), next),
-      )
+      const newQuery = searchWith(current.toString(), next)
+      const newPath = window.location.pathname + newQuery
+
+      if (total !== undefined && 'page' in patch) {
+        if (router) {
+          router.push(newPath)
+        } else if (typeof window !== 'undefined') {
+          window.location.assign(newPath)
+        }
+      } else {
+        // No navigation: the App Router picks the query up from history and
+        // `useSearchParams` re-renders.
+        window.history.replaceState(null, '', newPath)
+      }
     },
-    [syncUrl],
+    [syncUrl, total, router],
   )
 
   // The pager sits under the last card, so a turned page would open at its
@@ -113,9 +136,16 @@ export function EditionPaperList({
   // offer is the score's.
   const view = withKnownSort(asked, sorts)
   const shown = applyView(filtering ? starred : papers, view)
-  // The Starred chip is local state, so its flip cannot reset the URL's page
-  // the way the rail's changes do; pageOf folds a page past the end back.
-  const paged = pageOf(shown, view.page)
+
+  const isServerPaged = total !== undefined
+  const totalPapers = total ?? shown.length
+  const paged = pageOf(shown, view.page, pageSize)
+  const pageCount = isServerPaged ? Math.max(1, Math.ceil(totalPapers / pageSize)) : paged.pageCount
+  const currentPage = isServerPaged ? view.page : paged.page
+  const from = isServerPaged ? (totalPapers === 0 ? 0 : (currentPage - 1) * pageSize + 1) : paged.from
+  const to = isServerPaged ? Math.min(totalPapers, (currentPage - 1) * pageSize + papers.length) : paged.to
+  const cardsToRender = isServerPaged ? shown : paged.rows
+
   const narrowed = view.minScore > 0
   const sortLabel = sorts.find((s) => s.id === view.sort)?.label ?? sorts[0]!.label
 
@@ -125,15 +155,15 @@ export function EditionPaperList({
         <SectionLabel size="sm">{t('The papers')}</SectionLabel>
         <span className="flex flex-wrap items-baseline justify-end gap-x-4 gap-y-1">
           <span className="font-mono text-[11px] whitespace-nowrap text-zinc-400 tabular-nums dark:text-zinc-500">
-            {paged.pageCount > 1
+            {pageCount > 1
               ? fmt(t('{from}–{to} of {n} papers'), {
-                  from: paged.from,
-                  to: paged.to,
-                  n: shown.length,
+                  from,
+                  to,
+                  n: totalPapers,
                 })
-              : shown.length === 1
+              : totalPapers === 1
                 ? t('1 paper')
-                : fmt(t('{n} papers'), { n: shown.length })}
+                : fmt(t('{n} papers'), { n: totalPapers })}
           </span>
           {stars && (
             <StarredChip
@@ -165,7 +195,7 @@ export function EditionPaperList({
       <div className="mt-5 grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <div className="space-y-3">
-            {paged.rows.map((p) => (
+            {cardsToRender.map((p) => (
               <PaperCard key={p.id} paper={p} href={paperHref(p.id, { runId })} />
             ))}
             {shown.length === 0 && (
@@ -180,8 +210,8 @@ export function EditionPaperList({
           </div>
           {/* Renders nothing for a single page, so a small briefing is unchanged. */}
           <PageNav
-            page={paged.page}
-            pageCount={paged.pageCount}
+            page={currentPage}
+            pageCount={pageCount}
             onChange={turnTo}
             className="mt-6"
             labels={{ prev: t('Previous'), next: t('Next') }}

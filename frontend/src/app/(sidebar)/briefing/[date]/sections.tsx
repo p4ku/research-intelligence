@@ -46,6 +46,7 @@ export async function EditionHead({
   t,
   domains,
   features,
+  page = 1,
 }: {
   wsId?: string
   runId?: string
@@ -56,8 +57,9 @@ export async function EditionHead({
   domains: Record<string, string>
   /** Required: page.tsx is the only caller, and its skeleton must agree. */
   features: Features
+  page?: number
 }) {
-  const editionPromise = briefings.findByDate(date, lang, wsId, runId)
+  const editionPromise = briefings.findByDate(date, lang, wsId, runId, 'included', page, 20)
   const runPromise = runId ? runsService.get(runId).catch(() => null) : null
   const [edition, earlyRun] = await forPage(Promise.all([editionPromise, runPromise]))
   // A date with no edition is a true 404 — rendered in-stream now that the
@@ -272,13 +274,15 @@ export async function EditionPapers({
   runId,
   date,
   lang,
+  page = 1,
 }: {
   wsId?: string
   runId?: string
   date: string
   lang: Lang
+  page?: number
 }) {
-  const edition = await forPage(briefings.findByDate(date, lang, wsId, runId))
+  const edition = await forPage(briefings.findByDate(date, lang, wsId, runId, 'included', page, 20))
   if (!edition) notFound()
 
   // If edition.papers already carries full scorecard records (from backend single-stream detail),
@@ -303,6 +307,8 @@ export async function EditionPapers({
     }
   }
 
+  const total = edition.total ?? edition.total_papers ?? edition.funnel.surfaced
+
   // Trimmed to what a card shows before crossing to the client: the rows as
   // read weigh ~21 KB each (card-rows.ts).
   return (
@@ -313,6 +319,9 @@ export async function EditionPapers({
         runId: edition.run_id,
         sub: 'run',
       })}
+      total={total}
+      page={page}
+      pageSize={20}
     />
   )
 }

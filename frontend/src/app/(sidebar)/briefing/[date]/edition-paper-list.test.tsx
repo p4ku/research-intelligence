@@ -176,4 +176,24 @@ describe('EditionPaperList paging', () => {
     )
     expect(out).toContain('1–20 of 45 papers')
   })
+
+  test('server-side pagination with total passed builds paginator for full count', () => {
+    const out = renderToStaticMarkup(
+      <EditionPaperList
+        papers={many.slice(0, 20)}
+        runId={runId}
+        logHref={logHref}
+        total={473}
+        page={1}
+        pageSize={20}
+      />,
+    )
+    expect(out).toContain('1–20 of 473 papers')
+    expect(out).toContain('Paper 1</h3>')
+    expect(out).toContain('Paper 20</h3>')
+    expect(out).toContain('aria-label="Pagination"')
+    expect(out).toContain('aria-current="page"')
+    expect(out).toContain('Previous')
+    expect(out).toContain('Next')
+  })
 })

@@ -368,6 +368,153 @@ class ApiEndpointOptimizationsTestCase(TestCase):
         self.assertEqual(resp_run.status_code, 200)
         self.assertEqual(resp_run.json()["run_id"], str(run.id))
 
+    def test_edition_detail_scope_filtering(self):
+        """
+        Verify GET /api/workspaces/{id}/editions/{date}/?scope=all|included|excluded:
+        1. ?scope=all (and default without scope) returns both surfaced papers and exclusions.
+        2. ?scope=included returns surfaced papers and empty exclusions ([]), skipping excluded metrics.
+        3. ?scope=excluded returns exclusions and empty papers ([]), skipping extractions and scorecard building.
+        4. Funnel counts remain consistent regardless of scope.
+        5. ?include_exclusions=false backward-compatibility flag maps to scope=included.
+        """
+        target_date = datetime(2026, 9, 6, 14, 0, 0, tzinfo=dt_timezone.utc)
+        target_date_str = "2026-09-06"
+
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Scope Benchmark Run",
+            status="completed",
+            completed_at=target_date,
+            total_papers_fetched=10,
+            total_papers_passed_screening=2
+        )
+
+        p1 = Paper.objects.create(workspace=self.workspace, title="Passed Paper 1", source_database="arXiv", hash_id="scope_hash_1")
+        PaperMetric.objects.create(paper=p1, pipeline_run=run, workspace=self.workspace, screening_status="accepted", signal_score=90.0)
+
+        p2 = Paper.objects.create(workspace=self.workspace, title="Passed Paper 2", source_database="arXiv", hash_id="scope_hash_2")
+        PaperMetric.objects.create(paper=p2, pipeline_run=run, workspace=self.workspace, screening_status="full_text_passed", signal_score=80.0)
+
+        p3 = Paper.objects.create(workspace=self.workspace, title="Excluded Paper 1", source_database="arXiv", hash_id="scope_hash_3")
+        PaperMetric.objects.create(paper=p3, pipeline_run=run, workspace=self.workspace, screening_status="rejected", abstract_screening_reasoning="Out of scope")
+
+        # 1. Default (omitted scope) -> returns both
+        res_default = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/").json()
+        self.assertEqual(len(res_default["papers"]), 2)
+        self.assertEqual(len(res_default["exclusions"]), 1)
+        self.assertEqual(res_default["funnel"]["fetched"], 10)
+        self.assertEqual(res_default["funnel"]["passed_screening"], 2)
+
+        # 2. scope=all -> returns both
+        res_all = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?scope=all").json()
+        self.assertEqual(len(res_all["papers"]), 2)
+        self.assertEqual(len(res_all["exclusions"]), 1)
+
+        # 3. scope=included -> returns papers only, exclusions: []
+        res_included = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?scope=included").json()
+        self.assertEqual(len(res_included["papers"]), 2)
+        self.assertEqual(len(res_included["exclusions"]), 0)
+        self.assertEqual(res_included["funnel"]["fetched"], 10)
+        self.assertEqual(res_included["funnel"]["passed_screening"], 2)
+
+        # 4. scope=excluded -> returns exclusions only, papers: []
+        res_excluded = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?scope=excluded").json()
+        self.assertEqual(len(res_excluded["papers"]), 0)
+        self.assertEqual(len(res_excluded["exclusions"]), 1)
+        self.assertEqual(res_excluded["exclusions"][0]["title"], "Excluded Paper 1")
+        self.assertEqual(res_excluded["funnel"]["fetched"], 10)
+        self.assertEqual(res_excluded["funnel"]["passed_screening"], 2)
+
+        # 5. Backward compatibility: include_exclusions=false
+        res_compat = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?include_exclusions=false").json()
+        self.assertEqual(len(res_compat["papers"]), 2)
+        self.assertEqual(len(res_compat["exclusions"]), 0)
+
+    def test_edition_detail_pagination(self):
+        """
+        Verify GET /api/workspaces/{id}/editions/{date}/ with pagination:
+        1. ?page=1&page_size=2 slices to first 2 papers, returns total=3, total_pages=2, page=1, page_size=2.
+        2. ?page=2&page_size=2 slices to remaining 1 paper, returns total=3, total_pages=2, page=2, page_size=2.
+        3. Funnel counts (passed_screening=3, surfaced=3) reflect the TRUE totals, not the page slice!
+        4. Exclusions pagination works when scope=excluded (?scope=excluded&page=1&page_size=1).
+        5. Unpaginated request still defaults to page=1, total_pages=1, returning all items.
+        """
+        target_date = datetime(2026, 9, 7, 10, 0, 0, tzinfo=dt_timezone.utc)
+        target_date_str = "2026-09-07"
+
+        run = PipelineRun.objects.create(
+            workspace=self.workspace,
+            name="Pagination Test Run",
+            status="completed",
+            completed_at=target_date,
+            total_papers_fetched=15,
+            total_papers_passed_screening=3
+        )
+
+        p1 = Paper.objects.create(workspace=self.workspace, title="Paginated Paper 1", source_database="arXiv", hash_id="page_hash_1")
+        PaperMetric.objects.create(paper=p1, pipeline_run=run, workspace=self.workspace, screening_status="accepted", signal_score=95.0)
+
+        p2 = Paper.objects.create(workspace=self.workspace, title="Paginated Paper 2", source_database="arXiv", hash_id="page_hash_2")
+        PaperMetric.objects.create(paper=p2, pipeline_run=run, workspace=self.workspace, screening_status="accepted", signal_score=85.0)
+
+        p3 = Paper.objects.create(workspace=self.workspace, title="Paginated Paper 3", source_database="arXiv", hash_id="page_hash_3")
+        PaperMetric.objects.create(paper=p3, pipeline_run=run, workspace=self.workspace, screening_status="accepted", signal_score=75.0)
+
+        p4 = Paper.objects.create(workspace=self.workspace, title="Excluded Paper 1", source_database="arXiv", hash_id="page_hash_4")
+        PaperMetric.objects.create(paper=p4, pipeline_run=run, workspace=self.workspace, screening_status="rejected", abstract_screening_reasoning="Reason 1")
+
+        p5 = Paper.objects.create(workspace=self.workspace, title="Excluded Paper 2", source_database="arXiv", hash_id="page_hash_5")
+        PaperMetric.objects.create(paper=p5, pipeline_run=run, workspace=self.workspace, screening_status="rejected", abstract_screening_reasoning="Reason 2")
+
+        # 1. Page 1 of papers
+        resp_p1 = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?scope=included&page=1&page_size=2")
+        self.assertEqual(resp_p1.status_code, 200)
+        data_p1 = resp_p1.json()
+        self.assertEqual(len(data_p1["papers"]), 2)
+        self.assertEqual(data_p1["papers"][0]["title"], "Paginated Paper 1")
+        self.assertEqual(data_p1["papers"][1]["title"], "Paginated Paper 2")
+        self.assertEqual(data_p1["total"], 3)
+        self.assertEqual(data_p1["total_papers"], 3)
+        self.assertEqual(data_p1["page"], 1)
+        self.assertEqual(data_p1["page_size"], 2)
+        self.assertEqual(data_p1["total_pages"], 2)
+        # Verify funnel counts reflect true total of 3, NOT the slice length 2!
+        self.assertEqual(data_p1["funnel"]["passed_screening"], 3)
+        self.assertEqual(data_p1["funnel"]["surfaced"], 3)
+
+        # 2. Page 2 of papers
+        resp_p2 = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?scope=included&page=2&page_size=2")
+        self.assertEqual(resp_p2.status_code, 200)
+        data_p2 = resp_p2.json()
+        self.assertEqual(len(data_p2["papers"]), 1)
+        self.assertEqual(data_p2["papers"][0]["title"], "Paginated Paper 3")
+        self.assertEqual(data_p2["total"], 3)
+        self.assertEqual(data_p2["page"], 2)
+        self.assertEqual(data_p2["page_size"], 2)
+        self.assertEqual(data_p2["total_pages"], 2)
+        self.assertEqual(data_p2["funnel"]["passed_screening"], 3)
+        self.assertEqual(data_p2["funnel"]["surfaced"], 3)
+
+        # 3. Exclusions pagination
+        resp_ex1 = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?scope=excluded&page=1&page_size=1")
+        self.assertEqual(resp_ex1.status_code, 200)
+        data_ex1 = resp_ex1.json()
+        self.assertEqual(len(data_ex1["exclusions"]), 1)
+        self.assertEqual(data_ex1["total"], 2)
+        self.assertEqual(data_ex1["total_exclusions"], 2)
+        self.assertEqual(data_ex1["page"], 1)
+        self.assertEqual(data_ex1["page_size"], 1)
+        self.assertEqual(data_ex1["total_pages"], 2)
+
+        # 4. Unpaginated request retains all items and returns total
+        resp_all = self.client.get(f"/api/workspaces/{self.workspace.id}/editions/{target_date_str}/?scope=included")
+        self.assertEqual(resp_all.status_code, 200)
+        data_all = resp_all.json()
+        self.assertEqual(len(data_all["papers"]), 3)
+        self.assertEqual(data_all["total"], 3)
+        self.assertEqual(data_all["page"], 1)
+        self.assertEqual(data_all["total_pages"], 1)
+
     def test_chat_sessions_single_workspacemember_query(self):
         """
         Verify GET /api/chat/sessions/ for a non-superuser:

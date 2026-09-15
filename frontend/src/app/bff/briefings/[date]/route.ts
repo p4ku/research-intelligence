@@ -16,8 +16,16 @@ export const GET = bff('briefings', async (request, ctx) => {
   const kept = new URLSearchParams()
   for (const [key, value] of request.nextUrl.searchParams) if (value !== '') kept.append(key, value)
   url.search = kept.toString()
-  const { workspace_id, run_id } = parseQuery(editionQuery, url)
-  const found = await briefings.findByDate(assertDate(date), await getLang(), workspace_id, run_id)
+  const { workspace_id, run_id, scope, page, page_size } = parseQuery(editionQuery, url)
+  const found = await briefings.findByDate(
+    assertDate(date),
+    await getLang(),
+    workspace_id,
+    run_id,
+    scope,
+    page,
+    page_size,
+  )
   if (!found) throw problem('not-found', { detail: 'No briefing for that day.' })
   return Response.json(found)
 })
