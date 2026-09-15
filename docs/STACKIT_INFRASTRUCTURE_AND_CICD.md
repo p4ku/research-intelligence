@@ -10,7 +10,8 @@ This document provides a comprehensive technical overview of the **Schwarz Resea
 3. [Automated Update Procedures & Rolling Deployments](#3-automated-update-procedures--rolling-deployments)
 4. [Cache Refresh & Invalidation Policies](#4-cache-refresh--invalidation-policies)
 5. [Secrets Management & Key Storage Hierarchy](#5-secrets-management--key-storage-hierarchy)
-6. [STACKIT DevOps Runbook & Day-2 Operations](#6-stackit-devops-runbook--day-2-operations)
+6. [Observability, APM & Sentry Telemetry](#6-observability-apm--sentry-telemetry)
+7. [STACKIT DevOps Runbook & Day-2 Operations](#7-stackit-devops-runbook--day-2-operations)
 
 ---
 
@@ -247,7 +248,7 @@ Security and tenant isolation require that **no credentials, private keys, or pa
 ### 5.1 Secrets Inventory & Storage Locations
 
 ```mermaid
-flowchart LR
+flowchart TD
     subgraph GitHub_Secrets["GitHub Actions Repository Secrets"]
         G1["CF_API (Cloud Foundry API endpoint)"]
         G2["CF_USERNAME & CF_PASSWORD (Deployer Account)"]
@@ -303,43 +304,153 @@ flowchart LR
 
 ---
 
-## 6. STACKIT DevOps Runbook & Day-2 Operations
+## 6. Observability, APM & Sentry Telemetry
 
-### 6.1 Essential Cloud Foundry CLI Commands
+The platform integrates **Sentry** as the primary Application Performance Monitoring (APM) and real-time distributed error tracking engine across both web backends and asynchronous worker pipelines.
+
+### 6.1 Sentry Architecture & Telemetry Scope
+- **Backend & Celery Worker Telemetry (`sentry-sdk>=2.68.0`)**:
+  - Initialized in [`backend/django_project/settings.py`](file:///Users/piotr/git/schwarz_research_inteligence/backend/django_project/settings.py) when `SENTRY_DSN` is populated in the container environment.
+  - **`DjangoIntegration`**: Automatically captures uncaught HTTP 500 errors, Django REST Framework exceptions, slow database query alerts, and HTTP request context (paths, query parameters, client IP, request headers).
+  - **`CeleryIntegration`**: Propagates trace contexts across Celery task dispatches. If an 8-stage literature extraction task fails, times out, or triggers a worker loss, the exact task ID, queue name (`celery`, `tenant-default`, `tenant-bulk-scraping`), retry counter, and task parameters are attached to the Sentry incident.
+  - **`LoggingIntegration(event_level=logging.ERROR)`**: Captures standard Python error and critical log records as structured Sentry events.
+  - **External API & Scraper Resilience**: Dedicated `sentry_sdk.capture_exception(e)` handlers across external academic scrapers (arXiv, OpenAlex, The Lens) capture upstream rate limits or unexpected payload changes without crashing worker processes.
+- **Performance Tracing & Function Profiling**:
+  - `SENTRY_TRACES_SAMPLE_RATE`: Controls transaction trace sampling (defaults to `1.0` in lower environments, tunable via environment variable).
+  - `SENTRY_PROFILE_SESSION_SAMPLE_RATE` & `profile_lifecycle='trace'`: Continuously samples execution profiles to identify database N+1 queries, slow vector embedding searches, and long-running AI API calls.
+
+### 6.2 Sentry Environment Configuration
+Sentry is configured as an environment secret in STACKIT Cloud Foundry so no DSNs or private tokens are checked into git:
+```bash
+# Inject or update Sentry DSN across all applications
+cf set-env sri-api SENTRY_DSN "https://<key>@o4511999152291840.ingest.de.sentry.io/<project>"
+cf set-env sri-worker SENTRY_DSN "https://<key>@o4511999152291840.ingest.de.sentry.io/<project>"
+cf set-env sri-mcp SENTRY_DSN "https://<key>@o4511999152291840.ingest.de.sentry.io/<project>"
+cf set-env sri-beat SENTRY_DSN "https://<key>@o4511999152291840.ingest.de.sentry.io/<project>"
+```
+
+---
+
+## 7. STACKIT DevOps Runbook & Day-2 Operations
+
+This section provides the essential daily operational commands for STACKIT DevOps and Cloud Operations teams to authenticate via SSO, monitor pod/container health, stream logs, inspect specific pod instances, and debug issues.
+
+### 7.1 Cloud Foundry SSO Login & Target Selection
+
+For interactive DevOps terminal access using corporate Single Sign-On (SSO):
 
 ```bash
-# 1. Log in and target production space
-cf api https://api.apps.01.cf.eu01.onstackit.cloud
-cf auth <username> <password>
-cf target -o <organization> -s sri-prod
+# 1. Log in via STACKIT SSO (prompts with one-time browser authentication URL)
+cf login -a https://api.system.01.cf.eu01.stackit.cloud --sso
 
-# 2. View status, memory, and CPU of all running apps
+# 2. When prompted:
+#    - Open the displayed URL in your browser
+#    - Authenticate using your corporate STACKIT / Schwarz identity
+#    - Copy the generated one-time passcode and paste it into the terminal
+
+# 3. Target the organization and production space
+cf target -o <STACKIT_ORG_NAME> -s sri-prod
+
+# 4. Alternatively, non-interactive login for service accounts / automation:
+cf login -a https://api.system.01.cf.eu01.stackit.cloud -u <USERNAME> -p <PASSWORD> -o <ORG> -s sri-prod
+```
+
+### 7.2 Pod / Container Health & Instance Inspection
+
+In STACKIT Cloud Foundry, "pods" run as Diego container instances. Use these commands to inspect their health, memory, and CPU utilization:
+
+```bash
+# 1. Overview of all 5 deployed applications (state, instances, memory, disk, urls)
 cf apps
 
-# 3. Stream real-time container logs
+# 2. Detailed health breakdown of a specific app and ALL its container instances
+cf app sri-api
+# Output lists each instance index (#0, #1, #2, #3), state (RUNNING), CPU %, memory usage, and uptime.
+
+# 3. Check health and resource usage of worker instances
+cf app sri-worker
+
+# 4. View recent platform events (e.g. OOM kills, container crashes, scaling events)
+cf events sri-api
+cf events sri-worker
+```
+
+### 7.3 Log Streaming & Pod Log Extraction
+
+Cloud Foundry multiplexes logs from all container instances through the Loggregator Firehose:
+
+```bash
+# 1. Stream real-time logs for a specific application (all instances multiplexed)
 cf logs sri-api
 cf logs sri-worker
 cf logs sri-frontend
+cf logs sri-mcp
+cf logs sri-beat
 
-# 4. View recent logs (post-crash investigation)
+# 2. Dump recent logs from the buffer (essential after an unexpected crash or 500 error)
 cf logs sri-api --recent
 cf logs sri-worker --recent
+cf logs sri-frontend --recent
 
-# 5. Perform zero-downtime restart of an application
+# 3. Filter logs by a specific container instance / pod index (e.g. instance #0 vs #1)
+# Cloud Foundry tags lines with [APP/PROC/WEB/<index>] or [APP/PROC/CELERY/<index>]
+cf logs sri-api --recent | grep "\[APP/PROC/WEB/0\]"
+cf logs sri-worker --recent | grep "\[APP/PROC/CELERY/1\]"
+
+# 4. Filter only application errors, exceptions, and stack traces
+cf logs sri-api --recent | grep -iE "error|exception|critical"
+cf logs sri-worker --recent | grep -iE "error|exception|traceback|retry"
+```
+
+### 7.4 Interactive Container Shell (SSH Debugging)
+
+DevOps can open an interactive shell directly inside a running Diego container instance to inspect files, test database connectivity, or verify environment variables:
+
+```bash
+# 1. SSH into the primary instance (instance #0) of the API
+cf ssh sri-api
+
+# 2. SSH into a specific instance index (e.g. instance #2)
+cf ssh sri-api -i 2
+
+# 3. SSH into a Celery worker container
+cf ssh sri-worker -i 0
+
+# 4. Common diagnostic commands once inside the container shell:
+# Check environment variables:
+env | grep -E "DB_|REDIS_|S3_|SENTRY_"
+
+# Test Postgres Flex connectivity via Django:
+python manage.py check --database default
+
+# Test Redis cache & broker connectivity:
+python -c "import redis, os; r = redis.from_url(os.environ['REDIS_URL']); print('Redis ping:', r.ping())"
+
+# Exit container shell:
+exit
+```
+
+### 7.5 Application Lifecycle & Emergency Controls
+
+```bash
+# 1. Graceful restart (re-spins containers with current environment)
 cf restart sri-api
 cf restart sri-worker
 cf restart sri-frontend
 
-# 6. Dynamically scale instances or memory
-cf scale sri-api -i 5           # Scale API to 5 instances
-cf scale sri-worker -m 4G       # Increase Celery worker memory to 4 GB
+# 2. Restage application (re-downloads container image and rebuilds droplets)
+cf restage sri-api
 
-# 7. Open an interactive shell inside a running container
-cf ssh sri-api
-cf ssh sri-worker
+# 3. View injected environment variables and service bindings
+cf env sri-api
+cf env sri-worker
+
+# 4. Dynamically scale instances or memory on the fly
+cf scale sri-api -i 6              # Scale API to 6 instances under heavy traffic
+cf scale sri-worker -m 4G          # Increase Celery worker memory limit to 4 GB
 ```
 
-### 6.2 Emergency Rollback Procedure
+### 7.6 Emergency Rollback Procedure
 If a newly deployed image exhibits unforeseen production regressions:
 
 1. **Option A: Quick Rollback to Previous Image via Manifest**:
@@ -358,3 +469,4 @@ If a newly deployed image exhibits unforeseen production regressions:
 
 2. **Option B: Git Revert via CI/CD**:
    Revert the commit on `main` branch (`git revert HEAD && git push origin main`). GitHub Actions will execute the full automated quality gate, build, and deploy the previous stable codebase within ~3 minutes.
+
