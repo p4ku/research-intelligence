@@ -19,6 +19,8 @@ export const editionExclusion = z
     source: z.string(),
     /** The screening model's reasoning, verbatim. */
     reason: z.string().nullable(),
+    published_date: z.string().nullable().optional(),
+    source_url: z.string().nullable().optional(),
   })
   .meta({ id: 'EditionExclusion' })
 export type EditionExclusion = z.infer<typeof editionExclusion>

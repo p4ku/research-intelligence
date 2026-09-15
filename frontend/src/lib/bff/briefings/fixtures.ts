@@ -62,6 +62,8 @@ export const fixtureEditions: Edition[] = [
         title: excluded.title,
         source: excluded.source,
         reason: excluded.screening_reasoning,
+        published_date: excluded.published_date,
+        source_url: excluded.source_url,
       },
     ],
     generated_at: '2026-08-31T08:29:05.470057Z',

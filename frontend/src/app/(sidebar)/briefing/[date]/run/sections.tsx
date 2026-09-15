@@ -76,7 +76,12 @@ export async function ScreeningLog({
         <SectionLabel size="sm">{t('Screened out')}</SectionLabel>
 
         {edition.exclusions.length > 0 ? (
-          <ExclusionsTable exclusions={edition.exclusions} t={t} />
+          <ExclusionsTable
+            exclusions={edition.exclusions}
+            t={t}
+            runId={run?.id ?? edition.run_id}
+            lang={lang}
+          />
         ) : (
           <p className="mt-5 max-w-2xl text-sm text-zinc-500 dark:text-zinc-400">
             {t('Nothing was screened out in this run.')}

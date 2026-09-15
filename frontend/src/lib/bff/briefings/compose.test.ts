@@ -116,6 +116,8 @@ describe('composeEditions', () => {
         title: 'Paper 45',
         source: paper0!.source,
         reason: 'Withdrawn by the authors after the rerun.',
+        published_date: paper0!.published_date,
+        source_url: paper0!.source_url,
       },
     ])
   })

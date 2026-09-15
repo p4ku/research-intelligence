@@ -532,11 +532,26 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                 surfaced_metrics.append(pm)
             else:
                 reason = pm.screening_reasoning or pm.abstract_screening_reasoning or pm.full_text_screening_reasoning
+                meta = getattr(pm.paper, 'meta', None) or {}
+                pub_date = None
+                for k in ('published', 'publication_date', 'published_date', 'date'):
+                    val = meta.get(k)
+                    if val:
+                        pub_date = str(val)[:10]
+                        break
+                if not pub_date and pm.paper.created_at:
+                    pub_date = pm.paper.created_at.strftime('%Y-%m-%d')
+
+                from research_intelligence.utils.source_url import resolve_paper_source_url
+                source_url = resolve_paper_source_url(pm.paper)
+
                 exclusions.append({
                     "paper_id": str(pm.paper.id),
                     "title": pm.paper.title,
                     "source": pm.paper.source_database or 'arXiv',
                     "reason": reason,
+                    "published_date": pub_date,
+                    "source_url": source_url,
                 })
 
         surfaced_metrics.sort(

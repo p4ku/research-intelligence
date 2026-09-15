@@ -43,6 +43,8 @@ export function composeEdition(
       title: paper.title,
       source: paper.source,
       reason,
+      published_date: paper.published_date ?? null,
+      source_url: paper.source_url ?? null,
     }))
   const prose = templateProse(
     {
