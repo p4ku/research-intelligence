@@ -48,9 +48,7 @@ export async function ScreeningLog({
   const copy = funnelCopy(t)
   const period = run ? periodLabel(run, t, lang) : formatDay(edition.date, lang)
   const instant = run?.completed_at ?? edition.generated_at ?? run?.started_at
-  const generatedStamp = instant
-    ? formatTimestamp(instant, lang)
-    : formatDay(edition.date, lang)
+  const generatedStamp = instant ? formatTimestamp(instant, lang) : formatDay(edition.date, lang)
 
   const funnel: StatBandItem[] = [
     { value: edition.funnel.fetched, ...copy[0] },

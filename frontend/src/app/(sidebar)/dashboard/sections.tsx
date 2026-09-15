@@ -7,13 +7,7 @@ import type { Lang, T } from '@/lib/i18n'
 import { paperHref } from '@/lib/papers/href'
 import { editionHref } from '../briefing/format'
 import { currentRun, inFlightRuns, recentBriefings } from './data'
-import {
-  clockStamp,
-  formatAuthors,
-  formatClock,
-  formatDay,
-  periodLabel,
-} from './format'
+import { clockStamp, formatAuthors, formatClock, formatDay, periodLabel } from './format'
 import { HomeGrid, HomeLinks, type HomePaper } from './home-ui'
 import { Ledger, type HomeRow, type RowStatus } from './ledger'
 import { LiveRefresh } from './live-refresh'
@@ -75,11 +69,7 @@ export async function LedgerSection({
   today: string
 }) {
   const [items, current, inFlight] = await forPage(
-    Promise.all([
-      recentBriefings(lang),
-      currentRun(),
-      inFlightRuns(),
-    ]),
+    Promise.all([recentBriefings(lang), currentRun(), inFlightRuns()]),
   )
   const rows: HomeRow[] = items.map(({ run, edition }) => {
     const status = rowStatus(run, current?.id ?? null)
