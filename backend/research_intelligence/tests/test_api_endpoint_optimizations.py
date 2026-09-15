@@ -1056,6 +1056,7 @@ class ApiEndpointOptimizationsTestCase(TestCase):
             q['sql'] for q in ctx.captured_queries
             if 'FROM "research_intelligence_extraction"' in q['sql'] or 'from "research_intelligence_extraction"' in q['sql'].lower()
         ]
+
         self.assertEqual(len(papermetric_queries), 1, "PaperMetric must be queried exactly once")
         self.assertEqual(len(extraction_queries), 1, "Extraction must be queried exactly once (bulk-fetched)")
 

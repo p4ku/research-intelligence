@@ -581,29 +581,42 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
             end = start + page_size
 
             if include_surfaced:
-                surfaced_qs = base_pm_qs.filter(screening_status__in=passed_statuses, paper__isnull=False)
-                total_surfaced = surfaced_qs.count()
+                surfaced_qs = (
+                    base_pm_qs.filter(screening_status__in=passed_statuses, paper__isnull=False)
+                    .defer('metrics_data')
+                )
                 paged_surfaced_metrics = list(
                     surfaced_qs.select_related('paper')
                     .order_by(db_models.F('signal_score').desc(nulls_last=True), '-created_at')[start:end]
                 )
+                if start == 0 and len(paged_surfaced_metrics) < page_size:
+                    total_surfaced = len(paged_surfaced_metrics)
+                else:
+                    total_surfaced = surfaced_qs.count()
             else:
                 total_surfaced = 0
                 paged_surfaced_metrics = []
 
             if include_exclusions:
-                excluded_qs = base_pm_qs.filter(screening_status__in=excluded_statuses, paper__isnull=False)
-                total_exclusions = excluded_qs.count()
+                excluded_qs = (
+                    base_pm_qs.filter(screening_status__in=excluded_statuses, paper__isnull=False)
+                    .defer('metrics_data')
+                )
                 if scope == 'excluded':
                     paged_excluded_metrics = list(
                         excluded_qs.select_related('paper')
                         .order_by(db_models.F('signal_score').desc(nulls_last=True), '-created_at')[start:end]
                     )
+                    if start == 0 and len(paged_excluded_metrics) < page_size:
+                        total_exclusions = len(paged_excluded_metrics)
+                    else:
+                        total_exclusions = excluded_qs.count()
                 else:
                     paged_excluded_metrics = list(
                         excluded_qs.select_related('paper')
                         .order_by(db_models.F('signal_score').desc(nulls_last=True), '-created_at')
                     )
+                    total_exclusions = len(paged_excluded_metrics)
             else:
                 total_exclusions = 0
                 paged_excluded_metrics = []
@@ -617,6 +630,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
                     screening_status__in=target_statuses,
                     paper__isnull=False
                 )
+                .defer('metrics_data')
                 .select_related('paper')
                 .order_by(db_models.F('signal_score').desc(nulls_last=True), '-created_at')
             )
