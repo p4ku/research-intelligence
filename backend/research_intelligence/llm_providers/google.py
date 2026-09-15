@@ -133,7 +133,9 @@ class GoogleAgentAPIProvider(BaseLLMProvider):
             except Exception as e:
                 logger.warning(f"Failed to load credentials from GOOGLE_SERVICE_ACCOUNT_JSON env var: {str(e)}")
 
-        target_project_id = self.project_id or sa_project_id
+        # If service account credentials are provided, prefer the service account's own project_id
+        # to prevent cross-project IAM 403 PERMISSION_DENIED when GOOGLE_CLOUD_PROJECT points to a different project.
+        target_project_id = sa_project_id or self.project_id
         # Note: google-genai SDK types.HttpOptions expects timeout in milliseconds (120,000 ms = 2 minutes).
         # A 2-minute ceiling prevents threads from hanging for 5+ minutes on stalled TCP/DNS connections.
         http_options = types.HttpOptions(timeout=120000) if hasattr(types, 'HttpOptions') else None
