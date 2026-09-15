@@ -5,15 +5,17 @@ import { PageNav } from '@/components/page-nav'
 import { PaperCard } from '@/components/paper-card'
 import { SectionLabel } from '@/components/scanner-ui'
 import { StarredChip } from '@/components/star'
+import { Spinner } from '@/components/ui/spinner'
 import { useFeatures } from '@/lib/features-client'
 import { fmt } from '@/lib/i18n'
 import { useT } from '@/lib/i18n-client'
 import { paperHref } from '@/lib/papers/href'
 import type { ScoredPaper } from '@/lib/papers/types'
 import { useStars } from '@/lib/stars-client'
+import clsx from 'clsx'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import {
   applyView,
   DEFAULT_VIEW,
@@ -83,6 +85,10 @@ export function EditionPaperList({
   const params = useSearchParams()
   const router = useSafeRouter()
   const [local, setLocal] = useState<EditionView>(DEFAULT_VIEW)
+  const [isPending, startTransition] = useTransition()
+  const [targetPage, setTargetPage] = useState<number | null>(null)
+  const prevPageRef = useRef<number | null>(null)
+
   const asked = syncUrl && params ? viewFrom(Object.fromEntries(params)) : local
   const update = useCallback(
     (patch: Partial<EditionView>) => {
@@ -102,7 +108,9 @@ export function EditionPaperList({
 
       if (total !== undefined && 'page' in patch) {
         if (router) {
-          router.push(newPath)
+          startTransition(() => {
+            router.push(newPath)
+          })
         } else if (typeof window !== 'undefined') {
           window.location.assign(newPath)
         }
@@ -115,14 +123,15 @@ export function EditionPaperList({
     [syncUrl, total, router],
   )
 
-  // The pager sits under the last card, so a turned page would open at its
-  // foot: the section is brought back to the top of the viewport instead.
-  // Instant, not smooth — the cards have already changed under the reader.
+  // The pager sits under the last card, so a turned page opens back at the
+  // top of the viewport once loaded.
   const top = useRef<HTMLElement>(null)
   const turnTo = useCallback(
     (page: number) => {
-      update({ page })
-      top.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
+      setTargetPage(page)
+      startTransition(() => {
+        update({ page })
+      })
     },
     [update],
   )
@@ -142,6 +151,15 @@ export function EditionPaperList({
   const paged = pageOf(shown, view.page, pageSize)
   const pageCount = isServerPaged ? Math.max(1, Math.ceil(totalPapers / pageSize)) : paged.pageCount
   const currentPage = isServerPaged ? view.page : paged.page
+  const pendingPage = isPending ? targetPage : null
+
+  useEffect(() => {
+    if (prevPageRef.current !== null && prevPageRef.current !== currentPage) {
+      top.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
+    }
+    prevPageRef.current = currentPage
+  }, [currentPage])
+
   const from = isServerPaged
     ? totalPapers === 0
       ? 0
@@ -158,7 +176,17 @@ export function EditionPaperList({
   return (
     <section ref={top} className="scroll-mt-6">
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <SectionLabel size="sm">{t('The papers')}</SectionLabel>
+        <div className="flex items-center gap-3">
+          <SectionLabel size="sm">{t('The papers')}</SectionLabel>
+          {isPending && (
+            <span className="inline-flex animate-pulse items-center gap-1.5 font-mono text-[11px] font-medium text-accent">
+              <Spinner className="size-3 text-accent" />
+              <span>
+                {pendingPage ? fmt(t('Loading page {n}…'), { n: pendingPage }) : t('Loading…')}
+              </span>
+            </span>
+          )}
+        </div>
         <span className="flex flex-wrap items-baseline justify-end gap-x-4 gap-y-1">
           <span className="font-mono text-[11px] whitespace-nowrap text-zinc-400 tabular-nums dark:text-zinc-500">
             {pageCount > 1
@@ -200,7 +228,18 @@ export function EditionPaperList({
       </div>
       <div className="mt-5 grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <div className="space-y-3">
+          {isPending && (
+            <div className="mb-3 h-1 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
+              <div className="h-full w-2/5 animate-pulse rounded-full bg-accent" />
+            </div>
+          )}
+          <div
+            className={clsx(
+              'space-y-3 transition-opacity duration-200',
+              isPending && 'pointer-events-none opacity-40',
+            )}
+            aria-busy={isPending || undefined}
+          >
             {cardsToRender.map((p) => (
               <PaperCard key={p.id} paper={p} href={paperHref(p.id, { runId })} />
             ))}
@@ -221,6 +260,8 @@ export function EditionPaperList({
             onChange={turnTo}
             className="mt-6"
             labels={{ prev: t('Previous'), next: t('Next') }}
+            pendingPage={pendingPage}
+            disabled={isPending}
           />
         </div>
 

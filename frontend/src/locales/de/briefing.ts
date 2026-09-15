@@ -50,6 +50,8 @@ export const dict: Record<string, string> = {
   'Loading the briefings': 'Die Briefings werden geladen',
   'Loading the briefing': 'Das Briefing wird geladen',
   'Loading the screening log': 'Das Screening-Protokoll wird geladen',
+  'Loading…': 'Wird geladen…',
+  'Loading page {n}…': 'Seite {n} wird geladen…',
   '1 paper': '1 Paper',
   '{n} papers': '{n} Papers',
   // The count when the list is paged: "21–40 of 566 papers". 'Previous' and
