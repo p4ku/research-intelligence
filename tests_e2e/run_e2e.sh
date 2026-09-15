@@ -45,6 +45,9 @@ for arg in "$@"; do
         local|localhost)
             TARGET="local"
             ;;
+        all)
+            EXTRA_ARGS+=("--scenario=all")
+            ;;
         *)
             EXTRA_ARGS+=("$arg")
             ;;

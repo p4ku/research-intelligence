@@ -617,6 +617,18 @@ def main():
             # 18. Human-in-the-Loop Validation Journey
             _run_and_track("Human-in-the-Loop Validation", run_hitl_validation_journey_scenario, config)
 
+            # 19. Stars Curation Journey
+            _run_and_track("Stars Curation Journey", run_stars_curation_journey_scenario, config)
+
+            # 20. Paper Page Scorecard Journey
+            _run_and_track("Paper Page Scorecard Journey", run_paper_page_scorecard_journey_scenario, config)
+
+            # 21. Executive Briefing Export
+            _run_and_track("Executive Briefing Export", run_executive_briefing_export_scenario, config)
+
+            # 22. Briefing Filters, Scope & Pagination
+            _run_and_track("Briefing Filters, Scope & Pagination", run_briefing_filters_and_pagination_scenario, config)
+
             total_elapsed = time.time() - t0
             print_suite_summary(suite_results, total_elapsed, config=config)
 
